@@ -1,0 +1,13 @@
+id: predicted-edge-overlay
+name: Predicted Edge Overlay
+category: analysis
+description: Load scored predicted edges, draw them distinct from observed edges, and show the supporting paths for each
+    prediction.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W140
+implemented_by_components: []
+requirements: []
+sources: []

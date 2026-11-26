@@ -1,0 +1,146 @@
+id: W293
+name: Event Table to Weighted Network (Calls, Emails, Transactions, Connections)
+category: onboarding
+validated: false
+personas:
+    - event-log-network-builder
+    - graph-data-wrangler
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - node-merging
+    - computed-attributes
+    - basic-statistics
+    - degree-analysis
+    - visual-encoding-edges
+    - event-table-to-graph
+    - provenance-tracking
+    - import-report
+    - edge-merge-policy
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - statistics-panel
+    - data-table-panel
+    - graph-canvas
+starting_state:
+    data_type: One row per event (caller, called, time, duration, cell site; or from, to, cc, bcc; or payer, payee, amount)
+    node_count: hundreds to tens of thousands of distinct endpoints
+    edge_density: sparse, with many repeated pairs
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Turn a log of events into a network of who interacted with whom, choosing what an edge means (every
+    event, or one edge per pair with a count or a weight), the direction, and how identifiers are normalized. Call
+    detail records, email archives, bank transactions, forum replies and network connection logs all follow this path.
+
+
+    **Mental Model**: "Every row is a contact; the network is the summary." The analyst decides whether the summary
+    keeps every contact or counts them.
+
+
+    **Task Phases** (no source gives step timings):
+
+    1. **Inspect the raw rows** - Endpoints may sit in several columns (From, To, Cc, Bcc), may point at another record
+    rather than a person (a forum reply's target is a post id, joined to find the replied-to author), or may be split by
+    a direction column saying inbound or outbound
+
+    2. **Normalize identifiers** - Phone number formats, email aliases, account numbers with and without prefixes;
+    rewrite values with substitution rules before matching
+
+    3. **Choose what an edge is** - Keep every event as its own link; one summarized link per pair with a count
+    (dropping per-event attributes); a weighted formula (for example direct messages plus a discounted sum over Cc
+    recipients, then symmetrized); or binary and undirected (an edge if at least one message was sent either way)
+
+    4. **Choose direction** - Caller to called, sender to recipient, payer to payee; one direction for all links or
+    read from a column
+
+    5. **Or build a hypergraph** - One node per event and one per distinct value, or link a row's values directly to
+    each other
+
+    6. **Load and check counts** - Unique endpoints, edges after aggregation, self-loops (a person emailing themself),
+    and the share of events that lost an endpoint
+
+
+    **Decision Points**:
+
+    - Multigraph of events, or aggregated pairs with a count or sum?
+
+    - Which columns are endpoints, and is Cc a weaker tie than To?
+
+    - Directed, or symmetrized by sum, max or min?
+
+    - Which identifier variants are the same entity?
+
+    - Restrict to an internal domain or keep outside parties?
+
+
+    **Information Needs**:
+
+    - Events read, events kept, events that lost an endpoint
+
+    - Unique endpoints before and after normalization
+
+    - Edge count after aggregation, with the weight rule stated
+
+    - Self-loop count and the top repeated pairs
+
+    - Per-event attributes still reachable from an aggregated edge
+
+
+    **Pain Points**:
+
+    - Each new source layout (each carrier, bank or log format) needs a new mapping
+
+    - Several formats of the same phone number or address split one entity into several nodes
+
+    - Libraries that keep one edge per pair silently drop repeated events unless they are counted first (NetworkX
+    DiGraph)
+
+    - Aggregation discards the timestamps and durations the analyst later needs for the timeline
+
+    - Excel truncates rows at 1,048,576, so large logs are cut off before import
+
+
+    **Data Flow**:
+
+    - Input: Event table (CSV, Excel, log export)
+
+    - Transformations: Identifier normalization, pointer-column joins, endpoint extraction, aggregation or multigraph,
+    direction, optional hypergraph
+
+    - Output: Weighted or multi-edge network with counts, event attributes kept or summarized, and a count report
+success_criteria:
+    - metric: Edge meaning stated
+      target: The chosen aggregation and weight rule are shown on the loaded graph and in its export
+    - metric: Lost events visible
+      target: User can see how many events lost an endpoint and why
+    - metric: Event drill-down
+      target: From an aggregated edge, the user can list the underlying events
+sources:
+    - title: Hardin et al. - Enron email network tutorial (Journal of Statistics Education)
+      url: https://jse.amstat.org/v23n2/hardin/EnronTutorial.pdf
+      summary: Weighted formula adding direct messages to discounted Cc, restricted to enron.com, symmetrized U = M + M^T - D
+    - title: SNAP - email-Enron
+      url: https://snap.stanford.edu/data/email-Enron.html
+      summary: Binary undirected edge if one address sent at least one email to the other; 36,692 nodes and 183,831 edges
+    - title: Penn networks book - Network data hands-on
+      url: http://wonderlab.gse.upenn.edu/networks_book/ch6-network-data-handson.html
+      summary: Forum reply targets are post ids to be joined; groupby size to count repeated pairs
+    - title: PyGraphistry - hypergraph
+      url: https://pygraphistry.readthedocs.io/en/0.52.1/api/hyper.html
+      summary: One node per event and per value, or direct=True to link values to each other
+    - title: i2 Analyst's Notebook - Setting the link direction
+      url: https://docs.i2group.com/anb/9.4.0/setting_the_link_direction.html
+      summary: Direction for all links or from a column
+    - title: IBM technote - link multiplicity in Analyst's Notebook
+      url: https://www.ibm.com/support/pages/node/6413409
+      summary: Multiple links versus one summarized link per pair
+    - title: IBM technote - Item matching and duplicate handling
+      url: https://www.ibm.com/support/pages/item-matching-and-duplicate-handling-analysis-repository-onyx-importer
+      summary: Normalize values before matching
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

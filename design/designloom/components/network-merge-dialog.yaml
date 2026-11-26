@@ -7,6 +7,17 @@ implements_capabilities:
     - comparison-view
 used_in_workflows:
     - W24
+    - W107
+    - W118
+    - W126
+    - W171
+    - W199
+    - W200
+    - W217
+    - W241
+    - W447
+    - W53
+    - W63
 dependencies: []
 props: {}
 sources: []

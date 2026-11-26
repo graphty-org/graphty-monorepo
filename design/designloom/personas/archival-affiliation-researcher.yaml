@@ -1,0 +1,78 @@
+id: archival-affiliation-researcher
+name: Political Scientist Working from Records and Texts
+role: Political Scientist or Historical Sociologist (Cosponsorship, Interlocks, Alliances, Discourse Networks)
+quote: Every committee becomes a clique the moment I project it. I need the two-mode picture, the right weights, and a coalition map per year.
+bio: >-
+    Dr. Tomas Varga builds networks from records and coded texts rather than surveys: legislative cosponsorship, board
+    interlocks, memberships, alliances and treaties, and statements in policy debates coded by who said what and
+    whether they agreed. His data are usually two-mode (person by bill, director by board, actor by concept), weighted
+    and temporal -- one network per year or per time window. He scrapes or hand-codes CSV files, works in R (igraph,
+    tnet, btergm, rDNA), uses Pajek for big files, codes newspaper articles in the Discourse Network Analyzer and opens
+    the resulting GraphML in visone or Gephi for coalition maps. Replication archives such as the briatte/congress
+    repository rebuild cosponsorship networks back to 1973. His questions are who is central or bridging, which
+    coalitions exist and how they shift, and whether position predicts an outcome such as bill passage or alliance
+    formation.
+characteristics:
+    expertise: expert
+    time_pressure: medium
+    graph_literacy: advanced
+    domain_knowledge: advanced
+motivations:
+    - Analyze affiliation data without the artifacts that projection introduces
+    - Show how coalitions form, split and polarize over time
+    - Test whether network position predicts political outcomes with temporal network models
+    - Publish replication data and figures reviewers can reproduce
+behaviors:
+    - Stores person-by-group incidence data as an edge list or matrix (Fowler mapped all 280,000 bills in Congress)
+    - Projects two-mode data with binary, sum or Newman weights and compares the choice
+    - Codes statements in DNA with actor, concept, agreement and date, then exports congruence and conflict networks
+    - Normalizes congruence weights so the most quoted actors do not dominate
+    - Builds yearly networks (btergm's alliances data has 20 yearly networks among 164 countries) and fits TERGMs
+    - Draws signed coalition maps and small multiples per period
+frustrations:
+    - Projections turn every group into a clique and inflate clustering and structural-hole measures
+    - Choosing among binary, sum and Newman weights with little guidance
+    - Partial two-mode support (the R network package's Pajek reader cannot handle 2-mode files)
+    - Congruence networks dominated by the most quoted actors until normalized
+    - Manual statement coding is slow
+context:
+    frequency: weekly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W28
+    - W30
+    - W31
+    - W32
+    - W33
+    - W36
+sources:
+    - title: Fowler (2006) Connecting the Congress
+      url: https://www.cambridge.org/core/journals/political-analysis/article/connecting-the-congress-a-study-of-cosponsorship-networks/B42907E13C3D1F12BBC7618C8E0EECED
+      summary: Cosponsorship networks over 280,000 bills; shared-bill weights turned into a connectedness score
+    - title: briatte/congress replication repository
+      url: https://github.com/briatte/congress
+      summary: Rebuilds US cosponsorship networks from 1973 on
+    - title: tnet two-mode projection
+      url: https://toreopsahl.com/tnet/two-mode-networks/projection/
+      summary: Binary, sum and Newman projection weights
+    - title: Opsahl (2013) Triadic closure in two-mode networks
+      url: https://arxiv.org/abs/1006.0887v2
+      summary: Projection inflates clustering
+    - title: Leifeld (2017) Discourse network analysis
+      url: https://eprints.gla.ac.uk/121525/1/121525.pdf
+      summary: Statement variables, affiliation, congruence and conflict networks, time windows and normalization
+    - title: Discourse Network Analyzer repository
+      url: https://github.com/leifeld/dna
+      summary: Java coding tool, GraphML export, visone recommended, rDNA functions
+    - title: btergm reference manual
+      url: https://cran.r-project.org/web/packages/btergm/refman/btergm.html
+      summary: Temporal ERGM with bootstrap intervals, out-of-sample GOF, alliances data
+    - title: R network package file I/O source
+      url: https://sources.debian.org/src/r-cran-network/1.19.0-1/R/fileio.R
+      summary: Pajek reader cannot currently handle 2-mode files
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

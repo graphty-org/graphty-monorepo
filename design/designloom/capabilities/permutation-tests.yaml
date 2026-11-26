@@ -1,0 +1,13 @@
+id: permutation-tests
+name: Permutation Tests (CUG, QAP, MRQAP)
+category: analysis
+description: CUG and QAP tests and MRQAP with double semi-partialling, showing permutation p-values and a
+    null-distribution histogram.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W30
+implemented_by_components: []
+requirements: []
+sources: []

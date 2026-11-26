@@ -1,0 +1,14 @@
+id: map-time-sync
+name: Map View Synced to Time Window
+category: visualization
+description: "A map view that honors the time window: positions and events outside the window hidden or faded,
+    time-varying positions (cell sites, GPS fixes) move as the window plays, shown beside the network."
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W305
+    - W311
+implemented_by_components: []
+requirements: []
+sources: []

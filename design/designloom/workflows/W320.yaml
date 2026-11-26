@@ -1,0 +1,116 @@
+id: W320
+name: Cybersecurity Attack-Path Findings and Exposure Tracking
+category: reporting
+validated: false
+personas:
+    - graph-deliverable-recipient
+requires_capabilities:
+    - shortest-path
+    - all-paths-finding
+    - path-highlighting
+    - removal-impact-analysis
+    - temporal-analysis
+    - comparison-view
+    - export-image
+    - data-export
+    - report-generation
+    - de-identified-display
+    - structured-findings-export
+    - deliverable-templates
+suggested_components:
+    - graph-canvas
+    - path-finder-dialog
+    - impact-analysis-dialog
+    - temporal-controls
+    - comparison-view
+    - data-table-panel
+    - image-export-dialog
+    - data-export-dialog
+    - report-generator-dialog
+starting_state:
+    data_type: identity and access graph (users, groups, computers, permissions, sessions) or a lateral-movement or threat-intelligence graph
+    node_count: thousands to hundreds of thousands
+    edge_density: dense
+    user_expertise: advanced
+goal: >-
+    **Intent**: Hand off what attackers could do or did do - per-path findings with images that hide object names, a
+    chronological hop table, threat-intelligence bundles and blocklists - and, for defenders, track exposure as a trend
+    regenerated after every data collection.
+
+
+    **Mental Model**: "Each path is a finding; exposure is a number over time." A client reads findings with
+    reproduction steps; a defender watches whether there are fewer paths to Tier Zero than last month.
+
+
+    **Task Phases**:
+
+    1. **Per-engagement findings** (per path) - Hide labels, export the path image (PNG, JPG or SVG) or JSON, and write
+    each path as a finding with reproduction commands
+
+    2. **Lateral movement** (1-2 h) - Hand off a chronological hop table: time, source, target, account, logon type,
+    evidence
+
+    3. **Threat intelligence** (30 min) - Export a STIX report bundle, PDF or image; send blocklists and hunt queries to
+    the SOC and STIX to partners
+
+    4. **Continuous exposure** (every collection) - Re-run the analysis, compare with the previous run, report the
+    trend in Tier Zero exposure
+
+
+    **Decision Points**:
+
+    - Which paths are findings and which are noise?
+
+    - Which object names may appear in the client report?
+
+    - Which choke points to recommend removing first?
+
+    - Did exposure fall after remediation?
+
+
+    **Information Needs**:
+
+    - Paths to high-value targets with each hop's privilege
+
+    - Choke points whose removal cuts the most paths
+
+    - Time-ordered hops with evidence for incident reports
+
+    - Difference in exposure between two analysis runs
+
+
+    **Pain Points**:
+
+    - Object names leak into report images unless labels are hidden
+
+    - Image export is an enterprise-only feature in some tools
+
+    - Hop tables and STIX are assembled outside the graph tool
+
+    - Exposure trends need a vendor dashboard
+
+
+    **Data Flow**:
+
+    - Input: Collected identity graph, incident evidence, or threat-intelligence graph
+
+    - Transformations: Path enumeration, label redaction, hop ordering, run-to-run comparison
+
+    - Output: Findings with label-hidden images, hop table CSV, STIX JSON, blocklists, exposure trend
+success_criteria:
+    - metric: Redaction
+      target: Exported images and files contain no hidden object names
+    - metric: Hop table completeness
+      target: Each hop carries time, source, target, account and evidence
+    - metric: Trend regeneration
+      target: Exposure after a new collection is compared with the previous run without rebuilding the view
+sources:
+    - title: BloodHound Enterprise datasheet
+      url: https://specterops.io/wp-content/uploads/sites/3/2025/07/BHE_Datasheet_1016-4_61bcf0.pdf
+      summary: Continuously identify every available attack path; exposure tracked over time
+    - title: Cambridge Intelligence - Intelligence dissemination with PDF exports
+      url: https://cambridge-intelligence.com/intelligence-dissemination-with-pdf-exports/
+      summary: Static exports for disseminating graph findings
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

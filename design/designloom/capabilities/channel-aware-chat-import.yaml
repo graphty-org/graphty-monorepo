@@ -1,0 +1,13 @@
+id: channel-aware-chat-import
+name: Channel-Aware Chat Import
+category: data
+description: Import chat channels without drawing header membership as a clique; weight edges by messages exchanged
+    within time slices.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W369
+implemented_by_components: []
+requirements: []
+sources: []

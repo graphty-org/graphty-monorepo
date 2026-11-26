@@ -1,0 +1,139 @@
+id: W386
+name: Desire Lines and Corridor Demand
+category: analysis
+validated: false
+personas:
+    - urban-mobility-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - node-merging
+    - computed-attributes
+    - filtering
+    - saved-filters
+    - visual-encoding-edges
+    - legend-display
+    - large-graph-rendering
+    - ego-network
+    - export-image
+    - data-export
+    - geographic-layout
+    - od-flow-import
+    - flow-arithmetic
+    - flow-clutter-control
+    - spatial-aggregation
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - computed-attributes-panel
+    - filter-panel
+    - range-slider
+    - slider
+    - visual-encoding-panel
+    - legend-panel
+    - graph-canvas
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: long-form commuting OD table by mode between small zones plus zone centroids (for example 2.4 million rows over 7,201 zones)
+    node_count: 1000-8000
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Turn a large commuting OD table into desire lines -- straight lines between zone centroids sized by
+    trips -- filtered to the pairs that matter, so a transport planner can see which corridors would serve the most
+    trips for a new cycle route, bus line or service.
+
+
+    **Mental Model**: "Where people want to go, regardless of the network." Each line is unmet or met demand between
+    two zones; thick bundles of parallel lines suggest a corridor.
+
+
+    **Task Phases**:
+
+    1. **Load long-form OD** - England and Wales MSOA commuting (2,402,201 rows, 7,201 zone centroids); long form is the
+    most useful for large sparse data, but matrix and long forms convert both ways
+
+    2. **Split intra-zonal from inter-zonal** - Same-zone pairs are local activity with zero-length lines
+
+    3. **Merge directions** - Sum A to B and B to A, because overlapping one-way lines hide each other
+
+    4. **Make lines** - Join both ends to zone centroids, after checking for ids that match no zone
+
+    5. **Filter** - London has 352,654 lines; keeping inter-zonal flows of 20 or more leaves 28,879 lines (8.19 percent
+    of lines, 55.7 percent of trips); about 20,000 lines plot quickly; the Propensity to Cycle Tool keeps pairs under
+    20 km with at least 10 commuters and offers a top-N slider
+
+    6. **Jitter or route** - Sample start and end points within zones and split large flows, or route lines on the
+    street network and sum them into a route network (excluding within-zone trips)
+
+
+    **Decision Points**:
+
+    - Minimum flow and maximum distance?
+
+    - Merge directions or keep them separate?
+
+    - Which mode or purpose column to size by?
+
+    - Centroid lines, jittered lines or routed network?
+
+    - How many top pairs to show?
+
+
+    **Information Needs**:
+
+    - Share of lines and share of trips kept by the current filter
+
+    - Count of intra-zonal trips per zone, shown even though their lines have length zero
+
+    - Ids that match no zone
+
+    - Ranked top OD pairs by trips
+
+
+    **Pain Points**:
+
+    - Hundreds of thousands of lines overwhelm plotting and the reader
+
+    - Desire lines in modeling software are straight only
+
+    - All-zone desire maps are hard to read without aggregation to districts
+
+    - Within-zone trips disappear because their lines have no length
+
+
+    **Data Flow**:
+
+    - Input: Long OD table (origin zone, destination zone, all trips, trips per mode) and zone centroids
+
+    - Transformations: Intra-zonal split, two-way merge, id join, minimum-flow and distance filter, top-N
+
+    - Output: Desire-line map with width legend, ranked OD pair table, filtered flow export
+success_criteria:
+    - metric: Filter transparency
+      target: User sees the share of trips kept and lines kept for every filter change
+    - metric: Scale
+      target: Tens of thousands of desire lines remain interactive
+    - metric: Local trips visible
+      target: Intra-zonal totals are shown per zone, not silently dropped
+sources:
+    - title: stplanr - OD data vignette
+      url: https://docs.ropensci.org/stplanr/articles/stplanr-od.html
+      summary: Long versus matrix form, intra-zonal split, od_oneway, od2line, London filter counts
+    - title: Lovelace et al. - The Propensity to Cycle Tool
+      url: https://ar5iv.arxiv.org/html/1509.04425
+      summary: Pairs under 20 km with at least 10 commuters, top-n slider, routed networks
+    - title: Lovelace - Jittering OD data
+      url: https://robinlovelace.net/publications/lovelace-jittering-2022-b/
+      summary: Sampling origins and destinations within zones and splitting large flows
+    - title: PTV Visum help - Desire lines (matrix spiders)
+      url: https://cgi.ptvgroup.com/vision-help/VISUM_2025_ENG/Content/1_Tabellarische_grafische_Darstellung/1_12_Matrixspinnen.htm
+      summary: Desire lines in Visum are straight lines only
+    - title: TRMG2 model wiki - Tools
+      url: https://www.github.com/Triangle-Modeling-and-Analytics/TRMG2/wiki/6-Tools
+      summary: All-zone desire maps are hard to read; aggregation to districts
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

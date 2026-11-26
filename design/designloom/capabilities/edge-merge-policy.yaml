@@ -1,0 +1,17 @@
+id: edge-merge-policy
+name: Direction and Parallel-Edge Policy
+category: analysis
+description: "Explicit choice at import of directed, undirected or per-edge direction from a column, and of what
+    repeated source-target rows mean: keep as multi-edges, or merge with count, sum, average, min, max, first or last;
+    never merge across layers silently."
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W18
+    - W291
+    - W293
+    - W303
+implemented_by_components: []
+requirements: []
+sources: []

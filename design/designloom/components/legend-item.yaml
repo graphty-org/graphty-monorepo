@@ -9,6 +9,8 @@ implements_capabilities:
 used_in_workflows:
     - W02
     - W04
+    - W352
+    - W375
 dependencies:
     - color-swatch
     - tooltip

@@ -1,0 +1,13 @@
+id: seeded-score-propagation
+name: Seeded Score Propagation
+category: analysis
+description: Propagate scores from a labeled seed set of nodes (for example counsel) through a directed graph, such as
+    personalized PageRank.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W365
+implemented_by_components: []
+requirements: []
+sources: []

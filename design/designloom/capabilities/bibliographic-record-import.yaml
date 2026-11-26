@@ -1,0 +1,25 @@
+id: bibliographic-record-import
+name: Bibliographic, patent and grant record import
+category: data
+description: Read record exports from Web of Science, Scopus, Dimensions, Lens (scholarly and patent, CSV and JSONL),
+    PubMed, RIS, BibTeX, OpenAlex and grant databases, loading many batch files as one corpus and deduplicating across
+    sources by DOI, database ID or title plus author plus year, with per-source and duplicate counts.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W335
+    - W50
+    - W51
+    - W52
+    - W53
+    - W54
+    - W55
+    - W59
+    - W60
+implemented_by_components: []
+requirements:
+    - Read Web of Science, Scopus and OpenAlex records (including an OpenAlex citing-works query) into works with year,
+      field, keywords and references, and build keyword co-occurrence or coupling networks with thresholds and
+      fractional counting.
+sources: []

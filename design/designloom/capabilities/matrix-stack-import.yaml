@@ -1,0 +1,13 @@
+id: matrix-stack-import
+name: Matrix Stack Import
+category: data
+description: Import a nodes x nodes x windows matrix stack as a snapshot series over a fixed node set with per-window
+    weights, threshold or target density per window, and window clustering into states with dwell times.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W310
+implemented_by_components: []
+requirements: []
+sources: []

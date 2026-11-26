@@ -1,0 +1,12 @@
+id: motif-census
+name: Motif Census
+category: analysis
+description: 3- and 4-node subgraph counts with z-scores against a chosen null.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W37
+implemented_by_components: []
+requirements: []
+sources: []

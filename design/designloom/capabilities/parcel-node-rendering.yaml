@@ -1,0 +1,14 @@
+id: parcel-node-rendering
+name: Parcel Node Rendering
+category: visualization
+description: Render a node as a region mesh built from a NIfTI label atlas or GIfTI/CIFTI label file, colored on the
+    same data-driven scale as sphere nodes, with multi-view (lateral/medial) grids.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W158
+    - W159
+implemented_by_components: []
+requirements: []
+sources: []

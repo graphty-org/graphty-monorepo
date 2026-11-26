@@ -1,0 +1,131 @@
+id: W84
+name: What Does This Change Affect in the Build Graph
+category: analysis
+validated: false
+personas:
+    - software-supply-chain-security-engineer
+    - analytics-engineer-lineage
+requires_capabilities:
+    - data-import
+    - search
+    - node-selection
+    - neighborhood-expansion
+    - removal-impact-analysis
+    - all-paths-finding
+    - path-highlighting
+    - filtering
+    - layout-hierarchical
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - large-graph-rendering
+    - details-on-demand
+    - data-export
+    - export-image
+    - directed-closure
+    - cycle-detection
+    - dependency-format-import
+suggested_components:
+    - file-drop-zone
+    - search-input
+    - graph-canvas
+    - layout-panel
+    - filter-panel
+    - path-finder-dialog
+    - node-details-panel
+    - data-table-panel
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: build or infrastructure-as-code dependency graph (Bazel query DOT, Nx project graph JSON, terraform graph DOT) plus a list of changed files
+    node_count: 50-50,000 targets or resources (no source gives typical sizes)
+    edge_density: sparse DAG; cycles are errors
+    user_expertise: expert
+goal: >-
+    **Intent**: For a commit, compute which targets, projects or infrastructure resources it affects so CI builds and
+    tests only those, and explain why each one is affected. Build, release and infrastructure-as-code engineers do this
+    on every CI run, mostly through automation; they have no dedicated persona and share the task shape of the
+    developer and data-engineer personas linked here (dbt Slim CI's `state:modified+` is the same computation).
+
+
+    **Mental Model**: "Reverse dependencies of what changed, inside a universe I can see." The answer is only as
+    complete as the graph loaded.
+
+
+    **Task Phases** (no source gives per-step durations):
+
+    1. **Get changed files** - From git, between base and head refs
+
+    2. **Compute reverse dependencies within a universe** - Bazel `rdeps(u, x)` and `rdeps(u, x, depth)`; Nx affected
+
+    3. **Avoid the universe trap** - An inferred universe can silently shrink the result (`allrdeps(//my:target)` may
+    return only the target itself)
+
+    4. **Visualize when needed** - `bazel query "allpaths(...)" --output graph | dot -Tsvg`; `nx graph --affected`;
+    `--explain` writes why each task is affected
+
+    5. **Infrastructure as code** - `terraform graph` emits DOT of resource ordering; `-draw-cycles` colors cycle edges;
+    large graphs are grepped by module before rendering, or opened in Rover, Blast Radius or Inframap
+
+
+    **Decision Points**:
+
+    - Which universe (loaded subgraph) is the right one?
+
+    - Does the affected set look right, or did the universe hide dependents?
+
+    - Which affected targets must run before merge?
+
+
+    **Information Needs**:
+
+    - The universe used, shown with the result
+
+    - Why each node is affected (a path from a changed node)
+
+    - Cycle edges marked distinctly
+
+    - Grouping by module or package to keep large graphs readable
+
+
+    **Pain Points**:
+
+    - Static DOT images stop helping past a few dozen Terraform resources
+
+    - Sky Query output is unordered, so graph output is unavailable with it
+
+    - Practitioners grep the DOT text before rendering because the full graph is unreadable
+
+
+    **Data Flow**:
+
+    - Input: Changed files, Bazel query DOT, Nx project graph and explain JSON, terraform graph DOT
+
+    - Transformations: Bounded reverse closure within a universe, path explanation, module grouping, cycle marking
+
+    - Output: Affected target list for CI, explain output, optional diagram
+success_criteria:
+    - metric: Affected set
+      target: User obtains the reverse closure of changed nodes with the universe stated
+    - metric: Explanation
+      target: User can show a path from a changed node to any affected node
+    - metric: Large graphs
+      target: A graph of thousands of targets is navigable without grepping the source first
+sources:
+    - title: Bazel - Query guide
+      url: https://bazel.build/query/guide
+      summary: allpaths with --output graph piped to dot
+    - title: Bazel - Query language reference
+      url: https://bazel.build/query/language
+      summary: rdeps(u, x, depth), universe scope trap, Sky Query unordered output
+    - title: Nx - Affected
+      url: https://nx.dev/docs/features/ci-features/affected
+      summary: nx affected, nx graph --affected, --explain JSON
+    - title: Terraform - graph command
+      url: https://developer.hashicorp.com/terraform/cli/commands/graph
+      summary: DOT of resource ordering, -type=plan, -draw-cycles
+    - title: Spacelift - Terraform graph
+      url: https://spacelift.io/blog/terraform-graph
+      summary: Large graphs dense and hard to read; grep by module; Rover, Blast Radius, Inframap alternatives
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

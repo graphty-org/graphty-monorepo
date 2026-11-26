@@ -1,0 +1,142 @@
+id: W122
+name: Tracing APP Scam Proceeds From a First-Hop Mule
+category: analysis
+validated: false
+personas:
+    - fraud-analyst
+requires_capabilities:
+    - search
+    - node-selection
+    - neighborhood-expansion
+    - temporal-navigation
+    - filtering
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-hierarchical
+    - path-highlighting
+    - details-on-demand
+    - annotation
+    - analysis-history
+    - data-export
+    - time-respecting-paths
+    - live-graph-streaming
+suggested_components:
+    - search-input
+    - graph-canvas
+    - context-menu
+    - temporal-controls
+    - filter-panel
+    - visual-encoding-panel
+    - legend-panel
+    - layout-panel
+    - node-details-panel
+    - data-table-panel
+    - annotation-toolbar
+    - analysis-history-panel
+    - data-export-dialog
+starting_state:
+    data_type: one reported victim payment into a customer account, plus that bank's outgoing payments (Faster Payments, card, transfers) arriving in near real time
+    node_count: 2-50 accounts
+    edge_density: sparse tree fanning out from the first-hop account
+    user_expertise: intermediate
+goal: >-
+    **Intent**: When a sending bank reports that an authorised push payment (APP) scam victim's money landed in one of
+    this bank's accounts, find where it went within minutes and freeze what is still reachable. Since 7 October 2024 UK
+    payment firms must reimburse APP scam victims (up to 85,000 pounds) and split the cost 50:50 with the receiving firm,
+    so the receiving bank now pays for the mules it banks. Speed is the whole job: in Lloyds data on known mules nearly 28
+    percent of value left within 15 minutes and a further 25 percent within an hour.
+
+
+    **Mental Model**: "Follow the victim's payment, not the account." Only payments that left after the victim's money
+    arrived, and only up to the amount received, can carry it. The trace is a tree growing forward in time, one hop at a
+    time, with a decision on every node.
+
+
+    **Task Phases**:
+
+    1. **Receive the victim report** (1 min) - The sending bank names the payment into the first-hop account
+
+    2. **Seed the graph with the payment** (1 min) - Start from the transaction, not the account; show its amount and time
+
+    3. **Expand forward hop by hop** (minutes, repeated) - Show only outgoing payments after the seed's time, capped at the
+    amount received, inside the bank and to named receiving banks; add new payments as they arrive
+
+    4. **Decide per hop** (1-2 min each) - Hold, freeze, or notify the next bank; mark each node with its decision and
+    time
+
+    5. **Repatriate and report** (30 min) - Return what is held, file the SAR, record the receiving-bank contribution
+
+
+    **Decision Points**:
+
+    - Which onward payments could carry the victim's money (after arrival, within the amount)?
+
+    - Hold, freeze or notify at each account?
+
+    - Is the money still inside the bank, or gone to another bank, a card or cash?
+
+    - When is the trail lost (cash-out usually happens between the second and fifth mule)?
+
+
+    **Information Needs**:
+
+    - Time since the victim payment arrived, at each hop
+
+    - Amount still traceable at each account
+
+    - Channel of each onward payment (Faster Payments, debit card, transfer)
+
+    - The decision recorded on each node, with time
+
+
+    **Pain Points**:
+
+    - Firms focus on outbound monitoring without adequate inbound monitoring
+
+    - Receiving firms respond too slowly to notifications
+
+    - No single institution sees the whole chain; only the payment scheme does
+
+    - Account-centred graphs show every payment, including ones that cannot carry the victim's money
+
+
+    **Data Flow**:
+
+    - Input: Victim report naming the payment; the receiving bank's account transactions as they arrive; notifications
+    from other banks
+
+    - Transformations: Seeded, time-respecting forward expansion capped at the amount received; per-node decision
+    recording
+
+    - Output: Freeze and notify actions with times, repatriation record, SAR, record of the receiving-bank contribution
+success_criteria:
+    - metric: Time-respecting expansion
+      target: Expanding from the seed shows only payments made after it arrived and caps the traced amount at what was received
+    - metric: Decision trail
+      target: Every account in the trace carries its hold, freeze or notify decision and time, exportable as a table
+sources:
+    - title: PSR - APP fraud reimbursement final details
+      url: https://www.psr.org.uk/news-and-updates/latest-news/news/psr-continues-to-take-bold-action-on-app-fraud-as-it-publishes-final-reimbursement-details-ahead-of-2024-implementation/
+      summary: Mandatory reimbursement from 7 October 2024, cost shared between sending and receiving firms
+    - title: ICAEW - The fight against APP scams
+      url: https://icaew.com/technical/financial-services/2025/the-fight-against-app-scams
+      summary: Reimbursement cap of 85,000 pounds and 50:50 split (read through search summary)
+    - title: RUSI - Following the fraud, the role of money mules (2025)
+      url: https://static.rusi.org/following-the-fraud-the-role-of-money-mules.pdf
+      summary: Lloyds data on known mules; 28 percent of value left within 15 minutes, under 15 percent remained after 24 hours; 57 percent left by Faster Payments
+    - title: FCA - Proceeds of fraud, detecting and preventing money mules (2023)
+      url: https://www.fca.org.uk/publications/multi-firm-reviews/proceeds-fraud-detecting-preventing-money-mules
+      summary: Inadequate inbound monitoring; receiving firms not responding swiftly enough
+    - title: FCA - Money mules activity, cashing out findings (2025)
+      url: https://www.fca.org.uk/publications/multi-firm-reviews/money-mules-activity-cashing-out-findings
+      summary: Cash-out concentrated between the second and fifth mule; 238,396 customers offboarded for suspected mule activity in 2025
+    - title: FinTech Global - Banks risk missing mule networks beyond the first hop
+      url: https://fintech.global/2026/10/07/banks-risk-missing-mule-networks-beyond-the-first-hop/
+      summary: No individual institution necessarily has visibility of the entire chain
+    - title: Mastercard / Vocalink AML case study
+      url: https://www.mastercard.us/content/dam/mccom/en-us/documents/vocalink-anti-money-laundering-case-study.pdf
+      summary: Pay.UK mule proof of concept over nearly 87 million accounts (read through search summary)
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,15 @@
+id: haplotype-network-inference
+name: Haplotype Network Inference
+category: analysis
+description: Collapse aligned sequences into haplotypes and infer minimum spanning, TCS and median-joining networks,
+    listing which samples merged into each haplotype and how gaps were treated.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W390
+    - W391
+    - W392
+implemented_by_components: []
+requirements: []
+sources: []

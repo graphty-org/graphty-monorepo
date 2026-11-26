@@ -1,0 +1,59 @@
+id: immersive-cyber-defense-analyst
+name: Immersive Cyber Defense Analyst
+role: Cyber Cadet / Security Analyst in a Defense Exercise
+quote: My partner walked me through the network in the headset and we found more attackers -- but afterward I could not draw the topology from memory.
+bio: >-
+    Cadet Ingrid Solberg studies at a defense cyber academy and works live-fire exercise data with a teammate. Her
+    everyday tools are Arkime packet capture with its 2D connection graph and a paper schematic of the defended network.
+    In a research condition she and her partner wear HoloLens 2 headsets running Virtual Data Explorer (VDE), a
+    mixed-reality tool from the US Army Research Laboratory that places network entities in logical and functional
+    groups drawn from interviews with defenders, not from a force layout and not from geography. The dataset is the
+    blue-team topology from NATO Locked Shields 2022: up to 958 nodes and groups and 789 edges, with edge brightness
+    showing traffic volume. One partner learns the topology and explains it; together they find the top five attacking
+    hosts by traffic in 40 minutes, then the internal hosts abused for lateral movement. This persona is grounded in
+    study participants, not in a deployed security operations center; no self-report from a working analyst using 3D
+    was found.
+characteristics:
+    expertise: intermediate
+    time_pressure: high
+    graph_literacy: moderate
+    domain_knowledge: intermediate
+motivations:
+    - Learn an unfamiliar network topology fast enough to defend it
+    - Find the attacking hosts and the compromised segments before time runs out
+    - Coordinate with a partner without long verbal explanations
+    - Trust what the view shows about the real network
+behaviors:
+    - Uses a layout built from defenders' mental models of logical and functional groups
+    - Has one partner explain the topology while the other follows in the shared space
+    - Walks through the space and grabs nodes rather than using a mouse
+    - Reads edge brightness as traffic volume to rank attacker hosts
+    - Follows sessions from attacker hosts into internal hosts to find lateral movement
+    - Falls back to Arkime's 2D graph and a paper schematic outside the study
+frustrations:
+    - Headsets overheated and needed external battery packs
+    - The 3D grouping does not match the real network, which may give a false sense of confidence
+    - Worse recall of the actual topology afterward than teammates who used the 2D tool
+    - Sensitive or classified data cannot leave the exercise environment
+context:
+    frequency: as-needed
+    devices:
+        - vr-headset
+        - desktop
+    voluntary: false
+workflows:
+    - W415
+    - W418
+sources:
+    - title: Ask et al. 2023 - Virtual Data Explorer on HoloLens 2 compared with a 2D tool (Frontiers in Big Data)
+      url: https://www.frontiersin.org/articles/10.3389/fdata.2023.1042783
+      summary: Locked Shields 2022 data, 958 nodes and groups, 789 edges, dyad tasks, more attackers found, worse topology recall, overheating headsets
+    - title: Army project aligns data visualization with mental models of cyber defenders
+      url: https://www.army.mil/article/235291/army_project_aligns_data_visualization_with_mental_models_of_cyber_defenders
+      summary: Layouts from analysts' mental models; "These visualizations are not geospatial"
+    - title: Kullman, Ben Asher, Sample 2019 - operator impressions of 3D visualizations for cybersecurity
+      url: https://mdsoar.org/handle/11603/26337
+      summary: Interviews in which analysts preferred 3D views (abstract)
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

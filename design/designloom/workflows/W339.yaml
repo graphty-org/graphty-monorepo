@@ -1,0 +1,146 @@
+id: W339
+name: Build an Event Log from Source Tables
+category: analysis
+validated: false
+personas:
+    - process-mining-consultant
+    - process-mining-auditor
+    - clinical-pathway-analyst
+    - process-mining-researcher
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - computed-attributes
+    - statistics-panel
+    - details-on-demand
+    - data-export
+    - event-log-import
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - attribute-table-join-dialog
+    - data-table-panel
+    - status-bar
+    - data-export-dialog
+starting_state:
+    data_type: relational tables or CSV exports (a case table, one or more event or history tables, several timestamp columns per case row)
+    node_count: 5-60 activities derived from 10,000-10,000,000 event rows
+    edge_density: moderate
+    user_expertise: advanced
+goal: >-
+    **Intent**: Turn the tables an IT system leaves behind into an event log -- one row per activity that happened to a
+    case at a time -- that a process map can be derived from. Practitioners rate this the hardest step: in the IEEE
+    task force survey of 289 respondents, the most common answer for effort spent on pre-processing was 61 to 80
+    percent, and data access and extraction were the two highest-rated of 23 challenges in an interview study.
+
+
+    **Mental Model**: "Every row is a step that happened to something." The analyst chooses what the something is (the
+    case notion) and which columns and tables count as steps; the map that follows is only as right as these choices.
+
+
+    **Task Phases**:
+
+    1. **Agree the activities** (30 min, with the process owner) - Sketch the 5 to 10 most important activities
+
+    2. **Choose the case notion** (15 min) - Pick one or more columns that together identify a single execution (ticket,
+    order, ED stay, patient); know that switching it (service id to customer id) changes the process shown
+
+    3. **Find the events** (hours to weeks, often IT) - Export audit-trail or history tables, or find milestone
+    timestamps in business tables (a standard SAP purchase-to-pay job reads EBAN, EKKO, EKPO, EKET, EKBE and the change
+    documents CDHDR and CDPOS); each source becomes an activity, unioned into one table with case key, activity,
+    timestamp and an optional sorting column for ties; a timestamp column on a case row ("approved at") becomes its own
+    activity
+
+    4. **Join and decide many-to-many links** (1 hour) - Follow a case through references (a PO number on an invoice);
+    where one order has several deliveries, decide how to flatten or keep several datasets (or move to an
+    object-centric log, W347)
+
+    5. **Fix timestamps and choose the window** (1 hour) - Repair missing timestamps (MIMICEL set triage to arrival plus 1
+    second); extract at least 3 months; select by start date for fall-out analysis or end date for compliance
+
+    6. **Validate** (1-2 hours) - Trace 10 to 20 cases by hand in the source system's screens and compare with the log;
+    then a validation session with the domain expert
+
+
+    **Decision Points**:
+
+    - Which column or combination of columns is the case?
+
+    - Which timestamp columns are real activities and which are bookkeeping?
+
+    - How to treat one-to-many and many-to-many document links: flatten, split, or keep objects?
+
+    - How to order events that share a timestamp?
+
+    - Which time window avoids cutting cases in half at the edges?
+
+
+    **Information Needs**:
+
+    - Row counts per source table and per derived activity
+
+    - Count of events with missing, date-only or tied timestamps
+
+    - Number of cases, events, activities and variants after each change of case notion
+
+    - Join report: how many event rows found a case and which did not
+
+    - Share of cases that start or end inside the extraction window
+
+
+    **Pain Points**:
+
+    - ETL functionality in process mining tools is lacking; extraction happens in SQL outside every tool
+
+    - Each tool converts the data to an event log differently, so results do not compare
+
+    - Wide case rows with several timestamp columns that no importer turns into activities
+
+    - Timestamp ties and time-zone shifts discovered only after the map looks wrong
+
+
+    **Data Flow**:
+
+    - Input: Case table plus event or history tables (CSV, Excel, database export), or one wide table with several
+    timestamp columns per case
+
+    - Transformations: Union of activity sources, case-key join, timestamp columns to activity rows, timestamp repair,
+    window selection
+
+    - Output: Event log (CSV or XES) with case id, activity, timestamp, resource and case attributes, ready for discovery
+    (W340)
+success_criteria:
+    - metric: Join transparency
+      target: User can state how many event rows matched a case and list the unmatched ones
+    - metric: Case notion change
+      target: Changing the case columns recomputes case, event and variant counts without re-importing files
+    - metric: Validation
+      target: User can open any single case's event history to compare it with the source system
+sources:
+    - title: Wynn et al. 2022 - IEEE task force process mining survey
+      url: https://vdaalst.com/publications/p1249.pdf
+      summary: 289 respondents; 61-80 percent of effort on pre-processing most common; text files and relational tables the usual sources
+    - title: Zimmermann, Zerbato and Weber - process mining challenges
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11646219/
+      summary: Data access, extraction and additional information the top-rated challenges; ETL lacking in tools
+    - title: Fluxicon Process Mining in Practice - Data extraction
+      url: https://fluxicon.com/book/read/dataext/
+      summary: Sketch activities, case notion, audit trails versus business tables, window size, hand validation of 10-20 cases
+    - title: Fluxicon Process Mining in Practice - Perspectives
+      url: https://fluxicon.com/book/read/perspectives/
+      summary: Changing the case id from service to customer revealed repeat calls
+    - title: Celonis - P2P appendix
+      url: https://docs.celonis.com/en/appendices-2269196.html
+      summary: SAP purchase-to-pay source tables EBAN, EKKO, EKPO, EKET, EKBE, CDHDR, CDPOS
+    - title: Celonis - activity table and case table
+      url: https://docs.celonis.com/en/activity-table-and-case-table.html
+      summary: Activity table with case key, activity, event time and sorting column
+    - title: MIMICEL - event log from MIMIC-IV-ED
+      url: https://arxiv.org/html/2505.19389v1
+      summary: Six tables joined with PostgreSQL; triage timestamp imputed as arrival plus 1 second
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

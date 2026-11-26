@@ -1,0 +1,20 @@
+id: schema-meta-graph
+name: Schema Meta-Graph
+category: analysis
+description: Compute from the loaded graph a label-to-label (or class-to-class) summary graph with exact node and edge
+    counts, and compare it with an intended model, highlighting missing and unexpected types.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W02
+    - W13
+    - W131
+    - W132
+    - W144
+    - W151
+implemented_by_components: []
+requirements:
+    - Draw the node and relationship types of a database or a declared warehouse graph as a meta-graph, readable for
+      non-trivial schemas, with a diff against an intended model.
+sources: []

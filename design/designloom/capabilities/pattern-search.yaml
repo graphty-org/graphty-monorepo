@@ -11,6 +11,30 @@ used_by_workflows:
     - W07
     - W06
     - W09
+    - W118
+    - W120
+    - W128
+    - W140
+    - W143
+    - W145
+    - W183
+    - W197
+    - W204
+    - W217
+    - W230
+    - W236
+    - W258
+    - W262
+    - W263
+    - W276
+    - W336
+    - W34
+    - W341
+    - W351
+    - W357
+    - W420
+    - W69
+    - W78
 implemented_by_components:
     - pattern-search-dialog
 requirements:

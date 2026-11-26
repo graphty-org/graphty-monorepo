@@ -1,0 +1,180 @@
+id: W59
+name: Patent Landscape Report
+category: reporting
+validated: false
+personas:
+    - patent-landscape-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - node-merging
+    - filtering
+    - community-detection
+    - centrality-degree
+    - ego-network
+    - layout-force-directed
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - annotation
+    - report-generation
+    - export-image
+    - data-export
+    - bibliographic-record-import
+    - record-projection
+    - threshold-preview
+    - thesaurus-cleaning
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - data-preview-table
+    - column-mapper
+    - node-merge-dialog
+    - data-table-panel
+    - filter-panel
+    - range-slider
+    - community-panel
+    - ego-network-dialog
+    - ranked-node-table
+    - visual-encoding-panel
+    - legend-panel
+    - annotation-toolbar
+    - graph-canvas
+    - report-generator-dialog
+    - image-export-dialog
+starting_state:
+    data_type: Patent family records exported from Lens, Derwent, PatSnap or Orbit (CSV, RIS, JSON or JSONL) with CPC and IPC codes, applicants, inventors, priority dates and citations
+    node_count: a few thousand to tens of thousands of families; assignee networks of about 5,000 nodes before filtering
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Produce a landscape report on a technology: who files, in which classes, in which jurisdictions, how
+    fast, which patents are most important, and where the white space is, as input to R&D investment, licensing and
+    freedom-to-operate decisions.
+
+
+    **Mental Model**: "Clean the names, then count families." Every count and network is wrong until results are
+    collapsed to families and assignee names are normalized; the maps only become trustworthy after that.
+
+
+    **Task Phases**:
+
+    1. **Plan** (hours) - Topic, collaborators, scope, countries and time coverage
+
+    2. **Search** (hours to days) - Boolean queries over full text, claims and classification codes, restricted by
+    jurisdiction and grant or application
+
+    3. **Collapse to families** (minutes) - One record per DOCDB simple family (same priorities) or INPADOC extended
+    family (shared priority, directly or indirectly); 44,773 publications became 19,856 simple families in one Lens
+    example
+
+    4. **Export** (30 min) - Lens allows 50,000 records logged in as CSV, RIS or JSON; JSONL carries all fields
+
+    5. **Normalize assignees** (hours) - Split multi-applicant fields, strip suffixes, expand abbreviations, fuzzy-group
+    variants, roll subsidiaries up to parents (VantagePoint or OpenRefine; 5,884 drone documents in the WIPO example)
+
+    6. **Assignee network** (1-2 hours) - Co-occurrence of applicants, remove self-loops, modularity (246 communities in
+    the WIPO example), filter by minimum frequency 5, Fruchterman-Reingold then NoOverlap, about 20 minutes of label
+    cleanup, finish in Illustrator
+
+    7. **Technology map** (1 hour) - CPC co-occurrence or an overlay on an IPC base map
+
+    8. **Forward-citation map for key patents** (30 min) - Center a selected patent, group citing and cited records by
+    assignee, weigh examiner citations above applicant citations
+
+    9. **Link to science** (optional) - Patent-to-paper citations, each flagged as applicant or examiner and front page
+    or body text
+
+    10. **Deliver** (days) - Filing trends, top assignees, technology maps, networks, white space; usually confidential
+
+
+    **Decision Points**:
+
+    - Simple or extended families?
+
+    - Which assignee variants and subsidiaries are one company?
+
+    - Minimum frequency for the assignee network?
+
+    - Count all citations, or examiner citations only?
+
+    - Which empty class combinations are true white space?
+
+
+    **Information Needs**:
+
+    - Publications versus families after collapsing
+
+    - Assignee variant groups with counts before and after normalization
+
+    - Top assignees by family count, per class and jurisdiction
+
+    - Forward citations per key patent split by examiner and applicant
+
+    - Legal status and priority year for each family on the map
+
+
+    **Pain Points**:
+
+    - Assignees are recorded as written on the patent
+
+    - Applicant rankings are raw counts over unnormalized names
+
+    - Family definitions differ by database
+
+    - Examiner and applicant citations mixed together
+
+    - Manual label cleanup and Illustrator finishing; no undo in Gephi
+
+    - Commercial platforms' exports are proprietary
+
+
+    **Data Flow**:
+
+    - Input: Patent publication or family records with classes, applicants, inventors, dates, jurisdictions and
+    citations
+
+    - Transformations: Family collapse, assignee normalization and roll-up, applicant co-occurrence projection, class
+    co-occurrence projection, modularity clustering, frequency filtering, citation ego networks
+
+    - Output: Confidential landscape report with trend charts, assignee and technology maps, key-patent citation maps,
+    and cleaned data tables
+success_criteria:
+    - metric: Normalization transparency
+      target: Every merged assignee group lists its raw variants and family counts
+    - metric: Figure finishing
+      target: Assignee network exports with readable labels and legend without Illustrator
+    - metric: Citation typing
+      target: Examiner and applicant citations can be colored and filtered separately
+sources:
+    - title: WIPO Open Source Patent Analytics manual - The Lens
+      url: https://wipo-analytics.github.io/manual/the-lens-1.html
+      summary: Boolean search, collapse to one family, 50,000-record exports, raw applicant rankings
+    - title: WIPO Open Source Patent Analytics manual - Gephi
+      url: https://wipo-analytics.github.io/manual/gephi-1.html
+      summary: Applicant co-occurrence, self-loops removed, 246 modularity communities, minimum frequency 5, layout and label cleanup
+    - title: WIPO Guidelines for Preparing Patent Landscape Reports
+      url: https://tind.wipo.int/record/28858
+      summary: Planning and scope of a landscape report
+    - title: van der Pol - Extracting patent data (NetworkIsLife)
+      url: https://jpvdp.github.io/NetworkIsLife/Package_patents.html
+      summary: Assignees as written on the patent; JSONL carries all fields
+    - title: EPO - patent families
+      url: https://epo.org/en/searching-for-patents/helpful-resources/first-time-here/patent-families
+      summary: DOCDB simple and INPADOC extended families
+    - title: PatSnap help - Citation Map
+      url: https://help.patsnap.com/hc/en-us/articles/37766630365341-Citation-Map
+      summary: Citation map centered on a record, grouped by assignee, PNG and data export (summary via search)
+    - title: Hegde and Sampat 2009
+      url: https://econpapers.repec.org/RePEc:eee:ecolet:v:105:y:2009:i:3:p:287-289
+      summary: Examiner citations predict renewal better than applicant citations
+    - title: Marx - Reliance on Science dataset
+      url: https://zenodo.org/records/11461587
+      summary: Patent-to-paper citations flagged applicant or examiner, front page or body
+    - title: Leydesdorff, Kushnir and Rafols - overlay maps for USPTO data by IPC
+      url: https://arxiv.org/abs/1210.6456
+      summary: IPC base maps for technology overlays
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

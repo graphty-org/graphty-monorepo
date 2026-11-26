@@ -1,0 +1,14 @@
+id: viewpoint-and-video-export
+name: Named viewpoints, multi-view and video export
+category: export
+description: Save named camera viewpoints, export a set of fixed views, a turntable or a fly-through video, a light
+    print theme, and flatten a 3D view to 2D for a figure.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W416
+    - W417
+implemented_by_components: []
+requirements: []
+sources: []

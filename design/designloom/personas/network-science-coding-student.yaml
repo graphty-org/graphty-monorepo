@@ -1,0 +1,86 @@
+id: network-science-coding-student
+name: Network Science Coding Student
+role: Master's or Upper-Level Undergraduate in a Python Network Science Course
+quote: The notebook computes everything, but nx.draw gives me a hairball. I need to see the graph without leaving Colab.
+bio: >-
+    Priya is a master's or upper-level undergraduate student in computer science, physics or data science, or a
+    Coursera learner in Michigan's Applied Social Network Analysis in Python. Her assignments ship as Jupyter notebooks,
+    often run in Google Colab, so desktop installs are not an option. She builds graphs with NetworkX from CSVs, computes
+    density, components, diameter, clustering, centralities and greedy-modularity communities, and answers the problem
+    set's questions in code. Her data are far larger than teaching sets: SNAP ego-Facebook has 4,039 nodes and 88,234
+    edges, Epinions 75,879 and 508,837. NetworkX's own docs call its drawing "basic", so for a final figure she exports
+    GEXF and finishes in Gephi. Where the course allows, she asks a code assistant for the call that computes a measure
+    and must document the prompt.
+characteristics:
+    expertise: intermediate
+    time_pressure: high
+    graph_literacy: intermediate
+    domain_knowledge: intermediate
+motivations:
+    - Pass problem sets on connectivity, centrality, network evolution and link prediction
+    - Compare each measure to "the proper random reference" in a final project
+    - See the structure of a 10^4 to 10^5 node graph instead of a matplotlib hairball
+    - Keep the whole analysis reproducible in one notebook
+    - Disclose AI help correctly where the policy requires it
+behaviors:
+    - Opens the instructor's notebook in Colab or installs a pinned requirements file
+    - Loads CSVs into nx.Graph and prints node and edge counts as a sanity check
+    - Takes the largest connected component before computing diameter, after nx.diameter fails on a disconnected graph
+    - Computes density, transitivity, degree, eigenvector and betweenness centrality and greedy modularity communities
+    - Passes edge weights to shortest-path measures without noticing they are read as distances
+    - Sets a random seed only after layouts change on every run
+    - Writes GEXF with nx.write_gexf and finishes the figure in Gephi
+    - Pastes assistant prompts into the notebook when the course requires disclosure
+frustrations:
+    - nx.diameter raising an error on a disconnected graph
+    - Weights interpreted as distances when they mean strength
+    - Layouts that change on every run until a seed is set
+    - Matplotlib drawing that is unreadable above a few hundred nodes
+    - Moving between notebook and a desktop tool loses computed columns or types
+    - Not knowing whether a diameter of 8 is large or small without a baseline
+context:
+    frequency: weekly
+    devices:
+        - laptop
+    voluntary: false
+workflows:
+    - W235
+    - W234
+    - W238
+sources:
+    - title: Leiden SNACS course
+      url: https://liacs.leidenuniv.nl/~takesfw/SNACS/index.html
+      summary: Gephi for small networks in week 1, NetworkX for larger sets such as Epinions in week 2
+    - title: Georgia Tech CS 7280 Network Science syllabus
+      url: https://syllabus.gatech.edu/sites/default/files/2026-04/Syllabus%20for%20Network%20Science%20-%20CS-7280-O01%2C%20OAN_1.pdf
+      summary: Assignments ship as a Jupyter notebook plus a requirements file
+    - title: Indiana INFO I368 syllabus
+      url: https://iu.instructure.com/courses/2252897/assignments/syllabus
+      summary: NetworkX with Colab recommended; AI help counted as cheating
+    - title: Oklahoma CS 5483 syllabus
+      url: https://www.ou.edu/content/dam/coe/cs/course-syllabi/fall-2025/CS_5483_Radhakrishnan_Fa25.pdf
+      summary: All programming in Python notebooks with NetworkX; AI prompts must be documented and submitted
+    - title: Coursera - Applied Social Network Analysis in Python (Michigan)
+      url: https://www.coursera.org/learn/python-social-network-analysis
+      summary: Problem sets on connectivity, centrality, evolution and link prediction
+    - title: Programming Historian - Exploring and Analyzing Network Data with Python
+      url: https://programminghistorian.org/en/lessons/exploring-and-analyzing-network-data-with-python
+      summary: Count check, diameter failing on disconnected graphs, density and transitivity values, GEXF export, interpretation caveats
+    - title: NetworkX betweenness centrality documentation
+      url: https://networkx.org/documentation/networkx-2.8/reference/algorithms/generated/networkx.algorithms.centrality.betweenness_centrality.html
+      summary: Weights are used for shortest paths so they are interpreted as distances
+    - title: NetworkX drawing documentation
+      url: https://networkx.org/documentation/stable/reference/drawing.html
+      summary: Drawing is basic; recommends dedicated visualization tools
+    - title: SNAP ego-Facebook dataset
+      url: https://snap.stanford.edu/data/ego-Facebook.html
+      summary: 4,039 nodes and 88,234 edges
+    - title: SNAP Epinions dataset
+      url: https://snap.stanford.edu/data/soc-Epinions1.html
+      summary: 75,879 nodes and 508,837 edges
+    - title: dshizuka network analysis tutorial - plots
+      url: https://dshizuka.github.io/networkanalysis/03_plots.html
+      summary: Layouts change each plot until a seed is set
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

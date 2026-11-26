@@ -1,0 +1,16 @@
+id: deliverable-templates
+name: Recurring Deliverable Templates
+category: analysis
+description: Save a deliverable (view, filters, style, legend, parameters, tables) as a definition that re-renders
+    against new data, on demand or on a schedule, with a comparison against the previous period.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W315
+    - W316
+    - W320
+    - W323
+implemented_by_components: []
+requirements: []
+sources: []

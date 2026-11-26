@@ -1,0 +1,14 @@
+id: structured-findings-export
+name: Structured Findings Export
+category: export
+description: Filtered, column-chosen, size-capped CSV of a subgraph (for example 1 MB for a SAR) with per-pair sums and
+    counts over a date window, chronological hop tables for a path, and STIX bundle export.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W315
+    - W320
+implemented_by_components: []
+requirements: []
+sources: []

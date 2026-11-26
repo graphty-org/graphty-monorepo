@@ -1,0 +1,86 @@
+id: litigation-demonstratives-specialist
+name: Litigation Demonstratives Specialist
+role: Forensic Accountant and Trial Graphics Consultant retained per case; summary or expert witness
+quote: A juror has to get this chart in under a minute, and opposing counsel has to find nothing on it they can call argument.
+bio: >-
+    Ray Delgado is a forensic accountant retained case by case to build fraud and conspiracy trial graphics, and he
+    testifies about them as a summary or expert witness. He starts from thousands of bank, wire and ledger records in
+    Excel schedules, builds a working chart in i2 Analyst's Notebook or a diagramming tool, and cuts it down to a court
+    exhibit of 10 to 60 entities in which every arrow carries a date, an amount and an exhibit or Bates number tied to a
+    schedule row. Before drawing he decides whether the chart is a summary of voluminous records under Federal Rule of
+    Evidence 1006 or an illustrative aid under Rule 107, because that decides what may appear on it and whether the
+    jury may take it into deliberations. He keeps emphasis neutral (uniform sizes and frames, no agency badges), drops
+    suspected links that are not in evidence, discloses exhibits under the pretrial order and produces the same chart as
+    a 16:9 screen slide, an A0-plus foam board, binder copies and a record copy. He is distinct from an in-house
+    prosecution trial analyst: he is hired per case and his charts are attacked by opposing experts.
+characteristics:
+    expertise: advanced
+    time_pressure: high
+    graph_literacy: intermediate
+    domain_knowledge: expert
+motivations:
+    - Build a chart a juror understands in under a minute that survives a Rule 1006 or Rule 107 objection
+    - Keep every drawn arrow traceable to its schedule row and Bates-numbered source document
+    - Show only facts in evidence, with no emphasis, framing or marks that read as argument
+    - Produce screen, large-format print, binder and record copies from one chart without truncation
+    - Get rulings on the exhibits early through pretrial disclosure
+behaviors:
+    - Decides the legal category (Rule 1006 summary or Rule 107 illustrative aid) before drawing
+    - Builds from the general ledger, bank records or cash flow summaries, never from tips or unconfirmed leads
+    - Uses standard link conventions - circles for people, rectangles for businesses, solid lines for confirmed links
+    - Annotates each arrow with date, amount and exhibit or Bates number and keeps the schedule as the source of truth
+    - Uses uniform node sizes and frames unless size encodes an evidenced quantity
+    - Separates factual content from opinion so opinions are not interspersed with the facts
+    - Builds sequence-of-events timeline charts with each event tied to its source and only the precision the evidence supports
+    - Tests the demonstratives before trial and discloses them under the pretrial order
+frustrations:
+    - Graph tools do not keep the link between a drawn arrow and its record row
+    - Large i2 prints and PDFs truncate above Letter size or come out blank, and compatibility printing lowers quality
+    - Custom paper sizes above A0 must be set up by hand
+    - Defense counsel attack sizing, framing, color and agency marks as prejudicial
+    - Every change to the schedule means redrawing and rechecking the exhibit by hand
+    - There is no uniform footnote format for sources on a chart
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: false
+workflows:
+    - W15
+    - W314
+    - W321
+sources:
+    - title: Federal Rule of Evidence 1006 (Cornell LII)
+      url: https://law.cornell.edu/rules/fre/rule_1006
+      summary: Summaries of voluminous admissible writings; underlying originals must be made available
+    - title: Federal Rule of Evidence 107 and 2024 committee notes
+      url: https://www.courtrules.net/federal/evidence/rule-107
+      summary: Illustrative aids allowed unless prejudice substantially outweighs utility; not evidence; kept out of deliberations without consent or order
+    - title: United States v. Bray, 139 F.3d 1104 (6th Cir. 1998)
+      url: https://caselaw.findlaw.com/court/us-6th-circuit/1097222.html
+      summary: A Rule 1006 summary must be accurate and nonprejudicial and not annotated with the proponent's conclusions
+    - title: United States v. Fei Xie, No. 25-6034 (10th Cir. Mar. 31, 2026), unpublished
+      url: https://www.ca10.uscourts.gov/sites/ca10/files/opinions/010111410037.pdf
+      summary: Charts built from non-trial sources inadmissible under Rule 611(a); objections to red framing, size and an agency badge rejected on plain-error review
+    - title: Weintraub - trial demonstratives guidance
+      url: https://www.weintraub.com/?p=6334
+      summary: Build from the general ledger, bank records or cash flow summaries and test demonstrative evidence before trial
+    - title: R v Calland [2017] EWCA Crim 2308
+      url: https://caselaw.nationalarchives.gov.uk/ewca/crim/2017/2308
+      summary: Cell-mast locations allowed only at town level on a sequence-of-events chart
+    - title: Law Enforcement Analytic Standards, 2nd edition
+      url: https://www.azdps.gov/sites/default/files/2023-07/Law_Enforcement_Analytic_Standards_2nd_edition.pdf
+      summary: Products must clearly distinguish sources and keep opinions out of the factual portion
+    - title: RFFlow link analysis sample
+      url: https://www.rff.com/link_analysis_sample.php
+      summary: Circles for people, rectangles for businesses, solid confirmed and dotted suspected links
+    - title: IBM support - i2 Analyst's Notebook PDF truncation above Letter
+      url: https://www.ibm.com/support/pages/node/510995
+      summary: i2 8.9.5 truncated PDFs larger than Letter
+    - title: IBM support - custom paper sizes above A0
+      url: https://www.ibm.com/support/pages/node/242017
+      summary: Large-format charts need custom paper sizes set up by hand
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

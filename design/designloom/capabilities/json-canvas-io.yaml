@@ -1,0 +1,12 @@
+id: json-canvas-io
+name: JSON Canvas import and export
+category: data
+description: Read and write JSON Canvas 1.0 keeping positions, sizes, groups, edge labels, sides and colors.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W330
+implemented_by_components: []
+requirements: []
+sources: []

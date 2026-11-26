@@ -1,0 +1,85 @@
+id: W160
+name: Laying Out a Traced Neural Circuit Outside CATMAID and Bringing It Back
+category: analysis
+validated: false
+personas:
+    - cellular-connectomics-neuroscientist
+requires_capabilities:
+    - data-import
+    - data-validation
+    - layout-force-directed
+    - layout-hierarchical
+    - visual-encoding-nodes
+    - data-export
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - layout-panel
+    - graph-canvas
+    - data-export-dialog
+starting_state:
+    data_type: circuit graph of reconstructed neurons exported from CATMAID as GML
+    node_count: 10-500
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Get a readable layout for a hand-reconstructed circuit that CATMAID cannot lay out well, then bring
+    the positions back into CATMAID to color the neurons there, with node IDs and attributes unchanged.
+
+
+    **Mental Model**: "Borrow a layout engine." The graph belongs to CATMAID; the external tool only places nodes.
+
+
+    **Task Phases**:
+
+    1. **Build** (10 min) - Assemble the circuit graph in CATMAID's Graph Widget from reconstructed neurons
+
+    2. **Export** (1 min) - GML with the default options (linearized IDs)
+
+    3. **Lay out** (10 min) - Open in Gephi and run a layout, because layout is easier in other tools
+
+    4. **Export back** (2 min) - Write GraphML from Gephi
+
+    5. **Re-import** (2 min) - Open the GraphML in the widget, because coloring is easier in CATMAID
+
+
+    **Decision Points**:
+
+    - Which layout reads best for a small directed circuit (layered or force-directed)?
+
+    - Which attributes must survive the round trip?
+
+
+    **Information Needs**:
+
+    - Confirmation that every node ID and attribute survived both conversions
+
+    - Node positions written to the exported file
+
+
+    **Pain Points**:
+
+    - When node filters are used, subgraphs (axon and dendrite splits, synapse clusters) cannot be used and grouping is not available
+
+    - The round trip depends on IDs and attributes surviving two formats
+
+
+    **Data Flow**:
+
+    - Input: CATMAID GML export
+
+    - Transformations: Layout computation, position attributes added
+
+    - Output: GraphML with original IDs, original attributes and new positions
+success_criteria:
+    - metric: Round-trip fidelity
+      target: Node IDs and attributes identical before and after, with positions added
+    - metric: Effort
+      target: Import, layout and export in under 5 minutes
+sources:
+    - title: CATMAID Graph Widget documentation
+      url: https://catmaid.readthedocs.io/en/stable/widgets/graph-widget.html
+      summary: GML export for external layout in Gephi, GraphML re-import for coloring, filter limitations
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

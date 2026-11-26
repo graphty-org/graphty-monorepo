@@ -1,0 +1,58 @@
+id: transport-network-planner
+name: Transport Network Planner
+role: Transportation Planner at a metropolitan planning organization
+quote: Betweenness on the street graph pretends every trip is equally likely. Show me who loses access to jobs when this
+    bridge floods, measured in minutes.
+bio: >-
+    Lena is a transportation planner at a metropolitan planning organization. She builds street networks from
+    OpenStreetMap with OSMnx, computes travel-time accessibility to jobs and clinics with r5r or Conveyal over H3
+    hexagons, and works beside the regional travel demand model in PTV Visum, TransCAD or Emme. She ranks road links by
+    the added vehicle-hours when each is removed and the traffic is reassigned, and she reruns accessibility with flooded
+    segments removed for resilience plans. She knows that plain betweenness assumes a flat origin-destination matrix and
+    uses graph measures only to screen. Her results are maps and tables for the long-range plan and project scoring. She
+    codes in Python and R and uses QGIS daily.
+characteristics:
+    expertise: advanced
+    time_pressure: medium
+    graph_literacy: advanced
+    domain_knowledge: advanced
+motivations:
+    - Measure how projects change access to jobs within 30, 45 and 60 minutes
+    - Rank links by the travel time lost when they fail
+    - Show flood and disaster exposure of the road network
+    - Produce maps the board and the public understand
+behaviors:
+    - Builds a street graph from OSM, keeps the largest weakly connected component, simplifies and consolidates intersections
+    - Imputes speeds and travel times on edges before any measure
+    - Computes travel-time-weighted node and edge betweenness as a chokepoint screen
+    - Computes cumulative accessibility per hexagon with time cutoffs and maps it as choropleths
+    - Removes links one at a time (or all flooded ones), reassigns traffic and ranks by added vehicle-hours
+frustrations:
+    - Plain betweenness assumes a flat origin-destination matrix
+    - Link-removal studies need one reassignment per link, which is slow
+    - Results end up as static maps, rarely interactive graphs
+    - OSM identifiers change between extracts
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W220
+sources:
+    - title: OSMnx getting started
+      url: https://osmnx.readthedocs.io/en/stable/getting-started.html
+      summary: Place geocoding, Overpass download, largest weakly connected component, simplification, travel times, centrality
+    - title: r5r accessibility vignette
+      url: https://cloud.r-project.org/web/packages/r5r/vignettes/accessibility.html
+      summary: Accessibility with travel-time cutoffs and opportunities per hexagon
+    - title: Network Robustness Index (USDOT)
+      url: https://rosap.ntl.bts.gov/view/dot/28941/dot_28941_DS1.pdf
+      summary: Link criticality by removal and reassignment, measured in added vehicle-hours
+    - title: Street betweenness with non-uniform demand (arXiv 2409.08016)
+      url: https://arxiv.org/pdf/2409.08016
+      summary: Plain betweenness assumes in general a flat origin-destination matrix
+    - title: World Bank, global assessment of flood impacts on urban road networks
+      url: https://blogs.worldbank.org/en/developmenttalk/mobility-and-resilience-global-assessment-flood-impacts-urban-road-networks
+      summary: 14.7 percent of urban roads in 2,564 cities exposed to a 1-in-100-year flood

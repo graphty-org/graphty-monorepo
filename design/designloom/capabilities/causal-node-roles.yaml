@@ -1,0 +1,15 @@
+id: causal-node-roles
+name: Causal node roles
+category: analysis
+description: Store node roles as data, styled through style layers. Roles include exposure, outcome, latent, adjusted,
+    selected, target, evidence, decision and utility, and a node can hold more than one.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W423
+    - W426
+    - W427
+implemented_by_components: []
+requirements: []
+sources: []

@@ -6,6 +6,7 @@ personas:
     - analyst-alex
     - expert-emma
     - bioinformatics-researcher
+    - network-neuroscience-researcher
 requires_capabilities:
     - centrality-degree
     - centrality-betweenness
@@ -22,6 +23,11 @@ requires_capabilities:
     - algorithm-progress
     - keyboard-shortcuts
     - metric-histograms
+    - null-model-ensembles
+    - representation-transparency
+    - analysis-provenance
+    - seeded-runs
+    - measurement-robustness
 suggested_components:
     - graph-canvas
     - algorithm-panel
@@ -43,39 +49,52 @@ starting_state:
     user_expertise: intermediate+
 goal: >-
     **Intent**: Systematically investigate graph data through hypothesis-driven exploration. User has a question and wants
-    to find a defensible answer through iterative refinement.
+    to find a defensible answer through iterative refinement -- one that survives a reviewer asking "compared to what?"
+    and "would you get the same answer again?"
 
 
-    **Mental Model**: "Scientific method" - observe patterns, form hypothesis, test with algorithms, refine understanding.
-    Also like detective work - following leads, testing theories, building a case.
+    **Mental Model**: "Scientific method" - observe patterns, form hypothesis, test against an explicit null or
+    statistical model, check robustness, refine understanding.
 
 
     **Task Phases**:
 
     1. **Question** - Define what you want to know (descriptive, comparative, predictive, diagnostic)
 
-    2. **Explore** - Visual and statistical exploration, try different views/encodings
+    2. **Decide the representation** - Write down what an edge means, directed or not, how parallel edges and weights
+    are combined, whether weights are strengths or distances, and whether two-mode or group data is projected (W37,
+    W39, W47, W49)
 
-    3. **Hypothesize** - Formulate specific, testable hypothesis based on observations
+    3. **Explore** - Visual and statistical exploration, try different views and encodings, with layouts seeded so
+    views can be reproduced (W43)
 
-    4. **Test** - Apply appropriate algorithms, validate against baselines
+    4. **Hypothesize** - Formulate a specific, testable hypothesis based on observations
 
-    5. **Refine** - Document findings, generate follow-up questions, or adjust approach
+    5. **Test** - Compare the observed statistic with a named null: a degree-preserving rewiring ensemble with observed
+    value, null mean, sd and z (W37); or, for social-science questions, a statistical network model (ERGM, SAOM, QAP)
+    whose parameter table with standard errors is the evidence
 
-    6. **Conclude** - Draw confident conclusions when evidence is sufficient
+    6. **Check robustness** - Rerun stochastic methods with recorded seeds, subsample edges or nodes, sweep thresholds
+    for derived graphs, try alternative representations and nulls (W42)
+
+    7. **Refine** - Document findings with their parameters and seeds, generate follow-up questions, or adjust approach
+
+    8. **Conclude** - Draw conclusions when the result holds against the null and under the robustness checks
 
 
     **Decision Points**:
 
     - Is the question well-defined enough to answer?
 
-    - Which visual encoding reveals the pattern I'm looking for?
+    - Which representation answers it, and is it recorded?
 
-    - Is my hypothesis confirmed, refuted, or inconclusive?
+    - Which null preserves everything except the structure under test (degree, space, layers)?
+
+    - Randomized ensemble or statistical network model?
+
+    - Is my hypothesis confirmed, refuted, or inconclusive -- and does it survive reruns and subsampling?
 
     - Should I continue iterating, pivot to a new hypothesis, or conclude?
-
-    - How confident am I in my conclusions?
 
 
     **Information Needs**:
@@ -84,43 +103,66 @@ goal: >-
 
     - Explore phase: Multiple centrality measures, community structures, distributions
 
-    - Test phase: Algorithm results, comparison to null models/baselines
+    - Test phase: Observed vs null mean, sd and z with the null's definition, seed and sample count; or model
+    parameters with standard errors
 
-    - Conclude phase: Evidence summary, confidence level, limitations
+    - Robustness phase: Run-to-run spread, rank correlation under subsampling, results across thresholds
+
+    - Conclude phase: Evidence summary, confidence level, limitations, provenance record
 
 
     **Pain Points**:
 
     - Analysis paralysis - too many possible directions
 
-    - Confirmation bias - seeing patterns that aren't there
+    - Confirmation bias - seeing patterns that aren't there, including clusters in a force layout that no computed
+    partition supports
 
-    - Not knowing when "enough" evidence has been gathered
+    - GUI tools offer no null models or robustness checks; none of the GUI tutorials reviewed includes them
 
-    - Difficulty documenting analysis path for reproducibility
+    - Stochastic results (communities, layouts) change between runs and nothing records the seed
+
+    - Difficulty documenting the analysis path (parameters, versions, seeds) for reproducibility
 
 
     **Data Flow**:
 
-    - Input: Graph + research question
+    - Input: Graph + research question + representation decisions
 
-    - Transformations: Algorithm execution, statistical tests, visualizations
+    - Transformations: Algorithm execution, null ensembles or statistical models, robustness checks, visualizations
 
-    - Output: Documented findings with confidence levels and limitations
+    - Output: Documented findings with null comparisons, robustness evidence, confidence levels, limitations and a
+    provenance record
 success_criteria:
     - metric: Question answered
       target: Clear conclusion with supporting evidence
+    - metric: Null comparison
+      target: Each claim tested against a named null ensemble or statistical network model
+    - metric: Robustness checked
+      target: Claims shown to hold over seeded reruns and subsampling
     - metric: Reproducibility
-      target: Analysis steps documented for replication
+      target: Analysis steps, parameters and seeds exported for replication
     - metric: Confidence articulated
       target: User can state confidence level and limitations
 sources:
-    - title: Practical Graph Analysis Guide - Chapter 3
-      url: https://graphty.app/docs/
-      summary: The Graph Analysis Cycle - Question, Explore, Hypothesize, Test, Refine, Conclude
+    - title: Scale-free networks are rare (Broido and Clauset 2019)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6399239/
+      summary: Explicit representation decisions and statistical tests before structural claims
+    - title: Specificity and stability in topology of protein networks (Maslov and Sneppen 2002)
+      url: https://arxiv.org/abs/cond-mat/0205380
+      summary: Degree-preserving rewiring nulls
+    - title: On the robustness of centrality measures under imperfect data (Borgatti, Carley and Krackhardt 2006)
+      url: https://scholars.uky.edu/en/publications/on-the-robustness-of-centrality-measures-under-conditions-of-impe/
+      summary: Results degrade with measurement error; robustness must be checked
+    - title: Gephi Fieldnotes (van Geenen et al. 2023, Frontiers in Big Data)
+      url: https://www.frontiersin.org/articles/10.3389/fdata.2022.510310/full
+      summary: Gephi records nothing about what was done; clusters checked against outside evidence rather than treated as final
+    - title: What do we see when we look at networks (Venturini, Jacomy and Jensen)
+      url: https://arxiv.org/abs/1905.02202
+      summary: Visual clusters need not match computed partitions
     - title: Cytoscape Automation
       url: https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1758-4
       summary: Workflow-based network analysis for reproducibility
-version: 1.0.1
+version: 1.1.0
 created_at: 2026-01-16T16:22:52.067Z
-updated_at: 2026-01-16T16:42:28.329Z
+updated_at: 2026-11-25T00:00:00.000Z

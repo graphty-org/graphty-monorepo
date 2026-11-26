@@ -1,0 +1,19 @@
+id: stable-temporal-layout
+name: Stable Layout Across Time
+category: visualization
+description: One layout over the union of all time, or each window seeded from the previous window's positions with
+    optional anchoring strength; incremental placement of new nodes near neighbors; never re-layout every frame by
+    default.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W19
+    - W304
+    - W305
+    - W307
+    - W309
+    - W312
+implemented_by_components: []
+requirements: []
+sources: []

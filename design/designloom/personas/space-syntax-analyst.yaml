@@ -1,0 +1,59 @@
+id: space-syntax-analyst
+name: Space Syntax Analyst
+role: Urban Designer / Space Syntax Analyst at an architecture and planning consultancy
+quote: Most of my week is cleaning the street map. The analysis takes an afternoon -- if depthmapX does not time out.
+bio: >-
+    Ioana is an urban designer who uses space syntax to argue for street and building layouts. Her graph is the dual of
+    a street map: each node is a line (an axial line or a street segment), and each edge joins two lines, weighted by
+    turn angle, steps or length. She prepares maps in QGIS with the Space Syntax Toolkit and the road-centre-line cleaner,
+    or draws axial and obstacle maps in CAD, then analyzes them in depthmapX (sometimes sDNA or the R package alcyon).
+    She computes angular integration (how easy a segment is to reach) and angular choice (how much through-movement it
+    carries) at several radii, from 400 m local to 10 to 20 km metropolitan, normalizes them (NAIN, NACH), maps them red
+    to blue, and compares before and after a design scheme against pedestrian gate counts. For building plans she runs
+    visibility graph analysis on a 1 m grid. A central London study cropped to 7 km held 194,445 segments.
+characteristics:
+    expertise: advanced
+    time_pressure: medium
+    graph_literacy: advanced
+    domain_knowledge: expert
+motivations:
+    - Show which streets carry through-movement and which are well integrated, before and after a scheme
+    - Win planning consent and justify design moves with measures
+    - Find the visually central spaces of a building plan
+    - Spend less time cleaning maps
+behaviors:
+    - Projects and crops the map in meters to double the largest analysis radius
+    - Drops irrelevant OSM classes, cleans topology, simplifies dual carriageways and roundabouts
+    - Adds unlinks where lines cross without connecting (bridges, tunnels) and verifies the map
+    - Converts axial lines to segments, removing stubs under 40 percent of a line
+    - Runs angular segment analysis with choice and integration at radii such as n, 2000 and 800 m and stores each as a column
+    - Maps each measure red to blue per radius and exports CSV
+    - Runs visibility graph analysis on obstacle plans as a heat grid
+frustrations:
+    - Map preparation dominates the project
+    - Unverified maps can affect or even abort the analysis
+    - depthmapX times out on visibility graphs beyond about 43,000 cells
+    - Large city networks must be cropped to analyze in reasonable time
+context:
+    frequency: weekly
+    devices:
+        - desktop
+    voluntary: true
+workflows:
+    - W229
+sources:
+    - title: van Nes, depthmapX workshop manual (13th Space Syntax Symposium, 2022)
+      url: https://www.hvl.no/siteassets/hvl-internett/arrangement/2022/13sss/001vannesdepthmapworkshop.pdf
+      summary: Axial and segment analysis steps, unlink and link, stub removal, angular choice and integration at several radii
+    - title: Space Syntax Toolkit workshop - segment map preparation
+      url: https://github.com/spacesyntax/SST-Workshops/blob/master/UCL/RCL%20workshop/0.%20Segment%20Map%20Preparation.md
+      summary: Road-centre-line cleaning, topology checks and verification in QGIS
+    - title: Kolovou et al., road centre line simplification for angular segment analysis (2017)
+      url: https://spacesyntax.com/wp-content/uploads/2017/09/Road-centre-line-simplification-principles-for-angular-segment-analysis.pdf
+      summary: Central London within 7 km held 194,445 segments and 280,616 connections; cropped to analyze in reasonable time
+    - title: alcyon segment analysis vignette
+      url: https://stat.ethz.ch/CRAN/web/packages/alcyon/vignettes/segmentAnalysis.html
+      summary: Segment angular analysis in R
+    - title: GPU visibility graph analysis preprint (arXiv 2604.08374)
+      url: https://arxiv.org/pdf/2604.08374
+      summary: depthmapX timed out beyond 42,705 cells; GPU method reached 236,000 cells and 4.8 billion edges

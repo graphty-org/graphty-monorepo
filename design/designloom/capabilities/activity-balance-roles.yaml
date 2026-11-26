@@ -1,0 +1,14 @@
+id: activity-balance-roles
+name: Activity-Balance Role Classification
+category: analysis
+description: Classify nodes into roles from the balance of directed out and in activity (for example engager, catalyst,
+    responder, broadcaster, observer) with adjustable thresholds, and measure concentration of reach among the
+    top-ranked nodes.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W195
+implemented_by_components: []
+requirements: []
+sources: []

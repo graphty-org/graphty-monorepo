@@ -1,0 +1,118 @@
+id: W388
+name: From Raw Trajectories to an OD Table
+category: analysis
+validated: false
+personas:
+    - urban-mobility-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - temporal-navigation
+    - filtering
+    - data-export
+    - od-flow-import
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - temporal-controls
+    - filter-panel
+    - data-export-dialog
+starting_state:
+    data_type: raw GPS, app or call-record pings (user id, timestamp, latitude, longitude, accuracy)
+    node_count: 0 (no graph yet; zones become nodes after aggregation)
+    edge_density: none until trips are aggregated
+    user_expertise: expert
+goal: >-
+    **Intent**: Turn raw device pings into an origin-destination table by detecting stays, generating trips between
+    them, assigning trip ends to zones and aggregating per time window. This happens upstream of any flow map, in
+    scikit-mobility, MovingPandas or MeowMotion, and its parameters decide what the map can show; Graphty's role is to
+    import the result with its zone system and time window recorded, not to process pings.
+
+
+    **Mental Model**: "Pings become stops, stops become trips, trips become flows." Every parameter -- how long a stop
+    must last, how big a zone is, which hours count as the peak -- is baked into the OD table.
+
+
+    **Task Phases**:
+
+    1. **Load pings** - One row per device ping with user id, UTC timestamp, latitude, longitude and often a horizontal
+    accuracy in meters
+
+    2. **Filter noise** - Drop points with poor accuracy (100 m in the MeowMotion example) and implausible speeds
+    (scikit-mobility default 500 km/h)
+
+    3. **Detect stays** (the key parameters) - scikit-mobility defaults to 20 minutes within 0.2 km; MovingPandas
+    tutorials use 60 to 120 seconds within 100 m; optionally cluster stays into places and infer home
+
+    4. **Generate trips** - One trip between consecutive stays
+
+    5. **Zone** (a decision) - Assign trip ends to H3 cells or administrative zones (small areas, middle-layer areas,
+    councils)
+
+    6. **Aggregate per window** - One OD file per window (AM peak 7-10, PM peak 4-7, all-day, non-peak) with origin,
+    destination, trips, population-weighted trips and percentage
+
+    7. **Optionally animate the trips** - Play raw trajectories as moving trails from line strings whose coordinates
+    carry timestamps
+
+
+    **Decision Points**:
+
+    - Stay duration and radius?
+
+    - Zone system and resolution?
+
+    - Time windows?
+
+    - Weight trips to population using inferred home locations?
+
+
+    **Information Needs**:
+
+    - Which stay parameters, zone system and time window produced a given OD table, carried with it into the map
+
+    - Raw versus population-weighted trip counts
+
+
+    **Pain Points**:
+
+    - Parameters chosen here are invisible once the OD table reaches a map tool
+
+    - Raw pings are personal data and must not leave the analyst's environment
+
+    - Different stay parameters produce different flow maps from the same pings
+
+
+    **Data Flow**:
+
+    - Input: Ping table (user, time, lat, lon, accuracy)
+
+    - Transformations: Noise filter, stay detection, trip generation, zoning, per-window aggregation, population
+    weighting (all upstream)
+
+    - Output: OD CSV per window (origin zone, destination zone, trips, weighted trips, percentage) with zone system and
+    window as metadata, imported as a flow network
+success_criteria:
+    - metric: Provenance carried
+      target: Zone system and time window visible in the imported network's metadata
+    - metric: Window comparison
+      target: AM peak, PM peak and all-day tables loaded and switched between in one session
+sources:
+    - title: scikit-mobility preprocessing reference
+      url: https://scikit-mobility.github.io/scikit-mobility/reference/preprocessing.html
+      summary: filter() max_speed_kmh default 500; stay_locations() 20 minutes within 0.2 km
+    - title: MovingPandas TrajectoryStopDetector
+      url: https://movingpandas.readthedocs.io/en/main/api/trajectorystopdetector.html
+      summary: get_stop_points(min_duration, max_diameter)
+    - title: MeowMotion quick start
+      url: https://urbanbigdatacentre.github.io/meowmotion/getting-started/quick-start
+      summary: Accuracy filter, trip generation, zoning, OD per AM peak, PM peak, all-day and non-peak window with weighted trips
+    - title: kepler.gl - Trip layer
+      url: https://docs.kepler.gl/docs/user-guides/c-types-of-layers/k-trip
+      summary: Animated trajectories from line strings with timestamps
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,12 @@
+id: rich-club-and-assortativity
+name: Rich Club and Assortativity
+category: analysis
+description: Rich-club coefficient normalized by a degree-preserving null, degree and attribute assortativity.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W37
+implemented_by_components: []
+requirements: []
+sources: []

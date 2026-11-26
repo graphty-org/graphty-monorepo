@@ -1,0 +1,22 @@
+id: conformance-overlay
+name: Conformance Overlay
+category: analysis
+description: Align an event log to a model and draw log moves as self-edges and model moves as bypass edges with
+    frequencies, per-element execution counts, a ranked deviation list with case lists and allowlisting, and fitness,
+    precision and conformance rate.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W345
+    - W346
+    - W348
+    - W355
+    - W356
+    - W358
+implemented_by_components: []
+requirements:
+    - Replay an event log on a model and draw log moves as self-edges and model moves as bypass edges with frequencies,
+      show fitness, precision and conformance rate, list deviations ranked by case count or impact, select the cases
+      behind a deviation and allowlist accepted deviations.
+sources: []

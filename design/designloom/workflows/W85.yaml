@@ -1,0 +1,124 @@
+id: W85
+name: Find and Remove Dependency Cycles and Layer Violations
+category: analysis
+validated: false
+personas:
+    - software-supply-chain-security-engineer
+requires_capabilities:
+    - data-import
+    - component-analysis
+    - all-paths-finding
+    - path-highlighting
+    - filtering
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - layout-hierarchical
+    - details-on-demand
+    - group-collapse
+    - cycle-detection
+    - matrix-view
+suggested_components:
+    - file-drop-zone
+    - graph-canvas
+    - heatmap-panel
+    - cluster-collapse-control
+    - path-finder-dialog
+    - node-details-panel
+    - ranked-node-table
+    - legend-panel
+starting_state:
+    data_type: code dependency graph with nested containment (assembly, namespace, class, method) and coupling counts, from NDepend, Lattix, jQAssistant, dependency-cruiser or madge (DOT, JSON)
+    node_count: 100-10,000 code elements (no source gives typical sizes)
+    edge_density: moderate, with counts rolled up per containment level
+    user_expertise: expert
+goal: >-
+    **Intent**: Find dependency cycles and layer violations in a codebase, decide which dependency to cut, and enforce
+    the rule in CI. Software architects do this; they have no dedicated persona, and the developer persona linked here
+    shares the tools and data.
+
+
+    **Mental Model**: "Layers should point one way." A cycle of N components is really one super-component; the
+    lightest edge in the cycle is usually the one to cut.
+
+
+    **Task Phases** (no source gives per-step durations):
+
+    1. **Load the hierarchy** - Rows and columns are assemblies, namespaces, classes and methods; a parent row opens to
+    its children; cells show coupling counts
+
+    2. **Triangularize** - Reorder so non-empty cells sit near the diagonal; layers appear, and cycles show as cells
+    above it
+
+    3. **Read the cycles** - Mutual direct use marked; in indirect mode a cycle appears as a block; treat the N members
+    as one super-component
+
+    4. **Open the path** - Clicking a cell shows the path graph; in the node-link view sub-graphs sit inside parent boxes
+    with expand and collapse; callers, callees and entangled elements colored differently
+
+    5. **Enforce** - Cycle rules and forbidden-dependency rules (no circular imports, no import from a layer above)
+    fail CI
+
+    6. **Decide** - Choose the edge to cut (usually the lightest cell in the cycle) and file refactoring work
+
+
+    **Decision Points**:
+
+    - Which strongly connected group matters most?
+
+    - Which edge in the cycle is cheapest to cut?
+
+    - Which layer rule to enforce in CI?
+
+
+    **Information Needs**:
+
+    - Strongly connected components with member counts
+
+    - Coupling count per edge, rolled up per containment level
+
+    - Back-edges against the intended layer order
+
+    - A synchronized matrix (DSM) and node-link view
+
+
+    **Pain Points**:
+
+    - Node-link views hit scaling problems that a matrix avoids
+
+    - Generated and third-party code inflate the graph
+
+
+    **Data Flow**:
+
+    - Input: NDepend, Lattix, jQAssistant, dependency-cruiser or madge output (DOT, JSON)
+
+    - Transformations: Containment roll-up, strongly connected components, matrix triangularization, path explanation
+
+    - Output: List of cycles and violations, chosen cut edges, CI rules
+success_criteria:
+    - metric: Cycles found
+      target: Every strongly connected group is listed and collapsible as one unit
+    - metric: Cut decision
+      target: User can see the weight of each edge in a cycle and pick the lightest
+sources:
+    - title: NDepend - Dependency Structure Matrix
+      url: https://www.ndepend.com/docs/dependency-structure-matrix-dsm
+      summary: Hierarchical rows, triangularize, black cells for mutual use, cycles as super-components, click a cell for the path graph
+    - title: NDepend - Dependency graph
+      url: https://www.ndepend.com/docs/visual-studio-dependency-graph
+      summary: Nested parent boxes with expand and collapse; callers, callees and entangled elements colored
+    - title: NDepend - Dependency cycles
+      url: https://www.ndepend.com/features/dependency-cycles
+      summary: Cycle rules that fail CI
+    - title: Lattix DSM paper (OOPSLA 2005)
+      url: https://groups.csail.mit.edu/sdg/pubs/2005/oopsla05-dsm.pdf
+      summary: A DSM appears to overcome scaling problems of node-link views
+    - title: dependency-cruiser
+      url: https://www.npmjs.com/package/dependency-cruiser
+      summary: Forbidden rules such as no circular imports, failing CI
+    - title: madge
+      url: https://github.com/pahen/madge
+      summary: Lists circular imports
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

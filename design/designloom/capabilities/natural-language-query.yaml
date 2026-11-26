@@ -1,0 +1,13 @@
+id: natural-language-query
+name: Natural Language Query
+category: analysis
+description: Turn a plain-language question into a query or pattern that is always shown and editable before it runs,
+    applies the user's access rights, and lists any view actions taken so they can be undone.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W149
+implemented_by_components: []
+requirements: []
+sources: []

@@ -1,0 +1,14 @@
+id: orthogonal-port-layout
+name: Orthogonal Layout of Nested Boxes with Ports
+category: visualization
+description: Orthogonal, layered layout of nested boxes with ports on their borders and typed connectors, regenerated
+    from the model with little hand-tuning.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W83
+    - W87
+implemented_by_components: []
+requirements: []
+sources: []

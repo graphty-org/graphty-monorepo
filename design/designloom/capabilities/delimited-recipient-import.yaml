@@ -1,0 +1,14 @@
+id: delimited-recipient-import
+name: Graph from Delimited Recipient Fields
+category: data
+description: Build a people graph from load-file or CSV From/To/CC string fields, tolerating missing fields and
+    reporting unparsed values.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W361
+    - W367
+implemented_by_components: []
+requirements: []
+sources: []

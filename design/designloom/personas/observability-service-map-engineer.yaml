@@ -1,0 +1,80 @@
+id: observability-service-map-engineer
+name: Platform Engineer Embedding a Live Service Map
+role: Internal Developer Platform / Observability Engineer Owning the Service Map Page
+quote: During an incident the map must not move. The numbers on it change every fifteen seconds; the boxes stay where on-call left them.
+bio: >-
+    Kwame Asante works on the internal developer platform team at a company running about 300 microservices on
+    Kubernetes. He owns the "Service map" page in the observability console, and on-call engineers open it during
+    incidents. Today the page is Grafana's Node Graph panel over Tempo service-graph metrics, with Kiali beside it for
+    the Istio mesh. His graph is generated from telemetry, not drawn by a person: spans become request, error and latency
+    metrics in Prometheus, a query turns them into a nodes table and an edges table, and the panel re-runs that query on a
+    timer. The topology barely changes but every number on every node and edge changes several times a minute. He
+    builds the map once and keeps tuning it as the platform grows past the panel's default node cap.
+characteristics:
+    expertise: expert
+    time_pressure: high
+    graph_literacy: basic
+    domain_knowledge: advanced
+motivations:
+    - Give on-call engineers a map that shows where traffic is failing at a glance during an outage
+    - Keep the layout stable across refreshes so nobody loses their place
+    - Scale the map past a few hundred services without hiding the one that is on fire
+    - Link every node and edge to the traces, logs and metrics behind it
+behaviors:
+    - Writes PromQL that copies client and server labels into source and target columns
+    - Shapes a nodes frame (id, title, mainstat, secondarystat, arc fractions, color, detail fields) and an edges frame (id, source, target, mainstat, thickness, color)
+    - Uses fixed positions when the topology is known and a layered layout otherwise
+    - Sets a refresh interval (Kiali defaults to 15 seconds) and adds a pause control for incidents
+    - Encodes health as node color, error ratio as an arc or edge color, request rate as edge width or animated dots
+    - Ranks nodes by inbound edges or error rate to find the hot spot
+goals:
+    - Update node and edge stats many times a minute without moving a single node
+    - Show hidden services as expandable count markers instead of silently dropping them
+    - Pause the map on an incident and replay a past window
+    - Click a node or edge to reach its traces and metrics
+frustrations:
+    - A relayout on every refresh makes the map jump (inferred from the pause control and documented caps; no first-person report found)
+    - The panel shows 200 visible nodes by default and the layered layout is slow above 500 nodes
+    - Only the host's built-in icons are allowed
+    - Traffic animation exists only in an Istio-specific console that cannot be embedded elsewhere
+knows:
+    - Kubernetes, Istio, OpenTelemetry, Tempo, Prometheus and PromQL
+    - Grafana panel and data-frame conventions
+    - TypeScript and React well enough to write a panel plugin
+refuses_to_learn:
+    - Graph layout theory
+    - A graph file format when the data already arrives as two tables on a timer
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: false
+workflows:
+    - W279
+    - W280
+    - W282
+    - W284
+    - W288
+sources:
+    - title: Grafana - Node graph panel
+      url: https://grafana.com/docs/grafana/latest/panels-visualizations/visualizations/node-graph/
+      summary: Two-frame nodes and edges data contract, arc fields summing to 1, fixedX and fixedY, 200 visible nodes by default, layered layout slow above 500 nodes, only built-in icons
+    - title: Grafana Tempo - Service graph
+      url: https://grafana.com/docs/grafana/latest/datasources/tempo/service-graph/
+      summary: Spans turned into service-graph metrics in Prometheus and drawn as a node graph
+    - title: Kiali - Topology
+      url: https://v1-82.kiali.io/docs/features/topology
+      summary: Health colors, animated dots for rate and speed for response time, red diamonds for errors, pause and replay, node ranking
+    - title: Kiali - Console customization
+      url: https://v1-52.kiali.io/docs/configuration/console-customization
+      summary: Refresh choices from pause to 15 minutes with 15 seconds as the default
+    - title: Kiali graph config (Go package)
+      url: https://pkg.go.dev/github.com/kiali/kiali/graph/config/cytoscape
+      summary: Edge fields for response time, throughput, mutual TLS percentage and per-protocol traffic; node health and compound parents
+    - title: Kiali frontend package.json
+      url: https://raw.githubusercontent.com/kiali/kiali/master/frontend/package.json
+      summary: Current Kiali UI depends on PatternFly react-topology; the older UI used Cytoscape.js
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,110 @@
+id: W322
+name: From 3D to a Deliverable (Connectomics)
+category: reporting
+validated: false
+personas:
+    - publication-figure-author
+requires_capabilities:
+    - graph-rendering
+    - community-detection
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - view-bookmarks
+    - export-image
+    - data-export
+    - animated-transitions
+    - journal-figure-export
+    - analysis-provenance
+    - matrix-view
+    - multi-view-figure-export
+suggested_components:
+    - graph-canvas
+    - visual-encoding-panel
+    - gradient-editor
+    - legend-panel
+    - heatmap-panel
+    - bookmark-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: brain connectivity matrix with atlas coordinates, region labels, module assignments and a threshold
+    node_count: 68-1,000 regions
+    edge_density: dense before thresholding
+    user_expertise: advanced
+goal: >-
+    **Intent**: Turn a 3D brain network into journal deliverables - fixed multi-view ball-and-stick figures, a
+    network-ordered matrix heatmap, a connectogram, a supplementary edge table and an optional rotating movie - because
+    paper, PDF and court have no 3D medium.
+
+
+    **Mental Model**: "Positions are anatomy, not layout." Node coordinates come from the atlas and must be kept;
+    a 3D view becomes a deliverable only as a set of fixed, labeled views.
+
+
+    **Task Phases**:
+
+    1. **Keep anatomical positions** - Never recompute positions from a layout
+
+    2. **Render named views** (20 min) - Lateral and medial views per hemisphere in a grid with one shared color bar,
+    often next to the ball-and-stick view of the same nodes in the same colors
+
+    3. **Export at size** (10 min) - Pixel or physical size and DPI to TIFF, EPS or PNG; or a rotating movie (about ten
+    minutes to render)
+
+    4. **Add companion views** (30 min) - Matrix heatmap ordered by network or module with block outlines, circular
+    connectogram, supplementary edge table with region labels
+
+    5. **Save settings** (2 min) - An option file so figures regenerate in batch for every subject or condition
+
+
+    **Decision Points**:
+
+    - Which camera views show the result?
+
+    - Does depth carry data? If not, flatten to 2D
+
+    - Which ordering for the matrix (network, module, attribute)?
+
+    - Which threshold, and is it reset for each matrix?
+
+
+    **Information Needs**:
+
+    - Atlas name, threshold, density and connectome version for the caption
+
+    - One color scale shared across all views
+
+    - Module assignments for matrix ordering and block outlines
+
+
+    **Pain Points**:
+
+    - Tools are MATLAB-bound; movies take about ten minutes to render
+
+    - Threshold must be reset per matrix
+
+    - Multi-view grids and matrices are assembled in separate tools
+
+
+    **Data Flow**:
+
+    - Input: Connectivity matrix, atlas coordinates and labels, modules, threshold
+
+    - Transformations: Thresholding, fixed-position rendering from named cameras, matrix ordering, batch settings
+
+    - Output: Multi-view figure with shared color bar, ordered matrix heatmap, connectogram, edge table CSV, movie
+success_criteria:
+    - metric: Position fidelity
+      target: Exported views use atlas coordinates unchanged
+    - metric: Consistent encoding
+      target: All views in one figure share one color bar and node colors
+    - metric: Batch regeneration
+      target: Saved settings regenerate the same figure for a new matrix
+sources:
+    - title: Ten simple rules to create biological network figures for communication (Marai et al.)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6762067
+      summary: Rule 10 - avoid unjustified 3D; flatten when depth carries no data
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

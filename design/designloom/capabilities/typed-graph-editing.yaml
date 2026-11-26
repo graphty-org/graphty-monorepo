@@ -1,0 +1,14 @@
+id: typed-graph-editing
+name: Typed Graph Editing
+category: analysis
+description: Create and edit nodes and edges by hand against a typed property schema with required fields and
+    validation, and round-trip the result (for example STIX Attack Flow JSON).
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W116
+    - W117
+implemented_by_components: []
+requirements: []
+sources: []

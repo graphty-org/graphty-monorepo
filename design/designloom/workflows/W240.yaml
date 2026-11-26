@@ -1,0 +1,168 @@
+id: W240
+name: Non-Student Newcomer First Session - Hand-Built Table to a Shared Picture
+category: onboarding
+validated: false
+personas:
+    - explorer-elena
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - guided-onboarding
+    - layout-force-directed
+    - visual-encoding-nodes
+    - legend-display
+    - centrality-degree
+    - centrality-betweenness
+    - community-detection
+    - details-on-demand
+    - search
+    - annotation
+    - export-image
+    - undo-redo
+    - metric-explanations
+    - private-share-link
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - onboarding-wizard
+    - graph-canvas
+    - layout-panel
+    - visual-encoding-panel
+    - legend-panel
+    - node-details-panel
+    - search-input
+    - annotation-toolbar
+    - image-export-dialog
+    - share-dialog
+starting_state:
+    data_type: hand-built spreadsheet (member list and replies, company directors, workshop factors and links, or a from-to table with a count)
+    node_count: 20-500
+    edge_density: sparse
+    user_expertise: novice
+goal: >-
+    **Intent**: Get an occasional analyst (community or social-media analyst, data journalist, nonprofit staffer or
+    business analyst) from a table she built by hand to a picture that answers a question and can be shared, in one
+    session, in a browser. Evidence comes from two observational studies of novice NodeXL analysts, a controlled study
+    of 14 novices with guided tours, and the guides of Kumu, Flourish and Gephi Lite. No source found observing a
+    non-student's first session in those tools or measuring abandonment.
+
+
+    **Mental Model**: "Show me the shape, then I will know what to ask." The first question is often not a network
+    question (a correlation between posting and completing projects) and must be reshaped into one about roles,
+    subgroups or the overall shape.
+
+
+    **Task Phases**:
+
+    1. **Question and table, before the tool** - Browse the source, decide what to collect, collect it mostly by hand,
+    restructure it into an edge list, add attributes; novices confuse edge and vertex sheets and need help here
+
+    2. **Fit the table to the tool** - Accept a raw from-to table (with or without a count column) and an optional node
+    sheet; report which rows became nodes and edges
+
+    3. **First picture** - It is "kind of a mess"; a layout and one mapping turn it into clusters ("a watershed moment")
+
+    4. **Map attributes** - One attribute to one visual property, with a legend; avoid metric walls
+
+    5. **Look for something interesting** - A role (hub, bridge), a subgroup, the overall shape, explained in words;
+    an optional guided tour, with free exploration kept
+
+    6. **Re-collect** - The first picture changes the question; reload revised data without redoing the styling
+
+    7. **Fine-tune and export** - Layout tuning, labels, legend and annotation inside the tool; SVG or lossless PNG
+
+    8. **Share** - A private link or an embed; free tiers that publish by default are a risk
+
+
+    **Decision Points**:
+
+    - What counts as a node and what counts as a link in her table
+
+    - Whether her question is a network question, and how to rephrase it
+
+    - Which one attribute to color by
+
+    - Whether to follow a guided tour or explore freely
+
+
+    **Information Needs**:
+
+    - A preview showing how the table's columns become nodes, edges and attributes
+
+    - Counts of nodes and edges created and rows skipped
+
+    - Plain-language descriptions of hubs, bridges and groups for her data, without a wall of numbers
+
+    - A warning that drawn distance is not similarity and size is only one measure
+
+
+    **Pain Points**:
+
+    - Strict import shapes and rejected file types
+
+    - Crashes with no undo; starting over destroys confidence
+
+    - Metrics that recall math anxiety
+
+    - Over an hour spent hand-tuning layout; legends added outside the tool
+
+    - Image-only export; public-by-default sharing
+
+
+    **Data Flow**:
+
+    - Input: Hand-built spreadsheet and a not-yet-network question
+
+    - Transformations: Table-to-graph mapping, layout, one attribute mapping, centrality and communities explained in
+    words, re-import of revised data
+
+    - Output: Annotated figure with legend, shared privately or embedded
+success_criteria:
+    - metric: Table to picture
+      target: A raw from-to table becomes a laid-out, colored network in under 10 minutes with no install
+    - metric: Finding stated
+      target: User can name one role, one subgroup or one shape feature in her data
+    - metric: Valid reading
+      target: User can state one valid and one invalid conclusion about the picture
+    - metric: Recovery
+      target: Any step can be undone; no session ends in starting over
+sources:
+    - title: Hansen et al. - Do You Know the Way to SNA?
+      url: https://www.cs.umd.edu/users/ben/papers/DerekL.2012Do.pdf
+      summary: Process model from 15 novices; question reshaping, edge-list help, messy first picture, metric anxiety, re-collection, layout over an hour, median 12.5 hours
+    - title: Bonsignore et al. - First Steps to NetViz Nirvana
+      url: https://www.cs.umd.edu/~ben/papers/Bonsignore2009First.pdf
+      summary: 21 students; social role and sub-group tasks; Excel the primary barrier; no undo; SVG and lossless PNG requested
+    - title: NetworkNarratives - data tours for network novices
+      url: https://arxiv.org/abs/2303.06456
+      summary: 14 novices; guided tours beat free exploration on learning (4.71 versus 2.86) and exploration time
+    - title: Kumu docs - First steps
+      url: https://docs.kumu.io/getting-started/first-steps
+      summary: Templates, sketching or import, Color by element type
+    - title: Kumu FAQ - My data won't import
+      url: https://docs.kumu.io/frequently-asked-questions/my-data-wont-import.-what-can-i-do
+      summary: Required Label, From and To headers; .xls rejected
+    - title: Flourish help - Network graph overview
+      url: https://helpcenter.flourish.studio/hc/en-us/articles/8761553784719-Network-graph-an-overview
+      summary: Links sheet required, Points optional
+    - title: Carleton - Network analysis with Flourish tutorial
+      url: https://hh2022f.amason.sites.carleton.edu/week-9-project-preparation/tutorial-network-analysis-with-flourish/index.html
+      summary: Source nodes need their own ids or they do not appear
+    - title: Gephi Lite - File formats
+      url: https://docs.gephi.org/lite/user-manual/file-formats/
+      summary: GEXF, GraphML, Graphology JSON and workspace; CSV not listed
+    - title: Gephi Lite - Differences with Gephi
+      url: http://docs.gephi.org/lite/user-manual/differences-with-gephi/
+      summary: Image export only, no SVG or PDF; saves to GitHub Gists
+    - title: Kumu pricing
+      url: https://kumu.io/pricing
+      summary: Free projects public and indexed
+    - title: Zoss et al. 2018
+      url: https://cns.iu.edu/docs/publications/2018-NetSci-Zoss.pdf
+      summary: Distance read as similarity; wider links made nodes seem more similar
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

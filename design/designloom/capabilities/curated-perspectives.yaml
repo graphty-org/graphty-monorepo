@@ -1,0 +1,14 @@
+id: curated-perspectives
+name: Curated Perspectives
+category: analysis
+description: "A role-scoped lens over the schema: which labels, properties and relationship types are visible, under
+    which business names and styles, exportable as a file for version control."
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W142
+    - W145
+implemented_by_components: []
+requirements: []
+sources: []

@@ -1,0 +1,82 @@
+id: litigation-support-analyst
+name: Litigation-Support Analyst
+role: Senior eDiscovery Analyst at a review vendor; Relativity Certified Administrator
+quote: If one alias is merged into the wrong person, every count on that graph is wrong and it ends up on a privilege log.
+bio: >-
+    Dana is a senior eDiscovery analyst at a vendor that serves large law firms, with six years of processing and
+    analytics behind her. Matters arrive as 20 to 150 custodians' mailbox PSTs plus Teams and Slack exports that she
+    converts to Relativity Short Message Format, hundreds of thousands to millions of documents in all. Before a case
+    team ever opens a people graph she runs structured analytics: email threading so reviewers see a correct thread
+    tree, textual near-duplicates, and name normalization, which turns display names and addresses into entities and
+    aliases. Name normalization "can create many thousands of entities and aliases" and "the results are not perfect",
+    so she triages the entity list by frequency into Junk, To Check and Not Sure, verifies the important ones against
+    their documents, and merges or assigns aliases by hand -- knowing there is no documented unmerge. She then builds
+    dashboards with the Communication Analysis widget for the case team and uses Brainspace for concept clustering.
+    She is fluent in saved searches, regular expressions and Excel cleanup lists, and reads node size and edge
+    thickness easily, but she does not interpret centrality numbers herself.
+characteristics:
+    expertise: expert
+    time_pressure: high
+    graph_literacy: moderate
+    domain_knowledge: expert
+motivations:
+    - Clean the entity list before the case team looks at any people graph
+    - Run threading so reviewers see a correct tree and review only inclusive emails
+    - Never let a mis-merged or split alias reach a privilege log or a custodian memo
+    - Give the case team graph counts that reconcile with the document list
+    - Keep every merge and exclusion defensible if the other side asks how the analysis was done
+behaviors:
+    - Seeds known people first (custodians from processing and legal hold) and links their aliases before running normalization
+    - Runs name normalization on the priority custodian alone first, then adds custodians incrementally
+    - Sorts entities by frequency and triages them into Junk, To Check and Not Sure rather than verifying all of them
+    - Keeps an exclusion list of shared mailboxes and distribution addresses so they do not become hubs
+    - Opens an entity's documents to verify that the aliases really belong to one person
+    - Removes duplicates and keeps all unique documents, not only inclusive emails, before building a people graph, so one communication is not counted twice
+    - Maps an All Custodians field during processing so deduplicated copies still record who held them
+    - Builds dashboards for the case team and hands off saved searches, not pictures
+frustrations:
+    - Normalization creates many thousands of entities and aliases that cannot all be verified
+    - No documented split or unmerge once two entities are merged; the survivor rule deletes the other entity's data
+    - She must not edit an alias name "even if it's incorrect" because later runs read it
+    - Missing-email placeholders in thread trees that "may not represent truly missing emails"
+    - The people graph draws only the largest 500 entities and does not say how many were left out
+    - The Communication Analysis widget has no documented export, so the case team screenshots it
+    - Chat channels arrive as one header with hundreds of participants and draw as a clique
+context:
+    frequency: daily
+    devices:
+        - desktop
+        - laptop
+    voluntary: false
+workflows:
+    - W361
+    - W362
+    - W363
+    - W364
+    - W365
+    - W369
+sources:
+    - title: Relativity - Name normalization
+      url: https://help.relativity.com/RelativityOne/Content/Relativity/Analytics/Name_normalization.htm
+      summary: Parser rules, alias cap per entity to prevent over-merging, documents with more than 500 entities and aliases excluded
+    - title: Relativity - Best practices for name normalization
+      url: https://help.relativity.com/Server2024/Content/Relativity/Analytics/Best_practices_for_name_normalization.htm
+      summary: Start with the priority custodian, triage categories, verify entities against their documents
+    - title: Relativity - Name normalization quick reference
+      url: https://help.relativity.com/Server2025/Content/System_Guides/User_quick_reference/Analytics/Name_normalization.htm
+      summary: Can create many thousands of entities and aliases; results are not perfect; not practical to verify every entity
+    - title: Relativity - Name normalization results
+      url: https://help.relativity.com/Server2025/Content/Relativity/Analytics/Name_normalization_results.htm
+      summary: Merge up to 50 entities, assign up to 500 aliases, survivor rules, no unmerge, do not edit alias names
+    - title: Relativity - Communication analysis
+      url: https://help.relativity.com/RelativityOne/Content/Relativity/Analytics/Communication_analysis.htm
+      summary: Widget needs name normalization, largest 500 entities by default, deduplicate before counting, no export
+    - title: Relativity - Email thread visualization
+      url: https://help.relativity.com/RelativityOne/Content/Relativity/Analytics/Email_thread_visualization.htm
+      summary: Thread tree states and missing-email placeholders that may not be truly missing
+    - title: Relativity - Short message investigative workflow
+      url: https://help.relativity.com/RelativityOne/Content/System_Guides/Relativity_Short_Message_Format/Short_message_investigative_workflow.htm
+      summary: Chat converted to RSMF; the people graph reads header participants, not message frequency
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

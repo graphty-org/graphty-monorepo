@@ -1,0 +1,18 @@
+id: temporal-data-model-import
+name: Time-Preserving Import and Time Model
+category: data
+description: "Import that keeps time intact in five shapes: point events, intervals with multiple spells (start/end or
+    start + duration), snapshot series matched by id, time-varying attributes including position, and a single date
+    column. Covers dynamic GEXF, start/end CSV, SocioPatterns t i j, SNAP src dst time lists. Shows stated interval
+    semantics (inclusive or half-open, open ends, time zone, granularity) and counts of missing and invalid dates."
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W19
+    - W304
+    - W305
+    - W307
+implemented_by_components: []
+requirements: []
+sources: []

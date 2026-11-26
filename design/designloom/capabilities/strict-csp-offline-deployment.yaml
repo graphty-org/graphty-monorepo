@@ -1,0 +1,14 @@
+id: strict-csp-offline-deployment
+name: Strict CSP and Offline Deployment
+category: analysis
+description: Works under a published strict Content Security Policy (no eval, no blob workers required, no
+    unsafe-inline), reports a code when workers or WebGPU are blocked, and lets every on-demand asset be bundled or
+    self-hosted with no runtime network calls unless configured.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W286
+implemented_by_components: []
+requirements: []
+sources: []

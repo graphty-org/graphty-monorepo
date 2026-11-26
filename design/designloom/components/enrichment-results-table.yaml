@@ -7,6 +7,13 @@ implements_capabilities:
     - community-profiling
 used_in_workflows:
     - W21
+    - W237
+    - W257
+    - W259
+    - W338
+    - W412
+    - W430
+    - W439
 dependencies: []
 props: {}
 sources: []

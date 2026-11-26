@@ -13,6 +13,17 @@ used_by_workflows:
     - W06
     - W07
     - W12
+    - W112
+    - W113
+    - W128
+    - W282
+    - W312
+    - W336
+    - W355
+    - W429
+    - W52
+    - W65
+    - W72
 implemented_by_components:
     - anomaly-panel
 requirements:

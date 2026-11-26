@@ -1,0 +1,145 @@
+id: W393
+name: Root and Annotate a Tree for Publication
+category: reporting
+validated: false
+personas:
+    - molecular-systematist-taxonomist
+    - phylogeographer-population-geneticist
+    - phylogenomics-comparative-biologist
+requires_capabilities:
+    - data-import
+    - data-validation
+    - layout-hierarchical
+    - layout-radial
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - annotation
+    - legend-display
+    - search
+    - node-selection
+    - style-presets
+    - export-image
+    - tree-import-and-axes
+    - phylogenetic-tree-layout
+    - tree-editing-operations
+    - tip-annotation-tracks
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - attribute-table-join-dialog
+    - column-mapper
+    - graph-canvas
+    - heatmap-panel
+    - cluster-collapse-control
+    - visual-encoding-panel
+    - legend-panel
+    - annotation-toolbar
+    - image-export-dialog
+starting_state:
+    data_type: Newick or NEXUS tree with support values as inner node labels or [&key=value] comments, plus a tab-delimited tip annotation table
+    node_count: 50-2,000 tips (tens of thousands for large studies)
+    edge_density: tree (n-1 edges)
+    user_expertise: advanced
+goal: >-
+    **Intent**: Turn an inferred tree into the annotated figure that anchors a systematics, barcoding or phylogeography
+    paper: rooted, support on the right branches, weak clades collapsed, clades highlighted, metadata strips beside
+    tips.
+
+
+    **Mental Model**: "The tree is the result; everything else is labels on it." Branch length is evolutionary change;
+    support belongs to a branch, not to a node.
+
+
+    **Task Phases**:
+
+    1. **Infer** (hours) - MAFFT alignment; IQ-TREE with ModelFinder, ultrafast bootstrap and SH-aLRT written as
+    "SH-aLRT/UFBoot" labels, or MrBayes or BEAST with [&posterior=...]
+
+    2. **Root** (5 min) - Root by outgroup or midpoint in FigTree; order nodes; display support; check support moved
+    with its branch
+
+    3. **Collapse and highlight** (10 min) - Collapse clades below a support threshold (commonly 70 bootstrap or 0.95
+    posterior); highlight clades of interest
+
+    4. **Annotate** (30-90 min) - FigTree File > Import Annotations keyed by tip; iTOL dataset files (color strips,
+    binary columns, simple bars, tree colors, collapse) with regex and substring matching; ggtree joins a data frame and
+    aligns a heatmap or alignment
+
+    5. **Layout** (10 min) - Rectangular, slanted, circular, fan, unrooted equal-angle or daylight, cladogram; aligned
+    tip labels; ladderize
+
+    6. **Export and finish** (1-3 hours) - PDF, SVG or PNG; Illustrator for labels, scale bars and fonts; save the
+    style to reapply to the next version of the tree
+
+
+    **Decision Points**:
+
+    - Outgroup or midpoint rooting?
+
+    - Which support threshold to collapse?
+
+    - Phylogram or cladogram; rectangular or circular?
+
+    - Which metadata columns become strips, bars or heatmaps?
+
+
+    **Information Needs**:
+
+    - Whether inner labels are names or support values, and confirmation that support stayed on its branch after
+    rerooting
+
+    - Tip labels that failed to match the annotation table
+
+    - Scale bar in substitutions per site
+
+    - Legend for every strip and color
+
+
+    **Pain Points**:
+
+    - Support moves to the wrong branch on rerooting in 8 of 20 tools
+
+    - Limited annotation in FigTree; iTOL subscription for unrestricted use
+
+    - Newick forbids spaces so labels and metadata keys diverge
+
+    - Every analysis change means rebuilding the figure and redoing Illustrator edits
+
+
+    **Data Flow**:
+
+    - Input: Newick, NEXUS or phyloXML tree; tip annotation tables; optional alignment
+
+    - Transformations: Rerooting with support kept on branches, ladderizing, collapsing by support, table join on tip
+    label, strip and heatmap tracks
+
+    - Output: Publication PDF or SVG with legend and scale bar; a saved style for the next tree
+success_criteria:
+    - metric: Support correctness
+      target: Support values stay on the same bipartition after any reroot
+    - metric: Annotation match
+      target: User sees how many tips matched the table and which did not
+    - metric: Restyle time
+      target: A saved style applies to a new tree in under one minute
+sources:
+    - title: BEAST FigTree workshop
+      url: https://beast.community/workshop_figtree
+      summary: Rooting, ordering, node labels, annotations in FigTree
+    - title: iTOL v6 (Letunic and Bork 2024)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11223838/
+      summary: Dataset types, regex and substring matching, bulk label editor, clade collapsing, export queue
+    - title: itol.toolkit reference
+      url: https://cran.r-project.org/web/packages/itol.toolkit/refman/itol.toolkit.html
+      summary: 114 themes across 23 template types
+    - title: ggtree book chapter 4
+      url: https://yulab-smu.top/treedata-book/chapter4.html
+      summary: Tree layouts and annotation layers
+    - title: Czech, Huerta-Cepas and Stamatakis 2017
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5435079
+      summary: Rerooting misplaces support in 8 of 20 tools
+    - title: TreeViewer (Bianchini and Sanchez-Baracaldo 2024)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10834882/
+      summary: Multiple programs and post-editing; saved style reapplied to a new tree
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

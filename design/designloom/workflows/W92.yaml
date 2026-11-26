@@ -1,0 +1,151 @@
+id: W92
+name: Fact-Check, Legal Review and the Evidence Trail for a Network Story
+category: reporting
+validated: false
+personas:
+    - investigative-reporter
+    - osint-investigator
+    - newsroom-graphics-editor
+    - osint-disinformation-investigator
+requires_capabilities:
+    - annotation
+    - details-on-demand
+    - filtering
+    - saved-filters
+    - visual-encoding-edges
+    - visual-encoding-nodes
+    - legend-display
+    - analysis-history
+    - view-bookmarks
+    - data-export
+    - export-image
+    - report-generation
+    - local-only-processing
+    - provenance-tracking
+    - guided-presentation
+suggested_components:
+    - graph-canvas
+    - node-details-panel
+    - data-table-panel
+    - annotation-toolbar
+    - filter-panel
+    - filter-chip
+    - legend-panel
+    - analysis-history-panel
+    - bookmark-panel
+    - data-export-dialog
+    - image-export-dialog
+    - report-generator-dialog
+starting_state:
+    data_type: working investigation graph with sources, notes and captures attached to nodes and edges
+    node_count: working graph of hundreds to thousands; published subset of tens to a few hundred
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Carry an investigation graph through fact-checking and legal review so that every published node,
+    edge and label traces to a checked source, and the published graph is a verified subset of the working graph with
+    the right disclaimers. In a network story each published edge is a statement of fact.
+
+
+    **Mental Model**: "Every line on the chart is a sentence a lawyer will read." A link is published only if a
+    document supports it and it has passed verification; several reports that agree may still share one original
+    source.
+
+
+    **Task Phases**:
+
+    1. **Document as you go** (throughout) - Record each pivot and link with its source; an investigation that cannot
+    show its reasoning is not actionable; look for the intersection of several weak signals, not one smoking gun
+
+    2. **Capture and hash sources** (throughout) - Record web pages with screenshots, timestamps and hashes (Hunchly);
+    follow chain-of-custody principles when evidence may reach a court (Berkeley Protocol)
+
+    3. **Build the fact-check sheet** (hours) - Break the draft into statements of fact with columns for source,
+    links and file names; one row per published edge and per labeled claim
+
+    4. **Apply verification thresholds** (days) - Count only what passes the criteria (ICIJ counted only the 336
+    politicians who passed); do not use auto-built graphs for final claims
+
+    5. **Right of reply** (days) - Put findings to the subjects before publication, with the specifics (for crypto
+    stories, the wallet addresses)
+
+    6. **Legal review** (days) - Lawyers flag statements that could support a libel or privacy claim; by inference
+    every edge and label on a chart must trace to a checked statement (no source describes what lawyers require of a
+    network chart specifically)
+
+    7. **Cut the published subset** (hours) - Keep only verified nodes and edges; add captions and the disclaimer
+    that listing implies no wrongdoing; export the chart and the matching table
+
+
+    **Decision Points**:
+
+    - Does this edge have its own source, or does it rest on the same original source as another?
+
+    - Which links pass the verification threshold, and which stay out of the published graph?
+
+    - Does the chart's wording or encoding imply more than the evidence (for example implied wrongdoing)?
+
+
+    **Information Needs**:
+
+    - Per node and edge - source document or dataset, URL, capture date and hash, who added it, verification status
+
+    - A table of exactly the edges on screen, with endpoints, relationship, source and status
+
+    - Which items changed status since the last review
+
+    - The disclaimer and captions that must travel with any export
+
+
+    **Pain Points**:
+
+    - Links whose source is lost by publication time
+
+    - Exports that differ from the screen, so the fact-check table and the chart disagree
+
+    - A graph that looks more convincing than its evidence
+
+    - Disclaimers added by hand after export and then forgotten
+
+
+    **Data Flow**:
+
+    - Input: Working graph with per-item sources, notes and captures; the draft story
+
+    - Transformations: Status marking (accepted, conflict, work needed), filter to verified items, caption and
+    disclaimer attachment
+
+    - Output: Fact-check table matching the published chart, published chart with disclaimer, evidence package with
+    hashes
+success_criteria:
+    - metric: Edge-to-source traceability
+      target: Every published edge opens to its source and verification status in one click
+    - metric: Table and chart parity
+      target: Exported fact-check table lists exactly the edges in the exported chart
+    - metric: Disclaimer carried
+      target: Captions and disclaimer appear in every exported or embedded graphic
+sources:
+    - title: GIJN - Introduction to investigative journalism, fact-checking
+      url: https://gijn.org/resource/introduction-investigative-journalism-fact-checking/
+      summary: Draft broken into statements of fact with source, link and file-name columns (read via search summary)
+    - title: RCFP - Pre-publication review guide
+      url: https://www.rcfp.org/resources/pre-publication-review-guide/
+      summary: Lawyers flag statements that could support libel or privacy claims (read via search summary)
+    - title: TryHackMe - Practical OSINT, how real investigations actually work
+      url: https://tryhackme.com/resources/blog/practical-osint-how-real-investigations-actually-work
+      summary: An investigation that cannot show its reasoning is not actionable; intersection of weak signals
+    - title: Bellingcat Online Investigations Toolkit - Hunchly
+      url: https://bellingcat.gitbook.io/toolkit/more/all-tools/hunchly
+      summary: Page captures with screenshots, timestamps and hashes
+    - title: UC Berkeley Human Rights Center - Berkeley Protocol on Digital Open Source Investigations
+      url: https://humanrights.berkeley.edu/programs/investigations/berkeley-protocol
+      summary: Evidence and chain-of-custody standards for open-source material (read via search summary)
+    - title: ICIJ - Frequently asked questions about the Pandora Papers
+      url: https://www.icij.org/investigations/pandora-papers/frequently-asked-questions-about-the-pandora-papers-and-icij/
+      summary: 336 politicians counted only after passing verification criteria
+    - title: Maltego - Structured OSINT investigations with analytic tradecraft
+      url: https://www.maltego.com/blog/structured-osint-investigations-with-maltego-and-analytic-tradecraft/
+      summary: Several reports may appear to corroborate a claim while relying on the same original source
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,14 @@
+id: reveal-relationships
+name: Reveal Relationships
+category: analysis
+description: Fetch and draw the relationships among nodes already on the canvas, without adding new nodes.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W02
+    - W142
+    - W147
+implemented_by_components: []
+requirements: []
+sources: []

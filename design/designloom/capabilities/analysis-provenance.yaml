@@ -1,0 +1,57 @@
+id: analysis-provenance
+name: Analysis Provenance Record
+category: analysis
+description: Algorithm, version, parameters, seed, weight convention, null, layout settings and dataset hash recorded
+    per result and exportable with figures, with a recipe that reproduces the analysis in igraph or NetworkX. Extends
+    analysis-history, which lacks parameters and seeds.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W03
+    - W15
+    - W234
+    - W238
+    - W239
+    - W245
+    - W246
+    - W25
+    - W253
+    - W313
+    - W321
+    - W322
+    - W323
+    - W364
+    - W366
+    - W37
+    - W38
+    - W39
+    - W403
+    - W404
+    - W407
+    - W409
+    - W410
+    - W43
+    - W50
+    - W51
+    - W52
+    - W53
+    - W54
+    - W56
+    - W58
+implemented_by_components: []
+requirements:
+    - Record every parameter of a map (sources, query, dates, counting, thresholds, normalization, layout, clustering
+      resolution, seeds, thesaurus) as structured data that exports as a methods-section list and reruns to the same
+      result.
+    - Export the ordered list of steps, settings, seeds, data source and software versions, with steps made by an
+      assistant marked, for a methods section or an AI-use disclosure.
+    - Record and export every parameter that shaped a graph (source database and version, access date, confidence
+      cutoff, k, TopK, cosine, resolution, edge threshold, enrichment background) as a methods paragraph and as data.
+    - Generate a parameters block (data source and version, filters, algorithms and their settings, layout and seed,
+      time window, date) as legend text and a methods paragraph that stays in sync with the current view.
+    - Export the parameters behind a view (scope, caps, filters, merges, hidden nodes, contributing sources) alongside
+      the image or edge list.
+    - Record how a graph was built (unit, window, measure, threshold, vocabulary, coder, collocation parameter notation)
+      with the graph and every exported figure.
+sources: []

@@ -1,0 +1,14 @@
+id: structural-checks
+name: Structural Completeness Checks
+category: analysis
+description: Neutral results listing nodes with no path to a chosen goal, nodes with no inputs or outputs, and nodes
+    missing a required field (outcomes without indicators).
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W196
+    - W198
+implemented_by_components: []
+requirements: []
+sources: []

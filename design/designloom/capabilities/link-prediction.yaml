@@ -12,6 +12,14 @@ algorithms:
     - Preferential attachment
 used_by_workflows:
     - W16
+    - W104
+    - W119
+    - W140
+    - W171
+    - W217
+    - W263
+    - W334
+    - W55
 implemented_by_components:
     - link-prediction-panel
 requirements:

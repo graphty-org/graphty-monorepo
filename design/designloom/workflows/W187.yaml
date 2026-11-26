@@ -1,0 +1,207 @@
+id: W187
+name: Survey-Based ONA Engagement from Design to Executive Readout
+category: analysis
+validated: false
+personas:
+    - people-analytics-ona-lead
+    - ona-consultant
+    - hr-business-partner
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - filtering
+    - saved-filters
+    - centrality-degree
+    - centrality-betweenness
+    - centrality-closeness
+    - centrality-eigenvector
+    - community-detection
+    - community-profiling
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-force-directed
+    - layout-hierarchical
+    - comparison-view
+    - details-on-demand
+    - statistics-panel
+    - view-bookmarks
+    - export-image
+    - data-export
+    - report-generation
+    - missing-tie-states
+    - multiplex-relations
+    - group-collapse
+    - boundary-measures
+    - privacy-aggregation
+    - reproducible-edge-rules
+    - formal-informal-alignment
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - attribute-table-join-dialog
+    - data-table-panel
+    - filter-panel
+    - filter-chip
+    - algorithm-panel
+    - community-panel
+    - ranked-node-table
+    - visual-encoding-panel
+    - legend-panel
+    - layout-panel
+    - comparison-view
+    - graph-canvas
+    - heatmap-panel
+    - bookmark-panel
+    - image-export-dialog
+    - report-generator-dialog
+    - share-dialog
+starting_state:
+    data_type: HRIS roster with 5-10 attribute columns plus directed survey nominations, one edge set per relationship question
+    node_count: 150-5000
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Run a relationship survey across a business unit, turn the nominations into a network joined to HR
+    attributes, and deliver an executive readout that argues a few organizational decisions -- silos to break,
+    overloaded people to relieve, change agents to recruit -- while protecting the individuals who answered.
+
+
+    **Mental Model**: "The org chart is how work is supposed to flow; the survey shows how it actually flows." The
+    network is evidence for a conversation with leaders, not the deliverable; individuals are protected and groups
+    are compared.
+
+
+    **Task Phases**:
+
+    1. **Define the question and boundary** (days 1-5) - Name one purpose ("influencers for what?"), choose the
+    population (one unit, the top 200 leaders, or the whole company) and whether external partners are in scope
+
+    2. **Get approvals** (1-2 weeks, overlapping) - Legal, Privacy, HR and employee representatives (in Germany a works
+    agreement) approve purpose, access and retention; choose confidential, transparent or anonymous handling up front
+
+    3. **Build the roster** (2-3 days) - Export Name, Email and attribute columns (department, location, level,
+    tenure) from the HRIS; names must be unique, so append the email
+
+    4. **Write the questions** (2-5 days) - 5 to 10 questions, 2 to 3 relationship types (information, problem-solving
+    advice, trust, energy, "would greater access to this person help"), numeric rating codes for frequency or strength,
+    Search and Select for rosters above about 200 names
+
+    5. **Pilot, launch and monitor** (1 day plus 2-3 weeks) - Pilot with a few people, send invitations that state what
+    the data will not be used for, remind non-starters, watch response rate daily against a 60-70 percent floor
+
+    6. **Generate the network** (hours) - Respondent-to-nominee edge list plus node file; sum repeated nominations;
+    choose all questions or combine questions, exclude self-selections, optionally anonymize nodes; check node and edge
+    counts
+
+    7. **Handle non-respondents** (hours) - Keep them as nominated nodes with incoming ties only and use in-degree
+    measures, reconstruct their ties from what respondents reported, or drop them; check whether non-response is uneven
+    across units
+
+    8. **Compute metrics** (hours) - In/out/total degree, betweenness, closeness, eigenvector, Louvain communities,
+    brokerage and E-I index; read roles (central connector, broker, boundary spanner, peripheral person)
+
+    9. **Build the views** (1-3 days) - Force-directed map colored by unit and sized by in-degree, org chart or tree for
+    the formal hierarchy, roll-up of nodes into unit groups, unit-by-unit collaboration matrix, stacked filters
+
+    10. **Executive readout** (1-2 meetings) - Org chart beside informal network; for confidential projects show
+    groups, not the full named network, and give consenting leaders only their percentile band (top 5 or top 15
+    percent); review sensitive findings subgroup by subgroup
+
+    11. **Hand off and plan wave 2** - Action plans (deputies, decision-rights changes, cross-boundary forums,
+    onboarding ramps) and a re-measurement in 3 to 6 months with the same rules
+
+
+    **Decision Points**:
+
+    - Which population boundary answers the business question without surveying everyone?
+
+    - Confidential, transparent or anonymous -- and what will leaders be allowed to see?
+
+    - Roster (closed) or open snowball nominations?
+
+    - Keep, reconstruct or drop non-respondents, given the response rate and how uneven it is?
+
+    - Combine relationship questions into one network or keep them separate for each finding?
+
+    - Which views can be shown to executives without exposing individuals?
+
+
+    **Information Needs**:
+
+    - Response rate overall and per unit, with non-respondents visibly marked on the map
+
+    - Count of nominees matched to the roster, nominees not on the roster, and roster people never named
+
+    - Which relationship question each edge came from, and filters per question
+
+    - Whether a metric was computed on the full network or on the filtered view
+
+    - Group-level matrix of ties between units, and E-I index per unit
+
+    - Percentile band per person rather than an exact rank, for protected feedback
+
+
+    **Pain Points**:
+
+    - Response rates stalling at 60 percent and leaving holes in the map
+
+    - Executives asking for names after the consent letter promised confidentiality
+
+    - Hairball maps that need hand styling and that executives over-read
+
+    - Redoing roster cleanup, joins and styling for every wave because the rules were not saved
+
+    - Moving data between the survey tool, a spreadsheet, Gephi or UCINET, Kumu and PowerPoint
+
+
+    **Data Flow**:
+
+    - Input: HRIS roster (Name, Email, unit, function, level, location, tenure, gender, manager); survey responses as
+    respondent-nominee pairs per question with numeric strength codes; formal reporting lines
+
+    - Transformations: Roster join on unique id, per-question edge sets, summed repeated nominations, non-respondent
+    flagging, centrality and community metrics, roll-up by attribute, group matrix, percentile banding
+
+    - Output: Executive readout deck with org chart beside network, unit matrix and role counts; protected percentile
+    feedback for consenting leaders; action plan; saved project for wave 2
+success_criteria:
+    - metric: Respondent coverage visibility
+      target: Every map and metric states the response rate and marks non-respondent nodes
+    - metric: Readout safety
+      target: No view shown to executives exposes a named individual outside the agreed transparency level
+    - metric: Wave repeatability
+      target: Wave 2 can be produced by re-applying saved joins, filters and styles to the new responses
+sources:
+    - title: Polinode documentation - Surveys
+      url: https://docs.polinode.com/guide/surveys.html
+      summary: Roster columns with unique names, Search and Select above about 200 names, reminders, Generate Networks options including Anonymize Nodes
+    - title: Polinode documentation - Networks
+      url: https://docs.polinode.com/guide/networks.html
+      summary: Manage Metrics on the visible network, Roll-up, Collaboration Matrix, Org Chart layout, stacked AND filters
+    - title: Optimice ONA practitioner course - Setting up the survey
+      url: https://www.slideshare.net/slideshow/organizational-network-analysis-ona-practitioner-course-setting-up-the-survey/28663045
+      summary: Numeric codes for ratings, do not ask for HRIS data, roster versus snowball, pilot first
+    - title: Michael Arena - how organizational network analysis works in the real world (i4cp)
+      url: https://www.i4cp.com/productivity-blog/awss-michael-arena-how-organizational-network-analysis-works-in-the-real-world
+      summary: One purpose first; confidential, transparent or anonymous; top 15 and top 5 percent bands with HR follow-up
+    - title: Visible Network Labs - Raising your response rate
+      url: https://visiblenetworklabs.com/2022/04/06/raising-your-response-rate-a-brief/
+      summary: 60-70 percent minimum response for network surveys
+    - title: Huisman - Imputation of missing network data
+      url: https://www.stat.cmu.edu/~brian/780/bibliography/11%20Imputation/huisman.pdf
+      summary: Reconstruction of non-respondent ties is stable for undirected networks up to 40 percent non-response, weaker for directed
+    - title: OrgMapper - Gephi tutorial for ONA
+      url: https://orgmapper.com/gephi-tutorial
+      summary: Edge list and node file import with Sum merge, ForceAtlas2 above about 100 nodes, Fruchterman-Reingold below
+    - title: Umbrex - Organizational Network Analysis framework
+      url: https://umbrex.com/resources/frameworks/organization-frameworks/organizational-network-analysis-ona/
+      summary: 3-5 week pilot, 6-10 weeks enterprise-wide, 5-10 questions, action plans and re-measurement in 3-6 months
+    - title: Eurofound - Employee monitoring and surveillance, Germany
+      url: https://apps.eurofound.europa.eu/legislationdb/employee-monitoring-and-surveillance/germany
+      summary: Works council co-determination as the usual legal basis for processing employee collaboration data
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

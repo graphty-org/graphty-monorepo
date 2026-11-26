@@ -1,0 +1,172 @@
+id: W31
+name: Producing the Publication Sociogram
+category: reporting
+validated: false
+personas:
+    - sociometric-network-researcher
+    - network-methods-grad-student
+    - archival-affiliation-researcher
+requires_capabilities:
+    - layout-force-directed
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - filtering
+    - community-detection
+    - annotation
+    - style-presets
+    - comparison-view
+    - view-bookmarks
+    - export-image
+    - data-export
+    - network-transforms
+    - multiplex-relations
+    - journal-figure-export
+suggested_components:
+    - layout-panel
+    - visual-encoding-panel
+    - color-picker
+    - filter-panel
+    - range-slider
+    - community-panel
+    - annotation-toolbar
+    - legend-panel
+    - comparison-view
+    - graph-canvas
+    - image-export-dialog
+starting_state:
+    data_type: cleaned network with attributes and computed scores
+    node_count: 20-1500
+    edge_density: sparse
+    user_expertise: intermediate+
+goal: >-
+    **Intent**: Draw the one or two sociograms that go into the paper: nodes colored, shaped and sized by attributes,
+    a stable layout reused across relations and waves, groups outlined, a legend, pseudonymized labels, and a file that
+    meets the journal's artwork rules.
+
+
+    **Mental Model**: "The figure is a claim the reader will check." Visual closeness should mean structural closeness,
+    every pruning must be stated in the caption, and the same node must stay in the same place across panels.
+
+
+    **Task Phases**:
+
+    1. **Build and simplify** (estimate: 5 min) - From edge and node tables; drop loops (simplify with remove.loops).
+
+    2. **Map attributes** (estimate: 10 min) - Color from a palette indexed by node type, size from a numeric attribute,
+    labels off when crowded, smaller arrows and slight curves.
+
+    3. **Add the legend** (estimate: 10 min) - Base igraph draws none and the palette is repeated by hand; ggraph gives
+    legends for mapped aesthetics.
+
+    4. **Fix the layout** (estimate: 5 min) - "The F-R layout is not deterministic"; compute the layout once and reuse it
+    everywhere; rescale for tighter or looser versions of the same layout.
+
+    5. **Reduce the hairball** (estimate: 10 min) - Keep edges above the mean weight, or split tie types into panels;
+    state the cutoff, since thresholding valued ties is unwise unless there is a real threshold effect.
+
+    6. **Panels with a shared layout** (estimate: 10 min) - One panel per relation or wave with the same coordinates
+    ("make sure the nodes stay in the same place in both plots"); ggraph facet_edges repeats nodes in every panel.
+
+    7. **Group hulls** (estimate: 5 min) - Outline communities or classes with filled hulls.
+
+    8. **Nudge by hand** (estimate: 15 min) - Drag nodes (tkplot, sna::gplot interactive) and keep the returned
+    coordinates for reuse; mostly for small networks.
+
+    9. **Export to journal specs** (estimate: 15 min) - SVG, EPS or PDF so text stays editable; Elsevier wants EPS for
+    vector art and TIFF for bitmaps at 1000 dpi line art, 300 dpi halftones, 500 dpi combination, widths 90, 140 or 190
+    mm and standard fonts; APSR requires figures readable in grayscale. Final touch-ups often in Inkscape.
+
+
+    **Decision Points**:
+
+    - Which attribute drives color, and is the palette readable in grayscale?
+
+    - Are isolates shown or omitted (and stated)?
+
+    - Is any edge pruning needed, and at what stated cutoff?
+
+    - One combined figure or panels per relation or wave?
+
+    - Real labels, pseudonyms or none?
+
+
+    **Information Needs**:
+
+    - Live preview at final print width and in grayscale
+
+    - Legend generated from the actual mappings
+
+    - Saved layout coordinates that can be exported and re-imported
+
+    - A caption note listing what was pruned or hidden
+
+
+    **Pain Points**:
+
+    - Non-deterministic layouts that change between runs
+
+    - Legends drawn by hand that drift from the palette
+
+    - NetDraw formatting that does not persist between sessions
+
+    - Hairball figures; ForceAtlas2 images that lose context ("storyletting")
+
+    - No standard step for size, resolution and format; figures rebuilt in a vector editor
+
+
+    **Data Flow**:
+
+    - Input: Network with attributes, community or class membership, optional saved coordinates
+
+    - Transformations: Attribute mappings, fixed layout, edge pruning, panelling, hulls, manual nudges
+
+    - Output: SVG, EPS, PDF or high-dpi TIFF at journal width with legend; layout coordinates file; caption note
+success_criteria:
+    - metric: Layout stability
+      target: Same node positions across every panel and re-open of the figure
+    - metric: Journal readiness
+      target: Export at a chosen width in mm and dpi with a legend and grayscale-safe colors, no vector editor needed
+sources:
+    - title: Ognyanova, Network visualization with R
+      url: https://kateto.net/network-visualization
+      summary: Attribute mapping, fixed layouts, hairball reduction, hulls, tkplot
+    - title: Ognyanova Sunbelt 2021 R network visualization workshop script
+      url: https://raw.githubusercontent.com/kateto/R-Network-Visualization-Workshop/master/Sunbelt%202021%20R%20Network%20Visualization%20Workshop.R
+      summary: Legend by hand, F-R not deterministic, shared layout across panels, mean-weight cutoff, mark.groups
+    - title: igraph tkplot.getcoords
+      url: https://rdrr.io/cran/igraph/man/tkplot.getcoords.html
+      summary: Hand-nudged coordinates retrieved for reuse (renamed tk_coords)
+    - title: sna gplot reference
+      url: https://search.r-project.org/CRAN/refmans/sna/html/gplot.html
+      summary: Interactive vertex moves, returned coordinates, displayisolates
+    - title: ggraph facet_edges
+      url: https://ggraph.data-imaginist.com/reference/facet_edges.html
+      summary: Edge panels with nodes repeated in every panel
+    - title: UW Sociolab UCINET quick guide
+      url: https://depts.washington.edu/sociolab/researchtools/networkanalysis/documents/UCINetQuickGuide2018.pdf
+      summary: NetDraw formatting does not reliably persist
+    - title: Unblackboxing Gephi
+      url: https://hal-supelec.archives-ouvertes.fr/HIPHISCITECH/hal-03729114
+      summary: Storyletting risk when network images lose context
+    - title: Sci2 tutorial - saving visualizations for publication
+      url: https://wiki.cns.iu.edu/SCI2TUTORIAL/2.4-Saving-Visualizations-for-Publication_1245847.html
+      summary: Export, open in Inkscape, ungroup and edit labels
+    - title: Elsevier artwork sizing
+      url: https://www.elsevier.com/about/policies-and-standards/author/artwork-and-media-instructions/artwork-sizing
+      summary: dpi requirements and 90, 140, 190 mm widths
+    - title: Elsevier artwork overview
+      url: https://www.elsevier.com/about/policies-and-standards/author/artwork-and-media-instructions/artwork-overview
+      summary: EPS for vector art, TIFF for bitmaps, standard fonts
+    - title: APSR preparing your materials
+      url: https://www.cambridge.org/core/journals/american-political-science-review/information/author-instructions/preparing-your-materials
+      summary: Figures must be readable in grayscale
+    - title: Thomas and Blitzstein, Valued ties tell fewer lies
+      url: https://arxiv.org/abs/1101.0788
+      summary: Thresholding valued ties is unwise unless there is a real threshold effect
+    - title: Moody (2001)
+      url: https://cpi.stanford.edu/_media/pdf/Reference%20Media/Moody_2001_Race.pdf
+      summary: Pajek spring-embedder figures colored by race, isolates omitted and stated
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,153 @@
+id: W68
+name: Sharing a Tree with Epidemiologists
+category: reporting
+validated: false
+personas:
+    - phl-genomic-epidemiologist
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - layout-hierarchical
+    - layout-radial
+    - temporal-navigation
+    - node-selection
+    - selection-statistics
+    - search
+    - filtering
+    - details-on-demand
+    - visual-encoding-nodes
+    - legend-display
+    - style-presets
+    - view-bookmarks
+    - analysis-history
+    - zoom-pan
+    - export-image
+    - data-export
+    - local-only-processing
+    - tree-import-and-axes
+    - entity-resolution-review
+    - linked-views-selection
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - graph-canvas
+    - layout-panel
+    - temporal-controls
+    - search-input
+    - search-panel
+    - filter-panel
+    - visual-encoding-panel
+    - legend-panel
+    - node-details-panel
+    - data-table-panel
+    - share-dialog
+    - session-save-dialog
+    - bookmark-panel
+    - image-export-dialog
+starting_state:
+    data_type: a Newick tree plus a per-isolate metadata CSV with coordinates and dates
+    node_count: 50-5000
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Give the epidemiologists something they can explore themselves instead of a static figure: a tree, a
+    map, a timeline and a table that are linked, so that clicking an isolate anywhere highlights it everywhere. The
+    laboratory scientist builds it; the people who use it are investigators who will never run a pipeline.
+
+
+    **Mental Model**: "One selection, four windows." The isolate is the unit. Whatever is selected in one view is
+    selected in all of them, so a question asked on the map is answered on the tree.
+
+
+    **Task Phases**:
+
+    1. **Prepare the metadata table** (30 min) - One row per isolate with a unique identifier that exactly matches
+    the tree's leaf labels, optional latitude and longitude in decimal degrees, optional year, month and day fields,
+    and optional columns that carry their own color, shape (circle, square, triangle, star) or automatic coloring
+
+    2. **Add the tree** (seconds) - A Newick file whose leaf labels match the identifier column exactly
+
+    3. **Create the project** (minutes) - By dropping the files in, by pointing at files in cloud storage which are
+    re-read on every open, or programmatically from a pipeline; the result gets a permanent short URL
+
+    4. **Explore the linked views** (minutes to hours, by the investigator) - Map, tree, timeline and table linked by
+    selection; modifier-click to add to a selection; lasso selection on the map or the tree; a search box that
+    queries one column or all of them; a timeline interval that filters by date; right-click an internal node to
+    redraw that subtree, with a history panel to step back
+
+    5. **Share it** (minutes) - Send the URL; set the project private, public, or public and listed; use URL
+    parameters to set the opening view such as tree type, labels and node size
+
+    6. **Decide whether the data may be shared at all** (before step 3) - The service stores project data in its own
+    database, so a jurisdiction with identifiable or embargoed data has to answer that question first
+
+
+    **Decision Points**:
+
+    - Whether this dataset may be uploaded to a third-party service at all
+
+    - Which columns to expose, and which to leave out because they identify people
+
+    - What the opening view should be, since most recipients will never change it
+
+    - Private, public, or public and listed
+
+    - Whether to point at cloud files that are re-read on every open, which keeps the project current and also keeps
+    it changing under the reader
+
+
+    **Information Needs**:
+
+    - A mismatch report when identifiers do not line up between the tree and the metadata, before publishing
+
+    - A selection that is shared across tree, map, timeline and table
+
+    - A search that works over any metadata column
+
+    - A way to step back after redrawing a subtree
+
+    - Confirmation of exactly what data left the building, and where it is stored
+
+
+    **Pain Points**:
+
+    - Identifiers must match leaf labels exactly, and a mismatch loses rows silently
+
+    - Project data lives on someone else's servers, which rules the method out for identifiable or embargoed data
+
+    - A permanent URL is also a permanently exposed URL if the sharing setting is wrong
+
+    - The opening view is the whole experience for most recipients, and tuning it is manual URL work
+
+    - Cloud-linked files re-read on open, so a reader and the analyst can see different data on different days
+
+
+    **Data Flow**:
+
+    - Input: A Newick tree, a metadata CSV with an exactly matching identifier column, optional coordinates, optional
+    date parts, and optional per-column color and shape fields
+
+    - Transformations: Identifier join between tree and metadata, geographic placement, date parsing into a timeline,
+    selection propagation across views, subtree re-rooting with history
+
+    - Output: A shareable linked tree, map, timeline and table project with a permanent URL and a visibility setting
+success_criteria:
+    - metric: Linked selection
+      target: A selection made in any one of the tree, map, timeline or table applies to the other three
+    - metric: Join transparency
+      target: Identifier mismatches between tree and metadata are reported with counts before sharing
+    - metric: Data location clarity
+      target: The user can state exactly what was uploaded and where it is stored before sharing
+sources:
+    - title: Argimon et al., Microreact - visualizing and sharing data for genomic epidemiology (Microbial Genomics 2016)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/5320705/
+      summary: The CSV plus Newick input contract with exactly matching identifiers, optional coordinate, date, color and shape columns, linked map, tree, timeline and table with lasso and modifier selection, subtree redraw with history, permanent project URLs, visibility settings, URL view parameters, and server-side data storage
+    - title: CDC genomic epidemiology toolkit, module 3.2
+      url: https://www.cdc.gov/advanced-molecular-detection/media/pdfs/ToolkitModule_3.2-508C.pdf
+      summary: Where sharing tools sit in the public health genomic epidemiology stack, and the sequence quality caveats that travel with a shared tree
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

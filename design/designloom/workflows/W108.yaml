@@ -1,0 +1,203 @@
+id: W108
+name: Active Directory Attack Path Analysis in BloodHound
+category: analysis
+validated: false
+personas:
+    - dana-okafor
+    - marcus-lindqvist
+requires_capabilities:
+    - data-import
+    - data-validation
+    - search
+    - node-selection
+    - shortest-path
+    - all-paths-finding
+    - path-highlighting
+    - filtering
+    - saved-filters
+    - layout-hierarchical
+    - layout-force-directed
+    - neighborhood-expansion
+    - hover-highlight
+    - details-on-demand
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - comparison-view
+    - export-image
+    - data-export
+    - report-generation
+    - local-only-processing
+    - graph-diff
+    - typed-edge-filtering
+    - set-to-set-paths
+    - user-node-flags
+    - path-focus-dimming
+    - security-format-import
+    - path-grouping
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - graph-canvas
+    - search-panel
+    - context-menu
+    - path-finder-dialog
+    - filter-panel
+    - filter-chip
+    - layout-panel
+    - node-details-panel
+    - data-table-panel
+    - comparison-view
+    - image-export-dialog
+    - data-export-dialog
+    - report-generator-dialog
+starting_state:
+    data_type: SharpHound zip (JSON per object type) per domain, optionally AzureHound JSON for Entra ID
+    node_count: 10,000-500,000
+    edge_density: sparse, typed and directed multi-edges (MemberOf, AdminTo, HasSession, GenericAll, WriteDacl, DCSync)
+    user_expertise: expert
+goal: >-
+    **Intent**: Find, prove and report the paths by which an account the attacker controls (owned) can reach Domain
+    Admins or any Tier Zero asset in Active Directory and Entra ID. Red teams use it to show a client the shortest
+    believable route; defenders use the same graph to find and remove the edges that make those routes possible. This
+    is the single most common security use of a general graph: every internal penetration test runs it.
+
+
+    **Mental Model**: "Who can become whom." Every edge is a privilege one principal holds over another (member of,
+    admin to, has a session on, can reset the password of). A path is a sequence of abuses, so the question is never
+    "how central is this node" but "from here, in how many hops, through which edge types, can I reach that set".
+
+
+    **Task Phases**:
+
+    1. **Stand up the tool** (15 min) - Install BloodHound CE (CLI pulls containers and writes a docker-compose file),
+    log in and reset the generated admin password; analysis must stay on the engagement laptop
+
+    2. **Collect** (seconds to tens of minutes) - Run SharpHound from a domain-joined host with Default (groups,
+    trusts, ACLs including certificate services, OUs, GPO links, local groups, sessions), All, or DCOnly; loop session
+    collection (default every 2 hours) because sessions are transient; password-protect the zip; run AzureHound for
+    Entra ID
+
+    3. **Ingest** (minutes to hours) - Upload each zip through File Ingest or the upload API; split very large
+    collections or use a third-party importer when browser upload fails or non-ASCII names break parsing
+
+    4. **Mark state** (5 min) - Right-click compromised principals "Add to Owned"; review and extend the Tier Zero set;
+    both trigger re-analysis
+
+    5. **Run saved queries** (10 min) - Pick from prebuilt, personal and shared queries filtered by platform (AD,
+    Azure) and category; start with shortest paths to Domain Admins
+
+    6. **Pathfind** (15-60 min) - Set a start node and up to three destinations (shortest path between each consecutive
+    pair, combined), reorder or reverse, and filter out edge types that cannot or will not be abused
+
+    7. **Write custom Cypher** when needed - for example all shortest paths from any owned node to any high-value node;
+    save, share, export and import queries as JSON
+
+    8. **Read the result** (ongoing) - Default left-to-right ranked-layer layout (Sequential in CE, Stacked in
+    Enterprise), with force-directed alternatives; edgeless results open as a table; click a node to dim everything
+    except paths through it; click an edge to read its General, Abuse (step-by-step) and OPSEC (detection risk) panels;
+    expand node accordions (Members, Member Of, Local Admin Privileges, Inbound and Outbound Object Control) into the
+    graph
+
+    9. **Decide** (red) - Prefer short paths with quietly abusable edges, rate severity by who the start principal is,
+    and group near-duplicate paths into one finding; (blue) target choke points ranked by the share of principals whose
+    paths run through them
+
+    10. **Check safety and remediate** (blue) - Confirm the privilege removal breaks no business process, then follow
+    the ADUC remediation steps
+
+    11. **Verify** - Re-collect, re-ingest and re-run the same queries; the path must be gone; compare analysis runs
+
+    12. **Hand off** (1-2 h) - Export JSON or images with labels hidden; write per-path findings with reproduction
+    commands
+
+
+    **Decision Points**:
+
+    - Which collection method is quiet enough for this engagement and complete enough for the question?
+
+    - Which accounts count as owned, and which assets belong in Tier Zero?
+
+    - Which edge types are realistic to abuse here (and which would trip detection)?
+
+    - Is this path a new finding or a duplicate of one already written up?
+
+    - (Blue) Which choke point to remove first, and is it safe to remove?
+
+
+    **Information Needs**:
+
+    - Import counts per object type and a list of objects that failed to parse
+
+    - Owned and Tier Zero flags visible on nodes and usable in queries and styles
+
+    - Hop count and the ordered list of edges for each path, with abuse and detection notes per edge type
+
+    - Inbound and outbound privileges for a selected principal, expandable into the graph
+
+    - Which principals share the same chain to the same target (for grouping findings)
+
+    - What changed between two collections (paths removed, paths new)
+
+
+    **Pain Points**:
+
+    - The path exists in a graph of hundreds of thousands of edges, but finding the useful one takes hours
+
+    - Hundreds of near-duplicate paths must be grouped into findings by hand
+
+    - Large collections import slowly and break on non-ASCII names
+
+    - Image export is Enterprise-only in BloodHound, so report figures are screenshots
+
+    - Cracked-password lists must be matched against group membership by hand
+
+    - Node identifiers containing a colon break search
+
+
+    **Data Flow**:
+
+    - Input: SharpHound zips (one per domain), AzureHound JSON, optional OpenGraph JSON for MSSQL or SCCM; owned
+    account list
+
+    - Transformations: Typed multi-edge import, owned and Tier Zero flags, set-to-set shortest paths with edge-type
+    filters and waypoints, path grouping, collection diff
+
+    - Output: Per-path findings with images and reproduction commands; exported JSON subgraphs; verified-removed path list
+success_criteria:
+    - metric: Time from ingested collection to the first path from owned to Domain Admins
+      target: Under 10 minutes
+    - metric: Duplicate grouping
+      target: Each distinct chain to a target appears as one finding listing all affected principals
+    - metric: Verification
+      target: After remediation and re-collection, the user can see which paths disappeared and which are new
+sources:
+    - title: BloodHound docs - Community Edition quickstart
+      url: https://bloodhound.specterops.io/get-started/quickstart/community-edition-quickstart
+      summary: CLI install, File Ingest of zip or JSON with no size limit, browser upload failures on large files
+    - title: BloodHound docs - SharpHound flags
+      url: https://bloodhound.specterops.io/collect-data/ce-collection/sharphound-flags
+      summary: Default, All and DCOnly collection methods, session loop, zip password
+    - title: SANS - BloodHound, sniffing out the path through Windows domains
+      url: https://www.sans.org/blog/bloodhound-sniffing-out-path-through-windows-domains
+      summary: Collection from a domain-joined host, run time seconds to tens of minutes, defender use
+    - title: BloodHound docs - Search and pathfinding
+      url: https://bloodhound.specterops.io/analyze-data/explore/search
+      summary: Owned and Tier Zero marking, waypoints, edge type filter, reverse path, Abuse and OPSEC panels
+    - title: BloodHound docs - Cypher search
+      url: https://bloodhound.specterops.io/analyze-data/explore/cypher-search
+      summary: Saved queries by platform, category and source; shortest paths to Domain Admins
+    - title: BloodHound docs - Graph controls
+      url: https://bloodhound.specterops.io/analyze-data/explore/graph-controls
+      summary: Sequential and Stacked layered layouts, Standard and Organic force layouts, table results, Hide Labels, export
+    - title: NetSPI - ADPathfinder, OpenGraph attack path mapping in BloodHound CE
+      url: https://www.netspi.com/blog/technical-blog/network-pentesting/adpathfinder-opengraph-attack-path-mapping-in-bloodhound-ce/
+      summary: Pentester pain finding paths, duplicate paths, severity by starting principal, per-path findings
+    - title: Dealing with large BloodHound datasets (Helvio Junior)
+      url: https://helviojunior.com.br/en/offsec/dealing-with-large-bloodHound-datasets
+      summary: Slow imports, 95,369-user client environment
+    - title: SpecterOps - Attack path management pillar 3
+      url: https://specterops.io/blog/2022/03/03/attack-path-management-pillars-part-3-safe-ad-security-remediation-guidance/
+      summary: Choke points, safe remediation, verification by re-collection
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

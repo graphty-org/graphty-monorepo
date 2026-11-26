@@ -1,0 +1,82 @@
+id: graph-deliverable-recipient
+name: Graph Deliverable Recipient
+role: Non-operator who receives graph deliverables - program officer, executive, prosecutor, compliance reviewer, community partner, editor
+quote: I have a minute between meetings and a phone. Tell me the one thing this shows, and tell me whether I'm allowed to forward it.
+bio: >-
+    Grace Mwangi is a composite of the people who receive graph deliverables but never operate a graph tool: a
+    foundation program officer opening a narrated systems map, a chief operating officer reading an organizational
+    network readout, a prosecutor reviewing a trial chart, a compliance reviewer checking a suspicious activity case
+    file, a community partner of a health department reading a cluster summary, a client reading a penetration test
+    report, a newspaper editor checking an embedded graphic. She opens a link on a phone, reads a printed page that is
+    often black and white, or uses a screen reader. She has no graph literacy and no time; she needs the message, the
+    legend and the caveats on the artifact itself, and she needs to trust that every name she sees is meant for her
+    and that nothing hidden ships inside the file. Her tools are a browser (Kumu, Linkurious guest links, VOSviewer
+    Online links), PDF readers, i2 Chart Reader and PowerPoint.
+characteristics:
+    expertise: novice
+    time_pressure: high
+    graph_literacy: none
+    domain_knowledge: intermediate
+motivations:
+    - Understand the single message of the deliverable in under a minute
+    - Know what she may forward, print or show, and to whom
+    - Trust that the names and records she sees are meant for her and are backed by sources
+    - Read it on whatever she has - a phone, a grayscale printout, a screen reader
+    - Get the same view again next month and see what changed
+behaviors:
+    - Opens a link on a phone or reads a printed copy, rarely a desktop with a mouse
+    - Reads titles, captions and legends before looking at the network itself
+    - Looks for the finding stated in words (a slide title, a narrative sentence, a table row)
+    - Forwards links and PDFs to colleagues without checking what data the file carries
+    - Asks the producer for the source behind any surprising element
+frustrations:
+    - Static exports lose the tooltips that carried the details
+    - Color encodings do not survive grayscale printing
+    - Dense graphs are unreadable on a phone, where there are no tooltips or hover
+    - Node-link diagrams she cannot interpret without an explanation
+    - Links that expose more than was meant (whole databases behind guest links, private maps visible to anyone with the link)
+    - Deliverables that need the producer's software to open
+context:
+    frequency: weekly
+    devices:
+        - mobile
+        - laptop
+        - desktop
+    voluntary: false
+workflows:
+    - W15
+    - W313
+    - W314
+    - W315
+    - W316
+    - W317
+    - W318
+    - W319
+    - W320
+    - W321
+    - W323
+sources:
+    - title: i2 Chart Reader
+      url: https://i2group.com/i2-chart-reader
+      summary: Free viewer to show, search and print i2 charts for people without Analyst's Notebook
+    - title: Cambridge Intelligence - Intelligence dissemination with PDF exports
+      url: https://cambridge-intelligence.com/intelligence-dissemination-with-pdf-exports/
+      summary: Static exports lose interactivity and color must survive grayscale printing
+    - title: journalism.co.uk - How the Wall Street Journal approaches data interactives on mobile
+      url: https://www.journalism.co.uk/how-the-wall-street-journal-approaches-data-interactives-on-mobile/
+      summary: Small screens cannot rely on tooltips or hover
+    - title: Kumu embeds guide
+      url: https://docs.kumu.io/guides/embeds.html
+      summary: Anyone with the share link or embed can view the map even if the project is private
+    - title: Linkurious guest mode
+      url: https://doc.linkurious.com/admin-manual/4.0/guest-mode
+      summary: Anyone who can reach the guest URL can browse the full database read-only unless restricted
+    - title: ICD 208 - Maximizing the Utility of Analytic Products
+      url: https://www.dni.gov/files/documents/ICD/ICD-208-Maximizing-the-Utility-of-Analytic-Products-2017-01-09.pdf
+      summary: Products customers can readily find, access, use and pass along
+    - title: Accessible node-link diagrams (arXiv 2311.04502)
+      url: https://arxiv.org/html/2311.04502v4
+      summary: Navigable structure and text alternatives for screen-reader users of network diagrams
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

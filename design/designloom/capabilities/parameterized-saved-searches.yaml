@@ -1,0 +1,16 @@
+id: parameterized-saved-searches
+name: Parameterized Saved Searches
+category: analysis
+description: Searches and query templates with typed inputs (node, node set, string, number, date, enum) and suggestion
+    lists, written by one user and run by others with one click; may take the current selection as input; read-only
+    unless writes are enabled.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W142
+    - W143
+    - W145
+implemented_by_components: []
+requirements: []
+sources: []

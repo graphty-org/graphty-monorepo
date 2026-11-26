@@ -1,0 +1,15 @@
+id: resolution-sweep
+name: Resolution Sweep
+category: analysis
+description: Communities and stability plotted against resolution (and against interlayer coupling for multilayer
+    modularity); choose one or several scales.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W04
+    - W38
+    - W46
+implemented_by_components: []
+requirements: []
+sources: []

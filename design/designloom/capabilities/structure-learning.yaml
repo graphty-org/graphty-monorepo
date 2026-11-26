@@ -1,0 +1,14 @@
+id: structure-learning
+name: Causal structure learning
+category: analysis
+description: Learn a directed graph from tabular data with PC, GES or hill-climbing under tier and forbidden or required
+    arc constraints. Bootstrap the search, report how often each arc and each direction appeared, and average the
+    results above a threshold.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W425
+implemented_by_components: []
+requirements: []
+sources: []

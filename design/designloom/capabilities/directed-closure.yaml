@@ -1,0 +1,22 @@
+id: directed-closure
+name: Directed Upstream/Downstream Closure
+category: analysis
+description: Select every node reachable upstream, downstream or both from chosen nodes, with separate depth limits each
+    way, restricted to chosen edge types and direction, stating the depth, edge types and loaded universe used (dbt
+    3+x+4, Bazel rdeps, Cypher [:DEPENDS_ON*]).
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W198
+    - W76
+    - W77
+    - W78
+    - W79
+    - W80
+    - W84
+    - W87
+implemented_by_components: []
+requirements:
+    - Upstream and downstream sets of selected nodes with union and intersection across several, drivers and sinks.
+sources: []

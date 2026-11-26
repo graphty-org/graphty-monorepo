@@ -1,0 +1,128 @@
+id: W446
+name: Serving a Network View From a Herbal Medicine Database
+category: exploration
+validated: false
+personas:
+    - network-pharmacology-researcher
+requires_capabilities:
+    - graph-rendering
+    - progressive-loading
+    - neighborhood-expansion
+    - search
+    - filtering
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-force-directed
+    - layout-radial
+    - hover-highlight
+    - tooltip-display
+    - details-on-demand
+    - zoom-pan
+    - export-image
+    - data-export
+    - provenance-tracking
+    - embeddable-query-viewer
+suggested_components:
+    - graph-canvas
+    - search-input
+    - filter-panel
+    - layout-panel
+    - legend-panel
+    - node-tooltip
+    - node-details-panel
+    - context-menu
+    - zoom-controls
+    - progressive-loader
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: >-
+        A server-side store of millions of known and predicted herb-ingredient-target edges (2,319,272 predicted in one
+        resource) with confidence scores; a query result subgraph of a herb, ingredient, formula, target or gene list
+    node_count: hundreds to low thousands drawn per query
+    edge_density: sparse to moderate
+    user_expertise: expert developer building for novice to intermediate researchers
+goal: >-
+    **Intent**: Give visitors of a traditional medicine database an in-page network of what the resource knows around
+    a herb, ingredient, formula or target, which they can expand, filter and export to Cytoscape. Each resource
+    (BATMAN-TCM, ETCM, Drugst.One) has written its own viewer; this is the sub-population that would embed a graph web
+    component.
+
+
+    **Mental Model**: For the developer, "drop a viewer into the result page". For the visitor, "start at my herb and
+    walk outward", with predicted edges visibly weaker than known ones.
+
+
+    **Task Phases**:
+
+    1. **Query** - Visitor enters a herb, ingredient, formula, target or gene list (one resource accepts eight identifier
+    types)
+
+    2. **Return a capped subgraph** - Server returns, for example, the top 20 predicted targets per compound from
+    millions of edges
+
+    3. **Render** - Typed network with the seed central, predicted edges with width by confidence, known and predicted
+    distinguished
+
+    4. **Explore** - Expand a clicked node's neighbors, choose entity types to show, filter by confidence, relayout, link
+    out to the record page
+
+    5. **Export** - SVG or JPG image; GraphML or CX2 for Cytoscape; bulk download and JSON API
+
+
+    **Decision Points**:
+
+    - (Developer) How many neighbors to return per expansion, and which entity types by default?
+
+    - (Visitor) Which confidence threshold separates trustworthy predicted edges?
+
+    - (Visitor) Which nodes to expand next?
+
+
+    **Information Needs**:
+
+    - Entity type and identifiers on every node with a link to the database record
+
+    - Edge evidence (known or predicted) and confidence score
+
+    - How much of the neighborhood was capped and not shown
+
+
+    **Pain Points**:
+
+    - Each resource builds and maintains its own viewer; the embeddable alternative covers protein-drug data only
+
+    - Desktop exchange formats (CX2, GraphML, XGMML) must round-trip with Cytoscape and NDEx
+
+
+    **Data Flow**:
+
+    - Input: Query terms, server subgraph as JSON with types, evidence class and confidence
+
+    - Transformations: Incremental rendering, neighbor expansion on click, type and confidence filtering, relayout
+
+    - Output: In-page network view, image export, GraphML or CX2 download
+success_criteria:
+    - metric: Embed cost
+      target: A developer renders a typed, confidence-weighted subgraph in a page with a few lines of code
+    - metric: Expansion
+      target: Clicking a node adds its neighbors from the server without redrawing the whole view
+    - metric: Exchange
+      target: Exported GraphML or CX2 opens in Cytoscape with types and scores intact
+sources:
+    - title: BATMAN-TCM 2.0 (PMC10767940)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10767940
+      summary: 17,068 known and 2,319,272 predicted ingredient-target interactions; network views with edge width proportional to confidence; top 20 predicted targets per compound; JSON API
+    - title: ETCM v2.0 (PMC10326295)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10326295
+      summary: JavaScript network visualization tool with editing, layout control, filtering and SVG or JPG export
+    - title: Drugst.One (PMC10274948)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10274948
+      summary: Embeddable protein-drug-disease explorer integrated into 21 tools with as little as three lines of code; GraphML export
+    - title: Cytoscape Web (Ono et al., Nucleic Acids Research 2025)
+      url: https://idekerlab.ucsd.edu/wp-content/uploads/2025/05/Ono-NucleicAcidsRes-2025.pdf
+      summary: Browser Cytoscape exchanging networks with desktop Cytoscape and NDEx through CX2
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

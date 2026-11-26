@@ -1,0 +1,16 @@
+id: representation-transparency
+name: Representation Transparency
+category: export
+description: Shows and records the parallel-edge merge rule, direction handling, self-loops, isolates, projection and
+    its weighting; keeps the two-mode or group data alongside any projection.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W03
+    - W37
+    - W47
+    - W49
+implemented_by_components: []
+requirements: []
+sources: []

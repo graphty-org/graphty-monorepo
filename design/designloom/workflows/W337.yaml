@@ -1,0 +1,168 @@
+id: W337
+name: Microbial Co-occurrence Network, Built and Thresholded with a Robustness Check
+category: analysis
+validated: false
+personas:
+    - interaction-network-ecologist
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - filtering
+    - saved-filters
+    - component-analysis
+    - community-detection
+    - community-profiling
+    - centrality-degree
+    - computed-attributes
+    - statistics-panel
+    - metric-histograms
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-force-directed
+    - comparison-view
+    - analysis-history
+    - export-image
+    - data-export
+    - threshold-sweep
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - attribute-table-join-dialog
+    - data-preview-table
+    - range-slider
+    - histogram
+    - filter-panel
+    - graph-canvas
+    - community-panel
+    - ranked-node-table
+    - computed-attributes-panel
+    - statistics-panel
+    - visual-encoding-panel
+    - legend-panel
+    - comparison-view
+    - analysis-history-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: taxon-by-taxon association table (correlation or partial correlation with p-values) from R, plus a taxonomy and abundance table keyed on taxon id; one per condition
+    node_count: 100-1000 taxa
+    edge_density: dense before threshold, sparse after
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Turn an association table inferred in R (SparCC, SPIEC-EASI, NetCoMi) into a thresholded, signed taxon
+    network, read its modules and keystone candidates, and check that the headline properties survive reasonable
+    changes to the cutoff before putting them in a paper. The inference step stays in R; this workflow starts where
+    the ecologist currently exports to Gephi or Cytoscape, and adds the threshold sweep that the tool chain makes
+    slow today.
+
+
+    **Mental Model**: "Which edges are real?" The association matrix is complete; the network is a decision about which
+    associations to keep. The cutoff is a parameter of the result, not a preprocessing detail, so it should be moved
+    and watched like any other.
+
+
+    **Task Phases**:
+
+    1. **Load** (5 min) - Import the association table (long form: taxon A, taxon B, coefficient, p-value) and the node
+    table (taxon id, phylum, genus, mean abundance, prevalence); check that every edge endpoint matched a taxon
+
+    2. **Threshold** (5 min) - Keep edges with absolute coefficient at or above a cutoff (0.3 and 0.6 are conventions) and
+    adjusted p below 0.05; see the coefficient histogram with the cutoff marked and the edge, node and component counts
+    update as it moves; drop isolated taxa and note how many
+
+    3. **Encode and lay out** (10 min) - Color by phylum or module, size by degree or abundance, positive edges and
+    negative edges in two colors, width by absolute coefficient; force-directed layout
+
+    4. **Modules and roles** (10 min) - Detect modules; compute within-module degree (Zi) and participation (Pi); flag
+    module hubs (Zi above 2.5), connectors (Pi above 0.62) and network hubs as keystone candidates in a ranked table
+
+    5. **Sweep the cutoff** (10 min) - Re-run steps 2 and 4 at three to five cutoffs; table edges, positive-to-negative
+    ratio, modularity, number of modules and the keystone list at each; note which keystone taxa persist
+
+    6. **Compare conditions** (15 min) - Load the network of each condition at the same cutoff; show side by side with the
+    same colors; table shared and unique edges and global properties
+
+    7. **Export** (10 min) - Figure per condition with legend, node and edge tables, the sweep table and a parameter record
+    (inference method, cutoff, p-value correction, module method and seed)
+
+
+    **Decision Points**:
+
+    - Fixed cutoff, p-value only, or an automated choice (random matrix theory in MENAP and iNAP)?
+
+    - Keep negative edges in module detection, or detect on positive edges only?
+
+    - Which keystone candidates are stable enough across cutoffs to report?
+
+    - Are differences between conditions larger than differences between cutoffs?
+
+
+    **Information Needs**:
+
+    - Coefficient and p-value histograms with the current cutoff
+
+    - Counts of kept edges, positive and negative, isolated taxa and components at each cutoff
+
+    - Zi and Pi per taxon with role class
+
+    - Sweep table of global properties and keystone persistence
+
+    - Shared and unique edges between conditions
+
+
+    **Pain Points**:
+
+    - The cutoff is "often left to the user", but changing it means re-exporting and restyling in another tool
+
+    - Network properties change nonlinearly with the threshold, so a single network can mislead
+
+    - Sparse tables with many zeros inflate correlations and create spurious structure that no drawing reveals
+
+    - Taxon ids that must match exactly between edge and node tables
+
+    - Methods often poorly described, so the network cannot be rebuilt
+
+
+    **Data Flow**:
+
+    - Input: Association table per condition (coefficient, p-value), taxonomy and abundance table
+
+    - Transformations: Endpoint join, threshold on coefficient and p-value, module detection, Zi and Pi, cutoff sweep,
+    side-by-side comparison
+
+    - Output: Figure per condition, keystone table with persistence across cutoffs, sweep table, comparison table,
+    parameter record
+success_criteria:
+    - metric: Threshold visibility
+      target: User can state how many edges, isolates and modules the chosen cutoff produced
+    - metric: Robustness reported
+      target: Keystone list and modularity reported at three or more cutoffs
+    - metric: Time from association table to compared figures
+      target: Under one hour for two conditions
+sources:
+    - title: Matchado et al. 2021 - Network analysis methods for studying microbial communities (mini review)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8131268
+      summary: The cutoff choice "is often left to the user"; MENAP offers automated selection by random matrix theory
+    - title: Connor, Barberan and Clauset 2017 - Using null models to infer microbial co-occurrence networks (PLOS ONE)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5426617
+      summary: Sparsity and thresholds create spurious patterns; network properties change nonlinearly with the threshold; robustness checks across thresholds recommended
+    - title: Cross-validation of correlation networks using modular structure (arXiv 2303.01835)
+      url: https://arxiv.org/pdf/2303.01835
+      summary: Treats threshold choice as model selection; higher thresholds give more communities
+    - title: SpiecEasi vignette
+      url: https://bioconductor.statistik.tu-dortmund.de/packages/3.24/bioc/vignettes/SpiecEasi/inst/doc/SpiecEasi.html
+      summary: StARS selection; abs(cor) >= 0.3 described as an arbitrary cutoff
+    - title: NetCoMi - network construction and comparison for microbiome data
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8293835
+      summary: netConstruct wraps association measures; netCompare and diffnet compare conditions
+    - title: Goberna and Verdu 2022 - Cautionary notes on the use of co-occurrence networks in soil ecology
+      url: https://www.uv.es/verducam/DamnNetworks.pdf
+      summary: Networks often used as a pictorial tool; 25-30 sites reasonable; methods often poorly described
+    - title: Brown University library - Gephi guide
+      url: https://libguides.brown.edu/gephi
+      summary: Node table Id must match edge Source and Target; modularity, coloring and ForceAtlas2 steps
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,50 @@
+id: communications-surveillance-reviewer
+name: Communications Surveillance Reviewer
+role: Compliance Analyst Clearing Trade-Surveillance Alerts at a Bank or Broker
+quote: Is this alert a one-off, or part of a group of people who keep turning up together?
+bio: >-
+    A compliance analyst at a bank or broker-dealer who clears alerts raised on traders' email, chat and voice in
+    surveillance platforms such as Relativity Trace, Global Relay, Behavox or NICE Actimize. Surveillance documentation
+    describes alert queues driven by lexicons and models, threading of messages, and chat converted to short-message
+    documents; the analyst reads the flagged message in context, decides whether to escalate, and records a
+    disposition. This persona is weakly evidenced: no source read shows a click-level graph workflow in surveillance,
+    so whether reviewers ask "who else is connected to this alert" with a graph is unconfirmed. It is kept as a
+    candidate that shares the chat data shape (one header, many participants) and the insider-risk graph of users,
+    files and activities, not as a design driver. Graph literacy is assumed low.
+characteristics:
+    expertise: intermediate
+    time_pressure: high
+    graph_literacy: basic
+    domain_knowledge: advanced
+motivations:
+    - Clear alerts quickly with a defensible disposition
+    - See whether an alert involves people who repeatedly communicate with each other
+    - Read a chat conversation in context rather than as isolated messages
+behaviors:
+    - Works an alert queue filtered by lexicon and model hits
+    - Opens flagged chat or email in a threaded context view
+    - Records a disposition and escalates a subset to investigators
+frustrations:
+    - Chat channels with hundreds of participants make everyone look connected
+    - Pseudonymized views that still reveal names in some panels
+    - No source found for which graph views surveillance reviewers actually open
+context:
+    frequency: daily
+    devices:
+        - desktop
+    voluntary: false
+workflows:
+    - W369
+sources:
+    - title: Relativity Trace - Detailed data flow
+      url: https://relativitydev.github.io/relativity-trace-documentation/docs/administrator_guide/data_flow/detailed_data_flow.html
+      summary: Surveillance data flow with alert queues, lexicons and threading; no graph workflow described
+    - title: Microsoft Purview - Insider risk management data risk graph
+      url: https://learn.microsoft.com/purview/insider-risk-management-data-risk-graph
+      summary: Graph of users, files and activities for one alert; shows names even with pseudonymization; retired November 24, 2026
+    - title: Relativity - Short message investigative workflow
+      url: https://help.relativity.com/RelativityOne/Content/System_Guides/Relativity_Short_Message_Format/Short_message_investigative_workflow.htm
+      summary: Chat converted to RSMF; visualizations read header participants, not message frequency
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,169 @@
+id: W340
+name: First Process Map, Bottleneck and Handover View
+category: exploration
+validated: false
+personas:
+    - process-mining-consultant
+    - process-mining-auditor
+    - clinical-pathway-analyst
+    - customer-journey-analyst
+requires_capabilities:
+    - data-import
+    - data-preview
+    - data-validation
+    - layout-hierarchical
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - filtering
+    - saved-filters
+    - details-on-demand
+    - statistics-panel
+    - metric-histograms
+    - animated-transitions
+    - export-image
+    - data-export
+    - event-log-import
+    - process-map-derivation
+    - process-detail-sliders
+    - variant-analysis
+    - case-drilldown
+    - token-replay-animation
+suggested_components:
+    - file-drop-zone
+    - column-mapper
+    - data-import-dialog
+    - data-preview-table
+    - graph-canvas
+    - slider
+    - filter-panel
+    - filter-chip
+    - histogram
+    - statistics-panel
+    - node-details-panel
+    - temporal-controls
+    - legend-panel
+    - image-export-dialog
+    - data-export-dialog
+    - session-save-dialog
+starting_state:
+    data_type: event log CSV (case id, activity, start and complete timestamps, resource, role)
+    node_count: 10-60 activities (608 cases and 9,119 events in the Disco tutorial)
+    edge_density: moderate
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Go from an event log file to a process map, find where time is lost, and show who hands work to whom.
+    This is the first hour of every process mining project, and the Disco tutorial that teaches it takes about 1 to 1.5
+    hours.
+
+
+    **Mental Model**: "Draw what really happened." One box per activity, one arrow per "A was directly followed by B in
+    the same case", thick arrows for the main flow, long-duration arrows for waiting. The graph is derived from the
+    table and recomputed on every filter.
+
+
+    **Task Phases**:
+
+    1. **Inspect and map columns** (5 min) - Preview about 1,000 rows; give each column one role (remove, case,
+    activity, timestamp, resource, other); accept guessed roles and timestamp patterns or override them; concatenate
+    columns when no single one is the case
+
+    2. **Read the map** (10 min) - Start and end symbols, dashed arrows from start and to end, frequencies on nodes and
+    edges; find the dominant start, the main split, and activities that repeat far more than they have cases (rework)
+
+    3. **Set detail** (5 min) - Paths slider down first, then activities; every shown activity stays on a start-to-end
+    path; remember that only at 100/100 do the numbers add up
+
+    4. **Statistics and cases** (10 min) - Case duration distribution (most cases 16-17 days, some 80-90+), variant
+    list (top variant 88 cases, about 15 percent), each case's history as a graph or table
+
+    5. **Filter slow cases** (5 min) - Performance filter on case duration above a threshold (21 days gave 92 cases);
+    copy and filter into a named data set so the original stays intact
+
+    6. **Find the bottleneck** (10 min) - Switch to the performance view (mean or median); an activity of about 10
+    minutes followed by a wait of about 15 days is the finding; show a second metric in smaller type
+
+    7. **Animate** (5 min) - Replay cases as dots that queue on slow edges; synchronize case starts; sample large logs
+
+    8. **Change the node attribute** (10 min) - Make role or department the node instead of activity; the map now
+    shows handovers between functions, ping-pong between roles and transfer delays
+
+    9. **Hand off** (10 min) - Export the map as PDF, PNG or a graph file with every metric, metric tables as CSV,
+    the filtered log as CSV or XES, the animation as video, and the project
+
+
+    **Decision Points**:
+
+    - Which columns are the case, the activity and the timestamps?
+
+    - How far to lower the sliders before the map hides something that matters?
+
+    - Which metric (case frequency, absolute frequency, mean or median duration) answers the question?
+
+    - Which threshold defines a slow case?
+
+    - Activity, role or department as the node?
+
+
+    **Information Needs**:
+
+    - Parse report: rows read, rows skipped, timestamp pattern used
+
+    - Case, event, activity and variant counts for the current selection
+
+    - Frequency and duration on every node and edge, with a secondary metric
+
+    - Case duration histogram and variant coverage
+
+    - The cases behind a node or edge, each with its full history
+
+
+    **Pain Points**:
+
+    - Slider-simplified maps whose numbers no longer add up, and analysts who stop trusting them
+
+    - Layout that changes when a slider moves
+
+    - Large CSV imports that take hours in desktop tools
+
+    - Changing the node attribute requires a re-import
+
+
+    **Data Flow**:
+
+    - Input: Event log CSV or XES
+
+    - Transformations: Column roles, directly-follows aggregation with artificial start and end, frequency and
+    performance metrics, detail sliders, case filters, attribute-as-node re-derivation
+
+    - Output: Annotated process map and handover map, named filtered data sets, exported images, metric tables,
+    filtered logs and animation
+success_criteria:
+    - metric: Time from CSV to first process map
+      target: Under 5 minutes
+    - metric: Bottleneck located
+      target: User can name the edge with the longest mean waiting time and its case count
+    - metric: Numbers add up
+      target: At full detail, node and edge frequencies balance and the tool states when they do not
+sources:
+    - title: Fluxicon Process Mining in Practice - Tutorial
+      url: https://fluxicon.com/book/read/tutorial/
+      summary: 608 purchase orders, 9,119 events, 98 variants; full walk-through from import to handover view
+    - title: Fluxicon Process Mining in Practice - Import
+      url: https://fluxicon.com/book/read/import/
+      summary: Column roles, timestamp pattern guessing, concatenated case columns, CSV versus FXL import times
+    - title: Fluxicon Process Mining in Practice - Map view
+      url: https://www.fluxicon.com/book/read/mapview/
+      summary: Activities and paths sliders, numbers add up only at 100/100, secondary metric
+    - title: Fluxicon Process Mining in Practice - Export
+      url: https://fluxicon.com/book/read/export/
+      summary: Map as PDF, PNG or XML with metrics and layout; metrics CSV; filtered logs; animation AVI; project file
+    - title: Fluxicon academic material
+      url: https://fluxicon.com/academic/material/
+      summary: Tutorial takes about 1 to 1.5 hours
+    - title: Microsoft Power Automate Process Mining - process map
+      url: https://learn.microsoft.com/en-us/power-automate/minit/process-map
+      summary: Mining attribute selection (resource, region, department) recalculates the map and metrics
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

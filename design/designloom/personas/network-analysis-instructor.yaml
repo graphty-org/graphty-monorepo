@@ -1,0 +1,83 @@
+id: network-analysis-instructor
+name: Network Analysis Instructor
+role: Faculty Member, Lecturer or Digital-Scholarship Librarian Teaching Network Analysis
+quote: If installation eats the first lab and the handout's menus moved in the new release, I have lost the class.
+bio: >-
+    Dr. Ana Ruiz teaches a 14-week network analysis course or runs a 90-minute library workshop. She chooses the tool
+    (Gephi, Polinode, UCINET, R with igraph or statnet, NetworkX, Kumu, Flourish, Cytoscape for biologists, VisuAlgo for
+    algorithm lectures), picks a small sparse dataset, writes a handout with exact menu paths and version notes, posts
+    install notes and data on Canvas or Brightspace, and keeps a fallback when a data source closes ("Access to Twitter
+    has since been restricted. Use YouTube instead."). She teaches concepts before the tool ("Even a simple
+    introduction should take two lessons"), runs labs as demonstration, task, discussion and second task, sets an AI-use
+    policy, and grades figures, step lists and metrics tables quickly and fairly. She wants students to learn that
+    "networks are not fixed or objective representations of reality".
+characteristics:
+    expertise: expert
+    time_pressure: medium
+    graph_literacy: expert
+    domain_knowledge: expert
+motivations:
+    - Every student reaches a correct, readable figure within one lab
+    - Students learn to question what a picture shows, not just produce it
+    - Handouts and datasets that keep working across tool releases
+    - Fair, fast grading of figures, step lists and metrics tables
+    - Data handling that protects students when the class surveys itself
+behaviors:
+    - Rebuilds the handout for each tool release and posts it with the dataset on the LMS
+    - Chooses classics (karate club 34 members and 78 edges, Les Miserables, political books) or the class's own survey data
+    - Opens with a 5 to 15 minute "Network of the Day" warm-up or a stepped algorithm demo on the projector
+    - Prepares pre-made files as a fallback when live collection fails
+    - Grades on use of tools, insight and presentation, or on order and working for algorithm questions
+    - Writes an AI-use policy ranging from ban to open use with documentation
+frustrations:
+    - Handouts that rot with each release (a popular tutorial was "made for Gephi 0.8.2")
+    - Install time eating the first lab
+    - Windows-only tools such as UCINET, which requires "Windows operating system Vista or later"
+    - Free tiers that publish student work (Kumu free projects are public and indexed)
+    - Not being able to cover all of a tool's functions in the time available
+    - Students who cannot reproduce a classmate's picture because layouts and communities change
+context:
+    frequency: weekly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W239
+    - W231
+    - W232
+    - W233
+    - W234
+    - W237
+    - W238
+sources:
+    - title: Aarhus University teaching case - Hands-on data analysis, visualising networks
+      url: https://educate.au.dk/en/teaching-cases/hands-on-data-analysis-visualising-networks
+      summary: 105 students; concepts before Gephi, two lessons minimum; Twitter fallback to YouTube; cannot cover all Gephi functions
+    - title: Warwick IM904 week 4
+      url: https://warwick.ac.uk/fac/cross_fac/cim/people/academic-technology/im904/week4
+      summary: Lab structure, pre-made files, handouts rebuilt per release
+    - title: Network of the Day (Connections, 2026)
+      url: https://reference-global.com/article/10.2478/connections-2026-0005?tab=article
+      summary: 5 to 15 minute warm-up; networks are not objective representations; hairballs as a teaching tool
+    - title: Zoss et al. 2018 - Network visualization literacy
+      url: https://cns.iu.edu/docs/publications/2018-NetSci-Zoss.pdf
+      summary: Recommends small networks with low density; low network visualization literacy in youth and adults
+    - title: Grandjean - Gephi introduction
+      url: https://martingrandjean.ch/gephi-introduction/
+      summary: Widely used tutorial written for Gephi 0.8.2
+    - title: UCINET software
+      url: https://sites.google.com/site/ucinetsoftware/home
+      summary: Requires Windows Vista or later
+    - title: Kumu pricing
+      url: https://kumu.io/pricing
+      summary: Free projects visible to everyone and indexed; free private projects for .edu addresses on request
+    - title: UT Dallas ATCM 3385 syllabus
+      url: https://dox.utdallas.edu/syl86627
+      summary: Grading on use of tools, insight and presentation; anonymized class network
+    - title: UCI Network Data - Zachary karate club
+      url: https://networkdata.ics.uci.edu/netdata/html/zacharyKarate.html
+      summary: 34 members and 78 edges
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

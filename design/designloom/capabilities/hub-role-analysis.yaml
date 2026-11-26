@@ -1,0 +1,15 @@
+id: hub-role-analysis
+name: Hub Role Analysis
+category: analysis
+description: Within-module degree z-score, participation coefficient, role map, supernode cap with selective expansion,
+    and optional normalization by a collection-effort column.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W04
+    - W17
+    - W41
+implemented_by_components: []
+requirements: []
+sources: []

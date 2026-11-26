@@ -1,0 +1,14 @@
+id: hypergraph-data
+name: Group Interactions (Hypergraphs)
+category: analysis
+description: Import hyperedges (HIF, XGI-DATA, bipartite edge lists, timestamped simplices) and keep them as groups with
+    incidence attributes; hyperedge-size distribution, s-walk components and centralities, hypergraph modularity; hull
+    drawing plus a bipartite or rows-and-lines view for many hyperedges.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W49
+implemented_by_components: []
+requirements: []
+sources: []

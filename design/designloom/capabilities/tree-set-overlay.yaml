@@ -1,0 +1,14 @@
+id: tree-set-overlay
+name: Tree Set Overlay and Consensus
+category: analysis
+description: Load thousands of trees on shared tips and show them overlaid (DensiTree style) or as a consensus, with
+    per-branch frequency, posterior or concordance labels.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W394
+    - W395
+implemented_by_components: []
+requirements: []
+sources: []

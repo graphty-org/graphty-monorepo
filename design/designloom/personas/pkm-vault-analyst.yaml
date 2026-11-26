@@ -1,0 +1,73 @@
+id: pkm-vault-analyst
+name: PKM Vault Analyst
+role: Data Engineer treating an 18,000-note vault as a dataset
+quote: There is no one script yet, just a series of moves. I want the whole link graph in one call.
+bio: >-
+    Kenji is a data engineer whose Obsidian vault has grown to about 18,000 notes and 58,000 internal links. The
+    built-in global graph takes minutes to build at that size, so he no longer opens it. Instead he treats the vault as a
+    dataset: Graph Analysis for Jaccard, Adamic-Adar and co-citation suggestions relative to the current note; Advanced
+    Graph View for a WebGL graph sized by PageRank and colored by Louvain clusters; obsidiantools in Python for a NetworkX
+    graph; and, when he wants modularity and centrality, a CSV edge list for Gephi assembled with jq and hand cleaning. He
+    has tried Simple Graph Builder with a local Ollama model to extract entities from his notes. He is comfortable with
+    scripts and consoles, reads `app.metadataCache.resolvedLinks` directly, and is annoyed that external parsers produce
+    a graph that differs from what Obsidian shows. He wants results to come back into the vault as links, not stay in a
+    separate tool.
+characteristics:
+    expertise: expert
+    time_pressure: low
+    graph_literacy: advanced
+    domain_knowledge: advanced
+motivations:
+    - Find the notes that hold the vault together and the clusters it falls into, named by their content
+    - Get ranked link suggestions for the note he is writing
+    - Watch how the vault grew over time
+    - Run the analysis on the same link graph Obsidian resolves, not an approximation
+    - Bring results back into the vault as links or properties
+behaviors:
+    - Pulls the resolved link map from Obsidian's metadata cache through the developer console or a plugin
+    - Exports a CSV edge list and analyzes it in Gephi, NetworkX or igraph
+    - Uses in-app plugins for link prediction (Jaccard, Adamic-Adar, co-citation) and community detection (label propagation, Louvain)
+    - Runs local LLM extraction on a subset of notes and inspects the resulting entity graph
+    - Lists orphans, dead ends and broken links as tables rather than reading them off a picture
+frustrations:
+    - No built-in whole-graph export; the command-line interface returns links one note at a time
+    - External parsers give a graph "slightly different to what you see in the Obsidian app"
+    - The core graph takes about four minutes to build at 18,000 notes
+    - Plugins that patch the core graph are experimental because it "lacks an API"
+    - No way to bring Gephi results (communities, centrality) back into the vault
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W325
+    - W326
+    - W332
+    - W334
+sources:
+    - title: Obsidian forum - How many notes do you have?
+      url: https://forum.obsidian.md/t/how-many-notes-do-you-have/36987
+      summary: Self-report of 18,413 notes and 57,800 links where the graph took about 4 minutes to build; other vault sizes
+    - title: Obsidian forum - Obsidian graph to Gephi
+      url: https://forum.obsidian.md/t/obsidian-graph-to-gephi/10563
+      summary: jq over the cache to CSV, hand-cleaned; "No one script yet, just a series of moves"; no way back from Gephi
+    - title: Obsidian forum - CLI command for the whole link graph
+      url: https://forum.obsidian.md/t/cli-a-command-for-the-whole-link-graph-not-one-note-at-a-time/119161
+      summary: Per-note CLI link commands took 1,296 calls; resolvedLinks via eval takes about 6 ms
+    - title: Graph Analysis plugin
+      url: https://github.com/skepticmystic/graph-analysis
+      summary: Jaccard, Adamic-Adar, common neighbors, co-citation and label propagation relative to the current note
+    - title: obsidiantools (PyPI)
+      url: https://pypi.org/project/obsidiantools/
+      summary: NetworkX graph of a vault, isolated notes lists; graph may differ slightly from the app's
+    - title: Advanced Graph View plugin
+      url: https://community.obsidian.md/plugins/graph-insight
+      summary: WebGL view from metadataCache with PageRank, Louvain clusters named by TF-IDF, follow mode, persistent pins, no network
+    - title: Extended Graph plugin
+      url: https://community.obsidian.md/plugins/extended-graph
+      summary: Patches the core graph, which "lacks an API and documentation", so many features are experimental
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

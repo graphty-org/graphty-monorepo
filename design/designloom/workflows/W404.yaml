@@ -1,0 +1,142 @@
+id: W404
+name: Corpus to Semantic Network in Gephi (Nocodefunctions, quanteda, textnets)
+category: analysis
+validated: false
+personas:
+    - text-network-analyst
+requires_capabilities:
+    - data-import
+    - filtering
+    - community-detection
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - layout-force-directed
+    - legend-display
+    - search
+    - details-on-demand
+    - analysis-history
+    - export-image
+    - data-export
+    - analysis-provenance
+    - backbone-extraction
+    - co-occurrence-weighting
+    - provenance-tracking
+    - text-to-network
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - filter-panel
+    - range-slider
+    - status-bar
+    - algorithm-panel
+    - community-panel
+    - visual-encoding-panel
+    - layout-panel
+    - legend-panel
+    - graph-canvas
+    - search-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: a collection of documents (abstracts, posts, chapters) as text or a document-feature matrix
+    node_count: 30-300 terms (quanteda caps plotting at 1,000)
+    edge_density: dense before backbone extraction (250 terms, 19,613 relations in one tutorial)
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Build a semantic network of terms from a document collection with a no-code web app or a few lines of R
+    or Python, then style, cluster and lay it out in Gephi to read its topics. The digital-humanities and social-science
+    route when KH Coder is not the tool of choice.
+
+
+    **Mental Model**: "A cluster of terms characterizes a topic." Labels are the content; edges are scaffolding that
+    clutters the view once the layout has done its work.
+
+
+    **Task Phases**:
+
+    1. **Decide what a term is** (10 min) - Words minus stopwords, n-grams, noun phrases, stems or lemmas
+
+    2. **Decide how many** (5 min) - About 300 terms at most; tf-idf ranking for collections
+
+    3. **Decide the unit and weight** (5 min) - Sentence, paragraph, document or a window of N words (quanteda
+    fcm window 5); binary or full counting; optionally PMI so rare terms that always co-occur get strong edges
+
+    4. **Build** (5-15 min) - Nocodefunctions returns a Gephi file; or quanteda fcm_select top 30 and textplot_network;
+    or textnets Textnet with min_docs 2, project, disparity-filter backbone alpha 0.2-0.6, Leiden, save_graph to GML
+    with a fixed seed
+
+    5. **Visualize in Gephi** (15-30 min) - Labels on, edges hidden, nodes shrunk, Modularity, color labels by
+    community, ForceAtlas2, Expansion, Label Adjust
+
+    6. **Interpret** (30+ min) - Name each cluster; go back to the documents outside Gephi to check
+
+    7. **Export** (5 min) - PDF, PNG or SVG
+
+
+    **Decision Points**:
+
+    - Which term definition and how many terms?
+
+    - Which unit and weighting (counts, PMI)?
+
+    - How strong a backbone filter (alpha) keeps the structure without hairballs?
+
+    - Is a cluster a topic or a stylistic artifact?
+
+
+    **Information Needs**:
+
+    - Term and edge counts before and after the backbone filter
+
+    - Community membership per term and the top terms per community
+
+    - Documents that contain a term or a term pair
+
+    - The seed and parameters that produced the layout and communities
+
+
+    **Pain Points**:
+
+    - The graph file carries no text, so going back to documents happens outside Gephi
+
+    - Label-only styling has to be done by hand each time
+
+    - Each parameter change is a new pipeline run and a new layout
+
+    - Readers cannot see what preprocessing produced the nodes
+
+
+    **Data Flow**:
+
+    - Input: Text collection, stopword list, optional synonym or phrase list
+
+    - Transformations: Term extraction, top-N or tf-idf selection, windowed or per-document co-occurrence, PMI or
+    count weighting, disparity-filter backbone, Leiden or Louvain communities, ForceAtlas2
+
+    - Output: GML or GEXF network, labeled cluster figure, list of topics with their terms
+success_criteria:
+    - metric: Readable figure
+      target: Up to 300 terms rendered as non-overlapping labels colored by community
+    - metric: Backbone transparency
+      target: User sees edges kept versus total for the chosen filter strength
+    - metric: Text access
+      target: Documents behind a term or edge open without leaving the tool
+sources:
+    - title: Levallois, Working with text in Gephi
+      url: https://seinecle.github.io/gephi-tutorials/generated-pdf/working-with-text-en.pdf
+      summary: Term, count, unit and weight decisions; 1,484 PubMed abstracts to 250 terms and 19,613 relations; label-only styling and ForceAtlas2
+    - title: Nocodefunctions semantic network walkthrough
+      url: https://medium.com/@vespinozag/transform-any-text-into-a-semantic-network-with-nocodefunctions-app-in-just-4-steps-36621a354cae
+      summary: Free web app, no registration, returns a Gephi file
+    - title: quanteda.textplots textplot_network
+      url: https://search.r-project.org/CRAN/refmans/quanteda.textplots/html/textplot_network.html
+      summary: Feature co-occurrence matrix, min_freq, 1,000-node limit
+    - title: textnets (Python) tutorial
+      url: https://textnets.readthedocs.io/en/stable/tutorial.html
+      summary: Textnet, projection, disparity-filter backbone, Leiden, GML export, fixed seed
+    - title: Bail, Text networks (SICSS)
+      url: https://sicss.io/2020/materials/day3-text-analysis/text-networks/rmarkdown/Text_Networks.html
+      summary: R textnets tutorial for social scientists
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

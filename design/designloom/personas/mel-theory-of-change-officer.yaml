@@ -1,0 +1,70 @@
+id: mel-theory-of-change-officer
+name: MEL Theory of Change Officer
+role: Monitoring, Evaluation and Learning Officer / Grant Writer
+quote: The funder wants the theory of change on one slide, every outcome below the line needs an indicator, and the board meets Thursday.
+bio: >-
+    Amara Mensah is the monitoring, evaluation and learning officer at an international NGO (or a US nonprofit), and
+    she also drafts grant applications. She owns the organization's theory of change: one long-term outcome at the
+    top, a first row of four to six preconditions underneath, pathways three or four levels deep, interventions placed
+    on the arrows they drive, a dashed accountability ceiling separating outcomes the organization answers for from
+    the ones it only contributes to, an indicator on every outcome below that line, and a one-to-two-page narrative.
+    She builds it in facilitated sessions with flip charts and post-its, then redraws it in PowerPoint, Miro or a
+    dedicated tool such as TOCO, and keeps the indicators in an Excel table. She revises it whenever the program
+    changes and twice when the funder changes its template. She is strong in evaluation design and spreadsheets but
+    has never thought of her diagram as a graph. She also runs the coalition's partner survey when the evaluation plan
+    calls for one, and sometimes facilitates Ripple Effects Mapping sessions for a program review.
+characteristics:
+    expertise: intermediate
+    time_pressure: high
+    graph_literacy: none
+    domain_knowledge: advanced
+motivations:
+    - Produce a theory of change the funder accepts in the grant or evaluation plan
+    - Make every outcome below the accountability ceiling measurable with a who, how many, how much and by when indicator
+    - Keep the diagram, the indicator table and the narrative consistent as the program changes
+    - Fit the diagram on one slide without losing the pathways
+    - Show stakeholders how existing programs connect (or fail to connect) to the outcomes
+behaviors:
+    - Works backwards from the long-term outcome, asking what must be true first, and stops when an intervention is obvious
+    - Turns barriers into positive preconditions and parks ideas that belong elsewhere on a "parking lot" sheet
+    - Color-codes outcome kinds (longer-term, organizational capacity) the way post-it colors did in the room
+    - Records the rationale for each arrow and the assumptions about the environment, often in a separate document
+    - Keeps indicators in Excel next to the diagram and checks by eye that every below-ceiling outcome has one
+    - Runs a plausible, feasible and testable review with the evaluator before submission
+    - Exports a PowerPoint diagram and a Word narrative for the grant package
+frustrations:
+    - Drawing software makes continuous revision hard and has nowhere to store outcomes, indicators, rationales and assumptions
+    - Defining indicators is "probably the most difficult part" and nothing links them to the diagram
+    - Outcome tiers and indicators are lost when the diagram is moved between tools
+    - No automatic check for outcomes without indicators, outcomes with no path to the goal, or orphaned interventions
+    - A diagram readable in the session becomes unreadable when shrunk to one slide
+context:
+    frequency: as-needed
+    devices:
+        - laptop
+        - projector
+    voluntary: false
+workflows:
+    - W196
+    - W201
+    - W202
+    - W203
+sources:
+    - title: ActKnowledge - Theory of Change Facilitator's Sourcebook
+      url: https://www.theoryofchange.org/wp-content/uploads/toco_library/pdf/ToCFacilitatorSourcebook.pdf
+      summary: Backwards mapping, 4-6 first-row preconditions, 3-4 levels, accountability ceiling, indicators, plausible/feasible/testable review; evaluator typically required by funders
+    - title: ActKnowledge - Introduction to TOC Online
+      url: https://www.actknowledge.org/wp-content/uploads/2021/10/TOC-Online-Intro.pdf
+      summary: TOCO built because continuous revision requires drawing software and there are many pieces of information to store
+    - title: Wikipedia - Theory of change
+      url: https://en.wikipedia.org/wiki/Theory_of_change
+      summary: Outcomes pathway, accountability ceiling, indicators, TOCO
+    - title: TASO - Theory of Change Builder
+      url: https://taso.org.uk/tool/theory-of-change-builder/
+      summary: Free builder exporting the diagram to PowerPoint and the narrative to Word
+    - title: Miro - Theory of change extension
+      url: https://miro.com/marketplace/theory-of-change/
+      summary: Whiteboard extension covering assumptions, indicators and learning questions
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

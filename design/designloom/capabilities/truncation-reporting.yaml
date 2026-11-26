@@ -1,0 +1,19 @@
+id: truncation-reporting
+name: Truncation Reporting
+category: export
+description: Every capped result states what was shown against what exists, by count and by bytes, names which cap
+    applied, and offers the next page or a refine step.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W142
+    - W143
+    - W147
+    - W151
+    - W363
+    - W364
+implemented_by_components: []
+requirements:
+    - Adjustable top-N caps for nodes and relationships that always report showing N of M.
+sources: []

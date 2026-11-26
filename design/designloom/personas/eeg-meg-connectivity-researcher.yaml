@@ -1,0 +1,75 @@
+id: eeg-meg-connectivity-researcher
+name: EEG/MEG Connectivity Researcher
+role: Cognitive or Clinical Neurophysiology Researcher
+quote: One figure is one slice of subjects by conditions by methods by frequency bands. I need to move along any of those axes without rebuilding the plot.
+bio: >-
+    Dr. Tomas Varga records 30 to 256 channel EEG or whole-head MEG and studies how brain rhythms couple between
+    regions in cognition and in clinical groups. He works in MNE-Python with mne-connectivity, and opens Brainstorm,
+    FieldTrip or EEGLAB plugins when a colleague's pipeline lives there. His data is not one matrix but a stack:
+    subjects x conditions x frequency bands (or every frequency bin) x connectivity methods, and for time-resolved
+    measures x windows, each cell an N x N matrix over sensors at electrode or helmet positions, or over source
+    regions such as the 68 Desikan-Killiany labels. Measures are undirected (coherence, PLV, PLI, wPLI, ciPLV,
+    amplitude envelope correlation) or directed (Granger, spectral Granger, phase transfer entropy). He is an expert
+    in signal processing and statistics, comfortable with graph metrics, and wary of volume conduction artifacts.
+characteristics:
+    expertise: expert
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Compare band-specific networks between groups or conditions
+    - Avoid volume conduction and field spread artifacts by working at source level and with leakage-robust measures
+    - Avoid threshold bias, for example with minimum spanning trees or percentile thresholds
+    - Show several methods, bands or conditions side by side as small multiples for one figure
+    - Click a connection and see how its value varies across frequency
+behaviors:
+    - Decides between sensor and source level first, and between all-pairs, seed (one region against all) or two-list patterns
+    - Epochs with artifact rejection and computes several connectivity methods at once over one band or every frequency bin
+    - Reduces source space to an atlas parcellation, keeping each label's atlas color for node coloring
+    - Keeps only the strongest edges (top 5 percent, or the 300 strongest lines in a circle plot)
+    - Orders source labels in a circle by anterior-posterior position with the two hemispheres mirrored
+    - Draws sensor-level lines on a 2D scalp layout or 3D MEG helmet, dropping pairs closer than a minimum distance
+    - Filters directed graphs by In, Out or Both and shows arrowheads
+    - Runs permutation tests between conditions, or cluster-permutation statistics over connection pairs
+frustrations:
+    - Sensor-level connectivity has limited and ambiguous anatomical interpretation
+    - Unconstrained whole-brain source connectomes can reach hundreds of gigabytes per participant and condition
+    - Leakage-sensitive measures look reliable because of a few spurious strong edges, while leakage-robust ones show poor test-retest reliability
+    - Every band, method or condition multiplies the number of figures to build by hand
+    - Plotting functions move between packages (the MNE circle plot moved to mne-connectivity)
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W153
+    - W159
+    - W161
+    - W162
+sources:
+    - title: MNE-Connectivity label connectivity example
+      url: https://mne.tools/mne-connectivity/stable/auto_examples/mne_inverse_label_connectivity.html
+      summary: Source-level PLI, wPLI and ciPLV over 68 labels in the alpha band, hemisphere-mirrored circle layout, three-plot comparison
+    - title: MNE-Connectivity sensor connectivity example
+      url: https://mne.tools/mne-connectivity/stable/auto_examples/sensor_connectivity.html
+      summary: Sensor-level PLI over 203 gradiometers drawn on the MEG helmet
+    - title: Brainstorm connectivity tutorial
+      url: https://neuroimage.usc.edu/brainstorm/Tutorials/Connectivity
+      summary: Sensor versus source level, data sizes up to about 754 GB, directed and undirected measures
+    - title: Brainstorm connectivity graph tutorial
+      url: https://neuroimage.usc.edu/brainstorm/Tutorials/ConnectivityGraph
+      summary: Circle graph grouped by lobe, intensity, distance, direction and anatomy filters, frequency slider
+    - title: Colclough et al. 2016, How reliable are MEG resting-state connectivity metrics?
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5056955
+      summary: Leakage-robust phase measures had poor test-retest reliability; 39 regions, 61 subjects, six bands
+    - title: FieldTrip ft_topoplotCC
+      url: https://github.com/fieldtrip/fieldtrip/blob/release/ft_topoplotCC.m
+      summary: Connections drawn on a 2D channel layout at one frequency with optional arrowheads
+    - title: Minimum spanning tree use in EEG/MEG networks (review citing Tewarie et al. 2015)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11076461/
+      summary: Minimum spanning trees used to avoid threshold bias
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

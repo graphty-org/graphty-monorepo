@@ -1,0 +1,144 @@
+id: W77
+name: What Breaks If X Fails or Changes in a Graph CMDB
+category: analysis
+validated: false
+personas:
+    - it-change-impact-analyst
+    - sre-incident-responder
+requires_capabilities:
+    - data-import
+    - search
+    - node-selection
+    - removal-impact-analysis
+    - neighborhood-expansion
+    - computed-attributes
+    - centrality-degree
+    - filtering
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-hierarchical
+    - details-on-demand
+    - data-export
+    - report-generation
+    - group-collapse
+    - directed-closure
+suggested_components:
+    - data-import-dialog
+    - search-input
+    - graph-canvas
+    - impact-analysis-dialog
+    - cluster-collapse-control
+    - ranked-node-table
+    - node-details-panel
+    - legend-panel
+    - data-table-panel
+    - data-export-dialog
+    - report-generator-dialog
+starting_state:
+    data_type: typed CMDB or IT service graph (applications, services, VMs, hosts, storage, network devices, racks, business services, customers) with typed relationship pairs
+    node_count: 1,000-20,000
+    edge_density: sparse, layered by tier
+    user_expertise: intermediate
+goal: >-
+    **Intent**: For a change request or a failure, list every business service and customer that depends on a
+    configuration item, check redundancy, weigh severity and attach the impact list to the change record.
+
+
+    **Mental Model**: "Follow 'depends on' backwards to the business." The CMDB is a stack of tiers; impact flows up
+    from infrastructure to services to customers, softened where something is redundant.
+
+
+    **Task Phases** (no source gives per-step durations):
+
+    1. **Load the model** - Typed nodes and typed relationship pairs (Software DELIVERS Service USED_BY Customer;
+    Software INSTALLED_ON Server; Depends on::Used by)
+
+    2. **Identify the target** - Find the configuration item in the change request, for example a server going
+    offline for an upgrade
+
+    3. **Bottom-up impact query** - Follow dependency relationships in reverse, to full depth, through only dependency
+    edge types
+
+    4. **Single points of failure** - Count distinct dependents per component; check whether the most important
+    customers have redundancy throughout the path
+
+    5. **Weigh severity** - Propagate severity up the tree (down, impaired at decreasing levels), lower it one level for
+    redundant components, exclude items already in maintenance
+
+    6. **View the map** - Root item framed, levels each way, clusters collapsed, open-issue indicators; add a missing
+    relationship if spotted
+
+    7. **Decide and hand off** - Schedule or reroute; attach the impacted-service list to the change request
+
+
+    **Decision Points**:
+
+    - Which relationship types count as dependency for this question?
+
+    - How deep to follow (the default three levels is often too shallow)?
+
+    - Is a redundant path real, or does it share a hidden component?
+
+    - Approve, reschedule or reroute the change?
+
+
+    **Information Needs**:
+
+    - Full upstream closure with the depth and edge types used stated
+
+    - Distinct dependent counts per component
+
+    - Redundancy groups and whether each important customer keeps a path
+
+    - Staleness or source of each relationship (discovered versus curated)
+
+
+    **Pain Points**:
+
+    - Stale relationships make impact lists wrong (34% stale in one audited 14,000-CI CMDB, vendor)
+
+    - Maps stop at three levels by default
+
+    - Impact not calculated for some service classes
+
+    - Export to Excel to finish the list
+
+
+    **Data Flow**:
+
+    - Input: CMDB tables plus typed relationship pairs, Neo4j model or CSV export; business services, SLAs, customer counts
+
+    - Transformations: Reverse closure over dependency edge types, distinct-dependent counts, redundancy check,
+    severity propagation
+
+    - Output: Impacted business service and customer list attached to the change request; single-point-of-failure ranking
+success_criteria:
+    - metric: Impact completeness
+      target: User obtains the full upstream closure to business services, not a fixed three levels
+    - metric: Redundancy answer
+      target: User can say for each important customer whether a path survives removal of the target
+    - metric: Hand-off
+      target: Impact list exports as CSV with owners and is attachable to the change record
+sources:
+    - title: Neo4j - IT Service Graph use case
+      url: https://neo4j.com/developer/industry-use-cases/agnostic/it-service-graph/it-service-graph
+      summary: Typed model, count of distinct dependents, redundancy check for important customers
+    - title: GraphAware - Insightful IT operations with Hume
+      url: https://graphaware.com/blog/insightful-it-operations-with-hume/
+      summary: Bottom-up impact query following DEPENDS_ON in reverse with variable length
+    - title: Linkurious - Network management and impact analysis with Neo4j
+      url: https://linkurious.com/blog/network-management-and-impact-analysis-with-neo4j/
+      summary: Affected services and customers for a maintenance window; schedule or reroute
+    - title: ServiceNow - CI relationships
+      url: https://www.servicenow.com/docs/r/yokohama/servicenow-platform/configuration-management-database-cmdb/c_CIRelationships.html
+      summary: Typed relationship pairs
+    - title: ServiceNow - Event Management impact calculation
+      url: https://www.servicenow.com/docs/bundle/xanadu-it-operations-management/page/product/event-management/concept/c_EMImpactCalculation.html
+      summary: Percentage severity propagation, redundancy lowers severity, maintenance CIs excluded
+    - title: ServiceNow - Dependency Views
+      url: https://www.servicenow.com/docs/r/servicenow-platform/dependency-views/c_NextGenBSMMaps.html
+      summary: Three levels each way by default, clusters collapsed, issue indicators, drawing new relationships
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

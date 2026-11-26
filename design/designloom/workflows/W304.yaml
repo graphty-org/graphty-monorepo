@@ -1,0 +1,150 @@
+id: W304
+name: Load Temporal Data and Play It Back (Gephi Style)
+category: analysis
+validated: false
+personas:
+    - temporal-network-researcher
+    - social-media-dynamics-researcher
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - temporal-navigation
+    - temporal-analysis
+    - filtering
+    - degree-analysis
+    - layout-force-directed
+    - animated-transitions
+    - statistics-panel
+    - export-image
+    - temporal-data-model-import
+    - event-window-aggregation
+    - per-window-metrics
+    - temporal-validity-checks
+    - stable-temporal-layout
+    - playback-video-export
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - temporal-controls
+    - range-slider
+    - filter-panel
+    - layout-panel
+    - graph-canvas
+    - statistics-panel
+    - image-export-dialog
+starting_state:
+    data_type: dynamic GEXF (intervals, timestamps, spells, dynamic attributes), one file per period, or a CSV with date columns
+    node_count: 500-10000 before filtering, 100-1000 after
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Get a timestamped network into a graph tool with its time intact, lay it out once, filter it to a
+    readable size, and play it forward in windows to watch connections appear and fade. This is the GUI route most
+    researchers take for a first look and for the video or stills they publish.
+
+
+    **Mental Model**: "Static network, dynamic connections." The positions are a fixed stage built from the whole
+    period; time decides which actors and links are lit at each moment.
+
+
+    **Task Phases**:
+
+    1. **Prepare the file** (hours to days, mostly outside the tool) - Write dynamic GEXF with start/end or timestamps,
+    spells and dynamic attribute values; or one slice file per period; or a CSV with date columns. Point events such as
+    replies get a chosen lifetime (Bruns used 1,800 seconds per @reply)
+
+    2. **Open and confirm time** (2 min) - Open the file, or select every slice file and merge them; confirm the import
+    report says the graph is dynamic and shows the time range
+
+    3. **Convert date columns** (5 min) - Turn one or two date columns into an interval; a single date means the
+    element appears then and stays forever unless an end column is given
+
+    4. **Lay out over the whole span** (5-15 min) - Run a force-directed layout on the union of all time and freeze it,
+    or keep it running during playback and accept lag
+
+    5. **Filter to a readable size** (3 min) - Keep active nodes (degree 10 or more took 5,485 nodes and 12,805 edges to
+    495 nodes) and combine that filter with the time-range filter
+
+    6. **Size the window and play** (10 min) - Set a window (one hour, 15 minutes) and step, play, pause, scrub back
+
+    7. **Per-window statistics (optional)** (5 min) - Nodes, edges, degree, clustering over time with a window and tick
+
+    8. **Export** (15 min) - Screen-record playback, save stills of key moments, keep the GEXF
+
+
+    **Decision Points**:
+
+    - Intervals or timestamps? (Gephi accepts one representation per network)
+
+    - How long does a point event last?
+
+    - Lay out once over the union, or re-run layout during playback?
+
+    - Which activity threshold keeps the story readable?
+
+    - What window length and step: too short shows isolates, too long hides change
+
+
+    **Information Needs**:
+
+    - Detected time model and range on import, with counts of elements that had no date or an unparseable date
+
+    - Stated interval semantics: inclusive or half-open bounds, open-ended ends, time zone, granularity
+
+    - Activity histogram over the full span, to choose the window
+
+    - Current window dates shown on the canvas and burned into any export
+
+    - Edges whose dates fall outside their endpoints' lifetimes
+
+
+    **Pain Points**:
+
+    - Data preparation dominates: users write scripts to produce dynamic GEXF
+
+    - Import fragility; mixing timestamps and intervals is rejected
+
+    - Parallel events between the same pair merge by increasing weight, so per-period edges collapse
+
+    - Playback refuses to start until a window is set ("cannot animate timeline without an animation interval")
+
+    - Layout lags during playback; no video export, so users screen-record and speed up the video
+
+
+    **Data Flow**:
+
+    - Input: Dynamic GEXF, slice files, or CSV with start/end or start + duration columns
+
+    - Transformations: Time parsing and interval construction, slice merge by id, union layout, activity filter,
+    window filter during playback, optional per-window statistics
+
+    - Output: Playback video or image sequence with window dates, stills, the dynamic file, a per-window statistics table
+success_criteria:
+    - metric: Time preserved on import
+      target: User can state the time model, range and number of undated elements after loading
+    - metric: Playback readability
+      target: Positions stay fixed across windows unless the user asks for re-layout
+    - metric: Shareable output
+      target: Playback exported as a video or image sequence with window dates, no screen recorder needed
+sources:
+    - title: Gephi User Manual - Import Dynamic Data
+      url: https://docs.gephi.org/desktop/User_Manual/Import_Dynamic_Data/
+      summary: GEXF dynamic modes, spells, inclusive bounds, slice merge, one representation per network
+    - title: Levallois - Converting a network with dates into a dynamic one
+      url: https://seinecle.github.io/gephi-tutorials/generated-html/converting-a-network-with-dates-into-dynamic.html
+      summary: Data Laboratory Merge Columns "Create time interval"; a single date stays forever
+    - title: Bruns - Mapping Online Publics, dynamic networks part 2
+      url: https://mappingonlinepublics.net/dev/?p=384
+      summary: Static layout, degree 10+ filter (5,485 to 495 nodes), one-hour and 15-minute windows, screen-recorded video
+    - title: Heymann - Gephi dynamic features (slides)
+      url: https://www.slideshare.net/slideshow/gephi-dynamic-features/16082594
+      summary: Timeline, dynamic range filter and dynamic attributes in Gephi
+    - title: Gephi DynamicStatistics javadoc
+      url: https://gephi.org/javadoc/0.9.3/org/gephi/statistics/spi/DynamicStatistics.html
+      summary: Statistics computed per window with a window size and tick
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

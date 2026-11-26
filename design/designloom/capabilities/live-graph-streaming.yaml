@@ -1,0 +1,21 @@
+id: live-graph-streaming
+name: Live Graph History
+category: analysis
+description: Append new nodes and edges as they arrive without resetting the view, and flag movement on nodes the user
+    has put on a watch list.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W122
+    - W124
+    - W312
+    - W325
+    - W333
+implemented_by_components: []
+requirements:
+    - Append, change and delete events in a defined order without reload, a window that follows the latest event, and
+      incremental layout; accept Gephi-streaming-style JSON mutation events.
+    - Apply per-item changed, renamed, deleted and all-resolved events as small graph diffs without rebuilding or
+      re-laying out the whole graph.
+sources: []

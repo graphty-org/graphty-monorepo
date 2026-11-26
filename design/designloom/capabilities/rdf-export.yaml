@@ -1,0 +1,14 @@
+id: rdf-export
+name: RDF Export
+category: data
+description: Export a cleaned graph as RDF (Turtle or N-Triples) in addition to existing graph formats.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W13
+    - W130
+    - W136
+implemented_by_components: []
+requirements: []
+sources: []

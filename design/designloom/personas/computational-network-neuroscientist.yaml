@@ -1,0 +1,79 @@
+id: computational-network-neuroscientist
+name: Computational Network Neuroscientist
+role: Research Scientist or Junior PI / Network Neuroscience Methods
+quote: A dense 3D connectome is a hairball in a skull. I need the anatomical view and the topological view side by side, and the same colors in both.
+bio: >-
+    Dr. Maya Okafor develops network methods for brain data -- null models, consensus networks, community detection,
+    multilayer dynamics -- and applies them to large open datasets such as the Human Connectome Project and UK
+    Biobank. She works in Python and Jupyter: nilearn for connectivity matrices, atlas centroids and glass-brain
+    plots, bctpy and netneurotools for metrics and consensus clustering, GenLouvain for multilayer modularity,
+    NetworkX for anything else, netplotbrain for scripted multi-panel figures, Connectome Workbench for CIFTI
+    surfaces, and MRtrix or QSIPrep when she needs structural connectomes. Her data spans hundreds to tens of
+    thousands of subjects at several parcellation resolutions (Schaefer 100 to 1,000 regions, Glasser 360), with a
+    fiber-length matrix alongside each structural weight matrix and sliding-window stacks for dynamics. She is fluent
+    in graph theory and statistics and writes every figure as reproducible code, but she has no tool that keeps
+    anatomy, topology and the matrix in step.
+characteristics:
+    expertise: expert
+    time_pressure: medium
+    graph_literacy: advanced
+    domain_knowledge: advanced
+motivations:
+    - Build group-representative structural networks that keep long-range connections
+    - Find modules that are stable across repeated runs and resolution parameters, and name hub roles from them
+    - Compare two connectomes (two groups, two atlases, structure versus function) with linked views
+    - Keep every figure reproducible from code with named templates and saved settings
+    - Share an interactive 3D view with co-authors who do not run Python
+behaviors:
+    - Computes atlas centroids from a NIfTI label image and joins network and hemisphere labels from the atlas TSV
+    - Runs Louvain hundreds of times, builds an agreement matrix, re-clusters it and sweeps the resolution gamma
+    - Computes participation coefficient, within-module degree z-score and rich club against degree-preserving null networks
+    - Converts weights to lengths before path-based metrics and keeps weighted efficiency inputs in the 0 to 1 range
+    - Reorders the matrix heatmap by module or network with block outlines as the first sanity check
+    - Saves interactive 3D views as standalone HTML and static multi-view grids (for example lateral, superior, right) for papers
+    - Repeats analyses across atlases and thresholds as a robustness check
+frustrations:
+    - Visual clutter of dense 3D node-link drawings
+    - No tool shows anatomical and topological layouts side by side or synchronizes two connectomes; colleagues open several program instances on several monitors
+    - Coordinates and background brain in different templates, with nothing that names the template to catch the mismatch
+    - Figure libraries that cannot render GIfTI or CIFTI surfaces
+    - Parcel names are not kept in CIFTI pconn files, so the matching dlabel file must travel with every matrix
+    - Uniform consensus thresholds under-represent long connections in group structural networks
+context:
+    frequency: daily
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W152
+    - W153
+    - W155
+    - W158
+    - W159
+    - W162
+sources:
+    - title: nilearn view_connectome reference
+      url: https://nilearn.github.io/dev/modules/generated/nilearn.plotting.view_connectome.html
+      summary: Interactive browser 3D connectome from a matrix and coordinates, saved as standalone HTML
+    - title: NetPlotBrain paper
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10312269/
+      summary: Named TemplateFlow templates, view grids and circles, spheres and parcels node styles; no GIfTI or CIFTI yet
+    - title: NeuroCave paper (arXiv)
+      url: https://arxiv.org/pdf/1706.10297
+      summary: Survey of connectome tools; visual clutter and no synchronized comparison of two connectomes
+    - title: Betzel et al. 2019, Distance-dependent consensus thresholds for group-representative structural brain networks
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6444521/
+      summary: Uniform consensus loses long connections; binning by fiber length keeps them
+    - title: netneurotools consensus clustering example
+      url: https://netneurotools.readthedocs.io/en/latest/auto_examples/plot_consensus_clustering.html
+      summary: Repeated Louvain, agreement matrix and consensus partition
+    - title: brainconn weight_conversion reference
+      url: https://brainconn.readthedocs.io/en/latest/generated/brainconn.utils.matrix.weight_conversion.html
+      summary: Converting weights to lengths before path-based metrics
+    - title: UK Biobank imaging at FMRIB
+      url: https://www.fmrib.ox.ac.uk/ukbiobank/
+      summary: Group ICA from more than 4,000 participants; connectivity stored as upper triangles
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,158 @@
+id: W94
+name: Social Media and Telegram Network Mapping for an Investigation
+category: analysis
+validated: false
+personas:
+    - osint-disinformation-investigator
+requires_capabilities:
+    - data-import
+    - data-validation
+    - filtering
+    - degree-analysis
+    - layout-force-directed
+    - community-detection
+    - community-profiling
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - temporal-analysis
+    - temporal-navigation
+    - large-graph-rendering
+    - legend-display
+    - annotation
+    - export-image
+    - data-export
+    - coordination-detection
+    - guided-presentation
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-table-panel
+    - filter-panel
+    - range-slider
+    - layout-panel
+    - algorithm-panel
+    - community-panel
+    - temporal-controls
+    - visual-encoding-panel
+    - legend-panel
+    - annotation-toolbar
+    - image-export-dialog
+starting_state:
+    data_type: hand-collected directed, weighted, timestamped edge list (retweet, mention, reply, forward) or a co-hashtag projection
+    node_count: thousands to tens of thousands (3,871 channels and 57,646 forwards in one published case; 19,036 nodes and 207,780 edges in another)
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Map the accounts or channels spreading a narrative, find the clusters and the bridges between them,
+    check whether a cluster acts in coordination, and publish an annotated cluster map that a general reader can
+    follow. Since platform research APIs closed in 2023-2024, the input is an edge list collected by hand with 4CAT,
+    Zeeschuimer or Telepathy, not a platform connector.
+
+
+    **Mental Model**: "Who amplifies whom." Edges point from the source of a message to the account that forwarded or
+    reshared it; clusters are communities of mutual amplification; the picture is exploration, not proof.
+
+
+    **Task Phases**:
+
+    1. **Collect** (hours to days) - 4CAT or Zeeschuimer browser capture; Telepathy for Telegram (needs an API id and
+    hash; its forward map gives Source, Target, Label, Source_ID, Username and Timestamp columns); snowball from seed
+    channels because Telegram has no directory
+
+    2. **Build the graph** (15 min) - Directed, weighted, timestamped multigraph; channels as nodes, edges from source
+    to forwarding channel, weight = forward count, size = incoming forwards
+
+    3. **Remove query and seed nodes** (10 min) - Sort by frequency, select the top nodes (the query hashtags that
+    connect to everything) and delete them; then a frequency range filter and a degree range filter
+
+    4. **Lay out and cluster** (15 min) - ForceAtlas2 (scaling up for sparser graphs, gravity up for denser, LinLog for
+    clearer clusters, prevent overlap last); modularity, then color by community (nine clusters in the DFRLab case)
+
+    5. **Read the clusters** (hours) - Name each from top hashtags, channel-name suffixes or language; find bridges and
+    amplifiers; slice by time; report where labels do not match clusters; accept ambiguity
+
+    6. **Check coordination** (hours) - Co-sharing within a time window (see W93), then corroborate outside the graph:
+    creation dates, name histories, archived captures
+
+    7. **Publish** (days) - Full map plus annotated close-ups, charts, screenshots and archive links, with unconfirmed
+    claims flagged
+
+
+    **Decision Points**:
+
+    - Which seed and query nodes to delete before layout?
+
+    - What frequency and degree cutoffs keep the structure without the noise?
+
+    - What does each cluster represent, and where does a label not fit?
+
+    - Is co-amplification coordination, or authentic users sharing the same news?
+
+
+    **Information Needs**:
+
+    - Edge type (retweet, mention, reply, forward), weight and timestamps after import
+
+    - Nodes ranked by frequency or degree, to select seeds for deletion
+
+    - Per-cluster top members, top hashtags or name patterns, and languages
+
+    - Bridge nodes between clusters and the edges that make them bridges
+
+    - Activity over time per cluster
+
+
+    **Pain Points**:
+
+    - Closed platform APIs and unmaintained collection tools
+
+    - Seed hashtags that dominate the picture
+
+    - Hairball figures, low-quality images and overlapping labels
+
+    - Sharing an interactive map requires converting GEXF to a separate web viewer
+
+    - No ground truth for coordination
+
+
+    **Data Flow**:
+
+    - Input: Edge-list CSV (Source, Target, Type, Weight, Timestamp), GEXF, GDF or GML from collection tools
+
+    - Transformations: Seed and query node removal, frequency and degree filters, ForceAtlas2, modularity, time
+    slicing, co-sharing checks
+
+    - Output: Annotated cluster map and close-ups, cluster membership table, timeline charts
+success_criteria:
+    - metric: Edge list to cluster map
+      target: Under 30 minutes from a collected edge list to a colored, filtered cluster map
+    - metric: Cluster explanation
+      target: User can name each cluster from its top members and attributes without leaving the tool
+    - metric: Shareable interactive map
+      target: The cluster map can be shared as an interactive view without converting files
+sources:
+    - title: Public Data Lab - Co-hashtag network recipe
+      url: https://recipes.publicdatalab.org/co-hashtag_network.html
+      summary: Delete query hashtags by frequency, range filters, ForceAtlas2 settings, modularity coloring, accepting ambiguity
+    - title: Bellingcat Online Investigations Toolkit - Telepathy
+      url: https://bellingcat.gitbook.io/toolkit/more/all-tools/telepathy
+      summary: Telegram forward edge list columns; unmaintained toolkit
+    - title: DFRLab - Networks of pro-Kremlin Telegram channels spread disinformation at a global scale (2023)
+      url: https://dfrlab.org/2023/03/01/networks-of-pro-kremlin-telegram-channels-spread-disinformation-at-a-global-scale/
+      summary: 56 seeds, 3,871 channels, 57,646 forwards, nine modularity clusters, labels checked against clusters
+    - title: CooRTweet vignette (CRAN)
+      url: https://cran.r-project.org/web/packages/CooRTweet/vignettes/vignette.html
+      summary: Co-sharing coordination check with a time window
+    - title: First Draft - How to use network analysis to explore social media and disinformation
+      url: https://firstdraftnews.org/latest/how-to-use-network-analysis-to-explore-social-media-and-disinformation/
+      summary: 19,036-node example; pictures are by no means conclusive charts
+    - title: TechCrunch - Twitter's restrictive API may leave researchers out in the cold (2023)
+      url: https://techcrunch.com/2023/02/14/twitters-restrictive-api-may-leave-researchers-out-in-the-cold/
+      summary: Academic tier replaced by a paid tier
+    - title: TechCrunch - Meta shut down CrowdTangle (2024)
+      url: https://techcrunch.com/2024/08/15/meta-shut-down-crowdtangle-a-tool-for-tracking-disinformation-heres-how-its-replacement-compares
+      summary: CrowdTangle shut August 14, 2024; replacement restricts outside analysis
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,18 @@
+id: node-ring-glyph
+name: Node ring glyph and value label
+category: visualization
+description: A ring of fractions summing to 1 around each node (for example success versus error) plus main and
+    secondary stat labels from data.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W282
+    - W375
+    - W376
+    - W377
+implemented_by_components: []
+requirements:
+    - Draw a 0-1 node value as a ring around the node (predictability, item stability) and a numeric node value as a
+      label or badge on the node, plus node shape by a categorical attribute.
+sources: []

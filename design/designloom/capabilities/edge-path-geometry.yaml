@@ -1,0 +1,13 @@
+id: edge-path-geometry
+name: Edge Path Geometry
+category: analysis
+description: An edge may carry a polyline (streamline exemplar from .tck/.trk or point arrays) rendered as a tube,
+    falling back to straight lines.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W158
+implemented_by_components: []
+requirements: []
+sources: []

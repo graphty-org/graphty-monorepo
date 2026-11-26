@@ -1,0 +1,116 @@
+id: W399
+name: Ancestral Recombination Graph in tskit_arg_visualizer
+category: exploration
+validated: false
+personas:
+    - population-genomics-snp-analyst
+requires_capabilities:
+    - data-import
+    - layout-hierarchical
+    - hover-highlight
+    - tooltip-display
+    - node-selection
+    - ego-network
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - large-graph-rendering
+    - export-image
+    - data-export
+    - time-fixed-dag-layout
+suggested_components:
+    - data-import-dialog
+    - graph-canvas
+    - node-tooltip
+    - range-slider
+    - ego-network-dialog
+    - visual-encoding-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: tskit tree sequence (.trees), inferred or simulated
+    node_count: tens of nodes for teaching up to about 2.7 million nodes (SARS-CoV-2 ARG)
+    edge_density: directed acyclic, sparse, with recombination nodes of two parents
+    user_expertise: expert
+goal: >-
+    **Intent**: Explore an ancestral recombination graph -- the set of genealogies along a genome region joined into
+    one directed acyclic graph -- with time fixed on the vertical axis, and see which local tree applies at each genome
+    position.
+
+
+    **Mental Model**: "A stack of family trees along the chromosome, sharing ancestors." Height is age; recombination
+    nodes have two parents covering different genome intervals.
+
+
+    **Task Phases**:
+
+    1. **Load** (5 min) - Infer or simulate a tree sequence; load in Python in Jupyter
+
+    2. **Draw** (2 min) - D3ARG.from_ts(ts=ts); draw(edge_type="ortho") for full ARGs or "line" for many-child nodes;
+    y_axis_scale = "rank", "time" or "log_time"
+
+    3. **Untangle** (10-30 min) - Force simulation with heights fixed by age and samples ordered by the first tree;
+    only x moves; drag nodes sideways to remove crossings, which pins them
+
+    4. **Explore** (15 min) - Hover a genome-bar segment to highlight that local tree; hover an edge to see the genome
+    regions it spans; draw_node() draws a subgraph around one node
+
+    5. **Style** (10 min) - set_* methods for nodes, edges, mutations and breakpoints
+
+    6. **Export** (5 min) - JSON, SVG or PNG; SVG styles may break in Illustrator
+
+
+    **Decision Points**:
+
+    - Rank, time or log-time vertical axis?
+
+    - Whole ARG or a subgraph around one node?
+
+    - Orthogonal or straight edges?
+
+
+    **Information Needs**:
+
+    - Node ages and which nodes are samples or recombination nodes
+
+    - Genome interval carried by each edge
+
+    - The local tree at a chosen genome position
+
+    - Mutations and breakpoints
+
+
+    **Pain Points**:
+
+    - Large empirical ARGs are confusingly tangled
+
+    - Untangling is manual dragging
+
+    - Jupyter-only, Python-bound
+
+
+    **Data Flow**:
+
+    - Input: .trees file
+
+    - Transformations: Node time placement, force layout on x only, local-tree extraction by genome position, subgraph
+    extraction
+
+    - Output: Interactive view, JSON, SVG or PNG
+success_criteria:
+    - metric: Time fidelity
+      target: Every node's vertical position equals its age on the chosen scale
+    - metric: Local tree highlight
+      target: Choosing a genome position highlights its local tree immediately
+sources:
+    - title: tskit_arg_visualizer README
+      url: https://github.com/kitchensjn/tskit_arg_visualizer
+      summary: Layout with fixed heights, x-only force, dragging pins nodes, genome bar hover
+    - title: tskit_arg_visualizer tutorial
+      url: https://github.com/kitchensjn/tskit_arg_visualizer/blob/main/docs/tutorial.md
+      summary: D3ARG.from_ts, edge types, y-axis scales, set_* styling, draw_node, export
+    - title: Kitchens and Wong 2025
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC12701794/
+      summary: Age-fixed y axis; large empirical ARGs confusingly tangled; 2.7 million-node example
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

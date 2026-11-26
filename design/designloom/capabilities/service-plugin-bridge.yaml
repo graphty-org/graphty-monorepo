@@ -1,0 +1,14 @@
+id: service-plugin-bridge
+name: No-JavaScript Plugin Route
+category: analysis
+description: A service-style plugin (a REST endpoint in any language) or a Python bridge so researchers and data
+    scientists can extend the element without writing JavaScript.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W289
+    - W290
+implemented_by_components: []
+requirements: []
+sources: []

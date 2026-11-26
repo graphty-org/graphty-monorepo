@@ -1,0 +1,14 @@
+id: label-split-neighbor-counts
+name: Neighbor Counts Split by Label
+category: analysis
+description: For a selected node or set, count neighbors grouped by a categorical attribute (known fraud versus
+    legitimate, train versus test, label class) at one or more hops.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W268
+    - W274
+implemented_by_components: []
+requirements: []
+sources: []

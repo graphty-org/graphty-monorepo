@@ -1,0 +1,17 @@
+id: burst-detection
+name: Time slicing and burst detection
+category: analysis
+description: Build per-period networks with per-slice node selection, merge them, and detect citation or term bursts
+    (Kleinberg) with strength, begin and end year exported as a table.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W306
+    - W312
+    - W52
+implemented_by_components: []
+requirements:
+    - Kleinberg-style burst detection on node or edge activity with start, end and strength, shown as markers and a
+      table.
+sources: []

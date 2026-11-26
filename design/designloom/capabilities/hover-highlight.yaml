@@ -9,6 +9,38 @@ algorithms: []
 used_by_workflows:
     - W02
     - W05
+    - W108
+    - W115
+    - W142
+    - W211
+    - W213
+    - W223
+    - W270
+    - W277
+    - W283
+    - W324
+    - W328
+    - W362
+    - W371
+    - W372
+    - W374
+    - W382
+    - W399
+    - W408
+    - W409
+    - W412
+    - W414
+    - W415
+    - W418
+    - W421
+    - W422
+    - W437
+    - W440
+    - W446
+    - W63
+    - W76
+    - W82
+    - W99
 implemented_by_components:
     - graph-canvas
     - node-tooltip

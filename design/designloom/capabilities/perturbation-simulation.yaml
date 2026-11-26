@@ -1,0 +1,14 @@
+id: perturbation-simulation
+name: Extinction and press-perturbation simulation
+category: analysis
+description: Interactively remove or push a node and see secondary extinctions or signed press responses across many
+    random simulations, with a results table and replay.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W166
+    - W169
+implemented_by_components: []
+requirements: []
+sources: []

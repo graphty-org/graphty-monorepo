@@ -1,0 +1,80 @@
+id: graph-database-developer
+name: Graph Database Developer
+role: Backend Engineer / Data Engineer building on a graph database
+quote: My query returned 5,000 paths and the view shows 47 nodes. Is the model wrong, the query wrong, or just the drawing?
+bio: >-
+    Priya Shah is a backend engineer on a team building a recommendation and entity resolution service on Neo4j (on
+    other teams the same job runs on Amazon Neptune or Memgraph). She learned SQL first and Cypher on the job, and she
+    treats the graph as an application store, not as an object of network analysis. The database holds millions of
+    nodes; what she draws is tens to a few hundred at a time, because Neo4j Browser caps a drawing at 1,000 nodes and
+    slows down well before that. She draws the intended model in Arrows.app or on the Data Importer canvas, imports,
+    then spends much of the day in Neo4j Browser, Aura Query, cypher-shell or a Neptune notebook checking that the
+    imported shape matches the drawing and that each query returns what she expects. When a query is right she hands it
+    to a colleague as a Bloom search phrase, a Linkurious template or a NeoDash report. She knows the schema intimately
+    and network analysis hardly at all.
+characteristics:
+    expertise: expert
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Confirm that the imported labels, relationship types and properties match the model she drew
+    - Find out why a query returns too much, too little, or runs slowly
+    - Show a teammate what a pattern looks like without writing a slide
+    - Turn a working query into something a non-technical colleague can run with one click
+behaviors:
+    - Draws the model first in Arrows.app or the Data Importer canvas, then imports from CSV files mapped to labels and keys
+    - Runs db.schema.visualization() and compares the meta-graph with her drawing by eye
+    - Always adds LIMIT, and bounds variable-length patterns (for example *1..3), before drawing anything
+    - Switches between Graph, Table and RAW views of the same result
+    - Separates execution from rendering with RETURN count(path), PROFILE, EXPLAIN and cypher-shell --format plain
+    - Returns whole paths or n, r, m rather than bare relationships so the drawing is not empty
+    - Copies a finished query into a Bloom search phrase, a Linkurious template or a NeoDash report
+frustrations:
+    - '"What it draws and what the query results are can be different": 47 nodes on screen for 5,673 unique paths'
+    - The browser freezes or goes unresponsive after raising the node limit to 1,000
+    - The built-in schema view "does not work very well for non-trivial schemata"
+    - No tool shows the difference between the drawn model and the imported schema
+    - The query tab's limit does not change the exploration tool's separate 1,000-node limit
+context:
+    frequency: daily
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W144
+    - W146
+    - W147
+    - W148
+sources:
+    - title: Neo4j Browser legacy visual tour
+      url: https://neo4j.com/docs/browser/legacy/visual-tour/
+      summary: Browser described as a developer-focused tool; Graph, Table and RAW result views; schema visualization
+    - title: Neo4j Browser settings (current)
+      url: https://neo4j.com/docs/browser-manual/current/operations/browser-settings/
+      summary: maxVizNodes 1,000, maxNewNeighbours 100, recordLimit 1,000
+    - title: Where's my Neo4j Cypher query results? (Neo4j developer blog)
+      url: https://neo4j.com/blog/developer/wheres-my-neo4j-cypher-query-results/
+      summary: Rendering versus execution; 47 nodes and 70 relationships on screen for 5,673 paths; PROFILE and count first
+    - title: Neo4j community threads on Browser limits and slow rendering
+      url: https://community.neo4j.com/t/browser-node-relationship-limit/69507
+      summary: UI becomes unresponsive at 1,000 nodes; 100-500 nodes may already be slow; LIMIT advice
+    - title: Visualizing Neo4j schemas with yFiles
+      url: https://neo4j.com/blog/graph-visualization-neo4j-schemas-yfiles/
+      summary: Built-in schema viewer poor for non-trivial schemata
+    - title: Neo4j Data Importer modeling
+      url: https://neo4j.com/docs/data-importer/current/modeling/
+      summary: Model canvas where nodes and relationships are drawn and mapped to source files and key columns
+    - title: Arrows.app
+      url: https://neo4j.com/labs/arrows/
+      summary: Drawing tool for graph models that exports an image or Cypher
+    - title: Neo4j developer job posting
+      url: https://jobgether.com/offer/6a175636cd512907df7440e8-neo4j-developer
+      summary: Job duties include developing and optimizing Cypher queries
+    - title: Li et al., knowledge graph practitioners interview study
+      url: https://arxiv.org/html/2304.01311v4
+      summary: 12 of 19 practitioners were Builders who create the graph and design its schema
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,14 @@
+id: flow-of-funds-diagram
+name: Flow-of-funds (Sankey) view
+category: visualization
+description: Draw summed or allocated flows as a Sankey or flow-of-funds diagram with band widths proportional to
+    amount, each band drillable to and exportable as its underlying transactions.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W121
+    - W126
+implemented_by_components: []
+requirements: []
+sources: []

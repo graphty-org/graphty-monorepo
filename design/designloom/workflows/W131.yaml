@@ -1,0 +1,147 @@
+id: W131
+name: Model, Load and Verify a Property-Graph Knowledge Graph
+category: administration
+validated: false
+personas:
+    - enterprise-kg-engineer
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - basic-statistics
+    - component-analysis
+    - comparison-view
+    - filtering
+    - search
+    - details-on-demand
+    - progressive-loading
+    - layout-force-directed
+    - export-image
+    - group-collapse
+    - entity-resolution-review
+    - schema-meta-graph
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - statistics-panel
+    - comparison-view
+    - graph-canvas
+    - filter-panel
+    - search-input
+    - node-details-panel
+    - progressive-loader
+    - image-export-dialog
+starting_state:
+    data_type: CSV and relational extracts from many source systems, an intended model sketch, a property graph after load
+    node_count: 10000-10000000
+    edge_density: varies
+    user_expertise: expert
+goal: >-
+    **Intent**: Sketch a property-graph model, load source data into it, and verify after every (often nightly) rebuild
+    that the loaded graph matches the intended model, that counts are as expected, and that links reviewers removed
+    stay removed.
+
+
+    **Mental Model**: "Does the building match the blueprint?" The model sketch is the blueprint; the schema picture of
+    the loaded graph is the as-built drawing; counts per label are the inspection checklist.
+
+
+    **Task Phases**:
+
+    1. **Sketch the model** (30 min) - In Neo4j Data Importer add nodes with CamelCase labels mapped to CSV files and
+    drag relationships named in SNAKE_CASE; or draw in arrows.app, export JSON and load it with Runway's
+    DataModel.from_arrows, checking it with model.visualize()
+
+    2. **Generate and run ingestion** (10-60 min) - Runway's IngestionGenerator writes LOAD CSV Cypher without an LLM; paste
+    and run it in Neo4j Browser, or let Data Importer run the import
+
+    3. **Compare loaded schema with the model** (10 min) - CALL db.schema.visualization() returns one virtual node per
+    label and virtual relationships per start-end pair; it is estimated from statistics and can show relationships that
+    do not exist (Cypher 25 accepts estimate false to scan); db.schema.nodeTypeProperties() shows mandatory properties
+    per label. Compare this picture with the sketch
+
+    4. **Check counts** (10 min) - Nodes per label and relationships per type against source row counts; spot-check a
+    few samples per label in Browser or Bloom
+
+    5. **Diff against the last rebuild** (10 min) - Count changes per label and type; investigate jumps
+
+    6. **Re-apply the invalidation list** (5 min) - Links reviewers marked wrong must be removed again after each rebuild;
+    no tool support was found, so teams keep the list in their ETL
+
+    7. **Entity resolution over structured records** - Cluster review with record-level evidence (Senzing, Splink, Zingg)
+    follows the fraud and KYC workflows
+
+
+    **Decision Points**:
+
+    - Does every intended label and relationship type appear, and nothing unintended?
+
+    - Is a count jump a source change or an ETL bug?
+
+    - Which samples to inspect for each label?
+
+    - Is the rebuild good enough to promote to consumers?
+
+
+    **Information Needs**:
+
+    - The label-to-label meta-graph with exact node and relationship counts, computed from the data rather than
+    estimated
+
+    - The intended model side by side with the loaded schema, differences highlighted
+
+    - Property coverage per label (mandatory vs sparse)
+
+    - Count deltas per label and type against the previous rebuild
+
+    - A few sample instances per label with their neighbors
+
+
+    **Pain Points**:
+
+    - "I don't want to have to see the full graph... a quick sanity check" (interview participant P6)
+
+    - Neo4j Browser shows 300 nodes by default and freezes near 1,000
+
+    - The schema view is estimated and may include relationships that do not exist
+
+    - Invalidated links come back on every rebuild (P16)
+
+    - Long queries (15 minutes) with no interim results (P4)
+
+
+    **Data Flow**:
+
+    - Input: Model sketch (arrows.app JSON or Data Importer model), CSV extracts, loaded property graph, previous rebuild
+    counts, invalidation list
+
+    - Transformations: Ingestion, schema summarization, per-type counting, rebuild diff, invalidation re-application
+
+    - Output: A verified graph, a schema diagram for stakeholders, a count-diff report, an updated invalidation list
+success_criteria:
+    - metric: Schema check
+      target: User sees intended model vs loaded schema with differences marked in under 2 minutes
+    - metric: Rebuild diff
+      target: Every label and relationship type shows its count change since the last rebuild
+    - metric: Invalidation durability
+      target: Reviewer-removed links are flagged if they reappear after a rebuild
+sources:
+    - title: Neo4j Data Importer - modeling
+      url: https://neo4j.com/docs/data-importer/current/modeling
+      summary: Add Node, label, map to CSV; drag relationships and map them to files
+    - title: Neo4j Runway - Python ingestion
+      url: https://neo4j.com/blog/developer/neo4j-runway-python-ingestion/
+      summary: DataModel.from_arrows, model.visualize and LOAD CSV ingestion generation
+    - title: Neo4j Operations Manual - procedures
+      url: https://neo4j.com/docs/operations-manual/current/procedures/
+      summary: db.schema.visualization is estimated and may show nonexistent relationships; nodeTypeProperties
+    - title: Knowledge Graphs in Practice (Li et al. 2023)
+      url: https://arxiv.org/pdf/2304.01311
+      summary: P6 quick sanity check, P16 invalidated links return, P4 long queries with no interim results
+    - title: Neo4j community - Browser node limit
+      url: https://community.neo4j.com/t/browser-node-relationship-limit/69507
+      summary: 300-node default; freezes reported at 1,000
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

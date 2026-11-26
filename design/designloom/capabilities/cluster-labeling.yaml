@@ -1,0 +1,21 @@
+id: cluster-labeling
+name: Automatic cluster labeling and quality
+category: analysis
+description: Label clusters from member text by log-likelihood ratio, tf-idf or mutual information (or an external
+    labeler) and report modularity and silhouette per clustering run.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W207
+    - W208
+    - W210
+    - W212
+    - W51
+    - W52
+    - W58
+implemented_by_components: []
+requirements:
+    - Top hashtags, URLs, domains, words, bio terms and most-followed or most-reposted accounts per community, with
+      editable cluster labels; extends community-profiling to text tokens.
+sources: []

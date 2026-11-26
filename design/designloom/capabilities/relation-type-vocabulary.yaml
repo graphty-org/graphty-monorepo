@@ -1,0 +1,13 @@
+id: relation-type-vocabulary
+name: Relation Type Vocabulary
+category: analysis
+description: A user-edited list of edge relation types with name, labels, direction, symmetric, asymmetric or transitive
+    property and line style; changing a type restyles all its edges; edges carry comments and authors.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W406
+implemented_by_components: []
+requirements: []
+sources: []

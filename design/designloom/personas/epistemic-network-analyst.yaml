@@ -1,0 +1,74 @@
+id: epistemic-network-analyst
+name: Epistemic Network Analyst
+role: Learning-Sciences or Medical-Education Researcher / Quantitative Ethnographer
+quote: Novices and experts use the same six codes. The question is how they connect them, and whether the difference is real.
+bio: >-
+    Dr. Sam Okafor is a quantitative ethnographer who compares how two groups -- novices and experts, high and low
+    performers, two clinical teams -- connect ideas in talk. He learned epistemic network analysis (ENA) at a workshop,
+    explores models in the ENA web tool and writes papers with rENA in R. His data are one row per utterance with
+    metadata and 3 to 10 binary code columns, over 10 to 50 units (students, teams, patients). He chooses units,
+    conversations and a moving stanza window, builds one model in which every network shares the same node positions,
+    plots each group's mean network and the subtracted network, and tests the difference with a t test or Mann-Whitney
+    and an effect size. Then he reads the utterances behind the strongest connections and quotes them. When the data are
+    too large to hand-code he builds regular-expression classifiers in nCoder or asks GPT-4 to code, and has to show that
+    machine coding gives the same network as human coding.
+characteristics:
+    expertise: advanced
+    time_pressure: low
+    graph_literacy: intermediate
+    domain_knowledge: expert
+motivations:
+    - Show that two groups' code networks differ, where they differ and how strongly
+    - Back every connection he reports with the utterances behind it
+    - Scale coding to large datasets with automated coders without losing validity
+    - Compare human-coded and machine-coded networks on one layout
+    - Report every modeling parameter so the analysis can be reproduced
+behaviors:
+    - Segments transcripts into one line per utterance and codes them, alone or with co-coders, measuring kappa
+    - Builds a table with IDs, text, metadata and one 0/1 column per code
+    - Sets units, conversations, window size (moving stanza of about 4 to 7 lines) and the grouping variable
+    - Uses a means rotation so the group difference lies on the x axis
+    - Plots each group's mean network and the subtracted network colored by the group with the larger weight, always together
+    - Raises the minimum edge weight and hides unconnected codes to read the figure
+    - Runs Welch t and Mann-Whitney tests with effect size and checks goodness of fit
+    - Opens the lines behind a unit's connection and quotes them in the paper
+    - Trains nCoder regular expressions or prompts GPT-4, compares against human coding with kappa, precision and recall
+frustrations:
+    - Many interacting parameters (window, conversation, rotation) with thin documentation
+    - Three figures per comparison (two means and a subtraction) that must be kept consistent by hand
+    - No view that sets a human-coded and a machine-coded model side by side on one layout
+    - Automated coding lets one edge rest on thousands of lines, too many to read without sampling
+    - General graph tools redraw each network with its own layout, destroying comparability
+context:
+    frequency: weekly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W407
+sources:
+    - title: Tan, Swiecki, Ruis and Shaffer, ENA and ONA in R
+      url: https://par.nsf.gov/servlets/purl/10608654
+      summary: RS.data with 48 students and 6 codes, shared node positions, subtraction shown with both networks, t test and effect size, view() of coded lines
+    - title: Introduction to ENA web tool guide
+      url: https://bookdown.org/tan78/intro_to_ena/
+      summary: Data format, units, conversations, stanza windows, plot options, statistics and write-up
+    - title: Zambrano et al., From nCoder to ChatGPT (ICQE)
+      url: https://learninganalytics.upenn.edu/ryanbaker/ChatGPT_ICQE_FinalVersion.pdf
+      summary: nCoder regular-expression workflow, kappa, precision and recall against human coding; GPT-4 comparison
+    - title: Zorgo and Peters 2023, ROCK and ENA tutorial
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC9809407/
+      summary: 26 patient interviews, segmentation as the heart of the analysis, iROCK runs locally so data are not uploaded
+    - title: Elmoazen et al. 2022, review of ENA studies
+      url: https://ieeexplore.ieee.org/document/9706446
+      summary: 76 empirical ENA studies in education 2010-2021, most on small manually coded samples
+    - title: Lu and Hsu 2026, TopicENA
+      url: https://arxiv.org/abs/2603.03307v1
+      summary: BERTopic topics replace manual codes to scale ENA
+    - title: Nursing-assistant interview ENA 2024
+      url: https://arxiv.org/html/2405.08948v2
+      summary: 810 utterances, 4 codes, Cohen's kappa 0.863
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

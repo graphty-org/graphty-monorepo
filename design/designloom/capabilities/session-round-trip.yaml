@@ -1,0 +1,19 @@
+id: session-round-trip
+name: Stable Session Round-Trip
+category: analysis
+description: Styles, thresholds, filters, layers and layout survive save and reopen unchanged, together with the
+    parameter record (thresholds, filters, algorithm settings) needed for a methods section, with results marked stale
+    when their inputs change.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W61
+    - W63
+    - W65
+    - W67
+    - W70
+    - W75
+implemented_by_components: []
+requirements: []
+sources: []

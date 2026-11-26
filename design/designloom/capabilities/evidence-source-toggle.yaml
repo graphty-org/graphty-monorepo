@@ -1,0 +1,13 @@
+id: evidence-source-toggle
+name: Evidence Source Ablation
+category: analysis
+description: Switch edges from one evidence source or type off and compare the resulting connection or path ranking with
+    the original.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W258
+implemented_by_components: []
+requirements: []
+sources: []

@@ -10,6 +10,57 @@ implements_capabilities:
 used_in_workflows:
     - W02
     - W06
+    - W111
+    - W115
+    - W124
+    - W127
+    - W138
+    - W139
+    - W142
+    - W211
+    - W213
+    - W223
+    - W263
+    - W277
+    - W279
+    - W282
+    - W283
+    - W318
+    - W324
+    - W362
+    - W363
+    - W369
+    - W370
+    - W371
+    - W372
+    - W374
+    - W375
+    - W376
+    - W378
+    - W379
+    - W382
+    - W399
+    - W408
+    - W409
+    - W418
+    - W421
+    - W422
+    - W437
+    - W440
+    - W442
+    - W446
+    - W55
+    - W57
+    - W63
+    - W67
+    - W69
+    - W70
+    - W72
+    - W73
+    - W76
+    - W80
+    - W83
+    - W91
 dependencies:
     - attribute-row
     - badge

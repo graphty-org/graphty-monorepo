@@ -1,0 +1,13 @@
+id: value-flow-tracing
+name: Value Flow Tracing
+category: analysis
+description: Directed flow with amount, asset and time per edge, hop-by-hop following from a seed with amount and time
+    filters, and accounting of how much traced value went down each branch.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W105
+implemented_by_components: []
+requirements: []
+sources: []

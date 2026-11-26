@@ -1,0 +1,14 @@
+id: focus-caller-callee-view
+name: Focus View with Callers and Callees
+category: visualization
+description: Center one node with its callers on one side and callees on the other, and step to a neighbor to re-center,
+    keeping health overlays visible.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W76
+    - W80
+implemented_by_components: []
+requirements: []
+sources: []

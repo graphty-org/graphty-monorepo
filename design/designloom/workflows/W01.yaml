@@ -10,6 +10,8 @@ personas:
     - intelligence-analyst
     - bioinformatics-researcher
     - genomics-cytoscape-user
+    - spreadsheet-first-network-builder
+    - graph-data-wrangler
 requires_capabilities:
     - data-import
     - data-validation
@@ -21,6 +23,8 @@ requires_capabilities:
     - progressive-loading
     - algorithm-progress
     - metric-histograms
+    - layout-force-directed
+    - filtering
 suggested_components:
     - data-import-dialog
     - data-preview-table
@@ -29,6 +33,8 @@ suggested_components:
     - progressive-loader
     - progress-bar
     - metric-card
+    - ranked-node-table
+    - graph-canvas
 starting_state:
     data_type: unknown graph file
     node_count: unknown
@@ -43,17 +49,27 @@ goal: >-
     assessment before ordering tests.
 
 
-    **Task Phases**:
+    **Task Phases** (the order follows Gephi Quick Start, Programming Historian and the Cytoscape Network Analyzer;
+    no source gives minutes for any step, so durations are unvalidated):
 
-    1. **Size Assessment** (1 min) - Determine computational approach needed
+    1. **Read the counts** - Node and edge counts against what the user expected (Programming Historian's sanity check
+    is 119 nodes and 174 edges); size decides whether sampling or filtering is needed (W299)
 
-    2. **Structure Check** (2 min) - Verify graph type matches expectations
+    2. **Structure check** - Directed or undirected as loaded (Gephi CSV defaults to directed, Cytoscape Analyzer to
+    undirected), weighted or not, unique versus duplicate edges, self-loops, reciprocal pairs collapsed
 
-    3. **Distribution Scan** (3 min) - Identify if data follows expected patterns
+    3. **Global descriptors** - Average degree, density, connectedness and component count with the giant component's
+    share, transitivity; diameter and path lengths only on the giant component (NetworkX raises an error on a
+    disconnected graph)
 
-    4. **Sample Inspection** (5 min) - Manually verify data makes sense
+    4. **Look at hubs** - Sort the degree list and check the top entries for artifacts (a mailing list, an Unknown
+    placeholder, a consortium paper)
 
-    5. **Attribute Assessment** (4 min) - Understand available data dimensions
+    5. **Run a layout** - Force-directed until balanced, prevent overlap, size nodes by degree
+
+    6. **Reduce clutter** - Keep the giant component, or filter degree at 2 or more
+
+    7. **Attribute assessment** - Inspect sample rows and attribute completeness
 
 
     **Decision Points**:
@@ -79,6 +95,15 @@ goal: >-
 
     - Sample of actual node/edge data to verify interpretation
 
+    - Self-loop count, duplicate (parallel) edge count and reciprocal pairs collapsed at import
+
+    - Isolates count; diameter labeled as computed on the giant component
+
+    - Top of the degree list, to spot artifact hubs
+
+    - What each oddity usually means: unexpected component counts point to id mismatch or duplication, isolates to
+    edges that did not attach, doubled edges to an undirected file loaded as directed, self-loops to alias problems
+
 
     **Pain Points**:
 
@@ -90,6 +115,12 @@ goal: >-
 
     - Missing values may not be obvious
 
+    - Path statistics fail or mislead on a disconnected graph
+
+    - Artifact hubs top the degree list and are mistaken for findings
+
+    - The first view is a hairball until a layout runs
+
 
     **Data Flow**:
 
@@ -100,7 +131,7 @@ goal: >-
     - Output: Mental model of dataset + decision to proceed/clean/abandon
 success_criteria:
     - metric: Time to basic understanding
-      target: Under 15 minutes
+      target: Unvalidated -- no source gives a duration; earlier 15-minute target had no evidence
     - metric: Data quality issues identified
       target: All major issues flagged
     - metric: Proceed/abandon decision confidence
@@ -112,6 +143,21 @@ sources:
     - title: Brown University Gephi LibGuide
       url: https://libguides.brown.edu/gephi
       summary: Network analysis workflow starting with data preparation and basic statistics
+    - title: Gephi Quick Start
+      url: http://gephi.org/quickstart/
+      summary: ForceAtlas 2, prevent overlap, size by degree, degree range filter at 2
+    - title: Programming Historian - Exploring and analyzing network data with Python (Ladd et al.)
+      url: https://programminghistorian.org/en/lessons/exploring-and-analyzing-network-data-with-python
+      summary: Count sanity check, density, connectedness, diameter on the largest component, transitivity
+    - title: Cytoscape - Network Analyzer
+      url: https://manual.cytoscape.org/en/3.10.3/_sources/Network_Analyzer.md.txt
+      summary: Directed or undirected prompt (default undirected); components, diameter, path length, clustering
+    - title: NodeXL - a guide to network insights
+      url: https://dspace.stir.ac.uk/retrieve/f1292af1-5cdb-400b-820a-bccae8f82e1f/NodeXL%20-%20a%20guide%20to%20network%20insights%20-%20Author%20Version.pdf
+      summary: Overall metrics separate unique edges, duplicate edges and self-loops
+    - title: Duke University Library - Gephi visualizing
+      url: https://guides.library.duke.edu/gephi/visualizing
+      summary: Giant component filter to reduce clutter
 version: 1.0.0
 created_at: 2026-01-16T16:22:44.628Z
-updated_at: 2026-01-16T16:22:44.628Z
+updated_at: 2026-11-25T00:00:00.000Z

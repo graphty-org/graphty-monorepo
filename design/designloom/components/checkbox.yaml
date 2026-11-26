@@ -5,7 +5,8 @@ description: Checkbox input for boolean or tri-state selections. Supports indete
 status: implemented
 notes: "Ships: Mantine Checkbox, Mantine through compact-mantine, used across graphty/src."
 implements_capabilities: []
-used_in_workflows: []
+used_in_workflows:
+    - W363
 dependencies: []
 props:
     checked: boolean - Whether checkbox is checked

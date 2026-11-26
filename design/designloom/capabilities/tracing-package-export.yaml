@@ -1,0 +1,13 @@
+id: tracing-package-export
+name: Tracing Package Export
+category: export
+description: Export a numbered flowchart of production steps, a map of facility locations and an exhibit index that
+    share one numbering scheme.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W230
+implemented_by_components: []
+requirements: []
+sources: []

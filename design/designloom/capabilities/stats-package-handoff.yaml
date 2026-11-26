@@ -1,0 +1,15 @@
+id: stats-package-handoff
+name: Statistics Package Hand-Off
+category: analysis
+description: Export edge lists with NA dyads, ID-aligned attribute tables, event tables and node scores for R (statnet,
+    RSiena, btergm, goldfish), Stata and SPSS.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W26
+    - W30
+    - W33
+implemented_by_components: []
+requirements: []
+sources: []

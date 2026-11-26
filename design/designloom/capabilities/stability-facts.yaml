@@ -1,0 +1,14 @@
+id: stability-facts
+name: Stability facts beside metrics
+category: analysis
+description: Attach stability values (CS-coefficient per centrality index, difference-test matrix, community assignment
+    stability per node) to metrics and flag values below a user-set threshold, as neutral facts the application words.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W371
+    - W377
+implemented_by_components: []
+requirements: []
+sources: []

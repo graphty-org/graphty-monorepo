@@ -1,0 +1,72 @@
+id: sre-incident-responder
+name: SRE Incident Responder
+role: Senior Site Reliability Engineer
+quote: The checkout service is paging. Tell me in two minutes whether it is the cause or a victim, and who owns the thing that actually broke.
+bio: >-
+    Priya is a senior site reliability engineer on call for a payments platform of about 300 services running on
+    Kubernetes. When a page arrives she opens the alerting service on a trace-derived service map (Datadog Service Map
+    and Dependency Map Navigator, Grafana Tempo service graphs, Kiali or AWS X-Ray), scopes it to the environment and
+    the time window around onset, and walks from unhealthy node to unhealthy callee until she finds the dependency
+    that broke. Then she walks the other way to tell the incident commander which customer-facing services are
+    affected, and pages the owner from the service catalog. She is a strong coder and command-line user who thinks in
+    "upstream", "downstream" and "blast radius", not in centrality. The graph is never her deliverable: it is the
+    navigator between an alert and the traces, logs and deploy events that prove the cause, and it is judged only by
+    how fast it answers.
+characteristics:
+    expertise: expert
+    time_pressure: high
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Decide quickly whether the alerting service is the cause or a victim of a failing dependency
+    - Find the upstream dependency that broke and page its owner
+    - Tell the incident commander which customer-facing services are affected, for severity and customer communication
+    - Correlate the failure with a recent deploy or a topology change for the postmortem
+behaviors:
+    - Opens the map from the alert, already focused on the alerting service, and scopes it to an environment and a time window covering onset
+    - Reads health overlays first (red or yellow borders, 5xx, 4xx and throttling outlines) before reading structure
+    - Uses an isolation view with callers on one side and callees on the other, and steps from callee to callee while they stay unhealthy
+    - Follows only call (dependency) edges for blast radius; ownership or correlation edges would pull in nearly every service within two hops
+    - Filters the map to one customer or tenant attribute and highlights error responses on that path
+    - Checks last-deploy facets and topology at an earlier time to see what changed just before the incident
+    - Pivots from a node to traces, logs, monitors and the owning team, then pastes a map screenshot into the postmortem
+frustrations:
+    - The unfiltered map of a heavily connected gateway is unreadable
+    - Nodes disappear when spans are dropped and low-traffic edges vanish from rate queries, so the map looks complete when it is not
+    - Maps go stale and do not show when a dependency first appeared
+    - Hard node caps and one-to-three-level default depths
+    - Edge direction shown ambiguously, which sends responders to the victims' suppliers instead of the victims
+context:
+    frequency: daily
+    devices:
+        - laptop
+        - desktop
+    voluntary: false
+workflows:
+    - W76
+    - W77
+sources:
+    - title: Datadog - Dependency Map Navigator
+      url: https://www.datadoghq.com/blog/dependency-map-navigator/
+      summary: Inspection view with callers left and callees right, health-colored borders, ownership as the pivot once impact is known
+    - title: Datadog - Service Map documentation
+      url: https://docs.datadoghq.com/tracing/services/services_map/
+      summary: Map is scoped per environment and time window; nodes missing when spans are dropped
+    - title: Grafana Tempo - Service graphs
+      url: https://grafana.com/docs/tempo/latest/metrics-from-traces/service_graphs/
+      summary: Service graphs derived from trace span pairs; low-traffic edges can vanish from rate queries
+    - title: Honeycomb - Jack Henry BubbleUp and service map
+      url: https://www.honeycomb.io/blog/jack-henry-bubble-up-service-map
+      summary: About 250 services, 212 behind one gateway; filter to one institution ID, isolate the failing path, highlight HTTP 500s
+    - title: Edge Delta - Blast radius is a graph query
+      url: https://edgedelta.com/company/blog/blast-radius-is-a-graph-query
+      summary: Only dependency edges count for blast radius; wrong direction sends responders to the victims' suppliers
+    - title: Meta service dependency study (USENIX ATC 2023)
+      url: https://www.usenix.org/system/files/atc23-huye.pdf
+      summary: 18,500 active services, 393,622 inter-service edges, maximum fan-in 14,084
+    - title: Unblocked - Mapping blast radius during incidents
+      url: https://getunblocked.com/blog/map-blast-radius-incidents-ai-tools/
+      summary: Dependency maps go stale between incidents
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

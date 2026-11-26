@@ -1,0 +1,71 @@
+id: cellular-connectomics-neuroscientist
+name: Cellular Connectomics Neuroscientist
+role: Circuit Neuroscientist using Electron-Microscopy Connectomes
+quote: What are the strongest upstream partners of my neuron, what transmitter do they use, and which pathways reach it from the eye?
+bio: >-
+    Dr. Aiko Brandt is a circuit neuroscientist who uses electron-microscopy (EM) wiring diagrams to plan experiments
+    on the neurons her lab records from. Fly researchers like her query FlyWire Codex and neuPrint (139,255 neurons in
+    the FlyWire whole fly brain); mouse and human cortex researchers query MICrONS or H01 through CAVE in Python;
+    tracing labs reconstruct their own smaller circuits in CATMAID. Her graphs are directed, synapse-weighted
+    multigraphs: neurons as nodes (root ID or body ID, cell type, hemisphere, predicted neurotransmitter, soma
+    position), synapse counts as edge weights, and one edge per brain region (neuropil) in fly data. They are 100 to
+    1,000 times larger than atlas graphs, single-specimen, versioned, and served from databases (neuPrint is built on
+    Neo4j). She never looks at the whole graph; she explores one neuron's neighborhood at a time. She writes Python
+    (neuprint-python, caveclient, navis, NetworkX) and some Cypher, and uses the web explorers daily.
+characteristics:
+    expertise: expert
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Find the strongest upstream and downstream partners of a neuron and group them by cell type
+    - Know which transmitter each partner is predicted to use
+    - Find pathways from sensory input to the neuron of interest
+    - Turn the partner list into a plan for genetic experiments
+    - Relate wiring to function where both were measured in the same cells
+behaviors:
+    - Searches by cell type or transmitter, then opens upstream and downstream partner tables
+    - Accepts the dataset's minimum synapse threshold (5 in FAFB, 3 in BANC, 1 in MANC) and raises it to reduce clutter
+    - Caps a network view to the top connections and groups nodes by cell type or colors them by hemilineage
+    - Computes shortest pathways and downloads the path-length matrix as CSV
+    - Pins a dataset release or materialization version so IDs in her scripts stay valid
+    - Aggregates synapse rows into a weighted edge list or a cell-type by cell-type matrix with pandas
+    - Exports CSV, JSON or Feather tables and continues in NetworkX or navis
+frustrations:
+    - Neuron IDs change when proofreading edits a cell, so saved lists and links go stale
+    - Drawing the full graph is useless at this size; every view must be neuron-centric and filtered
+    - Connection tables repeat the same pair once per neuropil, inflating counts unless summed
+    - CAVE is code-only; there is no visual way to explore a materialization
+    - Tracing labs must leave CATMAID and use Gephi just to lay out a circuit, then bring it back
+context:
+    frequency: daily
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W156
+    - W157
+    - W160
+sources:
+    - title: FlyWire Codex FAQ
+      url: https://codex.flywire.ai/faq
+      summary: Search, partner tables with minimum synapse thresholds, network graph options, pathways, root IDs replaced by proofreading
+    - title: neuprint-python query tutorial
+      url: https://connectome-neuprint.github.io/neuprint-python/docs/notebooks/QueryTutorial.html
+      summary: NeuronCriteria, fetch_adjacencies returning neuron and per-region connection tables
+    - title: neuPrint user guide
+      url: https://neuprint.janelia.org/public/neuprintuserguide.pdf
+      summary: neuPrint is built on Neo4j; Neuron nodes and ConnectsTo edges with weights and region info
+    - title: FlyWire whole-brain connectome paper
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11446842
+      summary: 139,255 neurons; about 33 person-years of proofreading by the consortium
+    - title: CAVEclient materialization guide
+      url: https://caveclient.readthedocs.io/en/latest/guide/materialization.html
+      summary: Versioned snapshots; code using specific IDs should pin a version where the IDs are valid
+    - title: CATMAID Graph Widget documentation
+      url: https://catmaid.readthedocs.io/en/stable/widgets/graph-widget.html
+      summary: GML export for layout in other tools and GraphML re-import for coloring in CATMAID
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

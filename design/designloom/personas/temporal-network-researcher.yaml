@@ -1,0 +1,77 @@
+id: temporal-network-researcher
+name: Temporal Network Researcher
+role: Assistant Professor in Learning Analytics / Computational Social Science
+quote: A forum post has no end time, and the week-long window I pick decides what my readers see. Let me try three windows before I commit to one.
+bio: >-
+    Dr. Leena Virtanen is an assistant professor who studies how interaction networks form and dissolve over a course
+    or a project: forum replies in a MOOC, chat messages in a team, who answers whom and how fast. She is strong in R
+    and works in the statnet family (networkDynamic, tsna, ndtv), sometimes pathpy in Python, and opens Gephi for a
+    quick look. Her data is a few hundred people and thousands to tens of thousands of timestamped interaction events
+    with role attributes. Before any analysis she must decide how long a point event "lasts" (a post has no clear end
+    time), how wide the windows are and how far they step, and she reruns every script when one of those changes. A
+    network of about 450 nodes is unreadable, so she subsets to people with degree above 20. Her readers are
+    educators, not network scientists, and her papers need static figures, so she turns animations into filmstrips.
+    She also asks who could have reached whom given the order of events, which no GUI tool she knows answers.
+characteristics:
+    expertise: advanced
+    time_pressure: medium
+    graph_literacy: advanced
+    domain_knowledge: advanced
+motivations:
+    - Show when groups form, grow and dissolve across the phases of a course or project
+    - Compare density, reciprocity and centralization per week to support claims in a paper
+    - Find who reaches whom, and how fast, given the order of interactions (earliest-arrival paths)
+    - Produce figures and an animation that readers without network training can follow
+    - Report window length, step and aggregation so a reviewer can reproduce the result
+behaviors:
+    - Cleans the event log first -- drops self-loops, converts time to numeric days, counts pairs into a static base network
+    - Builds an edge-spell table (onset, terminus, tail, head, censoring flags) and constructs a networkDynamic object
+    - Assigns durations to point events by a rule she must defend (for example post to last reply)
+    - Subsets to the most active nodes (degree above 20) before drawing anything
+    - Extracts one network per week and lays them out as a filmstrip; also tries a 3D time prism and a timeline plot
+    - Computes metrics in sliding windows (for example 7-day windows stepped daily) with tsna and plots them as time series
+    - Runs earliest-arrival reachability from a facilitator to see who the facilitator could have influenced
+    - Renders an HTML animation with positions chained from the previous slice so the drawing does not jump
+    - Tries several window lengths, because instantaneous slices show mostly isolates and long windows hide change
+frustrations:
+    - Every change to window length or step means rerunning a script and regenerating every figure
+    - No principled answer for how long a point event lasts, and tools hide the choice
+    - Hairballs above a few hundred nodes; playback becomes unreadable without filtering
+    - GUI tools offer counts and density per window but not the centralities she actually reports
+    - No GUI tool computes time-respecting paths; static shortest paths show routes that cannot have happened
+    - Animations cannot go in a paper, so she rebuilds the evolution as small multiples by hand
+context:
+    frequency: weekly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W19
+    - W304
+    - W307
+    - W308
+    - W309
+    - W310
+sources:
+    - title: Saqr 2023 - Temporal network analysis -- introduction, methods and analysis with R (arXiv 2307.12339)
+      url: https://arxiv.org/abs/2307.12339
+      summary: MOOC forum tutorial; durations for posts with no clear end time, degree above 20 subset, tsna metrics and tPath reachability
+    - title: ndtv vignette (CRAN)
+      url: https://cran.r-project.org/web/packages/ndtv/vignettes/ndtv.pdf
+      summary: filmstrip, timePrism, slice parameters, overlapping windows, sparse low-turnover networks animate best
+    - title: ndtv compute.animation reference
+      url: https://search.r-project.org/CRAN/refmans/ndtv/html/compute.animation.html
+      summary: Chained layouts seeded with the previous slice's coordinates
+    - title: tsna vignette (CRAN)
+      url: https://cran.r-project.org/web/packages/tsna/vignettes/tsna_vignette.html
+      summary: tSnaStats sliding-window metrics, tPath and forward reachable sets
+    - title: Holme and Saramaki 2012 - Temporal networks (arXiv 1108.1780)
+      url: https://arxiv.org/abs/1108.1780
+      summary: Contact sequences and interval graphs; information is always lost when projecting to a static graph
+    - title: pathpy temporal networks tutorial
+      url: https://ingoscholtes.github.io/csh2018-tutorial/4_temporal_networks.html
+      summary: Temporal network construction, causal paths with a maximum waiting time, look-ahead layouts
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

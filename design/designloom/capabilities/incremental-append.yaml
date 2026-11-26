@@ -1,0 +1,14 @@
+id: incremental-append
+name: Incremental Append to a Chart
+category: analysis
+description: Append newly arrived records to an existing chart, matching them to existing entities, keeping layout and
+    annotations, and highlighting what is new since the last update.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W09
+    - W98
+implemented_by_components: []
+requirements: []
+sources: []

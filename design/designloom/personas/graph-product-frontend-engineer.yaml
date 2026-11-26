@@ -1,0 +1,101 @@
+id: graph-product-frontend-engineer
+name: Product Engineer Embedding an Investigation Graph
+role: Senior Front-End Engineer on a Threat Intelligence, Fraud or Graph-Database Product
+quote: The graph is one screen of our product. It has to expand on double-click without freezing, pass the customer's security review, and still be there when I upgrade.
+bio: >-
+    Meera Iyer is a senior front-end engineer on a cyber threat intelligence SaaS product. Her team owns the
+    "Investigate" page: a search box, a graph canvas, a properties panel, a time filter and an export button. She has
+    six years of React and TypeScript, has written Cypher and GraphQL, and has never written a graph algorithm. Today the
+    page runs on Cytoscape.js through react-cytoscapejs with the fcose and popper extensions and a Redux store for the
+    selection, and her team is evaluating a commercial toolkit such as KeyLines, the same move one CrowdStrike posting
+    describes. Her data is indicators of compromise (IP addresses, domains, file hashes, threat actors) merged from dozens
+    of feeds; the store holds billions of records but the canvas shows a few hundred at a time. The graph view is one
+    deliverable among authentication, dashboards and PDF exports, and the customers' security reviews and accessibility
+    questionnaires land on her desk.
+characteristics:
+    expertise: expert
+    time_pressure: high
+    graph_literacy: basic
+    domain_knowledge: intermediate
+motivations:
+    - Ship a graph screen that is the product's differentiator, not a demo
+    - Get from install to a data-bound, styled, clickable graph in days, not a quarter
+    - Keep expand-on-click responsive at the sizes analysts actually load
+    - Pass regulated customers' security review (strict Content Security Policy, offline install) and Section 508 questionnaires without a rewrite
+    - Avoid a hard-to-reverse library choice that the team regrets a year later
+behaviors:
+    - Maps backend fields to the library's node and edge model and insists ids stay stable across fetches so expand merges instead of duplicating
+    - Keeps one library instance in a ref, diffs incoming elements and re-runs layout only for new nodes
+    - Writes more code for the product chrome (search, properties panel, legend, layout switcher, export) than for the graph itself
+    - Loads WebGL graph code with next/dynamic and ssr false after hitting "window is not defined"
+    - Caps every query (a few hundred initial nodes, about 100 neighbors per expand) and asks the user to refine above a threshold
+    - Benchmarks shortlisted libraries on the product's own data before committing
+    - Tests graph logic headless in Node and drives real clicks in Playwright, waiting for layout completion before asserting
+goals:
+    - Seed a graph from a search and expand neighbors on double-click without the view jumping
+    - Color by entity type and risk, badge high-risk nodes, group duplicates
+    - Save and reload an analyst workspace and export a PDF or PNG report
+    - Publish a security and accessibility statement for the graph view to customers
+frustrations:
+    - Updating the React wrapper's elements stacks new nodes on top of each other unless the layout is re-run
+    - Listener cleanup on unmount is undocumented in the wrapper
+    - WebGL graph libraries crash Next.js server rendering
+    - Force layouts of a few thousand nodes are slow and freeze the browser during evaluations
+    - Libraries that create Web Workers from blob URLs are refused under a strict Content Security Policy
+    - Commercial toolkits with unpublished prices, tarball installs, required obfuscation and a watermark when the license lapses
+    - The market-leading toolkit leaves search, focus, ARIA and text alternatives to her
+knows:
+    - React, TypeScript, Next.js, Redux, build tooling and browser DevTools
+    - Cypher, GraphQL and REST backends
+    - Playwright and Vitest
+refuses_to_learn:
+    - Layout mathematics and algorithm internals
+    - A second state model inside the graph library that fights the app's store
+context:
+    frequency: daily
+    devices:
+        - desktop
+        - laptop
+    voluntary: false
+workflows:
+    - W278
+    - W280
+    - W281
+    - W284
+    - W286
+    - W287
+    - W288
+sources:
+    - title: Djinni - Senior React Frontend Engineer (Graph / Data Visualization Focus)
+      url: https://djinni.co/jobs/806184-senior-react-frontend-engineer-graph-data-vis
+      summary: Posting asks for filtering, drill-down, property panels, linked brushing, PDF export, OIDC and RBAC, WebGL rendering, and Cytoscape.js or Sigma.js
+    - title: The Muse - CrowdStrike Sr Frontend Engineer, Graph Data Visualisation
+      url: https://themuse.com/jobs/crowdstrike/sr-frontend-engineer-graph-data-visualisation-remote
+      summary: Role states the team is moving its graph rendering layer to KeyLines (search snippet; page later returned 403)
+    - title: Cambridge Intelligence - Core4ce Cyberscape case study
+      url: https://cambridge-intelligence.com/core4ce-cyberscape-the-cyber-security-forensics-platform
+      summary: 37+ external providers and billions of data points behind a canvas of a few hundred nodes; PDF reports; path finding and centrality as later work
+    - title: Cambridge Intelligence - EclecticIQ case study
+      url: https://cambridge-intelligence.com/eclecticiq-case-study/
+      summary: Evaluation in May 2015 to customer beta in October 2015; saved workspaces
+    - title: react-cytoscapejs
+      url: https://github.com/plotly/react-cytoscapejs
+      summary: Elements, stylesheet and layout props plus a cy ref callback for events
+    - title: Lightrun - react-cytoscapejs nodes stack on setState
+      url: https://lightrun.com/answers/plotly-react-cytoscapejs-question-setting-elements-property-via-setstate-causes-graph-nodes-to-stack-on-top-of-each-other
+      summary: Updating elements stacks nodes unless layout is re-run
+    - title: reagraph issue 172
+      url: https://www.github.com/reaviz/reagraph/issues/172
+      summary: Next.js server rendering crashes with "window is not defined"
+    - title: AntV G2 issue 5462
+      url: https://github.com/antvis/G2/issues/5462
+      summary: Blob-URL worker refused under a strict CSP; users "justifiably reject" allowing worker-src blob
+    - title: KeyLines accessibility
+      url: https://developers.cambridge-intelligence.com/docs/keylines/accessibility
+      summary: States KeyLines does not support many WCAG 2.0 and Section 508 requirements for non-visual representations
+    - title: Neo4j Community - Browser node relationship limit
+      url: https://community.neo4j.com/t/browser-node-relationship-limit/69507
+      summary: Raising maxNeighbours to 1,000 made the UI unresponsive
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,146 @@
+id: W383
+name: Print-Quality Flow Map in QGIS or ArcGIS
+category: reporting
+validated: false
+personas:
+    - migration-flow-demographer
+    - urban-mobility-analyst
+requires_capabilities:
+    - data-import
+    - computed-attributes
+    - filtering
+    - visual-encoding-edges
+    - visual-encoding-nodes
+    - legend-display
+    - style-presets
+    - annotation
+    - export-image
+    - geographic-layout
+    - od-flow-import
+    - flow-arithmetic
+    - flow-clutter-control
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - computed-attributes-panel
+    - filter-panel
+    - visual-encoding-panel
+    - gradient-editor
+    - color-picker
+    - legend-panel
+    - annotation-toolbar
+    - graph-canvas
+    - image-export-dialog
+starting_state:
+    data_type: aggregated edges table (origin id, destination id, count) and a geocoded nodes table
+    node_count: 20-3000
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Produce a publication or print-quality flow map -- curved, directional, sized and colored by volume,
+    with a legend and layout -- from an already aggregated OD table. This is the print variant of the county migration
+    and mobility workflows.
+
+
+    **Mental Model**: "Cartography with lines." The flows are line features to be styled like any map layer: width by
+    volume, color by class or direction, curved so two-way pairs separate, drawn in a chosen order.
+
+
+    **Task Phases**:
+
+    1. **Prepare two tables outside the GIS** - An edges file and a geocoded nodes file, aggregated in Python or R
+
+    2. **Make lines** (minutes) - QGIS XY to line on a table holding both endpoints, or a virtual layer joining edges to
+    nodes with make_line and a WHERE clause that drops self-flows; ArcGIS XY To Line (GEODESIC, GREAT_CIRCLE,
+    RHUMB_LINE, NORMAL_SECTION) or Generate Origin-Destination Links, which pairs features by group field, caps
+    nearest destinations and search distance, aggregates overlapping links into LINK_COUNT and adds summary statistics
+
+    3. **Aggregate if needed** - Group by an OD id and count
+
+    4. **Symbolize** (an hour of tuning) - Graduated color with natural breaks; width as a data-defined linear scale;
+    curve each line with a geometry generator inserting an offset midpoint; trim line ends; color by direction
+
+    5. **Optional bundling** - Force-directed edge bundling, comparing step sizes from 1,000 to 10,000 map units,
+    styled at about 20 percent opacity
+
+    6. **Alternative** - The FlowMapper plugin takes a square OD matrix and writes two-way, gross and net lines plus a
+    node layer with in, out and signed net totals, colored gain green and loss red
+
+    7. **Lay out and export** - Set draw order by hand, add legend, title and source, export PDF or PNG
+
+
+    **Decision Points**:
+
+    - Straight, curved or great-circle lines?
+
+    - Which classification (natural breaks, quantiles) and how many classes for width and color?
+
+    - Show two-way flows separately, merged, or as net?
+
+    - Bundle or not, given that bundles may be read as actual routes?
+
+    - Which flows draw on top?
+
+
+    **Information Needs**:
+
+    - Distribution of flow volumes to pick class breaks
+
+    - Per-node in, out and net totals for node symbols
+
+    - A legend that states line width per volume and the color classes
+
+
+    **Pain Points**:
+
+    - Every curve, trim and width needs a hand-written expression
+
+    - Aggregation has to happen outside the GIS
+
+    - Self-flows are thrown away to avoid zero-length lines
+
+    - Draw order is managed by hand in the layer list
+
+    - Bundled flows may be perceived as actual routes
+
+
+    **Data Flow**:
+
+    - Input: Edges table (origin, destination, count) and nodes table (id, name, x, y), or a square OD matrix
+
+    - Transformations: Line generation from endpoints, optional aggregation, curved geometry with direction offsets,
+    graduated width and color, optional bundling
+
+    - Output: Print map (PDF, PNG, SVG) with legend, title and source note
+success_criteria:
+    - metric: Styling effort
+      target: Curved, directional, width-scaled flows without writing expressions
+    - metric: Figure readiness
+      target: Exported map includes a flow-width legend and needs no redrawing in an illustration tool
+    - metric: Two-way legibility
+      target: Opposite flows between the same pair are visibly separate
+sources:
+    - title: CartoGIS course - Lines and edge bundling in QGIS
+      url: https://cartogis.readthedocs.io/en/latest/notebooks/week3/lines-and-edgebundling-QGIS.html
+      summary: XY to line, graduated styling, force-directed edge bundling with step sizes
+    - title: Anita Graser - Flow maps in QGIS, no plugins needed
+      url: https://anitagraser.com/2019/05/04/flow-maps-in-qgis-no-plugins-needed/
+      summary: Edges and nodes tables, virtual layer with make_line dropping self-flows, geometry generator curves
+    - title: UBC library - Radial flow maps
+      url: https://ubc-library-rc.github.io/gis-dhsi/content/day3/6-radial-flow.html
+      summary: Step-by-step radial flow map tutorial
+    - title: Esri blog - Creating radial flow maps with ArcGIS
+      url: https://www.esri.com/arcgis-blog/products/arcgis-desktop/mapping/creating-radial-flow-maps-with-arcgis
+      summary: XY To Line with geodesic line types
+    - title: ArcGIS Pro - Generate Origin-Destination Links
+      url: https://doc.esri.com/en/arcgis-pro/latest/tool-reference/analysis/generate-origin-destination-links.html
+      summary: Group pairing, nearest-N, search distance, overlap aggregation, summary fields, link charts
+    - title: QGIS FlowMapper plugin
+      url: https://plugins.qgis.org/plugins/FlowMapper
+      summary: Square OD matrix to two-way, gross and net lines with node gain and loss
+    - title: Jenny et al. - Design principles for origin-destination flow maps
+      url: https://core.ac.uk/works/53876872
+      summary: Curved beats straight, arrows beat tapering, minimize overlaps, curve longer flows more
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

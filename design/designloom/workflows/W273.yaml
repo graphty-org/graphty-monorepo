@@ -1,0 +1,140 @@
+id: W273
+name: Inspect Misclassified Graphs in a Collection of Small Graphs
+category: analysis
+validated: false
+personas:
+    - graph-level-gnn-developer
+requires_capabilities:
+    - data-import
+    - data-preview
+    - filtering
+    - search
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - comparison-view
+    - details-on-demand
+    - annotation
+    - export-image
+    - data-export
+    - fixed-node-positions
+    - model-output-overlay
+    - graph-collection-browser
+suggested_components:
+    - data-import-dialog
+    - data-table-panel
+    - filter-panel
+    - search-input
+    - graph-canvas
+    - comparison-view
+    - visual-encoding-panel
+    - gradient-editor
+    - legend-panel
+    - node-details-panel
+    - annotation-toolbar
+    - image-export-dialog
+starting_state:
+    data_type: a dataset of many small graphs (molecules, protein graphs, syntax trees) with per-graph label, prediction and split, plus per-node and per-edge attribution weights for chosen graphs
+    node_count: about 25 per graph, 40,000-450,000 graphs in the collection
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Find which test graphs a graph-level model gets wrong, see which atoms and bonds drove each prediction,
+    and compare each error with its nearest training graphs to tell out-of-domain errors from property cliffs.
+
+
+    **Mental Model**: "A gallery, then a case." The dataset is a collection, browsed as a sortable grid of small
+    drawings; one graph opens with its attribution painted on the chemist's own 2D drawing, next to its nearest
+    neighbors from training.
+
+
+    **Task Phases**:
+
+    1. **Load the dataset** (in code) - `PygGraphPropPredDataset(name="ogbg-molhiv")` and `get_idx_split()` give 41,127
+    graphs with per-graph labels and a scaffold split
+
+    2. **Train and score** (in code) - GIN or GCN with a pooling readout; ROC-AUC from the OGB Evaluator; keep
+    per-graph predictions keyed by graph index
+
+    3. **Pick graphs to inspect** (10 min) - Sort test graphs by error, label or scaffold; sample a few dozen into a grid
+    of small drawings with label, prediction and split per graph
+
+    4. **Attribute** (in code) - Integrated gradients through Captum or GNNExplainer with task_level="graph" gives one
+    weight per atom and per bond
+
+    5. **View one graph with its attribution** (5 min) - Atom and bond weights as a diverging color on the 2D chemical
+    drawing with supplied coordinates; a force layout would scramble rings and functional groups
+
+    6. **Compare with similar training graphs** (10 min) - Nearest training graphs by fingerprint (Tanimoto) or learned
+    graph embedding, side by side with labels: no similar training graph means out of domain; a near-identical one
+    with the opposite label is a property cliff
+
+    7. **Judge and act** (5 min) - Does the highlighted substructure match a known pharmacophore or toxicophore, or an
+    artifact such as a salt fragment? Fix data, featurization or split; hand off a grid figure and a list of compound ids
+
+
+    **Decision Points**:
+
+    - Which errors to inspect first (highest confidence wrong, one scaffold, one label)?
+
+    - Out of domain or property cliff?
+
+    - Is the attributed substructure chemistry or artifact?
+
+
+    **Information Needs**:
+
+    - Per-graph label, prediction, error and split, sortable and filterable
+
+    - Small multiples of many graphs at once
+
+    - Supplied 2D coordinates honored exactly for one graph
+
+    - Diverging color scale centered on zero attribution, with a legend
+
+    - Nearest training graphs with their labels and distance
+
+
+    **Pain Points**:
+
+    - General graph viewers load one graph per document, so collections are browsed in notebook grids
+
+    - Force layouts destroy chemical drawings
+
+    - Summing atom attributions per fragment can mislead (RDKit refills freed valences)
+
+    - Distance to training data measures relative uncertainty, not error size
+
+
+    **Data Flow**:
+
+    - Input: Collection of small graphs with per-graph label, prediction, split; per-node and per-edge weights; 2D
+    coordinates; nearest-neighbor lists
+
+    - Transformations: Sorting and filtering the collection, attribution coloring, side-by-side comparison
+
+    - Output: Grid figure, list of compound ids, a data or split fix
+success_criteria:
+    - metric: Collection browsing
+      target: User can sort and page through thousands of graphs and open one without leaving the tool
+    - metric: Layout fidelity
+      target: A molecule drawn with supplied coordinates keeps its rings and functional groups
+sources:
+    - title: OGB graph property prediction
+      url: https://ogb.stanford.edu/docs/graphprop
+      summary: ogbg-molhiv, scaffold split, ROC-AUC Evaluator
+    - title: PyG introduction by example
+      url: https://pytorch-geometric.readthedocs.io/en/latest/get_started/introduction.html
+      summary: Collections batched as a block-diagonal graph with a batch vector
+    - title: RDKit SimilarityMaps
+      url: https://www.rdkit.org/docs/source/rdkit.Chem.Draw.SimilarityMaps.html
+      summary: GetSimilarityMapFromWeights colors a molecule by atomic weights
+    - title: Attribution on molecular graphs (preprint)
+      url: https://arxiv.org/pdf/2610.29589
+      summary: Atom and bond coloring on 2D structures; fragment summation pitfall
+    - title: Uncertainty and distance to training molecules
+      url: https://arxiv.org/pdf/2005.10036
+      summary: Tanimoto distance is a metric of relative uncertainty, not error size
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

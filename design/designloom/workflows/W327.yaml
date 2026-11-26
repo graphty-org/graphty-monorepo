@@ -1,0 +1,137 @@
+id: W327
+name: Filter, Group, Focus and Expand from a Topic in a Note Graph
+category: exploration
+validated: false
+personas:
+    - pkm-knowledge-worker
+    - zettelkasten-writer
+    - academic-literature-note-researcher
+requires_capabilities:
+    - filtering
+    - saved-filters
+    - visual-encoding-nodes
+    - style-presets
+    - legend-display
+    - search
+    - neighborhood-expansion
+    - ego-network
+    - path-highlighting
+    - layout-force-directed
+    - view-bookmarks
+    - export-image
+    - filter-then-expand
+suggested_components:
+    - graph-canvas
+    - filter-panel
+    - filter-chip
+    - search-input
+    - visual-encoding-panel
+    - color-picker
+    - legend-panel
+    - layout-panel
+    - slider
+    - context-menu
+    - bookmark-panel
+    - image-export-dialog
+starting_state:
+    data_type: note link graph with folders, tags, note-type properties and daily notes
+    node_count: 1,000-20,000
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Turn the global hairball into a readable overview of what the vault contains, then start from one topic
+    and follow its connections outward to regain context.
+
+
+    **Mental Model**: "Remove what I don't care about, color what I do, then grow out from here." The user thinks in
+    folders, tags and note types, not in graph terms.
+
+
+    **Task Phases**:
+
+    1. **Filter** (1-2 min) - Query filters such as -path:Daily, -tag:useless or path:"My ideas"; path filters can hide
+    wanted links
+
+    2. **Group** (2-5 min) - "New group" with a query and a color; start with the largest groups, filter them out, then
+    group what remains
+
+    3. **Tune** (1 min) - Arrows, text fade, node size, link thickness; center, repel and link forces
+
+    4. **Focus** (1-3 min) - Zoom to a large node, drag it out, ask what connects to it and why
+
+    5. **Expand from a topic** (2-10 min) - Filters show only links among matches, so the user switches to a local graph
+    on a hub at higher depth, which drags in daily notes and hubs; a plugin adds right-click "Expand here (+1)",
+    "Reduce here (-1)" and "Reset this branch"
+
+    6. **Save and share** (1 min) - Re-use a handful of filter configurations; bookmarks can save graph settings; share as
+    a screenshot, sometimes annotated
+
+
+    **Decision Points**:
+
+    - Which folders, tags and note types are noise?
+
+    - Which groups get which colors, and in what order do overlapping groups win?
+
+    - Expand this branch one more hop, or reset it?
+
+    - Hide a hub entirely, or keep routes through it?
+
+
+    **Information Needs**:
+
+    - Group legend with query and color, saved with the view
+
+    - Count of nodes hidden by each filter
+
+    - For an expanded topic, which notes are within k hops and through which path
+
+
+    **Pain Points**:
+
+    - "There's no way to see any depth to our filtered results" (requested since January 2021)
+
+    - Excluding hubs cuts every path through them; users want only paths reaching a target within k steps
+
+    - Color groups are lost when restoring filters; presets cannot be named and saved
+
+    - Layout differs on every open
+
+
+    **Data Flow**:
+
+    - Input: Note link graph with folder, tag, property and date metadata
+
+    - Transformations: Query filters, query-defined color groups, per-node expand and collapse, depth applied to a
+    filtered set, path-preserving hub hiding
+
+    - Output: Saved view preset; screenshot; notes opened or linked during exploration
+success_criteria:
+    - metric: Readable overview
+      target: User reaches a colored overview with daily notes and templates removed in under 5 minutes
+    - metric: Filter then expand
+      target: Depth can be applied to a query-defined set of notes
+    - metric: Preset persistence
+      target: Filters, color groups and display settings save as a named preset and restore exactly
+sources:
+    - title: Obsidian forum - You all say the graph is useless, let me show you how to use it
+      url: https://forum.obsidian.md/t/you-all-say-the-graph-is-useless-let-me-show-you-how-to-use-it/116738
+      summary: Path and tag filters, group largest first, zoom to a big node and ask why
+    - title: Obsidian Help - Graph view
+      url: https://obsidian.md/help/plugins/graph
+      summary: Groups by query and color, display and force settings
+    - title: Obsidian forum - Graph view presets
+      url: https://forum.obsidian.md/t/graph-view-presets-to-save-and-load-filters-display-settings/8131
+      summary: Re-used filter configurations; groups lost on restore
+    - title: Obsidian forum - Add a depth slider to filtered graph view
+      url: https://forum.obsidian.md/t/add-a-depth-slider-to-filtered-graph-view/11571
+      summary: No depth for filtered results; requested since January 2021
+    - title: Obsidian forum - Improved filtering of local graph
+      url: https://forum.obsidian.md/t/improved-filtering-of-local-graph/35937
+      summary: Hub exclusion cuts paths; keep only paths reaching a target within k steps
+    - title: Expansive Local Graph plugin
+      url: https://community.obsidian.md/plugins/expansive-local-graph
+      summary: Right-click Expand here (+1), Reduce here (-1), Reset this branch
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

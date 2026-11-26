@@ -9,6 +9,25 @@ algorithms: []
 used_by_workflows:
     - W02
     - W14
+    - W149
+    - W152
+    - W202
+    - W278
+    - W283
+    - W324
+    - W330
+    - W382
+    - W418
+    - W421
+    - W422
+    - W43
+    - W437
+    - W446
+    - W47
+    - W63
+    - W67
+    - W68
+    - W69
 implemented_by_components:
     - zoom-controls
 requirements:

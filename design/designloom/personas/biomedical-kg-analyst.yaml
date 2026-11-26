@@ -1,0 +1,72 @@
+id: biomedical-kg-analyst
+name: Biomedical Knowledge Graph Builder-Analyst
+role: Translational Bioinformatician (drug repurposing, Biolink/KGX graphs)
+quote:
+    A ranked list of predicted drugs means nothing to the clinician until I can show the typed paths that support each
+    one.
+bio: >-
+    Dr. Ana Duarte is a translational bioinformatician in an academic drug-repurposing group that contributes to a
+    KG-Hub or NCATS Translator style graph and also mines it. She transforms sources into Biolink-conformant KGX
+    nodes.tsv and edges.tsv files, validates and merges them, loads Hetionet (47,031 nodes, 2,250,197 edges) or PrimeKG
+    (129,375 nodes, 4,050,249 edges) into Neo4j or PyKEEN, writes metapath queries such as compound-binds-gene-associates-
+    disease, trains embedding models for link prediction, and then reads the supporting paths of each top prediction
+    with a domain expert. She differs from the ontologist, who authors an ontology rather than a graph of facts, and from
+    a graph machine-learning scientist who mainly trains models.
+characteristics:
+    expertise: advanced
+    time_pressure: medium
+    graph_literacy: advanced
+    domain_knowledge: advanced
+motivations:
+    - For a disease, find compounds connected through mechanistically plausible typed paths
+    - Rank candidates and check each top prediction against its supporting paths before showing a clinician
+    - Merge many sources into one graph with correct Biolink categories, predicates and knowledge-source provenance
+    - Show predictions without building yet another per-lab front end
+behaviors:
+    - Writes KGX nodes.tsv (id, category, name, provided_by) and edges.tsv (subject, predicate, object, primary_knowledge_source, publications)
+    - Uses pipe-delimited multi-valued categories such as biolink:NamedThing|biolink:BiologicalEntity|biolink:Gene
+    - Checks counts per category, per predicate and per primary_knowledge_source after a merge
+    - Writes metapath queries in Cypher or uses het.io connectivity search, which ranks metapaths by degree-weighted path count
+    - Trains TransE, RotatE or ComplEx in PyKEEN and reports MRR and Hits@k
+    - Reads the supporting paths of top compound-disease predictions as tables with a domain expert
+frustrations:
+    - Explanations are long path lists that are hard to interpret
+    - Public graphs are frozen (Hetionet unchanged since 2017)
+    - Each lab builds its own front end for predictions
+    - KGX TSV can be sparse and its non-core column order is inconsistent
+    - The same disease has different identifiers across graphs; CURIEs come from many namespaces
+    - Paths through hub nodes inflate counts and hide the mechanistic ones
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W138
+    - W140
+sources:
+    - title: KGX format specification
+      url: https://biolink.github.io/kgx/kgx_format.html
+      summary: nodes.tsv and edges.tsv columns, pipe-delimited multi-valued fields, sparse and inconsistent non-core columns
+    - title: Biolink Model
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC9372416/
+      summary: Category hierarchy under NamedThing and predicate hierarchy under related_to
+    - title: KG-Hub
+      url: https://arxiv.org/abs/2302.10800
+      summary: Building and exchanging biological knowledge graphs; KG-OBO converts 201 OBO ontologies to KGX
+    - title: Hetionet
+      url: https://github.com/hetio/hetionet
+      summary: 47,031 nodes of 11 types and 2,250,197 edges of 24 types, released 2017
+    - title: Hetionet connectivity search
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10375517/
+      summary: Metapaths ranked by DWPC against permuted networks; path-list explanations hard to interpret
+    - title: PrimeKG
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC9893183
+      summary: 129,375 nodes of 10 types and 4,050,249 edges of 30 types for precision medicine
+    - title: PyKEEN PrimeKG dataset
+      url: https://pykeen.readthedocs.io/en/latest/api/pykeen.datasets.PrimeKG.html
+      summary: Built-in loader for PrimeKG used to train embedding models
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

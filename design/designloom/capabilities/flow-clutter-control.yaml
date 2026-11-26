@@ -1,0 +1,17 @@
+id: flow-clutter-control
+name: Flow clutter control
+category: analysis
+description: Top-N flows (per viewport), thresholds, fading small flows, one-place inbound/outbound/net view,
+    viewport-adaptive width, curved directional flows with offset two-way pairs, and optional bundling labeled as not
+    routes.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W380
+    - W382
+    - W383
+    - W386
+implemented_by_components: []
+requirements: []
+sources: []

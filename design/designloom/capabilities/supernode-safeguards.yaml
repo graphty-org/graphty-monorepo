@@ -1,0 +1,22 @@
+id: supernode-safeguards
+name: Supernode Safeguards
+category: analysis
+description: Show each node's count of undrawn relationships before expanding, open a selective expand (by type,
+    direction, neighbor category, most or least connected, maximum count) above a threshold, and never auto-expand a
+    hub.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W142
+    - W143
+    - W146
+    - W150
+    - W281
+    - W282
+    - W284
+implemented_by_components: []
+requirements:
+    - A default cap on visible nodes with expandable markers showing hidden-neighbor counts, and an expand cap with a
+      supernode safeguard that refuses with a count rather than freezing.
+sources: []

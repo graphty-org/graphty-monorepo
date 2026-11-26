@@ -1,0 +1,120 @@
+id: W312
+name: Growing or Live Network History
+category: exploration
+validated: false
+personas:
+    - social-media-dynamics-researcher
+requires_capabilities:
+    - data-import
+    - progressive-loading
+    - temporal-navigation
+    - temporal-analysis
+    - layout-force-directed
+    - animated-transitions
+    - filtering
+    - anomaly-detection
+    - large-graph-rendering
+    - statistics-panel
+    - burst-detection
+    - live-graph-streaming
+    - stable-temporal-layout
+suggested_components:
+    - graph-canvas
+    - temporal-controls
+    - progressive-loader
+    - status-bar
+    - filter-panel
+    - statistics-panel
+    - anomaly-panel
+    - layout-panel
+starting_state:
+    data_type: ordered stream of add, change and delete events (nodes and edges with timestamps)
+    node_count: growing, 1000-1000000 over a collection
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Watch a network whose history is still being written -- a hashtag during a live event, a collection
+    still running -- by appending events in order without reloading, keeping a window that follows the latest time,
+    and placing new nodes near their neighbors without moving everything else. The precedent is Gephi's Graph
+    Streaming plugin, fed by igraph or Neo4j APOC. No source was found of security analysts watching a live general
+    graph (they query a bounded window), so this serves researchers and monitoring, not every user.
+
+
+    **Mental Model**: "A tide gauge." The present keeps moving; the view either follows it or holds a fixed range
+    while new water arrives.
+
+
+    **Task Phases**:
+
+    1. **Connect a source** (5 min) - A script or database posts ordered mutation events (add node, add edge, change,
+    delete)
+
+    2. **Choose follow or fixed** (1 min) - Window follows the latest event, or stays on a chosen range while history
+    grows behind it
+
+    3. **Watch** (ongoing) - New nodes appear near their partners; settled nodes stay put; activity histogram grows
+
+    4. **Filter and focus** (ongoing) - Keep active accounts, a community or a hashtag; spot bursts
+
+    5. **Freeze and save** (5 min) - Snapshot the history so far for later playback and analysis (W304, W307)
+
+
+    **Decision Points**:
+
+    - Follow "now" or hold a range?
+
+    - Window length for the live view
+
+    - When to cap or thin the view as it grows
+
+
+    **Information Needs**:
+
+    - Event arrival rate and lag between source and view
+
+    - Current window bounds and total history span
+
+    - Counts of nodes and edges in the window and in total
+
+    - Bursts in recent activity
+
+
+    **Pain Points**:
+
+    - Live receivers are desktop plugins that must be running before the sender starts
+
+    - Running layout during playback "pushes the limits of available processing power"
+
+    - Collection and visualization are separate; history must be reloaded to see new data
+
+
+    **Data Flow**:
+
+    - Input: Ordered JSON mutation events (Gephi streaming style) or appended event files
+
+    - Transformations: Ordered append to the time index, following window, incremental layout, live filters
+
+    - Output: Live view; saved history file for later analysis
+success_criteria:
+    - metric: No reload
+      target: New events appear in the view without reloading the graph
+    - metric: Stable picture
+      target: Settled nodes do not move when new nodes arrive
+    - metric: History kept
+      target: The growing history can be saved and replayed later
+sources:
+    - title: igraph GephiGraphStreamer
+      url: https://python.igraph.org/en/main/api/igraph.remote.gephi.GephiGraphStreamer.html
+      summary: JSON mutation events (an, ae) posted to Gephi's streaming master
+    - title: Neo4j APOC - export to Gephi
+      url: https://neo4j.com/apoc/5/export/gephi
+      summary: apoc.gephi.add streams query results into a running Gephi
+    - title: Sahu et al. - The ubiquity of large graphs and surprising challenges of graph processing (arXiv 1709.03188)
+      url: https://arxiv.org/abs/1709.03188
+      summary: 18 of 89 surveyed graph users reported streaming graphs; users asked to store history of changes
+    - title: Bruns - Mapping Online Publics, dynamic networks part 2
+      url: https://mappingonlinepublics.net/dev/?p=384
+      summary: Layout during playback pushes the limits of available processing power
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

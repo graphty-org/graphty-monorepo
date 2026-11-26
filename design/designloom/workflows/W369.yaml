@@ -1,0 +1,109 @@
+id: W369
+name: Chat and Insider-Risk Communication Data
+category: analysis
+validated: false
+personas:
+    - litigation-support-analyst
+    - internal-investigations-counsel
+    - communications-surveillance-reviewer
+requires_capabilities:
+    - data-import
+    - data-validation
+    - filtering
+    - visual-encoding-edges
+    - ego-network
+    - temporal-analysis
+    - tooltip-display
+    - details-on-demand
+    - large-graph-rendering
+    - de-identified-display
+    - record-derived-edges
+    - channel-aware-chat-import
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - graph-canvas
+    - filter-panel
+    - temporal-controls
+    - node-tooltip
+    - node-details-panel
+starting_state:
+    data_type: Teams, Slack, Google Chat or mobile chat exports converted to short-message documents (one header of participants, many messages)
+    node_count: tens to thousands of participants
+    edge_density: dense
+    user_expertise: advanced
+goal: >-
+    **Intent**: Bring chat into the same people analysis as email without letting channel membership masquerade as
+    communication, and support alert-centered views of users, files and activities in insider-risk work.
+
+
+    **Mental Model**: "Who actually spoke to whom, not who was in the room." A channel with 200 members is not 19,900
+    conversations.
+
+
+    **Task Phases**:
+
+    1. **Convert** - Teams, Slack, Google Chat and Cellebrite exports to Relativity Short Message Format; slice dense
+    conversations into 12- or 8-hour documents
+
+    2. **Graph participants** - The people graph reads header participants, not message frequency, so a 200-person
+    channel draws as a clique
+
+    3. **Code** - Reviewers code individual messages; message coding does not propagate to the document
+
+    4. **Insider risk** - A data risk graph links users, files and activities for one alert and shows names even when
+    pseudonymization is enabled (Microsoft is retiring it on November 24, 2026 for a tabular explorer)
+
+
+    **Decision Points**:
+
+    - Weight by messages sent, by participation in a slice, or by header membership?
+
+    - Which channels are broadcast noise to exclude?
+
+    - Should names be pseudonymized for this reviewer?
+
+
+    **Information Needs**:
+
+    - Messages per participant and per pair within a channel and time slice
+
+    - Which participants never spoke
+
+    - Alert-centered neighborhood of users, files and activities
+
+
+    **Pain Points**:
+
+    - Channels drawn as cliques
+
+    - Message coding that does not reach the document level
+
+    - Pseudonymized views that still show names
+
+
+    **Data Flow**:
+
+    - Input: Short-message documents with participants and per-message senders and times; insider-risk alert records
+
+    - Transformations: Channel-aware edge derivation weighted by messages, time slicing, optional pseudonymization
+
+    - Output: People graph of actual chat exchanges merged with email; alert neighborhoods
+success_criteria:
+    - metric: No false cliques
+      target: Silent channel members are not linked to everyone by default
+    - metric: Weight fidelity
+      target: Edge weights reflect messages exchanged, and the rule is stated
+sources:
+    - title: Relativity - Short message investigative workflow
+      url: https://help.relativity.com/RelativityOne/Content/System_Guides/Relativity_Short_Message_Format/Short_message_investigative_workflow.htm
+      summary: RSMF conversion, time slicing, visualizations based on header participants not message frequency, message-level coding
+    - title: Microsoft Purview - Insider risk management data risk graph
+      url: https://learn.microsoft.com/purview/insider-risk-management-data-risk-graph
+      summary: Users, files and activities for one alert; names shown even with pseudonymization; retired November 24, 2026
+    - title: Relativity Trace - Detailed data flow
+      url: https://relativitydev.github.io/relativity-trace-documentation/docs/administrator_guide/data_flow/detailed_data_flow.html
+      summary: Surveillance alert data flow over email and chat
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

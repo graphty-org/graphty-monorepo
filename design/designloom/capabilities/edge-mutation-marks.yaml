@@ -1,0 +1,14 @@
+id: edge-mutation-marks
+name: Edge Mutation Marks and Inferred Nodes
+category: visualization
+description: Draw integer mutation counts on edges as hatch marks or labels and show inferred (unsampled) nodes as small dots.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W390
+    - W391
+    - W392
+implemented_by_components: []
+requirements: []
+sources: []

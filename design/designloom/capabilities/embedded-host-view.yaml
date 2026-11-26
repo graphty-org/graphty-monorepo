@@ -1,0 +1,14 @@
+id: embedded-host-view
+name: Embedded host view
+category: export
+description: Mount inside a desktop plugin view (Obsidian, VS Code webview, Logseq plugin, local page beside Emacs) with
+    no network access, no telemetry, no innerHTML from user data and full cleanup on unload.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W325
+    - W333
+implemented_by_components: []
+requirements: []
+sources: []

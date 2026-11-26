@@ -1,0 +1,13 @@
+id: main-path-analysis
+name: Main path analysis
+category: analysis
+description: "On a directed citation network: make it acyclic, compute SPC, SPLC and SPNP traversal weights, and find
+    local, global and key-route main paths."
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W56
+implemented_by_components: []
+requirements: []
+sources: []

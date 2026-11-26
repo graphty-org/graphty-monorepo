@@ -1,0 +1,12 @@
+id: layout-group-in-a-box
+name: Group-in-a-Box layout
+category: visualization
+description: Treemap rectangles per community with a layout inside each box, as NodeXL draws topic networks.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W207
+implemented_by_components: []
+requirements: []
+sources: []

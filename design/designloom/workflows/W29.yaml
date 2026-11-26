@@ -1,0 +1,155 @@
+id: W29
+name: Ego Networks -- Extraction and Per-Ego Statistics
+category: analysis
+validated: false
+personas:
+    - egocentric-survey-researcher
+    - sociometric-network-researcher
+    - network-methods-grad-student
+requires_capabilities:
+    - data-import
+    - data-validation
+    - ego-network
+    - computed-attributes
+    - basic-statistics
+    - layout-radial
+    - visual-encoding-nodes
+    - legend-display
+    - comparison-view
+    - metric-histograms
+    - data-export
+    - survey-network-import
+    - network-transforms
+    - ego-measures
+    - network-collection-small-multiples
+    - participant-drawn-data
+suggested_components:
+    - data-import-dialog
+    - attribute-table-join-dialog
+    - ego-network-dialog
+    - computed-attributes-panel
+    - data-table-panel
+    - comparison-view
+    - histogram
+    - visual-encoding-panel
+    - legend-panel
+    - graph-canvas
+    - data-export-dialog
+starting_state:
+    data_type: either a whole network, or three linked survey tables (egos, alters, alter-alter ties) for many respondents
+    node_count: 5-50 alters per ego, hundreds to thousands of egos
+    edge_density: medium
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Produce one row of ego-level network measures per respondent (size, density, composition, diversity,
+    brokerage) for a regression, plus a few illustrative egograms -- either by extracting ego networks from a whole
+    network or by importing hundreds of separate personal networks from a survey.
+
+
+    **Mental Model**: "Many small worlds, one table." Each respondent's network is its own small graph; the analysis
+    output is a spreadsheet with one row per ego.
+
+
+    **Task Phases**:
+
+    **Path A, from a whole network:**
+
+    1. **Symmetrize** (estimate: 2 min) - Some helpers reject directed graphs.
+
+    2. **Extract ego networks** (estimate: 2 min) - UCINET Data > Egonet, statnet ego.extract(), igraph make_ego_graph().
+
+    3. **Compute brokerage measures** (estimate: 5 min) - Size, density among alters, effective size (n - 2t/n),
+    efficiency, constraint, hierarchy. In the Florentine families the Medici have degree 6, effective size about 5.67
+    and the lowest constraint (about 0.24).
+
+    **Path B, from a personal network survey:**
+
+    1. **Design** (outside the tool) - Name generators, name interpreters (alter attributes) and an alter-alter question
+    in Qualtrics with egor templates, Network Canvas (participants draw alter-alter ties on a sociogram), EgoNet or
+    VennMaker.
+
+    2. **Import** (estimate: 15 min) - One file or three files (egos, alters, alter-alter ties) into egor
+    (onefile_to_egor, threefiles_to_egor, read_egoweb).
+
+    3. **Compute per-ego measures** (estimate: 10 min) - ego_density, composition (proportion kin), diversity entropy,
+    EI index, ply.
+
+    4. **Visualize** (estimate: 20 min) - Egograms with alters grouped by attribute; vis_clustered_graphs; Network
+    Canvas stores participant-drawn positions normalized to 0-1.
+
+    5. **Hand off** (estimate: 5 min) - Export one row per ego to a regression.
+
+
+    **Decision Points**:
+
+    - One-step neighborhood or larger; include ties to ego in density?
+
+    - Which alter attribute defines composition and the EI index?
+
+    - Which respondents to show as illustrative egograms (typical, extreme)?
+
+    - Keep or replace participant-drawn positions?
+
+
+    **Information Needs**:
+
+    - Per-ego table of size, density, effective size, efficiency, constraint, hierarchy, composition, EI, diversity
+
+    - Distribution of each measure across egos
+
+    - Many egograms side by side, sortable by a measure, with shared styling
+
+    - Count of egos with missing alter-alter data
+
+
+    **Pain Points**:
+
+    - Whole-network tools assume one big graph and do not handle hundreds of small ones
+
+    - No good way to view 500 egograms side by side
+
+    - Alter-alter questions grow with the square of the alter count
+
+    - Recall bias (2.7 of 10 allowed alters named on average in one web survey)
+
+
+    **Data Flow**:
+
+    - Input: Whole network; or egos, alters and alter-alter tables (CSV, Network Canvas CSV or GraphML, EgoWeb export)
+
+    - Transformations: Symmetrize, ego extraction, per-ego measures, grouping of alters by attribute
+
+    - Output: One-row-per-ego measures table, egogram figures
+success_criteria:
+    - metric: Ego table completeness
+      target: One row per ego with all chosen measures exported to CSV
+    - metric: Small-multiples review
+      target: User can browse egograms of many respondents in one view sorted by a measure
+sources:
+    - title: Hoffmann, Intro to SNA - structural holes
+      url: https://jfb-h.github.io/intro-to-sna/08-structural-holes.html
+      summary: Ego extraction, effective size and constraint; Medici example
+    - title: migraph holes reference
+      url: https://search.r-project.org/CRAN/refmans/migraph/html/holes.html
+      summary: Effective size, efficiency, constraint and hierarchy functions
+    - title: egor package vignette
+      url: https://cran.r-project.org/web/packages/egor/vignettes/using_egor.html
+      summary: Three-table data model, import functions, density, composition, diversity, EI and visualization
+    - title: egor Qualtrics templates
+      url: https://tilltnet.github.io/egor/articles/qualtrics.html
+      summary: Survey design for name generators and alter-alter questions
+    - title: Network Canvas roster and sociogram
+      url: https://github.com/complexdatacollective/Interviewer/wiki/Name-Generator:-Roster-List
+      summary: Participant-drawn alter-alter ties
+    - title: Network Canvas data export
+      url: https://documentation-rlpthbxim-network-canvas-f4790d84.vercel.app/en/desktop/key-concepts/data-export
+      summary: CSV and GraphML export with positions normalized to 0-1
+    - title: Hanneman and Riddle, chapter 6
+      url: https://faculty.ucr.edu/~hanneman/nettext/C6_Working_with_data.html
+      summary: UCINET Data > Egonet
+    - title: Rice et al. (2014) recall bias
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4184035
+      summary: 2.7 of 10 allowed alters named on average
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

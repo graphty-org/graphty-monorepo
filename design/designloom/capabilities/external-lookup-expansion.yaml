@@ -1,0 +1,14 @@
+id: external-lookup-expansion
+name: Seed-and-Pivot Expansion Through Lookups
+category: analysis
+description: Expand a node through pluggable outside lookups (registries, DNS, sanctions, explorer APIs, internal data)
+    with a per-step result limit, a result count shown before adding, a recorded pivot chain, and undo.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W88
+    - W95
+implemented_by_components: []
+requirements: []
+sources: []

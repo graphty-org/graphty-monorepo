@@ -1,0 +1,152 @@
+id: W336
+name: Ranked Case List from Detection Rules or Seeded Scores
+category: analysis
+validated: false
+personas:
+    - aml-investigator
+    - fraud-analyst
+    - cybersecurity-analyst
+requires_capabilities:
+    - pattern-search
+    - saved-filters
+    - anomaly-detection
+    - computed-attributes
+    - centrality-degree
+    - component-analysis
+    - ego-network
+    - neighborhood-expansion
+    - filtering
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - details-on-demand
+    - annotation
+    - analysis-history
+    - report-generation
+    - data-export
+    - case-list-triage
+suggested_components:
+    - pattern-search-dialog
+    - ranked-node-table
+    - graph-canvas
+    - ego-network-dialog
+    - node-details-panel
+    - filter-panel
+    - visual-encoding-panel
+    - annotation-toolbar
+    - analysis-history-panel
+    - report-generator-dialog
+    - data-export-dialog
+starting_state:
+    data_type: entity graph in a live database or loaded snapshot (customers, accounts, devices, identifiers, transactions; or hosts, accounts, processes) with known labels for some entities
+    node_count: 10,000-1,000,000 stored; 10-200 drawn per case
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Replace a domain-free "find the anomalies" pass with what practitioners actually do: a saved detection
+    rule or a score seeded from known-bad entities produces a list of cases, the analyst works the list from the top,
+    opens each case's subgraph, decides, and records why. This replaces the generic phases of W12, for which no tool
+    manual or practitioner report was found.
+
+
+    **Mental Model**: "A queue, not a hairball." Each row is a hypothesis that a pattern fired or a score is high; the
+    graph is the evidence for one row at a time. Most rows are false positives, so the decision and its reason matter
+    as much as the finding.
+
+
+    **Task Phases**:
+
+    1. **Define the detector** (setup, by a lead or rule owner) - Either a pattern query with domain thresholds (a read
+    query in Cypher or Gremlin, for example two logins more than 300 km apart, or a shared card plus a transfer),
+    grouped by a target entity so repeated hits on the same customer make one case; or a seeded score that ranks
+    entities by risk-weighted degree or similarity to confirmed bad entities over shared identifiers
+
+    2. **Run and generate cases** (scheduled, hourly by default in Linkurious) - Each case carries the target entity, the
+    matching subgraph and attribute columns (amount, count, score); hits on the same target are merged
+
+    3. **Sort and assign** (5 min per batch) - Sort the case list by score, amount or age; assign cases; scores from
+    heavy-tailed measures are shown as rank, log or within-group scores, not raw z-scores
+
+    4. **Open a case** (5-20 min) - Draw the case subgraph: the target, its 1 to 2 hop neighborhood, parallel transactions
+    summed, styled by open alert, prior case or label; discount identifiers shared by very many entities; expand only
+    where needed
+
+    5. **Decide** (2-5 min) - Confirm or dismiss with a comment naming the link or transaction that decided it; the status
+    change and note go into the case history; escalate confirmed cases (to a SAR decision, an incident or a block)
+
+    6. **Feed back** (weekly, by the rule owner) - Confirmed and dismissed outcomes become labels for the next seeded
+    run and evidence for tuning or retiring rules; export the case list with status, assignee and decision dates
+
+
+    **Decision Points**:
+
+    - Is this hit already covered by another open case on the same entity?
+
+    - Is the shared identifier meaningful or a super-connected one (public Wi-Fi, a busy branch)?
+
+    - Confirm, dismiss, or expand one more hop before deciding?
+
+    - Which rules produce mostly dismissals and should be retuned?
+
+
+    **Information Needs**:
+
+    - Why the case fired: the rule name and the matched pattern, or the score and its top contributing links
+
+    - How many entities share each identifier in the case
+
+    - Prior alerts, cases and labels on every node in the case subgraph
+
+    - Case counts by status and rule, and confirmation rate per rule
+
+
+    **Pain Points**:
+
+    - Unsupervised graph outlier scores fail to find organic anomalies in benchmarks and come with no reason
+
+    - Raw z-scores on heavy-tailed degree or betweenness flag the tail by construction
+
+    - Case graphs that open with every neighbor become a hairball
+
+    - Decisions and reasons typed into a separate system, so labels never reach the detector
+
+
+    **Data Flow**:
+
+    - Input: Entity graph, saved detection queries or seed labels, schedule
+
+    - Transformations: Pattern matching grouped by target, seeded ranking (weighted degree, node similarity), case
+    subgraph extraction, parallel-edge aggregation, status and comment updates
+
+    - Output: Ranked case list with statuses, per-case subgraph snapshots with decision notes, label feedback, case export
+success_criteria:
+    - metric: Reason visible
+      target: Every case row shows the rule or the top contributing links behind its score
+    - metric: Decision recorded
+      target: Every confirm or dismiss carries a note and is exported with status and date
+    - metric: Case subgraph readable
+      target: Case opens at 200 or fewer drawn nodes with parallel edges summed
+sources:
+    - title: Linkurious Enterprise user manual 4.2 - Alert setup
+      url: https://doc.linkurious.com/user-manual/4.2/alert-setup/
+      summary: Models are read queries in Cypher or Gremlin; a target entity deduplicates and groups pattern occurrences; runs every hour by default; cases go to a case list
+    - title: Linkurious Enterprise user manual 3.0 - Investigating alerts
+      url: https://doc.linkurious.com/user-manual/3.0/alert-investigate
+      summary: Case statuses Open, In progress, Confirmed and Dismissed with optional notes recorded in case history
+    - title: Linkurious blog - anomaly detection in Linkurious Enterprise
+      url: https://linkurious.com/blog/linkurious-enterprise-anomaly-detection/
+      summary: Detection patterns with domain thresholds, such as distance over 300 km, turned into alerts
+    - title: Neo4j - Exploring fraud detection with Graph Data Science, part 3
+      url: https://neo4j.com/blog/developer/exploring-fraud-detection-neo4j-graph-data-science-part-3/
+      summary: Starts from flagged accounts, ranks others by fraud-risk-weighted degree, expands with node similarity, analysts label more accounts, review in Bloom
+    - title: BOND - Benchmarking unsupervised outlier node detection (NeurIPS 2022)
+      url: https://arxiv.org/html/2206.10071
+      summary: Most methods evaluated fail to detect organic outliers as opposed to injected ones
+    - title: PyGOD 0.2.0 on PyPI
+      url: https://pypi.org/project/pygod/0.2.0/
+      summary: Returns a score per node, the higher the more abnormal, with no reason attached
+    - title: Microsoft Learn - Investigate alerts in Defender for Endpoint
+      url: https://learn.microsoft.com/en-us/defender-endpoint/investigate-alerts
+      summary: Security equivalent - open an alert from the queue, walk the alert story, classify as true or false, suppress
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

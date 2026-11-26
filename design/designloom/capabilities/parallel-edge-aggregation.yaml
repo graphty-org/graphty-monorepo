@@ -1,0 +1,36 @@
+id: parallel-edge-aggregation
+name: Parallel Edge Aggregation
+category: analysis
+description: Collapse parallel edges between two nodes into one edge per key (for example token), with summed amount,
+    count and first and last time, reversible to the individual edges.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W09
+    - W105
+    - W118
+    - W120
+    - W126
+    - W142
+    - W143
+    - W174
+    - W176
+    - W177
+    - W95
+    - W97
+    - W98
+implemented_by_components: []
+requirements:
+    - Keep many typed, directed, timestamped edges per node pair and show them as each edge, one edge per direction, or
+      one edge per pair, with a count and summed attributes (duration, amount) that edge width and labels can use, while
+      each underlying record stays retrievable.
+    - Collapse many edges between the same pair of nodes (per pair and direction) into one drawn edge carrying count,
+      sum, average, min, max, first and last date and net flow; style it by those values and expand it back into the
+      child edges on demand. Filters apply to child edges before aggregation, and graph algorithms can run on either
+      form.
+    - Group parallel edges between two nodes into one with a count and sum, average, minimum or maximum of a property
+      (for example total transferred amount).
+    - Keep one edge per letter or act between a pair and aggregate parallel edges to a weighted edge for display and
+      metrics, with the underlying rows available on click.
+sources: []

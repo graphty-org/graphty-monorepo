@@ -1,0 +1,59 @@
+id: esn-community-manager
+name: ESN Community Manager
+role: Internal Communications and Enterprise Social Network Community Manager
+quote: Half my communities are one person posting announcements. I need to see which ones actually talk back.
+bio: >-
+    Tom Brennan runs the enterprise social network (Viva Engage, formerly Yammer) for a large employer. His data is
+    activity, not surveys: posts, replies, reactions and mentions per community over a rolling window. He reads Viva
+    Engage network and community analytics (available to network admins and corporate communicators, and only when at
+    least half of users hold a qualifying license) and SWOOP Analytics reports that classify people as Engagers,
+    Catalysts, Responders, Broadcasters or Observers and score how much a community depends on its top one or two
+    people. He wants more active, two-way participation and fewer communities that collapse when one hub goes quiet.
+    Benchmarks across enterprises show a drift toward one-way broadcasting, which is exactly what he is trying to
+    reverse.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Raise the share of active, two-way participants across communities
+    - Spot communities that depend on one or two hubs before those people leave or go quiet
+    - Report community health monthly against internal targets and external benchmarks
+    - Find catalysts and engagers to recruit as community champions
+behaviors:
+    - Picks a community or the whole network and a reporting period
+    - Reads persona distributions (Engagers, Catalysts, Responders, Broadcasters, Observers) built from given versus received activity
+    - Ranks influencers by reach and watches the drop from the first- to the third-ranked person
+    - Filters analytics by organizational attributes (department, region) and compares with benchmarks
+frustrations:
+    - Benchmarks showing drift toward one-way broadcasting with no easy view of where it happens
+    - Persona and risk rules that are vendor-defined and cannot be adjusted
+    - Network analytics unavailable when fewer than half of users hold a qualifying license
+context:
+    frequency: weekly
+    devices:
+        - laptop
+        - desktop
+    voluntary: false
+workflows:
+    - W195
+sources:
+    - title: Microsoft Learn - Viva Engage analytics
+      url: https://learn.microsoft.com/viva/engage/analytics
+      summary: Network and community analytics roles; network dashboard needs at least 50 percent licensed users
+    - title: SWOOP Analytics - Personas
+      url: https://www.swoopanalytics.com/personas
+      summary: Engager, Catalyst, Responder, Broadcaster and Observer from activity balance
+    - title: SWOOP support - Persona distribution for Viva Engage
+      url: https://support.swoopanalytics.com/hc/en-us/articles/14366255955993-Persona-Distribution-What-and-How-SWOOP-for-Viva-Engage
+      summary: Active means at least one post, reply or reaction every two weeks on average
+    - title: SWOOP support - Influential people and Influencer Risk Score
+      url: https://support2.swoopanalytics.com/hc/en-us/influential-people-what-and-how-swoop-for-viva-engage
+      summary: Percentage drop in reach from first- to third-ranked person; no score below six listed users
+    - title: SWOOP 2025/26 Viva Engage benchmark
+      url: https://www.swoopanalytics.com/viva-engage-bm-25
+      summary: About 17 million interactions, 3 million employees, 5,758 communities, 73 enterprises; drift toward broadcasting
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

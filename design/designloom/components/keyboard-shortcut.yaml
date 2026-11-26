@@ -10,6 +10,7 @@ used_in_workflows:
     - W14
     - W06
     - W07
+    - W111
 dependencies: []
 props:
     keys: string[] - Key combination (e.g., ['Ctrl', 'F'])

@@ -1,0 +1,206 @@
+id: W70
+name: Enteric Cluster Detection from Allele Profiles
+category: analysis
+validated: false
+personas:
+    - pulsenet-foodborne-cluster-scientist
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - node-merging
+    - computed-attributes
+    - component-analysis
+    - filtering
+    - temporal-analysis
+    - node-selection
+    - selection-statistics
+    - search
+    - details-on-demand
+    - tooltip-display
+    - metric-histograms
+    - statistics-panel
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-force-directed
+    - large-graph-rendering
+    - progressive-loading
+    - comparison-view
+    - algorithm-progress
+    - data-export
+    - export-image
+    - distance-threshold-network
+    - minimum-spanning-tree-layout
+    - entity-resolution-review
+    - export-by-cluster
+    - session-round-trip
+    - topology-warnings
+    - expensive-run-cost-warning
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - node-merge-dialog
+    - filter-panel
+    - range-slider
+    - histogram
+    - cluster-table
+    - statistics-panel
+    - graph-canvas
+    - node-chart-overlay
+    - node-tooltip
+    - node-details-panel
+    - visual-encoding-panel
+    - legend-panel
+    - comparison-view
+    - progressive-loader
+    - data-table-panel
+    - data-export-dialog
+starting_state:
+    data_type: core-genome or whole-genome allele profile tables with isolate metadata
+    node_count: 1000-100000
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Find groups of enteric bacterial isolates close enough, and recent enough, to be one outbreak, and
+    hand a short credible list to the epidemiologist who will interview patients and trace food. Detection runs
+    continuously over a rolling 60-day window, so the work is a standing comparison rather than a project.
+
+
+    **Mental Model**: "Count how many of 2,500 genes differ." Each isolate is a row of allele identifiers, one column
+    per locus. Two isolates are compared by counting the loci where their alleles differ, skipping loci missing in
+    either one. A minimum spanning tree over those counts, with identical profiles collapsed into one node, is the
+    standard picture.
+
+
+    **Task Phases**:
+
+    1. **Sequence and quality-control** (hours) - Trim reads, check for interspecies and intraspecies contamination,
+    assess completeness, and assemble
+
+    2. **Call alleles** (minutes to hours) - Run the organism's core-genome or whole-genome scheme against the
+    assembly: 2,513 loci for one Shiga toxin-producing E. coli core-genome scheme, 30,717 for the chromosomal
+    whole-genome scheme. One national caller matches with BLASTn against reference alleles and hashes allele
+    sequences; an open-source alternative calls alleles from predicted coding sequences scored by a BLAST score ratio
+
+    3. **Turn profiles into distances** (minutes) - Count pairwise allele differences, excluding loci missing in
+    either isolate; the proportion of loci successfully called is itself a quality metric, because missing loci drop
+    out of a comparison
+
+    4. **Draw a minimum spanning tree** (seconds to hours, scale-dependent) - Identical profiles group into one node
+    whose diameter scales with the number of isolates it holds, any metadata column colors or labels the nodes, and
+    allele differences are written on the branches; a force-directed alternative can delete links above a chosen
+    distance to split the tree
+
+    5. **Watch the scale** (ongoing) - One tool handled up to about 8,000 sequence types on a 4-core 8 GB laptop and
+    failed above that on Windows; 100,000 types needed roughly 300 GB of RAM on a Linux server and under 700
+    minutes; trees above 20,000 nodes open collapsed
+
+    6. **Apply the organism's rule** (10 min) - For example five or more clinical cases published within 60 days of
+    each other and within 0 to 10 core-genome allele differences for one organism, or three or more cases within 25
+    whole-genome alleles in 120 days for another
+
+    7. **Check for chaining** (10 min) - Each new isolate may be within the cutoff of one member and not of the
+    others; one Salmonella Enteritidis cluster defined at 5 alleles grew to 14 alleles of internal diversity
+
+    8. **Confirm with SNPs** (hours) - Re-analyze the candidate with a reference-based high-quality SNP pipeline and
+    tree, and compare the SNP tree against the allele-based dendrogram side by side
+
+    9. **Check national context** (30 min) - National systems group isolates by sequence similarity and then build
+    fixed single-linkage clusters; those clusters cannot be customized, are re-analyzed continuously so accessions
+    are not archival, and the system states it does not identify outbreaks or outbreak membership
+
+    10. **Hand off** (30 min) - A short list of isolates with source, state and collection date, plus the tree
+    picture, for interviews and traceback
+
+
+    **Decision Points**:
+
+    - Which scheme and cutoff the organism's rule specifies, and whether this cluster is behaving within it
+
+    - Whether apparent growth is chaining, and where to cut the cluster if it is
+
+    - How much missing data makes a pairwise comparison untrustworthy
+
+    - Whether the SNP confirmation agrees well enough to involve epidemiologists
+
+    - Whether a national cluster is context or evidence; the national system says it is not outbreak membership
+
+
+    **Information Needs**:
+
+    - Internal diversity of the cluster, not only each isolate's distance to its nearest member
+
+    - Per-pair count of loci actually compared, so two distances can be judged on the same footing
+
+    - Allele differences labeled on branches, and identical profiles collapsed with their isolate count visible
+
+    - Metadata breakdown inside a collapsed node: how many isolates from which states and sources
+
+    - Collection dates against the rolling window, so a cluster's age is obvious
+
+    - A side-by-side comparison of the allele-based and SNP-based trees
+
+
+    **Pain Points**:
+
+    - Chaining inflates a cluster silently, and the cutoff that defined it no longer describes it
+
+    - Minimum spanning tree tools fail at the scale already in routine use, and above 20,000 nodes the tree opens
+    collapsed
+
+    - Missing loci change distances without changing the picture
+
+    - National clusters are fixed, continuously re-analyzed and explicitly not outbreak definitions
+
+    - A cutoff and a tree are not evidence: guidance insists that epidemiology and traceback are also needed
+
+    - The national comparison happens in one cloud system, so an outage is a blind period
+
+
+    **Data Flow**:
+
+    - Input: Assemblies or read sets, an allele-calling scheme, allele profile tables (one column per locus, with a
+    missing marker), isolate metadata (source, state, collection date), and high-quality SNP matrices for
+    confirmation
+
+    - Transformations: Allele calling, pairwise allele-difference counting with missing-locus exclusion, identical
+    profile collapse, minimum spanning tree construction, cutoff and time-window cluster rule application, chaining
+    check, SNP tree comparison
+
+    - Output: A candidate cluster list with internal diversity and dates, a labeled minimum spanning tree, a
+    SNP-confirmed subset, and a hand-off list for the epidemiologist
+success_criteria:
+    - metric: Chaining visibility
+      target: A cluster's internal diversity is shown next to the cutoff that defined it
+    - metric: Scale
+      target: Tens of thousands of allele profiles stay drawable and readable on ordinary hardware
+    - metric: Comparison fairness
+      target: Each pairwise distance reports how many loci were actually compared
+sources:
+    - title: Leeper et al., PulseNet 2.0 (Microorganisms 2025)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC12195096/
+      summary: More than 80 member laboratories, BLASTn allele calling with hashing, rolling 60-day detection, scheme sizes of 2,513 and 30,717 loci, the five-cases-in-60-days-within-10-alleles rule, and the SNP confirmation step with tanglegram comparison
+    - title: Inter-EURL NGS working group, guidance for cluster analysis of whole genome sequence data (v03, 2024)
+      url: https://zenodo.org/records/14536255
+      summary: Quality control pipeline, allele-based analysis as routine and SNP analysis as follow-up, called-loci proportion as a quality metric, and the insistence that cut-offs and trees alone are not interpretation
+    - title: Zhou et al., GrapeTree - visualization of core genomic relationships (Genome Research 2018)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6120633
+      summary: MSTree V2 for allele profiles with missing data, collapsed identical profiles sized by isolate count, branch labels of allele differences, metadata coloring, and the 8,000 and 100,000 scale limits with trees above 20,000 nodes opening collapsed
+    - title: PHYLOViZ Online
+      url: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4987911/
+      summary: goeBURST minimum spanning trees over allele profiles with force-directed layout and link deletion above a chosen distance
+    - title: Chaining in allele-based cluster definitions, New York State
+      url: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10282972/
+      summary: A cluster defined at 5 alleles grew to 14 alleles of internal diversity through chaining
+    - title: NCBI Pathogen Detection frequently asked questions
+      url: https://ncbi.nlm.nih.gov/pathogens/faq/
+      summary: 50-SNP single-linkage clusters, continuous re-analysis so accessions are not archival, non-customizable clusters, and the statement that the system does not identify outbreaks
+    - title: Silva et al., chewBBACA
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5885018
+      summary: Allele calling from predicted coding sequences scored by BLAST score ratio
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

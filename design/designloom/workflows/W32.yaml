@@ -1,0 +1,134 @@
+id: W32
+name: Discourse Network Analysis of a Policy Debate
+category: analysis
+validated: false
+personas:
+    - archival-affiliation-researcher
+requires_capabilities:
+    - data-import
+    - data-preview
+    - computed-attributes
+    - visual-encoding-edges
+    - visual-encoding-nodes
+    - legend-display
+    - community-detection
+    - community-profiling
+    - filtering
+    - temporal-analysis
+    - temporal-navigation
+    - comparison-view
+    - export-image
+    - data-export
+    - bipartite-projection
+    - signed-edges
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - visual-encoding-panel
+    - legend-panel
+    - community-panel
+    - filter-panel
+    - range-slider
+    - temporal-controls
+    - comparison-view
+    - graph-canvas
+    - image-export-dialog
+starting_state:
+    data_type: coded statements (actor, concept, agreement, date) exported from DNA as GraphML or matrices
+    node_count: 20-500
+    edge_density: medium
+    user_expertise: expert
+goal: >-
+    **Intent**: Map the coalitions in a policy debate from coded statements in newspapers, testimony or other
+    documents, and show how those coalitions form, split and polarize over time.
+
+
+    **Mental Model**: "Who agrees with whom about what, and when." Actors are linked through the concepts they support or
+    oppose; agreement and disagreement are signed ties, and the debate is a sequence of time windows.
+
+
+    **Task Phases**:
+
+    1. **Collect texts** (outside the tool) - Newspaper articles, parliamentary testimony or other documents on one
+    debate, with dates.
+
+    2. **Code statements in DNA** (estimate: weeks, manual) - Each statement has an actor (person or organization,
+    chosen before coding), a concept (a policy instrument or a justification), an agreement qualifier (usually agree or
+    disagree) and a date.
+
+    3. **Export a network** (estimate: 5 min) - Affiliation network (actors by concepts, separately for positive and
+    negative stances, or one signed network drawn green and red); actor congruence network (same stance on a concept);
+    actor conflict network (opposite stances, negative ties); concept congruence network; time window network (ties
+    only between statements within a set number of days, moved along the time axis); attenuation network (older
+    co-statements down-weighted, usually by exponential decay). Exports are GraphML or matrices.
+
+    4. **Normalize** (estimate: 5 min) - Normalize congruence weights so the most quoted actors (government, parties) do
+    not dominate.
+
+    5. **Analyze and draw** (estimate: 30 min) - Open the GraphML in visone (recommended by DNA's authors) or Gephi;
+    find coalitions as cohesive subgroups (edge betweenness or modularity); rDNA adds clustering, phase-transition
+    detection, backbones, ideological scaling and polarization measures.
+
+    6. **Compare over time** (estimate: 30 min) - One network per window, or an animated sequence, to show coalitions
+    forming and polarizing.
+
+
+    **Decision Points**:
+
+    - Actor level -- persons or organizations?
+
+    - Congruence, conflict, or signed affiliation network?
+
+    - Window length and attenuation rate?
+
+    - Which normalization for congruence weights?
+
+    - What edge-weight cutoff for the coalition map (and stated)?
+
+
+    **Information Needs**:
+
+    - Statement counts per actor and per concept
+
+    - Signed ties drawn distinctly (agree versus disagree)
+
+    - Coalition membership per window and how it changes
+
+    - Polarization measure per window
+
+
+    **Pain Points**:
+
+    - Congruence networks dominated by the most quoted actors until normalized
+
+    - Manual statement coding is slow
+
+    - Signed edges flattened to unsigned weights by general tools
+
+    - Building one network per window and keeping a stable layout across them by hand
+
+
+    **Data Flow**:
+
+    - Input: DNA GraphML or matrix exports; or a statement table (actor, concept, agreement, date) as CSV
+
+    - Transformations: Signed two-mode to one-mode projection (congruence, conflict), normalization, time windowing,
+    attenuation, subgroup detection
+
+    - Output: Coalition maps per period, signed affiliation figure, coalition membership table, animation or small
+    multiples
+success_criteria:
+    - metric: Signed fidelity
+      target: Agreement and disagreement ties stay distinct from import through figure
+    - metric: Coalition change
+      target: User can step through windows with a stable layout and see coalition membership change
+sources:
+    - title: Leifeld (2017) Discourse network analysis -- policy debates as dynamic networks
+      url: https://eprints.gla.ac.uk/121525/1/121525.pdf
+      summary: Statement variables, affiliation, congruence, conflict, time window and attenuation networks, normalization, coalition detection
+    - title: Discourse Network Analyzer repository
+      url: https://github.com/leifeld/dna
+      summary: Java coding tool (Java 11+), GraphML and matrix export, visone recommended, rDNA functions
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

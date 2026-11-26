@@ -1,0 +1,16 @@
+id: record-derived-edges
+name: Edges Derived from Records
+category: analysis
+description: Build edges from records with explicit counting rules (one record = one communication per sender-recipient
+    pair, top segment or all segments, dedupe by record key) and report edge weights as record counts.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W363
+    - W364
+    - W367
+    - W369
+implemented_by_components: []
+requirements: []
+sources: []

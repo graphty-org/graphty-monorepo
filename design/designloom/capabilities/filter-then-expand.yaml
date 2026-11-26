@@ -1,0 +1,14 @@
+id: filter-then-expand
+name: Filter then expand, path-preserving filters
+category: analysis
+description: Apply neighborhood depth to a query-defined node set; hide hubs or placeholders while keeping routes
+    through them; keep only paths reaching a target set within k hops.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W324
+    - W327
+implemented_by_components: []
+requirements: []
+sources: []

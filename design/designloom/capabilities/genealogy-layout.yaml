@@ -1,0 +1,13 @@
+id: genealogy-layout
+name: Genealogy Edge Types and Generational Layout
+category: visualization
+description: Parent-child and union edge types kept distinct, with generations inferred from parent-child direction for
+    a layered layout.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W34
+implemented_by_components: []
+requirements: []
+sources: []

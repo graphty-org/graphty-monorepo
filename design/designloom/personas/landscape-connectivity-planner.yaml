@@ -1,0 +1,65 @@
+id: landscape-connectivity-planner
+name: Landscape Connectivity Planner
+role: Landscape Ecologist / Regional Conservation Agency Planner
+quote: Which forest patches hold the regional network together, and where would a restored corridor help most? The answer has to be a map the planning board can read.
+bio: >-
+    Dr. Paul Girard is a landscape ecologist in a research institute or a regional conservation agency who prioritizes
+    habitat patches and corridors for protection or restoration. He starts from a land-cover raster (an 8-bit GeoTIFF in
+    a metric projection), assigns a resistance cost to each land-cover class, defines habitat patches with a minimum
+    area, and builds a graph whose nodes are patches and whose links are Euclidean or least-cost distances. He uses
+    Graphab (a Java desktop application and command line) or its R wrapper graph4lg, Conefor, Circuitscape and Linkage
+    Mapper inside ArcGIS or QGIS. The question he answers most is how much the region's overall connectivity would drop
+    if a patch or link were lost, or rise if a candidate site were restored, and he recomputes every metric across a
+    range of species dispersal distances because results depend on them. He is GIS-literate rather than R-literate, and
+    his deliverables are maps and tables for planners and stakeholders.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Rank habitat patches and links by their contribution to regional connectivity
+    - Identify least-cost corridors and pinch points worth protecting
+    - Test candidate restoration sites for how much they would improve connectivity
+    - Hand planners clear maps and tables, in GIS formats they already use
+    - Show how conclusions change across dispersal distances of different species
+behaviors:
+    - Loads a categorical land-cover raster and checks that its units are meters
+    - Defines habitat codes, a minimum patch area in hectares and 4- or 8-connectivity
+    - Assigns resistance costs per land-cover class (for example forest 1, crops 60, artificial 1,000)
+    - Starts with a planar Euclidean link set, then tries least-cost links and distance thresholds
+    - Computes global connectivity (probability of connectivity, integral index of connectivity) and local metrics (flux, betweenness, degree)
+    - Removes each patch or link in turn and ranks them by the drop in the global metric (dPC)
+    - Runs the same metric across a range of distance thresholds and plots it against distance
+    - Exports results as shapefile or GeoPackage layers, with node color and link thickness drawn on the map
+frustrations:
+    - Results swing with resistance values and dispersal distance, so every metric must be recomputed many times
+    - Analysis lives in specialist tools while deliverables live in GIS
+    - Linkage Mapper is tied to ArcGIS
+    - Ordinary graph tools ignore geography, although the connectivity graph only makes sense drawn on the map
+context:
+    frequency: as-needed
+    devices:
+        - desktop
+    voluntary: true
+workflows:
+    - W173
+sources:
+    - title: Graphab 3.0 manual
+      url: https://thema.univ-fcomte.fr/productions/software/graphab/download/manual-3.0-en.pdf
+      summary: Raster input in meters, habitat definition, link sets, graph thresholds, PC and IIC metrics, delta mode and patch addition
+    - title: graph4lg vignette - landscape graphs with Graphab from R
+      url: https://cran.r-project.org/web/packages/graph4lg/vignettes/landscape_graph_3.html
+      summary: Example minimum patch areas, resistance costs per land-cover class and graphab_to_igraph
+    - title: Dickson et al. 2019 - Circuit-theory applications to connectivity science and conservation
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6727660
+      summary: 459 papers citing Circuitscape from 2009 to 2018, 277 of them using it, across many fields
+    - title: Linkage Mapper (Conservation Biology Institute)
+      url: https://consbio.org/software/linkage-mapper/
+      summary: ArcGIS toolbox for mapping least-cost wildlife corridors used by agency and NGO planners
+    - title: Saura and Torne 2009 - Conefor Sensinode 2.2
+      url: https://dblp.org/rec/journals/envsoft/SauraT09
+      summary: Node importance for habitat connectivity computed by removal
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

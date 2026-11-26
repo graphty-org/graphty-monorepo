@@ -1,0 +1,13 @@
+id: group-matching-across-snapshots
+name: Group Matching Across Snapshots
+category: analysis
+description: Rename or combine attribute values so groups in a before snapshot map to groups in an after snapshot, then
+    color edges by increase or decrease and rank new, lost and changed group ties.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W189
+implemented_by_components: []
+requirements: []
+sources: []

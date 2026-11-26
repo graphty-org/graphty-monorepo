@@ -1,0 +1,181 @@
+id: W71
+name: Healthcare Cluster Investigation from Patient Movements
+category: analysis
+validated: false
+personas:
+    - hospital-infection-preventionist
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - computed-attributes
+    - temporal-analysis
+    - temporal-navigation
+    - community-detection
+    - community-profiling
+    - component-analysis
+    - degree-analysis
+    - centrality-degree
+    - filtering
+    - node-selection
+    - selection-statistics
+    - search
+    - details-on-demand
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-force-directed
+    - statistics-panel
+    - data-export
+    - export-image
+    - report-generation
+    - bipartite-projection
+    - multiplex-relations
+    - time-respecting-paths
+    - local-only-processing
+    - interval-overlap-edges
+    - linked-views-selection
+    - de-identified-display
+    - bipartite-layout
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - computed-attributes-panel
+    - temporal-controls
+    - community-panel
+    - cluster-table
+    - cluster-collapse-control
+    - filter-panel
+    - graph-canvas
+    - node-details-panel
+    - visual-encoding-panel
+    - legend-panel
+    - statistics-panel
+    - heatmap-panel
+    - data-table-panel
+    - report-generator-dialog
+    - data-export-dialog
+starting_state:
+    data_type: patient ward stay intervals from an electronic health record, plus isolate, strain and plasmid typing
+    node_count: 50-2000
+    edge_density: sparse
+    user_expertise: beginner
+goal: >-
+    **Intent**: Work out where and when transmission happened inside a hospital or across a hospital group, by
+    turning patient ward stays into contacts and reading them against what the laboratory says about the organisms.
+    The outputs are concrete: which wards to sample, which drains and sinks to swab, and which other facilities to
+    alert.
+
+
+    **Mental Model**: "Two patients who were on the same ward on the same day could have shared something." The raw
+    data is intervals, not edges. Edges are derived: overlap in place and time, weighted by how much time was
+    shared. The organism layer sits on the same patients, and the point of the investigation is where the two agree.
+
+
+    **Task Phases**:
+
+    1. **Export movements** (hours, with informatics help) - Each case patient's ward location history from the
+    record system: one row per stay with ward, admission time and discharge time. One London investigation covered
+    116 cases across five hospitals over three and a half years
+
+    2. **Derive contact edges from intervals** (minutes, once automated) - Link two patients present on the same ward
+    on the same day, then aggregate repeated overlaps into a weighted edge by time shared; in London this gave 96
+    contact pairs among 77 of the 116 cases, 66%
+
+    3. **Break the contact network into groups** (minutes) - Community detection on the contact network; a Walktrap
+    run split that network into 12 clusters, the largest holding 45 patients with 7 subclusters, with the analysis
+    and drawing done in a desktop network tool
+
+    4. **Overlay genomics and plasmids** (days, with the genomics partner) - Compare species, strain and plasmid
+    lineage on the same nodes; three plasmid lineages carrying a carbapenemase gene and a colistin resistance gene
+    crossed species boundaries and correlated with patient contacts (Kendall coefficient 0.19, p = 3e-7)
+
+    5. **Pick sampling targets** (1 hour) - Weighted contacts concentrated about 72% in one hospital. A Manchester
+    study sampled 349 wastewater sites and 1,247 patients across six wards, linking patients to sink sites through an
+    anonymized ward-movement database; shower, bath, sluice and mop sites were most often positive, 101 of 349 sites
+
+    6. **Zoom out to facilities** (1 day) - For regional spread, build a facility network where an edge counts
+    patients who visited both facilities in a window; one statewide analysis across 185 hospitals found higher degree
+    centrality predicted higher carbapenem-resistant Enterobacteriaceae rates, most strongly in rural counties, and
+    uses that to decide which facilities to alert and which should screen on admission
+
+
+    **Decision Points**:
+
+    - What counts as contact: same ward same day, or overlapping hours, and over what window
+
+    - Whether to restrict to one species, which a London investigation showed would have discarded most of the
+    signal: only 5 of 116 cases met the conventional same-species definition and 57 of 96 contact episodes involved
+    two different species
+
+    - Which ward and which week to sample, given a fixed number of swabs
+
+    - Whether a cluster is patient-to-patient or environmental, which changes the intervention
+
+    - Which facilities to alert, and whether to recommend admission screening
+
+
+    **Information Needs**:
+
+    - Stays as intervals, with the overlap rule stated and adjustable
+
+    - Edge weight as time shared, not just an edge count
+
+    - Species, strain and plasmid lineage visible on the same node at once
+
+    - Ward and date for each contact episode, so a sampling plan can be written from it
+
+    - Environmental sites linked to patients through movement, not by name
+
+    - Facility-level degree and shared-patient counts for the regional view
+
+
+    **Pain Points**:
+
+    - Ward overlap is a time calculation that spreadsheets make painful and most network tools do not do at all
+
+    - A single-species outbreak definition misses plasmid-mediated spread, which is most of the signal
+
+    - The genomics partner returns a tree that has to be read against a contact network built elsewhere
+
+    - Environmental results arrive as site lists with no link to patients except through movement data
+
+    - Desktop network software is not usable unaided by the infection prevention team, so the picture depends on
+    whoever has it installed
+
+    - Patient movement data is identifiable, so nothing may be uploaded to a hosted service
+
+
+    **Data Flow**:
+
+    - Input: Ward stay intervals (patient, ward, start, end), microbiology results, species and strain and plasmid
+    typing, environmental site sample results, and discharge data for the facility view
+
+    - Transformations: Interval overlap into weighted contact edges within a configurable window, community
+    detection, degree and weighted-contact concentration, correlation of contact against plasmid lineage sharing,
+    bipartite patient-to-site linkage, facility-level shared-patient projection
+
+    - Output: A clustered patient contact network with organism and plasmid layers, a ranked ward and
+    environmental-site sampling plan, a facility alert list, and an investigation report
+success_criteria:
+    - metric: Interval handling
+      target: Stays with start and end times produce contact edges in-tool, with the overlap rule visible and adjustable
+    - metric: Cross-species visibility
+      target: Species, strain and plasmid lineage can all be read on the same nodes without a separate picture per organism
+    - metric: Actionability
+      target: The output names wards, dates and sites to sample, not only clusters
+sources:
+    - title: Wan et al., plasmid-level analysis of an IMP-producing Enterobacterales outbreak (Journal of Infectious Diseases 2024)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11272044/
+      summary: 116 cases across five hospitals over three and a half years, same-ward same-day contact edges weighted by time shared giving 96 pairs among 77 cases, Walktrap into 12 clusters in Cytoscape 3.10.1, three cross-species plasmid lineages with Kendall 0.19 (p = 3e-7), 72% of weighted contacts in one hospital, and only 5 of 116 cases meeting the conventional definition
+    - title: Wastewater site sampling and patient linkage for carbapenemase-producing organisms (JAC-Antimicrobial Resistance 2024)
+      url: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC11369815/
+      summary: 349 wastewater sites and 1,247 patients across six wards, patient-to-site linkage through an anonymized ward-movement database, and 101 of 349 sites positive with shower, bath, sluice and mop sites most often positive
+    - title: Ray et al., patient-sharing networks between healthcare facilities (Clinical Infectious Diseases 2016)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8376187
+      summary: A facility network from one quarter of statewide discharge data across 185 hospitals, with degree centrality predicting carbapenem-resistant Enterobacteriaceae rates and driving facility alerts and admission screening
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,86 @@
+id: bibliometric-analyst
+name: Bibliometric Analyst
+role: Bibliometric Review Author or Research-Impact Librarian (science mapping with VOSviewer, CiteSpace and OpenAlex)
+quote: Reviewers want the co-citation map, the keyword overlay by year and the exact thresholds I used. I want to stop exporting 500 records at a time and rebuilding the map every time the thesaurus changes.
+bio: >-
+    Dr. Lina Haddad is an assistant professor of nursing writing her second "bibliometric analysis" for a journal, and
+    the consolidated persona for everyone who turns a literature database export into a science map: review authors
+    (the largest group), research-impact librarians answering a dean's "who do we collaborate with?", patent landscape
+    analysts and funder portfolio analysts (variants). She has no information-science training; she learned VOSviewer
+    from a library guide, uses Excel and EndNote, and does not code. Her data is 2,000 to 12,000 Web of Science records
+    exported in 500-record batches with "Full Record and Cited References", sometimes with a Scopus CSV or an OpenAlex
+    query beside it. Each review needs four to six maps (co-authorship by country and institution, keyword
+    co-occurrence, co-citation of references and journals, a keyword overlay colored by average year, a burst table from
+    CiteSpace), each a few hundred to about 1,000 nodes after thresholds. The work comes in intensive one-to-three-week
+    bursts per review. She knows tool vocabulary (association strength, fractional counting, resolution) but not graph
+    theory, and her methods section must state every parameter. VOSviewer's reference paper alone had 27,772 citing works
+    in OpenAlex in November 2026, the second largest citing population of any general network tool.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Produce the standard figure set (annual output, collaboration maps, co-citation clusters, keyword overlay by year) that reviewers expect
+    - Name the research fronts and emerging topics in a field with clusters an expert agrees with
+    - Write a methods section with every threshold, counting method, resolution and retrieval date, so the map can be reproduced
+    - Answer a leadership question about collaboration or impact with a map a non-technical reader understands
+    - Know which fields cite a work or a tool, and how that changed over time
+behaviors:
+    - Designs and records the search query, document-type and language filters, and the retrieval date before exporting
+    - Exports Web of Science in 500-record batches and loads all files at once; tries and fails to merge Web of Science and Scopus for VOSviewer
+    - Builds the same map type several times with different units (authors, organizations, countries, keywords, cited references)
+    - Chooses full or fractional counting and caps authors per document to keep hyperauthored papers from dominating
+    - Sets minimum-occurrence and minimum-citation thresholds strictly first, then loosens them while watching how many items qualify
+    - Builds and re-applies a thesaurus file to merge keyword and name variants, rebuilding the map each time
+    - Tunes clustering resolution and minimum cluster size, names clusters from their largest terms and checks them with a domain expert
+    - Reads the overlay view (Viridis by average publication year) for emerging topics and the density view for hot spots
+    - Exports screenshots at high scaling and shares an interactive VOSviewer Online link
+goals:
+    - One tool that reads every bibliographic export and merges them without breaking downstream steps
+    - Thresholds and clustering that are explicit, seeded and recorded with the figure
+    - Overlay and timeline views that make "emerging" claims checkable
+    - A shareable interactive map for co-authors and readers
+frustrations:
+    - The 500-record export loop and changing export limits
+    - Merged files from bibliometrix that VOSviewer will not read
+    - Name and keyword variants that split one entity into several nodes, and name homonyms that create false bridges
+    - Results that "can sometimes be inconsistent" between runs, and reviewers asking for parameters she did not record
+    - Needing two or three tools (VOSviewer, CiteSpace, Gephi) with incompatible files for one paper
+    - Automatic field and topic labels that are wrong for a visible share of papers
+context:
+    frequency: monthly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W335
+sources:
+    - title: Protocol for bibliometric analysis in biomedicine with CiteSpace and VOSviewer (STAR Protocols, 2024)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11408372/
+      summary: Step-by-step protocol for non-specialists; 47,458 to 11,547 records after filters and screening; 2-3 days per stage; results "can sometimes be inconsistent"
+    - title: VOSviewer Manual 1.6.20
+      url: https://www.vosviewer.com/documentation/Manual_VOSviewer_1.6.20.pdf
+      summary: Map types, full and fractional counting, thresholds, association strength, resolution, overlay and density views; no cross-database merge
+    - title: Notre Dame library - VOSviewer demo
+      url: https://libguides.library.nd.edu/vos-viewer/demo
+      summary: Web of Science export in 500-record batches with Full Record and Cited References; minimum citations 3; 25-author cap
+    - title: Leiden Gorlaeus library - Creating an overview of topics
+      url: https://gorlaeus-library.github.io/VOSviewer/howto-topics.html
+      summary: 3,635 records needed 8 export files; resolution 1 to 1.20 changed three clusters to four; reading the overlay by year
+    - title: OpenAlex help - How do I import OpenAlex data into VOSviewer
+      url: https://help.openalex.org/hc/en-us/articles/27218772811543-How-do-I-import-OpenAlex-data-into-VOSviewer
+      summary: VOSviewer downloads an OpenAlex query through the API; up to 50,000 records per analysis
+    - title: UNC-Chapel Hill Health Research Intelligence Librarian posting (IASSIST)
+      url: https://iassistdata.org/jobs-repository/2026-07-22_2/
+      summary: Librarian role asking for network analysis and collaboration mapping with VOSviewer, Gephi or NetworkX for non-technical audiences
+    - title: Haunschild and Bornmann 2024 - OpenAlex global overlay maps of science (PLOS ONE)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11620457/
+      summary: Base maps from an OpenAlex snapshot clustered in VOSviewer; overlays of a unit's counts; frequent automatic concept-assignment errors
+    - title: Barbier and Jeangirard - Mapping scientific communities at scale
+      url: https://arxiv.org/html/2501.10035
+      summary: Ministry portal caps displayed networks at 300 nodes; hyperauthorship bloats co-authorship networks
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

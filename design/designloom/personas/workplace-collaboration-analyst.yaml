@@ -1,0 +1,75 @@
+id: workplace-collaboration-analyst
+name: Workplace Collaboration Analyst
+role: People Data Scientist analyzing passive collaboration metadata (email, calendar, chat)
+quote: Before I argue about what the map means, I need to know which edge rule built it and that next month's run uses the same one.
+bio: >-
+    Dana Okafor is a data scientist in the people analytics team of a 40,000-person company on Microsoft 365. She holds
+    the Viva Insights Analyst role and is fluent in R and Python. Her networks come from collaboration metadata rather
+    than surveys: pseudonymized collaborator pairs with monthly tie scores from Viva person-to-person queries, group
+    collaboration minutes from group-to-group and Change management queries, and HR attributes joined on a pseudonymous
+    id -- 10,000 to 100,000 people. Before any of that runs, a Viva Insights admin must have enabled behavioral insights
+    and Advanced Analysis, and processing takes five days. She loads the CSV exports with the vivainsights package
+    (network_p2p, network_g2g), publishes monthly Power BI dashboards to leaders and sometimes polishes a map in Gephi.
+    Her job is to say whether a reorganization produced the intended cross-team collaboration, which groups are
+    becoming insular and how quickly new hires integrate -- always in aggregate, never by individual.
+characteristics:
+    expertise: expert
+    time_pressure: medium
+    graph_literacy: advanced
+    domain_knowledge: advanced
+motivations:
+    - Measure whether a reorganization or merger produced the intended cross-team collaboration
+    - Flag groups becoming insular before it shows up in engagement or attrition
+    - Track how fast new-hire cohorts build networks compared with tenured peers
+    - Publish repeatable monthly views to leaders without hand-building each one
+    - Keep every output above the minimum group size and free of individual rankings
+behaviors:
+    - Checks that behavioral insights are enabled and processed before promising any network analysis
+    - Chooses and documents the edge rule -- reciprocity, participant caps on meetings, chats and emails, minimum counts, time window -- and keeps it fixed across periods
+    - Projects meetings, group chats and multi-recipient emails into person-to-person ties and decides how to weight by group size
+    - Reads summary tables first, forms hypotheses from knowledge of the organization, tests across date ranges, and only then tunes the picture
+    - Runs Leiden or Louvain communities with a set resolution and a fixed seed so maps are comparable
+    - Renders large plots straight to PDF because interactive plotting of 50,000 nodes is too slow
+    - Aggregates to workgroups before showing leaders and hides individual links in executive maps
+frustrations:
+    - Network data that does not exist because behavioral insights were never enabled, then a five-day wait after they are
+    - Canned vendor views that cannot be restyled or extended
+    - Interactive plots that "may take a long time" on big graphs, forcing static PDFs
+    - A minimum group size of 5 that suppresses small teams she needs to discuss
+    - Explaining to leaders that the layout, not the data, decided where a group sits on the page
+    - A Bridging Index that varies slightly between runs, which undermines trust in month-to-month changes
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: false
+workflows:
+    - W188
+    - W189
+    - W191
+sources:
+    - title: Microsoft Learn - Viva Insights person-to-person query
+      url: https://learn.microsoft.com/en-us/viva/insights/advanced/analyst/cross-collaboration-p2p
+      summary: Time period, auto-refresh, strong and diverse tie scores, CSV pair rows with HR attributes
+    - title: Microsoft Learn - Enable or disable behavioral insights
+      url: https://learn.microsoft.com/en-us/viva/insights/advanced/setup-maint/enable-disable-behavioral-insights
+      summary: Network data off by default for new tenants; admin opt-in and five days of processing
+    - title: Microsoft Learn - Viva Insights privacy settings
+      url: https://learn.microsoft.com/en-us/viva/insights/advanced/setup-maint/privacy-settings
+      summary: Minimum group size of at least 5, partitions, suppression and opt-out
+    - title: vivainsights network_p2p reference
+      url: https://search.r-project.org/CRAN/refmans/vivainsights/html/network_p2p.html
+      summary: Leiden or Louvain communities, betweenness, deterministic MDS layout, seed, plot-pdf for large graphs
+    - title: vivainsights - Network analysis article
+      url: https://microsoft.github.io/vivainsights/articles/network-analysis.html
+      summary: Read tables first, test across ranges, layout shapes what appears
+    - title: Workgroup mapping at Microsoft (arXiv 2005.00402)
+      url: https://ar5iv.labs.arxiv.org/html/2005.00402
+      summary: 10,000 to 100,000 nodes, edge rule of 4 emails a month with one each way, aggregate-only reporting, automated PowerPoint pipeline
+    - title: Worklytics - Measuring knowledge sharing and innovation via ONA
+      url: https://www.worklytics.co/blog/measuring-knowledge-sharing-and-innovation-via-ona
+      summary: Filter automated traffic, keep edge rules stable across periods, 30-day, 90-day and 12-month windows
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

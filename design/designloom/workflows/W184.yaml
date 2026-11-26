@@ -1,0 +1,130 @@
+id: W184
+name: Archaeological Site Similarity Networks (Brainerd-Robinson, Thresholds, Resampling, Maps)
+category: analysis
+validated: false
+personas:
+    - network-archaeologist
+requires_capabilities:
+    - data-import
+    - data-preview
+    - computed-attributes
+    - filtering
+    - centrality-degree
+    - centrality-eigenvector
+    - centrality-betweenness
+    - basic-statistics
+    - temporal-navigation
+    - comparison-view
+    - metric-histograms
+    - visual-encoding-edges
+    - export-image
+    - network-collection-small-multiples
+    - measurement-robustness
+    - geographic-layout
+    - similarity-graph-construction
+suggested_components:
+    - data-import-dialog
+    - data-preview-table
+    - column-mapper
+    - range-slider
+    - filter-panel
+    - ranked-node-table
+    - histogram
+    - comparison-view
+    - temporal-controls
+    - graph-canvas
+    - image-export-dialog
+starting_state:
+    data_type: site-by-type count table per period (ceramic wares, obsidian sources) plus site coordinates
+    node_count: 50-700
+    edge_density: dense
+    user_expertise: advanced
+goal: >-
+    **Intent**: Turn artifact counts per site into a network of sites that shared material culture, see how the
+    choice of similarity measure and threshold changes it, test whether central sites stay central under sampling
+    error, and draw the network at site coordinates on the terrain, period by period.
+
+
+    **Mental Model**: "Similarity is a proxy, the threshold is a choice." Every tie is inferred, so robustness checks
+    are part of the result, not an appendix.
+
+
+    **Task Phases**:
+
+    1. **Build the table** (days) - One row per site and period, one column per ware or source, counts in cells; drop
+    sites with too few sherds (SWSN keeps sites with more than 30 decorated sherds); coordinates in two columns
+
+    2. **Compute similarity** (10 min) - Convert to row proportions; Brainerd-Robinson (2 minus the summed absolute
+    difference of proportions, rescaled 0-1), co-presence (types above 10 percent of an assemblage) or chi-square
+    distance; measures "do not necessarily have similar contextual meaning"
+
+    3. **Threshold into a network** (30 min) - Brainerd-Robinson ties above 0.6, a 50 percent co-presence threshold
+    found by trial and error, or keep weights
+
+    4. **Compute** (10 min) - Degree, eigenvector and betweenness centrality and centralization, per period
+
+    5. **Test robustness** (hours) - Resample 90 percent down to 10 percent of sites 1,000 times and correlate
+    centralities with the full network (Spearman's rho boxplots); simulate edges with similarities as probabilities
+
+    6. **Map** (30 min) - Plot the network at site coordinates over a shapefile
+
+    7. **Interpret** (days) - Ties as interaction, shared practice or exchange, period by period
+
+
+    **Decision Points**:
+
+    - Which similarity measure fits the material and question?
+
+    - Which threshold, or keep a weighted network?
+
+    - How small a sample makes a site's centrality untrustworthy?
+
+
+    **Information Needs**:
+
+    - Histogram of pairwise similarities to place the threshold
+
+    - Number of edges and components at each threshold
+
+    - Spread of each site's centrality across resamples
+
+    - Network at true site positions over a base map, per period
+
+
+    **Pain Points**:
+
+    - Measure and threshold silently change the network
+
+    - Sampling uncertainty is invisible in standard tools
+
+    - Maps need separate GIS work
+
+
+    **Data Flow**:
+
+    - Input: Case-by-type count table, coordinates, period column, optional shapefile
+
+    - Transformations: Row proportions, pairwise similarity matrix, threshold or weighted network, per-period
+    centrality, resampling
+
+    - Output: Per-period network maps, centrality tables with confidence spreads, replication files
+success_criteria:
+    - metric: Threshold feedback
+      target: Moving the threshold updates the network and edge count interactively
+    - metric: Robustness shown
+      target: Each site's centrality is shown with its spread across resamples
+    - metric: Geographic placement
+      target: Sites drawn at their coordinates over a base map without leaving the tool
+sources:
+    - title: Davis replication code after Peeples (Antiquity 2023 supplement)
+      url: https://static.cambridge.org/content/id/urn:cambridge.org:id:article:S0003598X23001230/resource/name/S0003598X23001230sup002.pdf
+      summary: Brainerd-Robinson similarity, 0.6 threshold, resampling 1,000 times, plotting at coordinates
+    - title: Habiba, Athenstaedt, Mills and Brandes - similarity measures
+      url: https://www.inf.uni-konstanz.de/exalgo/group/habiba/papers/submission.pdf
+      summary: Measures differ in meaning; SWSN data with over 700 sites and 42 wares
+    - title: Brughmans and Peeples 2023 - Network Science in Archaeology
+      url: https://www.cambridge.org/core/services/aop-cambridge-core/content/view/33B5AB5D5282DA60F080631646E464E6/9781009170666c1_1-25.pdf/introducing_network_science_for_archaeology.pdf
+      summary: Field textbook on archaeological network methods
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

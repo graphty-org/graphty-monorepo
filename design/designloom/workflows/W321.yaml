@@ -1,0 +1,115 @@
+id: W321
+name: Temporal Deliverables - Timelines, Animations and Small Multiples
+category: reporting
+validated: false
+personas:
+    - litigation-demonstratives-specialist
+    - publication-figure-author
+    - graph-deliverable-recipient
+requires_capabilities:
+    - temporal-analysis
+    - temporal-navigation
+    - animated-transitions
+    - comparison-view
+    - layout-force-directed
+    - legend-display
+    - annotation
+    - export-image
+    - data-export
+    - analysis-provenance
+    - provenance-tracking
+    - playback-video-export
+suggested_components:
+    - graph-canvas
+    - temporal-controls
+    - comparison-view
+    - layout-panel
+    - legend-panel
+    - annotation-toolbar
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: timestamped network (dated events, transactions, calls, collaborations, citations) with time windows
+    node_count: 10-5,000
+    edge_density: varies by window
+    user_expertise: intermediate+
+goal: >-
+    **Intent**: Show what happened in what order as a deliverable - a sequence-of-events chart for court or a case file,
+    an animation as HTML or video for talks and newsrooms, or small-multiple panels for print - with the time
+    parameters reported.
+
+
+    **Mental Model**: "Time needs a fixed frame." Nodes must stay in place between panels or frames so the change is the
+    only thing that moves, and every window must be stated.
+
+
+    **Task Phases**:
+
+    1. **Timeline chart** (court, case files) - One theme line per entity, event frames on it, each event tied to its
+    source, each location at only the precision the evidence supports
+
+    2. **Animation as HTML** - A standalone page with an embedded player and the data, viewable in a browser as an
+    interactive animation
+
+    3. **Animation as video** - Screen recording or rendered video (MP4, GIF, AVI) with fixed camera and timing for talks
+    and newsroom pieces
+
+    4. **Small multiples for print** - Weekly or yearly slice panels sharing one layout
+
+    5. **Report parameters** - Window length, step and aggregation rule in the caption; investigators record the exact
+    window behind each exhibit
+
+
+    **Decision Points**:
+
+    - Timeline, animation or small multiples for this audience and medium?
+
+    - Which window length and step make the change visible without noise?
+
+    - Keep one shared layout or recompute per window?
+
+
+    **Information Needs**:
+
+    - Event times and sources per entity
+
+    - Window parameters behind each frame or panel
+
+    - A shared layout across all frames
+
+
+    **Pain Points**:
+
+    - Animations are only scriptable in R or Python libraries
+
+    - Videos are made with screen recordings
+
+    - Nodes jump between panels when layouts are recomputed per window
+
+    - Window parameters go unreported
+
+
+    **Data Flow**:
+
+    - Input: Timestamped network, chosen windows
+
+    - Transformations: Windowing, shared layout, frame rendering, event-to-source linking
+
+    - Output: Timeline chart, HTML animation, MP4 or GIF, small-multiple figure, parameter caption
+success_criteria:
+    - metric: Layout stability
+      target: Nodes keep their positions across every panel and frame
+    - metric: Parameter reporting
+      target: Window length, step and aggregation rule appear on the deliverable
+    - metric: Source tie
+      target: Every event on a timeline chart carries its source reference
+sources:
+    - title: ndtv render.d3movie (CRAN reference)
+      url: https://search.r-project.org/CRAN/refmans/ndtv/html/render.d3movie.html
+      summary: HTML file with an embedded JavaScript player and JSON data, or an htmlwidget for Shiny
+    - title: R v Calland [2017] EWCA Crim 2308
+      url: https://caselaw.nationalarchives.gov.uk/ewca/crim/2017/2308
+      summary: Sequence-of-events charts must carry only the location precision the evidence supports
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,15 @@
+id: network-transforms
+name: Recorded Network Transforms
+category: analysis
+description: "Named, logged transforms: symmetrize (max, min, average), dichotomize at a cutoff, transpose, remove
+    isolates, extract main component, join or unpack relations, with before and after counts."
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W26
+    - W29
+    - W31
+implemented_by_components: []
+requirements: []
+sources: []

@@ -1,0 +1,76 @@
+id: civic-power-researcher
+name: Civic Power Researcher
+role: Organizer / Campaign Research Director / Power-Mapping Volunteer
+quote: Who actually decides this, who do they listen to, and where does the money come from? Every line on the map needs a source we can defend.
+bio: >-
+    Rosa Delgado is research director at a tenant union (or a labor campaign, or an environmental justice coalition),
+    and volunteers in a LittleSis research pod. She learned public-records research through "Map the Power" style
+    trainings. Her first map of every campaign is on a big sheet of paper with a few markers: the decision-maker, the
+    people who influence them, allies and opponents. Then it moves to a shared Google Sheet of people and
+    organizations joined by typed relationships (position, membership, donation, lobbying, ownership, family and so
+    on), each row with a source link from corporate registries, campaign finance filings, lobbying disclosures or news.
+    She uses LittleSis and Oligrapher for US entities, and Graph Commons or Kumu when the coalition wants a public,
+    explorable map. A campaign map has tens to a few hundred actors; long-running projects such as Networks of
+    Dispossession in Istanbul grew to about 1,550 entities. She cares about interlocks (shared board members, shared
+    funders) and two-step paths to the decision-maker far more than about centrality scores. Some maps must never
+    leave the room.
+characteristics:
+    expertise: intermediate
+    time_pressure: high
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Name the decision-maker and the chain of influence around them
+    - Expose interlocks, money flows and hidden power that explain a decision
+    - Choose targets and pressure points for a campaign
+    - Publish a sourced map journalists and members can explore
+    - Keep sensitive analysis private to trusted people
+behaviors:
+    - Sketches the first power map on paper with the group before any software
+    - Keeps entities and relationships in a shared spreadsheet, one row per relationship, each with a source URL
+    - Uses multiple relationship types between the same pair (a board seat and a donation) and keeps them separate
+    - Derives interlocks by projecting people-organization links onto organization-organization or person-person links
+    - Looks for bridges between clusters, who is missing, and two-step paths to the target
+    - Places actors on an influence against alignment grid to pick targets
+    - Publishes a public map with a guided story mode, or keeps a private one for the campaign team
+frustrations:
+    - 'Safety -- analysis should be shared "only with people you trust", and many tools are public by default or charge for privacy'
+    - Maps are "not pure data"; every link is a claim that needs its source visible
+    - Re-importing an updated sheet creates duplicates instead of updating rows
+    - Tools that are US-centric or earn map permissions gradually
+    - Overlapping community algorithms presented as facts rather than as prompts for better questions
+context:
+    frequency: weekly
+    devices:
+        - laptop
+        - phone
+    voluntary: true
+workflows:
+    - W200
+    - W202
+    - W205
+sources:
+    - title: Commons Library - A guide to power analysis in community organising
+      url: https://commonslibrary.org/a-guide-to-power-analysis-in-community-organising/
+      summary: Decision-maker, influencers, allies and opponents; hidden power; share analysis only with people you trust
+    - title: Commons Library - Power mapping
+      url: https://commonslibrary.org/power-mapping/
+      summary: Paper-first power mapping and influence-against-alignment placement
+    - title: LittleSis - Map the Power
+      url: https://littlesis.org/news-topics/map-the-power
+      summary: Public-records research training for organizers (2017)
+    - title: littlesis-rails README and relationship model
+      url: https://github.com/public-accountability/littlesis-rails
+      summary: Over 1.6 million relationships among over 400 thousand people and organizations; 12 relationship categories
+    - title: Oligrapher workshop notes
+      url: https://influencemapping.github.io/workshop/oligrapher.html
+      summary: Oligrapher map building and story mode walk-throughs
+    - title: Networks of Dispossession - interview (suburban)
+      url: https://zeitschrift-suburban.de/sys/index.php/suburban/article/download/169/294?inline=1
+      summary: Graph Commons map of 737 companies, 44 government institutions, 43 media firms, 726 projects; maps are not pure data; a public source for every item
+    - title: Graph Commons API
+      url: https://graphcommons.github.io/api-v1
+      summary: Edges name endpoints by name and type; missing nodes created; one edge per type per pair
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,16 @@
+id: external-label-overlays
+name: External label set overlays
+category: analysis
+description: Overlay externally supplied label sets (attribution labels, watch lists, sanctions hits, prior alert and
+    case flags) onto nodes or clusters, keeping each label's source and confidence, and toggle sets on and off.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W06
+    - W118
+    - W124
+    - W127
+implemented_by_components: []
+requirements: []
+sources: []

@@ -1,0 +1,117 @@
+id: W137
+name: Find Root Causes of SHACL Violations
+category: analysis
+validated: false
+personas:
+    - knowledge-engineer
+    - enterprise-kg-engineer
+requires_capabilities:
+    - data-import
+    - data-validation
+    - layout-hierarchical
+    - visual-encoding-nodes
+    - legend-display
+    - filtering
+    - node-selection
+    - selection-statistics
+    - details-on-demand
+    - computed-attributes
+    - report-generation
+    - rdf-import
+    - validation-report-overlay
+suggested_components:
+    - data-import-dialog
+    - graph-canvas
+    - layout-panel
+    - visual-encoding-panel
+    - legend-panel
+    - filter-panel
+    - statistics-panel
+    - data-table-panel
+    - node-details-panel
+    - report-generator-dialog
+starting_state:
+    data_type: RDF data graph, SHACL shapes, ontology, and a SHACL validation report (one sh:ValidationResult per focus node, path, shape and severity)
+    node_count: 1000-10000000
+    edge_density: varies
+    user_expertise: expert
+goal: >-
+    **Intent**: Turn thousands of SHACL validation results into a handful of root causes (a missing type, a schema gap,
+    an ontology gap) that a data provider or the ontologist can fix.
+
+
+    **Mental Model**: "Many symptoms, few diseases." One faulty entry or one missing constraint cascades into many
+    violations; grouping them by class and shape reveals the cause.
+
+
+    **Task Phases**:
+
+    1. **Validate** (minutes) - Run pySHACL or Jena SHACL over data, shapes and ontology; the output is an RDF report with
+    one result per focus node, path, shape and severity
+
+    2. **Read the report** (30+ min) - Most teams read it as text or query it with SPARQL; in a pharma omics case 5,203
+    focus nodes violated shapes and data providers could not trace them
+
+    3. **Group and link** (15 min) - Group equivalent violations, link them to classes and shapes in a node-link view,
+    show per-class counts on the class tree, cluster focus nodes by violation profile
+
+    4. **Identify causes** (30 min) - Causes found in the case: missing object typing, two schema gaps (a constraint on a
+    class but not its sibling) and one ontology gap
+
+    5. **Fix and re-validate** (varies) - SPARQL UPDATE or an upstream fix; re-run validation and compare counts
+
+
+    **Decision Points**:
+
+    - Is a violation group a data error, a shape gap or an ontology gap?
+
+    - Fix locally with SPARQL UPDATE, or send back to the data provider?
+
+    - Which violations are irrelevant and can be hidden?
+
+
+    **Information Needs**:
+
+    - Violation counts per class on the class hierarchy, per shape and per severity
+
+    - Focus nodes grouped by their set of violated shapes
+
+    - For a focus node, its triples and the shape that failed
+
+    - Counts before and after a fix
+
+
+    **Pain Points**:
+
+    - Reports are too large to read and one faulty entry cascades into many violations
+
+    - Users still checked raw files and wanted to hide irrelevant parts
+
+    - Generic graph tools do not load a validation report alongside the data
+
+
+    **Data Flow**:
+
+    - Input: Data graph, shapes graph, ontology, validation report
+
+    - Transformations: Report-to-node join, grouping by class and shape, violation-profile clustering
+
+    - Output: A short list of root causes, fixes, a summary for data providers
+success_criteria:
+    - metric: Root-cause reduction
+      target: Thousands of violations are reduced to fewer than 10 groups with a named cause
+    - metric: Location
+      target: Each group is located on its class and shape in one click
+sources:
+    - title: SHACLens
+      url: https://www.frontiersin.org/journals/bioinformatics/articles/10.3389/fbinf.2026.1756507/full
+      summary: Visual analysis of SHACL reports; 5,203 violating focus nodes traced to typing, schema and ontology gaps
+    - title: pySHACL
+      url: https://github.com/RDFLib/pySHACL
+      summary: Python SHACL validator producing RDF validation reports
+    - title: Apache Jena SHACL
+      url: https://jena.apache.org/documentation/shacl/
+      summary: Java SHACL validator
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

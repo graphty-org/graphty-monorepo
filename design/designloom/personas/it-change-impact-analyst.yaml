@@ -1,0 +1,67 @@
+id: it-change-impact-analyst
+name: IT Change Impact Analyst
+role: Configuration and Change Manager (ITIL)
+quote: Before I approve this maintenance window, show me every business service and customer that sits on top of that server, and whether any of them has no redundancy.
+bio: >-
+    Marcus is an ITIL-certified configuration and change manager at a bank. He owns the data quality of the
+    configuration management database (CMDB) and chairs the change advisory board. His graph is a typed one:
+    applications, services, virtual machines, hosts, storage, network devices and racks linked by relationship pairs
+    such as "Depends on::Used by" and "Runs on::Runs", with business services, SLAs and customer counts at the top. For
+    every change request he identifies the configuration item being changed, follows dependency edges upward to the
+    business services and customers it supports, checks for single points of failure and redundancy, and attaches the
+    impacted-service list to the change record. He works in ServiceNow Dependency Views, exports to Excel, and has a
+    Neo4j and Bloom prototype for queries the CMDB view cannot express. He is fluent in Cypher-style "follow this
+    relationship in reverse" thinking but not in graph algorithms.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - List the business services and customers a maintenance window will affect, for every change request
+    - Confirm redundancy for the most important customers before approving a change
+    - Find single points of failure (components with the most distinct dependents) for resilience reviews
+    - Keep CMDB relationships accurate enough that impact analysis can be trusted
+behaviors:
+    - Starts from one configuration item named in the change request, such as a server going offline for an upgrade
+    - Follows dependency relationships in reverse (bottom-up) to services, business services and customers
+    - Counts distinct dependents per component to rank single points of failure
+    - Weighs severity with propagation rules (fully down, partly impaired) and lowers it where a redundant component exists
+    - Expands the default three-level map by hand when the impact goes deeper, with clusters collapsed and the root framed
+    - Draws missing relationships directly on the map when he notices one
+    - Exports the impacted CI list to Excel and attaches it to the change request
+frustrations:
+    - Stale and orphaned relationships make impact lists wrong (one audit of a 14,000-CI CMDB found 34% stale records)
+    - Maps default to three levels each way and must be expanded manually
+    - Impact is not calculated for some service classes
+    - Curated and discovered relationships are mixed with no indication of where an edge came from
+context:
+    frequency: daily
+    devices:
+        - desktop
+        - laptop
+    voluntary: false
+workflows:
+    - W77
+sources:
+    - title: Linkurious - Network management and impact analysis with Neo4j
+      url: https://linkurious.com/blog/network-management-and-impact-analysis-with-neo4j/
+      summary: List affected business services and customers for a maintenance window, confirm redundancy, schedule or reroute
+    - title: ServiceNow - Dependency Views
+      url: https://www.servicenow.com/docs/r/servicenow-platform/dependency-views/c_NextGenBSMMaps.html
+      summary: Dependency map opened from any CI record; three levels each way by default, collapsed clusters, issue indicators, drawing new relationships
+    - title: ServiceNow - CI relationships
+      url: https://www.servicenow.com/docs/r/yokohama/servicenow-platform/configuration-management-database-cmdb/c_CIRelationships.html
+      summary: Typed relationship pairs such as Depends on::Used by and Runs on::Runs
+    - title: ServiceNow - Event Management impact calculation
+      url: https://www.servicenow.com/docs/bundle/xanadu-it-operations-management/page/product/event-management/concept/c_EMImpactCalculation.html
+      summary: Severity propagation up the impact tree, redundancy lowers severity, maintenance CIs excluded, not calculated for some classes
+    - title: Virima - Inherited CMDB data quality audit (vendor)
+      url: https://virima.com/blog/inherited-cmdb-data-quality-audit
+      summary: Vendor audit of a 14,000-CI CMDB found 34% stale records
+    - title: Neo4j - IT Service Graph use case
+      url: https://neo4j.com/developer/industry-use-cases/agnostic/it-service-graph/it-service-graph
+      summary: Software delivers services used by customers; count distinct dependents; redundancy check for important customers
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

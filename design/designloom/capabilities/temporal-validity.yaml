@@ -1,0 +1,18 @@
+id: temporal-validity
+name: Validity Intervals and As-Of Views
+category: visualization
+description: Start and end dates on nodes and edges with precise and imprecise ranges and real-start and real-end flags;
+    filter by date and show the graph as of a chosen date; filter relations by class.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W133
+    - W89
+    - W95
+    - W96
+implemented_by_components: []
+requirements:
+    - Treat edge validity intervals (valid and invalid times, recorded and expired times) as first-class attributes,
+      with a point-in-time filter on either time axis and a show or hide control for invalidated edges.
+sources: []

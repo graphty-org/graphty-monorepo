@@ -1,0 +1,33 @@
+id: matrix-view
+name: Sortable adjacency matrix view
+category: visualization
+description: Adjacency matrix with hierarchical rows, triangularization and click-for-path, synchronized with the
+    node-link view; also serves traceability matrices with empty-row gap detection.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W155
+    - W158
+    - W161
+    - W162
+    - W163
+    - W164
+    - W186
+    - W232
+    - W234
+    - W313
+    - W322
+    - W85
+    - W87
+implemented_by_components: []
+requirements:
+    - Show the graph as an adjacency matrix heatmap reordered by a node attribute (network, module, hemisphere) with
+      block outlines and diverging color for signed weights, selection linked to the node-link view.
+    - Shaded adjacency matrix linked to the node-link view, sortable by marginal totals or module to reveal nestedness
+      and modules.
+    - Show a graph as an adjacency matrix reordered by cluster so clusters form blocks on the diagonal, linked to the
+      node-link view.
+    - Show the graph as an ordered adjacency matrix beside the node-link drawing, linked by selection.
+    - Adjacency heatmap with ordering by module or attribute and block outlines, exportable as a figure panel.
+sources: []

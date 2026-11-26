@@ -1,0 +1,146 @@
+id: W291
+name: Two-Table Spreadsheet Import (Node Sheet plus Edge Sheet)
+category: onboarding
+validated: false
+personas:
+    - spreadsheet-first-network-builder
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - basic-statistics
+    - component-analysis
+    - layout-force-directed
+    - node-merging
+    - entity-resolution-review
+    - import-report
+    - edge-merge-policy
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - data-table-panel
+    - statistics-panel
+    - graph-canvas
+starting_state:
+    data_type: Excel workbook or two CSV files (node table with Id and Label, edge table with Source and Target)
+    node_count: 19-300
+    edge_density: sparse
+    user_expertise: novice
+goal: >-
+    **Intent**: Load a hand-built node sheet and edge sheet into a graph tool so that every edge attaches to the right
+    node, then confirm nothing was lost. This is the canonical novice path taught in library workshops and course
+    tutorials, modeled here on the Gephi Data Laboratory import.
+
+
+    **Mental Model**: "Two lists that point at each other." The node list names the things; the edge list says which
+    things are connected by repeating their ids. If the ids do not match exactly, the edge points at nothing.
+
+
+    **Task Phases** (no source gives step timings):
+
+    1. **Build two sheets** - Node table with at least Id and Label; edge table with at least Source and Target, which
+    refer to node ids; optional Type, Weight and time columns. Tutorials recommend unique numeric ids with short labels
+
+    2. **Save as CSV** - Excel defaults to .xlsx and a CSV keeps only the active worksheet; quote labels that contain
+    commas
+
+    3. **Import the node file** - Choose separator and character set; import as a nodes table
+
+    4. **Fix column types** - Set types before finishing; in Gephi an existing column's type cannot be changed later
+    and cells that cannot be parsed become null
+
+    5. **Read the node import report** - Check the node count against the sheet's row count; append to the existing
+    workspace
+
+    6. **Import the edge file** - Source and Target are mandatory; ids are assigned automatically when no edge id column
+    exists; edge type defaults to Directed
+
+    7. **Set graph type and merge strategy** - Choose Undirected when ties are mutual; choose how duplicate edges merge
+    (sum, average, max, min, first, last, or keep separate); uncheck Create missing nodes when nodes are already loaded,
+    check it when importing an edge list alone
+
+    8. **Read the second message** - Gephi reports mutual edges removed on conversion to undirected; the tutorial says to
+    ignore it only when the count is 0
+
+    9. **Verify in the data tables** - Spot-check rows, then run a layout
+
+
+    **Decision Points**:
+
+    - Directed or undirected for the relationship in the sheet (the default is Directed)?
+
+    - What should repeated Source-Target rows mean: one edge with summed weight, or separate edges?
+
+    - Create missing nodes, or treat unmatched edge endpoints as errors?
+
+    - Append to the current workspace or start a new one?
+
+
+    **Information Needs**:
+
+    - Node count and edge count read, next to the row counts of each file
+
+    - List of edge endpoints that matched no node id, before the choice to create or drop them
+
+    - Count of duplicate edges merged and reciprocal pairs collapsed, with the rule used
+
+    - Column types inferred, with unparseable cells counted
+
+
+    **Pain Points**:
+
+    - .xlsx rejected or only the first worksheet read
+
+    - A comma inside a label splits the row
+
+    - Edges do not attach because edge-sheet names differ from node ids, and the tool does not list which
+
+    - Duplicate nodes because Create missing nodes stayed checked while nodes were already loaded
+
+    - Reciprocal edges seem to vanish because the graph was loaded as directed and then shown as undirected, or the
+    reverse (Gephi GitHub issue 2216)
+
+    - The first view is unreadable until a layout runs
+
+
+    **Data Flow**:
+
+    - Input: Node CSV (Id, Label, attributes) and edge CSV (Source, Target, optional Type, Weight, time)
+
+    - Transformations: Type inference, endpoint matching, direction setting, duplicate-edge merge
+
+    - Output: Loaded graph with node and edge tables, an import report of counts and merges
+success_criteria:
+    - metric: Endpoint matching transparency
+      target: User can name every edge endpoint that matched no node and decide what happens to it
+    - metric: Count check
+      target: Node and edge counts shown against file row counts before the user confirms
+    - metric: Direction and merge awareness
+      target: The direction default and merge rule are visible choices, not silent defaults
+sources:
+    - title: University of Toronto Map and Data Library - Import this data into Gephi
+      url: https://mdlutoronto.github.io/gephi-visualize-network-dataset/3-c-import-this-data-into-gephi/
+      summary: Step-by-step two-table import; 19 nodes and 31 edges; Undirected because ties are mutual; ignore the mutual-edge message only when 0
+    - title: Gephi User Manual - CSV format
+      url: http://docs.gephi.org/desktop/User_Manual/Import/CSV_Format/
+      summary: Source and Target mandatory, automatic ids, Directed default, unparsed cells become null, types fixed at import
+    - title: seinecle - Importing CSV data in Gephi
+      url: https://seinecle.github.io/gephi-tutorials/generated-html/importing-csv-data-in-gephi-en.html
+      summary: Node table needs Id and Label; quote commas; create missing nodes for edge-only files
+    - title: Bowdoin - Excel data and Gephi Data Laboratory
+      url: https://research.bowdoin.edu/digital-computational-studies/digital-computational-studies/excel-data-and-gephi-data-laboratory
+      summary: Source and Target refer to node Ids; numeric ids recommended; CSV keeps one worksheet
+    - title: Martin Grandjean - Introduction to network visualization with Gephi
+      url: https://www.martingrandjean.ch/introduction-to-network-visualization-gephi/
+      summary: Uncheck Create missing nodes when nodes are already loaded
+    - title: Gephi API - EdgeMergeStrategy
+      url: https://gephi.org/gephi/0.9.2/apidocs/org/gephi/io/importer/api/EdgeMergeStrategy.html
+      summary: SUM, AVG, MAX, MIN, FIRST, LAST and NO_MERGE strategies for duplicate edges
+    - title: Gephi GitHub issue 2216
+      url: https://github.com/gephi/gephi/issues/2216
+      summary: Reciprocal edges appearing to vanish traced to directed versus undirected confusion
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

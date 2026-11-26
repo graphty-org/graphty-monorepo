@@ -1,0 +1,56 @@
+id: entity-resolution-cluster-reviewer
+name: Entity Resolution Cluster Reviewer
+role: Data Scientist / Record Linkage and Master Data, Splink on Python or Spark
+quote: One giant cluster means a weak bridge fused two people. A sparse cluster means I'm missing links. I need to find both among a million clusters.
+bio: >-
+    Sam is a data scientist who links records of the same person or company in code with libraries such as Splink, in a
+    notebook or on Spark. A probabilistic model scores pairs of records with a match weight and a match probability;
+    clustering pairs above a threshold by connected components turns them into one small graph per real-world entity.
+    The output is a collection of thousands to millions of small graphs, and the work is choosing a threshold and
+    blocking rules that neither over-merge (one giant cluster joined by a weak bridge) nor under-merge (a sparse cluster
+    missing links). Splink's cluster studio dashboard and its graph metrics -- cluster size, density, centralisation,
+    node degree, and `is_bridge` per edge -- tell Sam which clusters to open. Review is one cluster at a time, records as
+    nodes and pairs as edges labeled with match probability, with the record fields side by side.
+characteristics:
+    expertise: advanced
+    time_pressure: medium
+    graph_literacy: intermediate
+    domain_knowledge: advanced
+motivations:
+    - Pick a match threshold and blocking rules that neither fuse different people nor split one person
+    - Find the clusters that need clerical review without opening all of them
+    - Explain to stakeholders why two records were or were not linked
+    - Re-cluster and confirm a change improved quality
+behaviors:
+    - Predicts pairs with linker.inference.predict and clusters them with cluster_pairwise_predictions_at_threshold (often at 0.5)
+    - Computes node, edge and cluster metrics (degree, centrality, is_bridge, size, density, centralisation)
+    - Ranks clusters by size (over-merging), lowest density for their size (missed links) and presence of bridges
+    - Samples clusters for review by size or lowest density (sampling_method="lowest_density_clusters_by_size")
+    - Opens one cluster, reads record fields side by side, and looks for a bridge edge joining two dense halves
+    - Adjusts the threshold or blocking rules, or sends a cluster to clerical review, then re-clusters
+frustrations:
+    - No single metric is definitive; each needs a look at the cluster
+    - Review is one cluster at a time across a huge collection
+    - General graph tools load one graph, not a collection of small graphs with per-cluster metrics
+    - Match probabilities and record fields are hard to see together on a drawing
+context:
+    frequency: weekly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W275
+sources:
+    - title: Splink tutorial - Visualising predictions
+      url: https://moj-analytical-services.github.io/splink/demos/tutorials/06_Visualising_predictions.html
+      summary: cluster_pairwise_predictions_at_threshold turns pairwise predictions into clusters by connected components
+    - title: Splink cluster studio dashboard
+      url: https://moj-analytical-services.github.io/splink/charts/cluster_studio_dashboard.html
+      summary: HTML dashboard sampling clusters by size for review
+    - title: Splink topic guide - graph metrics
+      url: https://moj-analytical-services.github.io/splink/topic_guides/evaluation/clusters/graph_metrics.html
+      summary: Density, centralisation and is_bridge; low density can mean missed links, bridges can signal false positives; no single metric is definitive
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

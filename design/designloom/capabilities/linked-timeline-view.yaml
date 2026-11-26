@@ -1,0 +1,18 @@
+id: linked-timeline-view
+name: Linked Timeline View
+category: visualization
+description: A timeline with one theme line per entity, event frames on or between lines and a time bar, whose selection
+    and filtering stay in sync with the graph view and a map view.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W100
+    - W102
+    - W106
+    - W368
+    - W99
+implemented_by_components: []
+requirements:
+    - People-fact-issue-document multipartite graph linked to a timeline and filtered by issue or person.
+sources: []

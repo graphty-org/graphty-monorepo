@@ -1,0 +1,132 @@
+id: W247
+name: WGCNA and Other Matrix-Derived Networks
+category: analysis
+validated: false
+personas:
+    - genomics-cytoscape-user
+    - network-biology-core-bioinformatician
+requires_capabilities:
+    - data-import
+    - filtering
+    - community-profiling
+    - centrality-degree
+    - computed-attributes
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - metric-histograms
+    - layout-force-directed
+    - export-image
+    - data-export
+    - matrix-import
+suggested_components:
+    - data-import-dialog
+    - filter-panel
+    - slider
+    - histogram
+    - ranked-node-table
+    - visual-encoding-panel
+    - legend-panel
+    - graph-canvas
+    - image-export-dialog
+starting_state:
+    data_type: dense symmetric weighted matrix (topological overlap or correlation) with a module membership column
+    node_count: 30-500 per exported module (3,600 to 50,000 genes before restriction)
+    edge_density: complete before thresholding
+    user_expertise: intermediate to advanced
+goal: >-
+    **Intent**: Build a weighted gene co-expression network from a samples by genes matrix, find modules that track a
+    trait, find their hub genes, and export one module as a readable network. The same shape covers partial correlation
+    (MetaboAnalyst DSPC), GRNBoost2 adjacencies and microbial co-occurrence networks.
+
+
+    **Mental Model**: "Everything is connected a little; show me the strong part." The network starts complete and
+    weighted; the analyst's main control is a threshold or a top-k cut, and a cut that looks readable may remove the
+    hubs.
+
+
+    **Task Phases**:
+
+    1. **Input** (varies) - Samples by genes matrix, usually cut to the most variable genes (3,600 of over 23,000 probe
+    sets in the original paper); blockwise for 50,000 genes
+
+    2. **Soft-threshold power** (10 min) - pickSoftThreshold; the lowest power where scale-free fit levels off near R^2
+    0.9 (6 in the tutorial)
+
+    3. **Adjacency and TOM** (10-60 min) - Absolute correlation raised to the power; topological overlap as similarity
+
+    4. **Modules** (10 min) - blockwiseModules with minModuleSize 30 and mergeCutHeight 0.25; modules named by colors
+    (18 in the paper)
+
+    5. **Relate to traits** (15 min) - Module eigengene against traits; module membership (kME); hubs have high kME and
+    intramodular connectivity
+
+    6. **Export one module** (15 min) - TOM restricted to the top 30 hubs, exportNetworkToCytoscape with a threshold
+    (0.02); the tutorial redraws the same 30 genes at 0.10, 0.08, 0.06 and 0.03 and the user picks the readable one by
+    eye
+
+
+    **Decision Points**:
+
+    - Which power, minimum module size and merge height?
+
+    - Which modules to export, and how many genes from each?
+
+    - Weight threshold or top-k per node, and does the chosen cut keep the hubs?
+
+    - Signed or unsigned network?
+
+
+    **Information Needs**:
+
+    - Live edge and component counts as the threshold moves
+
+    - Weight histogram to place the cut
+
+    - Whether known hubs (high kME) are still connected after the cut
+
+    - Module color as a node attribute with its legend
+
+
+    **Pain Points**:
+
+    - Exports are dense; thresholds are chosen by eye
+
+    - Thresholding for readability can drop the hubs
+
+    - General tools expect an edge list, not a matrix
+
+    - Each threshold is a separate export and import
+
+
+    **Data Flow**:
+
+    - Input: Expression matrix; trait table; or an exported TOM or correlation matrix with module colors
+
+    - Transformations: Soft thresholding, TOM, module detection, trait correlation, threshold or top-k sparsification,
+    hub ranking within module
+
+    - Output: Module network with hubs highlighted, edge list at a recorded threshold, hub table
+success_criteria:
+    - metric: Threshold feedback
+      target: Edge and component counts update as the user moves the cut
+    - metric: Hubs kept
+      target: User can see whether the top kME genes stay connected at the chosen cut
+    - metric: Threshold recorded
+      target: Export states the threshold or k used
+sources:
+    - title: Langfelder and Horvath 2008 - WGCNA
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC2631488/
+      summary: Method, 3,600 genes, blockwise construction
+    - title: WGCNA FemaleLiver tutorial - network construction
+      url: https://edo98811.github.io/WGCNA_official_documentation/FemaleLiver-02-networkConstr-auto.pdf
+      summary: pickSoftThreshold, power 6, blockwiseModules parameters
+    - title: WGCNA FemaleLiver tutorial - export
+      url: https://edo98811.github.io/WGCNA_official_documentation/FemaleLiver-06-ExportNetwork.pdf
+      summary: exportNetworkToCytoscape, the same module drawn at four thresholds
+    - title: Biostars - WGCNA threshold removes hubs
+      url: https://www.biostars.org/p/9514423/
+      summary: A readable cut removed the hub genes
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

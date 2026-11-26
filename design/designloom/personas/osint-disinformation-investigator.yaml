@@ -1,0 +1,77 @@
+id: osint-disinformation-investigator
+name: OSINT Disinformation Investigator
+role: Influence-Operation Analyst at a Verification Unit or Digital Forensics Lab
+quote: Fifty-six seed channels became nearly four thousand. Now I have to show readers which ones act together without accusing anyone who just shared a post.
+bio: >-
+    Lukas Brenner is an analyst in a broadcaster's verification unit who previously worked at a DFRLab-style research
+    lab. He investigates suspected influence operations for publication. He has a journalism and international-relations
+    background, is strong at account forensics, archives and translation, writes light Python, and learned Gephi from
+    tutorials. Since platform research APIs largely closed in 2023 and 2024 (Twitter's academic tier replaced by a paid
+    tier; CrowdTangle shut on August 14, 2024), his data arrives as hand-collected edge lists from 4CAT, Zeeschuimer
+    browser capture and Telepathy for Telegram, not from a platform connector. His networks are retweet, mention,
+    reply, co-hashtag and forward graphs of thousands to tens of thousands of nodes; DFRLab's pro-Kremlin Telegram
+    graph had 3,871 channels and 57,646 forwards grown from 56 seed channels. He lays the graph out with ForceAtlas2,
+    clusters it by modularity, names each cluster from its channel names and languages, checks coordination with
+    co-sharing time windows, and corroborates everything outside the graph (creation dates, name histories, archived
+    captures) before he publishes an annotated cluster map with unconfirmed claims flagged.
+characteristics:
+    expertise: intermediate
+    time_pressure: high
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Show that a set of accounts or channels is connected and acts together
+    - Separate originators from amplifiers
+    - Tie a network to an operator through shared creation dates, naming patterns and administrators
+    - Publish a cluster map a general reader can follow, with every unconfirmed claim flagged
+    - Avoid accusing authentic users of coordination
+behaviors:
+    - Snowballs from a seed list of suspect accounts or channels along forwards, reposts or mentions
+    - Imports directed, weighted, timestamped edge lists (Source, Target, Type, Weight, Timestamp) from collection tools
+    - Deletes the query hashtags and seed nodes that connect to everything, then applies frequency and degree range filters
+    - Tunes ForceAtlas2 (scaling, gravity, LinLog, prevent overlap) and colors by modularity class
+    - Names clusters from top hashtags, channel-name suffixes and post language, and reports where labels do not match clusters
+    - Slices the network by time and runs co-sharing checks over a seconds-wide time window
+    - Converts a Gephi file to a web viewer to share an interactive map with editors
+frustrations:
+    - Collapsing platform data access and unmaintained collection tools
+    - Hairball figures, low-quality images and overlapping labels
+    - Seed hashtags that dominate the picture
+    - No ground truth for coordination
+    - Sharing an interactive map requires converting GEXF to a separate web viewer
+context:
+    frequency: weekly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W88
+    - W92
+    - W93
+    - W94
+sources:
+    - title: DFRLab - Networks of pro-Kremlin Telegram channels spread disinformation at a global scale (2023)
+      url: https://dfrlab.org/2023/03/01/networks-of-pro-kremlin-telegram-channels-spread-disinformation-at-a-global-scale/
+      summary: 56 seed channels, 3,871 channels, 57,646 forwards, nine modularity clusters, labels checked against clusters
+    - title: Bellingcat Online Investigations Toolkit - Telepathy
+      url: https://bellingcat.gitbook.io/toolkit/more/all-tools/telepathy
+      summary: Telegram collection toolkit producing forward edge lists; described as unmaintained
+    - title: Public Data Lab - Co-hashtag network recipe
+      url: https://recipes.publicdatalab.org/co-hashtag_network.html
+      summary: Delete query hashtags, range filters, ForceAtlas2 settings, modularity coloring, accepting ambiguity
+    - title: CooRTweet vignette (CRAN)
+      url: https://cran.r-project.org/web/packages/CooRTweet/vignettes/vignette.html
+      summary: Co-sharing coordination detection from four columns with a time window and an edge-weight threshold
+    - title: First Draft - How to use network analysis to explore social media and disinformation
+      url: https://firstdraftnews.org/latest/how-to-use-network-analysis-to-explore-social-media-and-disinformation/
+      summary: Network pictures are great tools for exploration but by no means conclusive charts
+    - title: TechCrunch - Meta shut down CrowdTangle (2024)
+      url: https://techcrunch.com/2024/08/15/meta-shut-down-crowdtangle-a-tool-for-tracking-disinformation-heres-how-its-replacement-compares
+      summary: CrowdTangle shut August 14, 2024; Meta Content Library restricts downloads and outside analysis
+    - title: TechCrunch - Twitter's restrictive API may leave researchers out in the cold (2023)
+      url: https://techcrunch.com/2023/02/14/twitters-restrictive-api-may-leave-researchers-out-in-the-cold/
+      summary: Academic Research tier replaced by a paid basic tier
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

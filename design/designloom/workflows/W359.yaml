@@ -1,0 +1,123 @@
+id: W359
+name: Root Cause Analysis of Slow or Deviating Cases
+category: analysis
+validated: false
+personas:
+    - process-mining-analyst
+    - process-mining-consultant
+    - process-mining-auditor
+requires_capabilities:
+    - node-selection
+    - filtering
+    - selection-statistics
+    - statistics-panel
+    - metric-histograms
+    - details-on-demand
+    - comparison-view
+    - report-generation
+    - process-map-derivation
+    - case-attribute-drivers
+suggested_components:
+    - graph-canvas
+    - filter-panel
+    - filter-chip
+    - statistics-panel
+    - ranked-node-table
+    - histogram
+    - data-table-panel
+    - node-details-panel
+    - report-generator-dialog
+starting_state:
+    data_type: >-
+        Event log with case attributes joined (supplier, plant, user, material, channel, country), after a bottleneck or
+        deviation has been found on the map
+    node_count: 10-60 activities; attribute fields with 2 to several thousand distinct values
+    edge_density: sparse process map
+    user_expertise: intermediate+
+goal: >-
+    **Intent**: After spotting a slow edge, a rework loop or a deviation, find which case attributes explain it: which
+    supplier, plant, user, material or channel over-represents in the cases behind it. Every major commercial tool
+    ships this as the step after a bottleneck or deviation is found, and the answer decides who is told to change.
+
+
+    **Mental Model**: "These cases are different from the rest; what do they have in common?" The selection is made on
+    the graph; the answer is a ranked table or tree beside it.
+
+
+    **Task Phases**:
+
+    1. **Define the reference set** - All cases, or a period (UiPath Period filter)
+
+    2. **Define the selected set on the map** - Cases over a throughput threshold, cases through a rework edge or a
+    deviation
+
+    3. **Pick fields** - One field (supplier, plant, user) or all case attributes
+
+    4. **Read the influence** - Per value: share in the selected set against the baseline (a supplier at 60 percent
+    against a 20 percent baseline has +40 percent), counts in both sets, a significance flag weighing influence against
+    case count; layers combine fields
+
+    5. **Use a decision tree when attributes interact** - Power Automate builds a tree over all case attributes for a
+    target metric (variance reduction, Gini impurity for a categorical target): supplier city Graz looks 15 hours slow
+    overall but is 36 hours slow only for aluminium and faster than average for other materials
+
+    6. **Report** - Driver ranking with case counts, linked back to the map selection
+
+
+    **Decision Points**:
+
+    - What is the reference: all cases, a period, or the cases not selected?
+
+    - One field at a time or a tree over all fields?
+
+    - Is an influential value backed by enough cases to act on?
+
+
+    **Information Needs**:
+
+    - Case counts in the selected and reference sets
+
+    - Per attribute value: counts in each set, share, deviation from baseline, significance
+
+    - Tree nodes with case share and effect on the target metric
+
+    - The map view of only the cases with a chosen driver value
+
+
+    **Pain Points**:
+
+    - One-attribute influence views mislead when attributes interact (the Graz example)
+
+    - Case attributes must have been joined during log building; missing ones cannot be analyzed
+
+    - Results live in a separate screen from the map, so the analyst loses the selection
+
+
+    **Data Flow**:
+
+    - Input: Event log with case attributes, a selection made on the map, a reference set
+
+    - Transformations: Attribute-value shares in both sets, influence and significance, optional decision tree on a
+    target metric
+
+    - Output: Ranked drivers or a tree, linked back to a filtered map
+success_criteria:
+    - metric: Selection to drivers
+      target: Selecting an edge, node, variant or deviation produces a ranked attribute table in one step
+    - metric: Interaction awareness
+      target: User can see when a driver holds only within another attribute's value
+    - metric: Actionability
+      target: Each driver shows case counts so small-sample effects are recognizable
+sources:
+    - title: UiPath Process Mining - root cause analysis
+      url: https://docs.uipath.com/process-mining/automation-suite/2.2510/user-guide/root-cause-analysis
+      summary: Period filter as reference, selection as filter, field tree with influence, counts and significant influencers
+    - title: Microsoft Power Automate Process Mining - root cause analysis overview
+      url: https://learn.microsoft.com/en-us/power-automate/minit/root-cause-analysis-overview
+      summary: Decision tree over case attributes for a target metric; Graz and aluminium example of misleading one-attribute influence
+    - title: Celonis docs - KPI driver analysis
+      url: https://docs.celonis.com/en/kpi-driver-analysis.html
+      summary: Ranks attribute values by impact on a KPI target as the last exploration step (via search summary, sign-in)
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

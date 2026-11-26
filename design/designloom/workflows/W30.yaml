@@ -1,0 +1,172 @@
+id: W30
+name: Statistical Inference on Networks -- QAP, ERGM and SAOM
+category: analysis
+validated: false
+personas:
+    - sociometric-network-researcher
+    - network-methods-grad-student
+    - archival-affiliation-researcher
+requires_capabilities:
+    - computed-attributes
+    - basic-statistics
+    - statistics-panel
+    - degree-analysis
+    - metric-histograms
+    - visual-encoding-nodes
+    - legend-display
+    - temporal-navigation
+    - comparison-view
+    - analysis-history
+    - data-export
+    - missing-tie-states
+    - network-collection-small-multiples
+    - homophily-mixing
+    - permutation-tests
+    - stats-package-handoff
+suggested_components:
+    - computed-attributes-panel
+    - statistics-panel
+    - histogram
+    - heatmap-panel
+    - visual-encoding-panel
+    - legend-panel
+    - temporal-controls
+    - comparison-view
+    - analysis-history-panel
+    - graph-canvas
+    - data-export-dialog
+starting_state:
+    data_type: cleaned whole network (one or several relations, possibly several waves) with node attributes
+    node_count: 20-1500
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Test hypotheses about ties with permutation tests and statistical network models: whether two
+    relations or a dyadic attribute predict ties (QAP, MRQAP), which local processes and attribute effects generate the
+    network (ERGM), and whether friends become alike or alike people become friends across waves (SAOM in RSiena). The
+    models run in R; the visual tool prepares inputs, explores before modeling and displays results.
+
+
+    **Mental Model**: "A regression table where the observations are dyads." Estimates come with permutation p-values or
+    standard errors, and the model is only trusted if simulated networks look like the observed one.
+
+
+    **Task Phases**:
+
+    **QAP and MRQAP:**
+
+    1. **Build dyadic predictors** (estimate: 15 min) - Same gender, absolute grade difference (UCINET Data >
+    Attribute; ideanet qap_setup()).
+
+    2. **QAP correlation** (estimate: 5 min) - qaptest(nets, gcor, g1=1, g2=2), 1,000 permutations by default.
+
+    3. **MRQAP** (estimate: 10 min) - UCINET Tools > Testing Hypotheses > Dyadic (QAP) > MR-QAP > Double-Dekker
+    Semi-Partialling, or netlm()/netlogit() with nullhyp = "qap"; DSP is recommended for collinear predictors.
+
+    4. **Read results** (estimate: 10 min) - Estimates with permutation p-values and a null-distribution histogram; CUG
+    tests for "is this density unusual for a random graph of this size".
+
+    **ERGM:**
+
+    1. **Explore** (estimate: 15 min) - mixingmatrix() and summary(net ~ edges + triangle) to catch empty cells.
+
+    2. **Fit** (estimate: minutes to hours of compute) - ergm(net ~ edges + nodefactor("Grade") + nodematch("Grade",
+    diff=T) + gwesp(...)); dyad-dependent terms switch to MCMC; empty mixing cells give -Inf.
+
+    3. **Diagnose** (estimate: 10 min) - mcmc.diagnostics() trace plots.
+
+    4. **Goodness of fit** (estimate: 10 min) - plot(gof(fit)): observed degree, shared partner and geodesic distributions
+    against simulations.
+
+    **SAOM (RSiena):**
+
+    1. **Stack waves** (estimate: 20 min) - sienaDependent() for the network, coCovar() and varCovar() for covariates,
+    sienaDependent(drink, type = "behavior") for behavior.
+
+    2. **Describe change** (estimate: 10 min) - sienaDataCreate(), print01Report() for wave-to-wave change.
+
+    3. **Specify effects** (estimate: 20 min) - getEffects(), includeEffects(myeff, transTrip, cycle3), avAlt for
+    influence.
+
+    4. **Estimate until converged** (estimate: hours, repeated) - siena07(), re-run with prevAns until the overall
+    maximum convergence ratio is below 0.25.
+
+    5. **Test and check fit** (estimate: 20 min) - Tabulate, sienaGOF.
+
+
+    **Decision Points**:
+
+    - QAP or MRQAP, and which permutation method for collinear predictors?
+
+    - Which ERGM terms; is the model degenerate?
+
+    - Which SAOM selection and influence effects; has it converged?
+
+    - Is goodness of fit acceptable for the paper?
+
+
+    **Information Needs**:
+
+    - Mixing matrix per attribute, with empty cells flagged
+
+    - Dyadic predictor matrices built from node attributes
+
+    - Wave-to-wave change counts (ties created, dissolved, kept)
+
+    - Null-distribution histograms and GOF plots alongside the sociogram
+
+    - Sociogram colored by the homophily attribute; one sociogram per wave in a fixed layout colored by behavior
+
+
+    **Pain Points**:
+
+    - Valued data read as binary unless the user says otherwise
+
+    - Long SIENA re-runs until convergence
+
+    - Empty mixing cells that make ERGM estimates infinite, found only after fitting
+
+    - Moving data between the visual tool and R in different formats, and losing missing-dyad marks on the way
+
+
+    **Data Flow**:
+
+    - Input: Cleaned networks and attributes from W26 and W27, waves for SAOM
+
+    - Transformations: Dyadic predictor construction, mixing matrices, permutation tests; model fitting in R
+
+    - Output: Regression-style tables, null-distribution and GOF plots, sociograms per wave, edge lists with NA dyads and
+    attribute tables for R
+success_criteria:
+    - metric: Pre-model exploration
+      target: User sees a mixing matrix with empty cells flagged before fitting
+    - metric: R hand-off integrity
+      target: Exported edge lists keep missing dyads as NA and attributes in matching ID order
+sources:
+    - title: Borgatti, Everett and Johnson, chapter 8 resources
+      url: https://study.sagepub.com/node/95236
+      summary: UCINET MR-QAP Double-Dekker Semi-Partialling menu path
+    - title: R for SNA - hypothesis testing with QAP and CUG
+      url: https://cllghn.github.io/r4sna/hypothesis-testing-qap-and-cug.html
+      summary: qaptest, netlm, netlogit, CUG tests; valued data read as binary unless told
+    - title: ideanet MRQAP vignette
+      url: https://cran.r-project.org/web/packages/ideanet/vignettes/mrqap.html
+      summary: qap_setup dyadic predictor construction
+    - title: Dekker, Krackhardt and Snijders (2007)
+      url: https://www.stats.ox.ac.uk/~snijders/DekkerKrackhardtSnijders.pdf
+      summary: MRQAP with Double Semi-Partialling for collinear predictors
+    - title: ergm package vignette
+      url: https://cran.r-project.org/web/packages/ergm/vignettes/ergm.html
+      summary: Mixing matrices, model terms, MCMC diagnostics, GOF
+    - title: statnet ERGM workshop
+      url: https://statnet.org/workshop-ergm/ergm_tutorial.html
+      summary: ERGM workflow and figures
+    - title: Basic RSiena script
+      url: https://www.stats.ox.ac.uk/~snijders/siena/basic_RSiena.html
+      summary: Waves, behavior variables, effects, convergence below 0.25, sienaGOF
+    - title: RSiena reference manual
+      url: https://cran.case.edu/web/packages/RSiena/refman/RSiena.html
+      summary: Convergence and multi-group functions
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

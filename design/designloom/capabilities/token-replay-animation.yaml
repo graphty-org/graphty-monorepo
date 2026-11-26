@@ -1,0 +1,22 @@
+id: token-replay-animation
+name: Token Replay Animation
+category: analysis
+description: Replay cases as tokens moving over a process map or model, in real time or with synchronized starts, with
+    speed, scrubbing, merged tokens at queues, sampling with the sampled share stated, and video export.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W340
+    - W344
+    - W345
+    - W346
+    - W350
+    - W354
+    - W355
+    - W356
+implemented_by_components: []
+requirements:
+    - Animate cases as tokens moving along a process map or model in real time or with synchronized case starts, with
+      speed control, scrubbing, merged tokens at queues, sampling with the sampled share stated, and video export.
+sources: []

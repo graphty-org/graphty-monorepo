@@ -1,0 +1,15 @@
+id: reified-edge-view
+name: Transaction-as-node view switching
+category: visualization
+description: Render a graph whose transactions are stored as nodes (inputs and outputs,
+    account-performs-transaction-benefits-account) either as nodes or collapsed into edges, and collapse multi-step
+    patterns such as swaps and bridges into one displayed step that expands on demand.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W120
+    - W124
+implemented_by_components: []
+requirements: []
+sources: []

@@ -1,0 +1,196 @@
+id: W38
+name: Community Detection That Survives Review
+category: analysis
+validated: false
+personas:
+    - expert-emma
+    - analyst-alex
+    - network-neuroscience-researcher
+requires_capabilities:
+    - community-detection
+    - community-profiling
+    - component-analysis
+    - comparison-view
+    - algorithm-progress
+    - analysis-history
+    - visual-encoding-nodes
+    - legend-display
+    - metric-histograms
+    - statistics-panel
+    - export-image
+    - data-export
+    - null-model-ensembles
+    - analysis-provenance
+    - seeded-runs
+    - partition-stability
+    - resolution-sweep
+    - consensus-partition
+    - sbm-inference
+suggested_components:
+    - algorithm-panel
+    - algorithm-card
+    - community-panel
+    - cluster-table
+    - range-slider
+    - progress-bar
+    - comparison-view
+    - analysis-history-panel
+    - visual-encoding-panel
+    - legend-panel
+    - graph-canvas
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: one-mode graph, possibly weighted or signed
+    node_count: 100-1000000
+    edge_density: sparse to dense (derived graphs)
+    user_expertise: intermediate+
+goal: >-
+    **Intent**: Find groups in a network and show they are real and stable enough to name in a paper or report --
+    choosing a method that fits the goal, running it many times with recorded seeds, sweeping resolution, building a
+    consensus and testing it against a null.
+
+
+    **Mental Model**: "A partition is an estimate, not a fact." Modularity-style methods describe; stochastic block
+    models infer. Either way, one run of one setting is a sample, and the analyst reports its spread.
+
+
+    **Task Phases**:
+
+    1. **Prepare** (2 min) - Work on the giant component or state how isolates are handled; treat weights as strengths
+    (the opposite of path measures); for signed or correlation networks use a signed null or drop negative weights
+    first
+
+    2. **Pick the method by goal** (1 min) - For "these groups exist in the generating process", a nested
+    degree-corrected stochastic block model fitted by minimum description length; for description or a figure, Leiden
+    (modularity or Constant Potts Model); Louvain only to reproduce older work
+
+    3. **Run many times with recorded seeds** (minutes) - 100 or more runs; do not keep the single highest-Q partition,
+    since many structurally different partitions have almost equal Q
+
+    4. **Sweep resolution** (minutes) - gamma = 1 is not special (one example gives 2, 3 and 4 communities at 0.5, 0.75
+    and 1.0); keep the scales where repeated runs agree most, or several scales
+
+    5. **Consensus** (minutes) - Co-assignment matrix (fraction of runs in which two nodes share a community), subtract
+    a permutation null, recluster until stable; for block models, sample the posterior and report node marginals
+
+    6. **Compare partitions** (2 min) - Normalized mutual information, adjusted Rand or variation of information between
+    runs, resolutions and known metadata
+
+    7. **Test against a null** (minutes) - Observed Q vs Q on degree-preserving randomizations, plus a distance-aware
+    null for spatially embedded networks; or rely on the block model's description length
+
+    8. **Characterize** (10 min) - Sizes, internal density, attribute profiles, within-module degree z-score and
+    participation coefficient; check clusters against outside evidence (bios, metadata, PageRank, density) rather than
+    treating them as final
+
+    9. **Hand off** (5 min) - Partition at the chosen scales, a stability statistic, the null comparison, seeds and
+    software versions, and a figure colored by community with uncertain nodes drawn as uncertain
+
+
+    **Decision Points**:
+
+    - Description (Leiden) or inference (stochastic block model)?
+
+    - Modularity or Constant Potts Model as Leiden's quality function, and what resolution? (CPM at resolution 1 on an
+    unweighted graph returns near-singletons)
+
+    - How many runs, and which scales to report?
+
+    - How are negative weights and isolates handled?
+
+    - Which nodes are uncertain enough to be shown as such or left unassigned?
+
+
+    **Information Needs**:
+
+    - Method, quality function, resolution, weight column and seed for every run
+
+    - Number of communities and Q across runs and across the resolution sweep
+
+    - Pairwise NMI, adjusted Rand or variation of information between partitions
+
+    - Per-node co-assignment strength (consensus confidence)
+
+    - Observed Q vs null mean and sd
+
+    - Community profiles and hub roles (within-module z, participation coefficient)
+
+
+    **Pain Points**:
+
+    - Louvain can return badly connected and even internally disconnected communities (up to 16% disconnected in
+    Traag et al.'s experiments)
+
+    - Gephi's Modularity is Louvain run once, with randomization off by default, and tutorials give no rule for the
+    resolution beyond "between 0.1 and 2"
+
+    - Results change between runs and with the order of input rows, with no stability tooling
+
+    - Modularity has a resolution limit and finds communities in fully random graphs
+
+    - New Leiden defaults (python-igraph community_leiden, NetworkX leiden_communities) use CPM at resolution 1
+
+    - No GUI tool tutorial found teaches partition comparison (NMI, adjusted Rand)
+
+
+    **Data Flow**:
+
+    - Input: Graph (giant component), weight column with its meaning, optional metadata labels
+
+    - Transformations: Seeded multi-run community detection, resolution sweep, consensus, partition comparison, null
+    comparison, profiling
+
+    - Output: Partition(s) with per-node confidence, stability and null statistics, community profiles, figure and
+    provenance record
+success_criteria:
+    - metric: Stability reported
+      target: Every reported partition carries a run-to-run agreement statistic and the number of runs
+    - metric: Resolution choice justified
+      target: User can show the sweep and why the chosen scale(s) were kept
+    - metric: Null comparison
+      target: Observed modularity compared with a degree-preserving null, or a block model fitted
+    - metric: Uncertainty visible
+      target: Nodes with weak co-assignment are visibly marked in the figure
+    - metric: Reproducibility
+      target: Seeds, method, quality function, resolution and versions exported with the partition
+sources:
+    - title: From Louvain to Leiden - guaranteeing well-connected communities (Traag, Waltman and van Eck 2019)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6435756/
+      summary: Louvain up to 25% badly connected and 16% disconnected communities; Leiden guarantees connectivity
+    - title: Resolution limit in community detection (Fortunato and Barthelemy 2007)
+      url: https://arxiv.org/abs/physics/0607100
+      summary: Modules with about sqrt(2L) internal links or fewer may be merged
+    - title: Performance of modularity maximization in practical contexts (Good, de Montjoye and Clauset 2010)
+      url: https://arxiv.org/abs/0910.0165
+      summary: Exponentially many near-optimal partitions; interpret cautiously
+    - title: Consensus clustering in complex networks (Lancichinetti and Fortunato 2012)
+      url: https://www.nature.com/articles/srep00336
+      summary: Co-assignment consensus over many runs
+    - title: Community detection in network neuroscience (Betzel 2020)
+      url: https://ar5iv.labs.arxiv.org/html/2011.06723
+      summary: 100 Louvain runs giving distinct solutions, resolution sweep example, consensus with permutation null, spatial and signed nulls
+    - title: Descriptive vs inferential community detection (Peixoto 2023)
+      url: https://arxiv.org/abs/2112.00183v7
+      summary: Modularity-style methods are descriptive and find communities in random graphs; SBM by minimum description length is inferential
+    - title: Gephi Modularity source
+      url: https://github.com/gephi/gephi/blob/master/modules/StatisticsPlugin/src/main/java/org/gephi/statistics/plugin/Modularity.java
+      summary: Louvain with isRandomized=false, useWeight=true, resolution=1.0 defaults
+    - title: python-igraph Graph API (community_leiden)
+      url: https://python.igraph.org/en/stable/api/igraph.Graph.html
+      summary: Defaults objective_function CPM, resolution 1.0
+    - title: NetworkX 3.7 leiden source
+      url: https://github.com/networkx/networkx/blob/networkx-3.7/networkx/algorithms/community/leiden.py
+      summary: Native Leiden defaults to CPM
+    - title: Gephi bug 727701
+      url: https://bugs.launchpad.net/gephi/+bug/727701
+      summary: Community counts vary between runs and with input order
+    - title: Laplacian dynamics and multiscale modular structure (Lambiotte et al.)
+      url: https://arxiv.org/pdf/1004.4268
+      summary: Selecting resolutions by complementary robustness measures
+    - title: Functional cartography of complex metabolic networks (Guimera and Amaral 2005)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC2175124
+      summary: Within-module degree z-score and participation coefficient
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

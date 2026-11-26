@@ -1,0 +1,127 @@
+id: W419
+name: Investigator in 3D on a Desktop (GraphXR)
+category: analysis
+validated: false
+personas:
+    - desktop-3d-graph-investigator
+requires_capabilities:
+    - data-import
+    - data-preview
+    - node-merging
+    - computed-attributes
+    - layout-force-directed
+    - graph-rendering
+    - visual-encoding-nodes
+    - temporal-navigation
+    - filtering
+    - details-on-demand
+    - neighborhood-expansion
+    - export-image
+    - fixed-node-positions
+    - render-mode-switching
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - layout-panel
+    - graph-canvas
+    - visual-encoding-panel
+    - temporal-controls
+    - filter-panel
+    - data-table-panel
+    - node-details-panel
+    - image-export-dialog
+starting_state:
+    data_type: entity and relation exports (CSV) or a Neo4j database; people, accounts, phones, addresses, posts
+    node_count: hundreds to a few thousand (no source reports a typical size)
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Find a fraud ring or a network of accounts in investigation data, place it on a map and a timeline, and
+    present it, working in a browser-based 3D graph tool on an ordinary monitor. Evidence is vendor-published or from a
+    single user's tutorial.
+
+
+    **Mental Model**: "Visualization first." See the shape, then filter by where and when, then tell the story.
+
+
+    **Task Phases**:
+
+    1. **Connect data** (5 min) - Open the tool in a browser or as a Neo4j Desktop graph app and connect to Neo4j, or
+    drag a CSV into a workspace where each row becomes a node
+
+    2. **Shape the graph** (10 min) - Extract new nodes from an existing label's properties (only for the selection when
+    one exists); set property tags and colors per type
+
+    3. **Lay out in 3D** (5 min) - Run the force layout; switch to a parametric view that maps a property to an axis,
+    distribute nodes along an axis by binning a property, or sort them on a line
+
+    4. **Place on a map and a timeline** (15 min) - Geospatial views and timeline filtering, named as the main value for
+    desktop users
+
+    5. **Inspect** (15 min) - An enhanced property table with aggregations of neighbor values; images on nodes
+
+    6. **Present** (varies) - Data-driven presentation to a supervisor or prosecutor; export and case-file steps are
+    not documented
+
+
+    **Decision Points**:
+
+    - Which columns become their own nodes (phones, addresses) to reveal shared identifiers?
+
+    - Force layout, or a property on an axis?
+
+    - Which time window and place narrow the ring?
+
+
+    **Information Needs**:
+
+    - Entity types and counts after extraction
+
+    - Neighbor aggregations (for example total amount sent by a ring)
+
+    - Node images and full properties on demand
+
+
+    **Pain Points**:
+
+    - Schema-loading problems in the interface reported by a user
+
+    - Undocumented export and case-file steps
+
+    - 3D is hard to print and some colleagues find it disorienting
+
+
+    **Data Flow**:
+
+    - Input: CSV exports or a Neo4j database, sometimes fed by OCR and entity extraction
+
+    - Transformations: Node extraction from properties, typing and coloring, force or parametric layout, geospatial and
+    timeline filtering, neighbor aggregation
+
+    - Output: Presentation views and images
+success_criteria:
+    - metric: Time from CSV to a typed graph
+      target: Under 15 minutes without writing code
+    - metric: Ring identification
+      target: User can show the ring's shared identifiers, places and dates in one view
+sources:
+    - title: Visualizing Breast Cancer - a user's Neo4j plus GraphXR workflow
+      url: https://www.github.com/Bleunomics/Visualizing-Breast-Cancer
+      summary: Connecting Neo4j, tags and colors, enhanced table, schema-loading problems
+    - title: GraphXR API reference
+      url: https://cdn.jsdelivr.net/npm/@kineviz/graphxr-api@0.0.256/readme.md
+      summary: parametric, distributionBy and line layouts
+    - title: GraphXR graph app for Neo4j Desktop
+      url: https://neo4j.com/blog/graph-visualization/graphxr-graph-app-neo4j-desktop/
+      summary: Desktop users value link analysis, geospatial, timeline filtering and images
+    - title: Data injection to Neo4j with GraphXR (read through a search summary)
+      url: https://www.slideshare.net/SonyGreen1/data-injection-to-neo4j-with-graphxr-quick-easy-and-codefree
+      summary: CSV drag-in and the Extract tab
+    - title: Kineviz - Visualization-first analytics
+      url: https://www.slideshare.net/Kineviz/visualizationfirst-analytics-252312625
+      summary: Visualization-first analysis ending in data-driven presentations
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

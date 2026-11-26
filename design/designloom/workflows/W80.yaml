@@ -1,0 +1,126 @@
+id: W80
+name: Root Cause After a Data Break
+category: analysis
+validated: false
+personas:
+    - analytics-engineer-lineage
+requires_capabilities:
+    - search
+    - neighborhood-expansion
+    - path-highlighting
+    - shortest-path
+    - filtering
+    - layout-hierarchical
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - details-on-demand
+    - tooltip-display
+    - temporal-navigation
+    - directed-closure
+    - focus-caller-callee-view
+    - dependency-format-import
+suggested_components:
+    - search-input
+    - graph-canvas
+    - filter-panel
+    - path-finder-dialog
+    - node-details-panel
+    - node-tooltip
+    - legend-panel
+    - temporal-controls
+starting_state:
+    data_type: lineage graph of jobs and datasets (bipartite), tables nested over columns, with test status and run state
+    node_count: 500-5,000 tables plus columns
+    edge_density: sparse DAG with fan-in at joins
+    user_expertise: expert
+goal: >-
+    **Intent**: After a data test fails or a stakeholder reports a wrong number, walk upstream from the bad column to
+    the model, job or source that produced the bad value, fix it, and rebuild everything downstream.
+
+
+    **Mental Model**: "Follow the red upstream." A failing test on a column may stem from an untested column upstream;
+    the transformation on each edge and the state of each run are the evidence.
+
+
+    **Task Phases** (no source gives per-step durations):
+
+    1. **Symptom** - Start at the column with the failing test or wrong number
+
+    2. **Trace upstream** - Upstream closure, column level; color by test status to find the red region
+
+    3. **Inspect transformations on edges** - Open the process on an edge to read its SQL and run history; highlight
+    the path back to the root; distinguish direct column inputs from indirect ones (joins, filters)
+
+    4. **Check runs** - A failed or late upstream run (FAIL state, error message) is often the cause
+
+    5. **Cross tools** - Follow lineage across orchestration, warehouse and BI tools, through three or four candidate
+    sources
+
+    6. **Fix and backfill** - Repair upstream, rebuild the downstream closure, notify downstream owners
+
+
+    **Decision Points**:
+
+    - Which upstream branch to follow at a join?
+
+    - Is the cause a logic change, a failed run or a bad source?
+
+    - What must be rebuilt, and whom to notify?
+
+
+    **Information Needs**:
+
+    - Column-level upstream path with direct versus indirect inputs
+
+    - Test status and last run state on each node
+
+    - SQL or code on each transformation edge
+
+    - When each upstream node last changed
+
+
+    **Pain Points**:
+
+    - Switching between tools to trace one value
+
+    - Lineage gaps from Python models and hard-coded table names
+
+    - Data incidents take long to resolve (vendor surveys report 9 to 15 hours average)
+
+
+    **Data Flow**:
+
+    - Input: dbt manifest and run results, OpenLineage RunEvents with column-lineage and error facets, Dataplex or
+    DataHub lineage
+
+    - Transformations: Upstream column closure, status overlay, path highlight to the root
+
+    - Output: Identified root cause, upstream fix, downstream rebuild list, owner notification
+success_criteria:
+    - metric: Root cause located
+      target: User reaches the first upstream node whose status or run is bad from the failing column
+    - metric: Evidence on edges
+      target: Transformation and run state are readable from the edge or node without leaving the view
+sources:
+    - title: dbt - Column-level lineage
+      url: https://docs.getdbt.com/docs/explore/column-level-lineage
+      summary: A failing test on a column may stem from an untested column upstream
+    - title: OpenLineage - Object model
+      url: https://openlineage.io/docs/spec/object-model
+      summary: Jobs, runs and datasets; run state and error facets
+    - title: OpenLineage - Column lineage facet
+      url: https://openlineage.io/docs/spec/facets/dataset-facets/column_lineage_facet
+      summary: DIRECT versus INDIRECT column inputs
+    - title: Google Cloud Dataplex - Lineage views
+      url: https://docs.cloud.google.com/dataplex/docs/lineage-views
+      summary: Processes on edges show SQL and run history; Visualize Path highlights the path back to the root; fetches 10 levels, expands 3
+    - title: DataHub - lineage framing (vendor)
+      url: https://datahub.com/?p=14889
+      summary: Analysts trace upstream through three or four candidate sources, switching between tools
+    - title: Monte Carlo data quality survey (vendor-commissioned, via DZone)
+      url: https://dzone.com/articles/data-quality-survey-resolving-data-issues-takes-16
+      summary: Average data incident resolution time reported in hours
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

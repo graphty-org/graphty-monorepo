@@ -1,0 +1,64 @@
+id: infrastructure-resilience-analyst
+name: Infrastructure Resilience Analyst
+role: Infrastructure Resilience Analyst at a state emergency management agency
+quote: If that substation goes down, the hospital has generator fuel for 72 hours and the water plant has six. I need to
+    see who fails, and when, before the storm makes landfall.
+bio: >-
+    Renee plans for cascading infrastructure failures at a state emergency management agency. Each sector models itself
+    in isolation, so her job is the links between them: the substation that feeds the pumping station that feeds the
+    hospital, the fuel terminal that supplies the generators, the fiber hub that carries the 911 center. She works with
+    CISA Protective Security Advisors, who collect facility dependency surveys in the CISA Gateway: for each facility and
+    each lifeline service (power, water, communications, fuel, transport) the provider, the backup and its duration, the
+    time to severe impact once primary service is lost, and the percentage of operations that continue without backup.
+    The Gateway's MapView shows upstream and downstream dependencies and can simulate a facility loss in 12-hour
+    increments. She follows CISA's Infrastructure Resilience Planning Framework, briefs the emergency operations center
+    by FEMA Community Lifeline, and prioritizes backup-power and redundancy investments. She uses ArcGIS and Excel; she
+    is not a programmer.
+characteristics:
+    expertise: intermediate
+    time_pressure: high
+    graph_literacy: basic
+    domain_knowledge: advanced
+motivations:
+    - Know which hospitals, water plants and shelters fail, and after how many hours, if a provider is lost
+    - Brief the emergency operations center by lifeline in terms leaders act on
+    - Prioritize backup power and redundancy investments where cascades are fastest
+    - Combine dependency data that each sector keeps separately
+behaviors:
+    - Lists critical facilities and their dependencies as the foundation step of resilience planning
+    - Relies on facility-by-facility dependency surveys collected by PSAs
+    - Reads dependencies as typed (physical, cyber, geographic, logical) and time-annotated (time to impact, backup duration, percent function)
+    - Simulates the loss of a facility and steps through cascading impacts in 12-hour increments on a map
+    - Groups affected facilities by FEMA Community Lifeline for briefings
+frustrations:
+    - Each sector models itself in isolation
+    - Dependency data is collected one facility at a time
+    - Cascade timing depends on owner-reported backup duration, which may be optimistic
+    - Gateway data is restricted to Gateway users, so sharing is limited
+context:
+    frequency: monthly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W221
+sources:
+    - title: CISA Fact Sheet - CISA Gateway Dependency and Cascading Impacts (2024)
+      url: https://www.cisa.gov/sites/default/files/2024-09/CISA%20Fact%20Sheet%20-%20CISA%20Gateway%20-%20Dependency%20and%20Cascading%20Impacts.20SEP2024%20508%20compliant.pdf
+      summary: MapView of upstream and downstream dependencies; simulated facility compromise with cascading impacts over 12-hour increments
+    - title: CISA Fact Sheet - Gateway Dependency Tool (2021)
+      url: https://www.cisa.gov/sites/default/files/publications/CISA%20Fact%20Sheet%20-%20Gateway%20Dependency%20Tool-508c_final.5NOV2021.pdf
+      summary: Dependency Survey and Dependency Profile Editor with pre-populated inputs and outputs per facility type
+    - title: CISA Infrastructure Dependency Primer
+      url: https://www.cisa.gov/resources-tools/programs/resilience-planning-program/infrastructure-dependency-primer/learn
+      summary: Physical, cyber, geographic and logical dependencies; time to severe impact and backup characteristics
+    - title: CISA Infrastructure Resilience Planning Framework fact sheet
+      url: https://www.cisa.gov/sites/default/files/2023-06/IRPFFactSheet_%20June23_508c.pdf
+      summary: Planning framework for state and local governments
+    - title: FEMA Community Lifelines
+      url: https://www.fema.gov/emergency-managers/practitioners/lifelines
+      summary: The eight lifelines used to brief incidents
+    - title: CISA National Infrastructure Simulation and Analysis Center
+      url: https://www.cisa.gov/NISAC
+      summary: Models interdependencies across National Critical Functions

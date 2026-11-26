@@ -1,0 +1,14 @@
+id: attribute-projection
+name: Shared-Attribute Linking
+category: export
+description: Build entity-to-entity edges from shared attribute values (phone, device, address, tag id) or from a
+    bipartite graph, weighting hard links above soft links, recording which shared values created each edge.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W88
+    - W93
+implemented_by_components: []
+requirements: []
+sources: []

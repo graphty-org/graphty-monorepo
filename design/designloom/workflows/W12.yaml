@@ -19,6 +19,7 @@ requires_capabilities:
     - selection-statistics
     - metric-histograms
     - saved-filters
+    - ego-network
 suggested_components:
     - graph-canvas
     - anomaly-panel
@@ -39,44 +40,47 @@ goal: >-
 
 
     **Mental Model**: "Finding what doesn't fit" - like spotting the one person in a crowd wearing winter clothes in
-    summer. Anomalies are defined relative to a baseline of "normal."
+    summer. Anomalies are defined relative to a baseline of "normal", and in networks "normal" is usually heavy-tailed,
+    not bell-shaped.
 
 
     **Task Phases**:
 
-    1. **Establish Baseline** - Define what "normal" looks like (degree distribution, clustering patterns, attribute
-    ranges)
+    1. **Establish Baseline** - Define what "normal" looks like per node type (degree distribution, clustering
+    patterns, attribute ranges); look at the distributions on log scales before choosing a rule
 
-    2. **Statistical Detection** - Find entities with unusual metric values (z-score outliers, distribution tails)
+    2. **Statistical Detection** - Score on log-transformed or rank scores rather than raw z-scores, since degree and
+    betweenness are heavy-tailed and raw z-scores flag the tail by construction
 
-    3. **Structural Detection** - Find entities with unusual network positions (unexpected community membership, unusual
-    neighbors)
+    3. **Structural Detection** - Score each node by its distance from a fitted pattern of egonet features (for
+    example, edges vs nodes or total weight vs edges in the egonet, the OddBall approach), or by within-module z-score
+    and unexpected community membership
 
-    4. **Triage** - Rank anomalies by severity, group similar ones
+    4. **Triage** - Rank anomalies by score, group similar ones, and show the reason for each flag
 
-    5. **Investigation** - Deep dive into top anomalies
+    5. **Investigation** - Deep dive into top anomalies (ego network, attributes, history)
 
     6. **Classification** - Label as error, threat, or genuine discovery
 
 
     **Decision Points**:
 
-    - What constitutes "normal" for this domain?
+    - What constitutes "normal" for this domain and node type?
 
-    - How many standard deviations makes something anomalous?
+    - Which score: log or rank of a metric, distance from a fitted egonet pattern, or within-module z?
+
+    - Where to cut the ranked list, given triage capacity?
 
     - Is this anomaly an error, a threat, or something interesting?
-
-    - Which anomalies warrant deeper investigation?
 
     - Should I adjust the baseline definition?
 
 
     **Information Needs**:
 
-    - Baseline metrics (mean, std dev of key measures)
+    - Baseline distributions per node type, on log scales
 
-    - Anomaly scores for each entity
+    - Anomaly scores with the reason for each (which feature, how far from the fit)
 
     - Local context (what's unusual about this entity's neighborhood?)
 
@@ -89,9 +93,11 @@ goal: >-
 
     - "Normal" is hard to define in heterogeneous networks
 
-    - Too sensitive = too many false positives
+    - Standard-deviation rules assume roughly normal metrics, which network metrics rarely are
 
-    - Too strict = missing real anomalies
+    - Fitted-pattern methods assume most nodes follow the pattern
+
+    - Too sensitive = too many false positives; too strict = missing real anomalies
 
     - Explaining why something is anomalous to non-technical stakeholders
 
@@ -100,22 +106,35 @@ goal: >-
 
     **Data Flow**:
 
-    - Input: Graph with node/edge attributes + baseline definition
+    - Input: Graph with node/edge attributes + baseline definition per node type
 
-    - Transformations: Baseline computation, deviation scoring, ranking
+    - Transformations: Distribution inspection, heavy-tail-aware scoring, egonet pattern fitting, ranking
 
-    - Output: Prioritized anomaly list with classification and evidence
+    - Output: Prioritized anomaly list with reasons, classification and evidence
 success_criteria:
     - metric: Anomalies detected
       target: True anomalies surfaced
+    - metric: Heavy tails respected
+      target: Scores use log, rank, fitted-pattern or within-module measures, not raw z on heavy-tailed metrics
+    - metric: Reason shown
+      target: Each flag carries the feature and deviation that triggered it
     - metric: False positive rate
       target: Manageable triage workload
     - metric: Classification accuracy
       target: Anomalies correctly labeled as error/threat/discovery
 sources:
-    - title: Practical Graph Analysis Guide - Chapter 4
-      url: https://graphty.app/docs/
-      summary: Anomaly Detection Pipeline
-version: 1.0.0
+    - title: OddBall - spotting anomalies in weighted graphs (Akoglu, McGlohon and Faloutsos)
+      url: https://www.andrew.cmu.edu/user/lakoglu/pubs/oddball_TR.pdf
+      summary: Power-law relations between egonet features; anomaly score by distance from the fit
+    - title: Graph-based anomaly detection and description - a survey (Akoglu, Tong and Koutra 2015)
+      url: https://arxiv.org/abs/1404.4679
+      summary: Survey of structural and attributed graph anomaly methods
+    - title: Scale-free networks are rare (Broido and Clauset 2019)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6399239/
+      summary: Network degree distributions are heavy-tailed (power-law or log-normal), not normal
+    - title: Functional cartography of complex metabolic networks (Guimera and Amaral 2005)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC2175124
+      summary: Within-module degree z-score as a module-relative baseline
+version: 1.1.0
 created_at: 2026-01-16T16:42:48.018Z
-updated_at: 2026-01-16T16:42:48.018Z
+updated_at: 2026-11-25T00:00:00.000Z

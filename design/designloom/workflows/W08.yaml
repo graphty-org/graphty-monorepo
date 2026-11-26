@@ -1,109 +1,164 @@
 id: W08
-name: Drug Target Discovery
+name: Network Proximity Drug Repurposing and Target Discovery
 category: analysis
 validated: false
 personas:
     - bioinformatics-researcher
+    - pharma-target-assessment-scientist
 requires_capabilities:
-    - centrality-degree
+    - data-import
+    - data-validation
+    - component-analysis
+    - shortest-path
+    - path-highlighting
+    - filtering
+    - neighborhood-expansion
+    - computed-attributes
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-force-directed
+    - layout-hierarchical
+    - statistics-panel
+    - analysis-history
+    - algorithm-progress
+    - export-image
+    - data-export
+    - set-to-set-paths
+    - node-set-overlay-import
+    - network-proximity-statistics
     - centrality-betweenness
     - centrality-closeness
+    - centrality-degree
     - community-detection
-    - shortest-path
-    - filtering
-    - visual-encoding-nodes
-    - statistics-panel
-    - data-export
-    - computed-attributes
-    - algorithm-progress
-suggested_components: []
+suggested_components:
+    - gene-set-import-dialog
+    - data-import-dialog
+    - attribute-table-join-dialog
+    - ranked-node-table
+    - path-finder-dialog
+    - filter-panel
+    - visual-encoding-panel
+    - legend-panel
+    - node-details-panel
+    - graph-canvas
+    - analysis-history-panel
+    - image-export-dialog
+    - data-export-dialog
 starting_state:
-    data_type: protein-protein interaction network
-    node_count: 1000-20000
+    data_type: human interactome edge list, disease gene sets, drug-target lists, and proximity or module results computed in Python or R
+    node_count: 13000-18500 in the base graph; 20-300 drawn
     edge_density: sparse
     user_expertise: expert
 goal: >-
-    **Intent**: Identify potential drug targets for a disease by analyzing protein-protein interaction networks. User
-    wants to find proteins that are both central to disease pathways and amenable to drug intervention.
+    **Intent**: Find drugs to repurpose and targets to pursue for a disease using the published network medicine method:
+    test whether the disease genes form a module, measure how close each drug's targets sit to that module compared with
+    degree-matched random sets, and present the result as a figure of the top drugs' targets, the module and the shortest
+    paths between them, with targets then checked for tractability and safety. This is the overview; the detailed
+    proximity screen is W256 and the module-to-target path is W257.
 
 
-    **Mental Model**: "Finding the key dominos" - identifying proteins that, if knocked down, would disrupt the disease
-    network. Also like "finding the right lock for your key" - matching druggable proteins to disease mechanisms.
+    **Mental Model**: "Closer than chance, inside a real module." Hub centrality is not the method: proximity exists to
+    correct for the interactome's degree bias, and Open Targets scores essentiality as a safety liability. Centrality
+    only describes a module once it is found.
 
 
     **Task Phases**:
 
-    1. **Disease Network Construction** - Build network from disease genes, PPIs, pathways, drug-target data
+    1. **Assemble inputs** - Interactome of physical interactions (largest component; 13,329 to 18,508 proteins);
+    disease genes from OMIM, GWAS Catalog (p < 5e-8) or DisGeNET (at least 20 genes); drug targets from DrugBank, ChEMBL,
+    BindingDB at 10 micromolar or better; identifiers mapped to the interactome with unmapped IDs reported
 
-    2. **Module Definition** - Define the disease-relevant subnetwork (proteins close to disease genes)
+    2. **Module definition** - Largest component significance of the seeds against random sets; module expansion
+    (DIAMOnD, Steiner tree, random walk) validated by enrichment
 
-    3. **Target Prioritization** - Rank proteins by centrality, druggability, expression, proximity to disease
+    3. **Proximity screen** - Closest-distance proximity, 1,000 degree-matched random draws, z <= -2 (or z < -1.5 with p
+    < 0.05); separation for drug pairs; computed in NetMedPy, SAveRUNNER or own scripts
 
-    4. **Computational Validation** - Cross-reference with literature, existing drugs, pathway enrichment
+    4. **Validation** - AUC against known indications (best about 0.63 across 12 pipelines in a 918-drug screen)
 
-    5. **Candidate Selection** - Select top targets for experimental validation
+    5. **Visualize the result** - Load the scores and sets onto the interactome, draw only the module, the top drug's
+    targets and the connecting shortest paths, encode set membership and z-scores
+
+    6. **Target assessment** - Join Open Targets tractability and safety evidence onto candidate targets; expert review
+
+    7. **Hand off** - Ranked drug and target tables, module figure, and parameters (interactome version, seed list, ID
+    mapping, null model, randomizations, random seed)
 
 
     **Decision Points**:
 
-    - What confidence threshold for PPI data?
+    - Which interactome version and sources?
 
-    - How to define the boundary of the disease module?
+    - Is the seed set a significant module?
 
-    - How to weight different prioritization criteria (centrality vs druggability)?
+    - Which proximity measure, null model and z threshold?
 
-    - Which candidates warrant expensive experimental validation?
+    - Which candidates go to wet-lab screening or the target committee?
 
 
     **Information Needs**:
 
-    - PPI network with confidence scores (STRING, BioGRID)
+    - Mapped versus unmapped identifier counts
 
-    - Disease gene list (from GWAS, differential expression)
+    - Set membership (seed, added, target, connector) on every drawn node
 
-    - Druggability assessment (existing drug targets, binding site predictions)
+    - Proximity z and p per drug, selecting into the drawing
 
-    - Expression data (is protein expressed in relevant tissue?)
+    - Per-target evidence (tractability, safety, expression, literature)
 
-    - Pathway annotations (GO terms, KEGG pathways)
-
-    - Literature support (has this target been studied before?)
+    - Run parameters traveling with the figure
 
 
     **Pain Points**:
 
-    - PPI data is noisy and incomplete
+    - The interactome is about 80 percent incomplete; results depend on the null model
 
-    - Many proteins are "undruggable"
+    - Scripts end in DataFrames; figures are hand-coded (igraph base plot) or rebuilt in Gephi or Cytoscape
 
-    - Centrality doesn't guarantee therapeutic relevance
+    - Whole-interactome drawings are hairballs
 
-    - Long cycle time from computational prediction to experimental validation
+    - Identifier mapping silently drops nodes
 
-    - Need to justify target selection to stakeholders
+    - Target evidence lives in a table separate from the network
 
 
     **Data Flow**:
 
-    - Input: Disease gene list + PPI databases + drug-target databases
+    - Input: Interactome TSV; disease gene sets; drug-target lists; proximity and module result tables; target evidence
 
-    - Transformations: Network construction, centrality calculation, scoring, enrichment analysis
+    - Transformations: ID mapping, set tagging, subgraph of sets plus shortest paths, attribute join, encoding
 
-    - Output: Ranked target list with evidence profiles for each candidate
+    - Output: Figure of module, targets and paths; ranked tables; parameter record
 success_criteria:
-    - metric: Target list generated
-      target: Prioritized list of druggable targets
-    - metric: Evidence compilation
-      target: Each target has centrality, druggability, and literature scores
-    - metric: Experimental validation success
-      target: Top targets validate in experiments
+    - metric: Figure from script output
+      target: Module-and-targets figure produced in under 15 minutes without plotting code
+    - metric: Evidence profile
+      target: Each candidate target shows proximity, membership and tractability and safety columns
+    - metric: Reproducibility
+      target: Interactome version, seeds, null model and thresholds exported with the figure
 sources:
-    - title: Practical Graph Analysis Guide - Chapter 7
-      url: https://graphty.app/docs/
-      summary: Drug Target Identification Workflow
-    - title: STRING Database
-      url: https://string-db.org/
-      summary: Protein-protein interaction database with confidence scores
-    - title: Cytoscape Network Analysis
-      url: https://cytoscape.org/cytoscape-tutorials/presentations/network-analysis-ebi-2021.html
-      summary: Biological network analysis workflow with Cytoscape
+    - title: Guney et al. 2016 - Network-based in silico drug efficacy screening
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4740350/
+      summary: Closest-distance proximity with degree-matched null; designed to correct interactome degree bias
+    - title: Menche et al. 2015
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4435741
+      summary: Disease modules on the incomplete interactome
+    - title: Gysi et al. 2021
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8126852
+      summary: 12 pipelines, 918-drug experimental screen, AUC about 0.63
+    - title: NetMedPy
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC12401583
+      summary: Proximity and separation in Python; visualization outside the tool
+    - title: DIAMOnD
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4390154/
+      summary: Seed-based module expansion
+    - title: Open Targets target prioritisation
+      url: https://platform-docs.opentargets.org/web-interface/target-prioritisation
+      summary: Tractability and safety grid; essentiality as a safety liability
+    - title: DrugBank downloads
+      url: https://go.drugbank.com/downloads
+      summary: Drug-target data under a non-commercial license
+version: 1.1.0
+created_at: 2026-09-08T02:34:20.000Z
+updated_at: 2026-11-25T00:00:00.000Z

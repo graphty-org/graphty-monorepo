@@ -9,6 +9,32 @@ algorithms: []
 used_by_workflows:
     - W02
     - W19
+    - W111
+    - W166
+    - W178
+    - W202
+    - W213
+    - W221
+    - W226
+    - W287
+    - W304
+    - W307
+    - W312
+    - W317
+    - W321
+    - W322
+    - W329
+    - W33
+    - W340
+    - W344
+    - W345
+    - W346
+    - W350
+    - W354
+    - W355
+    - W356
+    - W412
+    - W44
 implemented_by_components:
     - graph-canvas
 requirements:

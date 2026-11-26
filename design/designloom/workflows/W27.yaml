@@ -1,0 +1,136 @@
+id: W27
+name: Handling Non-Respondents and Partial Responses
+category: analysis
+validated: false
+personas:
+    - sociometric-network-researcher
+    - egocentric-survey-researcher
+requires_capabilities:
+    - data-validation
+    - filtering
+    - computed-attributes
+    - basic-statistics
+    - statistics-panel
+    - comparison-view
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - analysis-history
+    - data-export
+    - missing-tie-states
+suggested_components:
+    - data-table-panel
+    - filter-panel
+    - statistics-panel
+    - comparison-view
+    - visual-encoding-panel
+    - legend-panel
+    - analysis-history-panel
+    - graph-canvas
+    - data-export-dialog
+starting_state:
+    data_type: directed or undirected survey network with a response flag per actor
+    node_count: 25-1500
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Decide, apply and defend a treatment for actors who never answered, questions left blank, nominees
+    outside the boundary and nominations cut off by a cap, before any measure or model is reported. Reviewers ask for
+    this in every survey network paper.
+
+
+    **Mental Model**: "No tie, unknown tie and missing person are three different things." A non-respondent is still a
+    node with incoming ties; their outgoing row is unknown, not empty.
+
+
+    **Task Phases**:
+
+    1. **Classify the missingness** (estimate: 15 min) - Actor non-response (never answered but still named by others),
+    item non-response, boundary misspecification, fixed-choice censoring. Excluding one actor in a toy example cut mean
+    degree by 25%.
+
+    2. **Report the response rate** (estimate: 5 min) - Keep non-respondents as nodes with their incoming ties and show
+    them distinctly.
+
+    3. **Pick a treatment by measure** (estimate: 30 min) - Dropping non-respondents is almost always the worst option.
+    Reconstruction (impute a non-respondent's outgoing tie from ties to them) is the best simple method for undirected
+    data, even at 50% missing; for directed data, ignoring missingness keeps reciprocity, transitivity and
+    assortativity fairly stable up to 40% missing. Probabilistic imputation (reciprocate at the observed rate, average
+    100 imputations) is the most robust overall. Model-based: unobserved dyads as NA in ergm (coding them 0 moved the
+    edges estimate from -2.56 to -2.64 in the vignette); RSiena treats missing codes as NA.
+
+    4. **For free recall, re-collect** (outside the tool) - Prompts, read-back lists and re-interviews; adding
+    interviews grew one network from 89 to 176 nodes.
+
+    5. **Run and report a sensitivity analysis** (estimate: 30 min) - Compute the key measures under each treatment and
+    report how much they move.
+
+
+    **Decision Points**:
+
+    - Is the network directed or undirected (this changes which simple treatment is best)?
+
+    - How much is missing, and is it above the level where a treatment still gives valid estimates?
+
+    - Reconstruction, probabilistic imputation, listwise deletion or model-based NA?
+
+    - Which measures go in the sensitivity table?
+
+
+    **Information Needs**:
+
+    - Response rate and the list of non-respondents with their in-degree
+
+    - Counts of known ties, known non-ties and unknown dyads
+
+    - Each key measure (density, reciprocity, transitivity, centralities) under each treatment, side by side
+
+    - A visual distinction between respondents, non-respondents and imputed ties
+
+
+    **Pain Points**:
+
+    - Edge lists and most tools treat every absent dyad as zero
+
+    - Non-respondents silently dropped by a filter or a main-component extraction
+
+    - Imputed ties look identical to observed ones in figures and exports
+
+    - No tool runs the same measures under several treatments for a sensitivity table
+
+
+    **Data Flow**:
+
+    - Input: Cleaned network from W26 with a respondent flag per actor and missing codes per dyad
+
+    - Transformations: Missingness classification, reconstruction or probabilistic imputation (repeated), measure
+    recomputation per treatment
+
+    - Output: Treated network(s), a sensitivity table, an edge list with NA dyads for ergm or RSiena, a methods note
+success_criteria:
+    - metric: Missing-state integrity
+      target: No tie, unknown tie and non-respondent remain distinguishable through every measure and export
+    - metric: Sensitivity reporting
+      target: User can produce a table of key measures under at least two treatments
+sources:
+    - title: Huisman (2009) Imputation of missing network data
+      url: https://www.stat.cmu.edu/~brian/780/bibliography/11%20Imputation/huisman.pdf
+      summary: Reconstruction best for undirected data even at 50% missing; ignoring missingness better for directed data up to 40%
+    - title: Smith, Moody and Morgan (2021) network imputation comparison
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8294095
+      summary: Dropping non-respondents almost always worst; probabilistic imputation most robust; valid estimates above 50% non-response with a good method
+    - title: Kossinets (2006) Effects of missing data in social networks
+      url: https://arxiv.org/abs/cond-mat/0306335
+      summary: Types of missingness; excluding one actor cut mean degree by 25% in a toy example
+    - title: ergm package vignette
+      url: https://cran.r-project.org/web/packages/ergm/vignettes/ergm.html
+      summary: Unobserved dyads as NA; coding them 0 shifts the edges estimate
+    - title: Basic RSiena script
+      url: https://www.stats.ox.ac.uk/~snijders/siena/basic_RSiena.html
+      summary: Missing codes treated as NA during estimation
+    - title: Rice et al. (2014) recall bias
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4184035
+      summary: Re-interviews grew a network from 89 to 176 nodes
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

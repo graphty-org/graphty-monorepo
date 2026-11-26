@@ -6,112 +6,183 @@ personas:
     - analyst-alex
     - expert-emma
     - bioinformatics-researcher
+    - temporal-network-researcher
+    - bibliometric-evolution-analyst
+    - social-media-dynamics-researcher
+    - animal-social-network-researcher
 requires_capabilities:
+    - data-import
+    - data-validation
     - temporal-analysis
+    - temporal-navigation
     - comparison-view
     - community-detection
     - basic-statistics
     - filtering
     - animated-transitions
+    - layout-force-directed
     - statistics-panel
-    - temporal-navigation
+    - data-export
+    - export-image
+    - network-collection-small-multiples
+    - time-respecting-paths
+    - temporal-data-model-import
+    - event-window-aggregation
+    - per-window-metrics
+    - stable-temporal-layout
+    - community-evolution-tracking
+    - playback-video-export
+    - uncertain-dates
 suggested_components:
+    - data-import-dialog
+    - column-mapper
     - graph-canvas
     - temporal-controls
+    - histogram
     - comparison-view
     - filter-panel
     - statistics-panel
     - community-panel
     - progress-bar
+    - data-export-dialog
+    - image-export-dialog
 starting_state:
-    data_type: timestamped graph
-    node_count: any
+    data_type: time-stamped graph in one of five shapes -- point events, intervals (start/end or start + duration), snapshot series, time-varying attributes, or a single date column
+    node_count: any (75-person contact studies to millions of events; reduced before drawing)
     edge_density: any
     user_expertise: intermediate+
 goal: >-
-    **Intent**: Understand how a network changes over time. User wants to track growth, detect significant changes,
-    identify emerging patterns, and understand network dynamics.
+    **Intent**: Understand how a network changes over time: how it grew, when it changed significantly, which groups
+    formed, merged or died, and what drove the change. This is the umbrella workflow; the concrete routes are playback
+    (W304), case time bars (W305), time-sliced fields (W306), per-window metrics (W307), time-respecting paths (W308),
+    community evolution (W309), signal-derived window networks (W310), co-location networks (W311) and live histories
+    (W312).
 
 
-    **Mental Model**: "Time-lapse photography" - compressing network evolution into observable patterns. Also "vital signs
-    monitoring" - tracking key metrics over time to detect health changes.
+    **Mental Model**: "Time-lapse photography" -- compressing evolution into observable frames -- plus "vital signs"
+    tracked per window. The frames only mean something once the user has said what an event is and how long it lasts.
 
 
     **Task Phases**:
 
-    1. **Time Segmentation** - Define time windows (daily, weekly, monthly snapshots)
+    1. **Choose the time model** (the first decision) - Are the data point events, intervals, snapshots, time-varying
+    attributes or a single date column? For point events, decide how long an event lasts (a decay such as 30 minutes)
+    only when the source records no duration; start + duration columns are a mapping, not a choice
 
-    2. **Metric Tracking** - Compute key metrics per time period (size, density, centrality distributions)
+    2. **Load with time intact** - Import dynamic GEXF, start/end or start + duration CSV, fixed-resolution contact files,
+    SNAP edge lists with times, or a folder of snapshots matched by id; check counts of undated and invalid dates and
+    the interval semantics (inclusive or half-open, time zone)
 
-    3. **Change Detection** - Identify significant changes (new nodes, disappeared edges, centrality shifts)
+    3. **Reduce to a drawable size** - Load a time range, keep the most active nodes, or aggregate events per pair per
+    window (count, sum, first, last)
 
-    4. **Pattern Recognition** - Look for trends (growth, decline, seasonality, events)
+    4. **Segment time** - Window length, step and overlap; try several lengths because structure depends on them
 
-    5. **Community Evolution** - Track how communities form, merge, split over time
+    5. **Lay out stably** - One layout over the union of all time, or each window seeded from the previous; never re-lay
+    out on every frame by default
 
-    6. **Interpretation** - Connect changes to external events or internal dynamics
+    6. **Play and look** - Sliding, cumulative and shrinking playback; small multiples or a time axis as alternatives to
+    animation (small multiples are faster to read; animation is better for spotting appearances)
+
+    7. **Metrics per window** - Size, density, reciprocity, centralities, clustering per window as a time series
+
+    8. **Change and community evolution** - New, gone and persistent edges between periods; communities matched across
+    windows with births, merges, splits and deaths; bursts
+
+    9. **Time-respecting analysis** - Where order matters (money flow, logon chains, transmission), use paths that
+    respect event order and a waiting limit (W308)
+
+    10. **Interpret and export** - Connect changes to external events; export video or an image sequence with window
+    dates, small multiples, a tidy metrics CSV and the parameter record
 
 
     **Decision Points**:
 
-    - What time granularity is appropriate?
+    - Which time model, and for point events, what lifetime?
 
-    - What metrics should be tracked over time?
+    - What window length, step and overlap?
 
-    - What constitutes a "significant" change?
+    - How are undated items treated (always shown, hidden, flagged)?
 
-    - How to handle nodes that appear/disappear?
+    - Stable union layout or chained layout?
 
-    - Should animation or small multiples show evolution?
+    - Animation, small multiples, or a time axis?
+
+    - What counts as a significant change, and was it tested against noise?
 
 
     **Information Needs**:
 
-    - Time-series of key network metrics
+    - Detected time model, range, granularity and counts of missing or invalid dates
 
-    - Change detection alerts (spikes, drops, trends)
+    - Activity histogram over the full span
 
-    - Community evolution mapping (which communities merged/split?)
+    - Time series of metrics per window for several window lengths
 
-    - New/disappeared entity lists per period
+    - New, disappeared and persistent entities per period
 
-    - Correlation with external events timeline
+    - Community matching table with events
+
+    - External events timeline alongside the metrics
 
 
     **Pain Points**:
 
-    - Choosing the right time granularity (too fine = noise, too coarse = miss events)
+    - Tools assume "edges with a timestamp" and ignore intervals, spells and node lifetimes
 
-    - Defining "significant" change without arbitrary thresholds
+    - Window length changes conclusions, and rerunning is slow
 
-    - Computational cost of re-analyzing at each time point
+    - Interval bounds and time zones are implicit and differ between tools
 
-    - Visualizing change over time without overwhelming user
+    - Parallel events between a pair collapse into one edge
 
-    - Attributing changes to causes (correlation vs. causation)
+    - Re-layout per frame destroys the mental map; playback lags on large graphs
+
+    - No video export; screen recording is the norm
+
+    - Static paths over aggregated time show routes that cannot have happened
 
 
     **Data Flow**:
 
-    - Input: Timestamped graph data spanning a period
+    - Input: Timestamped graph data in one of the five shapes above, or a matrix stack per window
 
-    - Transformations: Snapshot creation, metric calculation, change detection
+    - Transformations: Time parsing, event-to-interval or window binning, per-window aggregation, stable layout,
+    per-window metrics, diff and community matching, optional time-respecting paths
 
-    - Output: Evolution report + trend analysis + significant events flagged
+    - Output: Evolution report with metric time series, flagged events, community evolution table, playback video or
+    small multiples, and the window parameters used
 success_criteria:
+    - metric: Time model explicit
+      target: User can state the time model, window and interval semantics behind every figure
     - metric: Trends identified
-      target: Major growth/decline patterns documented
+      target: Major growth/decline patterns documented with metric time series
     - metric: Events detected
-      target: Significant changes flagged with timestamps
+      target: Significant changes flagged with timestamps and checked against at least two window lengths
     - metric: Evolution understood
-      target: User can explain how network changed and why
+      target: User can explain how the network changed and why
 sources:
     - title: Practical Graph Analysis Guide - Chapter 4
       url: https://graphty.app/docs/
       summary: Network Evolution Analysis Pipeline
-    - title: Cambridge Intelligence Dynamic Networks
-      url: https://cambridge-intelligence.com/visualizing-dynamic-networks/
-      summary: Visualizing how connections evolve over time
-version: 1.0.0
+    - title: Cambridge Intelligence - Methods for visualizing dynamic networks
+      url: https://cambridge-intelligence.com/methods-visualizing-dynamic-networks/
+      summary: Animation, time bars, small multiples and 3D layers for dynamic networks
+    - title: Holme and Saramaki 2012 - Temporal networks (arXiv 1108.1780)
+      url: https://arxiv.org/abs/1108.1780
+      summary: Contact sequences and interval graphs; projecting to a static graph always loses information
+    - title: Gephi User Manual - Import Dynamic Data
+      url: https://docs.gephi.org/desktop/User_Manual/Import_Dynamic_Data/
+      summary: Intervals, timestamps, spells, inclusive bounds, slice merge
+    - title: ndtv vignette (CRAN)
+      url: https://cran.r-project.org/web/packages/ndtv/vignettes/ndtv.pdf
+      summary: Slice parameters, chained layouts, overlapping windows and slice tuning
+    - title: Archambault, Purchase and Pinaud 2011 - Animation, small multiples and the effect of mental map preservation
+      url: https://pubmed.ncbi.nlm.nih.gov/20498503/
+      summary: Small multiples faster; animation more accurate for appearances; mental map had little effect
+    - title: Gephi community survey 2015
+      url: https://gephi.wordpress.com/tag/survey/
+      summary: More than half of respondents had never analyzed dynamic networks in Gephi
+version: 1.1.0
 created_at: 2026-01-16T16:42:39.052Z
-updated_at: 2026-01-16T16:42:39.052Z
+updated_at: 2026-11-25T00:00:00.000Z

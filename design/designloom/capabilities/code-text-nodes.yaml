@@ -1,0 +1,13 @@
+id: code-text-nodes
+name: Code Text Nodes
+category: analysis
+description: Nodes that render multi-line monospace text such as basic blocks of code, in a layered layout with ordered
+    branch edges and back edges for loops.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W115
+implemented_by_components: []
+requirements: []
+sources: []

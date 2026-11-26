@@ -6,6 +6,9 @@ personas:
     - explorer-elena
     - analyst-alex
     - expert-emma
+    - no-code-graph-investigator
+    - investigative-journalist
+    - personal-knowledge-gardener
 requires_capabilities:
     - graph-rendering
     - layout-force-directed
@@ -21,6 +24,12 @@ requires_capabilities:
     - view-bookmarks
     - keyboard-shortcuts
     - tooltip-display
+    - search
+    - neighborhood-expansion
+    - degree-analysis
+    - schema-meta-graph
+    - live-data-source
+    - reveal-relationships
 suggested_components:
     - graph-canvas
     - minimap
@@ -40,9 +49,11 @@ suggested_components:
     - filter-chip
     - attribute-row
     - legend-item
+    - search-panel
+    - badge
 starting_state:
-    data_type: loaded graph
-    node_count: any
+    data_type: "overview-first variant: graph loaded in full; search-first variant: empty canvas over a live database or very large file"
+    node_count: "overview-first: up to a few thousand elements drawn in full; search-first: stored graph of any size, tens to a few thousand on screen"
     edge_density: any
     user_expertise: any
 goal: >-
@@ -53,6 +64,10 @@ goal: >-
     **Mental Model**: "Map exploration" - like using Google Maps, starting from satellite view (overview), zooming to
     neighborhood level (zoom), hiding irrelevant roads (filter), then clicking on a specific building for details
     (details-on-demand). Also known as Shneiderman's Visual Information Seeking Mantra.
+    This holds for graphs small enough to draw whole (up to a few thousand elements). For graphs too large to draw, the
+    documented practice is the reverse: "search, show context, expand on demand" (van Ham and Perer, InfoVis 2009), and
+    every graph database front end reviewed (Neo4j Bloom, Linkurious, AWS Graph Explorer, BigQuery and Spanner Studio)
+    starts from a search box or query, not an overview. This workflow therefore has two variants.
 
 
     **Task Phases**:
@@ -66,6 +81,23 @@ goal: >-
     4. **Details-on-Demand** - Inspect specific nodes/edges when needed
 
 
+    **Search-First Variant** (stored graph too large to draw; see W142 and W143 for tool-specific detail):
+
+    1. **Orient on the schema** - A small meta-graph of node and relationship types replaces the overview; knowledge
+    graph builders check "the graph is connected as expected" but say "I don't want to have to see the full graph"
+
+    2. **Search** - Name, identifier or a prepared parameterized search; results are added to an empty canvas
+
+    3. **Show context** - Hover and details for the found entity; a badge shows how many relationships are not drawn
+
+    4. **Expand on demand** - Expand by relationship type, direction, neighbor category and maximum count; hubs above a
+    threshold ask before expanding; reveal relationships among nodes already drawn
+
+    5. **Prune** - Dismiss nodes, dismiss isolated nodes, filter; the canvas only ever holds what the user built
+
+    6. **Save** - A scene or bookmark that records what was searched, expanded and filtered
+
+
     **Decision Points**:
 
     - Which areas look interesting enough to zoom into?
@@ -73,6 +105,8 @@ goal: >-
     - What filtering criteria will reveal vs. hide important structure?
 
     - When to stop exploring and start targeted analysis?
+
+    - (Search-first) Is this node a hub worth expanding, and has a result cap silently cut the answer?
 
     - Is the current view answering my question or do I need to reconfigure?
 
@@ -87,6 +121,8 @@ goal: >-
 
     - Details: All attributes of selected element, its connections
 
+    - (Search-first) Count of results returned versus drawn, and hidden-relationship counts per node
+
 
     **Pain Points**:
 
@@ -98,10 +134,15 @@ goal: >-
 
     - Difficulty returning to a previous view state
 
+    - (Search-first) Caps cut results silently: an Aura Explore user saw 38 of 236 nodes and assumed data was missing
+
+    - (Search-first) Expanding a hub floods the view
+
 
     **Data Flow**:
 
-    - Input: Loaded graph with initial layout applied
+    - Input: Loaded graph with initial layout applied; or (search-first) a live database or large file and a search
+    term
 
     - Transformations: Zoom level changes, filter application, selection
 
@@ -120,6 +161,21 @@ sources:
     - title: Neo4j Bloom Overview
       url: https://neo4j.com/docs/bloom-user-guide/current/bloom-visual-tour/bloom-overview/
       summary: Graph exploration and visualization patterns for code-free interaction
-version: 1.0.1
+    - title: van Ham and Perer, Search, Show Context, Expand on Demand (InfoVis 2009)
+      url: https://dig.cmu.edu/publications/2009-doigraphs.html
+      summary: For large graphs an overview is often not relevant or practical; start from search and expand, shown on over 3 million legal citations
+    - title: Apolo (CHI 2011)
+      url: https://poloclub.github.io/polochau/papers/11-chi-apolo.pdf
+      summary: Bottom-up sensemaking starting small from seed nodes
+    - title: Bloom search bar
+      url: https://neo4j.com/docs/bloom-user-guide/current/bloom-visual-tour/search-bar/
+      summary: Bloom describes itself as a search-first environment
+    - title: Li et al., knowledge graph practitioners interview study
+      url: https://arxiv.org/html/2304.01311v4
+      summary: Builders verify the graph is connected as expected but do not want to see the full graph
+    - title: Aura Explore feedback - I can't see all my nodes
+      url: https://aura.feedback.neo4j.com/explore/p/i-cant-see-all-my-nodes
+      summary: Silent cap; 38 of 236 nodes shown
+version: 1.1.0
 created_at: 2026-01-16T16:22:44.523Z
-updated_at: 2026-01-16T16:42:28.086Z
+updated_at: 2026-11-25T00:00:00.000Z

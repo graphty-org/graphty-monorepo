@@ -1,0 +1,20 @@
+id: survey-network-import
+name: Survey Nomination Import
+category: data
+description: Import wide survey exports (friend1..friendN columns) and UCINET DL or NetDraw VNA files, matching
+    nominations to roster IDs, recoding off-roster codes, and reporting matched, off-roster and unmatched nominations.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W233
+    - W26
+    - W29
+    - W300
+implemented_by_components: []
+requirements:
+    - Turn a wide survey export (one column per nominee) into a directed edge list, match names to a roster with an
+      unmatched-names report, replace names with anonymized ids, and mark non-respondents.
+    - Reshape wide roster survey rows into edges with a missing-respondent flag kept distinct from no tie through
+      metrics, and load many egocentric networks keyed by ego id as one comparable collection.
+sources: []

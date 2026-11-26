@@ -14,6 +14,17 @@ used_by_workflows:
     - W12
     - W16
     - W23
+    - W153
+    - W172
+    - W177
+    - W181
+    - W207
+    - W235
+    - W265
+    - W28
+    - W307
+    - W37
+    - W75
 implemented_by_components:
     - statistics-panel
 requirements:

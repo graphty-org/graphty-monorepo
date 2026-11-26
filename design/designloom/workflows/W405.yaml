@@ -1,0 +1,176 @@
+id: W405
+name: Coded Segments to a Code Co-occurrence Network, with AI-Assisted Coding
+category: analysis
+validated: false
+personas:
+    - qualitative-code-network-researcher
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - filtering
+    - community-detection
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-force-directed
+    - layout-radial
+    - details-on-demand
+    - node-selection
+    - comparison-view
+    - metric-histograms
+    - export-image
+    - data-export
+    - backbone-extraction
+    - co-occurrence-weighting
+    - local-only-processing
+    - provenance-tracking
+    - shared-fixed-layout
+    - coded-segment-co-occurrence
+    - coder-provenance
+suggested_components:
+    - file-drop-zone
+    - column-mapper
+    - data-import-dialog
+    - data-preview-table
+    - data-table-panel
+    - heatmap-panel
+    - filter-panel
+    - range-slider
+    - community-panel
+    - visual-encoding-panel
+    - legend-panel
+    - graph-canvas
+    - node-details-panel
+    - comparison-view
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: coded segments from a QDA project (segment id, document, codes, coder, participant attributes) or an exported code-by-code matrix
+    node_count: 30-150 codes
+    edge_density: moderate to dense before a minimum co-occurrence filter
+    user_expertise: novice to intermediate
+goal: >-
+    **Intent**: Find which codes co-occur across quotations, overall and by participant subgroup, decide whether a
+    cluster of codes forms a theme, and confirm it by reading the quotations behind each edge. Increasingly the codes on
+    the segments were proposed by a model and accepted or rejected by a person, so the network must also show who
+    coded what.
+
+
+    **Mental Model**: "Counts show frequency, not meaning." An edge is a pile of quotations where two codes meet; the
+    researcher has to read the pile before calling it a theme.
+
+
+    **Task Phases**:
+
+    1. **Code with comparison in mind** (weeks) - Codes per dimension, code groups, participant or demographic codes so
+    groups can be compared later
+
+    2. **Optional: AI-assisted coding** (hours) - Write a code memo defining each code; run AI coding on a code and up to
+    50 documents; approve or discard each suggestion; keep the model's explanation as a comment on each segment; or
+    pick from model-suggested codes per highlighted segment
+
+    3. **Compute co-occurrence** (5 min) - Count segments where both codes apply under overlap, within, enclose or same
+    relations, or within N paragraphs, or in the same document; optionally a normalized coefficient (c-coefficient
+    n12 / (n1 + n2 - n12)); flag coefficients above 1 caused by overlapping segments
+
+    4. **Drill down** (30+ min) - Click a cell or an edge to read its quotations; test AND, OR, WITHIN, FOLLOWS queries
+
+    5. **Visualize** (15 min) - Matrix heat map, Sankey, force-directed graph, or a concentric model with selected codes
+    in an inner circle and co-occurring codes outside, with a minimum co-occurrence filter, line width by frequency
+    and symbol size by segment count
+
+    6. **Leave for Gephi when built-ins fail** (1-2 h) - Export the matrix, aggregate by incident or by person, size by
+    frequency, color by code family, ForceAtlas2, Louvain, subset by setting or attribute
+
+    7. **Validate** (hours) - Read responses next to the network; triangulate; compare subgroups
+
+
+    **Decision Points**:
+
+    - Which co-occurrence relation (overlap, proximity, same document) and which aggregation (incident or person)?
+
+    - Raw counts or a normalized coefficient, given codes whose frequencies differ more than fivefold?
+
+    - What minimum co-occurrence keeps the network readable?
+
+    - Accept or discard each model suggestion, and should model-coded segments count the same as human ones?
+
+    - Does a community of codes deserve to be named as a theme?
+
+
+    **Information Needs**:
+
+    - The quotations behind any edge or code, with document and participant attributes
+
+    - Who or what coded each segment, the model's explanation and whether a person accepted it
+
+    - Code frequencies, so lopsided pairs can be spotted
+
+    - The same network filtered by subgroup, on the same layout
+
+    - Inter-coder agreement figures
+
+
+    **Pain Points**:
+
+    - Co-occurrence matrices are slow or unreadable for large datasets
+
+    - The trip to Gephi loses every quotation
+
+    - Web versions cannot export the co-occurrence views
+
+    - Coefficients above 1 from overlapping segments mislead
+
+    - No way to separate human-coded from model-coded edges
+
+
+    **Data Flow**:
+
+    - Input: Coded-segment table or QDPX project, participant attributes, or a code-by-code adjacency matrix (XLSX)
+
+    - Transformations: Pairwise co-occurrence counting per relation and aggregation, optional normalization,
+    minimum-weight filter, community detection, subgroup filtering, coder filtering
+
+    - Output: Code co-occurrence figure, themes with supporting quotations, subgroup comparison, matrix export
+success_criteria:
+    - metric: Edge evidence
+      target: Every edge opens its quotations, with coder and acceptance status, in one click
+    - metric: Subgroup comparison
+      target: Two subgroup networks shown on one layout
+    - metric: Scale
+      target: A 150-code network with tens of thousands of segments stays responsive
+sources:
+    - title: ATLAS.ti, co-occurrence analysis
+      url: https://atlasti.com/research-hub/co-occurrence-analysis-with-atlas-ti
+      summary: Coding for comparison, click a cell to its quotations, counts show frequency not meaning, Query Tool
+    - title: ATLAS.ti manual, c-coefficient
+      url: https://doc.atlasti.com/ManualMac.v9/CodeCooccurrence/CodeCoOccurrenceTableCcoefficient.html
+      summary: Coefficient definition, values above 1 with overlapping quotations, not a Pearson correlation
+    - title: ATLAS.ti manual, co-occurrence visualization
+      url: https://manuals.atlasti.com/Win/en/manual/CodeCooccurrence/CodeCoOccurrenceTableVisualization.html
+      summary: Sankey and force-directed views; click an edge to its quotations
+    - title: ATLAS.ti help, Code co-occurrence view (Web)
+      url: https://atlastihelp.helpscoutdocs.com/article/593-what-is-the-code-co-occurrence-view
+      summary: Web views cannot currently be exported
+    - title: MAXQDA help, Code Relations Browser
+      url: https://www.maxqda.com/help/visual-tools/code-relations-browser-visualizing-overlapping-codes
+      summary: Intersection, proximity and same-document modes; adjacency matrix export for Gephi
+    - title: MAXQDA help, The Co-Occurrence Model (MAXMaps)
+      url: https://www.maxqda.com/help-mx22/maxmaps/the-co-occurrence-model
+      summary: Inner and outer circles, minimum co-occurrence, line width and symbol size encodings
+    - title: MAXQDA help, AI Coding of segments
+      url: https://www.maxqda.com/help/ai-assist/ai-coding-segments
+      summary: Code memos as definitions, approve or discard, explanation saved as comment
+    - title: MAXQDA 26.1 release
+      url: https://www.maxqda.com/blogpost/maxqda-26-1
+      summary: AI Coding of a code and up to 50 documents at once
+    - title: ATLAS.ti suggested codes
+      url: https://atlasti.com/suggested-codes-in-atlas-ti-web
+      summary: The AI suggests, but you decide
+    - title: Chen et al. 2024, stigma survey code network
+      url: https://visualanalyticshealthcare.github.io/homepage/proceedings/2024/8.pdf
+      summary: Dedoose export to Gephi, aggregation by incident or person, ForceAtlas2, Louvain; matrices slow or unreadable at scale
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

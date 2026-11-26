@@ -1,0 +1,162 @@
+id: W264
+name: GNPS Molecular Network to Annotated Cytoscape Figure
+category: presentation
+validated: false
+personas:
+    - medicinal-chemistry-sar-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - component-analysis
+    - filtering
+    - search
+    - neighborhood-expansion
+    - node-selection
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - style-presets
+    - layout-force-directed
+    - details-on-demand
+    - comparison-view
+    - large-graph-rendering
+    - export-image
+    - data-export
+    - node-glyph-charts
+    - molecule-structure-glyphs
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - attribute-table-join-dialog
+    - data-table-panel
+    - filter-panel
+    - search-panel
+    - node-chart-overlay
+    - visual-encoding-panel
+    - gradient-editor
+    - legend-panel
+    - network-list-panel
+    - graph-canvas
+    - session-save-dialog
+    - image-export-dialog
+starting_state:
+    data_type: GNPS spectral similarity network (.graphml plus library-match .csv, or a .cys session) with per-group intensities and SMILES
+    node_count: 500-55000 features in many small components; 5-100 per family drawn
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Turn a GNPS molecular networking job from untargeted LC-MS/MS into a figure of the molecular families
+    that matter: pie-chart nodes by sample group, known structures drawn from SMILES, edges weighted by spectral cosine,
+    and group-specific features found. GNPS reports over 300,000 accesses a month; Cytoscape is still the expected
+    destination. The primary users are natural-products and metabolomics chemists; medicinal chemists open shared
+    networks.
+
+
+    **Mental Model**: "Spectra that look alike are molecules that look alike." Each component is a molecular family; a
+    library hit in a family names its neighbors as likely analogs.
+
+
+    **Task Phases**:
+
+    1. **Prepare features and metadata** (1 hour) - Feature table and MS2 .mgf from MZmine or MS-DIAL; a metadata table
+    whose grouping columns start with "ATTRIBUTE_"
+
+    2. **Set parameters and run** (30 min plus queue) - Minimum cosine 0.7, at least 6 matched fragment ions, Node TopK
+    10, maximum component size 100 (0 lifts the cap); these settings shape the drawing
+
+    3. **Look first in the browser** (15 min) - View Spectral Families shows one family at a time with pie charts, edge
+    labels by cosine or mass difference, and mirror plots
+
+    4. **Download for Cytoscape** (5 min) - Zip with .graphml and library-match .csv, or a ready .cys with a preset
+    style
+
+    5. **Import and join tables** (10 min) - Import the network, then join library hits keyed on the scan or feature ID
+
+    6. **Style** (30 min, every job) - Label by precursor mass or compound name; size by summed intensity; pie charts
+    over the group columns; fill by chemical class; edge width by cosine with min and max tuned by hand; or import a saved
+    style file
+
+    7. **Draw structures** (10 min) - Set the SMILES attribute and paint structures on nodes
+
+    8. **Filter and isolate families** (30 min) - Column filters (ppm error, compound name, condition), repeated first
+    neighbors of selection, new network from selection; the component index marks families (-1 for singletons); one
+    network had 810 sub-families
+
+    9. **Compare groups** (30 min) - Per-condition subnetworks; Venn or Euler diagrams for group-unique features
+
+    10. **Handle size** - A 55,000-node network triggers "This could take a long time"; users are told to browse
+    families in GNPS instead
+
+    11. **Export** (15 min) - PDF for the paper and the .cys session for collaborators; whole analysis takes "4h-weeks"
+
+
+    **Decision Points**:
+
+    - Which cosine and matched-ion thresholds and component cap?
+
+    - Which families matter for the biological question?
+
+    - Is an unannotated neighbor of a library hit a credible analog?
+
+
+    **Information Needs**:
+
+    - Per-node precursor m/z, retention time, intensity, per-group means, library match and SMILES, chemical class
+
+    - Per-edge cosine and mass difference
+
+    - Component index and size; list of families sorted by size or by group specificity
+
+    - Which features are unique to one sample group
+
+
+    **Pain Points**:
+
+    - Cytoscape search is very slow with large networks
+
+    - The style is rebuilt or re-imported for every job
+
+    - Whole networks can be too large to open; the GNPS viewer shows one component at a time
+
+    - Structure images and pie charts must be set up by hand
+
+
+    **Data Flow**:
+
+    - Input: GNPS .graphml plus .csv, or .cys session; metadata table
+
+    - Transformations: Table join, pie-chart and structure encoding, component filtering, per-group subnetworks
+
+    - Output: Annotated family figures (PDF), session for collaborators
+success_criteria:
+    - metric: Restyling cost
+      target: A saved molecular-network style reapplied to a new job in one action
+    - metric: Large network handling
+      target: A 55,000-node network opens and families can be browsed without a warning prompt
+    - metric: Family browsing
+      target: User steps through components ranked by size or group specificity
+sources:
+    - title: GNPS documentation - Feature-Based Molecular Networking in Cytoscape
+      url: https://ccms-ucsd.github.io/GNPSDocumentation/featurebasedmolecularnetworking-cytoscape
+      summary: Import, table join, pie charts by group, edge styling
+    - title: GNPS documentation - Molecular networking parameters
+      url: https://ccms-ucsd.github.io/GNPSDocumentation/networking
+      summary: Cosine 0.7, 6 matched ions, TopK 10, component cap 100
+    - title: GNPS documentation - Cytoscape and in-browser views
+      url: https://ccms-ucsd.github.io/GNPSDocumentation/cytoscape
+      summary: In-browser viewer shows a single component at a time
+    - title: Harris et al. 2021 - infection metabolomics chapter
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10040239
+      summary: Step-by-step Cytoscape styling, chemViz2 structures, family isolation, 810 sub-families, 4h-weeks
+    - title: Leao et al. 2021 - GNPS usage
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8705952
+      summary: Over 300,000 accesses a month from more than 160 countries
+    - title: Molecular networking bug reports thread
+      url: https://groups.google.com/g/molecular_networking_bug_reports/c/Gmz4qXuQGiI
+      summary: 55,000-node network too large for Cytoscape; user told to browse families in GNPS
+    - title: Carpentries genome mining - metabolomics lesson
+      url: https://carpentries-incubator.github.io/genome-mining/09-metabolomics/index.html
+      summary: Cytoscape search is very slow with large networks
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

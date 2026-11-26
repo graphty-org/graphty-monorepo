@@ -1,0 +1,176 @@
+id: W426
+name: Build, Learn, Query and Validate a Bayesian Network
+category: analysis
+validated: false
+personas:
+    - bayesian-network-risk-modeler
+requires_capabilities:
+    - data-import
+    - data-validation
+    - layout-hierarchical
+    - node-selection
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - details-on-demand
+    - legend-display
+    - removal-impact-analysis
+    - comparison-view
+    - view-bookmarks
+    - report-generation
+    - export-image
+    - data-export
+    - graph-authoring
+    - causal-node-roles
+    - probabilistic-inference
+    - submodel-collapse
+    - causal-model-formats
+suggested_components:
+    - graph-canvas
+    - toolbar
+    - context-menu
+    - node-details-panel
+    - node-chart-overlay
+    - cluster-collapse-control
+    - data-import-dialog
+    - column-mapper
+    - ranked-node-table
+    - legend-panel
+    - bookmark-panel
+    - report-generator-dialog
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: expert knowledge of the causal web, elicitation sheets, and optionally a case file of monitoring data
+    node_count: 15-60 (benchmark networks up to 223 and 1,041)
+    edge_density: sparse to moderate
+    user_expertise: expert
+goal: >-
+    **Intent**: Build a probabilistic Bayesian network (and often an influence diagram with decisions and utilities),
+    parameterize it from data and experts, then query it: enter evidence and watch every node's belief update, find
+    which parameters and observations move the endpoint, choose the option with the highest expected utility, and
+    validate it against held-out cases. This is the core loop of GeNIe, Netica, Hugin and AgenaRisk.
+
+
+    **Mental Model**: "A model I can ask what-if questions." Each node is a small bar chart of state probabilities;
+    setting evidence on one node ripples through the graph.
+
+
+    **Task Phases**:
+
+    1. **Scope and conceptual model** - Purpose and endpoint; draw the causal web with experts as an influence
+    diagram; keep it parsimonious
+
+    2. **Build the structure** - Chance nodes with named states, arcs parent to child; group large models into
+    submodels whose boundary-crossing arcs attach to the submodel icon; Hugin object-oriented networks reuse classes
+    with input and output interface nodes
+
+    3. **Parameterize** - Elicit CPTs from experts, or learn from a case file: match data columns to nodes, run EM
+    (handles missing values) with uniform, random or original starting points and an equivalent sample size weight
+
+    4. **Compile and view beliefs** - Belief bars (state, percentage, bar) on every node; bar-chart node views
+
+    5. **Enter evidence** - Right-click a node, set a state; all other beliefs update; run predictive (scenario) and
+    diagnostic (effect to cause) queries; most probable explanation
+
+    6. **Sensitivity analysis** - Mark targets; the graph recolors nodes by parameter importance for the targets; a
+    tornado diagram per target ranks the top 10 parameters by the spread of the target posterior; Netica's
+    sensitivity to findings ranks nodes by mutual information or variance reduction
+
+    7. **Decisions** - Add decision nodes (rectangles) and utility nodes (diamonds); solve for the alternative with the
+    highest expected utility
+
+    8. **Dynamic models** - Temporal plate with a number of time steps and temporal arcs with a lag order; cycles allowed
+    only through temporal arcs; unroll to check
+
+    9. **Validate** - k-fold or leave-one-out cross-validation on class nodes; accuracy, confusion matrix, ROC with
+    AUC, calibration
+
+    10. **Communicate** - Screenshots with belief bars and tornado charts; scenario tables in reports
+
+
+    **Decision Points**:
+
+    - How many states per node, and how to discretize continuous variables (often undocumented)?
+
+    - Which CPTs come from data and which from experts?
+
+    - Which nodes are targets for sensitivity analysis?
+
+    - Which management option to recommend given expected utility and uncertainty?
+
+
+    **Information Needs**:
+
+    - Posterior distribution on every node after each finding, shown on the node
+
+    - Which nodes hold evidence and which are targets
+
+    - Sensitivity ranking tied to nodes (color on the graph plus a tornado chart per target)
+
+    - Expected utility per decision option, on the decision node
+
+    - Validation metrics per class node
+
+
+    **Pain Points**:
+
+    - Desktop licensed tools stakeholders cannot open; screenshots replace the model
+
+    - Proprietary formats (DNE, XDSL, OOBN class files); conversion between tools is best effort
+
+    - Sensitivity and tornado results sit in separate windows
+
+    - Managers want exact advice rather than distributions
+
+    - Many environmental BNs skip validation
+
+
+    **Data Flow**:
+
+    - Input: Expert structure; elicited CPTs; case file (CSV) for EM learning; or a BIF, XML-BIF, NET, DSC or XDSL model
+
+    - Transformations: Parameter learning, exact or approximate inference, sensitivity analysis, expected utility,
+    dynamic unrolling, cross-validation
+
+    - Output: Model file, scenario tables, belief-bar figures, tornado charts, validation report
+success_criteria:
+    - metric: Evidence round trip
+      target: Setting evidence on a node updates every visible belief without leaving the graph
+    - metric: Stakeholder access
+      target: A stakeholder can open and query the model in a browser with no license
+    - metric: Sensitivity legibility
+      target: User can name the top three parameters for a target from the graph view
+sources:
+    - title: GeNIe manual - sensitivity analysis
+      url: https://support.bayesfusion.com/docs/GeNIe/bn_sensitivitybn.html
+      summary: Targets, red recoloring, tornado diagram top 10 sorted most to least sensitive, 10% default spread
+    - title: GeNIe manual - learning parameters
+      url: https://support.bayesfusion.com/docs/GeNIe/learning_parameters.html
+      summary: EM from case files with missing values, starting points and equivalent sample size
+    - title: GeNIe manual - submodels
+      url: https://support.bayesfusion.com/docs/GeNIe/components_submodels.html
+      summary: Submodel nodes host sub-graphs; outside links shown as triangles on inner nodes
+    - title: GeNIe manual - creating dynamic Bayesian networks
+      url: https://support.bayesfusion.com/docs/GeNIe/dbns_creatingdbn.html
+      summary: Temporal plate, temporal arcs with order, cycles only through temporal arcs
+    - title: GeNIe manual - validation
+      url: https://support.bayesfusion.com/docs/GeNIe/learning_validation.html
+      summary: k-fold and leave-one-out, accuracy, confusion matrix, ROC and calibration
+    - title: GeNIe manual - influence diagrams
+      url: https://support.bayesfusion.com/docs/GeNIe/da_ids.html
+      summary: Decision rectangles, utility diamonds, highest expected utility
+    - title: Netica help - compiling a Bayes net and sensitivity to findings
+      url: https://documentation.help/Netica/X_Sensitivity_to_Findings.htm
+      summary: Belief bars after compiling; ranking by mutual information or variance reduction
+    - title: Hugin object-oriented network course slides
+      url: https://moodle.th-ab.de/mod/resource/view.php?id=336602
+      summary: Classes with input and output interface nodes, instance nodes
+    - title: Kaikkonen et al. 2021 - environmental risk BNs
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC7821106
+      summary: Expert-built models, decision nodes in 18 of 72, frequent skipped validation
+    - title: bnlearn - graphviz.chart belief bars
+      url: https://www.bnlearn.com/examples/graphviz-chart
+      summary: Scripted belief-bar node figures
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

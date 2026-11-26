@@ -1,0 +1,17 @@
+id: security-format-import
+name: Security Format Import
+category: data
+description: Import SharpHound and AzureHound zips, BloodHound OpenGraph JSON, STIX 2.1 including Attack Flow, MISP
+    JSON, EVTX-derived CSV and Zeek logs.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W108
+    - W110
+    - W112
+    - W113
+    - W116
+implemented_by_components: []
+requirements: []
+sources: []

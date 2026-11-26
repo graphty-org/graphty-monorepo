@@ -1,0 +1,147 @@
+id: W112
+name: Host-to-Host Logon Graph During Incident Response
+category: analysis
+validated: false
+personas:
+    - luis-ferreira
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - visual-encoding-edges
+    - visual-encoding-nodes
+    - legend-display
+    - filtering
+    - centrality-pagerank
+    - anomaly-detection
+    - temporal-analysis
+    - temporal-navigation
+    - shortest-path
+    - path-highlighting
+    - details-on-demand
+    - data-export
+    - event-table-to-graph
+    - local-only-processing
+    - typed-edge-filtering
+    - security-format-import
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - graph-canvas
+    - visual-encoding-panel
+    - legend-panel
+    - filter-panel
+    - ranked-node-table
+    - temporal-controls
+    - data-table-panel
+    - data-export-dialog
+starting_state:
+    data_type: Windows Security event logs (EVTX or EvtxECmd CSV) with logon events 4624, 4625, 4648, 4672, 4768, 4769, 4776, plus Sysmon
+    node_count: 100-20,000 accounts and hosts
+    edge_density: temporal multi-edges, bipartite account-host or host-host
+    user_expertise: advanced
+goal: >-
+    **Intent**: Scope lateral movement in a breach by turning authentication logs into a graph of which accounts
+    logged on to which hosts, from where, in what order and with which logon type, then hand the customer a defensible
+    chronological hop table. Done during incident response in LogonTracer, IRFlow Timeline, Graphistry or a spreadsheet.
+
+
+    **Mental Model**: "Footprints between rooms." Each logon is a footprint from one host into another; the logon type
+    says how the attacker came in (network, RDP, service); the order of footprints is the attacker's route.
+
+
+    **Task Phases**:
+
+    1. **Collect** (hours) - Security EVTX from domain controllers and key hosts; the audit policy must log 4768, 4769
+    and 4776
+
+    2. **Load** (15 min) - Parse into account and host nodes with logon events as edges (source to target with counts,
+    first and last seen, users, logon type); color accounts by privilege (SYSTEM-level versus user)
+
+    3. **Encode logon type** (5 min) - 2 interactive, 3 network, 4 batch, 5 service, 7 unlock, 8 network cleartext, 9 new
+    credentials, 10 RDP, 11 cached; color edges by type; remove the type 3 logon that precedes each RDP type 10 so one
+    session is not counted twice
+
+    4. **Rank and flag** (5 min) - Rank accounts and hosts (LogonTracer uses PageRank) and flag bursts of logons (it uses
+    ChangeFinder)
+
+    5. **Order in time** (1-4 h) - Trace chains A to B to C with first and last seen per hop; jump to raw events in a
+    five-minute window; confirm each hop with execution evidence such as Sysmon event 1
+
+    6. **Hand off** (1-2 h) - Chronological hop table: time, source, target, account, logon type, evidence
+
+
+    **Decision Points**:
+
+    - Which accounts are compromised, and which logons are the attacker's versus normal admin work?
+
+    - Where did movement start (patient zero)?
+
+    - Is a hop confirmed by execution evidence, or only by a logon?
+
+    - Has the scope stopped growing?
+
+
+    **Information Needs**:
+
+    - Logon type, account, count, first and last seen on every edge
+
+    - Which edges are first-seen during the incident window
+
+    - Burst and rank scores for accounts and hosts
+
+    - The time-ordered chain through a selected host
+
+    - The raw events behind an edge, a few minutes either side
+
+
+    **Pain Points**:
+
+    - Naive graphs double-count RDP sessions (type 3 then type 10)
+
+    - Workstation name or IP is missing for some authentication protocols
+
+    - Event volumes run to millions; the public LANL benchmark has 1.6 billion events over 58 days
+
+    - The final hop table is assembled by hand from several tools
+
+
+    **Data Flow**:
+
+    - Input: EVTX or parsed CSV of logon and Kerberos events, Sysmon process events
+
+    - Transformations: Event rows to account-host edges with counts and first and last seen, logon-type encoding,
+    RDP deduplication, ranking and burst detection, time filter, chain tracing
+
+    - Output: Scoped list of compromised accounts and hosts, chronological hop table, graph figure for the report
+success_criteria:
+    - metric: Logon type visibility
+      target: Every edge shows its logon type by color with a legend
+    - metric: Chain tracing
+      target: User can follow a multi-hop chain in time order with first and last seen per hop
+    - metric: Hand-off
+      target: Hop table exported as CSV without manual assembly
+sources:
+    - title: JPCERT/CC - LogonTracer
+      url: https://blogs.jpcert.or.jp/en/2017/11/visualise-event-logs-to-identify-compromised-accounts---logontracer-.html
+      summary: EVTX into Neo4j, account and host nodes colored by privilege, PageRank and ChangeFinder, required audit events
+    - title: Microsoft Learn - Event 4624
+      url: https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4624
+      summary: Logon types and fields, missing workstation name or IP by protocol
+    - title: IRFlow Timeline - Lateral movement
+      url: https://r3nzsec.github.io/irflow-timeline/features/lateral-movement
+      summary: Source to target edges with counts, first and last seen, users, logon type colors, raw event jump
+    - title: IRFlow Timeline - Lateral movement tracing tips
+      url: https://r3nzsec.github.io/irflow-timeline/dfir-tips/lateral-movement-tracing
+      summary: Type 3 before type 10 deduplication
+    - title: RootGuard - Lateral movement investigation runbook
+      url: https://rootguard.gitbook.io/cyberops/defensive-security/dfir/runbooks/lateral-movement-investigation-runbook
+      summary: Confirming hops with execution evidence
+    - title: Los Alamos National Laboratory - Comprehensive, multi-source cyber-security events
+      url: https://csr.lanl.gov/data/cyber1/
+      summary: 1.6 billion events over 58 days, 12,425 users, 17,684 computers
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

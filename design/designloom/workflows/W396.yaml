@@ -1,0 +1,139 @@
+id: W396
+name: Population Structure as a k-NN Graph from SNPs
+category: analysis
+validated: false
+personas:
+    - population-genomics-snp-analyst
+    - conservation-geneticist
+requires_capabilities:
+    - data-import
+    - data-validation
+    - community-detection
+    - community-profiling
+    - component-analysis
+    - filtering
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-force-directed
+    - comparison-view
+    - centrality-degree
+    - data-export
+    - export-image
+    - linked-views-selection
+    - interactive-threshold
+    - similarity-graph-construction
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - attribute-table-join-dialog
+    - algorithm-panel
+    - community-panel
+    - cluster-table
+    - range-slider
+    - graph-canvas
+    - legend-panel
+    - comparison-view
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: N x N genetic distance matrix (from VCF or PLINK) plus metadata with ID, Colour and Group in matrix order
+    node_count: 400-1,400 individuals in typical studies; up to tens of thousands
+    edge_density: sparse, roughly k edges per node
+    user_expertise: expert
+goal: >-
+    **Intent**: Reveal fine-scale population structure (families, sub-populations) that PCA blurs by connecting each
+    individual to its genetically nearest neighbors and partitioning the graph into communities, then compare those
+    communities with sampling populations and ADMIXTURE.
+
+
+    **Mental Model**: "Who is each individual's closest relative?" Mutual nearest-neighbor links form clusters;
+    communities are candidate populations; k controls how fine the picture is.
+
+
+    **Task Phases**:
+
+    1. **Filter genotypes** (30 min) - Remove samples or SNPs with call rates below 90%; keep per-sample missingness
+    below 10%
+
+    2. **Distance matrix** (10 min) - PLINK allele-sharing distance, cophenetic distance from a tree, or Hamming
+    distance; NetStruct uses a frequency-weighted similarity that up-weights shared rare alleles
+
+    3. **Metadata** (10 min) - Table with ID, Colour and Group columns in matrix order
+
+    4. **Build graphs over a range of k** (5 min) - netview(distMatrix, metaData, k = 10:60, cluster = TRUE, mst =
+    FALSE); mst = TRUE adds minimum spanning tree edges so no individual is isolated
+
+    5. **Choose k** (15 min) - plotSelection plots communities per k; no objective rule; default k = 10, lower k for
+    small samples
+
+    6. **Community detection** (10 min) - Walktrap, Infomap and Fast-Greedy; color by sampling group to compare;
+    earlier versions drew networks in Cytoscape with node size by degree and edge width by relationship strength
+
+    7. **NetStruct variant** (30 min) - Prune edges below a rising threshold, re-run modularity community detection at
+    each level for a hierarchy, test modularity by permutation, report each individual's strength of association
+
+    8. **Compare and export** (30 min) - Place communities beside ADMIXTURE bars and PCA; save GML or interactive D3
+    HTML
+
+
+    **Decision Points**:
+
+    - Which distance measure?
+
+    - Which k or threshold, given there is no objective rule?
+
+    - Which community algorithm, and do they agree?
+
+    - Add MST edges or allow isolates?
+
+
+    **Information Needs**:
+
+    - Number of communities and components at each k or threshold
+
+    - Agreement between detected communities and sampling groups (cross-tabulation)
+
+    - Modularity and its permutation significance
+
+    - Per-individual strength of association to its community
+
+
+    **Pain Points**:
+
+    - No objective choice of k forces many re-runs
+
+    - Outputs are GML or D3 pages with no linked PCA or ADMIXTURE
+
+    - Graph construction from a matrix is not available in general graph tools
+
+
+    **Data Flow**:
+
+    - Input: VCF or PLINK genotypes, or a precomputed distance matrix; metadata table
+
+    - Transformations: Quality filtering, distance computation, mutual k-NN graph construction over a k sweep, optional
+    MST augmentation, community detection, threshold pruning, modularity permutation tests
+
+    - Output: Network figure colored by community and group, community-by-k plot, GML, comparison panel
+success_criteria:
+    - metric: k sweep
+      target: Communities per k for k = 10 to 60 computed and plotted in one step
+    - metric: Group comparison
+      target: A cross-tabulation of communities against sampling groups is shown beside the graph
+sources:
+    - title: NetView (Neuditschko et al. 2012)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC3485224/
+      summary: k-NN networks from SNP distances; k = 10 default; no objective k; call-rate filters; Cytoscape display
+    - title: NetView P (Steinig et al. 2016)
+      url: https://researchonline.jcu.edu.au/43182/6/43182_Steinig%20et%20al_2016_accepted%20version.pdf
+      summary: Mutual k-NN networks from genome-wide SNPs
+    - title: netview R README
+      url: https://github.com/esteinig/netview/blob/master/README_OLD.md
+      summary: Inputs, netview() call, plotSelection, Walktrap, Infomap and Fast-Greedy, GML and D3 output
+    - title: NetStruct (Greenbaum et al. 2016)
+      url: https://www.biorxiv.org/content/10.1101/024042v4.full-text
+      summary: Edge pruning, modularity hierarchy, permutation tests, strength of association
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,61 @@
+id: agent-memory-developer
+name: Agent-Memory Developer
+role: LLM Application Engineer (temporal knowledge graph memory)
+quote:
+    The agent told the customer the old address. I need to see what its memory believed last Tuesday and which message
+    changed it.
+bio: >-
+    Tomas Lindqvist builds a customer-support agent whose long-term memory is a Graphiti temporal knowledge graph
+    stored in Neo4j (FalkorDB and Neptune are the other supported backends). Messages and JSON events become episode
+    nodes; an LLM extracts entities and fact edges from them; each fact edge carries when it was true in the world
+    (valid_at, invalid_at), when the system recorded and expired it (created_at, expired_at) and the episodes that
+    support it. When the agent misbehaves he has to reconstruct what the graph believed at a moment and why a fact was
+    invalidated. The open-source library tells developers to build their own tools for this; Zep's hosted service has a
+    graph dashboard. Some teams use Mem0's graph memory instead.
+characteristics:
+    expertise: intermediate
+    time_pressure: high
+    graph_literacy: intermediate
+    domain_knowledge: intermediate
+motivations:
+    - Explain a wrong agent answer by finding the fact the memory held at that time
+    - Tell whether extraction or invalidation was at fault
+    - Trace every fact back to the episode (message) that introduced or contradicted it
+    - Keep production agents trustworthy without shipping a custom admin UI
+behaviors:
+    - Lists an entity's fact edges ordered by valid_at, including expired ones
+    - Filters edges valid at time T and recorded before T to answer "what did it believe at T"
+    - Follows an edge's episodes list to the source message
+    - Writes ad hoc Cypher against the memory store because the library has no viewer
+frustrations:
+    - The open-source Graphiti library has no viewer ("Build your own tools")
+    - Four timestamps per edge are hard to read in a table and invisible in generic graph views
+    - Invalidated edges are kept, so a naive view shows contradictory facts side by side
+    - Mem0's current graph memory no longer records typed relationships
+context:
+    frequency: weekly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W133
+sources:
+    - title: Zep - a temporal knowledge graph architecture for agent memory
+      url: https://arxiv.org/html/2501.13956
+      summary: Episode, entity and community subgraphs; bi-temporal edges; LLM-decided invalidation
+    - title: Graphiti edge model
+      url: https://raw.githubusercontent.com/getzep/graphiti/main/graphiti_core/edges.py
+      summary: valid_at, invalid_at, created_at, expired_at, reference_time and episodes fields on fact edges
+    - title: Graphiti README
+      url: https://github.com/getzep/graphiti
+      summary: Neo4j, FalkorDB and Neptune backends; invalidation without deletion; no built-in viewer
+    - title: Mem0 paper
+      url: https://arxiv.org/html/2504.19413v1
+      summary: Graph memory variant reports about 2 percent higher overall score than base Mem0
+    - title: Mem0 graph memory docs
+      url: https://docs.mem0.ai/open-source/features/graph-memory
+      summary: Current docs state typed relationships are no longer recorded
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

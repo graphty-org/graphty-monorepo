@@ -1,0 +1,14 @@
+id: attribute-grid-view
+name: Two-Axis Attribute Grid
+category: visualization
+description: A non-network view placing nodes on a grid by two numeric attributes, such as influence against interest or
+    MICMAC influence against dependence.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W197
+    - W205
+implemented_by_components: []
+requirements: []
+sources: []

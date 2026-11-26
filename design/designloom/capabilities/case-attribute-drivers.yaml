@@ -1,0 +1,14 @@
+id: case-attribute-drivers
+name: Case Attribute Driver Analysis
+category: analysis
+description: For a selection made on the graph (node, edge, variant, deviation) against a reference set, compute per
+    attribute value the counts in each set, share, deviation from baseline and a significance flag, optionally a
+    decision tree over case attributes for a target metric, returned as structured facts linked to the selection.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W359
+implemented_by_components: []
+requirements: []
+sources: []

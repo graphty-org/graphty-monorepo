@@ -1,0 +1,14 @@
+id: suboptimal-paths
+name: Suboptimal paths
+category: analysis
+description: Find all paths between two nodes within a length offset of the optimum, rank and group them, and
+    distinguish the optimal path.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W244
+    - W255
+implemented_by_components: []
+requirements: []
+sources: []

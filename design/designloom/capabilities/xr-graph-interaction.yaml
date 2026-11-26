@@ -1,0 +1,13 @@
+id: xr-graph-interaction
+name: 3D and XR Embedding Controls
+category: export
+description: Camera control modes, custom node meshes and sprites, and XR controller selection of nodes that does not
+    re-render on host state changes.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W283
+implemented_by_components: []
+requirements: []
+sources: []

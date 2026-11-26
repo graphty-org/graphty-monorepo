@@ -1,0 +1,157 @@
+id: W349
+name: Building the Event Log from Source Tables
+category: analysis
+validated: false
+personas:
+    - process-mining-analyst
+    - process-mining-consultant
+    - clinical-pathway-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - computed-attributes
+    - details-on-demand
+    - temporal-analysis
+    - data-export
+    - process-map-derivation
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - attribute-table-join-dialog
+    - data-table-panel
+    - data-export-dialog
+starting_state:
+    data_type: >-
+        Relational source tables (ERP header, item and history tables such as SAP EBAN, EKKO, EKPO, EKBE, CDHDR and
+        CDPOS; EHR admission, triage, vitals, lab and medication tables; ticket histories) exported as CSV or read
+        from a database; no graph yet
+    node_count: none yet; the eventual process map has 5-100 activities, the log has thousands to millions of events
+    edge_density: not a graph yet; the directly-follows graph derived later is sparse but cyclic
+    user_expertise: intermediate+
+goal: >-
+    **Intent**: Turn the records an information system keeps into a single event log -- one row per event with a case
+    id, an activity name and a timestamp, plus resource and case attributes -- that a process map can be derived from.
+    Practitioners rate this the hardest step: in the IEEE task force survey of 289 respondents the most common answer
+    for the share of effort spent on data preparation was 61 to 80 percent, and data access and extraction are the
+    top-rated of 23 analyst challenges.
+
+
+    **Mental Model**: "Every status change is a footprint; the case is whose footprints they are." The analyst is
+    choosing a lens: changing the case notion (service id to customer id) changes the process that appears.
+
+
+    **Task Phases**:
+
+    1. **Agree the activities** - Ask the process owner to sketch the 5-10 most important activities so the extraction
+    targets the right milestones
+
+    2. **Choose the case notion** - Pick one or more columns that together identify a single execution: purchase order
+    item, ticket, emergency department stay, patient
+
+    3. **Find the events** - History or audit tables give one row per status change; database-centric ERPs do not, so
+    milestone timestamps are pulled from business tables, one SQL statement per activity, unioned into one activity
+    table with case key, activity, event time and an optional sorting column for ties. A timestamp column on a case row
+    ("created at", "approved at") becomes its own activity
+
+    4. **Join tables and decide many-to-many links** - Follow a case through references (a PO number on an invoice);
+    where one order has several deliveries, decide between several data sets or an object-centric log
+
+    5. **Fix timestamps and choose the window** - Repair missing or date-only timestamps, add tie-breaking offsets
+    (MIMICEL set triage to arrival plus 1 second), choose an extraction window of at least 3 months, select by start
+    date for fall-out analysis and by end date for compliance
+
+    6. **Validate** - Trace 10-20 cases by hand in the source system's screens and compare them with the log, then hold
+    a validation session with the domain expert
+
+
+    **Decision Points**:
+
+    - Which column or combination of columns is the case id?
+
+    - Which events are activities and which are attributes of an activity?
+
+    - One log per object type, or keep the many-to-many links object-centric?
+
+    - Is a tie in timestamps a real simultaneity or a missing time of day?
+
+    - Is a case at the edge of the window incomplete, and should it be kept?
+
+
+    **Information Needs**:
+
+    - Row counts per source table and per derived activity, before and after the join
+
+    - Rows that failed to match a case, and cases with no events
+
+    - Timestamp parse results: format guessed, rows that failed, date-only values, time zone
+
+    - Count of events that share a timestamp within a case
+
+    - Distribution of case start and end dates against the extraction window
+
+    - A handful of cases shown as full histories for hand checking
+
+
+    **Pain Points**:
+
+    - ETL functionality in process mining tools is lacking; joins happen in SQL or Python outside the tool
+
+    - Each tool converts the same data to an event log differently, so results do not reproduce across tools
+
+    - Timestamp ties make event order impossible to determine (BPIC 2019)
+
+    - Wrong timestamp column or time zone shifts silently distort durations (BPIC 2019 CSV and Disco file differ by 5-6
+    hours)
+
+    - Activity labels at the wrong granularity cannot be split later by any algorithm
+
+    - Sensitive identifiers (employees, patients) must be handled before the log is shared
+
+
+    **Data Flow**:
+
+    - Input: Source tables (CSV, database extracts), list of agreed activities, chosen case notion
+
+    - Transformations: Per-activity extraction, union into an activity table, join of a case table, timestamp columns
+    turned into activities, timestamp repair and tie-breaking, window selection
+
+    - Output: Event log as CSV or XES (case id, activity, timestamp, resource, attributes) or an OCEL 2.0 log, plus a
+    validation note listing hand-checked cases
+success_criteria:
+    - metric: Join transparency
+      target: User can state how many events and cases each source table contributed and how many rows did not match
+    - metric: Timestamp quality visibility
+      target: Ties, date-only values and parse failures are counted and listed before the map is drawn
+    - metric: Validation
+      target: 10-20 cases can be opened as full histories and compared with the source system
+sources:
+    - title: Wynn et al. 2022 - IEEE task force survey on process mining data preparation (289 respondents)
+      url: https://vdaalst.com/publications/p1249.pdf
+      summary: Most common share of effort on pre-processing is 61-80 percent; plain text and relational tables are the usual sources, XES much rarer
+    - title: Zimmermann, Zerbato and Weber - challenges of process mining analysts
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11646219/
+      summary: Data access, extraction and access to additional information are the top-rated of 23 challenges; ETL in tools is lacking; tools convert data differently
+    - title: Fluxicon Process Mining in Practice - data extraction
+      url: https://fluxicon.com/book/read/dataext/
+      summary: Agree 5-10 activities, choose the case notion, at least 3 months of data, trace 10-20 cases by hand to validate
+    - title: Fluxicon Process Mining in Practice - perspectives
+      url: https://fluxicon.com/book/read/perspectives/
+      summary: Changing the case id from service id to customer id revealed repeat calls
+    - title: Celonis docs - activity table and case table
+      url: https://docs.celonis.com/en/activity-table-and-case-table.html
+      summary: Activity table with case key, activity, event time and optional sorting column for ties
+    - title: Celonis docs - purchase-to-pay appendix
+      url: https://docs.celonis.com/en/appendices-2269196.html
+      summary: Standard SAP P2P extraction from EBAN, EKKO, EKPO, EKET, EKBE and change documents
+    - title: MIMICEL - an event log for emergency department stays from MIMIC-IV-ED
+      url: https://arxiv.org/html/2505.19389v1
+      summary: Six tables joined with PostgreSQL scripts; triage without timestamp set to arrival plus 1 second
+    - title: BPI Challenge 2019 report (SAP purchase-to-pay)
+      url: https://ckmnet-website-blog.s3.amazonaws.com/CKM_BPI_Challenge2019_FINAL+(SUBMIT).pdf
+      summary: Timestamp ties make order impossible to determine; 25 percent NONE resources; time zone shift between file versions
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

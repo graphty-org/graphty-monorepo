@@ -1,0 +1,15 @@
+id: multi-user-session
+name: Shared multi-user graph session
+category: export
+description: Host and join a session with shared selection and pointing, desktop spectators, and data that need not
+    leave each participant's machine.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W415
+    - W416
+    - W421
+implemented_by_components: []
+requirements: []
+sources: []

@@ -1,0 +1,140 @@
+id: W260
+name: Comorbidity and Disease Trajectory Networks
+category: analysis
+validated: false
+personas:
+    - clinical-comorbidity-network-researcher
+requires_capabilities:
+    - data-import
+    - data-validation
+    - filtering
+    - community-detection
+    - community-profiling
+    - node-merging
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-hierarchical
+    - layout-force-directed
+    - temporal-analysis
+    - comparison-view
+    - export-image
+    - data-export
+    - group-collapse
+    - small-count-suppression
+    - interactive-threshold
+suggested_components:
+    - file-drop-zone
+    - column-mapper
+    - data-import-dialog
+    - filter-panel
+    - range-slider
+    - community-panel
+    - cluster-collapse-control
+    - visual-encoding-panel
+    - legend-panel
+    - layout-panel
+    - graph-canvas
+    - network-list-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: aggregated disease-pair statistics (relative risk, phi, patient counts, direction tests) computed inside a secure environment from ICD-coded diagnoses
+    node_count: 100-1000 diagnosis codes; 10-50 per trajectory cluster
+    edge_density: medium
+    user_expertise: expert
+goal: >-
+    **Intent**: Show how diseases co-occur and follow one another in a population: a comorbidity network weighted by an
+    association measure, and directed trajectories of three or four diagnoses drawn in time order, grouped into clusters
+    and colored by ICD chapter. Statistics are computed in R or Python on patient data; only aggregates leave the secure
+    environment.
+
+
+    **Mental Model**: "Disease A, then B, then C." Nodes are diagnoses; an edge means the pair occurs together (or in
+    order) more than chance; time runs left to right.
+
+
+    **Task Phases**:
+
+    1. **Extract and code** (days, secure environment) - Diagnoses per patient with dates (for example 14.9 years for 6.2
+    million Danish patients), ICD-10 rounded to three characters
+
+    2. **Pair statistics** (hours, scripted) - Count ordered pairs within a window (five years; 1,194,343 pairs);
+    relative risk against matched comparison groups with Bonferroni-corrected binomial tests (62,821 significant); test
+    direction (4,014 directional pairs). Alternative: relative risk and phi from claims (32.3 million Medicare claims,
+    13 million people), one network per measure
+
+    3. **Trajectories** (1 hour, scripted) - Chain directional pairs into three- and four-step trajectories with at least
+    20 patients (1,171 trajectories)
+
+    4. **Cluster** (30 min) - Jaccard similarity between diagnoses, MCL clustering (15 clusters)
+
+    5. **Export aggregates** (review) - Check minimum patient counts before data leaves the secure environment
+
+    6. **Draw** (1-2 hours today, custom code) - Comorbidity network thresholded for display (for example RR > 20, phi >
+    0.06), colored by ICD chapter, sized by prevalence; each trajectory cluster drawn with time left to right, directed
+    edges, width proportional to patient count
+
+    7. **Publish** - Paper figures and an interactive explorer
+
+
+    **Decision Points**:
+
+    - Relative risk or phi (rare versus common disease bias), or both side by side?
+
+    - Display threshold for each measure
+
+    - Window length for ordered pairs
+
+    - Which clusters to show as trajectory diagrams
+
+
+    **Information Needs**:
+
+    - Per-edge relative risk, phi, patient count and direction p-value
+
+    - ICD chapter and description per code
+
+    - Cluster membership
+
+    - Patient count per node and edge, to check the export rule
+
+
+    **Pain Points**:
+
+    - No named tool draws time-ordered trajectories left to right; figures are custom
+
+    - Only aggregates can leave the secure environment
+
+    - Thousands of codes are unreadable until grouped by chapter
+
+    - Each measure needs its own network
+
+
+    **Data Flow**:
+
+    - Input: Aggregated node table (code, chapter, prevalence) and edge table (pair, RR, phi, count, direction)
+
+    - Transformations: Threshold, cluster, group by ontology, layered left-to-right layout
+
+    - Output: Comorbidity network figure, trajectory diagrams per cluster, interactive explorer data
+success_criteria:
+    - metric: Trajectory layout
+      target: A directed cluster drawn left to right in time order without manual node placement
+    - metric: Measure comparison
+      target: Relative risk and phi networks viewable side by side with linked selection
+    - metric: Ontology grouping
+      target: Nodes colored and collapsible by ICD chapter
+sources:
+    - title: Jensen et al. 2014 - Temporal disease trajectories
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4090719
+      summary: Ordered pairs, direction tests, trajectories with 20 or more patients, MCL clusters drawn left to right
+    - title: Hidalgo et al. 2009 - Phenotypic disease network
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC2661364
+      summary: Relative risk and phi networks from Medicare claims; display thresholds; interactive explorer
+    - title: Goh et al. 2007 - The human disease network
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC1885563/
+      summary: Bipartite disorder-gene projection colored by 22 classes, sized by gene count
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

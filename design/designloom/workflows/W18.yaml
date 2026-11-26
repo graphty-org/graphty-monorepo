@@ -7,17 +7,28 @@ personas:
     - analyst-alex
     - expert-emma
     - genomics-cytoscape-user
+    - spreadsheet-first-network-builder
+    - event-log-network-builder
+    - bibliometric-network-analyst
+    - graph-data-wrangler
+    - process-mining-analyst
 requires_capabilities:
     - data-import
     - data-validation
     - data-preview
     - progressive-loading
     - basic-statistics
+    - node-merging
+    - saved-import-mappings
+    - import-report
+    - edge-merge-policy
 suggested_components:
     - data-import-dialog
     - file-drop-zone
     - column-mapper
     - data-preview-table
+    - attribute-table-join-dialog
+    - node-merge-dialog
     - progress-bar
     - progressive-loader
     - statistics-panel
@@ -28,35 +39,55 @@ starting_state:
     user_expertise: any
 goal: >-
     **Intent**: Load graph data from various sources and validate that it imported correctly. User has data in some format
-    and needs to get it into the tool while catching any data quality issues.
+    and needs to get it into the tool while catching any data quality issues. Most users do not start with a graph file:
+    they bring node and edge tables, edge lists, event logs, records with multi-value cells, wide survey rows,
+    egocentric survey files, relational tables, matrices (sometimes one per subject), identifier lists, bibliographic
+    exports, layered files, document-derived entities or a live query (W291 to W303 follow each shape).
 
 
     **Mental Model**: "Airport security" - data goes through checkpoints that verify it's valid before being admitted.
-    Also "translation" - converting from the user's format to the tool's internal representation.
+    Also "translation" - converting from the user's format to the tool's internal representation. Every checkpoint is
+    also a decision (direction, duplicates, missing nodes) that changes the graph.
 
 
-    **Task Phases**:
+    **Task Phases** (no source gives step timings):
 
-    1. **Source Selection** - Choose input method (file upload, URL, paste, database connection)
+    1. **Source Selection** - Choose input method (file upload, URL, paste, database connection or repository query)
 
-    2. **Format Detection** - Automatically identify format (CSV, JSON, GraphML, etc.)
+    2. **Format and Shape Detection** - Identify the format (CSV, Excel, JSON, GraphML, etc.) and the input shape (node
+    table, edge list, event table, matrix, multi-value cells, layered data)
 
-    3. **Field Mapping** - Map source fields to node/edge attributes (may be automatic or manual)
+    3. **Field Mapping** - Map columns to roles (id, label, source, target, interaction type or layer, weight, time,
+    place) and types; Excel and Cytoscape read one worksheet at a time; a list column uses one delimiter
 
-    4. **Preview** - See sample of data before committing to full load
+    4. **Import Decisions** - Direction (Gephi CSV defaults to Directed; per-edge direction from a type column);
+    duplicate-edge merge strategy (sum, average, min, max, first, last, or keep as multi-edges); create missing nodes
+    or report unmatched endpoints; append to the current graph or start a new one; key type and normalization for
+    joins (string versus number, trim, case); whether layers stay distinct
 
-    5. **Load** - Import the full dataset
+    5. **Preview** - See sample of data before committing to full load, with type inference shown and overridable
 
-    6. **Validation** - Check for issues (missing values, type mismatches, orphan references)
+    6. **Load** - Import the full dataset, with progress and a size check first (W299)
 
-    7. **Quality Report** - See summary of data quality issues
+    7. **Validation** - Missing values, type mismatches, unparsed cells (become null), orphan references, key-join match
+    rate, conflicting values for one node (some tools keep only the last value imported), identifiers coerced to dates
+    (SEPT2)
+
+    8. **Import Report** - Rows read and skipped with reasons, nodes, edges, endpoints created, duplicates merged,
+    self-loops, reciprocal pairs collapsed
+
+    9. **Save the Mapping** - Name and re-apply the mapping to the next file of the same layout (W298)
 
 
     **Decision Points**:
 
-    - What format is my data in?
+    - What format and input shape is my data in?
 
     - How should fields be mapped to graph elements?
+
+    - Directed or undirected, and what do repeated rows mean?
+
+    - Create nodes for unmatched endpoints, or treat them as errors?
 
     - Are detected issues blocking or just warnings?
 
@@ -65,24 +96,36 @@ goal: >-
 
     **Information Needs**:
 
-    - Supported formats list
+    - Supported formats and input shapes
 
     - Auto-detected format with confidence
 
-    - Field mapping preview
+    - Field mapping preview with inferred types
 
     - Data sample before full load
 
-    - Node/edge counts after load
+    - The direction default and merge strategy in effect, named
 
-    - Quality issue summary
+    - Node/edge counts after load, next to the source row counts
+
+    - Unmatched endpoints and unmatched join keys, listed
+
+    - Quality issue summary with counts
 
 
     **Pain Points**:
 
-    - Data format not recognized
+    - Data format not recognized; .xlsx rejected or only the first sheet read
 
-    - Field mapping is wrong (e.g., treating edge list as node list)
+    - Field mapping is wrong (e.g., treating edge list as node list); a comma in a label splits the row
+
+    - Directed default accepted without noticing; reciprocal edges seem to vanish
+
+    - Duplicate nodes because create missing nodes stayed on while nodes were already loaded
+
+    - Numeric keys read as numbers on one side and strings on the other, so joins match nothing
+
+    - Node attributes silently overwritten by the last row
 
     - Large files take long time to load with no progress indicator
 
@@ -90,19 +133,24 @@ goal: >-
 
     - Data quality issues not surfaced until deep in analysis
 
+    - No record of the separator, merge strategy or direction chosen, so the import cannot be reproduced
+
 
     **Data Flow**:
 
-    - Input: Data file/URL/paste in user's format
+    - Input: Data file/URL/paste/query in user's format and shape
 
-    - Transformations: Format detection, parsing, field mapping, validation
+    - Transformations: Format and shape detection, parsing, field mapping, direction and merge decisions, endpoint
+    matching, key joins, validation
 
-    - Output: Loaded graph + quality report + field mapping documentation
+    - Output: Loaded graph + import report with counts + saved field mapping
 success_criteria:
     - metric: Load success rate
-      target: Common formats load without manual intervention
+      target: Common formats and table shapes load without manual intervention
     - metric: Quality issues surfaced
-      target: All major issues flagged before user proceeds
+      target: All major issues flagged, with counts, before user proceeds
+    - metric: Import decisions visible
+      target: Direction, merge strategy and missing-node handling are shown as named choices, not silent defaults
     - metric: Time to loaded graph
       target: Fast enough that user doesn't abandon
 sources:
@@ -112,6 +160,24 @@ sources:
     - title: University of Toronto Gephi Guide
       url: https://mdl.library.utoronto.ca/technology/tutorials/visualizing-network-dataset-using-gephi
       summary: Data preparation workflow for network visualization
+    - title: Gephi User Manual - CSV format
+      url: http://docs.gephi.org/desktop/User_Manual/Import/CSV_Format/
+      summary: Directed default, mandatory Source and Target, unparsed cells become null, types fixed at import
+    - title: Gephi API - EdgeMergeStrategy
+      url: https://gephi.org/gephi/0.9.2/apidocs/org/gephi/io/importer/api/EdgeMergeStrategy.html
+      summary: SUM, AVG, MAX, MIN, FIRST, LAST and NO_MERGE
+    - title: Martin Grandjean - Introduction to network visualization with Gephi
+      url: https://www.martingrandjean.ch/introduction-to-network-visualization-gephi/
+      summary: Create missing nodes produces duplicates when nodes are already loaded
+    - title: Cytoscape tutorial - Importing Network From Table
+      url: https://cytoscape.org/cytoscape-tutorials/protocols/importing-network-from-table/
+      summary: Node attribute keeps only the last value imported
+    - title: Cytoscape helpdesk - only column headers imported
+      url: https://groups.google.com/g/cytoscape-helpdesk/c/O0Qpdb0zuLc
+      summary: String key versus numeric column; first column default key
+    - title: Ziemann, Eren and El-Osta 2016 - Gene name errors
+      url: https://genomebiology.biomedcentral.com/track/pdf/10.1186/s13059-016-1044-7
+      summary: Excel converts gene symbols such as SEPT2 to dates
 version: 1.0.0
 created_at: 2026-01-16T16:22:52.356Z
-updated_at: 2026-01-16T16:22:52.356Z
+updated_at: 2026-11-25T00:00:00.000Z

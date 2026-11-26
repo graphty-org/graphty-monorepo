@@ -1,0 +1,14 @@
+id: dataset-version-tracking
+name: Dataset Version Tracking
+category: analysis
+description: A graph records its source dataset and version (FlyWire release, CAVE materialization) and node ids can be
+    remapped across versions from an old-to-new table with a count of changed nodes.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W156
+    - W157
+implemented_by_components: []
+requirements: []
+sources: []

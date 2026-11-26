@@ -1,0 +1,71 @@
+id: emergency-contact-tracing-supervisor
+name: Emergency Contact Tracing Supervisor
+role: Contact Tracing Pillar Lead, National Outbreak Response
+quote: Every contact seen today, every new case attached to a chain, and tell me if the chain runs through a hospital.
+bio: >-
+    Joseph Okello leads the contact tracing pillar of a national response to an Ebola-family virus or a respiratory
+    epidemic, with WHO support. His system is Go.Data, used in more than 60 countries, which holds cases, contacts and
+    events as node types, exposure relationships as edges, and generates the day's follow-up lists for field teams on a
+    mobile app. Alongside it he uses Chainchecker to test whether the chains people have written down are even possible
+    given incubation periods, and an R package when a question needs a measure rather than a picture. His inputs are a
+    case line list with onset dates and a likely-source field, contact lists, exposure events such as funerals, wards
+    and markets, and a daily follow-up status per contact. Scale is hundreds of cases and thousands of contacts, with
+    the data changing every few hours. Before Chainchecker, his team's predecessors tracked chains on paper and in
+    presentation slides; with it, one Ugandan team linked 11 previously unconnected cases, corrected 13 wrong links and
+    flagged 5 possible hospital-acquired infections.
+characteristics:
+    expertise: intermediate
+    time_pressure: high
+    graph_literacy: intermediate
+    domain_knowledge: advanced
+motivations:
+    - Get every contact visited on every day of the follow-up window, and know immediately who was missed
+    - Attach every new case to a known chain, or find out that it cannot be attached
+    - Find transmission settings (a funeral, a ward, a market) rather than only person-to-person links
+    - Catch health-facility transmission early, because it multiplies fast and changes the response
+    - Brief a national task force each morning with a chain picture that was correct at dawn
+behaviors:
+    - Configures the outbreak first: follow-up duration, visits per day, and reference data where each value carries an icon and a color, because that is what makes the chain graph readable later
+    - Registers cases, contacts and events as the three node types, with exposures as edges
+    - Models a cluster as an event node (a funeral, a ward, a market) because the built-in cluster field only appears as text on an edge
+    - Colors edges by context of exposure to see which setting is driving spread
+    - Generates and reconciles daily follow-up lists, which field teams fill in on phones with intermittent connectivity
+    - Computes each case's exposure window from an editable incubation period and checks the recorded likely source against it
+    - Corrects, splits or merges chains when the timeline makes a recorded link impossible
+    - Overlays genetic distances on the epidemiologic links when sequencing results arrive
+    - Collapses and expands events, and filters by date and status, to brief different audiences from one graph
+frustrations:
+    - Clusters have to be modeled as events to appear as nodes at all, which is a workaround everyone has to be taught
+    - Chains recorded in good faith include links that the incubation period rules out, and nothing flags them automatically
+    - Paper and slide decks were the previous chain tool, and a slide cannot be recomputed when a case is reassigned
+    - Follow-up status and the chain picture live in different screens, so "who is overdue" and "who is in this chain" are separate questions
+    - Data changes hourly, so any exported figure is stale by the afternoon briefing
+    - Hospital-acquired transmission is only visible if someone cross-reads facility stays against the chain
+context:
+    frequency: daily
+    devices:
+        - laptop
+        - mobile
+    voluntary: false
+workflows:
+    - W72
+    - W73
+sources:
+    - title: WHO Go.Data
+      url: https://www.who.int/tools/godata/about
+      summary: Outbreak investigation tool used in more than 60 countries, covering case and contact data, follow-up and chains of transmission
+    - title: Go.Data reference data guide
+      url: https://worldhealthorganization.github.io/godata/refdata
+      summary: Reference data values carry icons and colors; cases, contacts and events are the node types; the cluster feature appears only as text on an edge, so clusters are modeled as events
+    - title: Akunzirwe et al., Chainchecker in the 2022 Sudan virus disease outbreak, Uganda (PLOS Global Public Health 2025)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC12011214/
+      summary: Chains previously tracked on paper and in slides; Chainchecker linked 11 unconnected cases, corrected 13 wrong links and flagged 5 possible nosocomial events, with exposure windows from editable incubation periods
+    - title: Nagraj et al., epicontacts - handling, visualization and analysis of epidemiological contact data (F1000Research 2018)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6572866
+      summary: Joins a line list to a contact list, remembers directedness, and provides interactive plots and network measures
+    - title: Contact tracing with a graph database in the canton of Geneva (2021)
+      url: https://neo4j.com/blog/graph-visualization/extensive-representation-of-contact-tracing-with-neo4j-in-the-canton-of-geneva/
+      summary: Laboratory results, venue attendance and travel records as people and exposure-event nodes, asking who likely infected whom and which chains to prioritize
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,85 @@
+id: process-mining-researcher
+name: Process Mining Researcher
+role: PhD Student / Researcher in Process and Data Science
+quote: I want the map, the deviations and the fitness score on one screen, and I want to change the noise threshold without re-running a notebook cell and opening a PNG.
+bio: >-
+    Lukas is a PhD student in a process and data science group. He writes BPI Challenge reports and conference papers,
+    works in PM4Py inside Jupyter, uses ProM's Inductive visual Miner for exploring deviations, and experiments with
+    object-centric event logs (OCEL 2.0) and Neo4j event knowledge graphs. His data is public: XES logs from the BPI
+    Challenges (13,087 to 251,734 cases, up to about 1.6 million events) and OCEL 2.0 sample logs. He compares discovery
+    algorithms by fitness and precision, prototypes object-centric views, and needs reproducible figures. The research
+    community is real and organized: the IEEE Task Force on Process Mining has about 750 members, and about a third of
+    the 420-plus attendees of the first ICPM conference were academics. PM4Py has had about 3.4 million PyPI downloads.
+characteristics:
+    expertise: expert
+    time_pressure: low
+    graph_literacy: advanced
+    domain_knowledge: expert
+motivations:
+    - Compare discovery algorithms and parameters by fitness, precision and readability
+    - See deviations (log moves and model moves) drawn on the model they belong to
+    - Prototype object-centric process maps that do not distort counts by flattening
+    - Produce reproducible, publication-quality figures straight from scripts
+    - Explore event data as a graph (entities, events, directly-follows chains) for new methods
+behaviors:
+    - Loads XES with read_xes, or a pandas dataframe mapped to case, activity and timestamp keys
+    - Filters variants by top-k or coverage percentage and reports the coverage curve
+    - Calls discover_dfg and discover_performance_dfg and views them as static Graphviz images
+    - Discovers Petri nets and process trees with the Inductive Miner at several noise thresholds
+    - Computes alignment-based fitness and precision and conformance diagnostics per trace
+    - Builds handover-of-work and working-together networks from the same log
+    - Loads OCEL 2.0 SQLite logs, discovers object-centric DFGs and compares them with flattened logs
+    - Loads events and entities into Neo4j and aggregates directly-follows chains with Cypher
+frustrations:
+    - Static Graphviz images from PM4Py that cannot be clicked, filtered or animated
+    - Switching between console and viewer to tune parameters
+    - Each tool converting the data to an event log differently, so results do not compare
+    - No single tool that shows the map, the deviations and the global scores together
+    - Graphviz dot layouts that change completely when one edge is added
+    - Object-centric maps that encode object type only by hue
+context:
+    frequency: daily
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W339
+    - W344
+    - W345
+    - W347
+    - W354
+    - W355
+    - W356
+    - W357
+sources:
+    - title: PM4Py API reference 2.7.11
+      url: https://pm4py.fit.fraunhofer.de/static/assets/api/2.7.11/api.html
+      summary: format_dataframe, variant filters, DFG and model discovery, alignments, social network and OCEL functions
+    - title: Leemans, Fahland and van der Aalst - Inductive visual Miner (BPM 2014)
+      url: https://www.vdaalst.com/publications/p789.pdf
+      summary: Interactive discovery with noise threshold; log and model moves drawn on the model; animation
+    - title: van den Elzen et al. 2025 - visualization in process mining case studies
+      url: https://eprints.whiterose.ac.uk/id/eprint/225747/9/1-s2.0-S0306437925000444-main.pdf
+      summary: 427 visualizations in 74 case studies; switching between console and viewer; color-only object-centric encoding
+    - title: OCEL 2.0 specification
+      url: https://www.ocel-standard.org/2.0/ocel20_specification.pdf
+      summary: Typed events and objects, event-to-object and object-to-object relations with qualifiers
+    - title: Esser and Fahland - event knowledge graphs
+      url: https://arxiv.org/pdf/2005.14552v2
+      summary: Events and entities in Neo4j, one directly-follows chain per entity, multi-entity DFGs via Cypher
+    - title: Task Force on Process Mining (Wikipedia)
+      url: https://en.wikipedia.org/wiki/Task_Force_on_Process_Mining
+      summary: About 750 members; runs the ICPM conference
+    - title: ICPM 2019
+      url: https://icpmconference.org/2019/
+      summary: Over 420 attendees, about 33 percent academics
+    - title: pepy - PM4Py downloads
+      url: https://pepy.tech/projects/pm4py
+      summary: About 3.4 million total PyPI downloads by May 2026, including CI traffic
+    - title: Mennens et al. 2019 - stable layouts for process maps
+      url: https://diglib.eg.org/handle/10.1111/cgf13723
+      summary: Graphviz dot often fails to preserve the mental map; one edge can produce a completely different layout
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

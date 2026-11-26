@@ -1,0 +1,70 @@
+id: internal-investigations-counsel
+name: Internal-Investigations Counsel
+role: Forensic Investigator or Counsel on a Corporate Investigation (FCPA bribery, fraud, data theft)
+quote: The auditor gave me one paragraph. I need every email about it, everyone else who was in the conversation, and when it happened.
+bio: >-
+    Priya is a forensic investigator at a consultancy, or counsel running a corporate investigation into bribery under
+    the Foreign Corrupt Practices Act, fraud or data theft. She starts from content, not people: an auditor's or
+    whistleblower's description frames a concept search in Brainspace or RelativityOne, she flags suspicious emails and
+    builds new concept searches from key blocks of their text. Only then does she open the people graph on the hits to
+    "identify additional persons of interest" and judge each person's "level of participation in the conversation",
+    and a Conversations timeline for chosen people where each dot is an email and lines run from sender to recipients.
+    She drills a timeline from year to month to day to find the burst of activity, notices dates with no data, and
+    ends with a findings memo, a chronology of key emails and an interview list. Code names and personal accounts split
+    one person into several nodes, and people who were never collected appear only through custodians' mail. She is
+    comfortable with ego networks and filters but treats graph metrics as hints, not evidence.
+characteristics:
+    expertise: advanced
+    time_pressure: high
+    graph_literacy: moderate
+    domain_knowledge: expert
+motivations:
+    - Turn a vague allegation into the set of emails that prove or disprove it
+    - Find additional persons of interest and how deeply each took part
+    - Build a dated chronology of key communications for the findings memo
+    - Decide whom to interview and in what order
+    - Keep the investigation defensible if it later goes to a regulator or a court
+behaviors:
+    - Searches content first and opens the people graph only on the hits
+    - Adds newly found people to the persons-of-interest list and re-runs searches on them
+    - Opens a person-centered conversation timeline to see who was copied and who forwarded
+    - Drills a timeline from year to month to day and notes dates with no data as possible gaps
+    - Overlays sentiment or concept counts on people to judge tone
+    - Saves searches, tags emails and exports a metadata CSV and a graph image for the memo
+    - Merges code names and personal addresses into one person by hand when she recognizes them
+frustrations:
+    - One person split across a work address, a personal account and a code name
+    - People who were never collected appear only as recipients of custodians' mail
+    - Counters that show displayable versus returned documents without explaining the difference
+    - Graph images that carry no record of the filters and merges that produced them
+    - Chat channels that draw as cliques rather than showing who actually spoke
+context:
+    frequency: weekly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W363
+    - W366
+    - W368
+    - W369
+sources:
+    - title: Reveal - FCPA compliance audit case study
+      url: https://www.revealdata.com/success-stories/fcpa-compliance-audit
+      summary: Concept search from an auditor's description, then the people graph to identify additional persons of interest and level of participation
+    - title: Brainspace - Conversations
+      url: https://docs.revealdata.com/brainspace/docs/conversations
+      summary: Timeline of emails as dots with lines from sender to recipients and forwards; displayable versus returned counters
+    - title: Proofpoint - Uncovering eDiscovery insights through data visualization
+      url: https://www.proofpoint.com/us/blog/compliance-and-archiving/uncovering-ediscovery-insights-through-data-visualization
+      summary: Timeline drill from year to month to day (55,259 results to 123 on one day) exposing dates with no data
+    - title: Brainspace - People Manager
+      url: https://docs.revealdata.com/brainspace/docs/people-manager
+      summary: Managing people and their aliases after merging nodes
+    - title: Autopsy - Communications visualization
+      url: https://sleuthkit.org/autopsy/docs/user-docs/4.18.0/communications_page.html
+      summary: Forensic communications graph with a Snapshot Report of the current graph and filters
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

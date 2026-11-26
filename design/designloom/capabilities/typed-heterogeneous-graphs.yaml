@@ -1,0 +1,15 @@
+id: typed-heterogeneous-graphs
+name: Typed Bipartite and Heterogeneous Graphs
+category: analysis
+description: Node and edge types as first-class data (user-item bipartite graphs, heterogeneous recommender and
+    knowledge graphs), with per-type encoding, filtering and per-edge-type explanation masks.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W16
+    - W267
+    - W269
+implemented_by_components: []
+requirements: []
+sources: []

@@ -1,0 +1,15 @@
+id: spatial-selection
+name: Spatial Selection
+category: analysis
+description: Select nodes inside a radius around a point or inside a drawn or imported polygon (hazard footprint), then
+    hand the selection to propagation or filtering.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W216
+    - W220
+    - W221
+implemented_by_components: []
+requirements: []
+sources: []

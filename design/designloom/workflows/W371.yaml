@@ -1,0 +1,148 @@
+id: W371
+name: Edge Accuracy, Centrality Stability and Difference Tests
+category: analysis
+validated: false
+personas:
+    - symptom-network-researcher
+    - point-and-click-network-analyst
+    - network-psychometrics-methodologist
+requires_capabilities:
+    - data-import
+    - visual-encoding-edges
+    - visual-encoding-nodes
+    - tooltip-display
+    - details-on-demand
+    - hover-highlight
+    - filtering
+    - metric-histograms
+    - statistics-panel
+    - legend-display
+    - export-image
+    - data-export
+    - signed-edges
+    - uncertainty-encoding
+    - matrix-import
+    - stability-facts
+    - signed-centrality
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - graph-canvas
+    - visual-encoding-panel
+    - heatmap-panel
+    - ranked-node-table
+    - range-slider
+    - node-tooltip
+    - legend-panel
+    - badge
+    - image-export-dialog
+starting_state:
+    data_type: estimated network plus bootstrap output from R (per-edge estimate, bootstrap mean, 2.5 and 97.5 percent quantiles, proportion non-zero; per-index CS-coefficients; edge and centrality difference-test matrices)
+    node_count: 10-70
+    edge_density: up to n(n-1)/2 possible edges (136 for 17 nodes), most near zero
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Show reviewers how accurately each edge is estimated and whether the centrality ranking is stable
+    enough to interpret, before any claim about a central symptom. Reviewers have expected this since about 2018; a
+    centrality index with a CS-coefficient below 0.25 is dropped from the paper.
+
+
+    **Mental Model**: "Every edge and every ranking is an estimate with an interval." The network picture is only one
+    of four standard figures; the other three (edge-interval strip, case-dropping stability curve, difference matrix)
+    are charts keyed to the same node and edge identifiers.
+
+
+    **Task Phases**:
+
+    1. **Edge bootstrap** (minutes to 10+ hours, in R) - 1,000 to 2,500 nonparametric bootstraps; users with 2,000
+    respondents and 60-70 nodes report runs that stall for more than 10 hours
+
+    2. **Edge intervals** (5 min) - One row per edge ordered by estimate, sample value, bootstrap mean and a gray 95
+    percent band; with 136 possible edges it is a tall strip that must stay linked to the network
+
+    3. **Case-dropping bootstrap** (minutes to hours) - Drop 5 to 75 percent of cases at 10 levels; plot correlation
+    with the full-sample ranking; CS-coefficient per index (should not be below 0.25, preferably above 0.5; in the
+    PTSD example strength 0.44, betweenness and closeness 0.05)
+
+    4. **Difference tests** (5 min) - Triangular edge and centrality difference matrices, black for significant
+    difference at alpha 0.05 uncorrected, gray otherwise
+
+    5. **Read on the network** (5 min) - Edge opacity or band by interval width, flag indices below the CS threshold,
+    hover an edge to see its interval and proportion non-zero
+
+    6. **Report** (15 min) - CS-coefficients in the text, plots in the supplement, softened wording
+
+
+    **Decision Points**:
+
+    - How many bootstraps can the machine afford for this network size?
+
+    - Which centrality indices pass the CS threshold and may be reported at all?
+
+    - Is a node really more central than another, or does the difference test say no?
+
+    - How to show uncertainty without implying that an interval crossing zero means "no edge" (double thresholding)?
+
+
+    **Information Needs**:
+
+    - Per-edge estimate, bootstrap mean, interval and proportion non-zero, linked between strip and network
+
+    - CS-coefficient per centrality index beside the centrality values
+
+    - Which pairs of nodes or edges differ significantly
+
+    - Node and edge identifiers that match across all four figures
+
+
+    **Pain Points**:
+
+    - Hours-long bootstraps and parallel-processing errors
+
+    - Overlapping labels in the edge-interval plot
+
+    - The interval strip and the network are separate static images with no linking
+
+    - Users read intervals that include zero as non-significant, which the standards forbid
+
+    - JASP users find the bootstrap plots peculiar and cannot interpret them
+
+
+    **Data Flow**:
+
+    - Input: Weights matrix plus a per-edge uncertainty table and per-index stability table exported from R or JASP
+
+    - Transformations: Join uncertainty columns onto edges, map interval width or proportion non-zero to opacity,
+    order edges by estimate, mark indices below a stability threshold
+
+    - Output: Network with uncertainty encoding, linked edge-interval strip, difference matrix, stability facts for
+    the methods section
+success_criteria:
+    - metric: Edge uncertainty visible on the network
+      target: Every drawn edge shows or reveals on hover its interval and proportion non-zero
+    - metric: Stability gate
+      target: Centrality indices below the chosen CS threshold are flagged wherever their values appear
+    - metric: Linked views
+      target: Selecting an edge in the interval strip highlights it on the network and vice versa
+sources:
+    - title: Epskamp, Borsboom and Fried 2018 - bootnet tutorial
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5809547
+      summary: Edge bootstrap, case-dropping bootstrap, corStability thresholds, differenceTest; PTSD CS values
+    - title: bootnet reference manual
+      url: https://cran.r-project.org/web/packages/bootnet/bootnet.pdf
+      summary: bootnet types, nBoots default 1,000, plot options including difference plots
+    - title: Burger et al. 2023 - Reporting standards
+      url: https://pure.uva.nl/ws/files/184239260/ContentServer_2_.pdf
+      summary: Intervals should never be used to assess significance of edges (double thresholding)
+    - title: bootnet issue 139
+      url: https://github.com/SachaEpskamp/bootnet/issues/139
+      summary: N 2,000 with 60-70 nodes under ggmModSelect stalls after 10+ hours
+    - title: bootnet issue 108
+      url: https://github.com/SachaEpskamp/bootnet/issues/108
+      summary: Labels overlap in the interval plot
+    - title: JASP forum discussion 9830
+      url: https://forum.cogsci.nl/discussion/9830
+      summary: Bootstrap plots users call peculiar and cannot interpret
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

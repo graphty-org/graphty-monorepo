@@ -1,0 +1,80 @@
+id: proteomics-bench-scientist
+name: Proteomics Bench Scientist
+role: Cell Biologist in a Signaling Lab / Mass Spectrometry Data Owner
+quote: The core gave me a spreadsheet of interactors for my bait. I need one figure that says which are known, which are new, and what complexes they form.
+bio: >-
+    Dr. Mei Tanaka is a cell biologist in a signaling lab. Her experiments come back from the mass spectrometry core as
+    one of three tables: 2,000 to 6,000 quantified proteins with fold changes, an affinity purification mass
+    spectrometry (AP-MS) result of one to a dozen bait proteins with tens to hundreds of scored prey proteins (filtered
+    against the CRAPome contaminant repository and scored with SAINT, MiST or CompPASS), or a phosphosite table with
+    several modified sites per protein. She does not code. She pastes lists into the STRING website or Metascape's
+    Express Analysis, which returns a report, an Excel file and a PowerPoint, and she opens Cytoscape only when a core
+    bioinformatician sits with her. What she wants is one figure: her bait's interactors, which are already known, which
+    are new, what complexes they form, and a short list of candidates to validate at the bench. She works on this a few
+    times per project, usually close to a figure or grant deadline.
+characteristics:
+    expertise: novice
+    time_pressure: high
+    graph_literacy: basic
+    domain_knowledge: expert
+motivations:
+    - Show a bait's interactors as one publication figure, with known and newly found interactions told apart
+    - See which preys form known complexes so the story is about complexes, not single proteins
+    - Pick a handful of candidates to validate by western blot or knockdown
+    - Show several phosphosites or time points per protein without collapsing them to one number
+    - Get there without installing desktop software or learning a scripting language
+behaviors:
+    - Receives a pre-filtered AP-MS table from the core with one row per bait-prey pair and a confidence score
+    - Pastes protein lists into the STRING website and uses its default 0.4 confidence and its own enrichment tab
+    - Uses Metascape Express Analysis for a one-click report and PowerPoint when the deadline is close
+    - Asks a core bioinformatician to redo the figure in Cytoscape when the STRING picture cannot be colored by her data
+    - Lowers the STRING cutoff when a short list comes back disconnected, without knowing what that does to false positives
+    - Draws complex outlines and fixes legends by hand in Inkscape or PowerPoint
+frustrations:
+    - The STRING website cannot color nodes by her own fold changes; the standard answer is "use Cytoscape"
+    - Importing bait-prey pairs keeps only the last value when a prey appears for several baits
+    - Long lists turn into hairballs with no obvious way to see complexes
+    - Site-level phosphoproteomics data does not fit one row per protein, so sites are averaged away
+    - Small lists fall apart at confidence 0.4, and dropping to 0.15 was described as close to 9 in 10 false positives
+    - Legends and complex hulls have to be redrawn in a drawing program
+context:
+    frequency: monthly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W20
+    - W21
+    - W241
+    - W242
+    - W243
+    - W245
+sources:
+    - title: Cytoscape tutorial - AP-MS network analysis
+      url: https://cytoscape.org/cytoscape-tutorials/protocols/AP-MS-network-analysis/
+      summary: Bait-prey import, STRING at 0.999 for prey-prey edges, merge by UniProt, provenance-colored edges, donut charts for enrichment
+    - title: Morris et al. 2014 - Affinity purification-mass spectrometry and network analysis (Nature Protocols)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4332878
+      summary: CRAPome filtering and SAINT, MiST or CompPASS scoring before any network is drawn
+    - title: Zhou et al. 2019 - Metascape provides a biologist-oriented resource (Nature Communications)
+      url: https://link.springer.com/10.1038/s41467-019-09234-6
+      summary: Express Analysis returns a report, Excel and PowerPoint for a pasted list with no configuration
+    - title: Biostars - coloring STRING network nodes by logFC
+      url: https://www.biostars.org/p/322442
+      summary: A user asking to color STRING nodes by fold change is told to use Cytoscape
+    - title: Biostars - hairball from a long protein list
+      url: https://www.biostars.org/p/496173
+      summary: Long STRING lists produce unreadable networks
+    - title: Bioconductor support - STRING score threshold for small lists
+      url: https://support.bioconductor.org/p/9137624
+      summary: Lowering the cutoff to 0.15 to connect a small list was described as close to 9 in 10 false positives
+    - title: JensenLab Omics Visualizer exercises
+      url: https://jensenlab.org/training/omicsvisualizer/
+      summary: One row per phosphosite, drawn as a donut ring per protein with one slice per site
+    - title: Postdoc posting - Krogan Lab AP-MS
+      url: https://careers.iscb.org/jobs/view/7736
+      summary: Job posting listing AP-MS network analysis with Cytoscape
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

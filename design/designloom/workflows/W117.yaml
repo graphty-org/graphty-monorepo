@@ -1,0 +1,107 @@
+id: W117
+name: Threat Modeling a System Design with a Data Flow Diagram
+category: analysis
+validated: false
+personas: []
+requires_capabilities:
+    - annotation
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-hierarchical
+    - details-on-demand
+    - report-generation
+    - export-image
+    - group-collapse
+    - typed-graph-editing
+suggested_components:
+    - graph-canvas
+    - annotation-toolbar
+    - node-details-panel
+    - visual-encoding-panel
+    - legend-panel
+    - report-generator-dialog
+    - image-export-dialog
+starting_state:
+    data_type: A system design drawn by hand as a data flow diagram (processes, external interactors, data stores, data flows, trust boundaries)
+    node_count: 10-100 elements
+    edge_density: sparse, directed data flows crossing grouped trust boundaries
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Find where untrusted data crosses a trust boundary in a proposed design and list the threats to fix
+    before it is built. Security architects and application security engineers do this per design or major change in
+    the Microsoft Threat Modeling Tool, OWASP Threat Dragon or general diagramming tools. This is an adjacent
+    population: the work is diagramming more than graph analysis, so it carries should-have requirements only, and no
+    persona in this set represents it yet.
+
+
+    **Mental Model**: "Where does data cross a line?" Elements are typed stencils, flows are arrows, trust boundaries are
+    lines or boxes; every flow that crosses a boundary is a place to ask the STRIDE questions (spoofing, tampering,
+    repudiation, information disclosure, denial of service, elevation of privilege).
+
+
+    **Task Phases**:
+
+    1. **Draw the diagram** (30-60 min) - Place process, external interactor, data store and data flow stencils, with
+    child types such as HTTP versus HTTPS flows, and draw trust boundaries
+
+    2. **Set element properties** (15 min) - Per-element properties that the threat rules read
+
+    3. **Generate threats** (minutes) - The tool generates threats per element or flow from STRIDE rules, for example a
+    flow crossing a named trust boundary
+
+    4. **Triage** (30-90 min) - Accept, reject or mitigate each generated threat
+
+    5. **Decompose goals** (optional) - Attack trees break an attacker's goal into alternative paths
+
+    6. **Report** - Threat model report with per-element threats
+
+
+    **Decision Points**:
+
+    - Where do the trust boundaries go?
+
+    - Is each generated threat real for this design, and what mitigates it?
+
+
+    **Information Needs**:
+
+    - Which flows cross which boundaries
+
+    - Threats per element with status
+
+    - Element type and properties at a glance
+
+
+    **Pain Points**:
+
+    - Diagrams drawn in general tools carry no element types, so no threats can be generated from them
+
+    - Generated threat lists are long and need manual triage
+
+
+    **Data Flow**:
+
+    - Input: Hand-drawn typed diagram
+
+    - Transformations: Rule-based threat generation per element and boundary-crossing flow
+
+    - Output: Threat list and report, diagram image
+success_criteria:
+    - metric: Typed diagramming
+      target: User can place typed elements and group them inside named trust boundaries
+    - metric: Boundary crossings
+      target: Every flow crossing a boundary is identifiable
+sources:
+    - title: OWASP - Threat modeling cheat sheet
+      url: https://cheatsheetseries.owasp.org/cheatsheets/Threat_Modeling_Cheat_Sheet.html
+      summary: Data flow diagrams, tools, attack trees
+    - title: Microsoft Learn - Threat Modeling Tool data flow diagrams
+      url: https://learn.microsoft.com/en-us/training/modules/tm-use-recommended-tools-to-create-a-data-flow-diagram/2-threat-modeling-tool
+      summary: Stencils, child types, properties, threat generation
+    - title: OWASP Threat Dragon - Threat generation
+      url: https://owasp.org/www-project-threat-dragon/docs-1/threat-generation
+      summary: STRIDE threats per element
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

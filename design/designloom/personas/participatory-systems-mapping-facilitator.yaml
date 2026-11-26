@@ -1,0 +1,81 @@
+id: participatory-systems-mapping-facilitator
+name: Participatory Systems Mapping Facilitator
+role: Evaluation Consultant / Participatory Modelling Researcher
+quote: The conversation in the room is half the output. The other half is a map they recognize and an analysis that answers their question, with every arrow traceable to who said it.
+bio: >-
+    Dr. Tom Reyes is a consultant and researcher who designs and runs mapping workshops for government departments,
+    NGOs and coalitions, then digitizes and analyzes the maps. He is trained in CECAN Participatory Systems Mapping and
+    system dynamics group model building, and he codes interview transcripts in NVivo. In the room he works with
+    post-its and string; remotely with Miro; afterwards in PRSM or Kumu, and in Vensim when he is turning coded
+    interviews into causal loop diagrams. A workshop map starts at about 20 factors that can increase or decrease,
+    joined by signed and sometimes weighted links, with attributes collected from participants (controllability,
+    importance and ownership per stakeholder group). An interview-based study yields 45 to 133 variables per theme
+    map. He sometimes runs Net-Map interviews and Ripple Effects Mapping sessions for evaluation clients. He reads
+    centrality as "how much this factor drives others" and asks for upstream and downstream sub-maps far more often
+    than for whole-network statistics.
+characteristics:
+    expertise: expert
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Produce a map the participants own and recognize
+    - Answer the analysis questions agreed at design time (what does this intervention reach, what drives this outcome)
+    - Trace every causal claim back to the transcript or workshop that produced it
+    - Preserve disagreements as alternative maps rather than averaging them away
+    - Hand the client an updatable living document, not a poster
+behaviors:
+    - Designs the analysis questions first, because they decide what to collect and how to build the map
+    - Asks participants for factors that can increase or decrease, merges duplicates and caps the first map at about 20
+    - Connects the focal factor first, records "+" and "-" polarity, marks links participants are unsure of and writes agreed rationales
+    - Checks for weakly connected nodes, positive-link bias, redundant A to B to C plus A to C chains and over-connected favorites
+    - Collects attributes per stakeholder group by stickers, voting or online forms
+    - Analyzes sub-maps downstream of an intervention and upstream of an outcome, their unions and intersections, and paths between them with ego radius 1 to 3
+    - Sizes factors by out-degree, in-degree or betweenness and flags influential-but-uncontrollable factors as vulnerabilities
+    - Codes interviews in NVivo with a source reference for every causal link and merges microstructures across iterations with a second modeller
+frustrations:
+    - Coding takes an average of three days per transcript
+    - Large maps are visually overwhelming once they leave the room
+    - Remote mapping sessions are tiring and whiteboard tools have no causal semantics
+    - Drawing in one tool, analyzing in another and reporting in a third
+    - Loop enumeration missing in some tools and unbounded in others
+    - Factor merges that cannot be undone and lose which source said what
+context:
+    frequency: weekly
+    devices:
+        - laptop
+        - projector
+        - tablet
+    voluntary: true
+workflows:
+    - W197
+    - W198
+    - W200
+    - W202
+    - W203
+    - W204
+sources:
+    - title: CECAN - Participatory Systems Mapping practical guide
+      url: https://www.cecan.ac.uk/wp-content/uploads/2020/09/PSM-Workshop-method.pdf
+      summary: Factors that can increase or decrease, about 20 to start, focal factor first, map checks, attributes per stakeholder group, conversation as a main output
+    - title: CECAN - How to design a PSM process
+      url: https://www.cecan.ac.uk/wp-content/uploads/2022/03/How-to-design-a-PSM-process-Final.pdf
+      summary: Analysis questions shape what is collected; alternative maps preserve disagreement; maps as updatable living documents
+    - title: PRSM manual - Analysing
+      url: https://raw.githubusercontent.com/micrology/prsm/master/doc/help/docs/manual/Analysing.mdx
+      summary: Upstream and downstream sub-maps, set operations, paths, ego radius, sizing by centrality, trophic layout
+    - title: Newberry and Carhart 2024 - System Dynamics Review
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC7616860/
+      summary: TRUUD 123 interviews coded into causal maps of 45-133 variables; coding about 3 days per transcript (citing Valcourt et al.)
+    - title: Eker and Zimmermann 2016 - Systems 4(3):28
+      url: https://discovery.ucl.ac.uk/id/eprint/1507957/1/eker_systems-04-00028-v2.pdf
+      summary: Interview-based causal loop diagram construction with NVivo coding and a data source reference table
+    - title: Defra Policy Design Lab - From systems maps to system stories
+      url: https://publicpolicydesign.blog.gov.uk/2025/11/27/from-systems-maps-to-system-stories/
+      summary: Large maps visually overwhelming; split into 8 system stories
+    - title: Ministry of Justice Digital - Systems mapping part 2
+      url: https://mojdigital.blog.gov.uk/2020/06/03/systems-mapping-a-brief-overview-of-what-why-and-how-part-2/
+      summary: Remote systems mapping in Miro and its fatigue
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

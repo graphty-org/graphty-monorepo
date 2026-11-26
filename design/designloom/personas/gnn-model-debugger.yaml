@@ -1,0 +1,75 @@
+id: gnn-model-debugger
+name: GNN Model Developer and Debugger
+role: Research Scientist / Deep Learning Engineer, Node Classification and Link Prediction
+quote: The F1 tells me something is wrong with class 7. It does not tell me whether it's the labels, the neighbors or the features.
+bio: >-
+    Wei is a research scientist building node classification and link prediction models (GCN, GAT, GraphSAGE) on one
+    large graph -- benchmarks from Cora (2,708 nodes) to ogbn-papers100M (111 million nodes) plus a proprietary graph.
+    He works in PyTorch Geometric or DGL. His visual tools today are improvised: `to_networkx` and `nx.draw_networkx`
+    with `spring_layout(seed=42)` on a k-hop subgraph, t-SNE of hidden embeddings colored by class, the static PDF from
+    `explanation.visualize_graph()`, and TensorBoard's embedding projector. His questions reduce to "are we there yet?"
+    (should training continue), "are we lost?" (is the model learning what the graph should teach) and "what's that?"
+    (what does this node or link do). He never looks at the whole graph; he looks at two hops around tens to hundreds of
+    misclassified nodes, one explainer subgraph of 10 to 50 edges, one sampled mini-batch, or an embedding scatter.
+characteristics:
+    expertise: expert
+    time_pressure: medium
+    graph_literacy: expert
+    domain_knowledge: advanced
+motivations:
+    - Go beyond aggregate metrics to find why a class or a group of nodes is misclassified
+    - Tell a model error from a label error
+    - Check that explanations are faithful before putting them in a paper or report
+    - Verify that sampling and train/validation/test splits do not leak target or future edges
+    - Decide whether to keep training or change the model
+behaviors:
+    - Breaks errors down by true label, then computes derived attributes per node (correct, label consistency with nearest training nodes, distance to a training node)
+    - Extracts two-hop neighborhoods with k_hop_subgraph and draws them with labels, predictions and training membership
+    - Compares a GNN against a features-only MLP and a structure-only model to see which information source drives errors
+    - Runs GNNExplainer or Captum through PyG's Explainer, chooses a top-k or hard threshold, and checks unfaithfulness
+    - Projects hidden embeddings with UMAP or t-SNE and colors them by true label, prediction and community
+    - Pulls one NeighborLoader batch to check seeds, hops and leaked target edges
+    - Hands off a code change and a note, not a figure
+frustrations:
+    - Evaluation relies on aggregate metrics because deeper analysis lacks tools
+    - Explainer pictures change with the threshold (GNNExplainer recall from 0.52 to 0.97 between 6 and 20 edges on one benchmark)
+    - Converting a large DGL graph to NetworkX is CPU-only and slow
+    - Graph topology, embeddings and features live in separate tools that do not link
+    - Static explainer drawings with no heterogeneous support
+    - Projection views become unreadable at a few hundred nodes without clustering
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W268
+    - W269
+    - W270
+    - W272
+sources:
+    - title: "GNNLens: A Visual Analytics Approach for Prediction Error Diagnosis of Graph Neural Networks"
+      url: https://ar5iv.labs.arxiv.org/html/2011.11048
+      summary: 12 interviewed GNN practitioners; case studies on Amazon Photo (677 errors) and Cora-ML with derived attributes and two-hop neighborhoods
+    - title: "CorGIE: Visual analytics of graph-node embeddings"
+      url: https://ar5iv.labs.arxiv.org/html/2106.12839
+      summary: Four GNN developers; "are we there yet / are we lost / what's that" questions; deeper analysis lacking tools
+    - title: PyG introduction notebook
+      url: https://gdl.readthedocs.io/en/latest/ipynbs/pytorch_geometric/1_Introduction.html
+      summary: to_networkx and draw_networkx with spring_layout(seed=42); t-SNE of embeddings colored by class
+    - title: OGB node property prediction
+      url: https://ogb.stanford.edu/docs/nodeprop
+      summary: Dataset sizes up to ogbn-papers100M
+    - title: Evaluating explainability for graph neural networks
+      url: https://arxiv.org/pdf/2111.12984
+      summary: Explainer recall varies with subgraph-size threshold; recommends choosing the threshold by grid search
+    - title: dgl.to_networkx
+      url: https://doc.dgl.ai/generated/dgl.to_networkx.html
+      summary: Conversion is CPU-only
+    - title: PyG utilities (k_hop_subgraph)
+      url: https://pytorch-geometric.readthedocs.io/en/2.6.0/modules/utils.html
+      summary: k_hop_subgraph extracts the neighborhood around seed nodes
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

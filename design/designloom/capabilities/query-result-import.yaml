@@ -1,0 +1,24 @@
+id: query-result-import
+name: Query Result Import
+category: data
+description: Load a saved SPARQL SELECT result (JSON or CSV, item columns mapped to nodes and edges) or a CONSTRUCT
+    graph, or a Cypher result, as a graph without rewriting the query.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W138
+    - W139
+    - W148
+    - W150
+    - W151
+    - W182
+    - W183
+implemented_by_components: []
+requirements:
+    - "Turn a query result into a graph: Neo4j driver records, Gremlin paths, SPARQL bindings, BigQuery/Spanner TO_JSON
+      paths and elements, Oracle vertex and edge id columns, with labels, properties and integer handling kept and
+      provenance (source, query text, time run) stored on the graph."
+    - Import a SPARQL result table or a relational or SQLite query result, map id and label columns to source, target
+      and edge type, keep authority ids as node ids, and merge re-runs.
+sources: []

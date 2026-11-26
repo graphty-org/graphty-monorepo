@@ -1,0 +1,141 @@
+id: W376
+name: Per-Patient Network Feedback Sheet for Therapy
+category: reporting
+validated: false
+personas:
+    - therapist-receiving-network-feedback
+    - experience-sampling-dynamics-researcher
+requires_capabilities:
+    - data-import
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-radial
+    - tooltip-display
+    - details-on-demand
+    - annotation
+    - temporal-navigation
+    - report-generation
+    - export-image
+    - signed-edges
+    - matrix-import
+    - node-ring-glyph
+    - signed-centrality
+suggested_components:
+    - data-import-dialog
+    - graph-canvas
+    - visual-encoding-panel
+    - legend-panel
+    - badge
+    - node-tooltip
+    - node-details-panel
+    - temporal-controls
+    - report-generator-dialog
+    - image-export-dialog
+starting_state:
+    data_type: one patient's graphicalVAR network (partial correlations between 6-12 items) with a per-node influence value and item role (problem or resource), plus the patient's daily time series and dated open-text events
+    node_count: 6-12
+    edge_density: sparse
+    user_expertise: novice
+goal: >-
+    **Intent**: Give a therapist (and sometimes the patient) one patient's network from two weeks of phone
+    questionnaires in a form that can be read correctly without a statistics background, alongside the raw time
+    series and the patient's own words, to support case formulation and the choice of interventions.
+
+
+    **Mental Model**: "This is how the patient's problems and resources hang together in daily life." The therapist
+    wants to see which item matters most and what goes with what, not partial correlations.
+
+
+    **Task Phases**:
+
+    1. **Collect** (two weeks before therapy) - Four prompts a day for 14 days, about 56 prompts; 0-100 sliders for
+    sleep, behaviors, pleasant activities, intrusive thoughts, affect, tension, emotion regulation; up to three
+    personal items phrased negatively; yes/no difficult experiences with open text
+
+    2. **Estimate** (researcher or platform) - graphicalVAR network and an influence value per node similar to strength
+    but accounting for item valence
+
+    3. **Compose the sheet** (researcher or platform) - Network with triangles for resources and circles for problems,
+    signed edges, width for strength, a legend mapping P1-P3 to the personal items; influence values; a sleep chart by
+    date with a dashed mean line; difficult experiences verbatim by day
+
+    4. **Train once** (one session) - The therapist reads the first patient's sheet with a researcher
+
+    5. **Read and use** (10-20 min per patient) - Alone for case formulation, to choose or justify interventions, or
+    together with the patient in session
+
+    6. **Explain** - One or two plain sentences under the network describing the strongest links and the most
+    influential item (written by the application, not the graph library)
+
+
+    **Decision Points**:
+
+    - Show the full network to the patient, or a reduced version?
+
+    - Use the network to justify an intervention, or only for the therapist's own understanding?
+
+    - Spend session time explaining it, or skip it?
+
+
+    **Information Needs**:
+
+    - Each node's influence value on or beside the node, not in a separate table
+
+    - Which items are problems and which are resources
+
+    - The strongest links in plain words
+
+    - Raw time series and the patient's own event descriptions next to the network
+
+
+    **Pain Points**:
+
+    - Looking up influence values in a side table
+
+    - Red and green edges causing confusion
+
+    - Full networks overwhelming patients
+
+    - Understanding fades after the single training session
+
+    - Explaining it in session seems too complex or too time-consuming
+
+    - Practitioners prefer time series and bar charts; patients misread network graphs especially
+
+
+    **Data Flow**:
+
+    - Input: Per-patient weights matrix, node table (label, full item text, role, influence), daily time series, dated
+    events
+
+    - Transformations: Shape by role, values drawn on nodes, colorblind-safe signed edges, static network image plus
+    neutral facts (strongest edges, node values) handed to the application for explanatory text and layout
+
+    - Output: Printable one-page sheet or dashboard page (network, time series, events, explanation), PDF
+success_criteria:
+    - metric: No side-table look-ups
+      target: Every node's value is readable on the network itself
+    - metric: Correct reading after a delay
+      target: A therapist can name the most influential item and the strongest link for a later patient without help
+    - metric: Patient-safe view
+      target: A reduced or simplified network is available for in-session use
+sources:
+    - title: Hall et al. 2024 - TheraNet therapist focus groups
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11703985
+      summary: EMA protocol, sheet contents, training, uses in therapy and verbatim pain points including the request for one to two sentences
+    - title: Bartels et al. 2023 - ESM feedback approaches
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10559801/
+      summary: Platforms and feedback timing; patients misread especially network graphs
+    - title: m-Path visual feedback
+      url: https://m-path.io/visual-feedback/
+      summary: Therapist dashboard with network visualisations, moodboard and PDF export
+    - title: ESMvis (Bringmann et al. 2021)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8528801/
+      summary: Raw-data views chosen instead of VAR networks for patients and therapists
+    - title: Piot et al. 2025 - textual descriptions in ESM feedback
+      url: https://research.tilburguniversity.edu/en/publications/evaluating-visual-feedback-of-experience-sampling-data-for-mental/
+      summary: Text descriptions of effect size and confidence raised accuracy and confidence
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

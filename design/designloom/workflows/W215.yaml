@@ -1,0 +1,139 @@
+id: W215
+name: Time-to-Recover and Time-to-Survive Supply Stress Test
+category: analysis
+validated: false
+personas:
+    - supply-chain-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - computed-attributes
+    - removal-impact-analysis
+    - filtering
+    - visual-encoding-nodes
+    - legend-display
+    - layout-hierarchical
+    - details-on-demand
+    - statistics-panel
+    - metric-histograms
+    - data-export
+    - export-image
+    - linked-views-selection
+    - geographic-layout
+    - dependency-propagation
+    - scenario-sweep
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - attribute-table-join-dialog
+    - data-table-panel
+    - graph-canvas
+    - impact-analysis-dialog
+    - ranked-node-table
+    - computed-attributes-panel
+    - histogram
+    - visual-encoding-panel
+    - legend-panel
+    - node-details-panel
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: part-at-site bill-of-materials graph (directed, mostly acyclic) with per-node recovery time, inventory, margin and alternates
+    node_count: 10000-130000
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: For every supplier site, part or plant, compute how much revenue or margin is lost if it is down for its
+    time to recover (TTR), and flag every node whose time to survive (TTS) on inventory and alternates is shorter than
+    its TTR. This is the Simchi-Levi model Ford used across 4,400+ tier-1 sites and 130,000 parts.
+
+
+    **Mental Model**: "Knock out each site for as long as it really takes to come back, and count the cars we cannot
+    build." Exposure follows the bill of materials, inventory and alternates, not how central a node looks or how much
+    is spent there.
+
+
+    **Task Phases**:
+
+    1. **Define the graph** - A node is a part or manufacturing process at one supplier site or plant; an edge is a
+    directed flow of material, carrying quantity per unit
+
+    2. **Assemble data** - MRP bills of materials, routings, inventory, purchasing sites and spend, plant volumes and
+    product margins, joined by part number and site
+
+    3. **Collect node attributes** - TTR from supplier surveys, unit profitability, inventory on hand, capacity,
+    alternate sources
+
+    4. **Screen time to survive** - Compute TTS per node (how long the system runs without loss if that node is down)
+    and flag nodes where TTS is below TTR
+
+    5. **Run TTR scenarios** - Disrupt each node (or plant, part or region) for its TTR; reallocate inventory and
+    alternates to minimize lost units or margin; store performance impact and a risk exposure index per node
+
+    6. **Read results** - Rank sites by impact; look for cheap parts with high exposure; note the large share of sites
+    with no impact
+
+    7. **Hand off** - Map with circles sized by impact linked to ranked supplier and part tables; drop zero-impact sites
+    from monitoring
+
+
+    **Decision Points**:
+
+    - Disrupt individual nodes, whole plants, parts or regions?
+
+    - Measure impact in lost units, lost margin or lost revenue?
+
+    - Which supplier-reported TTR values are too optimistic to trust?
+
+    - Which high-exposure sites get dual sourcing, safety stock or monitoring?
+
+
+    **Information Needs**:
+
+    - Per-node TTR, TTS, inventory days, alternates and margin side by side
+
+    - Which required inputs are single-sourced (AND) versus covered by alternates (OR)
+
+    - Downstream products and revenue reached from each node, with the time each fails
+
+    - Distribution of impact across sites (Ford: 2,773 of 4,534 sites had no impact, 408 very high)
+
+    - Impact against spend, to expose low-spend high-exposure sites
+
+
+    **Pain Points**:
+
+    - Plain reachability or removal tools treat every downstream node as lost at once, ignoring alternates and inventory
+
+    - Betweenness and spend do not track exposure in a bill-of-materials graph
+
+    - A per-node scenario sweep over 100,000+ nodes is a batch job, not a click
+
+    - Supplier-reported recovery times are self-reported and optimistic
+
+
+    **Data Flow**:
+
+    - Input: BOM and routing tables, part-to-site sourcing, inventory, plant volumes, margins, survey TTR, site coordinates
+
+    - Transformations: Part-at-site graph build, TTS per node, TTR disruption per node with AND/OR propagation and
+    inventory buffers, impact roll-up to products and revenue
+
+    - Output: Per-node impact and exposure index stored as attributes, TTS-below-TTR flag list, impact map linked to
+    ranked tables
+success_criteria:
+    - metric: Coverage of the scenario sweep
+      target: Every site and part has a stored impact value
+    - metric: Hidden risk surfaced
+      target: Low-spend, high-exposure sites listed explicitly
+    - metric: Time-to-survive screen
+      target: Every node with TTS below TTR flagged with both values visible
+sources:
+    - title: Simchi-Levi et al., Identifying Risks and Mitigating Disruptions in the Automotive Supply Chain (Interfaces 45(5), 2015)
+      url: https://hdl.handle.net/1721.1/101782
+      summary: Graph definition, data scale, TTS and TTR linear programs, 4,534-site results, Tableau map with linked tables, exposure not correlated with spend
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,141 @@
+id: W282
+name: Building a Live Service Map
+category: analysis
+validated: false
+personas:
+    - observability-service-map-engineer
+requires_capabilities:
+    - graph-rendering
+    - layout-hierarchical
+    - layout-force-directed
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - temporal-navigation
+    - details-on-demand
+    - tooltip-display
+    - neighborhood-expansion
+    - centrality-degree
+    - anomaly-detection
+    - legend-display
+    - supernode-safeguards
+    - fixed-node-positions
+    - stable-id-data-binding
+    - live-attribute-updates
+    - edge-flow-animation
+    - node-ring-glyph
+suggested_components:
+    - graph-canvas
+    - layout-panel
+    - temporal-controls
+    - node-tooltip
+    - node-details-panel
+    - context-menu
+    - legend-panel
+    - ranked-node-table
+    - status-bar
+starting_state:
+    data_type: span-derived service-graph metrics in Prometheus (request, failure and latency series per client-server pair) or mesh telemetry, shaped as a nodes table and an edges table
+    node_count: 20-500 services
+    edge_density: sparse
+    user_expertise: expert platform engineer building for on-call engineers
+goal: >-
+    **Intent**: Put a live map of traffic between services in an observability console. The graph is generated from
+    telemetry and refreshed on a timer; on-call engineers watch it during incidents and click into the edge that is
+    failing.
+
+
+    **Mental Model**: "A weather map that refreshes." The topology is a fixed map; request rate, error ratio and latency
+    are the weather redrawn every few seconds on top of it. The map must never move under the reader's eyes.
+
+
+    **Task Phases**:
+
+    1. **Generate the graph from telemetry** - A metrics generator turns spans into service-graph request, failure and
+    latency metrics; a query copies client and server labels into source and target
+
+    2. **Shape two frames** - Nodes get main and secondary stats (requests per second, p95 latency) and success and
+    error fractions that sum to 1, drawn as a ring; edges get a main stat, thickness scaled to rate and color for
+    errors; fixed X and Y when positions come from a known topology
+
+    3. **Choose a layout** - Layered by default for service graphs, force for more than 500 nodes, grid sorted by a stat
+
+    4. **Refresh** - Re-run the query every N seconds (Kiali defaults to 15); node identity survives so only attributes
+    change, never positions
+
+    5. **Animate flow** - Dots whose density means request rate and whose speed means response time, with red diamonds
+    for errors
+
+    6. **Cap and expand** - Above 200 nodes, hide some behind markers that show a count and expand on click
+
+    7. **Investigate** - Pause on the incident, click a node or edge for detail fields and links to traces and metrics,
+    rank nodes by inbound edges or errors, or replay a past window
+
+
+    **Decision Points**:
+
+    - Fixed positions from the known topology or a computed layout?
+
+    - What refresh interval balances freshness against load (pause, 10 s to 15 min)?
+
+    - Which stat drives edge width, which drives color, and where are the error thresholds?
+
+    - Which services to hide behind count markers when the mesh outgrows the cap?
+
+
+    **Information Needs**:
+
+    - Per-edge request rate, error rate, latency, throughput and percentage of traffic over mutual TLS
+
+    - Per-node health and a success-versus-error ring
+
+    - Which node or edge changed state since the last refresh
+
+    - Count of hidden services behind each marker
+
+
+    **Pain Points**:
+
+    - A relayout on every refresh makes the map jump (inferred from the pause control and documented caps; no
+    first-person report found)
+
+    - 200 visible nodes by default and layered layout slow above 500 nodes
+
+    - Only the host's built-in icons
+
+    - Traffic animation exists only in an Istio-specific console
+
+
+    **Data Flow**:
+
+    - Input: Nodes table (id, title, stats, arc fractions, color, detail fields) and edges table (id, source, target,
+    stats, thickness, color, dash), re-queried on a timer
+
+    - Transformations: Attribute-only updates by stable id, threshold coloring, flow animation, cap with count markers
+
+    - Output: A live map on-call engineers pause, click into, bookmark and replay
+success_criteria:
+    - metric: Position stability
+      target: Zero node movement across refreshes when the topology has not changed
+    - metric: Update cost
+      target: Attribute updates every 10 seconds on 500 nodes without dropped frames or layout restarts
+    - metric: Incident drill-down
+      target: From a red edge to its traces in two clicks
+sources:
+    - title: Grafana - Node graph panel
+      url: https://grafana.com/docs/grafana/latest/panels-visualizations/visualizations/node-graph/
+      summary: Nodes and edges frame contract, arc fields summing to 1, fixedX and fixedY, 200-node default, layered slow above 500
+    - title: Grafana Tempo - Service graph
+      url: https://grafana.com/docs/grafana/latest/datasources/tempo/service-graph/
+      summary: Service-graph metrics generated from spans
+    - title: Kiali - Topology
+      url: https://v1-82.kiali.io/docs/features/topology
+      summary: Animated dots and diamonds, health colors, pause and replay, node ranking
+    - title: Kiali - Console customization
+      url: https://v1-52.kiali.io/docs/configuration/console-customization
+      summary: Refresh intervals from pause to 15 minutes; 15 seconds default
+    - title: Kiali graph config (Go package)
+      url: https://pkg.go.dev/github.com/kiali/kiali/graph/config/cytoscape
+      summary: Edge response time, throughput, mutual TLS percentage and protocol traffic; node health and compound parents
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

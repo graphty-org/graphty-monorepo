@@ -1,0 +1,14 @@
+id: audience-overlap-matrix
+name: Audience overlap matrix
+category: analysis
+description: Pairwise overlap counts and percentages and unique reach for a selected set of nodes computed from their
+    follower sets.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W10
+    - W211
+implemented_by_components: []
+requirements: []
+sources: []

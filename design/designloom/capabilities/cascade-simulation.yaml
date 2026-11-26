@@ -1,0 +1,14 @@
+id: cascade-simulation
+name: Threshold Cascade and DebtRank Simulation
+category: analysis
+description: Default-cascade and DebtRank-style propagation with a per-node threshold, reporting rounds, failed nodes
+    and value lost, with time-stepped playback.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W221
+    - W227
+implemented_by_components: []
+requirements: []
+sources: []

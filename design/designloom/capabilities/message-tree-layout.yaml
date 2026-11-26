@@ -1,0 +1,13 @@
+id: message-tree-layout
+name: Time-Ordered Message Tree
+category: visualization
+description: Left-to-right time-ordered tree or DAG layout of a message thread, with distinctly styled inferred
+    placeholder nodes for missing messages.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W362
+implemented_by_components: []
+requirements: []
+sources: []

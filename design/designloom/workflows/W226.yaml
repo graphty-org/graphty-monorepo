@@ -1,0 +1,125 @@
+id: W226
+name: Input-Output and Trade Network Exposure
+category: analysis
+validated: false
+personas:
+    - economic-network-analyst
+requires_capabilities:
+    - data-import
+    - large-graph-rendering
+    - centrality-pagerank
+    - community-detection
+    - computed-attributes
+    - filtering
+    - visual-encoding-edges
+    - visual-encoding-nodes
+    - legend-display
+    - temporal-analysis
+    - temporal-navigation
+    - animated-transitions
+    - comparison-view
+    - export-image
+    - data-export
+    - backbone-extraction
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - graph-canvas
+    - algorithm-panel
+    - ranked-node-table
+    - filter-panel
+    - range-slider
+    - visual-encoding-panel
+    - legend-panel
+    - temporal-controls
+    - comparison-view
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: dense weighted directed input-output or bilateral trade matrices, one per year
+    node_count: 200-1400
+    edge_density: dense
+    user_expertise: expert
+goal: >-
+    **Intent**: Measure how exposed each region, industry or country is, directly and through indirect supply links,
+    to a shock elsewhere, and show how the structure changes across years.
+
+
+    **Mental Model**: "Follow the money through every round of suppliers." Indirect exposure matters as much as direct
+    trade; the drawing is a filtered view of a nearly complete network.
+
+
+    **Task Phases**:
+
+    1. **Download** - WIOD (40 economies plus rest of world, 35 industries), EUREGIO (249 regions, 14 industries), OECD
+    ICIO, EORA or BACI by year
+
+    2. **Build** - About 1,400 industry-country nodes; directed monetary flows from seller to buyer with self-loops
+
+    3. **Compute exposure** - Leontief inverse for direct and indirect linkages; weighted PageRank, backward linkages,
+    communities
+
+    4. **Threshold for display** - Draw flows above a cutoff (for example one billion US dollars) or a disparity-filter
+    backbone, while statistics use the full network
+
+    5. **Compare years** - Same layout across years; animate or place periods side by side
+
+
+    **Decision Points**:
+
+    - Which table and classification fit the question?
+
+    - Threshold or backbone for display, and at what level?
+
+    - Which shock scenario to propagate?
+
+
+    **Information Needs**:
+
+    - Direct and indirect exposure per node
+
+    - Strength-weighted rankings
+
+    - Which links survive the backbone and how much weight they keep
+
+    - Changes between years for the same node
+
+
+    **Pain Points**:
+
+    - The networks are almost complete, so unfiltered drawings are unreadable
+
+    - Backbone methods are blind to geography
+
+    - Classifications change between releases
+
+
+    **Data Flow**:
+
+    - Input: Input-output tables or bilateral trade flows by year
+
+    - Transformations: Weighted directed graph build, exposure (matrix inverse), PageRank and communities, display
+    backbone or threshold, fixed layout across years
+
+    - Output: Exposure indicators by node and group, backbone figures, year-over-year comparison
+success_criteria:
+    - metric: Full-network statistics
+      target: Measures computed on all links, not on the displayed subset
+    - metric: Stable comparison
+      target: Node positions fixed across years
+sources:
+    - title: Cerina et al., World Input-Output Network (PLOS ONE 2015)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4519177/
+      summary: 1,400 nodes, almost complete network, weighted PageRank, communities, display threshold
+    - title: Bank of England 2025 regional supply chain exposure toolkit
+      url: https://www.bankofengland.co.uk/-/media/boe/files/working-paper/2025/assessing-risk-a-toolkit-for-measuring-regional-supply-chain-exposure-to-global-shocks.pdf
+      summary: Direct (face-value) and indirect (hidden exposure) linkages from multi-regional input-output tables
+    - title: Serrano et al., disparity filter backbone (arXiv 0704.1225)
+      url: https://arxiv.org/pdf/0704.1225
+      summary: Backbone at alpha 0.05 keeps 15 percent of links but 84 percent of imbalance (read via search summary)
+    - title: Backbone extraction and geography (arXiv 1512.02233)
+      url: https://arxiv.org/pdf/1512.02233
+      summary: Disparity filter is blind to geography (read via search summary)
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

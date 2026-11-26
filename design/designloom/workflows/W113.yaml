@@ -1,0 +1,170 @@
+id: W113
+name: Network Flow Graph Hunting and Reachability Maps
+category: exploration
+validated: false
+personas:
+    - tomasz-novak
+    - cybersecurity-analyst
+requires_capabilities:
+    - data-import
+    - data-preview
+    - large-graph-rendering
+    - progressive-loading
+    - filtering
+    - saved-filters
+    - degree-analysis
+    - metric-histograms
+    - anomaly-detection
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - layout-force-directed
+    - node-selection
+    - details-on-demand
+    - temporal-navigation
+    - data-export
+    - event-table-to-graph
+    - group-collapse
+    - typed-edge-filtering
+    - security-format-import
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - graph-canvas
+    - filter-panel
+    - range-slider
+    - histogram
+    - cluster-collapse-control
+    - temporal-controls
+    - node-details-panel
+    - data-table-panel
+    - data-export-dialog
+starting_state:
+    data_type: Zeek conn, dns, http and ssl logs or Arkime session metadata (TSV or JSON); firewall CSV
+    node_count: 1,000-100,000 addresses after aggregation; raw rows in the millions
+    edge_density: directed temporal multigraph, aggregated to weighted pairs
+    user_expertise: advanced
+goal: >-
+    **Intent**: Find who is talking to whom that should not be - scanning, beaconing, new external peers, segment
+    violations - by aggregating connection records into a graph, and pivot from a suspicious pair straight to the raw
+    sessions and packets. Daily work for network security monitoring analysts in Arkime, Zeek with RITA, and
+    Graphistry; network and OT engineers do a related periodic review of what can reach what by zone.
+
+
+    **Mental Model**: "Traffic map with a noise floor." Millions of connections collapse into weighted pairs; the
+    shape (one source fanning out, one pair repeating like a clock, a link crossing a zone boundary) is the finding, and
+    the raw session is the proof.
+
+
+    **Task Phases**:
+
+    1. **Pick a window and query** (2 min) - Filter sessions by expression and time; raise the query size for a
+    complete picture, accepting that it is slower (smaller queries show only the top sessions)
+
+    2. **Open the connections graph** (1 min) - Force-directed; choose which fields become source and destination nodes
+    (defaults source IP to destination IP and port; alternatives: IP to protocol, originating to responding segment,
+    GeoIP city, MAC vendor); segment fields collapse addresses into subnets
+
+    3. **Weight and threshold** (2 min) - Set the link weight method and a minimum connection count to drop rare or
+    noisy pairs; color nodes as source, destination or both
+
+    4. **Read patterns** (10-30 min) - Fan-out from one source to many destinations or ports suggests scanning; regular
+    repeated connections between one pair suggest beaconing (scored outside the graph by RITA)
+
+    5. **Pivot** (5 min) - Click a node or link to add it to the query filter; list the sessions; export PCAP; join a
+    connection to its dns, http and ssl records by Zeek uid
+
+    6. **Ad hoc variants** - Load Zeek logs into a graph database and run predefined queries or expand neighbors; turn a
+    Splunk result into a hypergraph in Graphistry (one demo: 5,035 events gave 170 entities and 15,105 links)
+
+    7. **Reachability and OT maps** (periodic) - Config-derived models (RedSeal) answer whether traffic can move from one
+    point to another without traffic data; passive OT monitors draw devices grouped by zone and Purdue level with
+    protocols between zones
+
+
+    **Decision Points**:
+
+    - Which fields should be nodes for this question?
+
+    - What threshold removes noise without hiding a low-and-slow beacon?
+
+    - Is this fan-out a scanner, a backup server or a monitoring tool?
+
+    - Which pair is worth pulling the PCAP for?
+
+
+    **Information Needs**:
+
+    - Connection count, bytes, ports, protocols, first and last seen per pair
+
+    - Fan-out (distinct destinations and ports) per source
+
+    - Internal versus external and subnet or zone membership of every address
+
+    - Beacon score per pair from an outside tool, joined onto the edge
+
+    - The raw sessions behind an aggregated edge
+
+
+    **Pain Points**:
+
+    - Small queries show only top sessions; large queries are slow
+
+    - NAT and DHCP make IP addresses unstable identities
+
+    - No subnet or zone grouping unless segment fields are picked by hand
+
+    - Beacon scores live in a different tool from the graph
+
+    - The open-source ICS mapping tool GRASSMARLIN was archived in 2023
+
+
+    **Data Flow**:
+
+    - Input: Zeek logs or Arkime sessions, firewall logs; optional beacon scores; zone or subnet definitions
+
+    - Transformations: Field choice for node identity, aggregation into weighted pairs, minimum-weight threshold,
+    subnet and zone grouping, time filter
+
+    - Output: Suspicious pairs and hosts, filtered session lists and PCAP, hunt notes, zone-violation list
+success_criteria:
+    - metric: Aggregation
+      target: A million connection rows render as an aggregated graph with counts on edges
+    - metric: Grouping
+      target: Addresses can be grouped by subnet or zone and collapsed or expanded
+    - metric: Drill-down
+      target: From any aggregated edge, the user reaches its raw rows in one action
+sources:
+    - title: Malcolm docs - Arkime
+      url: https://cisagov.github.io/Malcolm/docs/arkime.html
+      summary: Connections graph field choice, link weight, minimum connections threshold, query size, pivot to sessions and PCAP
+    - title: Zeek docs - conn.log
+      url: https://docs.zeek.org/en/master/logs/conn.html
+      summary: Connection fields and uid joining other logs
+    - title: Active Countermeasures - RITA
+      url: https://github.com/activecm/rita
+      summary: Beacon analysis over Zeek logs
+    - title: DFRWS USA 2023 - Using relational graphs for exploratory analysis of network traffic data (Granef)
+      url: https://dfrws.org/presentation/using-relational-graphs-for-exploratory-analysis-of-network-traffic-data/
+      summary: Zeek logs in a graph database with predefined queries and neighbor expansion
+    - title: PyGraphistry - Splunk demo
+      url: https://pygraphistry.readthedocs.io/en/latest/demos/demos_databases_apis/splunk/splunk_demo_public.html
+      summary: Hypergraph from an SPL result
+    - title: Graphistry admin docs - Templates
+      url: https://graphistry-admin-docs.readthedocs.io/en/latest/app-config/templates.html
+      summary: Splunk workflow actions opening Graphistry
+    - title: DEF CON 14 - Visual log analysis, the beauty of graphs (AfterGlow)
+      url: https://infocondb.org/con/def-con/def-con-14/visual-log-analysis-the-beauty-of-graphs
+      summary: Link graphs from firewall logs; scans as fan-out
+    - title: RedSeal - How it works
+      url: https://www.redseal.net/network-how-it-works
+      summary: Reachability model from device configurations, cloud APIs and scanner data
+    - title: Nozomi Networks - ICS network visualization and asset inventory
+      url: https://www.nozominetworks.com/blog/reduce-ot-risk-with-ics-network-visualization-and-asset-inventory
+      summary: Passive OT topology by zone and Purdue level
+    - title: NSA GRASSMARLIN
+      url: https://github.com/iadgov/GRASSMARLIN
+      summary: Passive ICS mapping, archived 2023
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

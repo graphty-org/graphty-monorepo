@@ -1,0 +1,108 @@
+id: W251
+name: ceRNA and miRNA-Target Networks
+category: analysis
+validated: false
+personas:
+    - genomics-cytoscape-user
+requires_capabilities:
+    - data-import
+    - data-validation
+    - filtering
+    - visual-encoding-nodes
+    - legend-display
+    - layout-force-directed
+    - centrality-degree
+    - export-image
+    - data-export
+    - identifier-mapping
+suggested_components:
+    - data-import-dialog
+    - attribute-table-join-dialog
+    - filter-panel
+    - visual-encoding-panel
+    - legend-panel
+    - graph-canvas
+    - image-export-dialog
+starting_state:
+    data_type: differential expression lists per RNA class plus lncRNA-miRNA and miRNA-mRNA target tables
+    node_count: about 100 (107 in a TCGA kidney example)
+    edge_density: sparse (about 200 edges)
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Build a competing endogenous RNA (ceRNA) network linking differentially expressed long non-coding RNAs,
+    microRNAs and messenger RNAs through predicted or validated target relations.
+
+
+    **Mental Model**: "Sponges and targets." A lncRNA soaks up a miRNA that would otherwise repress an mRNA; the network
+    is three layers of molecules with target relations between neighboring layers.
+
+
+    **Task Phases**:
+
+    1. **DE per RNA class** (varies) - Differential expression for lncRNA, miRNA and mRNA (kidney example: 1,457, 54 and
+    2,307 at |log2FC| > 2, P < 0.01)
+
+    2. **Targets** (20 min) - lncRNA-miRNA from miRcode or starBase; miRNA-mRNA from miRTarBase, miRDB and TargetScan
+
+    3. **Filter** (15 min) - Intersect with DE lists; better pipelines add negative-correlation or shared-miRNA tests;
+    some apply none
+
+    4. **Draw** (20 min) - One shape per RNA class, red up and blue down; export
+
+
+    **Decision Points**:
+
+    - Predicted or experimentally supported targets?
+
+    - Apply a correlation or shared-miRNA test, or only the DE intersection?
+
+    - Which target databases to intersect?
+
+
+    **Information Needs**:
+
+    - Node type per molecule with a legend
+
+    - Target evidence source per edge
+
+    - Up or down regulation per node
+
+    - Counts per class after filtering
+
+
+    **Pain Points**:
+
+    - Shapes per class assigned by hand
+
+    - Target tables use miRBase ids that mismatch DE tables
+
+    - Pipelines without statistical tests produce unsupported networks
+
+
+    **Data Flow**:
+
+    - Input: DE tables per class; target tables (TSV)
+
+    - Transformations: Intersection, optional correlation filter, tripartite assembly, type-aware styling
+
+    - Output: ceRNA network figure; edge table with evidence
+success_criteria:
+    - metric: Type-aware style
+      target: Each RNA class gets a distinct shape and legend entry automatically
+    - metric: Evidence recorded
+      target: Each edge names its target database
+    - metric: Time to figure
+      target: Under 1 hour from tables
+sources:
+    - title: starBase v2.0
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC3964941/
+      summary: About 500,000 CLIP-supported pairs
+    - title: GDCRNATools vignette
+      url: https://free.nchc.org.tw/bioconductor/packages/3.9/bioc/vignettes/GDCRNATools/inst/doc/GDCRNATools.html
+      summary: ceRNA pipeline with statistical tests
+    - title: TCGA kidney ceRNA example
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8186793
+      summary: 107 nodes and 178 edges drawn in Cytoscape
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,15 @@
+id: export-by-cluster
+name: Export by Cluster
+category: export
+description: Export one node file and one edge file per connected component or detected cluster, as a set, so a cluster
+    becomes a working line list rather than a cluster-id column that has to be pivoted by hand.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W61
+    - W63
+    - W70
+implemented_by_components: []
+requirements: []
+sources: []

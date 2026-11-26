@@ -1,0 +1,17 @@
+id: note-format-import
+name: Note-app format importers
+category: data
+description: Standalone importers for a Markdown note folder (wikilinks, aliases, embeds, nested tags, property links,
+    unresolved links), org-roam SQLite and Logseq EDN, then Roam and TheBrain JSON, labeled as possibly differing from
+    the host's own resolution.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W328
+    - W329
+    - W333
+    - W334
+implemented_by_components: []
+requirements: []
+sources: []

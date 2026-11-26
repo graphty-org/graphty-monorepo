@@ -1,0 +1,73 @@
+id: causal-discovery-researcher
+name: Causal Discovery Researcher
+role: Postdoctoral Statistician / Causal-Discovery Methodologist on a Cohort Study
+quote: Three packages gave me three graphs. I need to see which arrows survive 200 bootstrap runs and which directions are a coin flip.
+bio: >-
+    Dr. Jonas Weber is a postdoctoral statistician on a multi-wave child cohort who also consults for psychopathology
+    research groups. He learns directed causal graphs from tabular data rather than drawing them: 14 to 36 mixed
+    variables measured over several waves, 5,000 to 10,000 rows, and 1% to 60% missingness per variable. In R he runs
+    bnlearn (hill-climbing, tabu, pc.stable, boot.strength, averaged.network, strength.plot, graphviz.compare) and
+    pcalg with the tpc extension for tiered PC; when a collaborator wants a GUI he uses Tetrad's Knowledge and Search
+    boxes. He encodes time order as tiers so no later wave can cause an earlier one, resamples 100 to 200 times, keeps
+    arcs above a strength threshold, and compares the averaged network across algorithms and subgroups using structural
+    Hamming distance. His output is a graph whose edges carry uncertainty -- how often an arc appeared and how often it
+    pointed each way -- and some edges stay undirected or circle-marked because the data cannot orient them. Every
+    figure today is a static Graphviz plot.
+characteristics:
+    expertise: expert
+    time_pressure: low
+    graph_literacy: expert
+    domain_knowledge: advanced
+motivations:
+    - Learn arrows that respect the time order of the waves
+    - Know how stable each arc is, and separately how stable its direction is
+    - Compare learned graphs across algorithms, packages and subgroups and say where they disagree
+    - Make uncertain orientation obvious in the figure instead of hiding it behind a forced arrowhead
+    - Hand a substantive collaborator a graph they can question without reading R code
+behaviors:
+    - Prepares data by type (Gaussian, discrete, conditional Gaussian) and handles missingness by multiple imputation or test-wise deletion
+    - Encodes background knowledge as tiers plus blacklists and whitelists of forbidden and required arcs
+    - Runs several algorithms (PC, FCI, GES, hill-climbing, tabu) with alpha around 0.01 and stable, majority-rule orientation options
+    - Bootstraps 100 to 200 resamples and reads arc strength and direction frequency from a table
+    - Raises the automatic strength threshold (for example from 0.585 to 0.85) after looking at the strength ECDF
+    - Plots the averaged network with arc thickness by strength and dashed arcs below threshold
+    - Checks the adjacency matrix by hand to see which edges are really undirected or bidirected
+    - Compares graphs side by side and lists true, false and missing arcs, SHD and SID
+frustrations:
+    - Packages disagree; bnlearn resolves orientation conflicts by p-value with no theoretical justification
+    - Undirected, bidirected and circle-marked edges must be verified in the adjacency matrix because the plot is ambiguous
+    - Printed edges and the drawn graph appeared not to match in causal-learn for at least one user
+    - Tetrad took 24 to 36 hours on 24 variables over two waves and missed required edges
+    - Plots are static Graphviz; changing the threshold means re-running and re-plotting
+    - Tiers are not drawn as time bands, so a reader cannot see the background knowledge in the figure
+context:
+    frequency: weekly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W425
+    - W424
+sources:
+    - title: Causal discovery with cohort data (practical guide)
+      url: https://arxiv.org/html/2108.13395v3
+      summary: Tiers, pcalg options, adjacency-matrix checks, Tetrad 24-36 hour search; Tetrad is the only GUI for discovery
+    - title: bnlearn useR! 2019 tutorial
+      url: https://www.bnlearn.com/examples/useR19-tutorial/
+      summary: boot.strength with 200 resamples, ECDF threshold 0.585 raised to 0.85, averaged.network, undirected arcs
+    - title: bnlearn strength.plot example
+      url: https://www.bnlearn.com/examples/strength-plot/
+      summary: Arc thickness proportional to strength, dashed arcs below threshold
+    - title: HBSC causal discovery tutorial
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC12904928/
+      summary: 9,227 students, edges kept in more than 50 of 100 runs, SHD 143 and SID 906 between gender subgroups
+    - title: Tetrad manual - bootstrapping
+      url: https://tetrad-manual.readthedocs.io/en/latest/tetrad-interface/detail-callouts/detail-bootstrapping.html
+      summary: Bootstrap count, edge and orientation frequency table, ensemble display modes
+    - title: causal-learn issue 180
+      url: https://www.github.com/py-why/causal-learn/issues/180
+      summary: A user reports printed PAG edges and the drawn graph appear not to match
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

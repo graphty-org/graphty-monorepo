@@ -1,0 +1,13 @@
+id: branch-selection
+name: Branch Range Selection
+category: analysis
+description: Range-select along a tree path (first and last node), carrying attached and duplicate records, and emit
+    record ids for the host's bulk action.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W362
+implemented_by_components: []
+requirements: []
+sources: []

@@ -1,0 +1,113 @@
+id: W328
+name: Logseq Journals First, Page Graph Second
+category: exploration
+validated: false
+personas:
+    - pkm-knowledge-worker
+requires_capabilities:
+    - data-import
+    - ego-network
+    - filtering
+    - details-on-demand
+    - layout-force-directed
+    - hover-highlight
+    - typed-edge-filtering
+    - note-format-import
+suggested_components:
+    - graph-canvas
+    - filter-panel
+    - toggle-switch
+    - node-details-panel
+starting_state:
+    data_type: Logseq outliner graph (journal pages of blocks with page references; file or database version)
+    node_count: 100-5,000 pages
+    edge_density: sparse at page level, dense at block level
+    user_expertise: beginner
+goal: >-
+    **Intent**: Use the graph of an outliner where most writing happens in daily journal blocks, and discover that the
+    page graph does not show the connections the user expected.
+
+
+    **Mental Model**: "My meeting note says Carla, John and Project XYZ were together, so the graph should connect them."
+    The tool's model is different: only page-to-page references are edges.
+
+
+    **Task Phases**:
+
+    1. **Write in the journal** (daily) - Logseq opens a new Journals page each day; the user writes blocks with page
+    references, for example a meeting block mentioning [[Carla]], [[John]] and [[Project XYZ]]
+
+    2. **Read through linked references** (ongoing) - The referenced pages stay mostly empty; the user reads each page's
+    linked references to see where it was mentioned
+
+    3. **Open the graph** (seconds) - The page graph (one page, often in the right sidebar) or the global graph, with
+    toggles for journals, orphans and built-in pages
+
+    4. **Hit the mismatch** (minutes) - The journal connects to Carla, John and Project XYZ, but those pages do not
+    connect to each other, and block references are not edges
+
+    5. **Restructure** (ongoing) - The forum answer: move knowledge to the page it belongs to; showing indirect links
+    would get too noisy
+
+    6. **Database version** (optional) - Database graphs are SQLite; tags are classes with inherited properties;
+    Node-type properties link nodes; EDN export is the only export that captures everything; a rebuilt Graph View V2
+    targets faster rendering on large graphs and a zoom-in view of one task's neighborhood
+
+
+    **Decision Points**:
+
+    - Hide journal pages from the graph, or keep them as the hubs that connect everything?
+
+    - Restructure notes onto pages, or accept a sparse page graph?
+
+    - Would co-mention in the same block count as a connection?
+
+
+    **Information Needs**:
+
+    - Which pages are co-mentioned in the same journal block (a derived, weaker edge kind)
+
+    - Journal nodes distinguishable and hideable without losing the connections they carry
+
+
+    **Pain Points**:
+
+    - Page-only edges make the graph nearly empty for journal-first writers
+
+    - Hiding journals removes the only paths between pages
+
+    - Block references are invisible in the graph
+
+
+    **Data Flow**:
+
+    - Input: Logseq Markdown or Org files, or a database-version SQLite graph or EDN export
+
+    - Transformations: Page reference edges; optionally derived co-mention edges through journal blocks; journal and
+    built-in page filters
+
+    - Output: Restructured notes; no file output
+success_criteria:
+    - metric: Co-mention visibility
+      target: User can see pages mentioned together in one journal block as connected, as a distinct edge kind
+    - metric: Journal handling
+      target: Journals can be hidden while keeping the connections they imply
+sources:
+    - title: Logseq forum - Confusion about the graph view if you rely on blocks and journals
+      url: https://discuss.logseq.com/t/confusion-about-the-graph-view-whats-the-point-of-it-if-you-rely-on-blocks-and-journals/28136
+      summary: Meeting block example; page-only edges; advice to move knowledge to pages
+    - title: Logseq forum - How to leverage Logseq's linked structure
+      url: https://discuss.logseq.com/t/how-to-leverage-logseqs-linked-structure/21147
+      summary: Graph useful for spotting missing or mistaken links
+    - title: Logseq forum - Getting started with the Journals page
+      url: https://discuss.logseq.com/t/how-to-get-started-with-logseqs-journals-page/8432
+      summary: A new journal page each day (search summary)
+    - title: Logseq docs - Database version
+      url: https://raw.githubusercontent.com/logseq/docs/master/db-version.md
+      summary: SQLite graphs, tags as classes, Node-type properties, EDN as the complete export
+    - title: Logseq DB changelog
+      url: https://discuss.logseq.com/t/logseq-db-changelog/30013/37
+      summary: Graph View V2 with faster rendering and a task-neighborhood zoom-in view
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

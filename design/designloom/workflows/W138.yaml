@@ -1,0 +1,146 @@
+id: W138
+name: Explore Around a Resource While Writing a Query
+category: exploration
+validated: false
+personas:
+    - knowledge-engineer
+    - enterprise-kg-engineer
+    - graphrag-developer
+    - biomedical-kg-analyst
+    - public-kg-explorer
+requires_capabilities:
+    - data-import
+    - search
+    - neighborhood-expansion
+    - ego-network
+    - filtering
+    - centrality-pagerank
+    - progressive-loading
+    - details-on-demand
+    - tooltip-display
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - export-image
+    - rdf-import
+    - query-result-import
+suggested_components:
+    - data-import-dialog
+    - search-input
+    - search-panel
+    - graph-canvas
+    - ego-network-dialog
+    - context-menu
+    - filter-panel
+    - node-details-panel
+    - node-tooltip
+    - visual-encoding-panel
+    - legend-panel
+    - progressive-loader
+    - image-export-dialog
+starting_state:
+    data_type: RDF store, property graph or query result (SPARQL CONSTRUCT or SELECT, Cypher result)
+    node_count: 1-1000
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Look at what surrounds one resource (a class, an entity, an IRI) and expand step by step to learn the
+    shape of the data while writing or debugging a query. This happens many times a day for every builder group.
+
+
+    **Mental Model**: "Walk outward from a doorway." Start at one known node, open the doors one predicate at a time,
+    and never let the room fill with more than a reader can see.
+
+
+    **Task Phases**:
+
+    1. **Seed** (1 min) - GraphDB Visual graph (type a label, pick the IRI); Stardog search (first 50 results); a Cypher
+    query in Neo4j Browser
+
+    2. **Respect caps** (implicit) - GraphDB 20 links per expansion ordered by RDF rank; Stardog warns above 500 added
+    nodes; Neo4j Browser 300 nodes initially and 100 neighbors per expand; LightRAG WebUI 1,000 nodes, depth 3
+
+    3. **Expand** (5-20 min) - All relationships, or by a chosen predicate and direction; GraphDB options include
+    inferred or schema statements, expanding over owl:sameAs, preferred and ignored predicates, label languages
+
+    4. **Read literals** (as needed) - Literals sit in a side panel by default; Stardog's Visualize ignores RDF-star edge
+    properties; AWS Graph Explorer cannot draw scalar SELECT results
+
+    5. **Custom views** (optional) - GraphDB graph configs are five SPARQL queries (start, expansion CONSTRUCT, node
+    basics, edge label, extra properties)
+
+    6. **Hand off** (1 min) - The query goes into an application; a screenshot goes to a ticket
+
+
+    **Decision Points**:
+
+    - Which predicate to expand next, and in which direction?
+
+    - Include inferred statements or only asserted ones?
+
+    - Follow owl:sameAs or not?
+
+    - Show literals as node attributes or as separate nodes?
+
+
+    **Information Needs**:
+
+    - Neighbor counts per predicate before expanding, so a hub does not flood the view
+
+    - Labels in the preferred language with IRIs shortened by prefix
+
+    - Literals, datatypes and language tags for the selected node
+
+    - Statement-level metadata (RDF-star, named graph) on edges
+
+
+    **Pain Points**:
+
+    - Hairballs after a few expansions; tools cap expansions instead of ranking or summarizing them
+
+    - Literals hidden, RDF-star edge properties dropped, language tags stripped on import
+
+    - Blank nodes unstable across loads
+
+    - No interim results while long queries run
+
+
+    **Data Flow**:
+
+    - Input: A seed resource and a store or a saved query result
+
+    - Transformations: Ranked, capped, predicate-filtered expansion; label resolution
+
+    - Output: A working query, a screenshot, an understanding of the data's shape
+success_criteria:
+    - metric: Expansion control
+      target: User sees neighbor counts per predicate and expands one predicate at a time
+    - metric: RDF fidelity
+      target: Labels, literals, datatypes and language tags are visible for any node
+    - metric: Readability
+      target: View stays readable after five expansions from the seed
+sources:
+    - title: GraphDB 10.8 - Visualize and explore
+      url: https://graphdb.ontotext.com/documentation/10.8/visualize-and-explore.html
+      summary: Visual graph, 20 links per expand by RDF rank, expansion options, graph configs
+    - title: Stardog Explorer
+      url: https://docs.stardog.com/archive/9.0.0/stardog-applications/explorer/
+      summary: Search seeds and 500-node warning
+    - title: Stardog community - edge properties not showing
+      url: https://community.stardog.com/t/edge-properties-not-showing-for-literals/3311
+      summary: RDF-star edge properties ignored in Visualize
+    - title: AWS Graph Explorer - graph view
+      url: https://aws.github.io/graph-explorer/features/graph-view/
+      summary: Neptune RDF and property-graph exploration; scalar SELECT not drawable
+    - title: Neo4j Browser settings
+      url: https://neo4j.com/docs/browser-manual/current/operations/browser-settings/
+      summary: Initial node display and max neighbors defaults
+    - title: LightRAG WebUI graph limits
+      url: https://huggingface.co/spaces/rm-lht/lightrag/commit/74d902f3e2873248c9da1cdfcce07fb774ed48f8
+      summary: 1,000-node and depth-3 limits
+    - title: Knowledge Graphs in Practice (Li et al. 2023)
+      url: https://arxiv.org/pdf/2304.01311
+      summary: Hairball complaints from 9 of 19 participants
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

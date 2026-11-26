@@ -1,0 +1,140 @@
+id: W99
+name: Timeline Chart with Theme Lines and Event Frames
+category: analysis
+validated: false
+personas:
+    - crime-intelligence-analyst
+    - prosecution-trial-analyst
+    - intelligence-analyst
+requires_capabilities:
+    - temporal-navigation
+    - temporal-analysis
+    - filtering
+    - node-selection
+    - hover-highlight
+    - annotation
+    - legend-display
+    - visual-encoding-edges
+    - details-on-demand
+    - export-image
+    - view-bookmarks
+    - linked-timeline-view
+    - manual-layout-preservation
+suggested_components:
+    - temporal-controls
+    - graph-canvas
+    - annotation-toolbar
+    - legend-panel
+    - filter-panel
+    - node-details-panel
+    - bookmark-panel
+    - image-export-dialog
+starting_state:
+    data_type: timestamped events (calls, transactions, sightings, statements) tied to people, phones, vehicles and accounts
+    node_count: 5-50 theme lines, tens to thousands of events
+    edge_density: varies
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Lay out what each suspect, phone, vehicle or account did over time so gaps, bursts and order stand out,
+    and keep that timeline linked to the association chart. Every major case gets one, and in court it carries the
+    highest stakes: a timeline is what a jury follows, and what a judge trims.
+
+
+    **Mental Model**: "A horizontal line per person, boxes for events." In i2 a theme line is a horizontal line for "a
+    key element of an investigation, such as a suspect or bank account"; an event frame is a box that "emphasizes date
+    and time information" on or between theme lines; time runs left to right on a time bar. Military doctrine calls
+    the same thing pattern-of-life timelines and time event charts, because a link chart alone is "a freeze-frame".
+
+
+    **Task Phases**:
+
+    1. **Choose theme lines** (5 min) - One per suspect, phone, vehicle or account; related lines placed together
+
+    2. **Create events** (15-60 min) - From imported rows or from statements; text "no longer than three or four
+    words"; hypothesized events drawn differently
+
+    3. **Connect and tidy** (10 min) - Attach events to theme lines; fix frames left pinned to lines after bulk import;
+    configure the time bar (scale, breaks); save as a template
+
+    4. **Read the pattern** (15 min) - Gaps, bursts and order (in the Scarecrow case a vehicle was stolen "two to three
+    days before each offense"); filter to a time window
+
+    5. **Link to the chart** (ongoing) - Keep the association chart and the timeline as linked views so selecting in
+    one selects in the other
+
+    6. **Prepare for court** (hours) - Show only what the evidence supports, and keep alternative versions for possible
+    rulings
+
+
+    **Decision Points**:
+
+    - Which entities deserve their own theme line?
+
+    - What time scale and breaks make the pattern readable without distorting it?
+
+    - Which events are confirmed and which are hypothesized?
+
+    - Which version goes to court if the judge excludes a category of events?
+
+
+    **Information Needs**:
+
+    - Each event's exact time, zone and source record
+
+    - Gaps and bursts per theme line
+
+    - Order of events across lines near the offense
+
+    - The same selection on timeline and association chart
+
+
+    **Pain Points**:
+
+    - Bulk imports leave event frames badly placed and need manual fixing
+
+    - Timelines and link charts live in separate views that do not share selection
+
+    - Rebuilding the timeline when a category of events is excluded
+
+    - Mixed time zones shift events across midnight
+
+
+    **Data Flow**:
+
+    - Input: Imported records with timestamps, statements, the association chart's entities
+
+    - Transformations: Theme-line assignment, event creation, time-bar scaling, time filtering, linked selection
+
+    - Output: Timeline chart (template, image, poster) linked to the association chart, with alternative court versions
+success_criteria:
+    - metric: Linked selection
+      target: Selecting an entity or event highlights it on both the timeline and the association chart
+    - metric: Court variants
+      target: An alternative version without a chosen set of events is produced without redrawing
+    - metric: Readability
+      target: A reader can state the order of events around the offense in under a minute
+sources:
+    - title: UNODC Criminal Intelligence Manual for Analysts, chapter 7
+      url: https://www.azdps.gov/sites/default/files/2023-07/Criminal_Intelligence_Manual_for_Analysts.pdf
+      summary: Event charting, short event text, hypothesized events drawn differently
+    - title: User guide - customizing and analyzing Analyst's Notebook and iBase intelligence
+      url: https://www.slideshare.net/slideshow/user-guide-customizing-an-danalyzing-anb-ibase-intelligence/31384486
+      summary: Theme lines, event frames and the time bar defined
+    - title: IBM - setting event frame behavior on theme lines after importing
+      url: https://www.ibm.com/support/pages/setting-event-frame-behaviour-theme-lines-after-importing-ibm-i2-analysts-notebook
+      summary: Segment Wiring Height "Not Diverted" fix for frames pinned to lines after bulk import
+    - title: Army ATP 2-33.4 Intelligence Analysis, 5-8 to 5-10 and table 5-5
+      url: https://irp.fas.org/doddir/army/atp2-33-4.pdf
+      summary: Pattern-of-life timelines and time event charts; link analysis seldom conveys change over time unless paired with a timeline
+    - title: R v Calland [2017] EWCA Crim 2308
+      url: https://caselaw.nationalarchives.gov.uk/ewca/crim/2017/2308
+      summary: Sequence-of-events chart at trial and an alternative chart without 11 contested occasions
+    - title: Cambridge Intelligence - Timeline investigation tools for law enforcement
+      url: https://cambridge-intelligence.com/blog/timeline-investigation-tools-for-law-enforcement/
+      summary: Linked chart and timeline over about 23,000 calls among 27 people (vendor demo)
+    - title: i2 Group - Catching the Scarecrow Bandits
+      url: https://i2group.com/articles/catching-the-scarecrow-bandits
+      summary: Vehicles stolen two to three days before each offense, read from the timeline
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,31 @@
+id: similarity-graph-construction
+name: Similarity graph construction
+category: analysis
+description: Turn a case-by-type count table into pairwise similarity (Brainerd-Robinson, co-presence, chi-square) and a
+    network via an interactive threshold, showing edge and component counts per threshold.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W184
+    - W253
+    - W254
+    - W396
+    - W397
+    - W411
+    - W433
+    - W442
+implemented_by_components: []
+requirements:
+    - Build a kNN or mutual-top-K similarity graph from vectors, with k, metric, cutoff and component-size cap recorded
+      with the graph.
+    - Build a graph from an N x N distance or similarity matrix by mutual k-nearest-neighbors or threshold, optionally
+      adding minimum spanning tree edges, and sweep k or threshold reporting communities per value.
+    - "Build a graph from a numeric table: metric choice, minimum and display thresholds with a predicted node and edge
+      count plot, k-nearest-neighbor pruning, component-size filter, all recorded for provenance."
+    - Import correlation and p-value matrices as a signed, weighted bipartite network with live |r| and p thresholds
+      that are recorded with the network.
+    - Imports a correlation matrix and its matching p-value matrix as a signed, weighted bipartite network, for example
+      gut taxa against metabolites. Edges are thresholded live by absolute r and by p, and the thresholds are recorded
+      on the network.
+sources: []

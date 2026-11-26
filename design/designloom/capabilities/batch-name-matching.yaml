@@ -1,0 +1,14 @@
+id: batch-name-matching
+name: Batch Name Matching
+category: analysis
+description: Paste or upload a list of names and get hits per name against the loaded graph, with fuzzy and variant
+    matching, the matched variant shown, and names with zero hits listed.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W89
+    - W90
+implemented_by_components: []
+requirements: []
+sources: []

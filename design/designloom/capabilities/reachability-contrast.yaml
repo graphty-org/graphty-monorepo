@@ -1,0 +1,13 @@
+id: reachability-contrast
+name: Reachability Contrast Between Two Node Sets
+category: analysis
+description: Find nodes reachable from one set (active compounds) but not from another (inactive compounds) and
+    partition the graph accordingly, reporting partition purity.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W258
+implemented_by_components: []
+requirements: []
+sources: []

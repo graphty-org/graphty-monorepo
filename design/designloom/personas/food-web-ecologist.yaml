@@ -1,0 +1,81 @@
+id: food-web-ecologist
+name: Food Web and Ecosystem Model Ecologist
+role: Research Scientist / Aquatic and Fisheries Ecologist
+quote: Basal species at the bottom, top predators at the top, body size as node size. Then tell me what happens to the seals if we double the fishing on small pelagics.
+bio: >-
+    Dr. Tomas Lindqvist is a research scientist in a freshwater, marine or fisheries group, part empiricist and part
+    modeler, who sometimes advises fisheries managers. His networks are directed: who eats whom, assembled from gut
+    contents, stable isotopes, literature and DNA metabarcoding. A typical web has 25 to 200 species or functional groups
+    with body mass and abundance per node (the classic Tuesday Lake 1984 web has 56 nodes and 269 links), and regional
+    metawebs reach about 1,100 species and 49,000 interactions. He also works with ecosystem flow models, where each
+    compartment carries imports, exports, respiration and storage and detritus is a non-living node, and with signed
+    qualitative models of 10 to 50 groups that he co-develops with managers to predict how the system responds when one
+    component is pushed up or down. He uses cheddar, NetIndices, igraph with hand-built layouts, metanetwork,
+    foodwebviz, Ecopath with Ecosim, enaR and QPress, and draws QPress models in the Dia diagram editor.
+characteristics:
+    expertise: expert
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Draw a food web by trophic level with basal species at the bottom and body size as node size
+    - Compute trophic position, omnivory, chain length, generality, vulnerability and connectance
+    - Quantify ecosystem flows (total system throughflow, cycling index, ascendency) and compare them across ecosystems or scenarios
+    - Predict which groups rise or fall under a management scenario (more fishing, a recovering predator) and show managers the uncertainty
+    - Build qualitative models together with stakeholders and iterate the structure quickly
+behaviors:
+    - Stores a community as three CSVs (properties, nodes with body mass and abundance, resource-consumer links) or as a square 0/1 predator-by-prey matrix
+    - Computes prey-averaged, chain-averaged or fractional trophic levels and lives with cycles created by cannibalism and omnivory
+    - Hand-builds layouts from distance to producers because built-in graph layouts are not satisfactory for food webs
+    - Aggregates metawebs of hundreds of species by group and induces local webs from the metaweb by site occurrence
+    - Packs flow models as an internal flow matrix plus per-node input, export, respiration and storage vectors and checks mass balance before analysis
+    - Adds a negative self-loop to every node of a qualitative model, simulates 1,000 random community matrices and reads the share of positive and negative responses to a press
+    - Validates qualitative models against known observed responses before trusting their predictions
+    - Runs secondary-extinction and robustness simulations on webs and compares robustness across systems
+frustrations:
+    - Node layout algorithms designed for trophic networks are still lacking; hierarchical layouts assume no cycles
+    - Fractional trophic levels are rarely supported by drawing tools
+    - Food Web Designer handles only three levels and runs only on Windows
+    - No tool shows trophic level, abundance and link strength together in one readable picture
+    - Self-loops and boundary flows (inputs, exports, respiration) have no place in ordinary graph tools
+    - Qualitative models are drawn in a separate diagram editor and read into R, so every structural change is a round trip
+    - Webs of 50 or more nodes become hard to read for managers and the public
+context:
+    frequency: as-needed
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W166
+    - W167
+    - W168
+    - W169
+sources:
+    - title: cheddar package vignette - Plots and stats
+      url: https://packages.oit.ncsu.edu/cran/web/packages/cheddar/vignettes/PlotsAndStats.pdf
+      summary: Three-CSV community format, trophic level computation and PlotWebByLevel for the Tuesday Lake web
+    - title: metanetwork - an R package for representing and analyzing trophic metanetworks
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10427773/
+      summary: Metawebs up to 1,101 species and 48,963 interactions; trophic-level by t-SNE layout; notes layouts for trophic networks are lacking
+    - title: Pawluczuk and Iskrzynski 2022 - Food web visualisation, heat map, interactive graph and animated flow network
+      url: https://doaj.org/article/f913913fd95242f086357d82b84f3566
+      summary: foodwebviz; fractional trophic levels rarely supported; dense webs hard for readers
+    - title: Food Web Designer
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4757606/
+      summary: GUI built because command-line tools are harder to start using; up to three levels; Windows only
+    - title: enaR function reference
+      url: https://seelab.github.io/enaR/reference/index.html
+      summary: pack, ssCheck, balance, enaFlow, enaCycle, enaAscendency, enaEnviron and bundled ecosystem models
+    - title: QPress mesocosm vignette
+      url: https://swotherspoon.github.io/QPress/articles/Mesocosm.html
+      summary: Reading a Dia model, enforcing self-limitation, simulation, validation and press impact barplots
+    - title: Tam et al. 2025 - qualitative network models for ecosystem-based management
+      url: https://doi.org/10.1371/journal.pone.0328505
+      summary: Fisheries and Oceans Canada and NOAA authors describe growing use of qualitative models co-developed with audiences
+    - title: EcoBase - Ecopath model repository
+      url: https://ecobase.ecopath.org/
+      summary: Repository listing 233 downloadable Ecopath models
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,78 @@
+id: causal-dag-epidemiologist
+name: Causal DAG Epidemiologist
+role: Assistant Professor of Epidemiology / Clinical Researcher who draws causal diagrams
+quote: Tell me which covariates to adjust for, and give me a left-to-right figure a reviewer can read without squinting.
+bio: >-
+    Dr. Ruth Adeyemi is an assistant professor of epidemiology who runs observational analyses of registry and cohort
+    data. Before any model is fitted she draws a directed acyclic graph (DAG) of the causal question: an exposure, an
+    outcome, the confounders, mediators and colliders between them, and the variables nobody measured. Her DAGs are small
+    -- 9 to 16 nodes, a median of about 29 arrows, several of them unmeasured -- and the patient data never enter the
+    drawing tool. She sketches in the DAGitty web app, presses single keys to mark the exposure, the outcome and the
+    latent variables, and reads the minimal sufficient adjustment sets that DAGitty recomputes on every edit. She then
+    pastes the model code into R for dagitty and ggdag, or rewrites it in TikZ, because the DAGitty figure is not good
+    enough to publish. She builds the DAG with clinical colleagues in workshops, keeps alternative DAGs where they
+    disagree, and has started asking an LLM to draft candidate variables, then checking every suggested arrow and
+    citation by hand. She knows d-separation, colliders and backdoor paths well; centrality and communities mean
+    nothing to her task.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: advanced
+    domain_knowledge: expert
+motivations:
+    - Get a defensible minimal sufficient adjustment set for each estimand (total and direct effect) before analysis
+    - Publish the causal assumptions as a clean, one-direction figure that matches journal conventions
+    - Keep alternative DAGs where experts disagree and compare their adjustment sets for sensitivity analysis
+    - Share the DAG with co-authors and reviewers without putting it on a public server
+    - Put the DAG and its model code in the supplement and pre-registration so others can reproduce the reasoning
+behaviors:
+    - Starts from a causal question (population, exposure, outcome, estimand), not from a data file
+    - Lists candidate variables, including unmeasured ones, from literature, experts and sometimes an LLM draft
+    - Draws nodes and arrows by hand with keyboard shortcuts (DAGitty n, c, r, d) and marks roles with single keys (e, o, u, a)
+    - Drags nodes so all arrows flow left to right in time order; positions are saved in the model code as pos="x,y"
+    - Reads node colors (ancestor of exposure, of outcome, of both) and red biasing versus green causal paths
+    - Forces a covariate into the adjustment set and watches the list recompute; asks for instruments when no set exists
+    - Copies the model code into R (dagitty, ggdag) or TikZ to make the publication figure with subscripts and curved arrows
+    - Polishes the exported SVG in Inkscape or PowerPoint
+frustrations:
+    - DAGitty figures look rough -- no subscripts, thin lines, arrows crowding labels -- so every DAG is drawn twice
+    - ggdag gives a better figure but takes about twice as long to style
+    - Sharing on dagitty.net is public, and the manual warns there is no guarantee the site keeps running
+    - Saving means copying model code out of a text box
+    - Roles are mutually exclusive in DAGitty, so a node cannot be both adjusted and a selection variable
+    - Realistic DAGs get dense enough to be very hard to draw and read
+    - LLM-drafted DAGs cite sources that do not exist, and there is nowhere to record which arrow came from where and whether it was reviewed
+context:
+    frequency: monthly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W423
+    - W424
+sources:
+    - title: Tennant et al. 2021 - Use of directed acyclic graphs in applied health research (review of 234 articles)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8128477
+      summary: Median 12 nodes (IQR 9-16) and 29 arcs per DAG; 48% reported the DAG-implied adjustment set; only 34% of DAGs flowed in one direction
+    - title: DAGitty 3.1 manual
+      url: https://dagitty.net/manual-3.x.pdf
+      summary: Keyboard shortcuts for nodes, arrows and roles, live adjustment sets, path coloring, public sharing and copy-paste saving
+    - title: Feeney, Hartwig and Davies - BMJ 2025 guide to directed acyclic graphs
+      url: https://thefeeney.netlify.app/research/TF_2025_DAGs.pdf
+      summary: Draw the DAG with experts to consensus before analysis, include it in pre-registration and the paper; realistic DAGs get dense
+    - title: Pitts and Fowler - comparison of DAG drawing software
+      url: https://arxiv.org/pdf/2305.12006
+      summary: DAGitty is quick and code-free but rough; ggdag gives better figures but took about twice as long
+    - title: Digitale, Martin and Glymour - tutorial on directed acyclic graphs (J Clin Epidemiol 2022)
+      url: https://doi.org/10.1016/j.jclinepi.2021.08.001
+      summary: Recommends the DAG as a lead figure and drawing unmeasured variables explicitly
+    - title: Aziz and Brookhart 2025 - can LLMs provide the domain knowledge for DAGs
+      url: https://www.dovepress.com/can-contemporary-large-language-models-provide-the-domain-knowledge-ne-peer-reviewed-fulltext-article-CLEP
+      summary: GPT-4o and o1 drew acyclic DAGs but missed variables and hallucinated cited sources; cannot replace an expert
+    - title: ESC-DAGs protocol
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC7124493
+      summary: Literature-synthesis method for building DAGs with an edge index and a decision log per edge
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

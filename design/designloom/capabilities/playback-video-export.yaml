@@ -1,0 +1,18 @@
+id: playback-video-export
+name: Playback Video and Sequence Export
+category: export
+description: Export playback as video or an image sequence with window dates burned in, plus a saved record of window
+    length, step, aggregation and duration rule.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W19
+    - W304
+    - W307
+    - W321
+implemented_by_components: []
+requirements:
+    - Export a time-varying graph as MP4 or GIF with fixed camera and timing, standalone animated HTML, small-multiple
+      panels sharing one layout, and a timeline chart with source references per event.
+sources: []

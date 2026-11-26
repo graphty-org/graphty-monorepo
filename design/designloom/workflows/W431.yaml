@@ -1,0 +1,150 @@
+id: W431
+name: Layered Herb-Compound-Target-Pathway Network Figure
+category: visualization
+validated: false
+personas:
+    - network-pharmacology-graduate-student
+    - phytochemistry-network-pharmacology-researcher
+requires_capabilities:
+    - data-import
+    - data-validation
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - style-presets
+    - legend-display
+    - layout-hierarchical
+    - layout-radial
+    - degree-analysis
+    - filtering
+    - node-selection
+    - details-on-demand
+    - view-bookmarks
+    - export-image
+    - layout-tiered-by-attribute
+    - identifier-mapping
+    - input-rederivation
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - attribute-table-join-dialog
+    - visual-encoding-panel
+    - layout-panel
+    - legend-panel
+    - filter-panel
+    - node-details-panel
+    - data-table-panel
+    - graph-canvas
+    - session-save-dialog
+    - image-export-dialog
+starting_state:
+    data_type: one stacked edge table (source, target, type) plus a node table with a type column (herb, compound, target, pathway, disease)
+    node_count: 90-750
+    edge_density: medium (170-3,000 edges, only between adjacent node types)
+    user_expertise: beginner
+goal: >-
+    **Intent**: Draw the formula's mechanism as a typed, layered network -- herbs, then their compounds, then the
+    targets those compounds reach, then pathways and the disease -- so a reader sees "multi-component, multi-target"
+    action at a glance. It is the central figure of nearly every network pharmacology paper.
+
+
+    **Mental Model**: "Tiers, left to right." Each node type is a layer and edges run only between adjacent layers;
+    the reader follows a herb through its compounds to targets and pathways. Size says how connected a node is.
+
+
+    **Task Phases**:
+
+    1. **Stack the edge tables** (20 min) - Herb-compound, compound-target, target-pathway and target-disease rows in one
+    table with a type column; a node table with a type and display columns
+
+    2. **Import** (10 min) - Network from file, then the node table keyed on name; drop compounds with no target in the
+    intersection
+
+    3. **Style by type** (20-40 min) - A shape and color per type (for example green rhombus herbs, brown square
+    compounds, blue dot targets, red hexagon pathways); size by degree; compounds labeled by short codes with a mapping
+    table
+
+    4. **Lay out in tiers** (20-60 min) - Arrange each type as an ordered column or ring, with order inside a tier chosen
+    to reduce crossings with the next tier; today done by hand with Attribute Circle, Group Attributes or dragging
+
+    5. **Read** (10 min) - High-degree compounds become "key active ingredients"; targets hit by many compounds show
+    synergy
+
+    6. **Export** (15 min) - Vector export with legend; today labels and legend are fixed in Illustrator
+
+
+    **Decision Points**:
+
+    - Which node types to include (pathways, disease node) and in what tier order?
+
+    - Columns or concentric rings, or a Sankey-style flow?
+
+    - Label compounds by name or short code with a mapping table?
+
+    - Prune by degree (compounds >= 10, pathways >= 10 targets) to keep the figure readable?
+
+
+    **Information Needs**:
+
+    - Node counts per type and edge counts per type pair
+
+    - Degree computed within the layered network, labeled so it is not confused with PPI degree
+
+    - Which herb each compound belongs to, and the plant part where recorded
+
+    - A legend that maps every shape and color to its type
+
+
+    **Pain Points**:
+
+    - Force layout scatters the node types into a blob
+
+    - Circle-per-type layouts give neither ordered tiers nor crossing reduction; hierarchical layout cannot use the type
+    column as the tier key
+
+    - Hand-nudged geometry exists only in one session file and is lost when a cutoff changes
+
+    - Overlapping labels and a hand-drawn legend
+
+    - Published figures disagree with their own tables (a top compound missing from the compound list)
+
+
+    **Data Flow**:
+
+    - Input: Stacked typed edge table and node table (CSV or Excel), or TCMSP XGMML
+
+    - Transformations: Typed import, per-type style, tier layout keyed on the type column, degree pruning
+
+    - Output: Layered network figure (SVG, PDF, PNG) with legend; compound short-code mapping table; saved arrangement
+    that can be regenerated
+success_criteria:
+    - metric: Tier arrangement
+      target: Each node type in its own ordered tier from one setting, no manual dragging
+    - metric: Regeneration
+      target: After a cutoff change the figure redraws with the same tier order and style
+    - metric: Figure readiness
+      target: Exported figure includes a legend for every node type and no overlapping labels
+sources:
+    - title: Yougui Pill study (PMC6877955)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6877955
+      summary: Green rhombus herbs, brown square components, blue dot targets, red hexagon pathways; degree pruning
+    - title: Herbs layer and targets layer figure legend (PMC6723118)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6723118
+      summary: Figure legends describe the network as layers of node types
+    - title: Yinchensini study (PMC6317126)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6317126/
+      summary: Names the attribute circle layout for the layered network
+    - title: Cytoscape manual - Navigation and Layout
+      url: https://github.com/cytoscape/cytoscape-manual/blob/956f3b70754d79fbe25502f76af88edc3278d690/docs/Navigation_and_Layout.md
+      summary: Attribute Circle orders one circle by a column; Group Attributes draws a circle per value; Hierarchical layers follow edge direction
+    - title: TCMDATA network construction
+      url: https://yulab-smu.top/TCMDATA/network-construction.html
+      summary: tcm_sankey draws herb-molecule-target flows; network view uses force layout with type as shape and color
+    - title: Biostars question on layered networks
+      url: https://www.biostars.org/p/460186
+      summary: Users arrange node types into tiers by hand
+    - title: Two-herb pair study (PMC7838196)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC7838196
+      summary: Compound-target network of 736 nodes and 3,034 edges; core compound-target-pathway network of 143 nodes and 646 edges
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

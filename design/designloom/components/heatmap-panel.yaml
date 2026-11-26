@@ -7,6 +7,31 @@ implements_capabilities:
     - details-on-demand
 used_in_workflows:
     - W22
+    - W158
+    - W161
+    - W162
+    - W163
+    - W164
+    - W186
+    - W187
+    - W189
+    - W209
+    - W30
+    - W310
+    - W322
+    - W371
+    - W372
+    - W393
+    - W405
+    - W410
+    - W416
+    - W433
+    - W442
+    - W71
+    - W73
+    - W85
+    - W87
+    - W98
 dependencies: []
 props: {}
 sources: []

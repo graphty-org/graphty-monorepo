@@ -1,0 +1,134 @@
+id: W255
+name: Residue Interaction Networks from Structures and Simulations
+category: analysis
+validated: false
+personas:
+    - structural-network-biologist
+requires_capabilities:
+    - data-import
+    - filtering
+    - visual-encoding-edges
+    - visual-encoding-nodes
+    - centrality-betweenness
+    - community-detection
+    - shortest-path
+    - all-paths-finding
+    - path-highlighting
+    - node-selection
+    - export-image
+    - data-export
+    - multiplex-relations
+    - fixed-node-positions
+    - suboptimal-paths
+suggested_components:
+    - data-import-dialog
+    - filter-panel
+    - visual-encoding-panel
+    - path-finder-dialog
+    - community-panel
+    - legend-panel
+    - graph-canvas
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: residue contact multigraph with 3D coordinates, contact types and per-frame frequencies or correlation weights
+    node_count: hundreds to thousands of residues
+    edge_density: not found (typed multigraph)
+    user_expertise: advanced
+goal: >-
+    **Intent**: Find critical residues, communities of residues that move together, and the paths that carry an
+    allosteric signal between two sites, read in the context of the 3D structure.
+
+
+    **Mental Model**: "Wiring inside the molecule." Residues are nodes fixed in space; contacts are typed wires; a
+    residue on many short paths between two sites is a relay.
+
+
+    **Task Phases**:
+
+    1. **Input** (5 min) - Upload PDB or mmCIF, or a PDB or AlphaFold id; or an MD trajectory
+
+    2. **Contacts** (5 min) - Thresholds per contact type (for example hydrogen bond 3.5 A, ionic 4.0 A, pi-pi 6.5 A);
+    one edge per type per residue pair
+
+    3. **Trajectory weights** (1-2 h) - Keep pairs within 4.5 A for 75 percent of frames; edge length -log(|C_ij|) from
+    fluctuation correlations
+
+    4. **Explore** (30 min) - 3D view beside the network with shared selection; filter by type, chain or frequency;
+    color by chain or secondary structure
+
+    5. **Communities and centrality** (15 min) - Girvan-Newman communities; weighted betweenness for critical residues
+
+    6. **Paths** (20 min) - Suboptimal paths between two residues within a length offset; optimal path red, others blue
+
+    7. **Export** (5 min) - JSON, SVG and tables
+
+
+    **Decision Points**:
+
+    - Contact type thresholds
+
+    - Frequency cutoff across frames
+
+    - Length offset for suboptimal paths
+
+
+    **Information Needs**:
+
+    - Contact types per edge
+
+    - Per-edge frequency across frames
+
+    - Path list ranked by length
+
+    - Residue position in the structure
+
+
+    **Pain Points**:
+
+    - RINalyzer unreleased since 2014
+
+    - Hundreds of suboptimal paths hard to read
+
+    - Network and structure in two windows
+
+
+    **Data Flow**:
+
+    - Input: PDB, mmCIF, RING JSON, trajectory-derived correlation matrices
+
+    - Transformations: Contact detection, frequency weighting, communities, weighted betweenness, suboptimal paths
+
+    - Output: Critical residue list, path figures, community map
+success_criteria:
+    - metric: Positions as data
+      target: Residues drawn at their 3D coordinates or linked to a structure view
+    - metric: Path readability
+      target: Optimal path distinguished and suboptimal paths groupable
+    - metric: Type filtering
+      target: Contacts filterable by type and frequency
+sources:
+    - title: RING 4.0
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11223866
+      summary: Web route, typed contacts, Mol* linked view
+    - title: RING 2.0
+      url: https://www.pubmed.gov/27198219/
+      summary: Earlier version and Cytoscape output
+    - title: RING thresholds report
+      url: https://arxiv.org/pdf/2010.01607
+      summary: Strict thresholds per contact type
+    - title: Doncheva et al. 2012 protocol
+      url: https://pubmed.ncbi.nlm.nih.gov/22422314/
+      summary: Cytoscape, structureViz and RINalyzer route
+    - title: Dynamical network tutorial
+      url: https://luthey-schulten.chemistry.illinois.edu/network/network_tutorial.pdf
+      summary: VMD NetworkView route
+    - title: Bio3D cna
+      url: https://search.r-project.org/CRAN/refmans/bio3d/html/cna.html
+      summary: Correlation network analysis in R
+    - title: VMD mailing list
+      url: https://tcbg.illinois.edu/Research/vmd/mailing_list/vmd-l/30991.html
+      summary: Hundreds of paths hard to interpret
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

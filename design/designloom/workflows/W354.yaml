@@ -1,0 +1,150 @@
+id: W354
+name: Code-First Process Analysis in PM4Py and bupaR
+category: analysis
+validated: false
+personas:
+    - process-mining-researcher
+    - clinical-pathway-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - filtering
+    - layout-hierarchical
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - temporal-analysis
+    - animated-transitions
+    - centrality-degree
+    - community-detection
+    - export-image
+    - data-export
+    - process-map-derivation
+    - variant-analysis
+    - token-replay-animation
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - graph-canvas
+    - filter-panel
+    - range-slider
+    - visual-encoding-panel
+    - legend-panel
+    - temporal-controls
+    - layout-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: >-
+        XES file or a pandas or R data frame with case id, activity, timestamp, lifecycle and resource; for example an
+        emergency department log of 1,820 cases cleaned to 1,754 with 884 variants
+    node_count: 10-50 activities; resource networks up to several hundred people
+    edge_density: sparse to moderate; cyclic
+    user_expertise: expert
+goal: >-
+    **Intent**: Run the whole process mining pipeline in a notebook or script so it is reproducible: load, clean,
+    reduce variants, discover a directly-follows graph and models, compute resource networks, and produce figures for a
+    paper or report. The libraries hold every algorithm but draw static Graphviz images, so tuning means editing a
+    parameter and re-rendering.
+
+
+    **Mental Model**: "The script is the analysis; the picture is a by-product." Every figure must be regenerated from
+    code with the same parameters.
+
+
+    **Task Phases**:
+
+    1. **Load** - PM4Py `read_xes`, or pandas plus `format_dataframe(df, case_id=..., activity_key=...,
+    timestamp_key=...)` mapping to `case:concept:name`, `concept:name`, `time:timestamp`; bupaR `eventlog` with case,
+    activity, activity instance, lifecycle, timestamp and resource
+
+    2. **Clean** - The ED study removed cases with fewer than four events or broken boundaries (49) and cases outside
+    0.5-48 hours (17)
+
+    3. **Reduce variants** - `filter_variants_top_k`, `filter_variants_by_coverage_percentage`, bupaR
+    `filter_trace_frequency(percentage = 0.95)`; in the ED log the top 10 variants covered 21.3 percent and 80 percent
+    coverage needed 519 variants
+
+    4. **Discover and view** - `discover_dfg`, `discover_performance_dfg`, `view_dfg`; bupaR `process_map(type_nodes =
+    frequency("relative_case"), type_edges = performance(mean))` with secondary layers and `rankdir`
+
+    5. **Models and conformance** - Inductive miner, alignments, fitness and precision (see the conformance workflow)
+
+    6. **Resources** - `discover_handover_of_work_network`, `discover_working_together_network`,
+    `discover_organizational_roles`, `view_sna`, `view_dotted_chart`
+
+    7. **Animate and export** - bupaR `animate_process(log, mode = "absolute" | "relative")` writes an SVG widget;
+    figures saved as PNG or SVG
+
+
+    **Decision Points**:
+
+    - Which cleaning thresholds define a valid case?
+
+    - Top-k variants or a coverage percentage?
+
+    - Which frequency type (absolute, relative, relative-case, relative-antecedent, relative-consequent) and which
+    performance statistic on edges?
+
+    - Which resource network answers the question: handover, working together or roles?
+
+
+    **Information Needs**:
+
+    - Cases and events removed by each cleaning step
+
+    - Variant coverage curve
+
+    - Node and edge metrics as data, not only as a picture
+
+    - Interactive view of the graph the script produced, without leaving the notebook
+
+
+    **Pain Points**:
+
+    - Static Graphviz images; no hover, no click to the cases behind an edge
+
+    - Switching between console and viewer to tune parameters
+
+    - Each tool converts data to an event log differently, so a figure cannot be compared across tools
+
+    - Variant explosion: 884 variants for 1,754 cases
+
+
+    **Data Flow**:
+
+    - Input: XES or tabular event data
+
+    - Transformations: Format mapping, case cleaning, variant filtering, DFG and model discovery, social network
+    mining, animation
+
+    - Output: Figures, metric tables, filtered logs, notebooks that regenerate them
+success_criteria:
+    - metric: Notebook interactivity
+      target: A graph produced by a script can be shown as an interactive, clickable view in the notebook or browser
+    - metric: Reproducibility
+      target: The same parameters produce the same graph, metrics and layout on rerun
+    - metric: Metrics as data
+      target: Every node and edge metric shown can be exported as a table
+sources:
+    - title: PM4Py API reference 2.7.11
+      url: https://pm4py.fit.fraunhofer.de/static/assets/api/2.7.11/api.html
+      summary: read_xes, format_dataframe, variant filters, discover_dfg, view_dfg, social network and dotted chart functions
+    - title: bupaR - frequency maps
+      url: https://bupaverse.github.io/docs/frequency_maps.html
+      summary: Absolute, relative, relative-case, relative-antecedent and relative-consequent frequencies
+    - title: bupaR - advanced maps
+      url: https://bupaverse.github.io/docs/advanced_maps.html
+      summary: Secondary node and edge layers, rankdir, render = FALSE returns a graph to modify
+    - title: processanimateR - animate_process
+      url: https://search.r-project.org/CRAN/refmans/processanimateR/html/animate_process.html
+      summary: Absolute and relative animation modes writing an SVG htmlwidget
+    - title: Emergency department patient flow process mining study
+      url: https://arxiv.org/pdf/2609.32010
+      summary: 1,754 of 1,820 cases kept after cleaning; 884 variants; top 10 cover 21.3 percent
+    - title: van den Elzen et al. 2025 - visualization in process mining case studies
+      url: https://eprints.whiterose.ac.uk/id/eprint/225747/9/1-s2.0-S0306437925000444-main.pdf
+      summary: 427 visualizations in 74 case studies; network views 44.5 percent; console-viewer switching
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

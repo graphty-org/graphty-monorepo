@@ -1,0 +1,14 @@
+id: path-focus-dimming
+name: Path Focus Dimming
+category: analysis
+description: Clicking a node dims everything except the paths that run through it.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W108
+    - W111
+    - W114
+implemented_by_components: []
+requirements: []
+sources: []

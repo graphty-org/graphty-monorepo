@@ -1,0 +1,17 @@
+id: structured-item-fields
+name: Structured Fields on Nodes and Edges
+category: analysis
+description: "Typed multi-field attachments on items: indicators (who, how many, how much, by when) on outcomes,
+    rationale and assumptions on edges, interventions attached to edges, Markdown narrative and citations, multiple
+    source quotes with a count of sources."
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W196
+    - W197
+    - W204
+    - W205
+implemented_by_components: []
+requirements: []
+sources: []

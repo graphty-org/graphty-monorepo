@@ -1,0 +1,15 @@
+id: nearest-neighbor-pruning
+name: Nearest Neighbor Pruning of Weighted Edges
+category: analysis
+description: Keep each node's shortest (strongest) weighted link, with ties and near-ties admitted by a small epsilon,
+    applied to one edge layer only, as a standard simplification of molecular distance networks before epidemiologic
+    links are added.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W62
+    - W63
+implemented_by_components: []
+requirements: []
+sources: []

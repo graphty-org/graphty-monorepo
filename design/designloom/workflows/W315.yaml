@@ -1,0 +1,136 @@
+id: W315
+name: Regulatory SAR Output from a Graph Investigation
+category: reporting
+validated: false
+personas:
+    - graph-deliverable-recipient
+requires_capabilities:
+    - view-bookmarks
+    - filtering
+    - selection-statistics
+    - path-highlighting
+    - computed-attributes
+    - temporal-analysis
+    - comparison-view
+    - data-export
+    - export-image
+    - report-generation
+    - analysis-history
+    - provenance-tracking
+    - structured-findings-export
+    - deliverable-templates
+suggested_components:
+    - graph-canvas
+    - bookmark-panel
+    - filter-panel
+    - temporal-controls
+    - data-table-panel
+    - statistics-panel
+    - comparison-view
+    - data-export-dialog
+    - image-export-dialog
+    - report-generator-dialog
+    - analysis-history-panel
+starting_state:
+    data_type: transaction and customer graph from an AML investigation (accounts, parties, transfers with dates and amounts, shared identifiers)
+    node_count: 10-500 in the case
+    edge_density: moderate
+    user_expertise: intermediate+
+goal: >-
+    **Intent**: Turn a graph investigation into what a US suspicious activity report (SAR) and its case file require -
+    a written narrative and one supporting CSV - because the SAR has no place for a picture, and keep the case
+    regenerable for quality control, examination and continuing-activity reviews.
+
+
+    **Mental Model**: "Graph facts become sentences and rows." The chart is how the investigator saw the pattern; the
+    regulator reads who, what, when, where and why in words, backed by a table.
+
+
+    **Task Phases**:
+
+    1. **Freeze the state** (5 min) - Save the chart state at each decision point with a caption and timestamp
+
+    2. **Translate the graph into the narrative** (30-90 min) - Compute per-pair sums and counts over a date window,
+    path lists and shared identifiers, and write them as sentences ("accounts A, B and C received 41 cash deposits
+    totaling $X and forwarded 93 percent to D")
+
+    3. **Attach the table** (15 min) - One CSV of at most 1 MB, with chosen columns, described in the narrative
+
+    4. **Assemble the case file** (30 min) - Chart images, entity and transaction tables, rationale; kept five years and
+    producible on request
+
+    5. **Quality control** (varies) - A second reviewer or committee checks the narrative against the data; the chart
+    must be regenerable from case data
+
+    6. **Continuing activity review** (every 90 days) - Compare counterparties and flows across the prior and new date
+    ranges; file within 120 days of the prior SAR
+
+
+    **Decision Points**:
+
+    - Which flows and parties belong in the narrative and which are context only?
+
+    - Which date window and aggregation make the pattern clear?
+
+    - Which columns go into the single CSV, and does it fit in 1 MB?
+
+    - Has activity continued, grown or changed since the prior filing?
+
+
+    **Information Needs**:
+
+    - Per-pair totals and counts over a chosen date window
+
+    - Paths of funds between named parties
+
+    - Shared identifiers (addresses, devices, phone numbers) linking parties
+
+    - Differences in counterparties and flows between two periods
+
+    - Saved, timestamped chart states for the case file
+
+
+    **Pain Points**:
+
+    - Graph tools export pictures, but the filing needs sentences and a table
+
+    - Sums and counts are recalculated by hand in spreadsheets for the narrative
+
+    - Exports carry raw data without the filter that defined the case subset
+
+    - Large chart reports (20 pages for 30 entities) that the reviewer cannot use
+
+    - Every artifact naming the SAR must stay restricted because the filing must not be disclosed
+
+
+    **Data Flow**:
+
+    - Input: Case subgraph of accounts, parties and dated transactions; prior SAR for continuing reviews
+
+    - Transformations: Saved states, date-window aggregation per pair, path and shared-identifier extraction, period
+    comparison, column selection and size cap
+
+    - Output: Narrative facts, one CSV of at most 1 MB, case file with chart images and tables, QC record
+success_criteria:
+    - metric: Narrative facts from the graph
+      target: Every total, count and path cited in the narrative is produced by the tool, not recalculated by hand
+    - metric: Attachment compliance
+      target: One CSV under 1 MB with the chosen columns, exported from the case subset
+    - metric: Regenerability
+      target: A QC reviewer or examiner can regenerate each chart from the saved case state
+sources:
+    - title: FinCEN SAR form specification (SARX)
+      url: https://sdtmut.fincen.treas.gov/docs/SARX.pdf
+      summary: Supporting documentation limited to one CSV of at most 1 MB, described in the narrative
+    - title: FinCEN SAR electronic filing requirements
+      url: https://bsaefiling.fincen.treas.gov/docs/FinCENSARElectronicFilingRequirements.pdf
+      summary: SAR attachment rules
+    - title: Cambridge Intelligence - Intelligence dissemination with PDF exports
+      url: https://cambridge-intelligence.com/intelligence-dissemination-with-pdf-exports/
+      summary: Saving serialized chart state with caption and timestamp for SARs and warrant applications
+    - title: Maltego - Five ways to export a Maltego graph for reporting
+      url: https://www.maltego.com/blog/five-ways-to-export-maltego-graph-for-reporting/
+      summary: Graph files plus PDF reports; 30 entities can produce a 20-page report
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,52 +1,61 @@
 id: cybersecurity-analyst
-name: Cybersecurity Threat Analyst
-role: Security Operations Center Analyst / Threat Hunter
-quote: The attacker left a trail through our network - I just need to see the graph to find where they pivoted and what
-    they touched.
-bio: Priya started as a SOC analyst triaging alerts and graduated to threat hunting after realizing that the most
-    dangerous attacks aren't caught by rules - they're found by understanding how attackers move through networks. She
-    builds behavioral graphs from SIEM data to detect lateral movement, correlates threat intelligence to identify
-    campaigns, and constructs attack graphs to prioritize vulnerability remediation. She thinks in terms of attack paths,
-    not individual events.
+name: Cybersecurity Threat Hunter
+role: Threat Hunter / Security Data Scientist
+quote: My hypothesis is a sentence. My data is a SIEM table with ten million rows. I need to get from one to the other as a graph I can query, aggregate and click through to raw events.
+bio: >-
+    The threat hunter started as a SOC analyst triaging alerts and moved into hypothesis-driven hunting and detection
+    engineering. Unlike the alert-driven SOC, the hunter starts from a hypothesis drawn from threat intelligence or an
+    ATT&CK technique ("an account is authenticating to many hosts it never used before"), writes the query in KQL or
+    SPL, and turns the result table into a graph: entity columns (accounts, hosts, processes, IPs) become nodes and
+    each event links the entities it mentions. Ad hoc hunts run in Graphistry from a notebook or a Splunk workflow
+    action; Microsoft shops use the Defender XDR hunting graph and its predefined path scenarios. Raw event volumes are
+    large (the public LANL benchmark alone holds 1.6 billion events over 58 days), so the hunter aggregates to
+    host-to-host or account-to-host edges with counts and drills down to raw events from a suspicious edge. Graph
+    literacy is operational: typed edges, paths, fan-out and time order matter; centrality appears only in
+    target-scoped forms such as choke points, and generic community detection is not a routine step in any source
+    found. A positive hunt is handed to incident response; a negative one is documented and its query saved.
 characteristics:
     expertise: expert
-    time_pressure: high
+    time_pressure: medium
     graph_literacy: advanced
     domain_knowledge: advanced
 motivations:
-    - Detect sophisticated attacks that evade rule-based detection
-    - Understand attacker behavior by tracing their path through the network
-    - Prioritize vulnerability remediation based on actual attack paths
-    - Reduce mean time to detect (MTTD) and respond (MTTR) to incidents
-    - Build threat intelligence that connects indicators to campaigns and actors
+    - Find intrusions that evade rule-based detection before they cause damage
+    - Turn a hunt hypothesis into a repeatable query and, when it works, a detection
+    - Read millions of events as a small aggregated graph without losing the path back to raw evidence
+    - Hand incident response a clear set of entities, edges and times when a hunt hits
+    - Document negative hunts so the team does not repeat them
 behaviors:
-    - Builds graphs from SIEM events connecting users, endpoints, processes, and network connections
-    - Traces lateral movement paths to understand attack progression
-    - Uses graph queries to hunt for specific TTPs (Tactics, Techniques, Procedures)
-    - Correlates internal events with external threat intelligence feeds
-    - Constructs attack graphs to model potential intrusion paths
-    - Identifies high-betweenness nodes as critical chokepoints for monitoring
-    - Creates timeline visualizations showing attack progression for incident reports
+    - Forms a hypothesis from threat intelligence, an ATT&CK technique or an anomaly signal
+    - Writes the hunt in KQL or SPL and pulls a result table of thousands to millions of rows
+    - Turns the event table into a graph by picking entity columns (account, host, process, IP), as in Graphistry hypergraphs
+    - Aggregates raw events into host-to-host or account-to-host edges with counts, first and last seen, and a minimum-weight threshold
+    - Uses Defender XDR hunting graph scenarios with source and target property filters, edge types and direction, and "Show only the shortest paths"
+    - Looks for fan-out, first-seen pairs, rare edges and logon chains rather than global centrality
+    - Clicks through from an aggregated edge to the raw events behind it
+    - Saves parameterized hunt queries and shares them as templates and Splunk workflow actions
 goals:
-    - Detect and investigate security incidents using behavioral graphs
-    - Hunt for threats by querying for suspicious graph patterns
-    - Model attack paths to prioritize defensive measures
-    - Correlate threat intelligence with internal network activity
-    - Reduce alert fatigue by focusing on graph-based anomalies
+    - Hunt for threats by turning hypotheses into graph queries over SIEM and EDR data
+    - Aggregate high-volume telemetry into readable entity graphs with drill-down
+    - Hand confirmed findings to incident response with the evidence attached
+    - Build a library of reusable hunt queries and templates
 frustrations:
-    - SIEM tools don't provide native graph visualization
-    - Difficulty correlating events across multiple data sources
-    - Graph databases are too slow for real-time threat detection
-    - Hard to translate MITRE ATT&CK patterns into graph queries
-    - Visualizations become unusable during active incidents with high event volume
+    - SIEM tools return tables, so every graph hunt starts with reshaping columns into entities and edges
+    - Correlating events across sources whose field names differ
+    - Aggregated views lose the link back to raw events unless the tool keeps it
+    - Translating an ATT&CK technique into a graph pattern takes expertise and trial and error
+    - Large hunts need a GPU server or notebook environment that tier-1 colleagues cannot use
 context:
-    frequency: daily
+    frequency: weekly
     devices:
         - desktop
-    voluntary: false
+    voluntary: true
 workflows:
     - W07
     - W12
+    - W109
+    - W113
+    - W336
 sources:
     - title: MITRE ATT&CK Framework
       url: https://attack.mitre.org/
@@ -57,3 +66,19 @@ sources:
       bibliography:
           date: 2023-08
           publisher: Communications of the ACM
+    - title: SANS 2024 CTI survey (Bitsight summary)
+      url: https://bitsight.com/blog/sans-cti-survey-2024-threat-hunting-now-top-use-case
+      summary: Threat hunting was the top use of threat intelligence in 2024 at 75 percent
+    - title: PyGraphistry - Splunk demo
+      url: https://pygraphistry.readthedocs.io/en/latest/demos/demos_databases_apis/splunk/splunk_demo_public.html
+      summary: SPL result turned into a hypergraph; 5,035 events gave 170 entities and 15,105 links
+    - title: Graphistry admin docs - Templates
+      url: https://graphistry-admin-docs.readthedocs.io/en/latest/app-config/templates.html
+      summary: Graphistry wired into Splunk as click-through workflow actions
+    - title: Microsoft Learn - Defender XDR advanced hunting graph
+      url: https://learn.microsoft.com/defender-xdr/advanced-hunting-graph
+      summary: Predefined scenarios, property filters, 19 edge types, direction, shortest-paths-only, choke points
+    - title: Los Alamos National Laboratory - Comprehensive, multi-source cyber-security events
+      url: https://csr.lanl.gov/data/cyber1/
+      summary: 1,648,275,307 events over 58 days across 12,425 users and 17,684 computers
+updated_at: 2026-11-25T00:00:00.000Z

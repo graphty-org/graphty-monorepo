@@ -1,0 +1,78 @@
+id: aiko-tanaka
+name: Aiko Tanaka
+role: Cyber Threat Intelligence Analyst
+quote: One IP hosting four hundred domains is noise, one reused certificate is a lead. Let me expand, judge each edge, prune hard, and hand the SOC a clean blocklist.
+bio: >-
+    Aiko Tanaka is a CTI analyst on an in-house intelligence team; she came up from the SOC. Most days start from a
+    single indicator handed over by the SOC or incident response: a domain, an IP address, a file hash or a URL. She
+    records it defanged with its source and date, drops it into Maltego or VirusTotal Graph, and expands it through
+    passive DNS, WHOIS, X.509 certificates, hosting and sandbox relationships, with DomainTools Iris and Censys for
+    certificate and banner pivots. Every expansion adds noise, so she judges each edge (a shared value is a lead, not a
+    confirmation), bookmarks what she believes, bulk-deletes the rest, and validates structural matches before calling
+    anything attacker infrastructure. Accepted clusters go to OpenCTI and MISP as STIX 2.1, to the SOC as blocklists
+    and hunt queries, and to the purple team as hand-built Attack Flow diagrams. She is comfortable with Python and the
+    VirusTotal API but works mostly by clicking.
+characteristics:
+    expertise: advanced
+    time_pressure: medium
+    graph_literacy: intermediate
+    domain_knowledge: advanced
+motivations:
+    - Turn one indicator into a defensible cluster of attacker infrastructure with stated confidence
+    - Avoid false clusters that lead to wrong blocks or wrong attribution
+    - Produce blocklists, hunt queries and STIX bundles others can act on
+    - Turn threat reports into ordered, technique-mapped attack flows for detection and purple teams
+    - Keep a pivot log so a colleague can reproduce how each node got into the cluster
+behaviors:
+    - Starts every investigation from one defanged seed with its source and date recorded
+    - Expands through domain, IP, certificate, hash and passive DNS relationships, capping results per expansion
+    - Treats shared hosting and high-fanout IPs as noise and discards them before they explode the graph
+    - Uses "Find commonalities" across a selection to find the attribute several indicators share
+    - Marks believed nodes with bookmark colors, then selects by bookmark or type and bulk-deletes the rest
+    - Keeps a spreadsheet pivot log alongside the graph
+    - Exports PDF reports of bookmarked entities, STIX report bundles and defanged indicator feeds
+    - Hand-builds Attack Flow diagrams from reports with ATT&CK technique IDs and confidence per action
+frustrations:
+    - Expansions explode the graph with shared-hosting noise
+    - OpenCTI rolls back only the last 10 expansions, so a bad branch is hard to undo
+    - VirusTotal caps each API expansion at 40 nodes, spends quota, and private graphs need a premium license
+    - Maltego's cost and learning curve
+    - Growth is controlled only by per-transform result limits, not by how big the graph already is
+    - Attack Flow Builder has no autosave
+context:
+    frequency: daily
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W110
+    - W116
+sources:
+    - title: Maltego - Beginner's guide, charting my first Maltego graph
+      url: https://www.maltego.com/blog/beginners-guide-to-maltego-charting-my-first-maltego-graph/
+      summary: Entity palette, transforms, save with optional encryption
+    - title: Maltego support - Transform Result Limit slider
+      url: https://support.maltego.com/en/support/solutions/articles/15000061694-setting-the-transform-result-limit-slider
+      summary: Small, Balanced and Large result limits per transform
+    - title: Maltego support - Bulk actions with Select By
+      url: https://support.maltego.com/en/support/solutions/articles/15000059548-performing-bulk-actions-with-select-by-
+      summary: Select by bookmark or type, then bulk delete
+    - title: VirusTotal docs - Graph overview
+      url: https://docs.virustotal.com/docs/graph-overview
+      summary: 30+ relationship types, Find commonalities, public and private graphs
+    - title: VirusTotal Graph API quickstart
+      url: https://virustotal.github.io/vt-graph-api/quickstart.html
+      summary: 40 nodes per expansion query and quota use
+    - title: OpenCTI docs - Pivoting
+      url: https://docs.opencti.io/latest/usage/pivoting/
+      summary: Investigation graph, warning about noisy expansion, rollback of 10 expansions, STIX export
+    - title: CIRCL - MISP user stories
+      url: https://circl.lu/doc/misp/user-stories/
+      summary: A shared value is a lead, not confirmation; correlation volume
+    - title: Censys - Using Cobalt Strike to find more Cobalt Strike
+      url: https://censys.com/blog/using-cobalt-strike-to-find-more-cobalt-strike/
+      summary: Published certificate and network pivot with host counts and a validation step before publishing
+    - title: Feedly - The CTI career guide
+      url: https://feedly.com/ti-essentials/posts/the-cti-career-guide-roles-skills-and-salaries
+      summary: CTI roles, skills and tools named in postings

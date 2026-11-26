@@ -1,0 +1,31 @@
+id: uncertainty-encoding
+name: Certainty and Uncertain-Date Handling
+category: visualization
+description: Directed edges each carrying a probability or weight, drawn by opacity or width, with more than one
+    candidate parent per node shown rather than only a consensus parent, and inferred (unobserved) nodes visually
+    distinct from observed ones.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W174
+    - W178
+    - W179
+    - W180
+    - W371
+    - W375
+    - W378
+    - W425
+    - W428
+    - W64
+    - W73
+implemented_by_components: []
+requirements:
+    - Store certainty or confidence and uncertain date ranges (before, after, between, partial dates) per node and edge;
+      filter by threshold with a count of hidden items, and encode certainty visually (opacity, dashes).
+    - Per-edge uncertainty as edge data (interval, proportion non-zero, inclusion Bayes factor, direction probability)
+      drawable as opacity, a three-state included/excluded/inconclusive style or arrowhead emphasis, with a linked strip
+      of edges ordered by estimate.
+    - Draw edge strength as thickness and direction confidence as its own mark, dash edges below a threshold the reader
+      can change live, and show tiers as time bands.
+sources: []

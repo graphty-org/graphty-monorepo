@@ -1,0 +1,58 @@
+id: org-design-consultant
+name: Org Design Consultant
+role: Organization Design Consultant or HR Planning Analyst running spans-and-layers and restructuring scenarios
+quote: Show me every manager with fewer than four direct reports, then let me move those teams and watch headcount and cost update.
+bio: >-
+    Sam Whitfield works in an HR transformation practice, or as an internal HR planning analyst, and runs
+    spans-and-layers diagnostics and restructuring scenarios for cost programs. The data is the formal reporting
+    hierarchy from the HRIS -- position id, parent position id, incumbent, grade, cost, location -- often for a whole
+    enterprise of tens of thousands of positions, with one scenario copy per design option. Sam uses Orgvue, Visier
+    Organization Design or Workday Adaptive Planning Org Design and Scenario Modeling, plus Excel and PowerPoint for the
+    business case. Sam is strong in Excel and not a network analyst; the graph is a tree, and the questions are about
+    span of control, number of layers, headcount and cost under a proposed structure. The vendor documentation
+    reviewed shows no informal-network data in these tools, so ONA results and hierarchy redesign live in different
+    places.
+characteristics:
+    expertise: intermediate
+    time_pressure: high
+    graph_literacy: none
+    domain_knowledge: advanced
+motivations:
+    - Find managers with too few or too many direct reports and positions below the target layer count
+    - Model a to-be structure and show headcount, cost, span and layer changes against the baseline
+    - Give leadership two or three scenarios side by side with a clear list of what moves
+    - Hand an exact change list to HR operations once a scenario is approved
+behaviors:
+    - Imports the HRIS position hierarchy and captures a baseline that can be refreshed later
+    - Reads spans and layers per leader with segments colored Micro, Narrow, Optimal or Wide
+    - Copies the baseline into a scenario and drags organizations or positions to new parents, bulk-moves, creates or inactivates positions
+    - Watches headcount, FTE, cost, span and layers recompute after every move
+    - Compares scenario and baseline (and scenarios with each other) and exports changes to CSV or XLSX and a deck to PowerPoint
+frustrations:
+    - No source found beyond vendor pages for practitioner pain points
+    - Informal-network findings from an ONA cannot be seen in the same view as the hierarchy being redesigned
+    - Very large trees are hard to navigate without collapse and expand
+context:
+    frequency: as-needed
+    devices:
+        - desktop
+        - laptop
+    voluntary: false
+workflows:
+    - W193
+sources:
+    - title: Visier Organization Design documentation
+      url: https://docs.visier.com/swp/Organization%20Design/organization-design.htm
+      summary: Baseline snapshot, scenarios, staging area for moves and exits, live headcount and cost, comparison and exports (vendor-reported)
+    - title: Workday Adaptive Planning 2026 R1 - Org Design and Scenario Modeling
+      url: https://doc.workday.com/adaptive-planning/en-us/what-s-new/releases/2026r1-release-notes/2026r1-planning-for-hcm-and-financials/org-design-and-scenario-modeling.html
+      summary: Span segments Micro, Narrow, Optimal, Wide; non-blocking guideline warnings; drag to reparent; scenario versus baseline hover (vendor-reported)
+    - title: Orgvue workspace user guide - template packs
+      url: https://docs.orgvue.com/orgvue-workspace-user-guide/user-guide/template-packs.html
+      summary: Spans and Layers packs; off-target spans and excess layers (vendor-reported)
+    - title: Orgvue - Organization modeling
+      url: https://www.orgvue.com/solutions/organization-modeling/
+      summary: Restructuring scenario modeling on the reporting hierarchy (vendor page)
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

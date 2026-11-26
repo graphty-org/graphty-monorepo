@@ -1,0 +1,80 @@
+id: clinical-connectome-researcher
+name: Clinical Connectome Researcher
+role: Postdoctoral Researcher / Psychiatry or Neurology Imaging Lab
+quote: Patients differ from controls at a sparsity of 0.15, but the reviewer wants to know what happens at 0.10 and at 0.30, and I have to rebuild every figure again.
+bio: >-
+    Dr. Lin Zhao is a postdoc in a psychiatry imaging lab studying depression and schizophrenia with resting-state
+    fMRI and diffusion MRI. She preprocesses scans with fMRIPrep and XCP-D (or SPM and DPABI), then turns each of 30
+    to 200 subjects into one region-by-region matrix: 90 x 90 with the AAL atlas up to 400 x 400 with Schaefer,
+    Fisher-z transformed, stored as text or BIDS TSV files in a folder per group. Next to them sit a covariate table
+    (age, sex, head motion, diagnosis) and a node file of MNI coordinates she keeps in Excel. She builds networks and
+    computes metrics across a range of densities in GRETNA, runs edge-level group statistics in NBS Connectome, and
+    makes every figure in BrainNet Viewer, because the GRETNA and NBS manuals both point there. Graph metrics such
+    as global efficiency, small-worldness and participation coefficient are routine vocabulary for her; force layouts
+    are not, because her nodes sit where the brain regions are. She is a strong statistician (GLMs, permutation tests,
+    FDR) and an imaging specialist first, a graph user second.
+characteristics:
+    expertise: intermediate
+    time_pressure: high
+    graph_literacy: advanced
+    domain_knowledge: advanced
+motivations:
+    - Show that patients differ from controls in global efficiency, nodal hub status or a connected subnetwork of edges
+    - Produce a 3D ball-and-stick figure of the significant subnetwork and a cortical map of nodal effects for the paper
+    - Survive reviewer questions about threshold choice by showing results across a whole range of densities
+    - Keep every threshold, atlas and style setting so a revision months later reproduces the same figure
+    - Get off a paid MATLAB license without losing the GUI workflow her lab relies on
+behaviors:
+    - Starts from a folder of per-subject N x N matrices and a separate coordinate and label file, never from a graph file
+    - Thresholds by sparsity (for example 0.05 to 0.5 in 0.05 steps) and summarizes each metric by area under the curve
+    - Chooses positive-only, negative-only or absolute weights, and treats negative correlations as controversial
+    - Runs a t-test, ANCOVA or the network-based statistic with 5,000 permutations and reports FWE or FDR corrected results
+    - Writes the significant component back out as BrainNet .node and .edge text files and renders it inside a translucent brain
+    - Edits node color and size columns in Excel so that module numbers and t-values show in the figure
+    - Paints nodal t-values or hub scores on atlas parcels in lateral and medial views with one shared color bar
+    - Re-renders the same figure for every subject or threshold with a batch command and a saved option file
+frustrations:
+    - Results change with the threshold; group differences can flip direction across absolute thresholds
+    - Proportional thresholding can turn a difference in overall connectivity into a fake difference in topology
+    - File order silently mis-assigns subjects ("Subject11.txt comes before Subject1.txt")
+    - Node size and color are baked into the node file, so every analysis change means regenerating files
+    - Forgetting to set a threshold on a weighted matrix draws every connection between every node
+    - The metric is computed in one program and painted in another, and the same nodes are styled again in each
+    - Node coordinates in one MNI template and the background brain in another, so nodes float outside the brain
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W152
+    - W153
+    - W154
+    - W155
+    - W159
+sources:
+    - title: BrainNet Viewer manual v1.42
+      url: https://nitrc.org/docman/view.php/504/1280/brainnet
+      summary: Six-column .node file and N x N .edge file, editable in Excel; threshold warning; export and batch rendering
+    - title: GRETNA download page
+      url: https://helab.bnu.edu.cn/DOWNLOADS/Gretna/index.htm
+      summary: GRETNA network construction and metrics; states it works well with BrainNet Viewer
+    - title: GRETNA manual v2.0
+      url: https://www.nitrc.org/docman/view.php/668/2262/manual_v2.0.0.pdf
+      summary: Sign choice, sparsity versus value thresholds, metric families and area-under-curve summaries
+    - title: NBS Connectome reference manual v1.2
+      url: https://NITRC.org/docman/view.php/629/1249/Reference_Manual_NBS_v1.2.pdf
+      summary: Folder of per-subject matrices, design matrix and contrast, primary threshold, file-order warning
+    - title: Garrison et al. 2015, The (in)stability of functional brain network measures across thresholds
+      url: https://esfinn.github.io/files/Garrison_NeuroImage2015.pdf
+      summary: Group differences can change direction across absolute thresholds
+    - title: van den Heuvel et al. 2017, Proportional thresholding in resting-state fMRI functional connectivity networks
+      url: https://people.csail.mit.edu/ythomas/publications/2017Threshold-NeuroImage.pdf
+      summary: Proportional thresholds turn connectivity differences into apparent topology differences
+    - title: Neurostars - MNI152NLin2009cAsym versus MNI152NLin6Asym
+      url: https://neurostars.org/t/what-is-the-difference-between-mni152nlin2009casym-and-mni152nlin6asym/30951
+      summary: The two common MNI templates should not be used interchangeably
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

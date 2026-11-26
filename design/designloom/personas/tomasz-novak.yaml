@@ -1,0 +1,66 @@
+id: tomasz-novak
+name: Tomasz Novak
+role: Network Security Monitoring Analyst (with OT support)
+quote: I want to see who talks to whom that should not, collapse the noise into subnets, and click straight through from a suspicious pair to the sessions and the PCAP.
+bio: >-
+    Tomasz Novak is a network security monitoring analyst in a SOC with sensors at the network edge and in the data
+    center, and he supports the OT team at a manufacturing site. His data is Zeek conn, dns, http and ssl logs, Arkime
+    session metadata and full packet capture, and firewall logs: directed, timestamped connections between IP
+    addresses and ports with bytes, duration and state, at volumes of millions of rows a day. He hunts in Arkime's
+    Connections graph, choosing which fields become nodes (IPs, ports, network segments, countries), raising the query
+    size when he needs the full picture, setting a minimum connection threshold to drop noise, and clicking a pair to
+    pivot into the sessions. He reads fan-out as scanning and regular repeated pairs as beaconing, which he scores in
+    RITA. For larger ad hoc hunts he sends a Splunk result to Graphistry. At the plant, a passive monitor draws devices
+    by zone and Purdue level, and he checks for traffic crossing zones it should not.
+characteristics:
+    expertise: advanced
+    time_pressure: medium
+    graph_literacy: intermediate
+    domain_knowledge: advanced
+motivations:
+    - Find scanning, beaconing, new external peers and segment violations before they become incidents
+    - Pivot from a suspicious pair of hosts to the raw sessions and packets in one click
+    - Keep the plant's zones and conduits honest
+    - Collapse millions of connections into a picture a person can read
+behaviors:
+    - Filters sessions by expression and time window, then opens the Connections graph
+    - Chooses node fields per question (source IP to destination IP and port, IP to protocol, segment to segment, GeoIP country)
+    - Sets link weight and a minimum connections threshold to drop rare or noisy pairs
+    - Collapses addresses into subnets or internal versus external to read structure
+    - Reads one source fanning out to many destinations or ports as scanning
+    - Scores beaconing per pair outside the graph with RITA over Zeek logs
+    - Joins a conn.log row to its dns, http and ssl records through Zeek's uid
+    - Clicks a node or link to add it to the query filter and exports the matching sessions as PCAP
+frustrations:
+    - Small queries show only the top sessions, and raising the query size makes the graph slow
+    - NAT and DHCP make IP addresses unstable identities
+    - The graph has no notion of subnets or zones unless he picks segment fields by hand
+    - Beacon scores live in a different tool from the graph
+    - The open-source ICS mapping tool he once used was archived
+context:
+    frequency: daily
+    devices:
+        - desktop
+    voluntary: false
+workflows:
+    - W113
+    - W07
+sources:
+    - title: Malcolm docs - Arkime
+      url: https://cisagov.github.io/Malcolm/docs/arkime.html
+      summary: Connections graph fields, link weight, minimum connections threshold, query size trade-off, pivot to sessions and PCAP
+    - title: Zeek docs - conn.log
+      url: https://docs.zeek.org/en/master/logs/conn.html
+      summary: Connection fields, uid joining dns, http and ssl logs
+    - title: Active Countermeasures - RITA
+      url: https://github.com/activecm/rita
+      summary: Beacon analysis over Zeek logs
+    - title: PyGraphistry - Splunk demo
+      url: https://pygraphistry.readthedocs.io/en/latest/demos/demos_databases_apis/splunk/splunk_demo_public.html
+      summary: Splunk result turned into a hypergraph, 5,035 events giving 170 entities and 15,105 links
+    - title: Nozomi Networks - ICS network visualization and asset inventory
+      url: https://www.nozominetworks.com/blog/reduce-ot-risk-with-ics-network-visualization-and-asset-inventory
+      summary: Passive OT topology grouped by zone and Purdue level (2018 vendor post)
+    - title: NSA GRASSMARLIN
+      url: https://github.com/iadgov/GRASSMARLIN
+      summary: Passive ICS and SCADA network mapping, archived 2023

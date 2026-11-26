@@ -1,0 +1,27 @@
+id: threshold-sweep
+name: Threshold Sweep and Area Under Curve
+category: analysis
+description: Threshold weighted graphs by absolute value, percentile/density or minimum spanning tree; compute chosen
+    metrics at a sequence of densities with metric-versus-density curves and area-under-curve summaries;
+    weight-to-length conversion before path metrics.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W153
+    - W161
+    - W337
+    - W430
+    - W438
+    - W439
+    - W447
+implemented_by_components: []
+requirements:
+    - Load a pairwise association table (coefficient and p-value) or matrix, keep edges by absolute coefficient and
+      adjusted p cutoffs with a live histogram and counts, and re-run chosen metrics across several cutoffs into a sweep
+      table.
+    - Re-run a ranking or filter at several alternative cutoffs (STRING score, degree, centrality) and compare the
+      resulting hub lists with persistence counts.
+    - Re-runs a hub-screening rule at alternative cutoffs (such as STRING confidence or degree) and with alternative
+      centralities, then compares the resulting hub lists with a persistence count for each node.
+sources: []

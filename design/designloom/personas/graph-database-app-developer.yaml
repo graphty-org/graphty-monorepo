@@ -1,0 +1,61 @@
+id: graph-database-app-developer
+name: Graph Database Application Developer
+role: Full-Stack Engineer embedding a database-backed graph view
+quote: The SDK draws beautifully. Everything else -- the fetch, the mapping, the double-click expand, the hub limit -- I wrote myself.
+bio: >-
+    Kenji Mori is a full-stack engineer building the "connections" screen of an investigation console (on other
+    projects a customer-360 or network topology screen) on top of Neo4j or Neptune. His end users must click an entity,
+    double-click to expand it, and read details in a side panel without ever seeing a query language. He chooses a
+    JavaScript SDK (Neo4j's Visualization Library NVL, neovis.js, KeyLines, Ogma or yFiles), puts the database driver
+    behind a small backend API holding prepared Cypher or Gremlin, maps driver records into the SDK's node and link
+    shapes, and wires expand, styling and selection by hand. He ships the screen once and then his users open it many
+    times a day. For a standalone graph web component he is the most direct user: he is deciding what to install.
+characteristics:
+    expertise: expert
+    time_pressure: high
+    graph_literacy: moderate
+    domain_knowledge: moderate
+motivations:
+    - Give end users a click-to-expand connections view inside his own product, with no query language
+    - Spend his time on the product, not on record-to-graph glue code
+    - Keep hub nodes from freezing the screen when a user expands them
+    - Avoid licensing lock-in and a second vendor relationship
+behaviors:
+    - Installs an SDK from npm and gives the container an explicit height after the graph first fails to show
+    - Runs prepared, parameterized Cypher or Gremlin in a backend route (for example an Express route with disableLosslessIntegers true)
+    - Converts driver records into the SDK's shapes ({id} nodes and {id, from, to} relationships for NVL; node and link items for KeyLines)
+    - Implements expand on double-click with a hit-test event, a parameterized backend query with a LIMIT, and a merge by id
+    - Styles nodes and edges from properties (size, color, edge thickness) and wires selection to a side panel
+    - Invents his own hub threshold because no SDK page documents one
+frustrations:
+    - The SDK draws but does not fetch; record mapping, expand queries, paging and hub thresholds are all his code
+    - Neo4j integers arrive as two-part objects unless the driver is configured otherwise
+    - NVL is free to use only with a Neo4j license
+    - Every new data source (a second database, a warehouse) means writing the glue again
+context:
+    frequency: daily
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W150
+sources:
+    - title: Neo4j Visualization Library overview
+      url: https://neo4j.com/docs/nvl/current/
+      summary: Libraries to build custom graph visualizations like those used in Neo4j Bloom
+    - title: Neo4j Graph Visualization Library announcement
+      url: https://neo4j.com/blog/graph-database/neo4j-graph-visualization-library/
+      summary: NVL packages, interaction handlers, getHits, free to use with a Neo4j license
+    - title: NVL installation
+      url: https://neo4j.com/docs/nvl/current/installation
+      summary: npm packages, node and relationship data shape, container needs an explicit height
+    - title: neovis.js
+      url: https://github.com/neo4j-contrib/neovis.js
+      summary: Connection details, initialCypher and per-label property-driven styling in one config
+    - title: KeyLines Neo4j tutorial
+      url: https://developers.cambridge-intelligence.com/docs/keylines/neo4j-tutorial
+      summary: Driver in an Express route, disableLosslessIntegers, records mapped to node and link items passed to chart.expand()
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,44 @@
+id: distribution-control-room-operator
+name: Distribution Control Room Operator
+role: Distribution System Operator in an ADMS control room
+quote: The recloser locked out and four thousand customers are dark. Show me the faulted section, what I open, and which
+    neighboring feeder can pick up the rest without overloading.
+bio: >-
+    Angela is a distribution system operator working shifts in a utility control room. Her screens run an advanced
+    distribution management system with an outage management system (for example Oracle Network Management System),
+    fed by SCADA and by GIS connectivity. When a feeder breaker or recloser locks out she confirms the lockout,
+    locates the fault from fault indicators along the feeder, isolates the faulted section by opening switches, and
+    restores the healthy sections from alternate feeders. The system enumerates restoration options; she checks each
+    against the pickup feeder's capacity, tags and grounds, crews in the field and distributed generation, then writes
+    and executes switching orders. Connectivity in her world depends on switch states that change minute by minute.
+characteristics:
+    expertise: expert
+    time_pressure: high
+    graph_literacy: basic
+    domain_knowledge: expert
+motivations:
+    - Restore the most customers in the fewest minutes without a safety violation
+    - Never energize a section with a crew, tag or ground on it
+    - Avoid overloading the feeder that picks up the load
+    - Keep the switching record clean for the after-action review
+behaviors:
+    - Confirms a lockout from the SCADA recloser signal before acting
+    - Reads fault indicators along the feeder to bracket the faulted section
+    - Compares several restoration plans, each a different set of switch states, by customers restored and blocked devices
+    - Checks remaining and near-term capacity of each pickup feeder
+    - Works on schematic and geographic views of radial, switch-dependent feeders
+frustrations:
+    - Many restoration options, each checked by hand against capacity, tags, crews and DER
+    - Connectivity shown on the map is wrong the moment a switch changes state
+    - Alternatives cannot easily be compared side by side
+context:
+    frequency: daily
+    devices:
+        - desktop
+    voluntary: false
+workflows:
+    - W223
+sources:
+    - title: Oracle Network Management System ADMS implementation guide, FLISR
+      url: https://docs.oracle.com/en/industries/energy-water/network-management-system/2502/nms-adms-implementation-guide/NMS_ADMS_25021/DMS_Implementation_FLISR.06.1.html
+      summary: Lockout, fault location from indicators, enumeration of restoration scenarios, pickup feeder capacity, safety blocks

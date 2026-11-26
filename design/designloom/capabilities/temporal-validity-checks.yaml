@@ -1,0 +1,14 @@
+id: temporal-validity-checks
+name: Temporal Validity Checks
+category: analysis
+description: Flag edges outside their endpoints' lifetimes, overlapping spells, and transmission or flow links that
+    violate event order or exposure windows, with an exportable list of flagged items.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W304
+    - W308
+implemented_by_components: []
+requirements: []
+sources: []

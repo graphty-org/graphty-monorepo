@@ -1,0 +1,15 @@
+id: expansion-history
+name: Expansion History and Limits
+category: analysis
+description: Expand a node by one relationship type with a preview of how many nodes it adds and a per-expansion cap,
+    undo any earlier expansion, and bulk-prune nodes by type or mark.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W110
+    - W111
+    - W115
+implemented_by_components: []
+requirements: []
+sources: []

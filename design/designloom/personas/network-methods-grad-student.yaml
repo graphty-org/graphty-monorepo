@@ -1,0 +1,66 @@
+id: network-methods-grad-student
+name: Network Methods PhD Student
+role: PhD Student in a Social Network Analysis Course (Communication, Sociology, Anthropology)
+quote: The lab says "symmetrize the advice network". Which way? And why does UCINET want a DL file when I have a spreadsheet?
+bio: >-
+    Priya is a second-year PhD student taking a social network analysis seminar. Each week's lab asks for a script or a
+    UCINET session: density, centrality, subgroups, QAP, an ego network, a two-mode projection, and one figure colored
+    by an attribute. She works on a Mac, so she runs UCINET (Windows only) through Parallels or Wine, uses NetDraw for
+    pictures, follows Luke's A User's Guide to Network Analysis in R for the R labs, and uses Gephi when she wants a
+    nicer image. Her data are the classic teaching sets (Krackhardt's managers, Davis's Southern Women, Padgett's
+    Florentine families, Lazega's lawyers) plus her own network of 20 to 200 nodes for the term paper, which the
+    syllabus asks to be ready for conference submission. She understands the concepts well but is unsure which
+    transformation rule is right and loses time on file formats.
+characteristics:
+    expertise: novice
+    time_pressure: high
+    graph_literacy: intermediate
+    domain_knowledge: intermediate
+motivations:
+    - Finish the weekly lab correctly and understand what each measure means
+    - Build her own small network and write a term paper ready for conference submission
+    - Make one clean figure colored by an attribute
+    - Avoid paying for or emulating Windows software on a Mac
+behaviors:
+    - Loads textbook datasets, then her own spreadsheet of 20 to 200 nodes
+    - Follows menu paths from Hanneman and Riddle or an instructor handout step by step
+    - Converts between DL, Pajek .net, VNA and edge lists to move data between tools
+    - Runs density, centrality, cliques, factions, QAP correlation and an ego network extraction for labs
+    - Projects Southern Women to a woman-by-woman network and compares with the two-mode view
+    - Exports a figure colored by attribute for the assignment
+frustrations:
+    - Every tool wants a different format, and Excel import in UCINET needs old file formats
+    - Menu paths that changed between versions and no longer match the handout
+    - Not knowing which symmetrizing or dichotomizing rule is right for the question
+    - UCINET is Windows only and costs money (student price 40 dollars)
+    - Menu work leaves no record she can hand in or redo
+context:
+    frequency: weekly
+    devices:
+        - laptop
+    voluntary: false
+workflows:
+    - W26
+    - W28
+    - W29
+    - W30
+    - W31
+sources:
+    - title: University of Kansas COMS 930 social network analysis syllabus (2019)
+      url: https://hmc.ku.edu/sites/hmc/files/2022-08/COMS930-SNA-FA19.pdf
+      summary: Weekly scripts, Luke's R guide, R as gold standard versus UCINET, network size advice, conference-ready term paper, UCINET student price
+    - title: UCINET download page
+      url: https://sites.google.com/site/ucinetsoftware/download
+      summary: No Mac or Linux version; Parallels, VirtualBox or Wine recommended
+    - title: Hanneman and Riddle, chapter 6
+      url: https://faculty.ucr.edu/~hanneman/nettext/C6_Working_with_data.html
+      summary: Data entry and transforms; Excel import requiring older file formats
+    - title: Ognyanova UCINET handout
+      url: https://kateto.net/wp-content/uploads/2012/12/COMM645%20-%20Ucinet%20Handout.pdf
+      summary: UCINET and NetDraw menu paths used in course labs
+    - title: Borgatti and Everett (1997) Network analysis of 2-mode data
+      url: https://www.bebr.ufl.edu/sites/default/files/Borgatti%20and%20Everett%20-%201997%20-%20Network%20analysis%20of%202-mode%20data.pdf
+      summary: Davis Southern Women 18 by 14 two-mode teaching example
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

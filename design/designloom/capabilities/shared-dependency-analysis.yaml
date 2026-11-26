@@ -1,0 +1,14 @@
+id: shared-dependency-analysis
+name: Shared Upstream Dependency Analysis
+category: export
+description: Intersect the upstream sets of chosen nodes to find shared hidden sources, and count alternatives per input
+    to find single-sourced inputs.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W11
+    - W217
+implemented_by_components: []
+requirements: []
+sources: []

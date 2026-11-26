@@ -1,0 +1,143 @@
+id: W363
+name: People Graph as a Facet of the Document List
+category: exploration
+validated: false
+personas:
+    - litigation-support-analyst
+    - ediscovery-case-associate
+    - internal-investigations-counsel
+requires_capabilities:
+    - graph-rendering
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - community-detection
+    - filtering
+    - node-selection
+    - neighborhood-expansion
+    - ego-network
+    - tooltip-display
+    - details-on-demand
+    - search
+    - saved-filters
+    - legend-display
+    - truncation-reporting
+    - external-record-facet
+    - record-derived-edges
+    - permission-scoped-graph
+suggested_components:
+    - graph-canvas
+    - filter-panel
+    - filter-chip
+    - checkbox
+    - range-slider
+    - node-tooltip
+    - search-panel
+    - legend-panel
+    - data-table-panel
+    - context-menu
+starting_state:
+    data_type: the current search result of email documents, with normalized sender and recipient entities and To/Cc/Bcc roles
+    node_count: the largest 500 entities drawn by default out of thousands
+    edge_density: medium
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Read "who talked to whom" across the documents in the current search, then narrow the document list
+    to the people or pairs that matter. The graph is not a deliverable; it is a facet that writes conditions back
+    into the search (Relativity's Communication Analysis widget on a dashboard).
+
+
+    **Mental Model**: "Every document is one communication from the sender to each recipient." Node size is how much
+    a person sent and received; clicking a person or a link filters the document list.
+
+
+    **Task Phases**:
+
+    1. **Prepare the view** - Run a search; keep all unique documents rather than only inclusive emails, and remove
+    duplicates so one communication is not counted twice
+
+    2. **Add the widget** - Requires name normalization to have run, otherwise it errors
+
+    3. **Know what is counted** - One communication per document from the top-segment sender to its recipients;
+    the largest 500 entities by default; entities only in documents the user cannot see are omitted
+
+    4. **Read the picture** - Size by sent plus received; color by cluster of frequent communicators; self-loops for
+    people emailing themselves from another address; thickness by communication volume
+
+    5. **Filter** - Top 5 communicators preset; To, Cc, Bcc checkboxes (clearing Bcc hides recipients only in Bcc);
+    minimum connections; detached entities; grouping; sentiment rings; locate and focus from an entity list
+
+    6. **Drill** - Hover for totals; double-click a node to add "entity is sender or recipient" to the search;
+    double-click a link to isolate the pair
+
+    7. **Act** - Flag, mass edit, select groups, select neighbors, hide selected; Apply writes the selected nodes into
+    the search conditions and the document list shows only their documents
+
+    8. **Hand off** - Code, batch or save the search; the widget has no documented export
+
+
+    **Decision Points**:
+
+    - Include Cc and Bcc, or only direct recipients?
+
+    - Which minimum-connection threshold removes noise without hiding a quiet but important person?
+
+    - Is a hub a real key person or a distribution list?
+
+    - Which people or pairs become the next search?
+
+
+    **Information Needs**:
+
+    - Sent, received and total per entity and per pair, in documents not edges
+
+    - How many entities exist versus how many are drawn
+
+    - Whether counts match the document list after deduplication
+
+    - Role of each edge (To, Cc, Bcc)
+
+
+    **Pain Points**:
+
+    - Graph counts that disagree with the list when duplicates or inclusive-only views are used
+
+    - Silent cap at the largest 500 entities with no setting and no stated total
+
+    - Blast emails and distribution lists create false hubs
+
+    - No export of the graph or its counts
+
+
+    **Data Flow**:
+
+    - Input: Search result document ids with entity sender, entity recipients and role per recipient; the set of
+    documents the user may see
+
+    - Transformations: Record-to-edge derivation with counting rules, permission scoping, top-N cap, role and
+    minimum-connection filters, clustering
+
+    - Output: Search conditions (sender-in, recipient-in, pair) or selected document ids written back to the host's
+    document list
+success_criteria:
+    - metric: Count reconciliation
+      target: Per-entity document counts match the filtered document list exactly
+    - metric: Cap transparency
+      target: The view states how many entities and links are shown out of the total
+    - metric: Graph to list round trip
+      target: Selecting a person or pair narrows the document list in one action
+sources:
+    - title: Relativity - Communication analysis
+      url: https://help.relativity.com/RelativityOne/Content/Relativity/Analytics/Communication_analysis.htm
+      summary: Widget steps, counting rules, largest 500 entities, Bcc filter, Apply to search, permission scoping, no export
+    - title: Relativity - Deduplication considerations
+      url: https://help.relativity.com/RelativityOne/Content/Relativity/Processing/Deduplication_considerations.htm
+      summary: Global and custodial deduplication and their effect on who appears to hold a message
+    - title: Microsoft Learn - Preserve Bcc and expanded distribution group recipients
+      url: https://learn.microsoft.com/en-us/purview/ediscovery-preserve-bcc-and-expanded-distribution-group-recipients
+      summary: Bcc and expanded distribution-list membership stored only in the sender's mailbox
+    - title: Reveal - Communications
+      url: https://docs.revealdata.com/docs/communications
+      summary: Add to Search makes a Communicator pill covering all aliases
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

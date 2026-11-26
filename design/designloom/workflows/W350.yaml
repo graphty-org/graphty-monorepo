@@ -1,0 +1,185 @@
+id: W350
+name: First Discovery, Bottleneck and Handover View in Disco
+category: analysis
+validated: false
+personas:
+    - process-mining-analyst
+    - process-mining-consultant
+    - process-mining-auditor
+requires_capabilities:
+    - data-import
+    - data-preview
+    - data-validation
+    - layout-hierarchical
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - filtering
+    - saved-filters
+    - details-on-demand
+    - metric-histograms
+    - statistics-panel
+    - animated-transitions
+    - node-merging
+    - export-image
+    - data-export
+    - process-map-derivation
+    - variant-analysis
+    - token-replay-animation
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - graph-canvas
+    - range-slider
+    - filter-panel
+    - filter-chip
+    - visual-encoding-panel
+    - legend-panel
+    - statistics-panel
+    - histogram
+    - node-details-panel
+    - data-table-panel
+    - temporal-controls
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: >-
+        Event log as CSV or Excel (case id, activity, start and complete timestamps, resource, role, case attributes);
+        the Disco tutorial log has 608 purchase orders, 9,119 events and 98 variants
+    node_count: 10-60 activities (plus artificial start and end); resource or role views up to several hundred
+    edge_density: sparse but cyclic, with self-loops for rework and two-cycles from concurrency
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Open an event log someone emailed, see the process as a directly-follows map (one node per activity,
+    one edge per "A was immediately followed by B in the same case", with counts and durations on both), find where
+    time is lost and where work is repeated, then switch the node attribute from activity to role to see handovers
+    between departments. This is the first hour of every project and the core of the Disco tutorial, which takes about
+    1-1.5 hours.
+
+
+    **Mental Model**: "The map is a weather report of the process: thick arrows are the main flow, long arrows are where
+    cases wait." Numbers on the map are trusted only when they add up.
+
+
+    **Task Phases**:
+
+    1. **Inspect and map columns** (5 min) - A 1,000-row preview; each column gets one role (remove, case, activity,
+    timestamp, resource, other); the tool guesses roles and timestamp patterns and accepts an override; several columns
+    with one role are concatenated (case = customer id + product)
+
+    2. **Read the map** (10 min) - Start and end symbols, dashed edges from start and to end; all 608 cases start with
+    "Create Purchase Requisition" and split 374/234; "Amend Request for Quotation" occurs more than 500 times: rework
+
+    3. **Set detail** (5 min) - Paths slider down first, then Activities; at the lowest Paths setting every shown
+    activity stays connected; only at 100/100 do the numbers add up
+
+    4. **Statistics and cases** (10 min) - Case duration distribution (most close in 16-17 days, some take 80-90+), top
+    variant (88 cases, about 15 percent), each case history as a graph or table
+
+    5. **Filter slow cases** (5 min) - Performance filter on case duration above 21 days (92 cases), "copy and filter"
+    into a named data set so the original stays intact
+
+    6. **Find the bottleneck** (10 min) - Switch to the performance view with mean duration: "Amend Request for
+    Quotation" takes about 9.8 minutes but is followed by a wait of about 14.9 days; add a secondary metric in smaller
+    type
+
+    7. **Animate** (5 min) - Replay cases as dots along edges that merge into bubbles at queues; synchronize case start
+    times to compare cases; animate only a subset of a large log
+
+    8. **Change the node attribute** (5 min) - Re-import with role as the activity, so the map shows hand-over of work
+    between functions, ping-pong between roles and transfer delays
+
+    9. **Hand off** (5 min) - Map as PDF, PNG or XML with every metric and the layout; metrics as CSV matrices; filtered
+    log as CSV or XES; animation as video; the project file
+
+
+    **Decision Points**:
+
+    - Which columns form the case id, and is the activity column the right granularity?
+
+    - Absolute frequency or case frequency? A large gap between them means rework
+
+    - Mean or median duration, and is a long edge a real wait or an artifact of hidden activities?
+
+    - Which slow-case threshold defines the SLA set?
+
+    - Activity, role, department or resource as the node?
+
+
+    **Information Needs**:
+
+    - Parse report: rows read, events, cases, activities, variants, timestamp format detected, rows rejected
+
+    - On every node and edge: absolute frequency, case frequency, max repetitions per case; total, median, mean, min and
+    max duration
+
+    - Whether the current slider setting hides paths, and how many
+
+    - Case duration histogram and variant list with coverage
+
+    - The list of cases behind a clicked node or edge, each case's full history
+
+    - The active filter chain with the case count after each filter
+
+
+    **Pain Points**:
+
+    - Slider-hidden paths make analysts distrust the map ("I don't trust the maps ... because of this slider")
+
+    - Graphviz-style layered layouts jump when one edge is added, destroying the mental map
+
+    - Desktop tools are memory-bound; a large log took about 3.5 hours to import as CSV in Disco
+
+    - Changing the node attribute means re-importing the whole log
+
+    - Animation of very large logs is subsampled without saying how much
+
+
+    **Data Flow**:
+
+    - Input: Event log CSV or XES with column roles
+
+    - Transformations: Directly-follows aggregation with artificial start and end; frequency and performance metrics;
+    path and activity thresholds; case-duration filter into a named data set; node attribute switch recomputing every
+    metric
+
+    - Output: Annotated process map image, metric CSVs, filtered log, animation, saved project
+success_criteria:
+    - metric: Time from CSV to first readable process map
+      target: Under 10 minutes for a log of up to 1 million events
+    - metric: Numbers add up
+      target: At full detail, incoming and outgoing edge counts on every activity equal the activity count, and the user can tell when a simplified view breaks this
+    - metric: Bottleneck found
+      target: User can name the edge with the longest mean wait and the cases behind it
+    - metric: Handover view
+      target: Switching the node attribute to role recomputes the map without re-importing
+sources:
+    - title: Fluxicon Process Mining in Practice - tutorial
+      url: https://fluxicon.com/book/read/tutorial/
+      summary: 608 purchase orders, 9,119 events, 98 variants; sliders, slow-case filter, bottleneck after Amend Request for Quotation, role as activity for handovers
+    - title: Fluxicon Process Mining in Practice - import
+      url: https://fluxicon.com/book/read/import/
+      summary: Column roles, timestamp pattern guessing, concatenated case ids, FXL import speed
+    - title: Fluxicon Process Mining in Practice - map view
+      url: https://www.fluxicon.com/book/read/mapview/
+      summary: Frequency and performance views, secondary metric, numbers add up only at 100 percent detail
+    - title: Fluxicon Process Mining in Practice - export
+      url: https://fluxicon.com/book/read/export/
+      summary: Map as PDF, PNG or XML, metrics as CSV, filtered log as CSV, XES or MXML, animation as AVI, project as dsc
+    - title: Fluxicon academic material
+      url: https://fluxicon.com/academic/material/
+      summary: Tutorial takes about 1-1.5 hours
+    - title: Microsoft Power Automate Process Mining - process map
+      url: https://learn.microsoft.com/en-us/power-automate/minit/process-map
+      summary: Mining attribute selection (resource, region, department) recalculates the map and its metrics
+    - title: Zimmermann, Zerbato and Weber - challenges of process mining analysts
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11646219/
+      summary: Distrust of slider-simplified maps reported by interviewees and survey respondents
+    - title: Mennens et al. 2019 - stable process map layouts
+      url: https://diglib.eg.org/handle/10.1111/cgf13723
+      summary: Graphviz dot often fails to keep the mental map; one edge can produce a completely different layout
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

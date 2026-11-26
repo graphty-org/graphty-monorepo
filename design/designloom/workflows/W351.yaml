@@ -1,0 +1,140 @@
+id: W351
+name: Rule Compliance and Four-Eyes Check
+category: analysis
+validated: false
+personas:
+    - process-mining-auditor
+    - process-mining-analyst
+requires_capabilities:
+    - pattern-search
+    - filtering
+    - saved-filters
+    - path-highlighting
+    - details-on-demand
+    - selection-statistics
+    - layout-hierarchical
+    - visual-encoding-edges
+    - analysis-history
+    - report-generation
+    - data-export
+    - process-map-derivation
+suggested_components:
+    - graph-canvas
+    - context-menu
+    - filter-panel
+    - filter-chip
+    - pattern-search-dialog
+    - data-table-panel
+    - node-details-panel
+    - analysis-history-panel
+    - report-generator-dialog
+    - data-export-dialog
+starting_state:
+    data_type: >-
+        Purchase-to-pay or order-to-cash event log with user ids for the whole audit period; BPI Challenge 2019 (SAP
+        P2P) has 251,734 cases, 1,595,923 events, 42 activities and 627 users
+    node_count: 20-60 activities on the map; hundreds of users in the resource attribute
+    edge_density: sparse at full detail but with a long tail of rare paths that are the findings
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Test the whole population of cases, not a sample, against control rules: no payment without approval,
+    no skipped release step, and no single user performing two duties that must be segregated. Each finding must come
+    with its case list and the exact filter chain that produced it.
+
+
+    **Mental Model**: "Every path that should not exist is a potential finding until proven to be a data error." The
+    rare paths a simplified map hides are exactly the evidence.
+
+
+    **Task Phases**:
+
+    1. **Return to the full data set** - Show every path; spot one that should not exist, such as "Send invoice"
+    straight to "Authorize Supplier's Invoice payment" skipping the mandatory "Release Supplier's Invoice"
+
+    2. **Filter from the map** - Click the edge and create a follower rule (eventually or directly followed, or never;
+    optional time constraint); click an activity and mark it mandatory or forbidden
+
+    3. **Copy and filter into an evidence set** - Name the data set; open its cases (10 cases in the tutorial); each
+    case history is evidence
+
+    4. **Segregation of duties** - "Create PO item" eventually followed by "Record Goods Receipt" with the four-eyes
+    option set to same resource; BPIC 2019 found 3,384 such cases, 49 percent of complete Service cases against 0.8
+    percent of Standard cases
+
+    5. **Triage** - Check each hit for timestamp ties, missing events or NONE resources before calling it a violation
+
+    6. **Export the audit report** - Filtered case list, the filter recipe and a text report of each filter with counts
+
+
+    **Decision Points**:
+
+    - Is a rare path a data error (timestamp ties, missing events) or a control violation?
+
+    - Directly or eventually followed? With what time constraint?
+
+    - Same resource on both events, or same department?
+
+    - Which segment (document type, company code) is the finding scoped to?
+
+
+    **Information Needs**:
+
+    - Every path at full detail, with case counts, including paths with one case
+
+    - Case count after each filter in the chain, and the chain itself stated as data
+
+    - For a rule hit: case ids, full histories, resources on both events, timestamps
+
+    - Share of hits by segment (Service vs Standard, company, vendor)
+
+    - Flags for cases with tied timestamps or unknown resources
+
+
+    **Pain Points**:
+
+    - Simplified maps hide the rare paths that are the audit findings
+
+    - Timestamp ties make event order, and so the violation, uncertain
+
+    - Every exhibit needs its exact filter chain; recreating it by hand invites errors
+
+    - Large resource graphs (627 users) are "too complicated to reasonably depict"
+
+
+    **Data Flow**:
+
+    - Input: Full-period event log with resource ids and case attributes
+
+    - Transformations: Follower and attribute rules with never, time and four-eyes options; copy-and-filter into named
+    evidence sets; segment shares
+
+    - Output: Case lists per finding, filter recipe file, audit report with counts
+success_criteria:
+    - metric: Rule from the map
+      target: A follower or four-eyes rule is created from a clicked edge in under 1 minute
+    - metric: Evidence completeness
+      target: Each finding exports its case ids, case histories and the filter chain with counts
+    - metric: Data error triage
+      target: Hits involving tied timestamps or unknown resources are flagged before export
+sources:
+    - title: Fluxicon Process Mining in Practice - filtering
+      url: https://fluxicon.com/book/read/filtering/
+      summary: Follower filter with eventually, directly or never, time constraint and 4-eyes rule; attribute filter mandatory or forbidden
+    - title: Fluxicon Process Mining in Practice - tutorial
+      url: https://fluxicon.com/book/read/tutorial/
+      summary: Path skipping Release Supplier's Invoice found from the full map, filtered to 10 cases
+    - title: BPI Challenge 2019 report (SAP purchase-to-pay)
+      url: https://ckmnet-website-blog.s3.amazonaws.com/CKM_BPI_Challenge2019_FINAL+(SUBMIT).pdf
+      summary: 3,384 cases where one user created the PO item and recorded the goods receipt; ties and NONE resources
+    - title: Jans, Depaire and Vanhoof - process mining in internal audit at a financial institution
+      url: https://documentserver.uhasselt.be/bitstream/1942/13639/1/Process_Mining_EAA.pdf
+      summary: Found segregation-of-duties violations and payments without approval
+    - title: Celonis blog - process mining and internal audit
+      url: https://celonis.com/blog/process-mining-and-internal-audit-a-match-made-in-heaven
+      summary: Auditors test whole populations instead of samples
+    - title: Fluxicon Process Mining in Practice - export
+      url: https://fluxicon.com/book/read/export/
+      summary: Audit report as ZIP with filtered CSV, recipe file and filter text report
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

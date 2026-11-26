@@ -1,0 +1,14 @@
+id: trophic-level-layout
+name: Trophic-level layout
+category: visualization
+description: Layout placing nodes vertically by computed (possibly fractional) trophic level, basal species at the
+    bottom, tolerant of cycles and self-loops.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W167
+    - W168
+implemented_by_components: []
+requirements: []
+sources: []

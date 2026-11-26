@@ -1,0 +1,108 @@
+id: W223
+name: Fault Location, Isolation and Service Restoration in an ADMS
+category: analysis
+validated: false
+personas:
+    - distribution-control-room-operator
+requires_capabilities:
+    - graph-rendering
+    - layout-hierarchical
+    - node-selection
+    - neighborhood-expansion
+    - path-highlighting
+    - removal-impact-analysis
+    - comparison-view
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - details-on-demand
+    - hover-highlight
+    - tooltip-display
+    - geographic-layout
+    - state-aware-trace
+suggested_components:
+    - graph-canvas
+    - impact-analysis-dialog
+    - comparison-view
+    - node-details-panel
+    - node-tooltip
+    - visual-encoding-panel
+    - legend-panel
+    - status-bar
+starting_state:
+    data_type: radial distribution feeders with live switch states, fault indicators, tags, grounds, crew locations and feeder loading
+    node_count: 500-6000
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: After a lockout, locate the faulted section, isolate it, and choose the restoration plan that restores
+    the most customers from neighboring feeders without overloads or safety violations.
+
+
+    **Mental Model**: "Each plan is a different set of open and closed switches." Connectivity is whatever the switches
+    say right now.
+
+
+    **Task Phases**:
+
+    1. **Confirm lockout** - From the SCADA recloser signal
+
+    2. **Locate** - From fault indication signals along the feeder
+
+    3. **Enumerate** - Identify all possible restoration scenarios using SCADA switches
+
+    4. **Check pickup feeders** - Current state, available capacity and near-term capacity
+
+    5. **Evaluate and select** - Compare plans on violations, safety blocks (tags, grounds, crews), DER and remaining
+    capacity; how operators approve plans: no source found
+
+
+    **Decision Points**:
+
+    - Which section is faulted, given the indicators?
+
+    - Which switches to open to isolate it?
+
+    - Which restoration plan to execute?
+
+
+    **Information Needs**:
+
+    - Current state of every switch and the connectivity it implies
+
+    - Faulted section bracketed by indicators
+
+    - Per plan: customers restored, pickup feeder loading, blocked devices
+
+    - Tags, grounds and crews on each section
+
+
+    **Pain Points**:
+
+    - Many restoration options, each checked against capacity, tags, crews and DER
+
+    - Plans are hard to compare side by side
+
+    - Connectivity views must update the moment a switch changes
+
+
+    **Data Flow**:
+
+    - Input: SCADA lockout and fault indicator signals, switch states, tags and grounds, crew locations, feeder loading
+
+    - Transformations: State-dependent connectivity, faulted section isolation, enumeration of alternative switch-state
+    sets, capacity checks
+
+    - Output: Isolation switching, selected restoration plan, customers restored
+success_criteria:
+    - metric: Plan comparison
+      target: Alternative switch-state plans compared on customers restored and blocked devices in one view
+    - metric: Safety
+      target: No plan energizes a tagged or grounded section
+sources:
+    - title: Oracle Network Management System ADMS implementation guide, FLISR
+      url: https://docs.oracle.com/en/industries/energy-water/network-management-system/2502/nms-adms-implementation-guide/NMS_ADMS_25021/DMS_Implementation_FLISR.06.1.html
+      summary: Lockout confirmation, fault location, enumeration of restoration scenarios, pickup feeder capacity, safety blocks
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

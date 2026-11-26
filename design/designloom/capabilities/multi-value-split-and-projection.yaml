@@ -1,0 +1,15 @@
+id: multi-value-split-and-projection
+name: Multi-Value Split and Two-Mode Projection
+category: analysis
+description: Split delimited multi-value cells into edges, load two-mode data with a type attribute, and project to
+    one-mode networks with a chosen weighting (count, fractional) and participant cap while keeping the original
+    two-mode network.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W294
+    - W297
+implemented_by_components: []
+requirements: []
+sources: []

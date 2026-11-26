@@ -1,41 +1,43 @@
 id: fraud-analyst
 name: Fraud Detection Analyst
-role: Financial Crime Investigator
-quote: I need to see the money trail - where it came from, where it went, and who touched it along the way.
-bio: Sarah has spent 8 years investigating financial crimes, starting with rule-based alert triage before transitioning
-    to graph-based investigation techniques. She handles 50+ alerts daily and has developed an intuitive sense for
-    spotting anomalous transaction patterns. She's frustrated by tools that can't keep pace with her expertise or that
-    hide the underlying data structures she needs to build prosecutable cases.
+role: Bank Fraud and Transaction Monitoring Analyst (Level 1 alert reviewer and receiving-bank mule team), UK or US bank
+quote: Is this customer connected to anything we already know is bad? And if a scam payment just landed here, where did it go in the last fifteen minutes?
+bio: >-
+    Sarah works on the front line of a bank's fraud and financial-crime operations. Most of her day is spent in a vendor
+    case queue reviewing alerts that a monitoring scenario raised (cash just under 10,000 dollars, rapid in-and-out wires,
+    a new device on an old account): she reads the triggering transactions, compares them with the customer's
+    know-your-customer profile, checks the customer's 1 to 2 hop neighborhood for other open alerts, prior cases and
+    shared identifiers, and either closes the alert with a written rationale or escalates it to a Level 2 investigator.
+    Most alerts are false positives, so her value is speed with a defensible reason. On the bank's receiving-side mule
+    team she works the other direction: since October 2024 UK banks share the cost of reimbursing authorised push payment
+    scam victims, and when a sending bank reports that a victim's payment landed in one of her customers' accounts she
+    seeds the graph with that payment and follows it forward hop by hop, deciding at each account whether to hold, freeze
+    or notify the next bank, because in Lloyds data on known mules over half of the value left within an hour. She is
+    strong on red flags and Excel, moderately comfortable with "linked", "hops" and "cluster", and does not code.
 characteristics:
     expertise: intermediate
     time_pressure: high
     graph_literacy: moderate
     domain_knowledge: advanced
 motivations:
-    - Protect institutions and individuals from financial loss through early fraud detection
-    - Build legally defensible cases with clear evidence chains for prosecution
-    - Advance career by developing expertise in emerging graph-based investigation techniques
-    - Reduce false positives to focus time on genuine threats rather than noise
-    - Stay ahead of increasingly sophisticated fraud schemes that evade rule-based detection
+    - Close false-positive alerts quickly with a rationale that a quality-control reviewer accepts
+    - Escalate the alerts that connect to known-bad customers, accounts or identifiers, with the connection shown
+    - Freeze scam proceeds before they leave the bank, and notify the next bank in time
+    - Avoid working the same network five times as five separate alerts
 behaviors:
-    - Starts investigation by examining temporal patterns - when transactions occurred relative to account creation
-    - Uses degree centrality to identify hub accounts that touch many others suspiciously
-    - Traces multi-hop paths to follow money through layering schemes (A→B→C→D)
-    - Looks for cycle detection to identify round-tripping patterns
-    - Compares current graph patterns against known fraud typologies (mule networks, bust-out schemes)
-    - Documents evidence trail meticulously for legal proceedings
-    - Works under time pressure - suspicious transactions may need to be frozen quickly
-goals:
-    - Detect fraud rings before they cause significant losses
-    - Reduce false positives from rule-based systems
-    - Identify bad actors across multiple accounts
-    - Trace money flows through complex schemes
-    - Prioritize investigations based on risk
+    - Starts from the alert in the case queue, not from a graph file; opens the graph only when the alert needs context
+    - Looks at the alerted customer's 1 to 2 hop neighborhood, colored by open alert, prior case and prior SAR
+    - Checks which identifiers (device, phone, email, address, card, payout account) the customer shares with others and how many accounts share each
+    - Discounts identifiers shared by very many accounts (a public Wi-Fi address, a busy branch) instead of treating them as evidence
+    - Reads the triggering transactions against the expected activity in the customer profile and a short timeline
+    - Writes a close or escalate rationale that names the specific link or transaction that decided it
+    - For a reported scam payment, follows only the payments that left after it arrived and up to the amount received, marking each account's hold, freeze or notify decision
 frustrations:
-    - Alert fatigue from high false positive rates
-    - Difficulty visualizing complex fraud rings
-    - Slow investigation workflows
-    - Disconnected data sources
+    - Most alerts are false positives, and data gathering across separate screens takes most of the time
+    - Graph views that open with every neighbor and turn into a hairball
+    - Super-connected identifiers that make innocent customers look linked
+    - Outbound monitoring tools that do not help with inbound scam money, and notifications that arrive too slowly
+    - Nothing she finds in the graph flows into the case rationale; she retypes it
 context:
     frequency: daily
     devices:
@@ -50,12 +52,36 @@ workflows:
     - W12
     - W15
     - W17
+    - W118
+    - W122
+    - W336
 sources:
     - title: "Enterprise Fraud Management: Investigation v Detection"
       url: https://cambridge-intelligence.com/enterprise-fraud-management-investigation-v-detection/
       summary:
           Distinguishes fraud detection (automated alerts) from investigation (analyst-driven exploration) - key workflow
           distinction
+    - title: FFIEC BSA/AML Examination Manual - Suspicious Activity Reporting
+      url: https://bsaaml.ffiec.gov/manual/AssessingComplianceWithBSARegulatoryRequirements/04
+      summary: Alert generation, alert management (Level 1, Level 2, quality control) and the SAR decision as separate components
+    - title: Linkurious - AML investigation solution
+      url: https://linkurious.com/aml-investigation-solution
+      summary: Vendor; alerted subject's 1-2 hop neighborhood styled by open alerts and prior SARs
+    - title: Redhead - SWIFT Institute / RUSI working paper on transaction monitoring (2021)
+      url: https://swift.com/swift-resource/252235/download
+      summary: False-positive rates about 70 to 95 percent and alert-to-report conversion 2 to 10 percent (read through search summary)
+    - title: RUSI - Following the fraud, the role of money mules (Westmore and Owen, 2025)
+      url: https://static.rusi.org/following-the-fraud-the-role-of-money-mules.pdf
+      summary: In Lloyds data on known mules nearly 28 percent of value left within 15 minutes and a further 25 percent within an hour
+    - title: FCA - Proceeds of fraud, detecting and preventing money mules (2023)
+      url: https://www.fca.org.uk/publications/multi-firm-reviews/proceeds-fraud-detecting-preventing-money-mules
+      summary: Firms focus on outbound monitoring without adequate inbound monitoring; receiving firms slow to respond to notifications
+    - title: PSR - APP fraud reimbursement final details
+      url: https://www.psr.org.uk/news-and-updates/latest-news/news/psr-continues-to-take-bold-action-on-app-fraud-as-it-publishes-final-reimbursement-details-ahead-of-2024-implementation/
+      summary: Mandatory reimbursement of APP scam victims from 7 October 2024, cost shared between sending and receiving firms
+    - title: Teal - Financial crime investigator job summary
+      url: https://www.tealhq.com/job/financial-crime-investigator_7ea1aff6730272e3d301aed85f4a8ad542d60
+      summary: Postings ask for Excel and red-flag spotting rather than coding
     - title: Leveraging Graph Databases for Fraud Detection in Financial Systems
       url: https://cacm.acm.org/blogcacm/leveraging-graph-databases-for-fraud-detection-in-financial-systems/
       summary:
@@ -64,3 +90,6 @@ sources:
       bibliography:
           date: 2024-10
           publisher: Communications of the ACM
+version: 1.1.0
+created_at: 2026-01-16T16:39:01.568Z
+updated_at: 2026-11-25T00:00:00.000Z

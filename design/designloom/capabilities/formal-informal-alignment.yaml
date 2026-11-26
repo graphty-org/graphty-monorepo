@@ -1,0 +1,14 @@
+id: formal-informal-alignment
+name: Formal Versus Informal Alignment
+category: analysis
+description: Show the reporting hierarchy and the informal network of the same people side by side, and compute
+    per-person alignment of informal ties with reporting lines and each pair's formal versus network distance.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W187
+    - W190
+implemented_by_components: []
+requirements: []
+sources: []

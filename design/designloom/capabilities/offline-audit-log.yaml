@@ -1,0 +1,13 @@
+id: offline-audit-log
+name: Offline Operation and Audit Log
+category: analysis
+description: Run fully offline on agency networks and log each search with its stated purpose (case number) for audit.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W09
+    - W106
+implemented_by_components: []
+requirements: []
+sources: []

@@ -1,0 +1,83 @@
+id: clinical-pathway-analyst
+name: Clinical Pathway Analyst
+role: Health Services Researcher / Hospital Quality Improvement Analyst
+quote: Clinicians will not read a spaghetti map. Show them where patients wait and where we leave the guideline, and the data never leaves the hospital.
+bio: >-
+    Dr. Okafor is a health services researcher in a hospital quality improvement unit. She works in R with bupaR
+    (processmapR for maps, processanimateR for animations), with Disco when a clinician wants to click around, and
+    occasionally with PM4Py. Her data is an extract from the electronic health record: admissions, triage, diagnoses,
+    vitals, labs and medications in separate tables, joined by patient id and time. Timestamps are imprecise, entered
+    late or date-only, and hundreds of distinct codes must be abstracted into a manageable set of activities. She works
+    with clinicians and nurses throughout, because healthcare process mining guidance treats their involvement as
+    essential. Her questions are where patients wait, which pathways deviate from a clinical guideline, and what a
+    protocol change did. Healthcare is a small but well-studied niche: one systematic mapping study selected 270
+    healthcare process mining articles, and a 2025 review found Disco and ProM the most common tools.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: expert
+motivations:
+    - Find where patients wait in the emergency department and between wards
+    - Check pathways against clinical guidelines and protocols
+    - Measure the effect of a protocol change with a before and after comparison
+    - Give clinicians a map and an animation they can validate and act on
+    - Publish reproducible results without moving patient data off the hospital network
+behaviors:
+    - Joins several EHR tables through patient identifiers and timestamps into one event log
+    - Builds a consolidated activity label set from SNOMED CT or ICD-10 codes and raw record types
+    - Chooses the case notion explicitly (episode, ED stay or patient) and documents it
+    - Imputes missing or hour-less timestamps from the nearest clinically reliable timestamp only when that restores plausibility, and flags identical timestamps
+    - Removes cases with broken boundaries or implausible durations before discovery and reports how many were dropped
+    - Draws a process map with case frequency on nodes and mean durations on edges, filtering to the most frequent traces
+    - Animates the log in relative mode for clinicians
+    - Writes guideline rules (for example monitoring before discharge) as constraints and checks the log against them
+frustrations:
+    - Spaghetti maps from high clinical variability; hundreds of variants for a few thousand patients
+    - Date-only and late-registered timestamps that create false orderings and ties
+    - Credentialed data that cannot be uploaded to a cloud tool
+    - Few tools that check conformance to a guideline; under 10 articles in a 2025 review addressed it
+    - Static images from Python libraries that clinicians cannot explore
+    - Privacy left unaddressed in most of the literature (70.63 percent of reviewed studies)
+context:
+    frequency: monthly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W339
+    - W340
+    - W343
+    - W344
+    - W345
+    - W346
+    - W349
+    - W353
+    - W354
+    - W356
+sources:
+    - title: Munoz-Gama et al. 2022 - Process mining for healthcare, characteristics and challenges
+      url: https://www.alexandria.unisg.ch/server/api/core/bitstreams/413ecf90-0787-4e40-806d-cfcdc55ec2b7/content
+      summary: Healthcare-specific challenges D1-D6 including spaghetti maps, guidelines as prescriptive models, abstraction of codes and clinician involvement
+    - title: Aversano et al. 2025 - healthcare process mining review
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11784703/
+      summary: 53 studies; Disco and ProM most common; events most common case id; under 10 articles on conformance; 70.63 percent ignore privacy
+    - title: Dallagassa et al. 2022 - systematic mapping of process mining in healthcare
+      url: https://link.springer.com/article/10.1007/s12652-021-02894-7
+      summary: 270 healthcare process mining articles selected
+    - title: COVID-19 clinical pathways process mining (arXiv 2606.00041)
+      url: https://arxiv.org/html/2606.00041v1
+      summary: Six EHR tables joined for 4,479 patients; consolidated activity labels; timestamp imputation rules; Declare constraints
+    - title: MIMICEL - event log from MIMIC-IV-ED
+      url: https://arxiv.org/html/2505.19389v1
+      summary: ED stays as cases built from six tables with PostgreSQL scripts; triage timestamp set to arrival plus 1 second
+    - title: bupaR documentation - frequency maps
+      url: https://bupaverse.github.io/docs/frequency_maps.html
+      summary: process_map with frequency and performance types, relative-case frequencies
+    - title: ED patient flow study (arXiv 2609.32010)
+      url: https://arxiv.org/pdf/2609.32010
+      summary: 1,754 clean cases with 884 variants; top 10 variants cover 21.3 percent
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,13 @@
+id: mapping-set-view
+name: Mapping Set View
+category: data
+description: Show an SSSOM mapping set as a bipartite graph between two vocabularies, colored by mapping predicate and
+    confidence, so one-to-many and low-confidence clusters stand out.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W135
+implemented_by_components: []
+requirements: []
+sources: []

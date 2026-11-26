@@ -1,0 +1,103 @@
+id: W287
+name: Making an Embedded Graph Accessible
+category: administration
+validated: false
+personas:
+    - graph-product-frontend-engineer
+    - plugin-author-frontend-developer
+requires_capabilities:
+    - keyboard-shortcuts
+    - search
+    - node-selection
+    - details-on-demand
+    - style-presets
+    - animated-transitions
+    - data-export
+    - element-accessibility
+suggested_components:
+    - graph-canvas
+    - search-input
+    - keyboard-shortcuts-dialog
+    - data-table-panel
+    - node-details-panel
+starting_state:
+    data_type: an embedded investigation graph and a customer's WCAG 2.x and Section 508 questionnaire
+    node_count: 50-500
+    edge_density: sparse
+    user_expertise: expert developer
+goal: >-
+    **Intent**: Make the embedded graph usable by keyboard and screen-reader users and pass government and
+    law-enforcement procurement under WCAG and Section 508. Today the leading commercial toolkit says it does not
+    support many of these requirements and leaves most of the work to the embedding developer.
+
+
+    **Mental Model**: "The canvas is a picture; give it a keyboard and a text twin." Every node and edge must be
+    reachable by keyboard, findable by search, and described in text.
+
+
+    **Task Phases**:
+
+    1. **Built-in keys** - Escape, Delete, arrow keys, Space and Ctrl+A, plus a call to focus the chart
+
+    2. **Search entry point** - Add a search box users can Tab to and type into to find nodes
+
+    3. **Focus** - Add a focus function users can Tab to and press Enter to move focus into the chart
+
+    4. **ARIA** - Label the chart's structure, or hide it with aria-hidden and rely on the text version
+
+    5. **Text alternatives** - A data table or summary of nodes and links, and descriptions of the focused node or link,
+    starting from the chart's serialized state
+
+    6. **Color and motion** - Colorblind and high-contrast schemes, never color alone, and a way to turn off animation
+
+    7. **Conformance statement** - Answer the customer's questionnaire
+
+
+    **Decision Points**:
+
+    - Expose graph structure to screen readers or hide the canvas and offer a table?
+
+    - Which keyboard walk order for nodes and edges?
+
+    - Which color schemes ship by default?
+
+
+    **Information Needs**:
+
+    - What the library does for keyboard, focus, ARIA and text alternatives, and what it leaves to the embedder
+
+    - A published conformance statement to attach to the questionnaire
+
+
+    **Pain Points**:
+
+    - The market-leading toolkit "does not support many" WCAG 2.0 and Section 508 requirements for non-visual
+    representations
+
+    - Search, focus, ARIA and text alternatives are each left to the developer
+
+
+    **Data Flow**:
+
+    - Input: Graph state, customer accessibility requirements
+
+    - Transformations: Keyboard model, focus model, ARIA labeling, text alternative generation, color schemes
+
+    - Output: An accessible graph view and a conformance statement
+success_criteria:
+    - metric: Keyboard reach
+      target: Every node and edge is reachable and selectable by keyboard alone
+    - metric: Text alternative
+      target: A screen-reader user can list nodes and edges and hear the focused item's details
+    - metric: Procurement
+      target: A published WCAG and Section 508 statement covers the element without embedder work
+sources:
+    - title: KeyLines - Accessibility
+      url: https://developers.cambridge-intelligence.com/docs/keylines/accessibility
+      summary: Built-in keys and focus call; does not support many WCAG 2.0 and Section 508 requirements
+    - title: Cambridge Intelligence - Build accessible data visualization apps with KeyLines
+      url: https://cambridge-intelligence.com/build-accessible-data-visualization-apps-with-keylines/
+      summary: Search box, focus function, ARIA, text versions, colorblind schemes and animation off left to developers
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

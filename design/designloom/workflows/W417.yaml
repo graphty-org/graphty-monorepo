@@ -1,0 +1,135 @@
+id: W417
+name: From a 3D Session to a Shareable 2D Deliverable
+category: reporting
+validated: false
+personas:
+    - correlation-network-3d-biologist
+    - network-medicine-vr-researcher
+    - multilayer-network-3d-biologist
+    - desktop-3d-graph-investigator
+requires_capabilities:
+    - view-bookmarks
+    - export-image
+    - data-export
+    - report-generation
+    - analysis-history
+    - legend-display
+    - style-presets
+    - annotation
+    - render-mode-switching
+    - viewpoint-and-video-export
+suggested_components:
+    - bookmark-panel
+    - image-export-dialog
+    - data-export-dialog
+    - report-generator-dialog
+    - session-save-dialog
+    - share-dialog
+    - legend-panel
+    - annotation-toolbar
+    - graph-canvas
+starting_state:
+    data_type: any network explored in a 3D or immersive view
+    node_count: any
+    edge_density: any
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Turn what was found by rotating, flying or walking through a 3D graph into something that works on
+    paper, in a slide, in court or in a colleague's browser. No tool examined offers a documented "flatten to print"
+    step; practitioners combine the steps below.
+
+
+    **Mental Model**: "The 3D view is where I found it; the 2D picture is how I prove it." Paper and court have no 3D
+    medium.
+
+
+    **Task Phases**:
+
+    1. **Choose the viewpoint** (5 min) - Rotate to the angle that shows the finding with the fewest crossings; 3D
+    drawings are highly viewpoint-dependent
+
+    2. **Save a high-resolution image** (2 min) - Of the current camera, often after switching to a light print theme
+    (Graphia, Arena3Dweb, CellexalVR screenshots)
+
+    3. **Render a video** (10 min, optional) - Engine-rendered video (VRNetzer), a fly-by MP4 (CellexalVR) or a
+    rotating movie (BrainNet Viewer)
+
+    4. **Save a session or link** (2 min) - A session file (Arena3Dweb JSON, Graphia layout) or a stored-view link
+    (NeuroMArVL, OmicsNet bookmarks)
+
+    5. **Carry results out** (10 min) - To a web or desktop module for annotation (VRNetzer) or an automatic report
+    (CellexalVR)
+
+    6. **Switch to 2D for the figure** (5 min, often) - Project or re-lay out in 2D when the figure must be read without
+    rotation
+
+
+    **Decision Points**:
+
+    - Is one viewpoint enough, or does the finding need several fixed views or a video?
+
+    - Keep the 3D positions in the 2D figure, or re-lay out in 2D?
+
+    - Send a static file, a session, or a live link?
+
+
+    **Information Needs**:
+
+    - Which saved viewpoints exist and what each shows
+
+    - A legend that survives the export
+
+    - The parameters and selections behind the view, for a methods section or case file
+
+
+    **Pain Points**:
+
+    - Saved camera viewpoints are often missing or undocumented
+
+    - No tool exports a set of fixed views or a turntable in one step
+
+    - 3D graphs are described by a vendor of 2D tools as almost impossible to print
+
+    - Findings made in a headset must be re-found on a desktop
+
+
+    **Data Flow**:
+
+    - Input: A 3D or immersive session with camera, selection and styling
+
+    - Transformations: Viewpoint choice, theme switch, projection or 2D re-layout, rendering
+
+    - Output: Images, videos, session files, links, reports
+success_criteria:
+    - metric: Reproducible figure
+      target: The same image can be regenerated from a saved viewpoint months later
+    - metric: Headset-free review
+      target: A colleague without a headset or a 3D tool can see and annotate the finding
+sources:
+    - title: Graphia user guide - Saving and exporting
+      url: https://graphia.app/guide/section3/6_saving.html
+      summary: High-resolution publication images
+    - title: Kokoli et al. 2023 - Arena3Dweb update
+      url: https://escholarship.org/uc/item/19w7c52r
+      summary: Light theme for publication figures, JSON sessions
+    - title: Pirch et al. 2021 - VRNetzer
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8065164
+      summary: Screenshots, videos and the web module hand-off
+    - title: Legetth et al. 2021 - CellexalVR
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8609247
+      summary: Fly-by MP4 and automatic HTML report
+    - title: NeuroMArVL
+      url: https://immersive.erc.monash.edu/neuromarvl/
+      summary: Generate Link stores the view for others
+    - title: OmicsNet 2.0
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC9252810
+      summary: 2D added because users are more accustomed to 2D; bookmarks
+    - title: Joos et al. GD 2025 - viewpoint dependence of 3D graph drawings
+      url: https://arxiv.org/abs/2506.09212
+      summary: 3D drawings are highly viewpoint-dependent
+    - title: Cambridge Intelligence on 3D graph visualization (read through a search summary; the page returned 404)
+      url: https://cambridge-intelligence.com/?p=2694
+      summary: 3D graphs hard to navigate without feeling seasick and almost impossible to print
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

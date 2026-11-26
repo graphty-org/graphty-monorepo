@@ -1,0 +1,176 @@
+id: W26
+name: From Roster Survey to an Analyzable Whole Network
+category: analysis
+validated: false
+personas:
+    - sociometric-network-researcher
+    - network-methods-grad-student
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - component-analysis
+    - filtering
+    - computed-attributes
+    - basic-statistics
+    - statistics-panel
+    - centrality-degree
+    - centrality-betweenness
+    - centrality-closeness
+    - centrality-eigenvector
+    - community-detection
+    - layout-force-directed
+    - analysis-history
+    - data-export
+    - survey-network-import
+    - missing-tie-states
+    - network-transforms
+    - multiplex-relations
+    - stats-package-handoff
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - attribute-table-join-dialog
+    - data-table-panel
+    - statistics-panel
+    - ranked-node-table
+    - analysis-history-panel
+    - graph-canvas
+    - data-export-dialog
+starting_state:
+    data_type: wide survey export (one row per respondent, friend1..friendN columns of roster IDs or typed names) plus an actor-by-attribute table
+    node_count: 25-1500
+    edge_density: sparse
+    user_expertise: intermediate+
+goal: >-
+    **Intent**: Turn the raw export of a roster or free-recall network survey into a clean, documented whole network
+    (one or several relations, with attributes and waves) that every later descriptive and inferential result can rest
+    on. This is the first step of every sociometric study in schools and organizations.
+
+
+    **Mental Model**: "Every coding choice is a methods sentence." The respondent answered a question about a list of
+    names; the network is a series of named, reportable decisions (who is inside the boundary, how off-roster names are
+    coded, which way a relation is symmetrized, where a valued tie is cut) applied to those answers.
+
+
+    **Task Phases**:
+
+    1. **Design the instrument** (estimate: days, outside the tool) - Define the boundary (classroom, school, firm),
+    roster versus free recall, nomination cap, one relation or several, valued or binary. Caps censor degree.
+
+    2. **Export and recode IDs** (estimate: 30-120 min) - Survey output is wide: friend1..friend10 columns of roster IDs
+    or typed names. Recode off-roster codes (Add Health uses 99999999 for "goes to sample school - not on list" and
+    88888888 for the sister school); match typed partial names by hand and keep unconfirmed ones as their own nodes.
+
+    3. **Reshape to an edge list or matrix** (estimate: 15 min) - Wide to long (ego, alter, value); in UCINET paste into
+    the matrix spreadsheet or import a DL text file (dl n=..., format = edgelist1, labels embedded, data); in R
+    network(edgelist, matrix.type = "edgelist") or graph_from_data_frame().
+
+    4. **Attach attributes** (estimate: 15 min) - Join a separate actor-by-variable table by ID; check that ID order and
+    coverage match exactly.
+
+    5. **Transform** (estimate: 15 min) - Symmetrize by maximum (any tie), minimum (reciprocated only), average, sum,
+    lower or upper; dichotomize at a stated cutoff; transpose "seeks advice from" into "gives advice to"; remove
+    isolates; extract the main component; join or unpack relations. Each is a reported decision.
+
+    6. **Mark missing data** (estimate: 10 min) - Keep non-respondents as nodes and code their unobserved outgoing dyads
+    as missing rather than zero (see W27).
+
+    7. **First look and descriptives** (estimate: 20 min) - Spring-embedder layout; cohesion (density, reciprocity,
+    transitivity, components), multiple centrality measures with centralization, core-periphery and subgroups.
+
+    8. **Hand off** (estimate: 5 min) - Export node-level scores and the cleaned edge list to Stata, SPSS or R.
+
+
+    **Decision Points**:
+
+    - Roster or free recall, and what nomination cap (Add Health allowed up to five male and five female friends)?
+
+    - Which schools or classrooms have a response rate high enough to keep (Add Health kept 112 of 130)?
+
+    - How are off-roster and unconfirmed nominees coded -- dropped, pooled or kept as nodes?
+
+    - Symmetrize by maximum or minimum, and which cutoff for a valued relation (a cutoff above 0 can hide structure)?
+
+    - Keep isolates and minor components, or analyze the main component only?
+
+
+    **Information Needs**:
+
+    - Count of nominations that matched a roster ID, hit an off-roster code, or matched no one, with the unmatched list
+
+    - Response rate and which actors are non-respondents
+
+    - Attribute join report: matched, unmatched and duplicate IDs
+
+    - Before and after counts (edges, density, components) for each transform
+
+    - A record of every transform applied, in order, that can be pasted into a methods section
+
+
+    **Pain Points**:
+
+    - Tools expect a matrix or edge list, not a wide survey export
+
+    - ID order mismatch between the network and attribute files is a silent error
+
+    - Every tool wants a different format (DL, .net, VNA, edge list)
+
+    - Edge lists imply zero for every absent dyad, erasing the difference between no tie and unknown
+
+    - Menu-driven transforms leave no script record; UCINET's multiple-measures centrality omits centralization
+
+
+    **Data Flow**:
+
+    - Input: Wide survey export (CSV or Excel) with nomination columns, roster ID list, off-roster codes, attribute table;
+    or UCINET DL, Pajek .net or VNA files
+
+    - Transformations: ID recoding and matching, wide-to-long reshape, attribute join, symmetrize, dichotomize,
+    transpose, isolate removal, main component extraction, missing-dyad marking
+
+    - Output: Cleaned directed or undirected network with attributes and missing-data marks, descriptive table, node
+    scores for regression, a transform log
+success_criteria:
+    - metric: Nomination match transparency
+      target: User can state how many nominations matched a roster ID, hit an off-roster code, or were unmatched
+    - metric: Transform reproducibility
+      target: Every symmetrize, dichotomize and extraction step is listed in order with its parameters
+    - metric: Time from survey export to first descriptives
+      target: Under one hour for a single school (estimate; no source reports durations)
+sources:
+    - title: Hanneman and Riddle, Introduction to Social Network Methods, chapter 6
+      url: https://faculty.ucr.edu/~hanneman/nettext/C6_Working_with_data.html
+      summary: UCINET data entry, DL import, symmetrize, dichotomize, transpose, extract and join transforms
+    - title: Borgatti, Everett and Johnson, chapter 5 data management resources
+      url: https://study.sagepub.com/borgatti2e/student-resources/chapter-5/chapter-5-data-management
+      summary: DL formats, attribute datasets, symmetrizing rules and dichotomizing cutoffs (above 0 hides structure)
+    - title: Ognyanova UCINET handout
+      url: https://kateto.net/wp-content/uploads/2012/12/COMM645%20-%20Ucinet%20Handout.pdf
+      summary: UCINET .##h/.##d datasets and Cohesion, Centrality, Core/Periphery, Subgroups menu paths
+    - title: Gephi manual - UCINET DL format
+      url: https://docs.gephi.org/desktop/User_Manual/Import/UCINET_DL_Format
+      summary: DL syntax for fullmatrix, edgelist1 and nodelist formats
+    - title: Moody (2001) Race, school integration, and friendship segregation
+      url: https://cpi.stanford.edu/_media/pdf/Reference%20Media/Moody_2001_Race.pdf
+      summary: Add Health roster design and response-rate screening of schools
+    - title: Add Health nomination fields and off-roster codes
+      url: https://addhealth-navigator.cpc.unc.edu/item/example.org/2955231e-ae0d-4d93-ad81-f34790b2d275
+      summary: 99999999 and 88888888 codes for nominees not on the roster
+    - title: Rice et al. (2014) recall bias and name verification
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4184035
+      summary: 25 of 39 partial names confirmed, 10 kept as unconfirmed nodes
+    - title: Kossinets (2006) Effects of missing data in social networks
+      url: https://arxiv.org/abs/cond-mat/0306335
+      summary: Boundary specification and fixed-choice caps censor degree
+    - title: Network Canvas roster name generator
+      url: https://github.com/complexdatacollective/Interviewer/wiki/Name-Generator:-Roster-List
+      summary: Small roster interface for 100 or fewer people and a large one above that
+    - title: ergm package vignette
+      url: https://cran.r-project.org/web/packages/ergm/vignettes/ergm.html
+      summary: Missing dyads must be NA, not zero, for model fitting
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,133 @@
+id: W158
+name: Building and Inspecting a Structural Connectome from Diffusion MRI
+category: analysis
+validated: false
+personas:
+    - computational-network-neuroscientist
+    - whole-brain-modeler
+requires_capabilities:
+    - data-import
+    - data-validation
+    - filtering
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - graph-rendering
+    - details-on-demand
+    - selection-statistics
+    - export-image
+    - matrix-view
+    - matrix-import
+    - fixed-node-positions
+    - anatomical-context-mesh
+    - parcel-node-rendering
+    - edge-path-geometry
+    - paired-edge-matrices
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - heatmap-panel
+    - graph-canvas
+    - visual-encoding-panel
+    - range-slider
+    - node-details-panel
+    - legend-panel
+    - image-export-dialog
+starting_state:
+    data_type: diffusion and T1 MRI per subject, ending in an 84 x 84 (or atlas-sized) weight matrix, a mean-length matrix and streamline assignments
+    node_count: 84-400
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Turn diffusion MRI into a region-by-region structural connectome (weights and edge lengths), check it,
+    and draw the significant or interesting connections as real white-matter pathways rather than straight lines.
+    The graph steps come at the end of a long imaging pipeline (FreeSurfer alone takes a few hours per subject).
+
+
+    **Mental Model**: "The wiring is real geometry." Every edge corresponds to a bundle of streamlines with a shape and
+    a length; every node is a parcel with a shape.
+
+
+    **Task Phases**:
+
+    1. **Preprocess and model** (hours) - Preprocess diffusion and T1 images, estimate fiber orientations
+
+    2. **Tissue segmentation and parcellation** (hours) - Five-tissue-type image for anatomically constrained
+    tractography; FreeSurfer parcellation relabeled so node indices start at 1 and match matrix rows
+
+    3. **Track and weight** (hours) - Generate streamlines (for example 10 million) and per-streamline SIFT2 weights
+
+    4. **Build matrices** (minutes) - Symmetric, zero-diagonal weight matrix scaled by inverse node volume, plus a mean
+    edge-length matrix and a streamline-to-edge assignment file
+
+    5. **Inspect** (5 min) - Heatmap of the matrix, expecting two hemisphere blocks
+
+    6. **Figure with real pathways** (20 min) - One exemplar streamline per edge drawn as a tube; nodes drawn as the
+    parcel meshes; extract specific connections of interest for inspection
+
+
+    **Decision Points**:
+
+    - How many streamlines, and which weighting (SIFT2, inverse node volume)?
+
+    - Straight lines or streamline exemplars for the figure?
+
+    - Spheres or parcel meshes for nodes?
+
+
+    **Information Needs**:
+
+    - Matrix heatmap with hemisphere blocks visible
+
+    - Weight and length for any selected edge
+
+    - Which parcels have no connections (failed assignment)
+
+
+    **Pain Points**:
+
+    - The official HCP tutorial now says not to use its steps for connectomics projects; guidance changes
+
+    - Output formats vary by pipeline version (QSIRecon .mat)
+
+    - Pathway and parcel rendering lives in one desktop viewer tied to its own file formats
+
+
+    **Data Flow**:
+
+    - Input: Weight matrix CSV, mean-length matrix CSV, parcellation image, exemplar streamlines (.tck)
+
+    - Transformations: Row-to-label join, weight and length kept per edge, exemplar geometry attached to edges, parcel meshes attached to nodes
+
+    - Output: Inspected weight and length matrices; figure with tube edges and parcel nodes
+success_criteria:
+    - metric: Matrix sanity check
+      target: Hemisphere block structure visible within one step of loading
+    - metric: Paired matrices
+      target: Weight and length matrices load together and both show for a selected edge
+    - metric: Pathway figure
+      target: Edges can be drawn from supplied streamline geometry instead of straight lines
+sources:
+    - title: MRtrix structural connectome guide
+      url: https://mrtrix.readthedocs.io/en/doctest/quantitative_structural_connectivity/structural_connectome.html
+      summary: Anatomically constrained tractography, parcellation relabeling, matrix construction
+    - title: MRtrix tck2connectome reference
+      url: https://mrtrix.readthedocs.io/en/latest/reference/commands/tck2connectome.html
+      summary: Symmetric, zero-diagonal, inverse node volume scaling, mean-length matrix, assignments
+    - title: MRtrix connectome2tck reference
+      url: https://mrtrix.readthedocs.io/en/latest/reference/commands/connectome2tck.html
+      summary: Exemplar streamline per edge and extraction of specific connections
+    - title: MRtrix connectome tool tutorial
+      url: https://mrtrix.readthedocs.io/en/0.3.16/tutorials/connectome_tool.html
+      summary: Edges as streamlines or streamtubes and nodes as parcel meshes in mrview
+    - title: Andy's Brain Book MRtrix course
+      url: https://andysbrainbook.readthedocs.io/en/latest/MRtrix/MRtrix_Course/MRtrix_07_Streamlines.html
+      summary: 10 million streamlines with SIFT2 weights
+    - title: MRtrix ISMRM HCP tutorial
+      url: https://mrtrix.readthedocs.io/en/dev/quantitative_structural_connectivity/ismrm_hcp_tutorial.html
+      summary: Now states its steps are not recommended for connectomics projects
+    - title: QSIRecon built-in workflows
+      url: https://qsirecon.readthedocs.io/en/1.2.0/builtin_workflows.html
+      summary: SIFT2 mu value and per-atlas connectivity output
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

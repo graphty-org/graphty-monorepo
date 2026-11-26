@@ -1,0 +1,160 @@
+id: W196
+name: Theory of Change by Backwards Mapping
+category: analysis
+validated: false
+personas:
+    - mel-theory-of-change-officer
+    - systems-change-strategist
+requires_capabilities:
+    - layout-hierarchical
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - annotation
+    - details-on-demand
+    - path-highlighting
+    - filtering
+    - legend-display
+    - export-image
+    - data-export
+    - report-generation
+    - graph-authoring
+    - layout-tiered-by-attribute
+    - structured-item-fields
+    - structural-checks
+suggested_components:
+    - graph-canvas
+    - toolbar
+    - context-menu
+    - node-details-panel
+    - layout-panel
+    - visual-encoding-panel
+    - annotation-toolbar
+    - legend-panel
+    - image-export-dialog
+    - data-export-dialog
+    - report-generator-dialog
+starting_state:
+    data_type: empty canvas, or post-it photos and flip-chart notes from a facilitated session
+    node_count: 15-60 (one long-term outcome, 4-6 first-row preconditions, 3-4 levels; estimate, no published size distribution)
+    edge_density: sparse
+    user_expertise: novice
+goal: >-
+    **Intent**: Build (or revise) an organization's theory of change: a layered outcomes pathway that runs from
+    interventions at the bottom through early and intermediate outcomes to one long-term outcome at the top, with an
+    accountability ceiling, an indicator on every outcome below the ceiling, and a rationale on every arrow. This is the
+    most common causal diagram in nonprofits, philanthropy and international development, and funders ask for one in
+    grant and evaluation plans.
+
+
+    **Mental Model**: "What has to be true before our goal can be true?" An upside-down tree of preconditions converging
+    on one goal, read bottom to top. The organization answers for everything under the dashed line and contributes to
+    everything above it.
+
+
+    **Task Phases**:
+
+    1. **Name the long-term outcome** (30 min in session) - One goal node at the top; competing definitions go to a
+    parking-lot area until the group agrees
+
+    2. **Backwards map** (1-2 h in session) - Add the first row of 4-6 preconditions directly beneath the goal, then
+    unpack each one, turning barriers into positive preconditions; several parallel pathways usually emerge; stop three
+    or four levels down when an intervention is obvious
+
+    3. **Draw the accountability ceiling** (2 min) - A horizontal dashed line across the diagram separating
+    accountable outcomes from contributory ones
+
+    4. **Place interventions** (20 min) - Attach each program or activity to the arrow leading to the outcome it most
+    directly produces; check whether existing programs connect to any outcome at all
+
+    5. **Record rationales and assumptions** (30 min) - A reason on each arrow, assumptions about the environment as
+    notes; uncertain assumptions may be promoted to outcomes; color outcome kinds (longer-term, organizational capacity)
+
+    6. **Define indicators** (1-3 h with the evaluator) - Every outcome below the ceiling gets an indicator answering
+    who, how many, how much and by when
+
+    7. **Quality review** (30 min) - Plausible (right order, no big gaps), feasible (partners needed?) and testable
+    (solid indicators); structural checks for outcomes with no path to the goal and outcomes with no precondition or
+    intervention
+
+    8. **Hand off** (30 min) - One-slide diagram, a one-to-two-page narrative, the indicator table for the evaluation
+    plan; revise later as the program learns
+
+
+    **Decision Points**:
+
+    - Is this a precondition of the goal, or a parallel pathway, or a parking-lot item?
+
+    - How far down to unpack before an intervention is obvious?
+
+    - Where does the accountability ceiling go, and which outcomes sit above it?
+
+    - Which arrow does each intervention belong on?
+
+    - Which assumptions are uncertain enough to become outcomes?
+
+
+    **Information Needs**:
+
+    - Tier of every node (intervention, early, intermediate, long-term outcome) shown as vertical position
+
+    - Which outcomes lie below the ceiling and lack an indicator
+
+    - Outcomes with no path up to the goal, and outcomes with no precondition or intervention feeding them
+
+    - Rationale and assumptions on a clicked arrow; indicator fields on a clicked outcome
+
+    - The pathway from a chosen intervention up to the goal highlighted
+
+
+    **Pain Points**:
+
+    - Drawing software stores none of the outcomes, indicators, rationales or assumptions, so revision is painful
+
+    - Indicators live in a separate spreadsheet and drift from the diagram
+
+    - Automatic layouts ignore the tiers and put the goal anywhere but the top
+
+    - No automatic check for gaps in the logic; reviewers find them by eye
+
+    - The diagram that was readable on the wall becomes unreadable on one slide
+
+    - Tiers and indicators are lost when moving the diagram between tools
+
+
+    **Data Flow**:
+
+    - Input: Session notes or post-it photos typed in by hand; optionally a previous version or an outcome list from a
+    spreadsheet
+
+    - Transformations: Hand authoring of nodes and directed edges, tier attribute, layered bottom-to-top layout by tier,
+    horizontal ceiling band, structured fields on nodes (indicators) and edges (rationale, intervention), reachability
+    checks to the goal
+
+    - Output: One-slide diagram image, narrative and indicator table for the grant, data file that keeps tiers,
+    indicators and rationales for the next revision
+success_criteria:
+    - metric: Time from session notes to a reviewable diagram
+      target: Under 2 hours for about 40 outcomes
+    - metric: Structural completeness
+      target: User can list every below-ceiling outcome lacking an indicator and every outcome with no path to the goal
+    - metric: Round trip
+      target: Re-opening the saved file restores tiers, ceiling, indicators and rationales unchanged
+sources:
+    - title: ActKnowledge - Theory of Change Facilitator's Sourcebook
+      url: https://www.theoryofchange.org/wp-content/uploads/toco_library/pdf/ToCFacilitatorSourcebook.pdf
+      summary: Backwards mapping steps, 4-6 first-row preconditions, 3-4 levels, flipping barriers, accountability ceiling, interventions on arrows, indicators, plausible/feasible/testable
+    - title: ActKnowledge - Introduction to TOC Online
+      url: https://www.actknowledge.org/wp-content/uploads/2021/10/TOC-Online-Intro.pdf
+      summary: Elements of a TOCO map and why continuous revision needs software that stores outcome information
+    - title: Wikipedia - Theory of change
+      url: https://en.wikipedia.org/wiki/Theory_of_change
+      summary: Outcomes pathway and accountability ceiling
+    - title: TASO - Theory of Change Builder
+      url: https://taso.org.uk/tool/theory-of-change-builder/
+      summary: Hand-off as PowerPoint diagram and Word narrative
+    - title: Miro - Theory of change extension
+      url: https://miro.com/marketplace/theory-of-change/
+      summary: Assumptions, indicators and learning questions on a whiteboard
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

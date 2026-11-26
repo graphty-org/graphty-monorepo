@@ -1,0 +1,20 @@
+id: manual-layout-preservation
+name: Manual Layout Preservation
+category: visualization
+description: Hand-placed positions, alignment and grouping boxes that survive filtering, re-import and export, plus
+    exports stamped with date and sequence number.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W103
+    - W324
+    - W325
+    - W330
+    - W98
+    - W99
+implemented_by_components: []
+requirements:
+    - Pin nodes and keep positions across sessions and edits; mix author-fixed nodes with computed placement in one
+      view, with groups as regions.
+sources: []

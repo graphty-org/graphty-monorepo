@@ -1,0 +1,14 @@
+id: embeddable-map-export
+name: Embeddable interactive map
+category: export
+description: Publish a map with precomputed positions, clusters and labels as data plus embed code, without
+    recomputation on load, and import or export VOSviewer map, network and JSON files.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W50
+    - W58
+implemented_by_components: []
+requirements: []
+sources: []

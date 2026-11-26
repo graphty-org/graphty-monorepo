@@ -1,0 +1,144 @@
+id: W173
+name: Landscape Connectivity Graph with Graphab
+category: analysis
+validated: false
+personas:
+    - landscape-connectivity-planner
+requires_capabilities:
+    - data-import
+    - data-validation
+    - filtering
+    - centrality-betweenness
+    - centrality-degree
+    - shortest-path
+    - path-highlighting
+    - removal-impact-analysis
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - statistics-panel
+    - details-on-demand
+    - export-image
+    - data-export
+    - geographic-layout
+suggested_components:
+    - data-import-dialog
+    - file-drop-zone
+    - graph-canvas
+    - range-slider
+    - filter-panel
+    - impact-analysis-dialog
+    - ranked-node-table
+    - path-finder-dialog
+    - visual-encoding-panel
+    - legend-panel
+    - statistics-panel
+    - node-details-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: land-cover raster (8-bit GeoTIFF in meters), resistance cost per land-cover class, dispersal distances, existing reserve shapefiles
+    node_count: no source found for typical patch counts
+    edge_density: sparse (planar) to complete
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Turn a land-cover map into a graph of habitat patches linked by dispersal distances, measure how
+    connected the landscape is for a species, and rank patches, links and candidate restoration sites by how much
+    regional connectivity would change if they were lost or added, all shown on the map.
+
+
+    **Mental Model**: "Stepping stones on a map." Patches are nodes at their real locations, links are the cost of
+    moving between them, and importance means how much the whole network suffers when one piece is removed.
+
+
+    **Task Phases**:
+
+    1. **Load a land-cover raster** (5 min) - Discrete land-cover codes in a metric projection
+
+    2. **Define habitat** (5 min) - Habitat codes, a minimum patch area in hectares, 4- or 8-connectivity, or a vector
+    habitat layer; patch capacity defaults to area
+
+    3. **Assign resistance costs** (10 min) - One cost per land-cover class
+
+    4. **Build links** (5-30 min) - Euclidean or least-cost distance, planar or complete topology, maximum cost
+
+    5. **Build the graph** (2 min) - Optionally pruned by a distance threshold
+
+    6. **Compute metrics** (5 min) - Global probability of connectivity and integral index of connectivity; local
+    flux, betweenness and degree; distance converted to dispersal probability from a species distance and its
+    probability; recompute across a range of thresholds and plot against distance
+
+    7. **Rank patches and links** (10-60 min) - Remove each patch or link and record the drop in the global metric
+    (dPC, split into area, flux and connector fractions); remove the worst items iteratively; test candidate
+    restoration patches by adding them
+
+    8. **Map and export** (10 min) - Node color and link thickness on the map; export shapefile, GeoPackage or text
+
+
+    **Decision Points**:
+
+    - Which minimum patch area and resistance values?
+
+    - Euclidean or least-cost links, planar or complete?
+
+    - Which dispersal distance, or a range of them?
+
+    - Which patches and corridors to recommend?
+
+
+    **Information Needs**:
+
+    - Patch area, capacity and habitat type on hover
+
+    - Global metric value and its change for each removal, as a ranked table and on the map
+
+    - Metric plotted against dispersal distance
+
+    - Least-cost path between two patches highlighted on the map
+
+
+    **Pain Points**:
+
+    - Results swing with resistance values and dispersal distance
+
+    - Analysis lives in specialist tools while deliverables live in GIS
+
+    - Linkage Mapper is tied to ArcGIS
+
+    - Ordinary graph tools ignore geography
+
+
+    **Data Flow**:
+
+    - Input: Land-cover raster, resistance table, dispersal parameters, reserve and candidate site layers
+
+    - Transformations: Patch extraction, link computation, graph thresholding, connectivity metrics, removal and
+    addition analysis
+
+    - Output: Ranked patch and link tables, maps of importance and corridors, GIS layers
+success_criteria:
+    - metric: Geographic fidelity
+      target: Patches drawn at their real coordinates over the map in every view and export
+    - metric: Prioritization
+      target: A ranked list of patches by connectivity loss, visible on the map, in under 15 minutes after graph build
+    - metric: Sensitivity
+      target: Metrics shown across at least five dispersal distances without rebuilding the project
+sources:
+    - title: Graphab 3.0 manual
+      url: https://thema.univ-fcomte.fr/productions/software/graphab/download/manual-3.0-en.pdf
+      summary: Raster in meters, habitat definition, link sets, thresholds, PC, IIC, flux, betweenness, delta mode, iterative removal and patch addition
+    - title: graph4lg vignette - landscape graphs with Graphab from R
+      url: https://cran.r-project.org/web/packages/graph4lg/vignettes/landscape_graph_3.html
+      summary: graphab_project, graphab_habitat, graphab_link, graphab_graph with example patch areas and costs
+    - title: Saura and Torne 2009 - Conefor Sensinode 2.2
+      url: https://dblp.org/rec/journals/envsoft/SauraT09
+      summary: Node importance computed by removal
+    - title: Dickson et al. 2019 - Circuit-theory applications to connectivity science and conservation
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6727660
+      summary: Circuitscape treats a resistance raster as an electrical circuit
+    - title: Linkage Mapper discussion on ECOLOG-L
+      url: https://www.mail-archive.com/ecolog-l@listserv.umd.edu/msg30332.html
+      summary: Least-cost corridors between core areas, pinch points via Circuitscape and corridor ranking by centrality
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

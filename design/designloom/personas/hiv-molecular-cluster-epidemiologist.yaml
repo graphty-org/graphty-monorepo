@@ -1,0 +1,74 @@
+id: hiv-molecular-cluster-epidemiologist
+name: HIV Molecular Cluster Epidemiologist
+role: HIV Surveillance Epidemiologist, State Health Department
+quote: I have to find the clusters that are growing fast, write the line list by Friday, and never show anyone a network picture.
+bio: >-
+    Dana Okafor is one of two people running HIV cluster detection in a mid-size state health department. She has an
+    MPH, writes strong SAS, some R, and no command-line bioinformatics at all. Every month she exports persons and
+    sequences from the state eHARS surveillance system, runs the CDC-supplied SAS program that strips identifiers,
+    uploads the result to CDC's hosted Secure HIV-TRACE, and reads back networks built at both 0.5% and 1.5% TN93
+    genetic distance. Her working data is 1,000 to 5,000 HIV-1 pol sequences (CDC uses a 1,497-nucleotide protease
+    plus reverse transcriptase segment) joined to diagnosis dates, demographics, transmission category, viral
+    suppression and county. Only about 52% of diagnoses in 2021-2023 had a sequence at all, so she treats every
+    cluster as an undercount and says so in writing. She opens CDC's MicrobeTrace when contact data has to be drawn
+    on top of a genetic cluster, keeps line lists in Excel, and files cluster report forms through REDCap. She knows
+    thresholds, connected components and growth counts; she does not use centrality and does not need to.
+characteristics:
+    expertise: intermediate
+    time_pressure: high
+    graph_literacy: intermediate
+    domain_knowledge: advanced
+motivations:
+    - Catch a priority cluster locally before CDC's quarterly national report names it
+    - Rank clusters by recent growth so the monthly review spends its time on the right one
+    - Produce a cluster case definition, a narrative and a line list that a response team can act on
+    - Keep cluster identities stable month to month so growth is a real count, not renumbering
+    - Stay inside confidentiality rules and the program's instruction not to show network diagrams to partners
+behaviors:
+    - Works on a monthly cycle fixed by the program, with CDC reviewing nationally each quarter
+    - Exports from eHARS, de-identifies with the supplied SAS program, and uploads only de-identified data
+    - Reads clusters as connected components of a thresholded genetic distance network at 0.5% and 1.5%
+    - Checks automatically flagged national priority clusters (5 or more diagnoses in 12 months at 0.5%, or 3 or more in a small jurisdiction) and also defines locally monitored clusters
+    - Counts new members in the last 12 months per cluster and ranks clusters by growth relative to size
+    - Joins partner services, sexually transmitted infection and care data onto cluster members before the review
+    - Exports one node and edge file per cluster so a cluster becomes a line list rather than a column of cluster ids
+    - Writes the caveat that roughly half of diagnoses have no sequence into every narrative
+    - Shares counts, epi curves and narratives with program staff, never the network drawing
+frustrations:
+    - About 80% of CDC-detected clusters cross jurisdictions, and a local-only view misses roughly 20% of national clusters
+    - Going from "each node carries a cluster id" to "this cluster has these members" used to mean hand work in Excel
+    - A hosted analysis service means the whole monthly routine depends on someone else's funding and uptime
+    - Line lists have to be access-limited even with no names on them, because the combination is still identifying
+    - Network diagrams are easy to misinterpret, so the most legible artifact she has is the one she may not circulate
+    - Cluster numbering that changes between runs makes growth impossible to state honestly
+    - No way to show, in the same picture, that half the diagnoses have no sequence and therefore cannot appear
+context:
+    frequency: monthly
+    devices:
+        - laptop
+        - desktop
+    voluntary: false
+workflows:
+    - W61
+    - W63
+    - W65
+    - W66
+sources:
+    - title: Secure HIV-TRACE and national HIV molecular cluster detection (Emerging Infectious Diseases 2025)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC12078553/
+      summary: 148 users from 54 health departments, 792,360 uploaded sequences by April 2024, automatic priority cluster flagging since May 2023, local analysis misses about 20% of national clusters
+    - title: CDC HIV cluster detection guidance
+      url: https://www.cdc.gov/hiv/programresources/guidance/hiv-cluster-detection-and-response-guidance/cluster-detection.html
+      summary: Monthly health department and quarterly CDC cadence, the 0.5% priority cluster definition, eHARS export and the CDC-supplied de-identifying SAS program
+    - title: CDC cluster review and prioritization guidance
+      url: https://www.Cdc.gov/hiv/programresources/guidance/hiv-cluster-detection-and-response-guidance/cluster-review-and-prioritization.html
+      summary: The monthly review group, the prioritization criteria, access-limited line lists, and the instruction to avoid molecular network diagrams with partners
+    - title: MicrobeTrace issue 360 - export by cluster
+      url: https://github.com/CDCgov/MicrobeTrace/issues/360
+      summary: The request that turned a cluster id column into per-cluster node and edge files, replacing manual Excel work
+    - title: What do federal staffing cuts mean for the nation's HIV response (KFF, April 2025)
+      url: https://www.kff.org/policy-watch/what-do-federal-staffing-cuts-and-hhs-restructuring-mean-for-the-nations-hiv-response/
+      summary: Staffing cuts that removed five branches of CDC's HIV prevention division, the reason a hosted service is a continuity risk
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

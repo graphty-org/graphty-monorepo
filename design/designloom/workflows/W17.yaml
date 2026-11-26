@@ -10,6 +10,8 @@ requires_capabilities:
     - ego-network
     - centrality-degree
     - centrality-betweenness
+    - centrality-pagerank
+    - community-detection
     - temporal-analysis
     - details-on-demand
     - filtering
@@ -17,10 +19,12 @@ requires_capabilities:
     - layout-radial
     - selection-statistics
     - neighborhood-expansion
+    - hub-role-analysis
 suggested_components:
     - graph-canvas
     - ego-network-dialog
     - node-details-panel
+    - ranked-node-table
     - filter-panel
     - visual-encoding-panel
     - statistics-panel
@@ -32,81 +36,99 @@ starting_state:
     user_expertise: intermediate+
 goal: >-
     **Intent**: Understand the nature and role of highly connected nodes in the network. User has identified nodes with
-    unusually high degree and wants to understand if they're important, problematic, or artifacts.
+    unusually high degree and wants to understand if they're important, problematic, or artifacts. The research-grade
+    procedure is W41.
 
 
     **Mental Model**: "Examining the popular kids" - understanding why certain nodes have so many connections and what
-    role they play. Are they legitimate hubs, or suspicious concentrators?
+    role they play. High compared to what: their module, how often they were measured, and a random graph with the same
+    degrees.
 
 
     **Task Phases**:
 
-    1. **Hub Identification** - Find nodes with high degree or centrality
+    1. **Hub Identification** - Rank on several centralities (degree, betweenness, PageRank); include high-betweenness,
+    low-degree brokers that degree alone misses
 
-    2. **Ego Network Examination** - View the hub's immediate neighborhood
+    2. **Module-Relative Role** - Within-module degree z-score (z >= 2.5 marks a module hub) and participation
+    coefficient (P <= 0.30 provincial, higher connector)
 
-    3. **Attribute Analysis** - What do the hub and its neighbors have in common?
+    3. **Supernode and Artifact Check** - Flag nodes above a supernode cap (a shared address, a bank, a heavily studied
+    protein); check whether degree tracks collection or study effort
 
-    4. **Temporal Analysis** - Did the hub grow organically or suddenly?
+    4. **Ego Network Examination** - View the hub's neighborhood, expanding supernodes selectively
 
-    5. **Role Classification** - Is this a connector, broker, authority, or anomaly?
+    5. **Attribute and Temporal Analysis** - What the hub and neighbors share; did the hub grow organically or suddenly?
 
-    6. **Anomaly Assessment** - Is this hub expected or suspicious?
+    6. **Role Classification** - Provincial or connector; genuine, infrastructure or artifact; suspicious or expected
 
 
     **Decision Points**:
 
-    - What degree threshold defines a "hub"?
+    - Hub by within-module z, by comparison with a degree-preserving null, or by effort-normalized degree -- not by an
+    arbitrary degree cutoff
 
-    - Is this hub's centrality legitimate for its type?
+    - Is this hub's centrality legitimate for its type, or a product of how the data was collected?
 
-    - What type of hub is this (connector, broker, authority)?
+    - Above what degree is a node a supernode to cap or expand selectively?
 
     - Should this hub be investigated further as suspicious?
 
 
     **Information Needs**:
 
-    - Degree and centrality scores
+    - Several centrality scores side by side
 
-    - Ego network visualization (hub + neighbors)
+    - Within-module z and participation coefficient (role map)
 
-    - Attribute profiles (hub vs. neighbors vs. network average)
+    - Supernode flag and a collection-effort covariate where available
 
-    - Temporal growth pattern
+    - Ego network (hub + neighbors), expanded selectively
 
-    - Comparison to similar entity types
+    - Attribute profiles (hub vs. neighbors vs. network average) and temporal growth pattern
 
 
     **Pain Points**:
 
-    - Ego networks of high-degree nodes can be overwhelming
+    - Ego networks of high-degree nodes are overwhelming without a supernode cap
 
-    - Hard to distinguish legitimate hubs from data quality issues
+    - Data-collection artifacts look like hubs (a protein's degree largely reflects how often it was screened)
 
-    - No clear threshold for "suspiciously high" degree
+    - Raw degree thresholds have no basis in heavy-tailed networks
 
     - Hub analysis can be computationally expensive for very high-degree nodes
 
 
     **Data Flow**:
 
-    - Input: Graph with identified high-degree nodes
+    - Input: Graph with identified high-degree nodes, optional partition and collection-effort column
 
-    - Transformations: Ego network extraction, profile comparison, temporal analysis
+    - Transformations: Multi-centrality ranking, module-relative roles, supernode check, ego network extraction
 
-    - Output: Hub classification + explanation of role + anomaly flag if warranted
+    - Output: Hub classification with role, evidence and anomaly flag if warranted
 success_criteria:
     - metric: Hubs classified
-      target: Each major hub has a role assignment
-    - metric: Anomalies flagged
-      target: Suspicious hubs identified for investigation
+      target: Each major hub has a provincial or connector role and a genuine, infrastructure or artifact label
+    - metric: Threshold justified
+      target: Hub definition uses a module-relative, null-relative or effort-normalized criterion
     - metric: Roles explained
-      target: User can articulate why hub has high degree
+      target: User can articulate why the hub has high degree
 sources:
-    - title: Practical Graph Analysis Guide - Chapter 3
-      url: https://graphty.app/docs/
-      summary: Hub Investigation workflow pattern
-version: 1.0.0
+    - title: Functional cartography of complex metabolic networks (Guimera and Amaral 2005)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC2175124
+      summary: z >= 2.5 module hubs; provincial (P <= 0.30) vs connector hubs
+    - title: Schaefer et al. 2015, Frontiers in Genetics
+      url: https://www.frontiersin.org/journals/genetics/articles/10.3389/fgene.2015.00260/full
+      summary: Degree largely reflects the number of times a protein was screened
+    - title: Linkurious user manual - expand
+      url: https://doc.linkurious.com/user-manual/3.1/expand
+      summary: superNodeThreshold flags supernodes and limits their expansion
+    - title: Detecting rich-club ordering (Colizza et al. 2006)
+      url: https://arxiv.org/abs/physics/0602134
+      summary: Hub-to-hub connectivity meaningful only against a degree-preserving null
+    - title: Exploring and Analyzing Network Data with Python (Programming Historian)
+      url: https://programminghistorian.org/en/lessons/exploring-and-analyzing-network-data-with-python
+      summary: High-betweenness, low-degree brokers missed by degree alone
+version: 1.1.0
 created_at: 2026-01-16T16:42:38.801Z
-updated_at: 2026-01-16T16:42:38.801Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,128 @@
+id: W34
+name: Kinship Networks from Genealogies
+category: analysis
+validated: false
+personas:
+    - kinship-participatory-anthropologist
+requires_capabilities:
+    - data-import
+    - data-validation
+    - layout-hierarchical
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - path-highlighting
+    - all-paths-finding
+    - pattern-search
+    - component-analysis
+    - degree-analysis
+    - basic-statistics
+    - comparison-view
+    - export-image
+    - genealogy-layout
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - layout-panel
+    - visual-encoding-panel
+    - legend-panel
+    - path-finder-dialog
+    - pattern-search-dialog
+    - statistics-panel
+    - comparison-view
+    - graph-canvas
+    - image-export-dialog
+starting_state:
+    data_type: genealogy -- individuals with sex, directed parent-child links and undirected marriage or union links
+    node_count: 17-50000
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Analyze kinship as a network: check how complete the genealogy is, census the marriage circuits (who
+    marries whom along which kin paths), draw it by generation, and compare kinship structure across societies.
+
+
+    **Mental Model**: "A family tree that loops back on itself." Parent-child links give direction and generations;
+    marriages connect lines of descent, and the interesting structures are the cycles they close.
+
+
+    **Task Phases**:
+
+    1. **Record genealogies** (outside the tool) - In the field or from archives: individuals with sex, parent-child
+    links, marriages.
+
+    2. **Load** (estimate: 10 min) - Into Puck, or download a peer-reviewed dataset from Kinsources, an open-access
+    repository of kinship data in which Puck is integrated. (Puck's accepted file formats were not verified.)
+
+    3. **Check completeness** (estimate: 10 min) - Individuals without recorded parents and missing spouses; 24.8% of
+    individuals in the Kinsources aggregate have no recorded parent.
+
+    4. **Run a matrimonial census** (estimate: 30 min) - Puck's purpose is a complete census of marriage circuits in a
+    kinship network, which earlier tools lacked.
+
+    5. **Lay out by generation** (estimate: 15 min) - With no generation field, infer generations from parent-child
+    direction; one study layered networks with Graphviz into up to 40 pseudogenerations.
+
+    6. **Compare societies** (estimate: 1 hour) - Degree, components, assortativity and distances across datasets (one
+    2026 study analyzed 105 Kinsources datasets, 17 to about 50,000 individuals).
+
+
+    **Decision Points**:
+
+    - Which marriage circuit types and maximum path lengths to census?
+
+    - How to place individuals with no recorded parents in a generational layout?
+
+    - Treat parent-child and union links as separate edge types in every measure?
+
+
+    **Information Needs**:
+
+    - Count of individuals without parents, without spouses, and in disconnected fragments
+
+    - Inferred generation per individual
+
+    - Marriage circuits found, by type, with the paths highlighted
+
+    - Network measures per dataset side by side
+
+
+    **Pain Points**:
+
+    - Genealogy tools draw family trees but compute no network measures
+
+    - Network tools ignore generations and the parent versus spouse distinction
+
+    - No generation field in the data
+
+    - Incomplete records distort measures
+
+
+    **Data Flow**:
+
+    - Input: Genealogy files from fieldwork or Kinsources (individual table, parent-child links, unions)
+
+    - Transformations: Completeness check, generation inference, circuit census, network measures
+
+    - Output: Generational diagram, circuit census table, cross-society comparison table
+success_criteria:
+    - metric: Edge-type fidelity
+      target: Parent-child and union links remain distinct in layout, styling and measures
+    - metric: Generational layout
+      target: User can draw a genealogy layered by inferred generation without a generation field in the data
+sources:
+    - title: Puck -- La parente radiographiee
+      url: https://halshs.archives-ouvertes.fr/halshs-00445418
+      summary: Puck for a complete census of marriage circuits
+    - title: Puck project page
+      url: https://sourceforge.net/p/simpa-puck/
+      summary: Free Java software for kinship network analysis
+    - title: Kinsources platform
+      url: https://csac.anthropology.ac.uk/Research/Kinsources
+      summary: Peer-reviewed kinship data repository with Puck integrated (page unavailable when checked)
+    - title: Network analysis of 105 Kinsources datasets (2026)
+      url: https://arxiv.org/html/2606.18210
+      summary: Dataset sizes, 24.8% without parents, no generation field, pseudogeneration layering, cross-society measures
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

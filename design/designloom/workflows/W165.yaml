@@ -1,0 +1,144 @@
+id: W165
+name: Comparing Networks Across Sites, Seasons and Treatments
+category: analysis
+validated: false
+personas:
+    - pollination-network-ecologist
+    - ecological-network-synthesis-researcher
+requires_capabilities:
+    - comparison-view
+    - temporal-analysis
+    - temporal-navigation
+    - basic-statistics
+    - statistics-panel
+    - metric-histograms
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - style-presets
+    - export-image
+    - data-export
+    - network-collection-small-multiples
+    - null-model-ensembles
+    - bipartite-layout
+    - matrix-import
+    - bipartite-metrics
+suggested_components:
+    - comparison-view
+    - network-list-panel
+    - temporal-controls
+    - graph-canvas
+    - statistics-panel
+    - metric-card
+    - histogram
+    - legend-panel
+    - visual-encoding-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: many weighted bipartite networks (sites times seasons) sharing a species list
+    node_count: 30-210 per network, 8-160 networks
+    edge_density: moderate
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Compare many replicate networks (sites, seasons, weeks, treatments) to test the study hypothesis,
+    while accounting for unequal sampling and separating changes caused by different species from changes caused by
+    the same species interacting differently (rewiring).
+
+
+    **Mental Model**: "Small multiples with the same species in the same place." Every panel uses the same species
+    order, colors and scales, so the eye sees what changed.
+
+
+    **Task Phases**:
+
+    1. **Assemble comparable webs** (5 min) - Pad every network to one shared species list
+
+    2. **Check sampling completeness** (10 min) - Interaction accumulation curves and richness estimators per network,
+    noting links that are impossible (forbidden) because of phenology or size mismatch
+
+    3. **Compute null-corrected indices per network** (30 min) - Then export them to model against treatment
+
+    4. **Partition link turnover** (5 min) - Split dissimilarity between pairs of networks into species turnover and
+    rewiring, choosing the partitioning method
+
+    5. **Choose temporal resolution** (10 min) - Pooled season versus weekly or monthly windows, since pooling makes
+    many topology measures inaccurate
+
+    6. **Show side by side** (10 min) - Faceted panels with shared colors, ordering and scales, or a multilayer view
+    across sites or times
+
+    7. **Hand off** (10 min) - Multi-panel figure with aligned species, z-score table, beta-diversity components and a
+    completeness supplement
+
+
+    **Decision Points**:
+
+    - Is each network sampled well enough to compare?
+
+    - Pool the season or analyze weekly windows?
+
+    - Which link-turnover partitioning method?
+
+    - Which networks go in the figure, and in what panel order?
+
+
+    **Information Needs**:
+
+    - Per-network species counts, interaction counts and estimated completeness
+
+    - Index values and z-scores for every network in one table
+
+    - Pairwise turnover split into species turnover and rewiring
+
+    - Links present in one network and absent in another, highlighted
+
+
+    **Pain Points**:
+
+    - Comparison tools handle two networks, not dozens
+
+    - Each panel lays species out differently, so changes cannot be seen
+
+    - Incomplete sampling distorts connectance and nestedness and inflates specialization
+
+    - The older rewiring partition over-estimates rewiring
+
+
+    **Data Flow**:
+
+    - Input: Set of networks with site, season and treatment metadata
+
+    - Transformations: Padding to shared species, completeness estimation, per-network indices, turnover partitioning,
+    time-window aggregation
+
+    - Output: Aligned small-multiple figure, index and z-score table, beta-diversity table, completeness plots
+success_criteria:
+    - metric: Alignment
+      target: Every species keeps the same position and color across all panels
+    - metric: Scale
+      target: At least 40 networks shown side by side without manual layout
+    - metric: Completeness visibility
+      target: Each network's estimated sampling completeness is visible next to its indices
+sources:
+    - title: bipartite betalinkr help page
+      url: https://search.r-project.org/CRAN/refmans/bipartite/html/betalinkr.html
+      summary: Interaction beta diversity split into species turnover and rewiring with poisot and commondenom partitioning
+    - title: Poisot 2022 - Dissimilarity of species interaction networks
+      url: https://peercommunityjournal.org/item/10.24072/pcjournal.105.pdf
+      summary: Warns that the 2012 method over-estimates rewiring
+    - title: Frund et al. 2015 - Sampling bias is a challenge for quantifying specialization
+      url: https://williamslab.ucdavis.edu/wp-content/uploads/sites/384/2016/09/Fru%CC%88nd-et-al.-2015-Sampling-bias-is-a-challenge-for-quantifying-speci.pdf
+      summary: Incomplete sampling distorts network indices and inflates specialization
+    - title: bipartiteD3 introduction vignette
+      url: https://cran.r-project.org/web/packages/bipartiteD3/vignettes/bipartiteD3_Intro.html
+      summary: Faceted interactive bipartite plots with shared colors and ordering
+    - title: Schwarz et al. 2020 - Temporal scale-dependence of plant-pollinator networks
+      url: https://www.colorado.edu/lab/resasco/sites/default/files/attached-files/schwarz_et_al_2020_oikos.pdf
+      summary: 124,708 interactions from 159 sites analyzed for the effects of temporal aggregation
+    - title: emln - multilayer ecological networks
+      url: https://cran.r-project.org/web/packages/emln/readme/README.html
+      summary: Multilayer objects across sites or times and the MiRA browser viewer
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

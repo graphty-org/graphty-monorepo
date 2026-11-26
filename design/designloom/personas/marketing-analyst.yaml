@@ -1,44 +1,53 @@
 id: marketing-analyst
 name: Marketing Network Analyst
-role: Social Network Analyst / Growth Marketing Strategist
-quote: Show me who influences whom, and I'll show you where to spend the marketing budget.
-bio: Jordan has worked in growth marketing for 6 years, starting with traditional analytics before discovering the power
-    of network effects. She now specializes in influencer identification, community segmentation, and viral marketing
-    campaigns. She's learned that understanding the social graph is often more valuable than demographic data alone - the
-    right micro-influencer can outperform a celebrity if they're positioned at a key network bridge.
+role: Social Listening and Influencer Insights Analyst (Agency or Brand)
+quote: Tell me who is driving this conversation, which communities they reach, and which creators I can book without paying twice for the same audience.
+bio: >-
+    Jordan Reyes is an insights analyst at an agency who supports influencer and content strategy for brand clients.
+    She has a marketing and communications degree, lives in dashboards and Excel, and does not code. Her network views
+    come from inside commercial tools: a listening platform such as Pulsar TRAC, Brandwatch, Talkwalker or Meltwater
+    draws an engagement network of a conversation (authors linked by comments, replies and reposts, not by follows);
+    Audiense segments an audience into communities from who follows whom; and a creator platform such as HypeAuditor,
+    CreatorIQ or Modash vets creators for fake followers and reports audience overlap. She rarely holds a raw follower
+    graph - Instagram's API returns follower counts, not follower lists, and TikTok's Research API excludes commercial
+    users - so the graphs she works with are vendor-computed views and exports of hundreds to a few thousand nodes.
+    Occasionally she exports a Pulsar dataset or a NodeXL map to Gephi to build a bespoke figure for a client deck. She
+    knows that a big following predicts sales poorly and that seeding well-connected people works mainly because hubs
+    participate more, not because they persuade more.
 characteristics:
     expertise: intermediate
-    time_pressure: medium
+    time_pressure: high
     graph_literacy: moderate
     domain_knowledge: advanced
 motivations:
-    - Maximize ROI on marketing campaigns by targeting the right influencers
-    - Understand community structure to create more relevant messaging
-    - Predict which customers are at risk of churning based on network position
-    - Identify viral potential before competitors discover emerging influencers
-    - Build data-driven cases for marketing spend allocation
+    - Answer the client's question "to whom should I say what?" with a map of the conversation and its communities
+    - Find the accounts driving engagement in each community and the bridges between communities
+    - Build a creator roster with little audience duplication and no fake-follower risk
+    - Explain audience communities to a client in a deck they can understand without network jargon
+    - Justify budget with evidence beyond follower counts
 behaviors:
-    - Computes multiple centrality metrics to identify different types of influence (reach vs engagement vs brokerage)
-    - Uses community detection to segment audiences for targeted campaigns
-    - Analyzes ego networks around key customers to understand their social context
-    - Tracks network evolution to spot rising influencers early
-    - Exports ranked lists of influencers with engagement metrics for campaign planning
-    - Correlates network position with churn risk to prioritize retention efforts
-    - Creates visualizations showing information flow paths for campaign presentations
+    - Starts from a listening query (brand, category, competitor) or an audience definition (followers of an account, a bio keyword)
+    - Reads the vendor's influencer network - nodes sized by engagement generated, clusters colored automatically, filters applied live
+    - Clicks nodes to read the posts behind them before naming a community
+    - Segments audiences by interconnectivity (Louvain over follows inside the audience) or by affinity (shared accounts followed)
+    - Screens creators by engagement rate, fake-follower score, audience demographics, brand fit and rates, then reviews them by hand
+    - Checks audience overlap for up to 15 creators in a pairwise matrix; seeks low overlap for reach and high overlap for repeated exposure
+    - Exports PNG, SVG or XLS from the vendor, or a Gephi export for a custom figure, plus a ranked creator list with tiers
+    - Watches for dense interaction patterns that may signal coordination or paid amplification inside a conversation
 goals:
-    - Identify high-impact influencers for marketing campaigns
-    - Segment customers into communities for targeted messaging
-    - Predict and prevent customer churn using network signals
-    - Understand how information spreads through customer networks
-    - Measure the network effect of marketing interventions
+    - Map a brand or category conversation and name its communities
+    - Identify the central and bridging accounts in each community
+    - Select a creator roster with known audience overlap and screened for fake followers
+    - Present audience segments and network images to clients and campaign teams
 frustrations:
-    - Difficulty explaining network metrics to non-technical stakeholders
-    - Tools that can't handle social graphs with millions of users
-    - No easy way to combine network position with traditional customer attributes
-    - Lack of temporal analysis to track how influence changes over time
-    - Hard to measure attribution when effects spread through networks
+    - Fake followers and engagement fraud inflate creator metrics; one vendor attributes 56.5 percent of reported influencer-fraud issues to fake followers
+    - Vendor algorithms for clusters, influence and overlap are undocumented (HypeAuditor does not say how overlap is computed)
+    - Follower count predicts sales poorly, yet clients ask for it first
+    - Network views are locked inside each vendor with limited export, so combining sources means spreadsheets
+    - Overlap is limited to one platform and 15 creators, and overlap is not the same as delivered reach
+    - Network metrics are hard to explain to non-technical clients
 context:
-    frequency: weekly
+    frequency: as-needed
     devices:
         - desktop
         - laptop
@@ -46,12 +55,40 @@ context:
 workflows:
     - W04
     - W10
+    - W207
+    - W211
+    - W212
 sources:
-    - title: How Network Analysis Helps in Finding the Right Influencers
-      url: https://grin.co/blog/influencers-network-analysis/
-      summary:
-          Explains how network analysis uses centrality metrics and graph position to identify influential users beyond
-          simple follower counts
-    - title: Social Media Influencer Identification Using Graphs
-      url: https://www.analyticsvidhya.com/blog/2020/03/using-graphs-to-identify-social-media-influencers/
-      summary: Practical guide to building influencer graphs and computing network metrics for marketing
+    - title: Pulsar TRAC - general listening, audience insights and influencer network
+      url: https://intercom.help/pulsar/en/articles/7211144-trac-general-listening-audience-insights-influencer-network
+      summary: Engagement-based influencer network inside a listening tool, with full-dataset export to Gephi
+    - title: Pulsar TRAC - influencer network analysis
+      url: https://intercom.help/pulsar/en/articles/7210694-trac-influencer-network-analysis
+      summary: Authors sized by engagement, edges from comments, replies and reposts, automatic cluster colors
+    - title: Pulsar - community segmentation options, affinity vs interconnectivity
+      url: https://intercom.help/pulsar/en/articles/11056036-new-community-segmentation-options-in-trac-affinity-vs-interconnectivity
+      summary: Louvain over follows inside an audience versus clustering by shared accounts followed
+    - title: HypeAuditor help - audience overlap
+      url: https://help.hypeauditor.com/en/articles/6281325-audience-overlap
+      summary: Overlap count, percentage and pairwise matrix for up to 15 creators on one platform; method not disclosed
+    - title: Instagram Business Discovery API
+      url: https://developers.facebook.com/docs/instagram-platform/instagram-api-with-facebook-login/business-discovery
+      summary: Returns follower counts and media for other business accounts, not follower lists
+    - title: TikTok Research API
+      url: https://developers.tiktok.com/products/research-api
+      summary: Research access limited to non-commercial researchers
+    - title: impact.com - influencer fraud prevention
+      url: https://impact.com/influencer/influencer-fraud-prevention/
+      summary: Fake followers cited as 56.5 percent of reported influencer-fraud issues (vendor figure)
+    - title: American Marketing Association - Seeding strategies for viral marketing (Hinz et al.)
+      url: https://ama.org/2019/01/16/seeding-strategies-for-viral-marketing-an-empirical-comparison
+      summary: Seeding hubs is up to eight times more successful because hubs participate more, not because they influence peers more
+    - title: Hunter PR - Social listening and intelligence analyst job posting
+      url: https://careers-hunterpr.icims.com/jobs/7167/social-listening-%26-intelligence-analyst/job
+      summary: Self-report of the listening analyst role at an agency
+    - title: Ahmed, Meier and Smith - NodeXL, a guide to network insights (SAGE chapter, author version)
+      url: https://dspace.stir.ac.uk/retrieve/f1292af1-5cdb-400b-820a-bccae8f82e1f/NodeXL%20-%20a%20guide%20to%20network%20insights%20-%20Author%20Version.pdf
+      summary: Frames the marketer's question as "to whom should I say what?" and notes brands want to foster communities
+version: 1.1.0
+created_at: 2026-09-08T02:34:20.000Z
+updated_at: 2026-11-25T00:00:00.000Z

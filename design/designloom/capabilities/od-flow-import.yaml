@@ -1,0 +1,22 @@
+id: od-flow-import
+name: Origin-destination flow import
+category: data
+description: Import a place table plus a flow table joined by id (long form or square matrix, CSV/Excel/OMX),
+    recognizing lat/lon, several counts per pair and a time column; report flows whose ids match no place; clean release
+    quirks such as total rows and ids that lost leading zeros; carry zone system and time window as metadata.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W380
+    - W381
+    - W382
+    - W383
+    - W385
+    - W386
+    - W387
+    - W388
+    - W389
+implemented_by_components: []
+requirements: []
+sources: []

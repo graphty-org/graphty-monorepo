@@ -1,0 +1,151 @@
+id: W372
+name: Comparing Psychological Networks Across Groups or Time Points
+category: analysis
+validated: false
+personas:
+    - symptom-network-researcher
+    - experience-sampling-dynamics-researcher
+    - network-psychometrics-methodologist
+requires_capabilities:
+    - data-import
+    - comparison-view
+    - visual-encoding-edges
+    - visual-encoding-nodes
+    - legend-display
+    - layout-force-directed
+    - filtering
+    - hover-highlight
+    - tooltip-display
+    - statistics-panel
+    - export-image
+    - data-export
+    - signed-edges
+    - matrix-import
+    - shared-fixed-layout
+    - interpretable-distance-layout
+suggested_components:
+    - data-import-dialog
+    - comparison-view
+    - graph-canvas
+    - visual-encoding-panel
+    - legend-panel
+    - layout-panel
+    - heatmap-panel
+    - histogram
+    - node-tooltip
+    - image-export-dialog
+starting_state:
+    data_type: two to four weights matrices on the same item set (one per group or time point) plus NetworkComparisonTest results (global strength, maximum edge difference, per-edge and per-centrality p-values)
+    node_count: 10-30 per network
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Show whether two or more groups (widowed vs separated, clinic vs community, four trial sites) or time
+    points have different networks, drawn so they can be compared fairly. More than half of temporal network articles
+    compared networks; the standards say visual comparison "is not recommended in isolation", so the test results
+    must sit beside the drawings.
+
+
+    **Mental Model**: "Same items, same positions, same scale, then look for what changed -- and check the test before
+    believing the eye." Equal layouts are required for comparison but can make networks look more similar than they
+    are.
+
+
+    **Task Phases**:
+
+    1. **Estimate one network per group** (in R) - Same estimator, gamma and items; for example 290 widowed and 434
+    separated respondents, 12 CES-D items plus a life-event node
+
+    2. **Test** (minutes to hours) - NetworkComparisonTest with 1,000 permutations, per-edge and per-centrality tests,
+    Holm adjustment; users cut iterations to 10 for large networks; output is permutation histograms, not graphs
+
+    3. **Similarity** (2 min) - Correlate the weight matrices (0.62 to 0.74 across four PTSD sites)
+
+    4. **Load and align** (5 min) - Load each matrix, compute one shared layout from the averaged weights or reuse
+    supplied coordinates, and set one maximum edge weight for all panels
+
+    5. **Compare** (10 min) - Side-by-side panels with synced zoom; highlight edges whose NCT test is significant;
+    optionally a difference network
+
+    6. **Interpretable distances (optional)** (10 min) - MDS layout on absolute weights with a stress value (0.189 in
+    one example), Procrustes alignment between groups (congruence 0.930)
+
+    7. **Figure** (5 min) - Side-by-side panels with identical maxima and a caption giving each network's minimum and
+    maximum edge
+
+
+    **Decision Points**:
+
+    - Averaged layout, one group's layout, or MDS with Procrustes alignment?
+
+    - One shared maximum, or separate maxima stated in the caption?
+
+    - Which edge differences survive the multiple-testing adjustment?
+
+    - Is a visual difference backed by the invariance test?
+
+
+    **Information Needs**:
+
+    - Which edges differ significantly between groups, drawn on the network rather than as a list
+
+    - Global strength per network and the weight-matrix correlation
+
+    - Each network's minimum and maximum edge for the caption
+
+    - Stress and congruence when MDS and Procrustes are used
+
+
+    **Pain Points**:
+
+    - Two group networks get different spring layouts and must be forced into one by hand
+
+    - NCT output is histograms only, with no graph of which edges differ
+
+    - NCT is slow and users cut permutations to make it finish
+
+    - JASP has a shared layout but no NCT or difference matrix
+
+    - Equal layouts can suggest more similarity than exists
+
+
+    **Data Flow**:
+
+    - Input: Two to four weights matrices on one node set, node table, NCT result table
+
+    - Transformations: Shared layout from averaged absolute weights or supplied coordinates, common maximum,
+    per-edge difference join, optional MDS and Procrustes alignment
+
+    - Output: Synced side-by-side panels with significant differences marked, caption facts, exported figure
+success_criteria:
+    - metric: Shared layout
+      target: All panels use identical node positions with one action
+    - metric: Comparable scale
+      target: All panels use one stated maximum edge weight unless the user chooses separate maxima
+    - metric: Test beside picture
+      target: Edges with significant NCT differences are identifiable on the drawing
+sources:
+    - title: NetworkComparisonTest reference
+      url: https://cran.r-project.org/web/packages/NetworkComparisonTest/refman/NetworkComparisonTest.html
+      summary: NCT arguments, defaults it = 100 and paired = FALSE, edge and centrality tests
+    - title: van Borkulo et al. 2023 - Comparing network structures on three aspects
+      url: https://pure.uva.nl/ws/files/225456052/00060744-202312000-00004.pdf
+      summary: Network structure, global strength and per-edge invariance tests
+    - title: qgraph averageLayout
+      url: https://search.r-project.org/CRAN/refmans/qgraph/html/averageLayout.html
+      summary: One layout from several networks
+    - title: Jones, Mair and McNally 2018 - Visualizing psychological networks
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6156459/
+      summary: MDS with stress and Procrustes congruence; force-directed positions cannot be interpreted
+    - title: Four-site PTSD network replicability study
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5974702
+      summary: Weight-matrix correlations of 0.62 to 0.74
+    - title: Burger et al. 2023 - Reporting standards
+      url: https://pure.uva.nl/ws/files/184239260/ContentServer_2_.pdf
+      summary: Same layout and maximum for compared networks; warning that equal layouts suggest similarity
+    - title: bootnet issue 113
+      url: https://github.com/SachaEpskamp/bootnet/issues/113
+      summary: Users reduce NCT iterations to 10 for large networks
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

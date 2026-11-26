@@ -1,0 +1,14 @@
+id: validation-report-overlay
+name: Validation Report Overlay
+category: export
+description: Load a SHACL validation report or ROBOT QC report alongside the data, color nodes by violation, group by
+    rule, shape and severity, and show counts on the class tree.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W135
+    - W137
+implemented_by_components: []
+requirements: []
+sources: []

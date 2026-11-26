@@ -1,0 +1,20 @@
+id: event-log-import
+name: Event Log Import
+category: data
+description: Import event tables (CSV, Excel, XES, XES.gz, MXML, OCEL 2.0) with column roles (case from one or several
+    columns, activity, one or two timestamps, resource, other), role and timestamp-pattern guessing with override,
+    joining a case table to an event table, turning timestamp columns of a case row into activities, and a parse report
+    with tie, date-only and incomplete-case warnings.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W339
+    - W340
+    - W344
+    - W346
+    - W347
+    - W348
+implemented_by_components: []
+requirements: []
+sources: []

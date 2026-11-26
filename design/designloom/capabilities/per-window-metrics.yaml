@@ -1,0 +1,17 @@
+id: per-window-metrics
+name: Per-Window Metrics
+category: analysis
+description: Run any built-in algorithm in sliding and cumulative windows and return a tidy table (window start, end,
+    node or graph, metric, value) plus a time-series chart; compare several window lengths side by side.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W19
+    - W304
+    - W307
+    - W310
+    - W311
+implemented_by_components: []
+requirements: []
+sources: []

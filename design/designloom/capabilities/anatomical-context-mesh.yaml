@@ -1,0 +1,15 @@
+id: anatomical-context-mesh
+name: Anatomical Context Mesh
+category: analysis
+description: Show a translucent background surface (brain mesh such as ICBM152, fsaverage, fs_LR; GIfTI or OBJ) in the
+    same space as the nodes, with opacity control, plus region overlays such as a resection mask.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W152
+    - W158
+    - W159
+implemented_by_components: []
+requirements: []
+sources: []

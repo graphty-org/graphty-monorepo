@@ -1,0 +1,16 @@
+id: in-place-data-editing
+name: Edit Data in Place
+category: analysis
+description: Correct names, ids and attributes in the loaded graph without returning to the source spreadsheet, and
+    re-import an updated source while keeping styles and notes keyed by id.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W174
+    - W175
+    - W177
+    - W182
+implemented_by_components: []
+requirements: []
+sources: []

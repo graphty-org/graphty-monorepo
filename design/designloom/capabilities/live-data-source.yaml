@@ -1,0 +1,24 @@
+id: live-data-source
+name: Live Graph Data Source
+category: analysis
+description: Connect to a graph database or warehouse graph (Neo4j Bolt/HTTP, Neptune, Gremlin Server, SPARQL endpoint,
+    BigQuery/Spanner/Fabric/Oracle graphs) and fetch subgraphs on demand instead of importing a file; search, expand and
+    paging run against the store, read-only by default, through a documented adapter so consumers write no fetch or
+    mapping code.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W02
+    - W142
+    - W143
+    - W146
+    - W150
+    - W151
+    - W296
+    - W301
+implemented_by_components: []
+requirements:
+    - Connect to a graph database, SPARQL endpoint or repository with credentials kept locally, show the result count
+      before loading, cap it, expand later, and refresh with stable ids so positions and notes survive.
+sources: []

@@ -1,0 +1,14 @@
+id: genealogy-import
+name: GEDCOM and Genealogy Model Import
+category: data
+description: Import GEDCOM as an Ore graph (people, parent-child arcs, marriage edges) or a p-graph (family nodes),
+    keeping dates, child relationship type (birth, adopted, foster, step) and privacy flags.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W183
+    - W185
+implemented_by_components: []
+requirements: []
+sources: []

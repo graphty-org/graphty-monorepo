@@ -1,0 +1,143 @@
+id: W103
+name: Producing a Court or Briefing Chart by Hand
+category: reporting
+validated: false
+personas:
+    - crime-intelligence-analyst
+    - prosecution-trial-analyst
+    - intelligence-analyst
+    - crypto-tracing-investigator
+requires_capabilities:
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - annotation
+    - style-presets
+    - filtering
+    - details-on-demand
+    - export-image
+    - data-export
+    - report-generation
+    - provenance-tracking
+    - source-grading
+    - manual-layout-preservation
+    - redacted-sharing
+suggested_components:
+    - graph-canvas
+    - visual-encoding-panel
+    - legend-panel
+    - annotation-toolbar
+    - filter-panel
+    - node-details-panel
+    - image-export-dialog
+    - data-export-dialog
+    - share-dialog
+starting_state:
+    data_type: a working case chart (association, timeline, flow or cell-site) with graded, sourced items
+    node_count: under 20 to about 60 entities on the final chart
+    edge_density: sparse
+    user_expertise: intermediate+
+goal: >-
+    **Intent**: Turn a working chart into a small exhibit or briefing chart that a juror or commander understands
+    quickly, where every symbol means the same thing everywhere, line style shows how well each link is supported, and
+    every element traces to a record the other side has. In US courts phone-contact charts are usually admitted as
+    summaries of voluminous records (Federal Rule of Evidence 1006).
+
+
+    **Mental Model**: "A chart is a tool, not a product." UNODC's seven steps: assemble data, determine the focus,
+    build an association matrix, code each association, count links "across and down", draw a preliminary chart, and
+    "clarify and re-plot" to remove long and crossed lines. Position is chosen by hand because it carries meaning.
+
+
+    **Task Phases**:
+
+    1. **Assemble and focus** (30 min) - Choose the question the chart answers and the entities it needs
+
+    2. **Code associations** (30 min) - Matrix of who is associated with whom, each association coded by its grade;
+    count links across and down to find the most-linked entities
+
+    3. **Draw a preliminary chart** (30 min) - Most-linked entities in the center; circles for people, rectangles for
+    organizations; confirmed links solid and suspected links dotted (confirmed only when graded A1, A2, B1 or B2);
+    hypothesized links visibly different; line color or dash by activity type (money, communications) with a legend
+
+    4. **Clarify and re-plot** (30-90 min) - Move entities by hand to remove long and crossed lines; align; group in
+    boxes
+
+    5. **Mark the chart** (5 min) - Time, date and sequence number on every version, a key, and fact separated from
+    judgment
+
+    6. **Distribute** (15 min) - A redacted copy per audience or classification level, PDF, large-format poster, or a
+    read-only viewer copy
+
+
+    **Decision Points**:
+
+    - What single question does this chart answer?
+
+    - Which links are confirmed, suspected or hypothesized, given their grades?
+
+    - What must be redacted for each audience?
+
+    - Which version is current for disclosure?
+
+
+    **Information Needs**:
+
+    - Grade and source of every item
+
+    - Link counts per entity to choose the center
+
+    - The underlying records for each line, exportable as a list
+
+    - Version history with dates and sequence numbers
+
+
+    **Pain Points**:
+
+    - Automatic layouts move a hand-arranged exhibit
+
+    - Line style must be set by hand from the grade instead of following it
+
+    - Exports lack date, sequence number, key or legend
+
+    - Redacted copies are made by hand for each audience
+
+
+    **Data Flow**:
+
+    - Input: Working chart with graded and sourced entities and links
+
+    - Transformations: Focus filter, association coding, grade-to-line-style mapping, manual layout, marking and
+    redaction
+
+    - Output: Exhibit or briefing chart (image, PDF, poster, read-only copy) with key, version marking and a list of
+    underlying records
+success_criteria:
+    - metric: Grade-driven styling
+      target: Changing an item's grade changes its line style without manual restyling
+    - metric: Layout stability
+      target: Hand positions survive filtering, re-import and export
+    - metric: Disclosure readiness
+      target: Every export carries date, sequence number and key, and the underlying records export as a list
+sources:
+    - title: UNODC Criminal Intelligence Manual for Analysts, chapter 6
+      url: https://www.azdps.gov/sites/default/files/2023-07/Criminal_Intelligence_Manual_for_Analysts.pdf
+      summary: Seven-step charting method, confirmed solid and suspected dotted lines, A1/A2/B1/B2 confirmation rule, charts timed, dated and sequence-numbered for disclosure
+    - title: Law Enforcement Analytic Standards, 2nd edition
+      url: https://www.azdps.gov/sites/default/files/2023-07/Law_Enforcement_Analytic_Standards_2nd_edition.pdf
+      summary: Data source attribution and separation of fact from judgment in analytic products
+    - title: American Bar Association - Show and Tell, Summaries and Demonstrative Evidence
+      url: https://www.americanbar.org/groups/family_law/publications/family-advocate/2022/spring/show-and-tell-summaries-and-demonstrative-evidence/
+      summary: Federal Rule of Evidence 1006 summaries require admissible underlying records available to the other side
+    - title: i2 Analyst's Notebook 9.4 - present and distribute charts
+      url: https://docs.i2group.com/anb/9.4.0/present_and_distribute_charts.html
+      summary: Save a Redacted Copy and Chart Reader for distribution (search excerpt)
+    - title: Army ATP 2-33.4 Intelligence Analysis, 5-20
+      url: https://irp.fas.org/doddir/army/atp2-33-4.pdf
+      summary: Doctrinal shapes and colored or dashed lines by activity with a legend
+    - title: R v Calland [2017] EWCA Crim 2308
+      url: https://caselaw.nationalarchives.gov.uk/ewca/crim/2017/2308
+      summary: Court scrutiny of a prosecution chart and the need for an alternative version
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

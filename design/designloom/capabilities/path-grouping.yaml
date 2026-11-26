@@ -1,0 +1,14 @@
+id: path-grouping
+name: Path Grouping
+category: analysis
+description: Collapse paths that reach the same target through the same chain into one finding listing all affected
+    sources, with a count.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W108
+    - W114
+implemented_by_components: []
+requirements: []
+sources: []

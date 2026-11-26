@@ -1,0 +1,62 @@
+id: causal-rca-data-scientist
+name: Causal Root-Cause Analysis Data Scientist
+role: Senior Data Scientist on a Platform Reliability or Business Analytics Team
+quote: The checkout latency spiked. Give me the ranked list of upstream services that explain it, with error bars, on the service graph the on-call engineer already knows.
+bio: >-
+    Arjun Mehta is a senior data scientist on an e-commerce platform's reliability and analytics team. When a metric
+    spikes or shifts -- website latency, revenue, profit -- he uses graphical causal models in DoWhy's GCM module to
+    attribute it to upstream causes. His causal graph is not learned from scratch: he takes the service call graph from
+    tracing (for example AWS X-Ray) and reverses its arrows, because latency flows from callee to caller, or he writes a
+    small business graph by hand (ad spend, page views, unit price, sold units, revenue, cost, profit). Graphs run from
+    about 10 nodes to a few hundred metric nodes. He fits mechanisms on normal-period data, evaluates whether the data
+    reject the graph, attributes a single anomaly or a lasting distribution change to nodes with bootstrap confidence
+    intervals, and simulates what-if fixes. His results come back as bar charts beside the graph, which on-call engineers
+    and business owners must mentally map back onto the topology.
+characteristics:
+    expertise: advanced
+    time_pressure: high
+    graph_literacy: intermediate
+    domain_knowledge: advanced
+motivations:
+    - Get a ranked, confidence-bounded list of upstream causes for an anomaly or a lasting shift
+    - Estimate the effect of a fix before anyone deploys it
+    - Show results on the service or business graph the on-call engineer already trusts
+    - Keep the causal graph in sync with the real topology as services change
+behaviors:
+    - Exports the service dependency graph from tracing and inverts every edge to get the latency causal graph
+    - Writes small business causal graphs by hand as a NetworkX DiGraph
+    - Assigns causal mechanisms automatically or by hand and fits on normal-period data
+    - Runs model evaluation to flag violated assumptions per node and test whether data reject the graph
+    - Attributes an anomaly at a target node with bootstrap confidence intervals and reads a bar chart of per-node scores
+    - Attributes a distribution change between normal and incident periods to changed mechanisms
+    - Simulates interventions (reduce one service's latency by one second) and reads the change at the target
+    - Computes arrow strength and intrinsic causal influence to explain what drives a business metric
+frustrations:
+    - Results are bar charts detached from the graph; nobody can see the path from root cause to symptom
+    - Causal discovery methods struggle with large graphs and edge directions; run time grows with the number of services
+    - DoWhy GCM models have no interchange file format beyond pickled Python objects
+    - Negative attribution scores (a node made the anomaly less likely) confuse readers without explanation
+context:
+    frequency: weekly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W429
+sources:
+    - title: DoWhy GCM - root-cause analysis in a microservice architecture
+      url: https://www.pywhy.org/dowhy/main/example_notebooks/gcm_rca_microservice_architecture.html
+      summary: Invert the service graph for latency, 11 nodes and 13 edges, anomaly and distribution-change attribution, interventional what-if
+    - title: AWS Open Source blog - root cause analysis with DoWhy
+      url: https://aws.amazon.com/blogs/opensource/root-cause-analysis-with-dowhy-an-open-source-python-library-for-causal-machine-learning
+      summary: Hand-written business graph explaining a profit drop; arrow strength, intrinsic causal influence, negative scores
+    - title: Pham, Ha and Zhang - ASE 2024 evaluation of causal-inference RCA methods
+      url: https://arxiv.org/html/2408.13729v1
+      summary: 21 methods, up to 212 metrics; discovery struggles with large graphs and edge directions; run time grows with system size
+    - title: DoWhy repository
+      url: https://github.com/py-why/dowhy
+      summary: Accepts GML, DOT or NetworkX DiGraph causal graphs
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

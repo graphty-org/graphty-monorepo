@@ -1,0 +1,69 @@
+id: prosecution-trial-analyst
+name: Prosecution Trial Analyst
+role: Trial and Investigative Analyst, District Attorney's Office or Federal Task Force
+quote: Every line on this exhibit has to point to a record the defense already has, and I need a second version ready in case the judge strikes eleven of them.
+bio: >-
+    Gail Brennan was a police analyst for eight years before moving to a district attorney's office, where she supports
+    prosecutors on homicide, robbery-crew and conspiracy cases. Her work starts where the investigation's charts end:
+    she takes certified carrier records, cell-site lists, phone extraction reports and the exhibit index, and builds the
+    timeline, association and cell-site charts that a witness will walk a jury through. The model cases are the Dallas
+    "Scarecrow bandits" robbery series, charted in i2 Analyst's Notebook from about 150,000 tower records down to fewer
+    than ten phones, and the UK case R v Calland, where the court ruled on a "detailed sequence of events chart" and the
+    trial judge required an alternative chart without 11 contested occasions. Her charts are small (tens of entities),
+    laid out by hand, dated and sequence-numbered, and every element must be traceable to a disclosed record. In US
+    courts they are usually admitted as summaries of voluminous records under Federal Rule of Evidence 1006.
+characteristics:
+    expertise: expert
+    time_pressure: high
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Produce an exhibit a juror understands in under a minute
+    - Make every line on a chart trace to a record that was disclosed to the defense
+    - Keep alternative versions ready for each possible ruling on contested evidence
+    - Show only what the evidence supports, so a summary witness survives cross-examination
+    - Reuse the investigation's charts without re-entering the data
+behaviors:
+    - Lays out timeline and association charts by hand because position, order and alignment carry meaning
+    - Dates, times and sequence-numbers every chart version for disclosure
+    - Draws hypothesized or contested events and links differently from confirmed ones
+    - Keeps text on each event to three or four words, with the record reference behind it
+    - Saves redacted copies for different audiences and prints large-format posters for court
+    - Has cell-site maps verified by a second method and labeled with legends, distance scales and true aspect ratio
+    - Works with the prosecutor to cut a chart down to what the judge allows
+frustrations:
+    - 'Judges strike inferences the data cannot carry, as in Calland: "wrongly conflating the position of the mast with the inferences which can properly be drawn"'
+    - Rebuilding a chart by hand when one category of events is excluded
+    - Automated map plots that must be re-checked by manual mapping before court
+    - Tools that re-run a layout and destroy a carefully arranged exhibit
+    - Exports with no date, version number or legend
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: false
+workflows:
+    - W97
+    - W99
+    - W100
+    - W103
+sources:
+    - title: i2 Group - Catching the Scarecrow Bandits
+      url: https://i2group.com/articles/catching-the-scarecrow-bandits
+      summary: Dallas robbery series where about 150,000 tower records were reduced to fewer than ten phones and charted in Analyst's Notebook
+    - title: R v Calland [2017] EWCA Crim 2308
+      url: https://caselaw.nationalarchives.gov.uk/ewca/crim/2017/2308
+      summary: Court of Appeal on a sequence-of-events chart and cell-site inferences; trial judge asked for an alternative chart without 11 contested occasions
+    - title: SWGDE Recommendations for Cell Site Analysis 17-F-001 v2.0
+      url: https://www.swgde.org/wp-content/uploads/2024/06/2023-12-18-SWGDE-Recommendations-for-Cell-Site-Analysis-17-F-001-2.0.pdf
+      summary: Court maps verified by a second method, with legends, distance scales and preserved aspect ratios; drafts marked as not fully verified
+    - title: American Bar Association - Show and Tell, Summaries and Demonstrative Evidence
+      url: https://www.americanbar.org/groups/family_law/publications/family-advocate/2022/spring/show-and-tell-summaries-and-demonstrative-evidence/
+      summary: Summaries of voluminous records under Federal Rule of Evidence 1006 require the underlying records to be admissible and available to the other side
+    - title: UNODC Criminal Intelligence Manual for Analysts
+      url: https://www.azdps.gov/sites/default/files/2023-07/Criminal_Intelligence_Manual_for_Analysts.pdf
+      summary: Charts should be timed, dated and sequence-numbered for disclosure; confirmed links solid, suspected dotted; event text of three or four words
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,15 @@
+id: case-list-triage
+name: Ranked case list triage
+category: analysis
+description: A list of cases produced by a saved pattern query or a seeded score, grouped by target entity, sortable by
+    score, amount or age, each row opening its case subgraph, with assign, comment and confirm or dismiss statuses
+    recorded in a case history and exported as labels. Replaces the anomaly-panel role described in the persona index
+    section 7.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W336
+implemented_by_components: []
+requirements: []
+sources: []

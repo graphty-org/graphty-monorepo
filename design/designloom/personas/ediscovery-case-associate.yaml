@@ -1,0 +1,71 @@
+id: ediscovery-case-associate
+name: eDiscovery Case-Team Associate
+role: Litigation Associate at a Large Firm, or In-House eDiscovery Counsel
+quote: Who are the key players, which custodians do we review first, and can I defend that list to the other side?
+bio: >-
+    Marcus is a litigation associate at a large firm (or, in the in-house version, eDiscovery counsel at a company)
+    who runs early case assessment and custodian strategy. He works in Everlaw or Relativity, opens the people graph
+    from a search result, and reads it to "identify the key players": who sent and received the most, who sits between
+    groups, and who turns up that nobody named in interviews. He uses the graph to decide which custodians to add,
+    drop or review first in a phased review, then writes a custodian memo in Word and defends the list at a
+    meet-and-confer or to an agency; in FTC merger Second Requests the agency now asks parties to describe custodians'
+    responsibilities and how they will use eDiscovery tools. He sends selections from the graph straight into search
+    and review batches and later uses the people-fact-issue chronologies that generative fact extraction produces for
+    deposition preparation. He reads node size, edge thickness and color clusters, and can pick PageRank or
+    betweenness from a menu, but he does not know that a graph built from collected mailboxes inflates custodians'
+    centrality.
+characteristics:
+    expertise: intermediate
+    time_pressure: high
+    graph_literacy: moderate
+    domain_knowledge: expert
+motivations:
+    - Identify the key players in a collection or search result early
+    - Decide which custodians to collect, review first, add or drop, and defend that list
+    - Find people who were never named but communicate with the key players
+    - Send the documents behind a selection straight to review or to a colleague
+    - Prepare witness summaries and deposition outlines from the people and facts tied to each issue
+behaviors:
+    - Opens the people graph on the whole project or on the current search, not as a separate tool
+    - Starts from the default top-N view (top 10 names in Everlaw) and specifies a few names to expand their neighbors
+    - Switches between names, email addresses and domains as the node type
+    - Toggles To, Cc and Bcc and drops mass mailings by recipient count to remove blast-email hubs
+    - Double-clicks a node or a link to turn it into a search for that person or that pair
+    - Uses color clusters and a centrality menu to rank people, then reads their documents
+    - Writes a custodian list and memo for the meet-and-confer, with a graph image pasted in
+frustrations:
+    - Graph counts that do not match the document list because of duplicates or inclusive-only views
+    - Blast emails and distribution lists make everyone a hub
+    - Everlaw's view is capped at 25 total name nodes and Relativity draws only the largest 500 entities, without saying how many were left out
+    - Key-player rankings that partly restate who was collected rather than who mattered
+    - No record of which caps, filters and merges produced the picture in the memo
+context:
+    frequency: as-needed
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W363
+    - W364
+    - W365
+    - W368
+sources:
+    - title: Everlaw - Introducing Communication Visualizer (2023)
+      url: https://www.everlaw.com/blog/2023/03/20/introducing-communication-visualizer/
+      summary: Identify the key players; exploration and selection modes; share and assign document sets behind a selection
+    - title: Lets Get Visual - Supercharging eDiscovery with Data Visualization (Casey, Reveal, 2022)
+      url: https://revealdata.com/blog/lets-get-visual-supercharging-ediscovery-with-data-visualization
+      summary: Former law-firm eDiscovery program head on using communication graphs to expand or reduce in-scope custodians
+    - title: Reveal - Communications
+      url: https://docs.revealdata.com/docs/communications
+      summary: Communicators or Domains, Max Node Count 100 and Max Link Count 1,000 defaults, Add to Search, image and CSV export
+    - title: FTC - Making the Second Request Process Both More Streamlined and More Rigorous (2021)
+      url: https://www.ftc.gov/enforcement/competition-matters/2021/09/making-second-request-process-both-more-streamlined-more-rigorous-during-unprecedented-merger-wave
+      summary: Parties describe custodians' responsibilities and how they will use eDiscovery tools
+    - title: SNAP - Enron email network
+      url: https://snap.stanford.edu/data/email-Enron.html
+      summary: Non-Enron addresses appear only as sources and sinks, the custodial-sample effect behind inflated centrality
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

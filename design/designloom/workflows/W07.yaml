@@ -4,7 +4,10 @@ category: analysis
 validated: false
 personas:
     - cybersecurity-analyst
+    - tomasz-novak
 requires_capabilities:
+    - data-import
+    - data-preview
     - pattern-search
     - anomaly-detection
     - filtering
@@ -18,8 +21,17 @@ requires_capabilities:
     - saved-filters
     - keyboard-shortcuts
     - overview-minimap
+    - degree-analysis
+    - shortest-path
+    - visual-encoding-edges
+    - data-export
+    - event-table-to-graph
+    - typed-edge-filtering
+    - set-to-set-paths
 suggested_components:
     - graph-canvas
+    - data-import-dialog
+    - column-mapper
     - pattern-search-dialog
     - anomaly-panel
     - filter-panel
@@ -29,95 +41,127 @@ suggested_components:
     - bookmark-panel
     - minimap
     - keyboard-shortcut
+    - data-table-panel
+    - data-export-dialog
 starting_state:
-    data_type: behavioral/security event graph
-    node_count: 100000+
-    edge_density: sparse
+    data_type: SIEM or EDR query result table (authentication, process, network and DNS events) reshaped into an entity graph
+    node_count: 1,000-100,000 entities after aggregation; raw rows thousands to millions
+    edge_density: sparse, typed temporal multi-edges aggregated to weighted pairs
     user_expertise: expert
 goal: >-
-    **Intent**: Proactively search for threats in network/system data before they cause damage. Unlike alert-driven
-    investigation, user forms hypotheses about potential threats and queries the graph to find evidence.
+    **Intent**: Proactively look for intrusions that no alert caught. The hunter starts from a hypothesis, pulls the
+    matching events from the SIEM, reshapes the result table into an entity graph, and looks for the shapes the
+    hypothesis predicts (an account reaching many new hosts, a process tree that should not exist, a rare pair of
+    hosts). Threat hunting was the top use of threat intelligence in a 2024 SANS survey (75 percent). The graph tools
+    are Graphistry from a notebook or a Splunk workflow action, the Microsoft Defender XDR hunting graph, and graph
+    databases loaded with logs.
 
 
-    **Mental Model**: "Hunting expedition" - you're not waiting for prey to come to you, you're actively tracking it based
-    on known behavior patterns. Also like "pattern matching" against known attack playbooks (TTPs).
+    **Mental Model**: "Hunting expedition with a field guide." The hypothesis is the field guide (an ATT&CK technique
+    or an intelligence report); the graph is the terrain after the noise is aggregated away; every interesting shape
+    must be walked back to raw events before it counts.
 
 
     **Task Phases**:
 
-    1. **Hypothesis Formation** - Based on threat intelligence, known TTPs, or anomaly signals
+    1. **Form a hypothesis** (15-30 min) - From threat intelligence, an ATT&CK technique or an anomaly signal, for
+    example "an account is authenticating to many hosts it never used before"
 
-    2. **Pattern Translation** - Convert hypothesis into a graph query/pattern
+    2. **Query** (15-60 min) - Write KQL or SPL that pulls the relevant events for a time window; the result is a table
 
-    3. **Query Execution** - Search for matching patterns in the data
+    3. **Turn the table into a graph** (5-15 min) - Pick entity columns (account, host, process, IP, domain); each event
+    links the entities it mentions (a Graphistry demo turned 5,035 Splunk events into 170 entities and 15,105 links)
 
-    4. **Result Triage** - Review matches, investigate promising ones, filter noise
+    4. **Aggregate and threshold** (5 min) - Collapse raw events into host-to-host or account-to-host edges with counts
+    and first and last seen; drop pairs below a minimum count; keep event type, port and logon type as edge attributes
 
-    5. **Iteration** - Refine query based on findings, expand or narrow scope
+    5. **Look for the predicted shape** (30-120 min) - Fan-out, first-seen pairs, rare edges, chains in time order,
+    paths to critical assets (in Defender XDR: predefined path scenarios with property filters, edge types, direction
+    and shortest paths only)
 
-    6. **Response** - If threat found, trigger incident response; if not, document hunt
+    6. **Drill down** (ongoing) - From an interesting edge or node back to its raw events; corroborate with a second
+    source
+
+    7. **Respond or document** (30 min) - If a threat is found, hand entities, edges and times to incident response; if
+    not, document the negative hunt; save the query as a parameterized template or Splunk workflow action
 
 
     **Decision Points**:
 
-    - What threat hypothesis should I hunt for?
+    - Which hypothesis is worth the time this week?
 
-    - How do I translate TTP into a graph pattern?
+    - Which columns become nodes, and what aggregation keeps the signal?
 
-    - Are query results true threats or false positives?
+    - Is this shape malicious or a known admin, scanner or backup pattern?
 
-    - Should I refine the query or try a different hypothesis?
-
-    - When is the hunt complete?
+    - Refine the query, change the hypothesis, or stop?
 
 
     **Information Needs**:
 
-    - Threat intelligence feeds (current TTPs, IOCs)
+    - Row and entity counts after the table-to-graph step, and what was dropped
 
-    - Entity behavior baselines (what's normal?)
+    - Count, first and last seen per aggregated edge
 
-    - Query results with context
+    - Baseline of normal pairs (seen before the hunt window)
 
-    - Confidence scores for matches
+    - The raw events behind any edge
 
-    - Historical hunt results (what worked before?)
+    - Prior hunts and their saved queries
 
 
     **Pain Points**:
 
-    - Translating TTPs into graph queries requires expertise
+    - SIEMs return tables, so every hunt starts by reshaping columns into entities and edges
 
-    - High false positive rates in query results
+    - Field names differ between data sources
 
-    - Balancing query specificity (too narrow misses threats, too broad is noisy)
+    - Aggregated views lose the path back to raw events unless the tool keeps it
 
-    - Documenting hunts for future reference
+    - Translating an ATT&CK technique into a graph shape takes expertise and trial and error
 
-    - SIEM tools often lack native graph query support
+    - Large hunts need a GPU server or notebook environment
+
+    - High false-positive rates from admin tools, scanners and backup servers
 
 
     **Data Flow**:
 
-    - Input: Behavioral graph (users, endpoints, processes, connections) + threat intelligence
+    - Input: SIEM or EDR query results (CSV, dataframe), optional threat intelligence indicators
 
-    - Transformations: Pattern matching, anomaly detection, correlation
+    - Transformations: Table to entity graph, aggregation with counts and time, threshold, time filter, path and
+    pattern queries, drill-down to rows
 
-    - Output: Threat findings or documented negative hunt + refined queries for reuse
+    - Output: Findings handed to incident response, or a documented negative hunt; saved parameterized query
 success_criteria:
-    - metric: Threats found proactively
-      target: Detect threats before damage
+    - metric: Table to graph
+      target: A SIEM CSV becomes an entity graph by choosing columns, with counts of rows used and dropped
+    - metric: Drill-down
+      target: From any aggregated edge the hunter reaches its raw rows in one action
     - metric: Query reusability
-      target: Successful queries saved for future hunts
-    - metric: False positive rate
-      target: Manageable triage workload
+      target: Successful hunts saved as parameterized queries for future use
 sources:
-    - title: Practical Graph Analysis Guide - Chapter 10
-      url: https://graphty.app/docs/
-      summary: Threat Hunting Workflow with hypothesis formation and pattern analysis
     - title: MITRE ATT&CK Framework
       url: https://attack.mitre.org/
       summary: Knowledge base of adversary TTPs for hypothesis formation
-version: 1.0.0
+    - title: SANS 2024 CTI survey (Bitsight summary)
+      url: https://bitsight.com/blog/sans-cti-survey-2024-threat-hunting-now-top-use-case
+      summary: Threat hunting top CTI use case at 75 percent in 2024
+    - title: PyGraphistry - Splunk demo
+      url: https://pygraphistry.readthedocs.io/en/latest/demos/demos_databases_apis/splunk/splunk_demo_public.html
+      summary: SPL result turned into a hypergraph of entities and events
+    - title: Graphistry admin docs - Templates
+      url: https://graphistry-admin-docs.readthedocs.io/en/latest/app-config/templates.html
+      summary: Splunk workflow actions as reusable hunt templates
+    - title: Microsoft Learn - Defender XDR advanced hunting graph
+      url: https://learn.microsoft.com/defender-xdr/advanced-hunting-graph
+      summary: Path scenarios, property filters, edge types, direction, shortest paths only
+    - title: Malcolm docs - Arkime
+      url: https://cisagov.github.io/Malcolm/docs/arkime.html
+      summary: Aggregation with link weights and minimum thresholds, pivot to raw sessions
+    - title: Los Alamos National Laboratory - Comprehensive, multi-source cyber-security events
+      url: https://csr.lanl.gov/data/cyber1/
+      summary: 1.6 billion events over 58 days; scale of raw hunting data
+version: 1.1.0
 created_at: 2026-01-16T16:42:47.760Z
-updated_at: 2026-01-16T16:42:47.760Z
+updated_at: 2026-11-25T00:00:00.000Z

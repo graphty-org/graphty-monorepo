@@ -1,0 +1,14 @@
+id: time-axis-layout
+name: Time-axis layouts
+category: visualization
+description: Year-layered directed layout for historiographs and main paths, and a timeline layout with one row per
+    cluster and x by year.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W52
+    - W56
+implemented_by_components: []
+requirements: []
+sources: []

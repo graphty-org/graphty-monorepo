@@ -1,0 +1,165 @@
+id: W301
+name: Query, Document and Relational Sources to a Graph
+category: onboarding
+validated: false
+personas:
+    - graph-data-wrangler
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - progressive-loading
+    - neighborhood-expansion
+    - node-merging
+    - details-on-demand
+    - basic-statistics
+    - entity-resolution-review
+    - provenance-tracking
+    - live-data-source
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - progressive-loader
+    - node-merge-dialog
+    - node-details-panel
+    - statistics-panel
+    - graph-canvas
+starting_state:
+    data_type: A live graph database or SPARQL endpoint, a public repository (NDEx, STRING, Zenodo), a document collection, or relational tables with foreign keys
+    node_count: capped query results of hundreds to thousands; documents yield thousands of entities
+    edge_density: varies
+    user_expertise: intermediate to expert
+goal: >-
+    **Intent**: Bring in a graph that does not arrive as a graph file. Three related paths: pull a capped part of a live
+    database, endpoint or repository and expand it later; extract entities and relationships from documents while
+    keeping the source document on every node and edge; and map relational tables to nodes and relationships, deciding
+    whether a shared identifier (phone, device, address) is its own node or a direct link.
+
+
+    **Mental Model**: "Import is a question, not a file." The user chooses how much to pull, what counts as an entity,
+    and what links them; every choice has to stay traceable.
+
+
+    **Task Phases - query path** (no source gives step timings):
+
+    1. **Connect** - Neo4j, Neptune or Memgraph; a SPARQL endpoint; NDEx, STRING, Zenodo, figshare or a REST source
+
+    2. **Query** - Cypher, Gremlin or SPARQL; a Bloom search phrase; a Linkurious query template (code plus placeholders
+    for variables); a gene list typed into stringApp
+
+    3. **Cap the result** - Neo4j Browser draws at most 1,000 nodes and 100 neighbors per expand; the view can hide how
+    much the query returned
+
+    4. **Expand and refresh** - Expand later with a cap per expand; refresh next week with stable ids so positions and
+    notes survive; an NDEx DOI instead freezes a published network
+
+
+    **Task Phases - document path**:
+
+    1. **Upload documents** - Into Aleph or Datashare; named-entity recognition produces mentions, resolved into entities
+    during cross-referencing (small instances may never do it); resolved entities keep the source document as proof
+
+    2. **Cross-reference** - Against registries and sanctions lists; unresolved mentions stay unlinked
+
+    3. **Export** - FollowTheMoney to GEXF for Gephi or Cypher for Neo4j, where ownership and membership entities
+    contract into edges; GraphRAG writes Parquet entity and relationship tables with ids back to the source text chunks
+
+    4. **Check** - Counts by type, unresolved mentions, near-duplicates, and that every edge leads back to a document
+
+
+    **Task Phases - relational path**:
+
+    1. **Map tables** - Entity tables become labels, rows nodes, columns properties; foreign keys and join tables become
+    relationships, with join-table columns as properties
+
+    2. **Keep business keys** - Drop technical keys; add uniqueness constraints
+
+    3. **Decide what a shared attribute is** - A phone, device or address shared by accounts can be its own node (keeps
+    which identifier is shared; fraud rings share a subset of legitimate contact information) or a direct
+    account-to-account link with a count
+
+    4. **Load nodes, then relationships** - Check counts per label and type against the tables
+
+
+    **Decision Points**:
+
+    - How large a cap, and what to do about results beyond it?
+
+    - Which extracted mentions are the same entity?
+
+    - Shared identifiers as nodes or as direct weighted links?
+
+    - Refresh in place with stable ids, or freeze a version?
+
+
+    **Information Needs**:
+
+    - Count the query would return, shown before loading, and what the cap left out
+
+    - Source document or record for every node and edge
+
+    - Counts per label and relationship type against the source tables
+
+    - Unresolved mentions and merge candidates
+
+
+    **Pain Points**:
+
+    - An uncapped query freezes the tool; a capped one hides what was left out
+
+    - Extraction and entity-resolution errors become false links
+
+    - Credentials and sensitive documents that must not leave the machine
+
+    - Relational loads that duplicate nodes without uniqueness constraints
+
+
+    **Data Flow**:
+
+    - Input: Connection and query; document collection or its exported entity stream; relational tables
+
+    - Transformations: Capped query and expansion; extraction, resolution and edge contraction; table-to-graph mapping
+
+    - Output: A graph with provenance on nodes and edges, the query or mapping used, and counts of what was left out
+success_criteria:
+    - metric: Cap transparency
+      target: User sees the total a query would return and how much was loaded
+    - metric: Provenance
+      target: Every node and edge from documents or tables links back to its source record
+    - metric: Refresh stability
+      target: Refreshing a query keeps positions and notes on nodes with the same ids
+sources:
+    - title: Linkurious - Query templates
+      url: https://doc.linkurious.com/user-manual/3.1/query-templates
+      summary: A mix of code and placeholders for variables
+    - title: Jensen lab - stringApp exercises
+      url: https://jensenlab.org/training/stringapp/
+      summary: Gene list typed into a database query as import
+    - title: NDEx
+      url: https://www.ndexbio.org/
+      summary: Public network repository; DOIs freeze published networks
+    - title: ftm-analyze - Named entity recognition
+      url: https://darc.li/docs/ftm-analyze/ner/
+      summary: Mentions resolved into entities with the source document as proof
+    - title: FollowTheMoney - Graphs
+      url: https://followthemoney.tech/docs/graphs
+      summary: Property values become edges; Ownership and Membership contract into edges
+    - title: Aleph - Export network graphs
+      url: https://docs.aleph.occrp.org/developers/how-to/data/export-network-graphs
+      summary: ftm export-gexf and export-cypher
+    - title: Microsoft GraphRAG - Outputs
+      url: https://microsoft.github.io/graphrag/index/outputs/
+      summary: Parquet entities and relationships with text_unit_ids back to source chunks
+    - title: Neo4j - Relational to graph modeling
+      url: https://neo4j.com/docs/getting-started/data-modeling/relational-to-graph-modeling/
+      summary: Foreign keys and join tables become relationships
+    - title: Neo4j - First-party bank fraud detection
+      url: https://neo4j.com/blog/fraud-detection/first-party-bank-fraud-detection-graph-databases/
+      summary: Fraud rings share a subset of legitimate contact information, modeled as shared nodes
+    - title: PyGraphistry - hypergraph
+      url: https://pygraphistry.readthedocs.io/en/0.52.1/api/hyper.html
+      summary: Shared values as nodes by default, direct links with direct=True
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

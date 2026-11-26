@@ -5,6 +5,8 @@ validated: false
 personas:
     - genomics-cytoscape-user
     - bioinformatics-researcher
+    - network-biology-core-bioinformatician
+    - single-cell-computational-biologist
 requires_capabilities:
     - centrality-degree
     - centrality-betweenness
@@ -22,6 +24,7 @@ requires_capabilities:
     - export-image
     - analysis-history
     - removal-impact-analysis
+    - measurement-robustness
 suggested_components:
     - algorithm-card
     - ranked-node-table
@@ -75,6 +78,13 @@ goal: >-
 
     - Is a hub interesting because of topology, or because it also changed in the experiment?
 
+    - Does the hub list survive another cutoff or database (the robustness-check workflow)?
+
+    - Hub within a WGCNA module (kME and intramodular connectivity) or hub in the whole network?
+
+    - For per-cell-type regulatory networks, compare a gene's centrality across networks, treating a gene with no edges
+    as missing rather than zero
+
 
     **Information Needs**:
 
@@ -88,6 +98,8 @@ goal: >-
 
     - Which edges were used (weight attribute, direction) for each run
 
+    - A study-bias flag beside each hub (how well studied the protein is)
+
 
     **Pain Points**:
 
@@ -100,6 +112,10 @@ goal: >-
     - Top-10 lists differ by method and there is no built-in intersection
 
     - Labeling only the top 10 without hand-editing labels
+
+    - PPI degree tracks how often a protein was studied, so hub often means famous
+
+    - cytoHubba rankings are reported to change between runs, and the plugin was last released in 2017
 
 
     **Data Flow**:
@@ -130,6 +146,18 @@ sources:
     - title: WGCNA hub genes for coronary artery disease
       url: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7988178/
       summary: Module genes visualized in Cytoscape, hub genes by MCODE and cytoHubba
-version: 1.0.0
+    - title: Study bias in PPI networks (Frontiers in Genetics 2015)
+      url: https://frontiersin.org/articles/10.3389/fgene.2015.00260/pdf
+      summary: Degree tracks research attention
+    - title: Study bias and power laws (eLife)
+      url: https://elifesciences.org/articles/99951
+      summary: Study bias alone can produce power-law degree distributions
+    - title: Biostars - cytoHubba criticism
+      url: https://biostars.org/p/9529294
+      summary: Weak validation and run-to-run instability
+    - title: CellOracle network analysis
+      url: https://morris-lab.github.io/CellOracle.documentation/tutorials/networkanalysis.html
+      summary: Centrality compared across per-cluster GRNs; missing scores
+version: 1.1.0
 created_at: 2026-09-08T02:34:20.000Z
-updated_at: 2026-11-18T07:06:16.000Z
+updated_at: 2026-11-25T00:00:00.000Z

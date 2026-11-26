@@ -1,0 +1,62 @@
+id: structural-network-biologist
+name: Structural Network Biologist
+role: Biophysicist / Structural Biologist (Allostery and Residue Networks)
+quote: I want the residues that carry the signal from the binding site to the active site, drawn where they sit in the molecule.
+bio: >-
+    Dr. Priya Nair is a biophysicist studying allostery, mutation effects and protein-RNA communication. She starts from
+    a PDB or AlphaFold structure or a molecular dynamics trajectory and builds a residue interaction network: each amino
+    acid (or nucleotide part) is a node with 3D coordinates, and each typed contact -- hydrogen bond, ionic, pi
+    stacking, van der Waals -- is an edge, so the graph is a multigraph. From trajectories she adds correlation weights
+    and contact frequencies. She uses the RING web server, Cytoscape with structureViz2, UCSF Chimera and RINalyzer, VMD
+    NetworkView with Carma, and Bio3D in R. Her questions are about critical residues, communities of residues that move
+    together, and the optimal and suboptimal paths between two sites. This is a small population next to omics users
+    (RING 2.0 has 437 citations), and an adjacent one for Graphty, but it is the one case in this field where 3D
+    positions are data.
+characteristics:
+    expertise: advanced
+    time_pressure: low
+    graph_literacy: advanced
+    domain_knowledge: expert
+motivations:
+    - Find critical residues and the paths that carry a signal between two sites
+    - See how a mutation or a conformational change rewires contacts
+    - Read network results in the context of the 3D structure, not in a separate abstract drawing
+behaviors:
+    - Uploads a PDB or AlphaFold id to RING, adjusts contact thresholds, filters by contact type and frequency
+    - Keeps the network and the structure side by side with synchronized selection
+    - Computes weighted betweenness and Girvan-Newman communities on correlation-weighted networks
+    - Computes suboptimal paths between two residues within a length offset and colors the optimal one
+frustrations:
+    - RINalyzer was last released in 2014
+    - Hundreds of suboptimal paths are hard to interpret
+    - Network and structure live in two linked windows rather than one view
+context:
+    frequency: monthly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W255
+sources:
+    - title: RING 4.0 (Nucleic Acids Research 2024)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11223866
+      summary: Typed residue contacts, Mol* 3D view beside the network, shared selection, multi-state contact maps
+    - title: RINalyzer app page
+      url: https://apps.cytoscape.org/apps/rinalyzer
+      summary: Weighted centralities for critical residues; last release 2014
+    - title: structureViz2
+      url: https://rbvi.ucsf.edu/cytoscape/structureViz2/
+      summary: Cytoscape to UCSF Chimera link with synchronized selection
+    - title: Dynamical network analysis tutorial (VMD NetworkView)
+      url: https://luthey-schulten.chemistry.illinois.edu/network/network_tutorial.pdf
+      summary: Contact network from a trajectory, correlation edge lengths, communities, suboptimal paths
+    - title: VMD mailing list - interpreting suboptimal paths
+      url: https://tcbg.illinois.edu/Research/vmd/mailing_list/vmd-l/30991.html
+      summary: A user reports a couple of hundred paths that are hard to interpret
+    - title: Bio3D cna reference
+      url: https://search.r-project.org/CRAN/refmans/bio3d/html/cna.html
+      summary: Correlation network analysis in R
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

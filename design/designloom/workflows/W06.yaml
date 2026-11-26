@@ -4,142 +4,182 @@ category: analysis
 validated: false
 personas:
     - fraud-analyst
+    - aml-investigator-sar-writer
+    - insurance-siu-investigator
 requires_capabilities:
+    - search
     - neighborhood-expansion
     - ego-network
-    - community-detection
-    - anomaly-detection
-    - search
-    - path-highlighting
     - details-on-demand
-    - annotation
-    - filtering
+    - tooltip-display
     - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - filtering
+    - degree-analysis
+    - component-analysis
     - computed-attributes
-    - all-paths-finding
+    - path-highlighting
     - temporal-navigation
-    - temporal-analysis
+    - annotation
+    - analysis-history
+    - export-image
+    - data-export
+    - external-label-overlays
     - algorithm-progress
+    - all-paths-finding
+    - anomaly-detection
+    - community-detection
     - keyboard-shortcuts
     - overview-minimap
     - pattern-search
     - saved-filters
-    - tooltip-display
+    - temporal-analysis
 suggested_components:
     - graph-canvas
-    - ego-network-dialog
-    - algorithm-panel
-    - community-panel
-    - anomaly-panel
     - search-input
     - search-panel
-    - path-finder-dialog
+    - ego-network-dialog
     - node-details-panel
-    - annotation-toolbar
-    - filter-panel
+    - node-tooltip
     - visual-encoding-panel
-    - computed-attributes-panel
+    - legend-panel
+    - filter-panel
+    - histogram
     - temporal-controls
-    - progress-bar
+    - context-menu
+    - annotation-toolbar
+    - analysis-history-panel
+    - image-export-dialog
+    - data-export-dialog
+    - algorithm-panel
+    - anomaly-panel
+    - community-panel
+    - computed-attributes-panel
     - keyboard-shortcut
     - minimap
+    - path-finder-dialog
     - pattern-search-dialog
-    - node-tooltip
+    - progress-bar
 starting_state:
-    data_type: financial transaction graph
-    node_count: 10000-1000000
-    edge_density: sparse
+    data_type: alerted customer, account or claim plus its identifiers, transactions and links to prior alerts and cases
+    node_count: 20-500 drawn (from a store of millions)
+    edge_density: sparse, with a few very high-degree identifiers
     user_expertise: intermediate
 goal: >-
-    **Intent**: Investigate a flagged alert to determine if it's part of a coordinated fraud attack. User starts with a
-    suspicious entity and needs to understand its network context, identify related bad actors, and document evidence for
-    action.
+    **Intent**: Decide whether one alerted customer, account or claim is isolated or connected to other suspicious
+    entities, alerts or cases, and close it or escalate it with a written reason. This is the most frequent graph question
+    in financial crime: Level 1 and Level 2 alert reviewers and insurance special investigation unit staff ask it many
+    times a day. It is a 1 to 2 hop look from a seed, not a whole-graph analysis; finding rings across the whole customer
+    base is W119, and following the money is W120.
 
 
-    **Mental Model**: "Following the money trail" - tracing connections to uncover the full scope of fraudulent activity.
-    Like pulling a thread that unravels the whole sweater.
+    **Mental Model**: "Is this one connected to anything we already know is bad?" The analyst reads the neighborhood as a
+    list of specific links (this device, this phone, this payout account, this wire) and each link must be explainable on
+    its own. Shared identifiers are leads, not proof.
 
 
     **Task Phases**:
 
-    1. **Alert Contextualization** - View flagged entity in its network context (1-2 hop neighborhood)
+    1. **Open the alert** (1 min) - Search the alerted entity by name, account or claim number and open it with its
+    triggering transactions and profile
 
-    2. **Pattern Recognition** - Look for known fraud indicators (shared identifiers, velocity anomalies, circular flows)
+    2. **Show the neighborhood** (2 min) - Expand 1 hop to identifiers, accounts, counterparties and claims, then a
+    second hop to other customers sharing them; style nodes by open alert, prior case, prior SAR and known fraud label
 
-    3. **Ring Identification** - Expand investigation to find all connected suspicious entities
+    3. **Discount hubs** (2 min) - Read how many accounts share each identifier; hide or flag identifiers above a cap (a
+    public IP address, a busy garage, a bank branch) so they do not link innocent people
 
-    4. **Risk Scoring** - Prioritize which entities to investigate further
+    4. **Read the connected group** (3 min) - Take the connected component that remains, read each shared link and its
+    dates, check the triggering transactions on a short timeline against expected activity
 
-    5. **Evidence Documentation** - Capture the evidence chain for each finding
+    5. **Decide one case or several** (1 min) - Merge connected alerts into one case or keep them apart
 
-    6. **Determination** - Confirm fraud, clear alert, or escalate
+    6. **Close or escalate** (3 min) - Record the decision with the specific links and transactions that decided it,
+    annotate the view and export the image and the table of links for the case file
 
 
     **Decision Points**:
 
-    - Is this a false positive or real fraud?
+    - Which identifier types count as links for this alert type, and above what sharing count is an identifier noise?
 
-    - How far should I expand the investigation (1-hop? 2-hop? community?)
+    - One hop or two? Expanding further rarely helps a Level 1 decision and quickly becomes a hairball
 
-    - Which shared identifiers are suspicious vs. coincidental?
+    - Is the shared detail coincidental (family members, a shared office) or suspicious?
 
-    - When do I have enough evidence to take action?
+    - Close with rationale, escalate to Level 2, or (insurance) refer to special fraud processing?
 
-    - Should I escalate or handle myself?
+    - Are several open alerts really one network that should be investigated once?
 
 
     **Information Needs**:
 
-    - Entity's immediate connections highlighted
+    - Neighborhood with flags for open alerts, prior cases and prior SARs
 
-    - Paths to known fraud cases
+    - For each identifier, how many accounts share it, so hubs can be discounted
 
-    - Community membership (is entity in a suspicious cluster?)
+    - The reason for every link (which identifier, which transaction, which claim) and its date
 
-    - Shared identifiers with other entities (device, address, payment method)
+    - Triggering transactions with amount, direction, counterparty and time, against the customer's expected activity
 
-    - Transaction timeline (velocity, sequence patterns)
-
-    - Risk scores for related entities
+    - Component size after hubs are removed
 
 
     **Pain Points**:
 
-    - Alert fatigue from high false positive rates
+    - Most alerts are false positives (a RUSI working paper cites about 70 to 95 percent), so speed with a reason matters
+    more than depth
 
-    - Losing context when expanding to large neighborhoods
+    - Data gathering across separate systems dominates the time
 
-    - Difficulty documenting evidence trail
+    - Expanding to every neighbor produces a hairball
 
-    - Time pressure - suspicious transactions may need quick action
+    - Super-connected identifiers merge innocent customers
 
-    - Data spread across multiple systems
+    - What the analyst saw in the graph has to be retyped into the case rationale
 
 
     **Data Flow**:
 
-    - Input: Alert with flagged entity ID + transaction/entity graph
+    - Input: Alert with the flagged entity id; customer, account, identifier and transaction records; prior alert, case
+    and SAR flags; or (insurance) the referred claim and its parties
 
-    - Transformations: Neighborhood expansion, community detection, risk scoring
+    - Transformations: Seeded 1-2 hop expansion, identifier degree count and hub cap, connected component, short timeline
 
-    - Output: Investigation decision (confirm/clear/escalate) + documented evidence
+    - Output: Close or escalate decision with rationale naming the deciding links, annotated image and link table for the
+    case file
 success_criteria:
-    - metric: False positive reduction
-      target: 40-60% fewer false escalations
-    - metric: Investigation time
-      target: Under 30 minutes per alert
-    - metric: Evidence chain
-      target: Complete documentation for each determination
+    - metric: Explainable decision
+      target: Every close or escalate rationale names the specific identifiers or transactions that link the entity, with dates
+    - metric: Hub handling
+      target: User can see the sharing count of every identifier and exclude those above a cap before reading the group
+    - metric: Case-file handoff
+      target: The image and the link table export together without retyping
 sources:
+    - title: FFIEC BSA/AML Examination Manual - Suspicious Activity Reporting
+      url: https://bsaaml.ffiec.gov/manual/AssessingComplianceWithBSARegulatoryRequirements/04
+      summary: Alert management by Level 1, Level 2 and quality control is separate from alert generation and the SAR decision
+    - title: Linkurious - AML investigation solution
+      url: https://linkurious.com/aml-investigation-solution
+      summary: Vendor; the subject's 1-2 hop neighborhood styled by open alert and prior SAR to decide one case or several
+    - title: Linkurious Enterprise Watchtower brochure
+      url: https://resources.linkurio.us/hubfs/On-demand%20Resources/PDFs/Brochure_Linkurious-Enterprise-Watchtower.pdf
+      summary: Consolidates alert results relating to the same entity into a single case
+    - title: Exploring fraud detection with Neo4j and Graph Data Science, part 2
+      url: https://neo4j.com/blog/developer/exploring-fraud-detection-neo4j-graph-data-science-part-2/
+      summary: Very high-degree identifiers treated as noise; identifiers capped at 10 or fewer accounts
+    - title: Neo4j customer story - Zurich Insurance
+      url: https://neo4j.com/customer-stories/zurich-insurance/
+      summary: Investigators switch from the rule-based tool to the graph application for each escalated claim
+    - title: Neo4j - Beyond the alert
+      url: https://neo4j.com/?p=435608
+      summary: Investigators must judge significance, weigh legitimate explanations and document their reasoning
+    - title: Redhead - SWIFT Institute / RUSI working paper (2021)
+      url: https://swift.com/swift-resource/252235/download
+      summary: False-positive rates about 70 to 95 percent (read through search summary)
     - title: Cambridge Intelligence Fraud Investigation
       url: https://cambridge-intelligence.com/enterprise-fraud-management-investigation-v-detection/
       summary: Distinguishes fraud detection from investigation workflows
-    - title: Practical Graph Analysis Guide - Chapter 5
-      url: https://graphty.app/docs/
-      summary: Fraud Detection Workflow and Fraud Ring Detection case study
-    - title: CACM Graph Databases for Fraud Detection
-      url: https://cacm.acm.org/blogcacm/leveraging-graph-databases-for-fraud-detection-in-financial-systems/
-      summary: Using graph databases to reveal fraud patterns
-version: 1.0.0
+version: 1.1.0
 created_at: 2026-01-16T16:39:01.568Z
-updated_at: 2026-01-16T16:39:01.568Z
+updated_at: 2026-11-25T00:00:00.000Z

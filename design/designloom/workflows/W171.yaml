@@ -1,0 +1,136 @@
+id: W171
+name: Retrieving Published Networks and Predicting Missing Interactions
+category: analysis
+validated: false
+personas:
+    - ecological-network-synthesis-researcher
+requires_capabilities:
+    - data-import
+    - data-validation
+    - sample-datasets
+    - node-merging
+    - link-prediction
+    - visual-encoding-edges
+    - visual-encoding-nodes
+    - filtering
+    - legend-display
+    - statistics-panel
+    - details-on-demand
+    - data-export
+    - export-image
+    - signed-edges
+    - geographic-layout
+    - matrix-import
+    - interactive-threshold
+suggested_components:
+    - sample-data-dialog
+    - data-import-dialog
+    - network-list-panel
+    - network-merge-dialog
+    - node-merge-dialog
+    - link-prediction-panel
+    - graph-canvas
+    - filter-panel
+    - range-slider
+    - legend-panel
+    - statistics-panel
+    - node-details-panel
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: hundreds of published interaction networks with site, coordinates, date and method, plus species traits or phylogeny
+    node_count: mostly under 100 per network; metawebs of hundreds to thousands of species
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Pull many published interaction networks from public repositories, harmonize their species names,
+    merge them into a regional metaweb, predict which unobserved species pairs probably interact, and show observed
+    and predicted links together before downscaling the metaweb to local webs.
+
+
+    **Mental Model**: "Every network is a partial sample of one regional web." Absent links are uncertain, and
+    predicted links are probabilities to be shown differently from observations.
+
+
+    **Task Phases**:
+
+    1. **Retrieve** (30 min) - Download networks from Web of Life, Mangal, the Interaction Web Database or GloBI with
+    their metadata and taxonomy ids
+
+    2. **Harmonize names** (30-120 min) - Resolve synonyms and spelling differences against a taxonomy backbone
+
+    3. **Assemble a metaweb** (10 min) - Merge local webs, noting that many absent pairs are probably false negatives
+
+    4. **Derive species features** (outside the tool) - From co-occurrence, traits or phylogeny
+
+    5. **Train a predictor and produce link probabilities** (outside or inside the tool) - For every species pair
+
+    6. **Validate** (15 min) - ROC and precision-recall curves on held-out data; choose a threshold
+
+    7. **Display and downscale** (15 min) - Observed links in one style and predicted links in another, filter by
+    probability; induce local webs from the metaweb by site occurrence
+
+
+    **Decision Points**:
+
+    - Which repositories and which interaction types to include?
+
+    - How to resolve ambiguous names and group-level nodes?
+
+    - Which probability threshold separates predicted links from noise?
+
+
+    **Information Needs**:
+
+    - Provenance (source, site, date, method) on every network and every link
+
+    - Count of names matched, merged and unresolved
+
+    - Probability per predicted link and whether it was observed anywhere
+
+    - Map of where the networks were sampled, to show coverage gaps
+
+
+    **Pain Points**:
+
+    - Bare matrices lack metadata
+
+    - Names differ across sources; nodes may be functional groups
+
+    - True absences cannot be told from unsampled pairs
+
+    - No common way to display observed and predicted links together
+
+
+    **Data Flow**:
+
+    - Input: Repository downloads (CSV, JSON, Excel), species traits, phylogenies, occurrence records
+
+    - Transformations: Name harmonization, metaweb merge, feature derivation, link prediction, thresholding, local web
+    induction
+
+    - Output: Harmonized metaweb with observed and predicted links, validation curves, local webs
+success_criteria:
+    - metric: Provenance
+      target: Every link shows its source network or that it is predicted
+    - metric: Distinction
+      target: Observed and predicted links distinguishable in the view and the export
+sources:
+    - title: Strydom et al. 2021 - A roadmap towards predicting species interaction networks
+      url: https://par.nsf.gov/servlets/purl/10312503
+      summary: Metaweb of 51 host-parasite networks, features from co-occurrence, neural network predictor, ROC and PR curves, embedding with empirical and imputed links
+    - title: Web of Life
+      url: https://www.web-of-life.es/
+      summary: CSV and JSON downloads and an API
+    - title: rmangal on CRAN
+      url: https://cloud.r-project.org/web/packages/rmangal/index.html
+      summary: Search functions, igraph conversion and taxonomy links to GBIF, ITIS and Catalogue of Life
+    - title: Delmas et al. 2019 - Analysing ecological networks of species interactions
+      url: https://ecologia.ib.usp.br/guimaraes/papers/2019_Delmas.pdf
+      summary: Argues for interaction records with metadata instead of bare matrices
+    - title: metanetwork - representing and analyzing trophic metanetworks
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10427773/
+      summary: Inducing local webs from a metaweb by site occurrence
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

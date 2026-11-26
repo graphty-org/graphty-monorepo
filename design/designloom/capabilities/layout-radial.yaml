@@ -10,6 +10,35 @@ algorithms:
     - Ego-centric placement
 used_by_workflows:
     - W17
+    - W134
+    - W161
+    - W194
+    - W203
+    - W248
+    - W265
+    - W272
+    - W29
+    - W329
+    - W364
+    - W373
+    - W374
+    - W376
+    - W378
+    - W393
+    - W401
+    - W405
+    - W406
+    - W409
+    - W422
+    - W431
+    - W437
+    - W439
+    - W440
+    - W446
+    - W67
+    - W68
+    - W78
+    - W87
 implemented_by_components:
     - layout-option
     - layout-panel

@@ -1,0 +1,14 @@
+id: manual-grouping
+name: Lasso Grouping into Editable Tags
+category: analysis
+description: Lasso or modifier-click selection writes an editable group or tag attribute; groups can be proposed by
+    community detection with hub exclusion and a size cap; shows cut size (count and weight of edges between groups)
+    live.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W82
+implemented_by_components: []
+requirements: []
+sources: []

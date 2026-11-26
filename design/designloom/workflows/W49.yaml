@@ -1,0 +1,172 @@
+id: W49
+name: Group Interactions Kept as Groups (Hypergraphs and Simplicial Complexes)
+category: analysis
+validated: false
+personas:
+    - expert-emma
+    - network-neuroscience-researcher
+requires_capabilities:
+    - data-import
+    - data-validation
+    - basic-statistics
+    - metric-histograms
+    - component-analysis
+    - community-detection
+    - visual-encoding-nodes
+    - layout-force-directed
+    - legend-display
+    - export-image
+    - bipartite-projection
+    - representation-transparency
+    - hypergraph-data
+suggested_components:
+    - data-import-dialog
+    - file-drop-zone
+    - histogram
+    - statistics-panel
+    - algorithm-panel
+    - graph-canvas
+    - legend-panel
+    - image-export-dialog
+starting_state:
+    data_type: hyperedge list, timestamped simplices, incidence matrix or bipartite node-to-group list (XGI-DATA, HIF)
+    node_count: 100-100000
+    edge_density: groups of 2-25+ members
+    user_expertise: expert
+goal: >-
+    **Intent**: Analyze data that records groups, not pairs -- an email's recipients, a paper's authors, a classroom
+    contact, a bill's cosponsors, co-fluctuating brain regions -- keeping each group as a group through import,
+    statistics, communities, dynamics and drawing, and projecting to pairs only as a recorded step when it is safe.
+
+
+    **Mental Model**: "A meeting of three is not three meetings of two." Three two-person emails among A, B and C and
+    one three-person email give the same projected triangle; the group is lost in the projection.
+
+
+    **Task Phases**:
+
+    1. **Load** (2 min) - Fetch an XGI-DATA set by name, or read HIF, edge lists, bipartite edge lists, incidence
+    matrices; keep attributes on nodes, hyperedges and incidences (such as author position)
+
+    2. **Choose the representation** (2 min) - Hypergraph, simplicial complex (every subset present; needed for homology
+    and simplicial contagion), directed hypergraph (reaction inputs to outputs), or the bipartite node-to-group graph
+
+    3. **Describe** (2 min) - Hyperedge-size distribution, node degree, components, assortativity and clustering
+
+    4. **Paths and centrality with a width** (5 min) - s-walks require consecutive hyperedges to share at least s nodes;
+    s-components, s-closeness, s-betweenness; eigenvector-style hypergraph centralities
+
+    5. **Communities** (minutes) - Hypergraph modularity with a chosen hyperedge weighting (strict, majority, linear) or
+    a degree-corrected hypergraph block model with resolution and edge-size parameters
+
+    6. **Topology** (minutes) - Simplicial homology on modestly sized complexes
+
+    7. **Dynamics** (minutes) - Simplicial contagion, where a filled triangle infects at its own rate, giving a
+    discontinuous transition absent from the pairwise model
+
+    8. **Draw** (5 min) - Hyperedges as filled hulls over a seeded layout for small data; a bipartite view or PAOH-style
+    rows-and-lines view (nodes as rows, each hyperedge a vertical line) for many hyperedges or time slots
+
+
+    **Decision Points**:
+
+    - Keep groups, or project? Projection is acceptable for linear dynamics and for storing the bipartite graph; it is
+    wrong when the group is the unit of analysis
+
+    - Which width s for walks and components?
+
+    - Which hyperedge weighting for modularity?
+
+    - Hull drawing or rows-and-lines view, given the number of hyperedges?
+
+
+    **Information Needs**:
+
+    - Hyperedge-size distribution and how many groups exceed size 2
+
+    - What a projection would merge (pairs that never met in the same group)
+
+    - s-component sizes per s
+
+    - Community quality under each weighting
+
+
+    **Pain Points**:
+
+    - GUI importers turn a group into a hub node or a clique, or drop it
+
+    - Hypergraph tools (XGI, HyperNetX, Hypergraphx) are Python notebooks only
+
+    - Hull drawings separate hyperedges by color and stop being legible beyond small hypergraphs; no source found giving
+    a measured limit
+
+    - Each library had its own representation until HIF (2025)
+
+
+    **Data Flow**:
+
+    - Input: Hyperedge list or incidence data with node, group and incidence attributes
+
+    - Transformations: Representation choice, group statistics, s-walk measures, hypergraph communities, optional
+    recorded projection
+
+    - Output: Group-preserving analysis results, hull or rows-and-lines figure, HIF export
+success_criteria:
+    - metric: Groups preserved
+      target: A hyperedge survives import, analysis and export as one group with its incidence attributes
+    - metric: Projection recorded
+      target: Any projection is an explicit step with its weighting stated and the group data kept
+    - metric: Readable drawing
+      target: User can tell which nodes share a group at the dataset's size
+sources:
+    - title: Networks beyond pairwise interactions (Battiston et al., Physics Reports 2020)
+      url: https://arxiv.org/abs/2006.01764
+      summary: Hypergraphs, simplicial complexes and bipartite graphs compared; interactions that cannot be reduced to dyads
+    - title: What are higher-order networks? (Bick et al., SIAM Review 2023)
+      url: https://arxiv.org/abs/2104.11329
+      summary: Survey of representations and when they matter
+    - title: XGI (Landry et al. 2023, JOSS)
+      url: https://joss.theoj.org/papers/10.21105/joss.05162
+      summary: Hypergraph library with XGI-DATA, statistics and hull drawing
+    - title: XGI read/write API
+      url: https://xgi.readthedocs.io/en/stable/api/readwrite.html
+      summary: Loads XGI-DATA, HIF, edge lists, bipartite lists and incidence matrices
+    - title: XGI centrality API
+      url: https://xgi.readthedocs.io/en/stable/api/algorithms/xgi.algorithms.centrality.html
+      summary: H-eigenvector, Z-eigenvector, clique-eigenvector, Katz, line-vector and node-edge centralities
+    - title: HyperNetX (Praggastis et al., JOSS 2024)
+      url: https://ar5iv.labs.arxiv.org/html/2310.11626
+      summary: s-walks, homology on modestly sized hypergraphs, HNX-Widget
+    - title: HyperNetX modularity docs
+      url: https://hypernetx.readthedocs.io/en/latest/modularity.html
+      summary: Strict, majority and linear hyperedge weightings; kumar and last_step
+    - title: Hypergraph characterization with s-walks (Aksoy et al. 2020, EPJ Data Science)
+      url: https://arxiv.org/abs/1906.11295
+      summary: s-walks, s-components, s-closeness and s-betweenness
+    - title: Generative hypergraph clustering (Chodrow, Veldt and Benson 2021)
+      url: https://arxiv.org/abs/2101.09611
+      summary: Degree-corrected hypergraph SBM; hypergraph clustering succeeds where projection methods fail
+    - title: Simplicial models of social contagion (Iacopini et al. 2019)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6554271
+      summary: Discontinuous transition with a bistable region absent from pairwise models
+    - title: Simplicial closure and higher-order link prediction (Benson et al. 2018)
+      url: https://arxiv.org/abs/1802.06916
+      summary: 17 timestamped simplex datasets
+    - title: Multibody interactions and nonlinear consensus dynamics (Neuhauser, Mellor and Lambiotte 2020)
+      url: https://arxiv.org/abs/1910.09226
+      summary: Linear dynamics on hypergraphs reduce to weighted pairwise networks
+    - title: PAOHvis (Valdivia et al., IEEE TVCG)
+      url: https://aviz.fr/Research/paohvis
+      summary: Rows-and-lines drawing of dynamic hypergraphs without overlaps
+    - title: Visualizing hypergraphs - a survey (Fischer et al., IEEE VIS 2021)
+      url: https://arxiv.org/abs/2107.13936
+      summary: Euler-style drawings limited in scale; interactive hypergraph visualization rarely studied
+    - title: HIF - Hypergraph Interchange Format (2025)
+      url: https://arxiv.org/abs/2507.11520
+      summary: JSON schema for hypergraphs, directed hypergraphs and simplicial complexes with incidence attributes
+    - title: Community detection in hypergraphs - a comparison (Poda and Matias 2024)
+      url: https://arxiv.org/abs/2401.14028
+      summary: All-or-nothing hypergraph Louvain best at recovering planted clusters; one last_step run over 15,000 seconds
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

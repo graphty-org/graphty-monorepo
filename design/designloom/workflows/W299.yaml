@@ -1,0 +1,126 @@
+id: W299
+name: Very Large Files - Size Check, Reduction and Database Loading
+category: onboarding
+validated: false
+personas:
+    - event-log-network-builder
+    - graph-data-wrangler
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - progressive-loading
+    - large-graph-rendering
+    - filtering
+    - algorithm-progress
+    - import-report
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - data-preview-table
+    - progressive-loader
+    - progress-bar
+    - filter-panel
+    - status-bar
+starting_state:
+    data_type: Edge list, event log or JSON dump with hundreds of thousands to millions of rows
+    node_count: 100,000 to millions
+    edge_density: sparse
+    user_expertise: intermediate to expert
+goal: >-
+    **Intent**: Get a very large file into a usable state without crashing the tool or silently losing rows: know the
+    ceilings, check size before loading, reduce by sampling, filtering or aggregating, or load into a database and pull
+    a part.
+
+
+    **Mental Model**: "Measure the box before moving the furniture." The user wants to know whether the whole thing fits
+    and, if not, which part to bring in.
+
+
+    **Task Phases** (no source gives step timings):
+
+    1. **Know the ceilings** - Excel stops at 1,048,576 rows by 16,384 columns, so a file with exactly or just under that
+    row count was probably cut by Excel; NodeXL needs 32 GB of RAM for 200,000 edges; Gephi's pages state 100,000 nodes
+    and 1,000,000 edges, and elsewhere 1M nodes and 5M edges
+
+    2. **Raise memory or drop the view** - Gephi detects low memory and offers a new limit after restart; Cytoscape lets
+    a large network exist without a view and suppresses graphics details
+
+    3. **Reduce before import** - Try a subset first (Kumu); sample at import (Maltego); prefilter with a threshold
+    (WGCNA); split large JSON files (BloodHound users until streamed ingest in v5.7.0)
+
+    4. **Or load into a database** - Neo4j: uniqueness constraints first (MERGE is very slow otherwise), batch with CALL
+    IN TRANSACTIONS, nodes then relationships; then query the part needed (W301)
+
+
+    **Decision Points**:
+
+    - Load all, sample, filter, aggregate, or go through a database?
+
+    - Which sample keeps the structure the question needs?
+
+    - Render the whole graph or compute without a full view?
+
+
+    **Information Needs**:
+
+    - Row, node and edge estimates before loading, with a warning when the row count matches a known truncation limit
+
+    - Expected memory and time cost of loading and of the first layout
+
+    - Progress with counts during the load, and what was dropped by any sample or filter
+
+
+    **Pain Points**:
+
+    - Silent truncation at the Excel row limit
+
+    - Tools crash or hang during load with no progress or estimate
+
+    - Splitting files by hand to get them under a tool's limit
+
+    - Database loads that crawl because constraints were not created first
+
+
+    **Data Flow**:
+
+    - Input: Large file or files
+
+    - Transformations: Size check, sampling, filtering, aggregation, or batched database load
+
+    - Output: A graph the tool can hold, with a record of what was left out
+success_criteria:
+    - metric: Size check before load
+      target: User sees row and node estimates and options before committing to a full load
+    - metric: No silent truncation
+      target: A file at a known row ceiling is flagged
+    - metric: Reduction disclosed
+      target: Any sample or filter applied at import is recorded with the loaded graph
+sources:
+    - title: Microsoft - Excel specifications and limits
+      url: https://support.microsoft.com/en-us/office/excel-specifications-and-limits-1672b34d-7043-467e-8e27-269d656771c3
+      summary: 1,048,576 rows by 16,384 columns
+    - title: NodeXL - a guide to network insights
+      url: https://dspace.stir.ac.uk/retrieve/f1292af1-5cdb-400b-820a-bccae8f82e1f/NodeXL%20-%20a%20guide%20to%20network%20insights%20-%20Author%20Version.pdf
+      summary: 32 GB RAM for 200,000 edges
+    - title: Gephi - Features
+      url: https://www.gephi.org/features
+      summary: States 100,000 nodes and 1,000,000 edges
+    - title: Gephi - Desktop
+      url: https://gephi.org/desktop
+      summary: States 1M nodes and 5M edges
+    - title: Gephi User Manual - Troubleshooting
+      url: http://docs.gephi.org/desktop/User_Manual/Troubleshooting/
+      summary: Low-memory detection and a new limit after restart
+    - title: Cytoscape - Rendering Engine
+      url: https://manual.cytoscape.org/en/3.9.0/Rendering_Engine.html
+      summary: Large networks without a view; graphics details suppressed
+    - title: BloodHound v5.7.0 release notes
+      url: https://bloodhound.specterops.io/resources/release-notes/2024-03-04-v5-7-0
+      summary: Streamed ingest replaced manual splitting of large SharpHound JSON
+    - title: Neo4j data ingestion guide - LOAD CSV
+      url: https://neo4j.com/docs/data-ingestion-guide/ingestion-methods/load-csv/
+      summary: Constraints first, CALL IN TRANSACTIONS batching, nodes then relationships
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

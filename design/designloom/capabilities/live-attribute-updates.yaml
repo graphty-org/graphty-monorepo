@@ -1,0 +1,13 @@
+id: live-attribute-updates
+name: Live Attribute Updates
+category: analysis
+description: Streaming or periodic updates to node and edge stats, colors and widths many times a minute without moving
+    nodes or restarting layout, with pause and resume of updates.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W282
+implemented_by_components: []
+requirements: []
+sources: []

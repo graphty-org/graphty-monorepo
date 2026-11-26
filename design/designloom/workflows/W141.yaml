@@ -1,0 +1,130 @@
+id: W141
+name: Trace a Wrong GraphRAG Answer to Its Cause
+category: analysis
+validated: false
+personas:
+    - graphrag-developer
+requires_capabilities:
+    - data-import
+    - search
+    - node-selection
+    - path-highlighting
+    - neighborhood-expansion
+    - community-profiling
+    - details-on-demand
+    - filtering
+    - visual-encoding-nodes
+    - annotation
+    - analysis-history
+    - provenance-tracking
+    - graphrag-output-import
+    - supplied-community-hierarchy
+suggested_components:
+    - data-import-dialog
+    - search-input
+    - graph-canvas
+    - community-panel
+    - cluster-table
+    - node-details-panel
+    - data-table-panel
+    - filter-panel
+    - visual-encoding-panel
+    - annotation-toolbar
+    - analysis-history-panel
+starting_state:
+    data_type: GraphRAG index tables (entities, relationships, communities, community_reports, text_units, documents) plus a query, its answer and the cited context ids
+    node_count: 1000-100000
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: When the assistant answers wrongly, find which entities, relationships, community reports and text
+    chunks it used, and decide whether the fault lies in extraction, community summarization or retrieval.
+
+
+    **Mental Model**: "Follow the receipts." The answer cites ids; each id leads to a node, an edge or a report, and
+    each of those leads back to the chunks and documents it was built from.
+
+
+    **Task Phases**:
+
+    1. **Capture the context** (5 min) - Run the query with local or global search and save the context data and the
+    entity, relationship, report and source ids the answer cites
+
+    2. **Join ids to tables** (15 min) - Today done by hand in pandas: match cited ids to rows in entities,
+    relationships, community_reports and text_units
+
+    3. **Highlight the used subgraph** (5 min) - Show the cited entities and relationships in the graph with their
+    neighbors; mark the communities whose reports were used
+
+    4. **Check community reports** (10 min) - Read the report text for each used community and compare with the member
+    entities; check whether community levels nest as expected
+
+    5. **Trace to chunks** (10 min) - From each suspect entity or relationship, open the text units and documents that
+    produced it and compare with the claim in the answer
+
+    6. **Classify the fault** (5 min) - Missing or wrong extraction, merged or split entity, unfaithful report, or
+    retrieval that picked the wrong context; record it with the query
+
+
+    **Decision Points**:
+
+    - Is the fact absent from the graph, present but wrong, or present and ignored?
+
+    - Is a community report faithful to its members?
+
+    - Fix with a prompt change, a merge, a re-index, or a retrieval setting?
+
+
+    **Information Needs**:
+
+    - The subgraph the answer used, highlighted in context
+
+    - Community membership and report text for each used community, at each level
+
+    - Source chunk and document text for any node or edge, and back from a chunk to its entities
+
+    - A record of traced queries and their fault classes
+
+
+    **Pain Points**:
+
+    - Answers cite ids that must be joined to the tables by hand
+
+    - Experts felt overwhelmed and lost in the sea of LLM calls
+
+    - Viewers ignore GraphRAG's community hierarchy and report text
+
+    - Provenance from answer to graph to chunk exists only in research prototypes
+
+
+    **Data Flow**:
+
+    - Input: Index tables, query, answer and cited context ids
+
+    - Transformations: Id join, subgraph highlight, community lookup, chunk provenance
+
+    - Output: A fault classification per query and a fix (prompt, merge, re-index or retrieval setting)
+success_criteria:
+    - metric: Trace time
+      target: From a wrong answer to the cited subgraph and source chunks in under 5 minutes
+    - metric: Fault classification
+      target: Each traced query is labeled extraction, summarization or retrieval with evidence
+sources:
+    - title: GraphRAG issue 1086 - cited ids
+      url: https://github.com/microsoft/graphrag/issues/1086
+      summary: Answers cite entity and report ids users must join back themselves
+    - title: XGraphRAG - interactive tracing of GraphRAG
+      url: https://arxiv.org/html/2506.13782
+      summary: Visual tracing from answer to graph to chunk; experts lost in the sea of LLM calls
+    - title: GraphRAG index outputs
+      url: https://microsoft.github.io/graphrag/index/outputs/
+      summary: Tables and their id columns linking entities, communities, reports and text units
+    - title: Neo4j blog - Microsoft GraphRAG output in Neo4j
+      url: https://neo4j.com/blog/developer/microsoft-graphrag-neo4j/
+      summary: Community levels did not always nest; inspecting reports against members
+    - title: GraphRAG paper
+      url: https://arxiv.org/html/2404.16130v2
+      summary: Community hierarchy and report-based global search
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

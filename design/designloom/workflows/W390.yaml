@@ -1,0 +1,153 @@
+id: W390
+name: Haplotype Network with Population Pies in PopART
+category: analysis
+validated: false
+personas:
+    - phylogeographer-population-geneticist
+    - conservation-geneticist
+requires_capabilities:
+    - data-import
+    - data-validation
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-force-directed
+    - node-selection
+    - details-on-demand
+    - basic-statistics
+    - export-image
+    - geographic-layout
+    - node-glyph-charts
+    - edge-mutation-marks
+    - haplotype-network-inference
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - attribute-table-join-dialog
+    - graph-canvas
+    - node-chart-overlay
+    - legend-panel
+    - visual-encoding-panel
+    - node-details-panel
+    - statistics-panel
+    - image-export-dialog
+starting_state:
+    data_type: aligned mitochondrial or chloroplast sequences (FASTA or NEXUS) plus a sample sheet with site, region, latitude and longitude
+    node_count: 10-80 haplotypes plus inferred unsampled ancestors, from 50-3,500 sequences
+    edge_density: sparse (a tree with a few reticulations)
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Collapse aligned sequences into haplotypes, connect them by mutational steps, and show which populations
+    carry each haplotype as pie slices, then put the same pies on a map. This is the central figure of nearly every
+    phylogeography and conservation-genetics paper, and the step-by-step exercise of population-genetics lab courses.
+
+
+    **Mental Model**: "A family tree of sequences." Each circle is one unique sequence, its size is how many animals
+    carry it, its colors are where they came from; tick marks on a line count the mutations between two sequences;
+    small black dots are ancestors nobody sampled.
+
+
+    **Task Phases**:
+
+    1. **Prepare sequences** (hours to days) - Edit Sanger reads (reverse-complement, merge, trim), check with BLAST,
+    align with MUSCLE or ClustalW, save FASTA
+
+    2. **Define haplotypes** (20 min) - In DnaSP open the file (filter "All files"), set mtDNA haploid, read haplotype
+    count, segregating sites, Hd and Pi; define sequence sets for populations; export NEXUS with sequences clustered
+    into populations and Arlequin files; check no group is "Additional_Seqs"
+
+    3. **Write the traits block by hand** (20-60 min) - Append BEGIN TRAITS with one column per population and one row
+    per sample, names and order matching the alignment; or load a delimited trait and geotag table
+
+    4. **Load and choose a method** (5 min) - Open the NEXUS (set "Files of type" to All Files if greyed out); choose
+    minimum spanning network (epsilon 0), TCS, median-joining, tight span walker or integer neighbor-joining
+
+    5. **Read the network** (10 min) - Circle area is frequency, slices are populations, hatch marks count mutations,
+    black dots are inferred haplotypes; check Statistics > Identical Sequences for merged samples
+
+    6. **Style and untangle** (15-30 min) - Pick palette, vertex sizes and fonts; drag nodes by hand to stop pies
+    overlapping
+
+    7. **Map view** (10 min) - With geotags, pies appear at sampling sites on a base map in the same colors
+
+    8. **Statistics** (30 min) - Tajima's D, AMOVA and nucleotide diversity in PopART; Standard AMOVA and pairwise FST
+    in Arlequin from a Structure block, read against Wright's thresholds (below 0.05 low, above 0.25 very high)
+
+    9. **Export and assemble** (1-2 hours) - SVG or PNG; combine network, map, tree and statistics table in
+    Illustrator or Inkscape
+
+
+    **Decision Points**:
+
+    - Which network algorithm, given reviewer expectations and whether reticulations should show?
+
+    - How are gaps coded: as a fifth state or masked (masking merges distinct haplotypes)?
+
+    - Group pies by site, region or lineage?
+
+    - How much manual node placement is acceptable when the figure must be reproducible?
+
+
+    **Information Needs**:
+
+    - Haplotype count, which samples were merged into each haplotype, and which sites were masked
+
+    - Mutation count on every edge and which nodes are inferred
+
+    - Population composition of each haplotype with a shared color legend
+
+    - The same colors on the network and the map
+
+    - Diversity, neutrality and AMOVA statistics beside the figure
+
+
+    **Pain Points**:
+
+    - Hand-typed traits block that must match sample order exactly
+
+    - File filter bug hides NEXUS files
+
+    - Gap sites silently masked, merging haplotypes
+
+    - Large pies overlap and must be dragged apart by hand; the layout is then not reproducible
+
+    - Four programs (DnaSP, PopART, Arlequin, Illustrator) for one figure
+
+
+    **Data Flow**:
+
+    - Input: Aligned FASTA or NEXUS, sample sheet keyed by sequence name (population, coordinates)
+
+    - Transformations: Haplotype collapsing, network inference with inferred median vectors, population composition
+    per haplotype, pie layout, map placement, AMOVA and FST
+
+    - Output: Network SVG or PNG with legend, map with pies, statistics table
+success_criteria:
+    - metric: Sample metadata entry
+      target: Population assignment comes from a sample sheet keyed by sequence name, with no hand-typed traits block
+    - metric: Pie overlap
+      target: No two pies overlap after automatic layout, without manual dragging
+    - metric: Color consistency
+      target: Network, map and legend use identical colors for each population
+sources:
+    - title: Master Labcourse 2024 - DnaSP, Arlequin and PopART steps
+      url: https://hackmd.io/@MarisolDominguez/Master-Labcourse-2024
+      summary: DnaSP haplotypes and sequence sets, NEXUS and Arlequin export, PopART network, Arlequin AMOVA and FST
+    - title: dcsoto - Building a haplotype network (2024 blog)
+      url: https://dcsoto.github.io/2024/09/30/haplotype-network
+      summary: Traits block syntax, matching names and order, file filter workaround
+    - title: PopART manual (outline)
+      url: https://fenix.ciencias.ulisboa.pt/downloadFile/2814887206062985/Manual_popart.pdf
+      summary: Network methods, delimited trait and geotag tables, statistics
+    - title: PopART (Leigh and Bryant 2015)
+      url: https://datadryad.org/resource/doi:10.5061/dryad.4n4j1/3
+      summary: MSN, TCS, median-joining, tight span walker, integer neighbor-joining; map view
+    - title: PopART gap masking (PLOS ONE figure)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6490880/figure/pone.0215754.g003
+      summary: Gap or ambiguous sites masked, merging haplotypes
+    - title: BMC Plant Biology 2024 figure
+      url: https://bmcplantbiol.biomedcentral.com/articles/10.1186/s12870-024-04783-5/figures/5
+      summary: PopART map with pies at sampling sites in network colors
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

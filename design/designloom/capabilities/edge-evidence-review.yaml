@@ -1,0 +1,21 @@
+id: edge-evidence-review
+name: Per-Edge Evidence Review
+category: visualization
+description: Queue of unreviewed machine-extracted edges with evidence text and confidence, accept, reject or correct
+    actions stored as edge attributes, and review counts.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W180
+    - W258
+    - W259
+    - W262
+    - W332
+implemented_by_components: []
+requirements:
+    - On selecting an edge, list its evidence (source, PMIDs, sentences, counts, confidence) and let the reader mark it
+      accepted or rejected; marks persist and can drive filters and exports.
+    - Per-edge source, method, confidence and timestamp; inferred edges visibly distinct; accept or reject per edge with
+      the decision handed to the host for write-back.
+sources: []

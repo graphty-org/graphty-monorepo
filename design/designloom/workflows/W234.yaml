@@ -1,0 +1,147 @@
+id: W234
+name: Semester Network Project - Collect, Analyze, Present
+category: reporting
+validated: false
+personas:
+    - class-project-student
+    - network-science-coding-student
+    - network-analysis-instructor
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - node-merging
+    - basic-statistics
+    - degree-analysis
+    - centrality-degree
+    - centrality-betweenness
+    - community-detection
+    - component-analysis
+    - metric-histograms
+    - visual-encoding-nodes
+    - legend-display
+    - annotation
+    - export-image
+    - data-export
+    - report-generation
+    - bipartite-projection
+    - null-model-ensembles
+    - analysis-provenance
+    - matrix-view
+    - private-share-link
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - node-merge-dialog
+    - statistics-panel
+    - histogram
+    - algorithm-panel
+    - visual-encoding-panel
+    - legend-panel
+    - annotation-toolbar
+    - graph-canvas
+    - image-export-dialog
+    - data-export-dialog
+    - report-generator-dialog
+    - share-dialog
+starting_state:
+    data_type: student-collected network (co-appearance, hyperlinks, mentions, memberships) cleaned in Excel or OpenRefine
+    node_count: 100-1000
+    edge_density: sparse
+    user_expertise: novice
+goal: >-
+    **Intent**: Carry a group final project from a pitch to a graded report and presentation: choose or collect a
+    network of at least 100 nodes, decide what counts as a tie, analyze it against expectations and a random reference,
+    and present a well-designed figure. This is the capstone of most social-network-analysis courses (Rutgers, UT
+    Dallas, UMD).
+
+
+    **Mental Model**: "A small research study." The network is evidence for a story about who matters and how the
+    group is organized; the figure and the methods account must convince a grader.
+
+
+    **Task Phases**:
+
+    1. **Choose a network** - A public dataset from a list, or collect your own data as required
+
+    2. **Pitch** - Nodes, links, method, estimated size ("Make sure that N > 100")
+
+    3. **Clean** (hours to days) - Excel or OpenRefine; reconcile names; decide the tie rule (for example, figures who
+    appear together in at least three chapters)
+
+    4. **Analyze** - Size, density, components, central nodes, communities; for each measure state the expectation and
+    the proper random reference
+
+    5. **Visualize** - Node-link diagram with a sense-making layout, and a matrix where it helps
+
+    6. **Write and present** - 1,500-5,000 words with the data and figure attached; a presentation; strict file naming
+    and deadlines
+
+
+    **Decision Points**:
+
+    - What counts as a tie, and what threshold
+
+    - Directed or undirected, weighted or not
+
+    - Which measures answer the research question
+
+    - What random reference to compare against
+
+    - Which views go into the report
+
+
+    **Information Needs**:
+
+    - Whole-network measures beside the same measures on a random graph of the same size and density
+
+    - Degree distribution histogram
+
+    - Methods record of every step and setting, including data source entry
+
+    - Duplicate and merged-name report after cleaning
+
+
+    **Pain Points**:
+
+    - Cleaning and name reconciliation dominate the time
+
+    - No built-in random baseline, so "is this large?" is unanswerable
+
+    - Group members cannot share one live project privately
+
+    - Results and layouts that change between sessions break the report's figures
+
+
+    **Data Flow**:
+
+    - Input: Student-collected or public dataset, cleaned to node and edge tables
+
+    - Transformations: Tie-rule thresholding, name merging, whole-network and node measures, community detection,
+    random-baseline comparison
+
+    - Output: Report and slides with figures, data files, methods account
+success_criteria:
+    - metric: Baseline comparison
+      target: Each whole-network measure in the report is shown beside a random-graph reference
+    - metric: Methods account
+      target: The group can export a list of steps, settings and data source for the methods section
+    - metric: Group sharing
+      target: All group members and the grader can open the same project without making it public
+sources:
+    - title: Rutgers SC&I 373 syllabus (Ognyanova, 2025)
+      url: https://kateto.net/teach/SCI%20373%20Network%20Analysis%20Syllabus%20-%20Ognyanova%20-%202025.pdf
+      summary: Public dataset list, report length for individuals and groups, data and visualization attached, late penalty
+    - title: UT Dallas ATCM 3385 syllabus
+      url: https://dox.utdallas.edu/syl86627
+      summary: Collect your own data, N greater than 100, expectation and proper random reference per measure, node-link and matrix views, file naming
+    - title: UMD INFM 289I project
+      url: https://www.cs.umd.edu/~golbeck/INFM289I/project.shtml
+      summary: Real data required; page counts by group size; analysis weighted 6 of 12 rubric points
+    - title: UMD INFM 289I network exercise
+      url: https://www.cs.umd.edu/~golbeck/INFM289I/netExercise.shtml
+      summary: Tie defined as co-appearance in at least three chapters
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

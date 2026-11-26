@@ -1,0 +1,140 @@
+id: W294
+name: Multi-Value Cells and Two-Mode Tables to a Bipartite Network and Its Projection
+category: onboarding
+validated: false
+personas:
+    - spreadsheet-first-network-builder
+    - bibliometric-network-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - node-merging
+    - computed-attributes
+    - visual-encoding-nodes
+    - basic-statistics
+    - comparison-view
+    - entity-resolution-review
+    - multi-value-split-and-projection
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - node-merge-dialog
+    - network-list-panel
+    - statistics-panel
+    - graph-canvas
+starting_state:
+    data_type: One row per record with a delimited people column, a person-by-event incidence matrix, or a person,event list
+    node_count: 50-5,000
+    edge_density: sparse two-mode; dense after projection
+    user_expertise: novice to advanced
+goal: >-
+    **Intent**: Turn records that list several participants in one cell (letters, papers, meetings, a Partners column)
+    into a network: first split the cell into one row per participant, clean the names, then decide whether to keep the
+    two-mode (person and event) network or project it to a person-to-person network with a weighting rule.
+
+
+    **Mental Model**: "Who appears together." People are tied because they share an event, paper or organization; the
+    shared thing can stay visible as its own node or disappear into a weighted link.
+
+
+    **Task Phases** (no source gives step timings):
+
+    1. **Recognize the shape** - Delimited people column; incidence matrix; two-column person,event list; UCINET
+    nodelist; or a hypergraph CSV where each document stays one hyperedge
+
+    2. **Split the cell into rows** - Choose the separator (semicolon, pipe, comma; a regular expression when needed);
+    rows stay grouped by record; Kumu does this at import for pipe-separated To cells
+
+    3. **Clean names after splitting** - Cluster near-duplicates: fingerprint first (fewest false positives), then
+    n-gram, phonetic keys chosen by language, and edit distance; clustering is syntactic and cannot replace semantic
+    reconciliation
+
+    4. **Keep two-mode or project** - Build actor-by-actor or event-by-event networks; choose cross-products or minimums
+    for valued data, or full versus fractional counting; keep the original two-mode network beside the projection
+    (Gephi's plugin modifies the workspace in place and re-running on a transformed workspace gives wrong results)
+
+    5. **Know what projection does** - Every event becomes a clique, inflating links, density and clustering; different
+    bipartite graphs project to the same one-mode graph; records with very many participants dominate
+
+
+    **Decision Points**:
+
+    - Which separator, and is a comma inside a name a separator?
+
+    - Which name variants are the same person or organization?
+
+    - Two-mode, one-mode projection, or both?
+
+    - Weighting rule for the projection (count, fractional, Newman-style), and whether to drop records with very many
+    participants
+
+
+    **Information Needs**:
+
+    - Count of records, distinct participants after splitting, and participants per record distribution
+
+    - Merge candidates with the evidence for each cluster
+
+    - Node and edge counts and density for the two-mode network and the projection side by side
+
+    - Which records contributed to a projected edge
+
+
+    **Pain Points**:
+
+    - General graph tools need the cell split before import, usually in OpenRefine or a script
+
+    - Name variants split one entity into several nodes
+
+    - Projection plugins that overwrite the original network
+
+    - Large records (consortium papers, mass meetings) create giant cliques
+
+    - The projection's inflated clustering is mistaken for real structure
+
+
+    **Data Flow**:
+
+    - Input: Record table with a multi-value cell, incidence matrix or two-column affiliation list
+
+    - Transformations: Split, cluster and merge names, two-mode build with a type attribute, projection with weighting
+
+    - Output: Two-mode network and one or both projections, kept side by side
+success_criteria:
+    - metric: Split without scripting
+      target: User splits a delimited cell into edges inside the tool and sees the counts
+    - metric: Original preserved
+      target: The two-mode network remains available after projection
+    - metric: Projection disclosure
+      target: Weighting rule and any participant cap are shown with the projected network
+sources:
+    - title: Kumu - Importing data
+      url: https://docs.kumu.io/guides/import/import
+      summary: Pipe-separated values in a To cell draw one connection to each element
+    - title: University of Illinois LibGuide - OpenRefine splitting multi-valued cells
+      url: https://guides.library.illinois.edu/openrefine/splitting
+      summary: Split multi-valued cells by separator, rows grouped as one record
+    - title: OpenRefine - Clustering in depth
+      url: https://openrefine.org/docs/technical-reference/clustering-in-depth
+      summary: Fingerprint least likely to produce false positives; n-gram, phonetic, Levenshtein; cannot replace semantic reconciliation
+    - title: seinecle - k-partite and bipartite graphs in Gephi
+      url: https://seinecle.github.io/gephi-tutorials/generated-html/k-partite-bi-partite-graph-en.html
+      summary: Multimode Networks Transformation plugin modifies the workspace in place; duplicate first
+    - title: Hanneman and Riddle - Working with network data, chapter 6
+      url: https://faculty.ucr.edu/~hanneman/nettext/C6_Working_with_data.html
+      summary: UCINET Data Affiliations; cross-products versus minimums for valued data
+    - title: Zhou et al. - Bipartite network projection and personal recommendation
+      url: https://arxiv.org/pdf/0707.0540
+      summary: Projection loses information and inflates links
+    - title: Latapy, Magnien and Del Vecchio - Basic notions for the analysis of large two-mode networks
+      url: https://arxiv.org/pdf/cond-mat/0611631
+      summary: Different bipartite graphs project to the same one-mode graph; clustering inflation
+    - title: PAOHvis
+      url: https://aviz.fr/Research/paohvis
+      summary: Hypergraph CSV where each document stays one hyperedge; 50 to 500 nodes typical
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

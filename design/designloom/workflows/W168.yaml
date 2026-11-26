@@ -1,0 +1,128 @@
+id: W168
+name: Ecosystem Network Analysis of Flows
+category: analysis
+validated: false
+personas:
+    - food-web-ecologist
+requires_capabilities:
+    - data-import
+    - data-validation
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - computed-attributes
+    - statistics-panel
+    - layout-hierarchical
+    - comparison-view
+    - details-on-demand
+    - report-generation
+    - data-export
+    - trophic-level-layout
+    - boundary-flows
+suggested_components:
+    - data-import-dialog
+    - file-drop-zone
+    - graph-canvas
+    - visual-encoding-panel
+    - legend-panel
+    - computed-attributes-panel
+    - statistics-panel
+    - metric-card
+    - node-details-panel
+    - comparison-view
+    - report-generator-dialog
+    - data-export-dialog
+starting_state:
+    data_type: flow matrix among compartments plus per-node imports, exports, respiration, storage and a living flag
+    node_count: 4-125 compartments
+    edge_density: moderate
+    user_expertise: expert
+goal: >-
+    **Intent**: Analyze a quantified model of energy or nutrient flows through an ecosystem: check it is balanced,
+    then compute throughflow, cycling, ascendency and how each compartment depends on the others.
+
+
+    **Mental Model**: "A plumbing system with taps and drains." Flows run between compartments, but material also
+    enters from outside, leaves as exports and is lost as respiration; storage sits in each compartment; detritus is a
+    non-living compartment that recycles material.
+
+
+    **Task Phases**:
+
+    1. **Get a model** (5 min) - Load a bundled empirical model, read a model file in a standard flow format, or
+    export from Ecopath
+
+    2. **Pack it** (5 min) - Internal flow matrix plus per-node input, export, respiration and storage vectors and a
+    living or non-living flag
+
+    3. **Check balance** (2 min) - Test whether inputs equal outputs per node within a tolerance; adjust inputs or
+    outputs if not
+
+    4. **Analyze** (5 min) - Throughflow and total system throughflow, cycles and the cycling index, ascendency,
+    storage analysis, input and output environs, control, mixed trophic impacts
+
+    5. **Compare models** (15 min) - Across ecosystems or management scenarios
+
+    6. **Hand off** (10 min) - Index tables and a trophic spine plot
+
+
+    **Decision Points**:
+
+    - Which balancing method if the model is not at steady state?
+
+    - Which indices matter for this question?
+
+    - Which scenarios or ecosystems to compare?
+
+
+    **Information Needs**:
+
+    - Per-node balance (inputs minus outputs) with nodes out of tolerance flagged
+
+    - Flows drawn as directed weighted links, including self-loops
+
+    - Boundary flows drawn as arrows from and to the outside of the system
+
+    - System-level indices side by side across models
+
+
+    **Pain Points**:
+
+    - Self-loops and boundary flows have no place in ordinary graph tools
+
+    - No interactive drawing of flow models with boundary flows was found
+
+    - Analysis and drawing are separate steps in separate tools
+
+
+    **Data Flow**:
+
+    - Input: Flow matrix and boundary vectors, model files in standard flow formats, or Ecopath exports
+
+    - Transformations: Packing, balance check and adjustment, flow, cycle, ascendency and environ analysis
+
+    - Output: Index tables, flow diagram with boundary flows, spine plots, scenario comparison
+success_criteria:
+    - metric: Model fidelity
+      target: Imports, exports, respiration and self-loops all visible in the drawing
+    - metric: Balance transparency
+      target: User can see which compartments are out of balance before analysis
+sources:
+    - title: enaR repository
+      url: https://github.com/SEELab/enaR
+      summary: Ecosystem network analysis in R with bundled empirical models
+    - title: enaR function reference
+      url: https://seelab.github.io/enaR/reference/index.html
+      summary: pack, ssCheck, balance, enaFlow, enaCycle, enaAscendency, enaStorage, enaEnviron, enaControl, enaMTI and enaAll
+    - title: enaR enaCycle help page
+      url: https://www.rdocumentation.org/packages/enaR/versions/2.9.1/topics/enaCycle
+      summary: Cycle and nexus tables, cycle distribution and cycling index
+    - title: Borrett and Lau 2014 - enaR
+      url: https://eld.bl.uk/catalog/100025099941_0x000001
+      summary: Describes a library of 100 empirical ecosystem models shipped with the package
+    - title: EcoBase - Ecopath model repository
+      url: https://ecobase.ecopath.org/
+      summary: 233 downloadable Ecopath models
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

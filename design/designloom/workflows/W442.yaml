@@ -1,0 +1,137 @@
+id: W442
+name: Gut Microbiome and Metabolite Correlation Network for an Herbal Formula
+category: analysis
+validated: false
+personas:
+    - network-pharmacology-researcher
+requires_capabilities:
+    - data-import
+    - data-validation
+    - filtering
+    - saved-filters
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-force-directed
+    - layout-hierarchical
+    - metric-histograms
+    - community-detection
+    - details-on-demand
+    - tooltip-display
+    - export-image
+    - data-export
+    - similarity-graph-construction
+    - layout-tiered-by-attribute
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - heatmap-panel
+    - filter-panel
+    - range-slider
+    - histogram
+    - visual-encoding-panel
+    - legend-panel
+    - graph-canvas
+    - node-tooltip
+    - image-export-dialog
+starting_state:
+    data_type: >-
+        A taxa-by-metabolites Spearman correlation matrix with a matching p-value matrix; LEfSe differential taxa (LDA
+        score); OPLS-DA key metabolites (VIP, p); a compound-target network from the standard pipeline; pathway
+        memberships for metabolites and targets
+    node_count: 20-80 taxa and metabolites, plus 100-200 host targets when joined
+    edge_density: dense before thresholding, sparse after
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Show which gut bacteria and which metabolites move together after treatment with a formula, and connect
+    them to the host targets the formula's compounds are predicted to reach. This branch (782 records) is the
+    mechanism story for gut and metabolic disease.
+
+
+    **Mental Model**: "Bugs, molecules, host." A strong taxon-metabolite correlation is read as a mechanistic link;
+    red edges are positive, blue negative; the network bridges to host targets through shared pathways.
+
+
+    **Task Phases**:
+
+    1. **Narrow the formula** (one day) - Standard pipeline (one capsule: 99 components to 10; one powder: 980 compounds
+    to 97 and a 171-node compound-target network)
+
+    2. **Dose and sample** (weeks) - Animal model with treatment groups (30-60 rats)
+
+    3. **Sequence the microbiota** (days) - 16S V3-V4 or full-length; QIIME, OTUs at 97%, diversity, LEfSe (LDA > 4.0)
+    for differential taxa
+
+    4. **Profile metabolites** (days) - Untargeted metabolomics, OPLS-DA VIP and p for key metabolites
+
+    5. **Correlate** (1 h) - Spearman matrix of differential taxa against key metabolites; import as a signed, weighted
+    bipartite network and threshold edges by |r| and p (thresholds are often unreported in papers)
+
+    6. **Join to host targets** (1-2 h) - Link metabolites to targets through shared pathways; most papers make this link
+    only in prose
+
+    7. **Validate** by western blot, qPCR or ELISA
+
+
+    **Decision Points**:
+
+    - Which |r| and p thresholds draw an edge, and do the conclusions hold at a stricter one?
+
+    - Keep only LEfSe and VIP-selected features, or the full correlation matrix?
+
+    - Which metabolite-to-target bridges are drawn as edges rather than argued in text?
+
+
+    **Information Needs**:
+
+    - Edge count at each |r| and p threshold, adjusted live
+
+    - Correlation sign and strength on every edge, with the threshold stated in the legend
+
+    - Feature type (taxon, metabolite, host target) and the selection statistic (LDA, VIP) on every node
+
+    - Shared pathways between a metabolite and a host target
+
+
+    **Pain Points**:
+
+    - The drawn network depends on an unstated cutoff; reviewers cannot see what a different cutoff would show
+
+    - Correlation heatmaps and networks are drawn outside the network tool, in R
+
+    - The bridge from microbiome to host targets lives in prose, not in the graph
+
+
+    **Data Flow**:
+
+    - Input: Correlation and p-value matrices, differential taxa and metabolite tables, compound-target network, pathway
+    membership tables
+
+    - Transformations: Matrix to signed weighted bipartite network, live threshold filter, attribute join, pathway-based
+    bridge edges to host targets
+
+    - Output: Taxon-metabolite-target network with the threshold recorded, figure with sign legend, edge table
+success_criteria:
+    - metric: Threshold transparency
+      target: The exported figure and edge table state the |r| and p thresholds used
+    - metric: Threshold exploration
+      target: User can change |r| and p and see edge counts update without re-importing
+    - metric: Host link
+      target: Microbiome nodes and host targets appear in one network connected by explicit pathway edges
+sources:
+    - title: Weifuchun Capsule microbiome study (Frontiers in Microbiology 2025)
+      url: https://www.frontiersin.org/journals/microbiology/articles/10.3389/fmicb.2025.1634410/text
+      summary: 99 components narrowed to 10, then microbiome and metabolite analysis
+    - title: Guanyu Zhixie Granule study (PMC11149358)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11149358/
+      summary: 60 rats in six groups; Spearman correlation of taxa and metabolites (Proteobacteria with epinephrine r = 0.749)
+    - title: Tongxieyaofang study (PMC11604607)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11604607/
+      summary: Microbiome branch with the link to host targets made in prose; intersection of hub-method top lists
+    - title: Shen Ling Bai Zhu San colitis study (PMC6612409)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6612409
+      summary: 980 compounds to 97, a 171-node 330-edge compound-target network, 30 rats with DSS colitis, 16S sequencing
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

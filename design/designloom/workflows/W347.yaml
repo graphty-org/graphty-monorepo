@@ -1,0 +1,119 @@
+id: W347
+name: Object-Centric Event Log Exploration (OCEL 2.0)
+category: exploration
+validated: false
+personas:
+    - process-mining-researcher
+    - process-mining-consultant
+requires_capabilities:
+    - data-import
+    - data-preview
+    - layout-hierarchical
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - filtering
+    - comparison-view
+    - details-on-demand
+    - statistics-panel
+    - event-log-import
+    - object-centric-process-map
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - graph-canvas
+    - slider
+    - legend-panel
+    - statistics-panel
+    - comparison-view
+    - node-details-panel
+starting_state:
+    data_type: OCEL 2.0 log (SQLite, XML or JSON) with typed events, typed objects and qualified relations
+    node_count: 10-40 activities over 3-8 object types (order management sample 21,008 events, 10,840 objects, 6 types)
+    edge_density: moderate
+    user_expertise: expert
+goal: >-
+    **Intent**: Explore a process in which events involve several objects at once (an order, its items, their
+    deliveries, an invoice) without forcing everything into one case, and see what flattening to a single case would
+    distort.
+
+
+    **Mental Model**: "One directly-follows graph per object type, merged at the activities they share." Flattening
+    copies an event into many cases (convergence, inflated counts) and invents loops (divergence).
+
+
+    **Task Phases**:
+
+    1. **Load** (2 min) - Read OCEL 2.0; inspect object types and the summary of object interactions
+
+    2. **Discover** (5 min) - Object-centric DFG: one DFG per object type, merged; shared activities once; edges marked
+    per type
+
+    3. **Compare with flattening** (10 min) - Flatten on one object type and compare counts and loops with the
+    object-centric map
+
+    4. **Graph database route** (research) - Load events and entities into Neo4j as an event knowledge graph, one
+    directly-follows chain per entity, chains meeting at shared events; aggregate to multi-entity DFGs with Cypher
+
+
+    **Decision Points**:
+
+    - Which object types to show together?
+
+    - Which object type to flatten on for comparison?
+
+    - Per-type frequency thresholds
+
+
+    **Information Needs**:
+
+    - Object and event counts per type
+
+    - Which object types each activity involves and with what qualifier
+
+    - Count differences between the object-centric and flattened views
+
+
+    **Pain Points**:
+
+    - Object type encoded only by hue, so without color the map reads as a traditional one
+
+    - Few interactive tools; research prototypes and static images
+
+    - Event knowledge graphs in Neo4j have no process map interface
+
+
+    **Data Flow**:
+
+    - Input: OCEL 2.0 file
+
+    - Transformations: Per-type directly-follows derivation, merge at shared activities, flattening for comparison
+
+    - Output: Object-centric map, flattened comparison, counts per type
+success_criteria:
+    - metric: Type legibility
+      target: Object type of each edge readable without color
+    - metric: Flattening effect
+      target: User can state how much a chosen flattening inflates event counts
+sources:
+    - title: OCEL 2.0 specification
+      url: https://www.ocel-standard.org/2.0/ocel20_specification.pdf
+      summary: Typed events and objects, E2O and O2O relations with qualifiers; SQLite, XML and JSON
+    - title: Object-centric directly-follows graphs (arXiv 2206.11017)
+      url: https://arxiv.org/pdf/2206.11017v3.pdf
+      summary: OC-DFG construction and visualization
+    - title: Event graph tutorial
+      url: https://github.com/multi-dimensional-process-mining/eventgraph_tutorial
+      summary: Building event knowledge graphs in Neo4j
+    - title: van der Aalst - Object-centric process mining, unraveling the fabric of real processes (Rainbow Spaghetti)
+      url: https://www.vdaalst.com/publications/p1434.pdf
+      summary: Convergence and divergence from flattening; activities involve multiple object types
+    - title: Esser and Fahland - multi-dimensional event data in graph databases
+      url: https://arxiv.org/pdf/2005.14552v2
+      summary: Directly-follows chain per entity, multi-entity DFG aggregation with Cypher
+    - title: OCEL 2.0 order management sample log (Zenodo)
+      url: https://zenodo.org/records/8428112
+      summary: 21,008 events, 11 event types, 10,840 objects of 6 types
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

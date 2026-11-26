@@ -1,0 +1,105 @@
+id: W397
+name: Identity-by-Descent Network at Company Scale
+category: analysis
+validated: false
+personas:
+    - population-genomics-snp-analyst
+requires_capabilities:
+    - data-import
+    - large-graph-rendering
+    - progressive-loading
+    - filtering
+    - component-analysis
+    - community-detection
+    - computed-attributes
+    - visual-encoding-nodes
+    - legend-display
+    - statistics-panel
+    - linked-views-selection
+    - geographic-layout
+    - similarity-graph-construction
+suggested_components:
+    - data-import-dialog
+    - progressive-loader
+    - progress-bar
+    - filter-panel
+    - algorithm-panel
+    - community-panel
+    - graph-canvas
+    - statistics-panel
+    - legend-panel
+starting_state:
+    data_type: pairwise identity-by-descent segments among phased genotypes, summarized as weighted pairs
+    node_count: about 770,000 individuals
+    edge_density: over 500 million pairs above 12 cM
+    user_expertise: expert
+goal: >-
+    **Intent**: Find fine-scale genetic communities among hundreds of thousands of genotyped customers by building a
+    network of shared identity-by-descent segments and partitioning it recursively.
+
+
+    **Mental Model**: "People who share long DNA segments share recent ancestors." Communities in the sharing network
+    map to places where ancestors were born.
+
+
+    **Task Phases**:
+
+    1. **Detect IBD** (days of compute) - Phase genotypes; detect segments with distributed GERMLINE (minimum 5 cM)
+    among 774,516 people
+
+    2. **Build the graph** (hours) - Keep pairs sharing over 12 cM (over 500 million pairs); weight edges from a Beta
+    cumulative distribution; drop edges above 72 cM (close relatives, 0.2% of edges)
+
+    3. **Partition** (hours) - Louvain modularity in igraph on the 769,444-vertex connected component: six top-level
+    clusters, then recursively split the five largest; Infomap and label propagation did not find the substructure
+
+    4. **Embed and map** (hours) - Laplacian eigenmap with 40 eigenvectors for stable subsets; plot pairs of spectral
+    dimensions colored by cluster; map clusters to ancestor birth locations
+
+
+    **Decision Points**:
+
+    - Minimum and maximum shared cM for an edge
+
+    - Which community algorithm finds the substructure
+
+    - How deep to recurse
+
+
+    **Information Needs**:
+
+    - Size of the largest connected component
+
+    - Cluster sizes at each level of the recursion
+
+    - Spectral coordinates colored by cluster
+
+    - Geographic distribution of each cluster's ancestors
+
+
+    **Pain Points**:
+
+    - Scale: hundreds of millions of edges cannot be drawn directly, so views use embeddings and maps
+
+    - Different community algorithms give different answers
+
+
+    **Data Flow**:
+
+    - Input: Phased genotypes; IBD segments; ancestor birth locations from family trees
+
+    - Transformations: Pair filtering, edge weighting, connected components, recursive Louvain, spectral embedding
+
+    - Output: Cluster assignments, spectral scatter plots, cluster maps, ancestry reports
+success_criteria:
+    - metric: Scale
+      target: A connected component of about 770,000 nodes is partitioned and an edge-sampled view renders
+    - metric: Hierarchy
+      target: Recursive community levels can be browsed from top-level clusters down
+sources:
+    - title: Han et al. 2017 - Clustering of 770,000 genomes reveals post-colonial population structure of North America
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5309710
+      summary: GERMLINE IBD, 12 cM and 72 cM cutoffs, Beta-weighted edges, 769,444-vertex component, recursive Louvain, spectral embedding
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,19 @@
+id: notebook-widget
+name: Notebook Widget
+category: analysis
+description: Display a graph from NetworkX, igraph or a GEXF/GraphML string inside a hosted Jupyter or Colab notebook at
+    about 10^5 nodes and 5 x 10^5 edges, with computed columns styleable.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W235
+    - W236
+    - W266
+    - W267
+    - W274
+implemented_by_components: []
+requirements:
+    - Render the graph inside Jupyter, VS Code, Colab and Databricks notebooks from a DataFrame or edge list plus node
+      table, keeping original ids beside integer indices, and return selections and annotations to Python.
+sources: []

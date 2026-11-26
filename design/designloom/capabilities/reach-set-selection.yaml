@@ -1,0 +1,15 @@
+id: reach-set-selection
+name: Reach Set and Key-Player Selection
+category: analysis
+description: Find the smallest set of nodes whose k-step reach covers a target share of the network, and search for the
+    node set whose removal most fragments it (key-player positive and negative problems), reporting coverage or
+    fragmentation for the chosen set.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W190
+    - W192
+implemented_by_components: []
+requirements: []
+sources: []

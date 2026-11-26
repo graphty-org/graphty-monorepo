@@ -13,6 +13,28 @@ used_by_workflows:
     - W10
     - W03
     - W23
+    - W104
+    - W107
+    - W142
+    - W172
+    - W176
+    - W177
+    - W184
+    - W187
+    - W205
+    - W207
+    - W209
+    - W235
+    - W249
+    - W26
+    - W311
+    - W364
+    - W387
+    - W430
+    - W438
+    - W439
+    - W447
+    - W66
 implemented_by_components:
     - algorithm-card
     - algorithm-panel

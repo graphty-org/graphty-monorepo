@@ -1,0 +1,14 @@
+id: coded-segment-co-occurrence
+name: Coded Segment Co-occurrence
+category: analysis
+description: Import a coded-segment table (one row per segment, 0/1 code columns, metadata) and build a code
+    co-occurrence network with a chosen unit (segment overlap, document, moving window within a conversation).
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W405
+    - W407
+implemented_by_components: []
+requirements: []
+sources: []

@@ -1,0 +1,13 @@
+id: shared-risk-diversity
+name: Shared-Risk Group Diversity Check
+category: export
+description: Define shared-risk groups (conduit, pole line, crossing) and check whether two paths share any, including
+    polyline overlap within a distance tolerance.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W225
+implemented_by_components: []
+requirements: []
+sources: []

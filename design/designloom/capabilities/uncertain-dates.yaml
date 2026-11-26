@@ -1,0 +1,13 @@
+id: uncertain-dates
+name: Uncertain and Relative Dates
+category: analysis
+description: Dates as ranges with a computed best value (year only, between X and Y, relative to another dated item),
+    following nodegoat's Chronology Statements; filters state whether they match on overlap or containment.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W19
+implemented_by_components: []
+requirements: []
+sources: []

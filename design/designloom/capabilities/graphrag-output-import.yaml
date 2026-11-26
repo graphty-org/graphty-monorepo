@@ -1,0 +1,15 @@
+id: graphrag-output-import
+name: GraphRAG Output Import
+category: data
+description: Import Microsoft GraphRAG Parquet output across v1 (create_final_*), v2 and v3 table names and columns,
+    keeping entities, relationships, the supplied community hierarchy, community reports and text units.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W129
+    - W130
+    - W141
+implemented_by_components: []
+requirements: []
+sources: []

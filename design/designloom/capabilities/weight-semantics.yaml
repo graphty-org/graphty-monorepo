@@ -1,0 +1,19 @@
+id: weight-semantics
+name: Weight Semantics
+category: analysis
+description: Each weight column marked strength or distance; each algorithm shows which it reads; recorded conversion
+    (1/w, -log w, max-w) and optional Opsahl alpha.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W05
+    - W235
+    - W236
+    - W39
+    - W40
+implemented_by_components: []
+requirements:
+    - Let the user state whether an edge weight is a strength or a distance, convert between them, and show which
+      interpretation each algorithm used.
+sources: []

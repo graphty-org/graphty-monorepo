@@ -1,0 +1,15 @@
+id: plugin-layout-algorithm-contract
+name: Layout and Algorithm Plugin Contract
+category: visualization
+description: "Register layouts and algorithms with parity to built-ins: a simple fn(graph, options) path and a
+    typed-array advanced path, progress, cancel, worker and GPU access, and registration that fails at once naming the
+    plugin and the bad field."
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W285
+    - W290
+implemented_by_components: []
+requirements: []
+sources: []

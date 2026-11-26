@@ -1,0 +1,34 @@
+id: time-respecting-paths
+name: Time-Respecting Paths
+category: analysis
+description: Journeys and reachability that respect edge timestamps with a maximum waiting time.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W05
+    - W09
+    - W105
+    - W120
+    - W122
+    - W124
+    - W19
+    - W307
+    - W308
+    - W40
+    - W71
+    - W72
+    - W74
+implemented_by_components: []
+requirements:
+    - Forward and backward reachability from a chosen node within a time window along edges in correct chronological
+      order, so a path that violates time order never appears. Plain reachability overstates risk in livestock tracing
+      and in hospital movement work.
+    - Find paths whose edges occur in time order (dated-event order), alongside the connecting network among seeds.
+    - Find or expand directed paths where each hop happens after the previous one, optionally constrained by amount
+      (each hop within a ratio of the last, or capped at the amount received), including cycle search for round-tripping
+      and forward expansion from a seed transaction rather than a seed node.
+    - Earliest-arrival paths, latency, forward and backward reachable sets and ordered cycle search with a maximum
+      waiting time and optional per-hop attribute constraints (amount ratio); compare with static paths; export the path
+      as an ordered timestamped list.
+sources: []

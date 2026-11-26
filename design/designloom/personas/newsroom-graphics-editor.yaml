@@ -1,0 +1,75 @@
+id: newsroom-graphics-editor
+name: Newsroom Graphics Editor
+role: Graphics Reporter / Graphics Developer on a News Desk
+quote: The reporters hand me four hundred verified links. Readers will give me ten seconds on a phone. My job is the one picture in between.
+bio: >-
+    Julia Moreno is a graphics reporter who turns an investigation's network into the chart readers see. She works in
+    D3, Illustrator and Flourish, and knows that network charts are "not as intuitive as a simple bar chart" for a
+    general reader. Her input is a reporter-supplied, fact-checked list of nodes and links -- usually tens to a few
+    hundred items -- that has already passed legal review, so she cannot add, drop or rename anything without going
+    back to the reporter. The published evidence about how desks like hers work is dated: in 2013 NPR drafted a
+    network in OmniGraffle and finished it in Illustrator, redrawing "at least eight" layouts by hand to avoid
+    spaghetti; in 2017 the Wall Street Journal used a D3 force layout with colored background zones, scroll-triggered
+    annotations and paths highlighted on hover, and turned off the layout's motion because it was distracting. Since
+    then the toolchain has moved toward Flourish, Observable and Svelte scrollytelling, and no first-hand account
+    from 2021 or later was found. What has not changed is the goal: a clean chart with one clear takeaway, readable
+    on a phone, with every label approved.
+characteristics:
+    expertise: intermediate
+    time_pressure: high
+    graph_literacy: moderate
+    domain_knowledge: moderate
+motivations:
+    - Distill a complex, messy dataset into a clean visualization with a clear takeaway
+    - Let a reader hover on any node to see how it links back to the story's subject
+    - Make the chart readable on a phone
+    - Keep every label and link exactly as the fact-checkers and lawyers approved it
+    - Reveal the network step by step as the reader scrolls
+behaviors:
+    - Receives a Points sheet and a Links sheet (or nodes and edges CSV) from the reporter and never edits facts in them
+    - Drafts a layout automatically, then fixes positions by hand so the story's subject sits where readers look first
+    - Stops force-layout motion before publishing
+    - Groups nodes into colored background zones by role or type
+    - Drops encodings the data cannot support (NPR dropped line weight for donation size because the data was inconsistent)
+    - Adds a title, a source footer, a disclaimer and hover popups, then embeds the chart or exports SVG for print
+frustrations:
+    - Text inside the chart that becomes unreadable on phones
+    - Constant force-layout motion
+    - Redrawing the same layout by hand many times
+    - Encodings the data cannot support
+    - Exports that lose the legend, captions or disclaimer
+    - Color-coding hundreds of relationship categories instead of labeling them on hover
+context:
+    frequency: as-needed
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W91
+    - W92
+sources:
+    - title: OpenNews Source - Why network diagrams are hard (Hurt 2013)
+      url: https://source.opennews.org/articles/network-diagrams-hard/
+      summary: NPR drafted in OmniGraffle, finished in Illustrator, redrew at least eight layouts; phone readability; dropped line weight for inconsistent data
+    - title: Storybench - How the Wall Street Journal built its network graphic (Wu 2017)
+      url: https://www.storybench.org/?p=5635
+      summary: D3 force layout, colored background zones, scroll-triggered annotations, hover paths, motion turned off as distracting
+    - title: Flourish - Network charts
+      url: https://flourish.studio/visualisations/network-charts/
+      summary: Network template with Points and Links sheets on the free plan
+    - title: Miriam Posner - Flourish network graph tutorial (2021)
+      url: https://miriamposner.com/classes/dh201w21/tutorials-guides/network-analysis/flourish-graph
+      summary: Points and Links sheets, arrows off for undirected data, link width settings, popups, embed
+    - title: Online Journalism Blog - A journalist's introduction to network analysis (2020)
+      url: https://onlinejournalismblog.com/2020/06/08/a-journalists-introduction-to-network-analysis/
+      summary: Network charts are not as intuitive as a simple bar chart for readers
+    - title: Bounegru et al. - Narrating networks (Digital Journalism 2017)
+      url: https://arxiv.org/abs/1801.01322
+      summary: Five kinds of narrative readings of networks in journalistic network images
+    - title: Cambridge Intelligence - Labeling many relationship types
+      url: https://cambridge-intelligence.com/?p=11611
+      summary: On-hover labels recommended over color-coding nearly 500 relationship categories (read via search summary)
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

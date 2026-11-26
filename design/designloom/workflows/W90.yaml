@@ -1,0 +1,160 @@
+id: W90
+name: Documents and Registries to an Entity Graph
+category: analysis
+validated: false
+personas:
+    - investigative-reporter
+    - osint-investigator
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - search
+    - node-merging
+    - neighborhood-expansion
+    - centrality-betweenness
+    - centrality-degree
+    - filtering
+    - details-on-demand
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - annotation
+    - data-export
+    - export-image
+    - local-only-processing
+    - provenance-tracking
+    - batch-name-matching
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - data-preview-table
+    - column-mapper
+    - search-panel
+    - node-merge-dialog
+    - graph-canvas
+    - node-details-panel
+    - filter-panel
+    - algorithm-panel
+    - data-table-panel
+    - data-export-dialog
+starting_state:
+    data_type: document collection (emails, PDFs, scans) or registry and sanctions data turned into entities by extraction tools
+    node_count: hundreds to tens of thousands per investigation; platform datasets hold billions of entities
+    edge_density: varies
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Turn a pile of documents or a set of registry and sanctions datasets into a graph of people,
+    organizations, emails and ownership, cross-reference it against a list of persons of interest, and explore it,
+    while keeping track of which document or dataset asserted each fact. Tools in use: ICIJ's Datashare (offline
+    document search with a graph plug-in), OCCRP's Aleph (cross-referencing and network diagrams over the
+    FollowTheMoney model) and OpenSanctions.
+
+
+    **Mental Model**: "The documents say who is who; the graph only collects what they say." Auto-built edges are
+    noisy leads; every merge of two records is a judgement that may be wrong.
+
+
+    **Task Phases**:
+
+    1. **Ingest** (hours) - Index a folder in Datashare (offline local mode: no data leaves the machine), with OCR;
+    or create an Aleph investigation and upload documents and a persons-of-interest list
+
+    2. **Extract entities** (automatic, then 30 min review) - Named-entity recognition highlights people,
+    organizations, locations and emails; batch-search a name list to a spreadsheet
+
+    3. **Build the graph** (minutes) - Datashare's plug-in builds a graph in one step: edges from email sender and
+    recipient fields (high precision) and document co-occurrence (noisy); Aleph relationships are themselves entities
+    (an ownership with start date and percentage)
+
+    4. **Cross-reference** (minutes, then hours of review) - Match the investigation against all datasets; every match
+    must be independently verified
+
+    5. **Diagram and expand** (15-60 min) - New network diagram; add entities and links; expand ownership from a
+    company; large data quickly produces very complex diagrams
+
+    6. **Analyze elsewhere** (30 min) - Export GEXF for Gephi or Sigma.js, or Cypher for Neo4j; on an email corpus,
+    centrality finds the people who centralized information
+
+    7. **Keep provenance** - Each value of each property carries its dataset, first seen and last seen; merged profiles
+    choose values while the underlying statements keep every assertion; entity resolution is a graph of positive and
+    negative judgements
+
+
+    **Decision Points**:
+
+    - Which edges come from structured fields (sender, recipient, ownership) and which from co-occurrence?
+
+    - Are two extracted names the same person? Merge, keep apart, or mark undecided?
+
+    - Which cross-reference matches survive verification?
+
+    - When is an auto-built graph good enough to drive reporting but not to publish?
+
+
+    **Information Needs**:
+
+    - Edge origin (structured field vs co-occurrence) and the source document of each edge
+
+    - Per-value source dataset with first-seen and last-seen dates
+
+    - Match list from cross-referencing, with score and the record matched
+
+    - Merge history showing which records were combined and on whose judgement
+
+
+    **Pain Points**:
+
+    - Auto-built graphs are noisier and usually unsuited to the final stage
+
+    - Diagrams become unreadable as soon as large data is added
+
+    - Relationship records that carry dates and percentages become plain edges in tools that cannot hold properties on
+    edges
+
+    - Merges that cannot be undone or that lose the original records
+
+
+    **Data Flow**:
+
+    - Input: Document folders; persons-of-interest lists; FollowTheMoney JSON entities; OpenSanctions entities and
+    statements CSV
+
+    - Transformations: OCR, entity extraction, email and co-occurrence edges, cross-referencing, merge judgements,
+    ownership expansion, centrality
+
+    - Output: Entity graph with per-statement provenance, verified match list, GEXF or Cypher export, diagram image
+success_criteria:
+    - metric: Edge origin visible
+      target: User can tell a structured-field edge from a co-occurrence edge and open its source document
+    - metric: Reversible merges
+      target: Any merge can be undone without losing either original record
+    - metric: Provenance kept in export
+      target: Exported graph carries source dataset and first and last seen for each value
+sources:
+    - title: ICIJ - Datashare's new plug-in helps investigative journalists connect the dots with graphs (2024)
+      url: https://www.icij.org/inside-icij/2024/02/datashares-new-plug-in-helps-investigative-journalists-connect-the-dots-with-graphs/
+      summary: One-step graph from email fields (high precision) and co-occurrence; Bloom, Linkurious or Gephi; graphs are noisier
+    - title: ICIJ - What is Datashare (FAQ)
+      url: https://www.icij.org/inside-icij/2019/11/what-is-datashare-frequently-asked-questions-about-our-document-analysis-software/
+      summary: Offline local mode; strictly no data comes out of Datashare; NER and batch search
+    - title: Aleph documentation - Network diagrams
+      url: https://docs.aleph.occrp.org/users/investigations/network-diagrams
+      summary: New diagram, add entities and links, expand assets and shares, share or export
+    - title: OpenAleph user guide - Network diagrams
+      url: https://darc.li/docs/openaleph/user-guide/103/network-diagrams
+      summary: Large data can produce very complex diagrams
+    - title: Bellingcat Online Investigations Toolkit - OCCRP Aleph
+      url: https://bellingcat.gitbook.io/toolkit/more/all-tools/occrp-aleph
+      summary: Search operators, cross-referencing; matches must be independently verified
+    - title: Aleph developer docs - Export network graphs
+      url: https://docs.aleph.occrp.org/developers/how-to/data/export-network-graphs
+      summary: ftm export-gexf and export-cypher (read via search summary)
+    - title: OpenSanctions - Statements
+      url: https://www.opensanctions.org/docs/statements/
+      summary: One row per property value with dataset, entity id, first_seen, last_seen and canonical id
+    - title: FollowTheMoney documentation
+      url: https://followthemoney.tech/docs/
+      summary: Relationships are interstitial entities such as Ownership with start date and percentage
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

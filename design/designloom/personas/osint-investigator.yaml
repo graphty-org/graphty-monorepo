@@ -1,0 +1,79 @@
+id: osint-investigator
+name: OSINT Investigator
+role: Open-Source Researcher at an NGO Investigations Unit, Newsroom OSINT Desk or Corporate-Intelligence Firm
+quote: Same username is a weak signal. I need three independent pivots and a captured page for each before I put a name on this.
+bio: >-
+    Tomas Varga is an open-source intelligence (OSINT) researcher who started at an NGO investigations unit and now works
+    for a due-diligence firm. His cases begin with one "selector" -- an email address, an alias, a domain, a phone
+    number, a Google Tag ID or a wallet address -- and he expands it outward in Maltego, running transforms against
+    WHOIS, passive DNS, breach records, company registries, OpenCorporates, OpenSanctions and Aleph. A case graph
+    holds tens to a few thousand entities; the free Maltego edition caps a graph at 10,000. He uses link analysis daily,
+    as job postings in his field require ("prior experience with link analysis platforms, such as Maltego, i2 Analyst's
+    Notebook, Palantir"), and writes a little Python for custom transforms. He records every pivot with its source,
+    captures and hashes each web page with Hunchly, and treats any single link as a lead rather than a finding. When
+    he needs metrics he exports GraphML to Gephi to find gatekeepers by betweenness. His deliverable is a report with a
+    pivot chain, hashed captures and a graph file that a client, an editor or a court can check step by step.
+characteristics:
+    expertise: expert
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Attribute a set of accounts, sites or companies to a person or an organization
+    - Map the infrastructure (domains, IPs, tracking tags) behind a network of websites
+    - Produce a defensible pivot chain in which every link names its source and capture
+    - Keep sensitive lookups private (self-hosted transform servers, encrypted saved graphs)
+    - Reuse a finished graph in another tool without losing entity types, notes or layout
+behaviors:
+    - Picks a distinctive seed, because common strings return profiles belonging to unrelated people
+    - Sets a per-transform result limit before running lookups, then prunes non-matching profiles and disposable emails
+    - Treats each newly found alias or email as a new, independent seed and repeats until searches yield nothing new, credits run out or the question is answered
+    - Pins a few entities out of collapsed groups of same-type results and leaves the rest folded
+    - Attaches notes to entities he has checked and records the source of every link
+    - Switches between block, hierarchical, circular and organic layouts and a list view of the graph as a table
+    - Exports GraphML or CSV, computes betweenness in Gephi, and saves GEXF with metrics and layout
+    - Looks for the intersection of several weak signals rather than one strong link
+frustrations:
+    - Transforms that flood the graph with irrelevant results
+    - Per-lookup credit budgets that cut a case short
+    - A graph that looks more convincing than its evidence supports
+    - GraphML that does not round-trip between Maltego, yEd and Gephi
+    - Several reports that appear to corroborate a claim but all rest on the same original source
+    - Losing the record of which lookup produced which entity
+context:
+    frequency: daily
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W88
+    - W90
+    - W92
+    - W95
+    - W96
+sources:
+    - title: TryHackMe - Practical OSINT, how real investigations actually work
+      url: https://tryhackme.com/resources/blog/practical-osint-how-real-investigations-actually-work
+      summary: Same username is a weak signal; each connection needs a source; look for the intersection of multiple weak signals
+    - title: Maltego - Beginner's guide, charting my first Maltego graph
+      url: https://www.maltego.com/blog/beginners-guide-to-maltego-charting-my-first-maltego-graph/
+      summary: Seed entity, transforms, pruning and layouts in Maltego Graph
+    - title: Maltego - Structured OSINT investigations with analytic tradecraft
+      url: https://www.maltego.com/blog/structured-osint-investigations-with-maltego-and-analytic-tradecraft/
+      summary: A visually compelling graph may make an explanation feel stronger than the evidence supports; shared-origin corroboration trap
+    - title: Maltego - Export graph as XML (GraphML)
+      url: https://docs.maltego.com/support/solutions/articles/15000019396-export-graph-as-xml
+      summary: GraphML export in Maltego, yEd and Gephi dialects, optionally selected entities only
+    - title: Bellingcat Online Investigations Toolkit - Hunchly
+      url: https://bellingcat.gitbook.io/toolkit/more/all-tools/hunchly
+      summary: Captures web pages with screenshots, timestamps and hashes for an evidence trail
+    - title: Senior Open Source Intelligence Analyst job posting
+      url: https://diversityjobs.com/career/11347678/Senior-Open-Source-Intelligence-Analyst-New-York-New-York
+      summary: Link analysis platforms (Maltego, i2 Analyst's Notebook, Palantir) named as a job requirement
+    - title: Maltego Community Edition documentation
+      url: https://docs.maltego.com/support/solutions/articles/15000018947-maltego-ce
+      summary: Community Edition caps a graph at 10,000 entities and returns few results per transform (read via search summary)
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

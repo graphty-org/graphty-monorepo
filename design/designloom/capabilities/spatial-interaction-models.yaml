@@ -1,0 +1,13 @@
+id: spatial-interaction-models
+name: Spatial interaction models
+category: analysis
+description: Fit gravity (unconstrained, singly or doubly constrained) and radiation models or an adjusted-flow null
+    model, compute expected flows and residuals per pair, and color flows by residual sign.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W385
+implemented_by_components: []
+requirements: []
+sources: []

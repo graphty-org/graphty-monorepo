@@ -1,0 +1,166 @@
+id: W64
+name: Ranking Likely Source Cases in a TB Cluster
+category: analysis
+validated: false
+personas:
+    - tb-genomic-cluster-epidemiologist
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - computed-attributes
+    - filtering
+    - node-selection
+    - details-on-demand
+    - selection-statistics
+    - temporal-analysis
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-hierarchical
+    - path-highlighting
+    - comparison-view
+    - analysis-history
+    - data-export
+    - export-image
+    - report-generation
+    - multiplex-relations
+    - distance-threshold-network
+    - interval-overlap-edges
+    - uncertainty-encoding
+    - entity-resolution-review
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - computed-attributes-panel
+    - filter-panel
+    - ranked-node-table
+    - graph-canvas
+    - node-details-panel
+    - attribute-row
+    - visual-encoding-panel
+    - legend-panel
+    - temporal-controls
+    - comparison-view
+    - data-export-dialog
+    - report-generator-dialog
+starting_state:
+    data_type: TB case records, a pairwise SNP matrix, graded epidemiologic links and infectious-period dates
+    node_count: 10-100
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: For each case in a tuberculosis cluster, rank the other cases by how likely each is to have been the
+    source, using sequence distance, infectiousness, timing and the strength of any epidemiologic link together.
+    Then use the ranking to prioritize contacts and the locations where exposure could have happened. The ranking is
+    not the answer by itself: a disagreement between the ranking and the investigator usually means a data error.
+
+
+    **Mental Model**: "Eliminate, then score." First rule out every case that could not have been the source. Then
+    give each survivor a score where lower means more likely, add the parts up, and read the top few. Each part of
+    the score has to stay visible, because the defense of a named source is the parts, not the total.
+
+
+    **Task Phases**:
+
+    1. **Compile inputs** (hours to days) - Case data (disease site, age, smear result, cavitation); a pairwise SNP
+    matrix, with cases that were never sequenced allowed; epidemiologic links graded definite, probable or possible
+    plus user-defined shared risk factors such as homelessness; infectious-period start and end dates, estimated by
+    rule when missing; and an infection-acquisition start such as birth or arrival in the country
+
+    2. **Filter candidates** (automatic) - For each case, drop candidate sources more than 5 SNPs away (or, with no
+    sequencing, with no epidemiologic link and no shared risk factor), those not infectious at all, those not
+    infectious before the case's onset or before its acquisition start, and those under 10 years old
+
+    3. **Score** (automatic, under a minute) - Four ratings sum to a total where lower is more likely: SNP rating 0
+    to 5; infectiousness, with cavitary 0, smear-positive 1 and smear-negative 5; timing 0 to 2; epidemiologic link,
+    definite 0 up to none 3. Totals of 8 or more are dropped and the rest graded high, medium or low confidence. A
+    parallel score without SNP data is produced for cases that were never sequenced
+
+    4. **Review and correct** (hours) - Read the ranking against the investigator's own view; agreement in one
+    validation was 145 of 181 cases (80%), and the disagreements often revealed data entry errors
+
+    5. **Test the assumptions** (30 min) - Re-run with alternative infectious-period lengths and see whether the top
+    source changes
+
+    6. **Compare shared locations** (1 hour) - Match location stay dates against each case's infectious period to
+    rank the venues and the location contacts worth testing
+
+    7. **Draw the inferred network** (30 min) - A directed source-to-case graph with the score on each edge, which
+    the ranking tool itself does not produce
+
+
+    **Decision Points**:
+
+    - Is this cluster recent transmission at all? Pairwise SNP distance alone cannot establish that
+
+    - Which infectious-period rule to use for the cases where dates are missing
+
+    - Whether a disagreement is a judgment call or a data error to be fixed and re-run
+
+    - Whether to name a source at all when the top two candidates score the same
+
+    - Which locations get contact investigation, given overlapping stays and limited staff
+
+
+    **Information Needs**:
+
+    - Each candidate's four score parts side by side, not only the total
+
+    - A second ranking that excludes sequence data, for the unsequenced cases
+
+    - The specific SNP distance and the graded epidemiologic link behind each arrow, readable on the arrow
+
+    - Which candidates were eliminated and by which rule
+
+    - Infectious periods and onset dates as intervals on a timeline, so a timing argument can be seen
+
+    - A record of the rule set used, because the ranking changes when it changes
+
+
+    **Pain Points**:
+
+    - The ranking tool writes spreadsheet tables, so every network picture is rebuilt by hand in another tool
+
+    - SNP distance is necessary and not sufficient, so a thresholded network alone invites a wrong conclusion
+
+    - Infectious-period dates are often estimated, and the ranking moves when the estimate does
+
+    - Venue rosters use person identifiers that do not match the case register
+
+    - Nothing keeps the score, the distance and the graded link attached to an edge once it is drawn
+
+    - Unsequenced cases cannot be dropped from the investigation, only from part of the score
+
+
+    **Data Flow**:
+
+    - Input: A case table (site, age, smear, cavitation, onset), a pairwise SNP matrix, a graded epidemiologic link
+    list with shared risk factors, infectious-period intervals, acquisition-start dates, and location stay records
+
+    - Transformations: Per-case candidate filtering by distance, infectiousness, timing and age; four-part scoring and
+    summation; confidence grading; a no-sequence parallel score; interval overlap of stays against infectious periods
+
+    - Output: A ranked candidate-source table per case, a directed source-to-case network with per-edge evidence, a
+    prioritized location and contact list, and a record of the rule set
+success_criteria:
+    - metric: Evidence retention
+      target: Every arrow carries its SNP distance, graded link and score parts, readable without leaving the graph
+    - metric: Ranking turnaround
+      target: A re-run after a data correction or a changed infectious-period rule completes in under a minute
+    - metric: Picture without a second tool
+      target: The directed inferred network is produced from the ranking output, not redrawn by hand
+sources:
+    - title: LITT - the Tuberculosis Lineage Inference Tool (Frontiers in Public Health 2021)
+      url: https://www.frontiersin.org/articles/10.3389/fpubh.2021.667337/full
+      summary: Input templates, the filtering rules, the four-part score and its thresholds, the no-SNP parallel score, under-60-second Shiny runs, 80% top-source agreement on 534 cases in 56 clusters, and Excel-only output
+    - title: Whole genome sequencing and SNP distance in TB cluster investigation, Los Angeles County (Frontiers in Public Health 2022)
+      url: https://www.frontiersin.org/articles/10.3389/fpubh.2021.790544/full
+      summary: Pairwise SNP distance alone cannot establish recent transmission
+    - title: CDC genomic epidemiology toolkit, module 3.2
+      url: https://www.cdc.gov/advanced-molecular-detection/media/pdfs/ToolkitModule_3.2-508C.pdf
+      summary: TB SNP threshold starting points of 5 and 15 and how a threshold network relates to a tree
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

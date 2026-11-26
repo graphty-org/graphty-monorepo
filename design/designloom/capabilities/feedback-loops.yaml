@@ -1,0 +1,14 @@
+id: feedback-loops
+name: Feedback Loops as Named Objects
+category: analysis
+description: Bounded cycle enumeration through a chosen node, reinforcing or balancing classification by sign parity,
+    and loops stored as named objects with type and narrative that survive export.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W197
+    - W204
+implemented_by_components: []
+requirements: []
+sources: []

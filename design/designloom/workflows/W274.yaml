@@ -1,0 +1,137 @@
+id: W274
+name: Graph Features for a Tabular Model
+category: analysis
+validated: false
+personas:
+    - notebook-graph-data-scientist
+requires_capabilities:
+    - data-import
+    - component-analysis
+    - centrality-pagerank
+    - centrality-closeness
+    - centrality-betweenness
+    - centrality-degree
+    - community-detection
+    - computed-attributes
+    - ego-network
+    - neighborhood-expansion
+    - visual-encoding-nodes
+    - legend-display
+    - details-on-demand
+    - selection-statistics
+    - data-export
+    - export-image
+    - notebook-widget
+    - label-split-neighbor-counts
+suggested_components:
+    - data-import-dialog
+    - attribute-table-join-dialog
+    - algorithm-panel
+    - computed-attributes-panel
+    - ranked-node-table
+    - graph-canvas
+    - ego-network-dialog
+    - visual-encoding-panel
+    - legend-panel
+    - node-details-panel
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: transaction tables linking accounts to cards, devices, emails and addresses, with known-fraud labels and model scores
+    node_count: 10-500 (one high-scoring account's component or neighborhood); source graph 10^4 to 10^8
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Compute graph features (component size, PageRank, centralities, community, embeddings), measure whether
+    they lift a tabular fraud or risk model, and open the top-scoring cases in the graph to see whether a score is a
+    real ring or an artifact.
+
+
+    **Mental Model**: "Features out, cases in." The graph is a feature factory for XGBoost; the picture is opened only
+    to check a flagged case before it goes in a case file.
+
+
+    **Task Phases**:
+
+    1. **Build the graph from tables** (in code) - IEEE-CIS: transactions linked to cards, devices, emails and addresses;
+    P2P: users and cards; Ethereum: 32,168 accounts, 84,088 transactions
+
+    2. **Baseline first** (in code) - The tabular model without graph features (Random Forest, XGBoost, logistic
+    regression)
+
+    3. **Compute graph features** (10 min) - Weakly connected component size, PageRank, closeness, betweenness, degree,
+    Louvain community, FastRP embeddings; at ING, personalized PageRank seeded by each account's average training label
+    over about 89 million transactions; each returns a table
+
+    4. **Join and retrain** (in code) - Join on the entity id (recovering user ids from internal ids) and retrain
+
+    5. **Measure lift** (in code) - P2P AUC 0.72 to 0.92 with component size the strongest feature; Ethereum accuracy
+    77% to 91%; ING AUC 0.74 to 0.76 (the first two are vendor demos, only ING used a bank's real data)
+
+    6. **Inspect the top cases** (15 min) - Open the highest-scoring accounts, see their component or neighborhood with
+    known-fraud labels marked, and check whether the score is a ring or an artifact such as a shared default device
+
+    7. **Export** (2 min) - Node metric table back to the feature store; a picture of one ring to the case file
+
+
+    **Decision Points**:
+
+    - Which graph features are worth their compute cost given the lift?
+
+    - Is a high-scoring account part of a ring or attached to an artifact hub?
+
+    - Propagate a confirmed label to connected accounts?
+
+
+    **Information Needs**:
+
+    - Computed metrics as a table keyed by the original entity id
+
+    - Neighbor counts split by label (known fraud versus legitimate)
+
+    - Component size and membership of a flagged account
+
+    - Full attribute row of a hub, to spot shared default devices
+
+
+    **Pain Points**:
+
+    - Internal graph ids that do not map cleanly back to entity names
+
+    - Lift that is large in vendor demos and small at bank scale
+
+    - Analysts must leave the notebook for a separate tool (Neo4j Bloom) to confirm rings
+
+
+    **Data Flow**:
+
+    - Input: Edge and node tables with known labels and model scores
+
+    - Transformations: Graph features computed per node, joined to the training table; neighborhood extraction around
+    top cases; label-split neighbor counts
+
+    - Output: Feature table for the feature store; case-file picture
+success_criteria:
+    - metric: Metric export
+      target: One-click export of all computed metrics as a table keyed by the original ids
+    - metric: Case check
+      target: User can judge ring versus artifact for a flagged account in under 5 minutes
+sources:
+    - title: Neo4j - Using GDS in Python to improve ML models
+      url: https://neo4j.com/blog/developer/using-neo4j-graph-data-science-in-python-to-improve-machine-learning-models/
+      summary: P2P example; AUC 0.72 to 0.92, component size strongest feature, gds.util.asNodes to recover ids
+    - title: Neo4j IEEE-CIS fraud graphs
+      url: https://neo4j.com/developer/industry-use-cases/finserv/retail-banking/ieee-cis-fraud-graphs/
+      summary: Transactions linked to cards, devices, emails and addresses; analysts confirm rings in Bloom
+    - title: TigerGraph - graph ML for fraud detection
+      url: https://www.tigergraph.com/blog/using-graph-machine-learning-to-improve-fraud-detection-rates/
+      summary: Ethereum 32,168 accounts; accuracy 77% to 91%; GNN 97%; subgraph behind one prediction
+    - title: ING personalized PageRank study
+      url: https://arxiv.org/html/2402.09495v1
+      summary: Real bank data, about 89 million transactions, AUC 0.74 to 0.76 with PPR second most important feature
+    - title: gdsclient issue 179
+      url: https://github.com/neo4j/gdsclient/issues/179
+      summary: GDS node ids did not map cleanly back to names
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

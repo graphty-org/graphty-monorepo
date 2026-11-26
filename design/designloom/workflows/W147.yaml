@@ -1,0 +1,125 @@
+id: W147
+name: Working Around Result Caps in Graph Database Front Ends
+category: exploration
+validated: false
+personas:
+    - graph-database-developer
+    - no-code-graph-investigator
+    - warehouse-graph-analyst
+requires_capabilities:
+    - progressive-loading
+    - neighborhood-expansion
+    - large-graph-rendering
+    - filtering
+    - data-preview
+    - truncation-reporting
+    - reveal-relationships
+suggested_components:
+    - progressive-loader
+    - status-bar
+    - graph-canvas
+    - data-table-panel
+    - filter-panel
+    - context-menu
+starting_state:
+    data_type: query or search result larger than the front end will draw
+    node_count: "result: hundreds to tens of thousands; drawn: capped at 500 to 10,000 depending on tool, or 2 to 64 MB"
+    edge_density: any
+    user_expertise: any
+goal: >-
+    **Intent**: Get the rest of an answer that a front end cut off. Every graph database front end caps what reaches
+    the screen (Neo4j Browser 1,000 nodes, Bloom 1,000 by default and 10,000 records per phrase, Linkurious 500 query
+    results, TigerGraph GraphStudio 5,000 vertices and 10,000 edges, Memgraph Lab 5,000 rows, BigQuery notebooks 2 MB,
+    Spanner Studio 10 MB, Fabric 64 MB). This workflow records what users actually do when they hit one.
+
+
+    **Mental Model**: "The tool is hiding something; how do I get it out?" Users often do not know a cap applied; when
+    they do, they page, split or abandon the drawing.
+
+
+    **Task Phases**:
+
+    1. **Notice the cut** - Often only by noticing something missing (38 of 236 nodes shown, user assumes data is
+    missing)
+
+    2. **Select, expand, repeat** - Grow the scene in slices; or write a search phrase that pages by id range, "the hacky
+    way to page"
+
+    3. **Search per type, then Reveal relationships** - Neo4j staff advice for the 38-of-236 case: bring each label in
+    separately, then fetch the edges among what is drawn
+
+    4. **Raise the limit** - Often freezes the UI
+
+    5. **Switch tools** - From Browser to Bloom; Memgraph Lab offers "render anyway or switch to data view"; in BigQuery,
+    move from a notebook (2 MB) to the console (no hard limit)
+
+    6. **Fall back to a table** - One practitioner reported end users "preferred a table" to a custom graph interface
+
+
+    No source gives per-step timings.
+
+
+    **Decision Points**:
+
+    - Is the result complete, and if not, by how much is it short?
+
+    - Page, narrow the query, raise the limit, or give up on drawing?
+
+
+    **Information Needs**:
+
+    - "Showing N of M" for every truncation, by count and by bytes
+
+    - Which cap applied (query, render, record, byte) and where to change it
+
+    - Whether relationships among already drawn nodes were fetched
+
+
+    **Pain Points**:
+
+    - Silent truncation
+
+    - Separate caps in separate tabs of the same product
+
+    - Raising a cap trades a missing answer for a frozen page
+
+    - Paging hacks that depend on internal database ids
+
+
+    **Data Flow**:
+
+    - Input: A capped result
+
+    - Transformations: Repeated partial fetches, per-type searches, reveal relationships, or conversion to a table
+
+    - Output: A more complete drawing, a table, or an abandoned question
+success_criteria:
+    - metric: Truncation visibility
+      target: Every cut result states what was shown and what exists, in nodes, records or bytes
+    - metric: Continuation
+      target: User can fetch the next page or refine without writing an id-range query
+sources:
+    - title: Aura Explore feedback - I can't see all my nodes
+      url: https://aura.feedback.neo4j.com/explore/p/i-cant-see-all-my-nodes
+      summary: 38 of 236 nodes; search per type then Reveal relationships
+    - title: Neo4j community - bypass the 10,000 node limit in Bloom
+      url: https://community.neo4j.com/t/bypass-10000-node-limit-in-bloom-neo4j-desktop/45670
+      summary: Select-expand-repeat; id-range paging "the hacky way to page"
+    - title: Neo4j community - Browser node relationship limit
+      url: https://community.neo4j.com/t/browser-node-relationship-limit/69507
+      summary: Raising the limit to 1,000 freezes the UI
+    - title: TigerGraph GraphStudio expand from vertices
+      url: https://www.tigergraph.com/docs/ui/graphstudio/explore-graph/expand-from-vertices
+      summary: 5,000 vertex and 10,000 edge visualization cap; 200 neighbors per double-click
+    - title: Memgraph Lab querying
+      url: https://memgraph.com/docs/memgraph-lab/querying
+      summary: 5,000-row default; render anyway or switch to data view
+    - title: BigQuery Graph visualization
+      url: https://docs.cloud.google.com/bigquery/docs/graph-visualization
+      summary: Notebooks visualize at most 2 MB; console has no hard limit
+    - title: Li et al., knowledge graph practitioners interview study
+      url: https://arxiv.org/html/2304.01311v4
+      summary: End users preferred a table to a custom graph GUI
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

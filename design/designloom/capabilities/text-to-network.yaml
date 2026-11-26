@@ -1,0 +1,16 @@
+id: text-to-network
+name: Text to Word Network
+category: analysis
+description: "Build a word co-occurrence network from raw text in the browser: tokenize, stopwords, lemmatize,
+    multi-word terms, synonyms, top-N by frequency or tf-idf, counting unit by sentence, paragraph, document or N-word
+    window."
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W403
+    - W404
+    - W408
+implemented_by_components: []
+requirements: []
+sources: []

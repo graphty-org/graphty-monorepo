@@ -1,0 +1,12 @@
+id: permission-scoped-graph
+name: Permission-Scoped Graph
+category: analysis
+description: The host supplies the visible record set; nodes found only in hidden records are dropped and counts recomputed.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W363
+implemented_by_components: []
+requirements: []
+sources: []

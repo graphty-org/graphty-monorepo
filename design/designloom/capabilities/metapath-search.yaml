@@ -1,0 +1,13 @@
+id: metapath-search
+name: Typed Path (Metapath) Search
+category: analysis
+description: Find paths between two nodes that match a sequence of node and edge types, with path counts per pattern, a
+    per-pattern cap and highlighting of selected paths.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W140
+implemented_by_components: []
+requirements: []
+sources: []

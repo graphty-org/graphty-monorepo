@@ -1,0 +1,72 @@
+id: bibliometric-evolution-analyst
+name: Bibliometric Evolution Analyst
+role: Research Analyst, University Library or Research Office / PhD Student Writing a Scientometric Review
+quote: Change the slice length and my clusters change. I need the timeline figure and the exact parameters in the caption.
+bio: >-
+    Marcus Hale is a research analyst in a university library and research office who maps how a research field
+    evolved: which research fronts formed, when the turning points came, and which papers burst into citation. He is
+    not a coder; he is expert in Web of Science and Scopus exports. He runs CiteSpace for time-sliced co-citation
+    networks, timeline views and citation bursts, VOSviewer for an overlay colored by average publication year, and
+    bibliometrix for thematic evolution Sankey diagrams. His input is 500 to 20,000 bibliographic records; the derived
+    networks are hundreds to a few thousand references, authors or keywords. He picks a span and one year per slice,
+    keeps the top N or a g-index selection per slice, clusters and labels the merged network, checks modularity and
+    silhouette, and exports a timeline figure, a cluster table and a burst table. A library guide warns that CiteSpace
+    "has too many options for most users", and he knows the slice settings change the clusters he reports.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: intermediate
+    domain_knowledge: advanced
+motivations:
+    - Identify research fronts, turning-point papers and emerging topics in a field
+    - Produce a timeline figure with labeled clusters for a review article or a strategy report
+    - List citation bursts with start year, end year and strength
+    - Report modularity, silhouette and slice parameters so the map can be reproduced
+    - Compare the field before and after a period (a funding program, a pandemic)
+behaviors:
+    - Exports full records with cited references from Web of Science, or converts Scopus, Lens or PubMed exports
+    - Sets the time span and one year per slice; selects nodes per slice by g-index (k = 25 is common) or top N
+    - Merges slices into one network and clusters it, then checks modularity Q and a silhouette of 0.7 or higher before labeling
+    - Reads time from color -- link color by slice of first co-citation, tree rings per year, red rings for bursts, purple rings for high betweenness
+    - Switches to a timeline view with one row per cluster and nodes placed at their year
+    - Uses VOSviewer's overlay (average publication year as color) for a simpler figure
+    - Builds thematic evolution with chosen cutting years and a Sankey diagram in bibliometrix
+    - Copies slice parameters into figure captions ("time slice length=1, top N=150")
+frustrations:
+    - Too many options, and small changes in slicing change the clusters
+    - Non Web of Science formats are tricky to convert
+    - Average-year coloring hides whether a topic is old, new or both
+    - No playback; time is read only from colors and rings
+    - Reproducing a map a year later requires the exact parameter set, which is not saved with the figure
+context:
+    frequency: monthly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W19
+    - W306
+    - W309
+sources:
+    - title: CiteSpace 101 - Time slicing
+      url: https://sites.google.com/site/citespace101/6-configure-a-citespace-run/6-1-time-slicing
+      summary: Span, years per slice and node selection per slice
+    - title: CiteSpace 101 - Interpret results
+      url: https://sites.google.com/site/citespace101/first-example/4-3-interpret-results
+      summary: Modularity, silhouette, tree rings, burst and betweenness rings
+    - title: Chen, Ibekwe-SanJuan and Hou 2010 (arXiv 1002.1985)
+      url: https://arxiv.org/abs/1002.1985
+      summary: Top 100 per one-year slice over 13 slices, merged into a 655-reference network; cluster labeling
+    - title: SMU Libraries - CiteSpace for power users
+      url: https://library.smu.edu.sg/topics-insights/citespace-bibliometric-mapping-tool-power-users-reviews-business
+      summary: CiteSpace "has too many options for most users"
+    - title: TU Delft Library - Evolution of research case
+      url: https://tudelft.nl/library/research-analytics/case-2-evolution-of-research
+      summary: VOSviewer overlay by average publication year
+    - title: bibliometrix thematicEvolution
+      url: https://rdrr.io/cran/bibliometrix/man/thematicEvolution.html
+      summary: Cutting years and a Sankey of themes across periods
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

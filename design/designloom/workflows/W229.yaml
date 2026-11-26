@@ -1,0 +1,132 @@
+id: W229
+name: Space Syntax Segment Angular Analysis and Visibility Graph Analysis
+category: analysis
+validated: false
+personas:
+    - space-syntax-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - large-graph-rendering
+    - component-analysis
+    - centrality-closeness
+    - centrality-betweenness
+    - computed-attributes
+    - visual-encoding-edges
+    - visual-encoding-nodes
+    - legend-display
+    - metric-histograms
+    - comparison-view
+    - data-export
+    - export-image
+    - geographic-layout
+    - dual-graph-analysis
+    - radius-limited-centrality
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - graph-canvas
+    - algorithm-panel
+    - computed-attributes-panel
+    - visual-encoding-panel
+    - gradient-editor
+    - legend-panel
+    - histogram
+    - comparison-view
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: street centerlines or axial map (dual graph of line segments with angular weights), or an obstacle plan for visibility analysis
+    node_count: 1000-200000
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Score every street segment by how easy it is to reach (integration) and how much through-movement it
+    carries (choice) at several radii, before and after a design scheme; for buildings, find the visually central spaces.
+
+
+    **Mental Model**: "Streets are the nodes and turns are the distance." The graph is the dual of the street map,
+    weighted by angle.
+
+
+    **Task Phases**:
+
+    1. **Project and crop** - In meters, to double the largest analysis radius
+
+    2. **Choose radii** - Macro 10 to 20 km, meso 5 to 10 km, micro 800 to 2,000 m, local 400 m
+
+    3. **Clean** - Drop irrelevant OSM classes; run centerline cleaning and topology checks
+
+    4. **Unlinks** - Where lines cross without connecting (bridges, tunnels)
+
+    5. **Simplify** - Dual carriageways, roundabouts, staggered junctions
+
+    6. **Verify** - Unverified maps can affect or abort the analysis
+
+    7. **Analyze** - Axial analysis at radius n and 3, 5, 7 steps; convert to segments removing stubs under 40 percent;
+    angular analysis with choice and integration at several radii; add normalized NAIN and NACH; red-to-blue maps per
+    radius; export CSV
+
+    8. **Visibility graph analysis** - Obstacle polygons, 1 m grid, each cell linked to every cell it sees; visual
+    integration as a heat grid
+
+
+    **Decision Points**:
+
+    - Which radii fit the question?
+
+    - Where are real crossings versus bridges and tunnels?
+
+    - How far to simplify junctions?
+
+
+    **Information Needs**:
+
+    - Each measure at each radius as its own column
+
+    - Lines that are unlinked or disconnected
+
+    - Before-and-after difference per segment
+
+
+    **Pain Points**:
+
+    - Map preparation dominates the work
+
+    - depthmapX times out on visibility graphs beyond about 43,000 cells
+
+    - Large cities must be cropped to finish in reasonable time
+
+
+    **Data Flow**:
+
+    - Input: OSM centerlines, shapefile or DXF axial map, DXF obstacle plan, gate counts
+
+    - Transformations: Cleaning, unlink edits, dual graph with angular weights, radius-limited closeness and betweenness
+    per radius, normalization, visibility graph
+
+    - Output: Segment maps per measure and radius, CSV of measures, visibility heat grid, scheme comparison
+success_criteria:
+    - metric: Multi-radius output
+      target: Integration and choice at every chosen radius stored as named columns in one run
+    - metric: Map verification
+      target: Unlinked and disconnected lines listed before analysis
+sources:
+    - title: van Nes, depthmapX workshop manual (2022)
+      url: https://www.hvl.no/siteassets/hvl-internett/arrangement/2022/13sss/001vannesdepthmapworkshop.pdf
+      summary: Axial and segment analysis steps, unlinks, stub removal, angular choice and integration, NAIN and NACH
+    - title: Space Syntax Toolkit workshop - segment map preparation
+      url: https://github.com/spacesyntax/SST-Workshops/blob/master/UCL/RCL%20workshop/0.%20Segment%20Map%20Preparation.md
+      summary: Cropping, radii, cleaning, unlinks, simplification and verification
+    - title: Kolovou et al., road centre line simplification (2017)
+      url: https://spacesyntax.com/wp-content/uploads/2017/09/Road-centre-line-simplification-principles-for-angular-segment-analysis.pdf
+      summary: 194,445 segments and 280,616 connections within 7 km of central London; simplification to about 90,000-96,000
+    - title: alcyon segment analysis vignette
+      url: https://stat.ethz.ch/CRAN/web/packages/alcyon/vignettes/segmentAnalysis.html
+      summary: Segment angular analysis in R
+    - title: GPU visibility graph analysis preprint (arXiv 2604.08374)
+      url: https://arxiv.org/pdf/2604.08374
+      summary: depthmapX timed out beyond 42,705 cells; GPU reached 236,000 cells and 4.8 billion edges
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

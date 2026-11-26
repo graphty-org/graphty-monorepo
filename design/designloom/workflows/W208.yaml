@@ -1,0 +1,176 @@
+id: W208
+name: Retweet or Mention Map from a Post Collection (Gephi Method)
+category: analysis
+validated: false
+personas:
+    - communication-network-scholar
+    - coordination-detection-scientist
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - filtering
+    - degree-analysis
+    - centrality-degree
+    - layout-force-directed
+    - large-graph-rendering
+    - community-detection
+    - community-profiling
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - computed-attributes
+    - search
+    - details-on-demand
+    - annotation
+    - export-image
+    - data-export
+    - multiplex-relations
+    - cluster-labeling
+    - de-identified-display
+    - table-to-graph-builder
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - attribute-table-join-dialog
+    - filter-panel
+    - range-slider
+    - histogram
+    - layout-panel
+    - algorithm-panel
+    - community-panel
+    - cluster-table
+    - visual-encoding-panel
+    - legend-panel
+    - ranked-node-table
+    - graph-canvas
+    - node-details-panel
+    - annotation-toolbar
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: post table (CSV, JSON or NDJSON) from a collector, one row per post with author, reposted or mentioned author, timestamp, text
+    node_count: 20000-200000
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Turn a keyword or hashtag collection into an account-to-account repost or mention network, cut it down
+    to its established core, find its communities, and read each community's identity from what its members share. This
+    is the workhorse of disinformation and polarization studies (Starbird's lab, First Draft training).
+
+
+    **Mental Model**: "Who amplifies whom, and which camps form?" One relation per graph; the layout pulls camps apart
+    and the community colors confirm them. Accounts between camps are not necessarily centrists.
+
+
+    **Task Phases**:
+
+    1. **Collect** (hours to months) - Keyword collection over a period (Starbird: nine months, 248,719 posts from
+    160,217 accounts); today Communalytic, 4CAT with Zeeschuimer browser capture, Bluesky Jetstream or the X pay-per-use
+    API
+
+    2. **Build the edge list** (15 min) - Choose one relation (repost, mention, reply or quote) and its direction, weight
+    repeats; convert the post table to a graph (Table2Net or a script); keep 64-bit IDs as text
+
+    3. **Reduce** (5 min) - Keep accounts with degree greater than one (160,217 down to 22,020 in Starbird's case);
+    for co-hashtag networks delete the query hashtags and apply frequency and degree range filters
+
+    4. **Lay out** (10-30 min) - ForceAtlas2 with scaling, gravity and LinLog adjusted, run until stable, then prevent
+    overlap; OpenOrd then Yifan Hu for very large graphs
+
+    5. **Detect communities** (2 min) - Louvain modularity with a resolution setting (0.1 to 2 suggested), or Infomap
+    (about a thousand communities, two of which held 91.7 percent of nodes)
+
+    6. **Encode** (5 min) - Color by community, size by in-degree or repost count, labels only for top accounts
+
+    7. **Label clusters** (30 min) - Per cluster: top 10 hashtags in account bios, top 5 most-reposted accounts, top 10
+    most-followed accounts; read the left- or right-leaning identity from them
+
+    8. **Overlay external lists** (10 min) - Match a known list (2,752 Internet Research Agency accounts, of which 29
+    were active) and show where they sit
+
+    9. **Interpret and publish** (30 min) - Annotate figures, state that the map is not conclusive, export a static
+    image, or host GEXF for Gephi Lite or Retina so readers can explore
+
+
+    **Decision Points**:
+
+    - Which relation and which direction does an edge represent?
+
+    - What degree or frequency cutoff removes noise without removing the story?
+
+    - Louvain at which resolution, or Infomap?
+
+    - Which accounts to label, and which to anonymize?
+
+    - Would a simpler chart communicate the finding better?
+
+
+    **Information Needs**:
+
+    - Node and edge counts before and after each reduction step
+
+    - Degree distribution to choose the cutoff
+
+    - Community sizes and their share of nodes
+
+    - Per-community top bio hashtags, most-reposted and most-followed accounts
+
+    - Which nodes match an external list
+
+
+    **Pain Points**:
+
+    - Conversion scripts between collector output and the graph tool
+
+    - Tutorials disagree on edge direction, so in-degree means different things
+
+    - Numeric IDs corrupted on import
+
+    - Hairballs and overlapping labels in published figures
+
+    - Sharing an interactive version needs a hosted file and a separate viewer
+
+
+    **Data Flow**:
+
+    - Input: Post table (CSV, JSON, NDJSON) or GEXF from 4CAT, Table2Net or a script; optional external account list
+
+    - Transformations: Edge extraction for one relation with weights, degree and attribute filters, force layout,
+    community detection, per-community summaries, list overlay attribute
+
+    - Output: Community-colored map with legend and annotations, cluster summary table, GEXF or shareable interactive view
+success_criteria:
+    - metric: Table to graph
+      target: A post table becomes a weighted repost or mention network without writing a script
+    - metric: Reduction transparency
+      target: User can state how many accounts each filter removed
+    - metric: Cluster identity
+      target: Each community has a visible summary of top bio hashtags and most-reposted accounts
+sources:
+    - title: Stewart, Arif and Starbird - Examining trolls and polarization with a retweet network
+      url: https://faculty.washington.edu/kstarbi/examining-trolls-polarization.pdf
+      summary: 248,719 tweets, degree-greater-than-one reduction to 22,020 accounts, Infomap, per-cluster bio hashtags, IRA overlay
+    - title: First Draft - How to use network analysis to explore social media and disinformation
+      url: https://firstdraftnews.org/latest/how-to-use-network-analysis-to-explore-social-media-and-disinformation/
+      summary: Table2Net conversion, Gephi steps, caution that visualizations are not conclusive
+    - title: Public Data Lab - co-hashtag network recipe
+      url: https://recipes.publicdatalab.org/co-hashtag_network.html
+      summary: Delete query hashtags, attribute and degree range filters, ForceAtlas2 then prevent overlap
+    - title: Jacomy et al. - ForceAtlas2 (PLoS ONE 2014)
+      url: https://doi.org/10.1371/journal.pone.0098679
+      summary: The force layout used for these maps and its scaling, gravity and LinLog settings
+    - title: Martin Grandjean - Introduction to network visualization with Gephi
+      url: https://www.martingrandjean.ch/introduction-to-network-visualization-gephi/
+      summary: Modularity resolution guidance of 0.1 to 2
+    - title: Gephi Lite - share a graph as a URL
+      url: https://docs.gephi.org/lite/user-manual/share-graph-as-url
+      summary: Opening a GEXF hosted on GitHub by URL for interactive sharing
+    - title: CMU CASOS - Using ORA for social media
+      url: https://www.cmu.edu/casos-center/research/tools/using-ora-for-social-media.pdf
+      summary: 64-bit IDs that do not render in Excel and trip up R's default importer
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

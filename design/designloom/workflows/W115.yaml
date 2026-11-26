@@ -1,0 +1,158 @@
+id: W115
+name: Reverse Engineering a Malware Sample with Control Flow and Call Graphs
+category: exploration
+validated: false
+personas:
+    - priya-raman
+requires_capabilities:
+    - data-import
+    - layout-hierarchical
+    - neighborhood-expansion
+    - ego-network
+    - search
+    - node-selection
+    - hover-highlight
+    - tooltip-display
+    - details-on-demand
+    - annotation
+    - visual-encoding-edges
+    - overview-minimap
+    - view-bookmarks
+    - comparison-view
+    - export-image
+    - group-collapse
+    - local-only-processing
+    - graph-diff
+    - expansion-history
+    - code-text-nodes
+suggested_components:
+    - file-drop-zone
+    - graph-canvas
+    - search-input
+    - layout-panel
+    - node-tooltip
+    - node-details-panel
+    - annotation-toolbar
+    - cluster-collapse-control
+    - minimap
+    - bookmark-panel
+    - comparison-view
+    - data-table-panel
+    - image-export-dialog
+starting_state:
+    data_type: Disassembler output for one binary - function control flow graphs (basic blocks of code text) and call graphs (functions with data references); GDL or DOT export or JSON from scripts
+    node_count: tens to hundreds of blocks per function; hundreds to thousands of functions per call graph
+    edge_density: layered with ordered branch edges and back edges for loops
+    user_expertise: expert
+goal: >-
+    **Intent**: Work out what a malware sample does by reading its function graphs and walking its call graph from
+    suspicious imports and strings, extract indicators for threat intelligence and detections, and diff a new sample
+    against a known family member. Reverse engineers do this inside IDA, Ghidra, Binary Ninja and BinDiff; no source
+    found shows them moving graph work to an outside tool, so this workflow matters to Graphty mainly as a demanding
+    layout and node-content case and for exported graphs in reports and teaching.
+
+
+    **Mental Model**: "Flowchart of code." Each node is a block of instructions, each edge a jump (taken or not
+    taken), upward edges are loops; at the next level up, each node is a function and edges are calls.
+
+
+    **Task Phases**:
+
+    1. **Load and auto-analyze** (minutes) - Import the sample in an isolated lab and let auto-analysis finish
+
+    2. **Find a starting point** (10-30 min) - Scan imports (network, process, persistence, crypto, file) and strings
+    (URLs, registry keys, mutexes) and follow cross-references; reading from the entry point is very time-consuming
+
+    3. **Read the function graph** (ongoing) - Toggle graph and text; blue normal, green taken and red not-taken edges;
+    drag blocks to untangle and keep the custom layout; collapse groups of blocks into one labeled node; use the
+    overview window
+
+    4. **Rename and comment** (ongoing) - Name functions and variables as behavior becomes clear; check decompiler
+    output against the assembly
+
+    5. **Walk the call graph** (30-120 min) - Show a function with callers, callees and referenced strings and globals,
+    hover to preview code; expand one level of callees at a time to find sequences such as process injection
+
+    6. **Compare versions** (30-60 min) - List matched functions with similarity and confidence, sorted by similarity,
+    plus unmatched functions on each side; open a changed function's two flow graphs side by side colored identical,
+    changed or missing
+
+    7. **Export** (15 min) - Write the function flow chart or call graph as GDL or DOT for the report; send indicators
+    and behavior to threat intelligence and detection engineering
+
+
+    **Decision Points**:
+
+    - Which import or string is the best entry into the sample's behavior?
+
+    - Which callee to expand next?
+
+    - Is this function library code to skip or sample-specific code to read?
+
+    - Is the new sample a variant of a known family, and which functions changed?
+
+
+    **Information Needs**:
+
+    - Code text inside each block, readable at a glance
+
+    - Branch direction (taken, not taken) and loop back edges
+
+    - Callers and callees of the focus function, one level at a time
+
+    - Similarity and confidence per matched function between two versions
+
+    - Names and comments the analyst has added
+
+
+    **Pain Points**:
+
+    - The interesting API sequence is several levels of calls deep
+
+    - Expanded call graphs tangle until nodes are dragged apart, so some analysts fall back to the text call tree
+
+    - Auto names carry no meaning until renamed
+
+    - Producing a readable flow graph figure for a report is manual
+
+
+    **Data Flow**:
+
+    - Input: Disassembly database or exported GDL, DOT or JSON graphs; a second version for diffing
+
+    - Transformations: Layered top-to-bottom layout with ordered branch edges, group collapse, depth-limited expansion,
+    graph matching between versions
+
+    - Output: Annotated graphs and figures, behavior summary, indicators for threat intelligence
+success_criteria:
+    - metric: Layout fidelity
+      target: A function graph renders top to bottom with branch edges in order and loops drawn as back edges
+    - metric: Controlled expansion
+      target: User adds one level of callers or callees at a time without the existing layout moving
+    - metric: Diff
+      target: Two versions of a function shown side by side with identical, changed and missing blocks colored
+sources:
+    - title: Portland State University - Reverse engineering platforms (malware course notes)
+      url: https://web.cecs.pdx.edu/~dmcgrath/courses/Su26/malware/re_platforms.html
+      summary: Workflow from auto-analysis to graph view, edge colors, renaming
+    - title: Varonis - How to use Ghidra
+      url: https://varonis.com/blog/how-to-use-ghidra
+      summary: Auto-analysis, imports and strings as starting points, Function Graph
+    - title: Hex-Rays docs - Graph view
+      url: https://docs.hex-rays.com/user-guide/disassembler/graph-view
+      summary: Basic blocks, edge colors, saved layout, grouped nodes, overview
+    - title: Hex-Rays docs - Proximity view
+      url: https://docs.hex-rays.com/core/disassembler/concepts/proximity-view
+      summary: Callers, callees and data references with hover previews
+    - title: Hex-Rays docs - Produce function GDL
+      url: https://docs.hex-rays.com/ida-actions/producefuncgdl
+      summary: Flow chart and call graph export as GDL
+    - title: SANS ISC diary 25032 - Ghidra call graph
+      url: https://isc.sans.edu/diary/25032
+      summary: One-level-at-a-time expansion, tangling, text tree preference
+    - title: zynamics BinDiff manual
+      url: https://www.zynamics.com/bindiff/manual/index.html
+      summary: Matched functions with similarity and confidence, side-by-side flow graph diff
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

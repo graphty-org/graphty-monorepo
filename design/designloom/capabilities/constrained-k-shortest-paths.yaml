@@ -1,0 +1,14 @@
+id: constrained-k-shortest-paths
+name: Constrained and k-Shortest Paths
+category: analysis
+description: All tied shortest paths, k shortest loopless paths with tie handling stated, constraints by edge type,
+    direction and maximum hops, and a no-path reason.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W05
+    - W40
+implemented_by_components: []
+requirements: []
+sources: []

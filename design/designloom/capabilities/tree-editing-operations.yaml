@@ -1,0 +1,16 @@
+id: tree-editing-operations
+name: Tree Rerooting and Editing
+category: analysis
+description: Reroot by outgroup or midpoint keeping support on its bipartition, rotate, collapse clades by selection or
+    support threshold, prune and extract subtrees.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W393
+    - W394
+    - W395
+    - W400
+implemented_by_components: []
+requirements: []
+sources: []

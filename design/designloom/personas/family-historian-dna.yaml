@@ -1,0 +1,71 @@
+id: family-historian-dna
+name: Family Historian and DNA Hobbyist
+role: Retired Teacher and Genealogical Society Volunteer (no coding)
+quote: I want the whole family on one poster, cousins who married cousins and all, and I want my DNA matches sorted into my four grandparents.
+bio: >-
+    Linda Kowalski is a retired teacher fifteen years into her family history who volunteers at her genealogical
+    society. Her master tree is in Gramps (other family historians use Family Historian, RootsMagic or Family Tree
+    Maker), with an Ancestry tree and a DNA test beside it. Her GEDCOM tree has 600 to 6,000 people with multiple
+    marriages, adoptions, step-children and cousin marriages that cause pedigree collapse, and she has about 200 to
+    2,700 DNA matches with shared centimorgans (cM) and "in common with" lists. She uses Gramps graph reports (which
+    run Graphviz), sometimes ged2dot, yEd and Inkscape, and for DNA the Leeds spreadsheet method, AutoClusters and
+    occasionally Gephi following Family Locket's blog tutorials. Family historians are the largest group of people who
+    could use a relationship graph (Ancestry reports about 3.8 million subscribers), but most only ever see standard
+    pedigree and descendant charts. She does not code and will not edit a .gv file twice.
+characteristics:
+    expertise: novice
+    time_pressure: low
+    graph_literacy: novice
+    domain_knowledge: advanced
+motivations:
+    - Print a wall poster of the complete family tree for a reunion
+    - See exactly how two people are related
+    - Sort DNA matches into the four grandparent lines to break through a brick wall
+    - Share charts with relatives without exposing living people
+behaviors:
+    - Exports GEDCOM from her family-tree software, with FAM records for each marriage and child links marked birth, adopted or foster
+    - Sets a center person, generation limits and hand-picked people of interest before drawing a chart
+    - Prints PDF or SVG charts, tiled at home or sent to a chart printer
+    - Downloads match and in-common-with CSVs with DNAGedcom Client and colors matches in a Leeds spreadsheet
+    - Labels each DNA cluster with the ancestral couple most common in its members' trees
+frustrations:
+    - A whole database is no longer a tree once ancestors repeat, so connectors cross and boxes shrink
+    - Picking people for a Family Lines Graph is very effortful and the selection is not saved
+    - Graph reports freeze or come out blank on real trees
+    - The Family Lines Graph cannot mark fostered or adopted children
+    - Moving boxes means editing a .gv file by hand
+    - Endogamy ruins DNA clusters
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W185
+    - W186
+sources:
+    - title: Gramps Discourse - Printable visualization of the complete family tree
+      url: https://gramps.discourse.group/t/printable-visualization-of-the-complete-family-tree/2260
+      summary: Whole-tree poster requests and the mess a 600-person tree makes
+    - title: Gramps Discourse - Relationship graph immediately freezes application
+      url: https://gramps.discourse.group/t/relationship-graph-immediately-freezes-application/4007
+      summary: Graph reports freezing on real trees and the database loop advice
+    - title: Gramps Discourse - Family Lines Graph feature request
+      url: https://gramps.discourse.group/t/family-lines-graph-feature-request/4902
+      summary: Hand-picking people of interest is effortful; include people without their relations
+    - title: Gramps Discourse - Distinguish birth vs foster children in Family Lines Graph
+      url: https://gramps.discourse.group/t/distinguish-birth-vs-foster-children-in-family-lines-graph/8127
+      summary: Dotted non-birth lines only in the Relationship Graph
+    - title: Ancestry 2025 Impact Report (3BL Media)
+      url: https://www.3blmedia.com/news/generations-come-ancestry-publishes-2025-impact-report
+      summary: About 3.8 million subscribers and about 29 million people in the DNA network
+    - title: Family Locket - Creating Gephi network graphs part 1
+      url: https://familylocket.com/creating-gephi-network-graphs-part-1-gather-matches-and-prepare-spreadsheets
+      summary: DNAGedcom match and icw files, cM range for a first graph
+    - title: DNA Explained - The Leeds Method
+      url: https://dna-explained.com/2018/09/26/the-leeds-method/
+      summary: Spreadsheet coloring of matches into grandparent lines
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

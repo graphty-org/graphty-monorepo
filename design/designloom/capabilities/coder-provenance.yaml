@@ -1,0 +1,14 @@
+id: coder-provenance
+name: Coder Provenance
+category: analysis
+description: Segments carry their coder (person or model), the model's explanation and an accepted flag; edges can be
+    filtered by coder and agreement metrics shown.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W405
+    - W407
+implemented_by_components: []
+requirements: []
+sources: []

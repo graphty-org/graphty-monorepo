@@ -1,0 +1,75 @@
+id: r-statistical-network-student
+name: R Statistical Network Student
+role: PhD Student in a Statistical Network Analysis Seminar
+quote: My model lives in R. I want a tool to explore the network and draw the fitted effect, not to replace statnet.
+bio: >-
+    Tomas is a PhD student in sociology, communication, public health or statistics, taking a semester seminar (Ohio
+    State COMM 7710, Minnesota Sociology 8412, UW STAT 567) or a GESIS-style week-long course. He works in R and RStudio
+    with igraph and statnet's network, sna and ergm packages, plots with ggraph or plot.network, and keeps literate
+    homework on GitHub. His data are an edge list plus an attribute table from his own survey or a replication dataset,
+    or packaged teaching sets such as data(florentine) and Pajek files. The course ends in a research paper whose claims
+    rest on a model: QAP regression, an exponential random graph model (ERGM) with goodness of fit, or a stochastic
+    actor-oriented model. He wants a graph tool only to explore and draw, with typed round trips to R and fitted values
+    arriving as styleable columns. No direct student self-report of his frustrations was found; those below come from
+    course materials.
+characteristics:
+    expertise: advanced
+    time_pressure: medium
+    graph_literacy: advanced
+    domain_knowledge: advanced
+motivations:
+    - Write a publishable research paper whose network claims rest on a fitted model
+    - Diagnose ERGM convergence and degeneracy before trusting coefficients
+    - Explain each coefficient in words as a change in the log-odds of a tie
+    - Explore the data visually before choosing model terms
+    - Show the fitted effect (mixing by attribute, predicted tie probability) in a figure
+behaviors:
+    - Loads an edge list and node attributes into a network object, or reads Pajek with read.paj
+    - Sets set.seed() before every simulation step
+    - Computes density, centralities, triad census and mixing by attribute, some by hand first
+    - Looks up ERGM terms with ?ergmTerm and fits nested models
+    - Runs goodness-of-fit diagnostics and revisits terms when the model degenerates
+    - Writes the paper in R Markdown or .Rnw and versions it on GitHub
+frustrations:
+    - ERGM degeneracy, which courses teach as its own week
+    - Coefficients that are "conditional log-odds" and must be translated into words
+    - Losing attribute types (numeric read as text) when moving data between R and a visual tool
+    - No way to color a drawing by a model's fitted values without re-coding the plot
+    - Base R network plots that need many lines of code for a readable figure
+context:
+    frequency: weekly
+    devices:
+        - laptop
+        - desktop
+    voluntary: false
+workflows:
+    - W236
+    - W233
+sources:
+    - title: Ohio State COMM 7710 syllabus (Spring 2025)
+      url: https://comm.osu.edu/sites/default/files/2025-01/SP25%20Comm%207710%20Syllabus%20Bond.pdf
+      summary: R with igraph; Kolaczyk and Csardi textbook; research paper is the main requirement; R installed in class
+    - title: Minnesota Sociology 8412 syllabus (Almquist)
+      url: https://depts.washington.edu/zalmquist/syllabi/soc_8412_syl.pdf
+      summary: R, RStudio and GitHub; QAP and network regression, ERGM, a week on adequacy and degeneracy
+    - title: Duke social networks seminar syllabus (Moody)
+      url: https://people.duke.edu/~jmoody77/s884/syllabus_11.pdf
+      summary: Pajek and R; calculate ERGM on an example graph; SIENA
+    - title: UW STAT 567 syllabus (Handcock)
+      url: https://sites.stat.washington.edu/people/handcock/567/syllabus.html
+      summary: R sna and network packages; descriptives by hand; ERGM goodness of fit; latent space models
+    - title: Social Network Analysis with R workshop at GESIS (2023)
+      url: https://www.r-bloggers.com/2023/06/social-network-analysis-with-r-workshop-at-gesis/
+      summary: Week-long course ending in ERGM and stochastic actor-oriented models
+    - title: statnet ERGM tutorial
+      url: https://statnet.org/workshop-ergm/ergm_tutorial.html
+      summary: network objects, read.paj, %v% attributes, set.seed, ?ergmTerm, coefficients as conditional log-odds
+    - title: Data-edu computational social science cookbook, chapter 5
+      url: https://data-edu.github.io/computational-social-science-cookbook/chapter-5.html
+      summary: igraph graph_from_data_frame, tidygraph and ggraph plotting
+    - title: Ognyanova - Network visualization with R
+      url: https://kateto.net/network-visualization
+      summary: Data input and formats for one-mode and bipartite networks in R
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

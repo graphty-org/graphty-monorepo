@@ -1,0 +1,144 @@
+id: W58
+name: Code-first Classification and Community Maps at Scale
+category: analysis
+validated: false
+personas:
+    - scientometrics-analyst
+requires_capabilities:
+    - data-import
+    - large-graph-rendering
+    - progressive-loading
+    - community-detection
+    - community-profiling
+    - centrality-betweenness
+    - filtering
+    - layout-force-directed
+    - visual-encoding-nodes
+    - legend-display
+    - algorithm-progress
+    - analysis-history
+    - data-export
+    - export-image
+    - analysis-provenance
+    - fixed-base-map-layout
+    - cluster-labeling
+    - embeddable-map-export
+suggested_components:
+    - data-import-dialog
+    - progressive-loader
+    - progress-bar
+    - algorithm-panel
+    - community-panel
+    - cluster-table
+    - filter-panel
+    - layout-panel
+    - visual-encoding-panel
+    - legend-panel
+    - graph-canvas
+    - share-dialog
+    - data-export-dialog
+starting_state:
+    data_type: Precomputed entity pairs or a direct-citation edge list from an OpenAlex or Web of Science snapshot, with disambiguated identifiers
+    node_count: 300 shown in a portal map; up to 87 million publications in a classification graph
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Two related jobs done in code. First, classify all publications into a hierarchy of research fields by
+    clustering the direct-citation graph at several resolutions, for field-normalized indicators. Second, publish
+    interactive community maps of a few hundred entities that any institution can embed and that label themselves.
+
+
+    **Mental Model**: "The pipeline computes; the display shows." Every heavy step runs headless and reproducibly; the
+    visual tool receives finished positions, clusters and labels and must not recompute or move them.
+
+
+    **Task Phases**:
+
+    1. **Data** (hours) - An OpenAlex snapshot (87 million publications, 2000-2024, in the August 2025 CWTS set) or Web
+    of Science; for portals, about 4 million publications in Elasticsearch with precomputed entity pairs
+
+    2. **Graph** (hours) - Extended direct citation for classification; for portal maps keep the top 2,000 links and cap
+    at 300 nodes by betweenness
+
+    3. **Cluster** (hours for classification, seconds for portals) - Leiden at several resolutions for a hierarchy (the
+    Leiden Ranking uses 4,521 micro-fields; OpenAlex exposes 4 domains, 26 fields, 252 subfields, 4,516 topics);
+    Louvain for portal maps
+
+    4. **Lay out** (seconds) - ForceAtlas2 (gravity 0.05, scaling 10) for portal maps
+
+    5. **Label** (minutes, paid API) - Language-model labels from the 250 most cited titles per cluster
+
+    6. **Publish** (minutes) - VOSviewer Online JSON embedded by iframe; field assignments feed indicators
+
+
+    **Decision Points**:
+
+    - Which resolutions give a useful hierarchy?
+
+    - How many links and nodes to keep for a readable portal map?
+
+    - How to treat hyperauthored papers in co-authorship maps?
+
+
+    **Information Needs**:
+
+    - Cluster counts and sizes at each resolution and their nesting
+
+    - Modularity and run-to-run stability with the seed
+
+    - Labels with the titles they were derived from
+
+
+    **Pain Points**:
+
+    - No Leiden algorithm in Graphology
+
+    - VOSviewer's layout less intuitive than ForceAtlas2 for her team
+
+    - Hyperauthored papers bloat co-authorship networks
+
+    - Language-model labels cost money and hit rate limits
+
+    - Display tools that cannot take precomputed layout and clusters as data
+
+
+    **Data Flow**:
+
+    - Input: Snapshot tables or entity pairs with identifiers
+
+    - Transformations: Edge selection, betweenness cap, Leiden or Louvain clustering with resolution and seed,
+    ForceAtlas2 layout, cluster labeling
+
+    - Output: Field classification tables, embeddable interactive maps as JSON, exported positions and clusters
+success_criteria:
+    - metric: Headless reproducibility
+      target: Same input, parameters and seed give identical clusters and positions without a browser
+    - metric: Embedding
+      target: A precomputed map with positions, clusters and labels displays in an embedded page without recomputation
+    - metric: Scale
+      target: Leiden at several resolutions completes on tens of millions of edges
+sources:
+    - title: Barbier and Jeangirard - Mapping scientific communities at scale (scanR)
+      url: https://arxiv.org/html/2501.10035
+      summary: Top 2000 links, 300-node betweenness cap, ForceAtlas2 parameters, Louvain, LLM labels, VOSviewer Online iframe; no Leiden in Graphology
+    - title: Waltman and van Eck - publication-level classification system
+      url: https://arxiv.org/abs/1203.0532
+      summary: Direct-citation clustering of almost ten million publications
+    - title: Traag, Waltman and van Eck - From Louvain to Leiden
+      url: https://www.nature.com/articles/s41598-019-41695-z
+      summary: Leiden guarantees connected communities
+    - title: Leiden Ranking - fields
+      url: https://open.leidenranking.com/information/fields
+      summary: 4,521 micro-level fields in the Open Edition 2023
+    - title: OpenAlex Topics
+      url: https://help.openalex.org/hc/en-us/articles/24736129405719-Topics
+      summary: 4 domains, 26 fields, 252 subfields, 4,516 topics labeled from most cited titles
+    - title: CWTS classification dataset on Zenodo
+      url: https://zenodo.org/records/17442025
+      summary: 87 million publications 2000-2024
+    - title: VOSviewer Online - embedding
+      url: https://app.vosviewer.com/docs/sharing/embedding
+      summary: Interactive maps embedded by iframe over hosted JSON
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -13,6 +13,11 @@ used_by_workflows:
     - W06
     - W07
     - W15
+    - W111
+    - W232
+    - W287
+    - W318
+    - W423
 implemented_by_components:
     - keyboard-shortcut
     - keyboard-shortcuts-dialog

@@ -1,0 +1,138 @@
+id: W262
+name: Literature-Mined Knowledge Graphs and LLM Question Answering
+category: exploration
+validated: false
+personas:
+    - biomedical-kg-ml-scientist
+    - pharma-target-assessment-scientist
+requires_capabilities:
+    - data-import
+    - pattern-search
+    - all-paths-finding
+    - path-highlighting
+    - neighborhood-expansion
+    - filtering
+    - details-on-demand
+    - annotation
+    - visual-encoding-edges
+    - visual-encoding-nodes
+    - legend-display
+    - layout-hierarchical
+    - data-export
+    - edge-evidence-review
+    - ranked-path-search
+    - answer-subgraph-provenance
+suggested_components:
+    - data-import-dialog
+    - pattern-search-dialog
+    - path-finder-dialog
+    - filter-panel
+    - node-details-panel
+    - annotation-toolbar
+    - context-menu
+    - graph-canvas
+    - legend-panel
+    - data-export-dialog
+starting_state:
+    data_type: subject-predicate-object predications between UMLS concepts with source sentences and PMIDs, or an LLM answer with its retrieved subgraph
+    node_count: 10-200 drawn from a 131k-node filtered graph or a 27M-node graph
+    edge_density: dense
+    user_expertise: expert
+goal: >-
+    **Intent**: Use literature-mined knowledge graphs to propose drug-disease hypotheses and to check generated answers:
+    run a discovery pattern, read the source sentences behind each predication, accept or reject them, and, for an LLM
+    answer, see exactly which subgraph and which sources it used.
+
+
+    **Mental Model**: "Every edge is a sentence someone wrote." An edge is only as good as its sentences; a hypothesis is
+    a chain of edges; an answer is only trustworthy if its subgraph can be inspected.
+
+
+    **Task Phases**:
+
+    1. **Get the graph** (days, once) - SemRep predications from PubMed (130 million from 37 million citations in the
+    2024 final release, after which NLM stopped maintaining the tools); needs a UMLS license
+
+    2. **Filter for precision** (hours, scripted) - SemRep precision is about 0.70; filter with a classifier (PubMedBERT
+    F1 0.854), leaving 131,355 nodes and 2,558,935 relations
+
+    3. **Run a discovery pattern** (10 min) - Cypher such as "drug INHIBITS a concept that CAUSES the disease, and the drug
+    does not already TREAT it"; rank drugs by the number of intermediate concepts; or learn pathways from known TREATS
+    relations and apply them to a new disease
+
+    4. **Review by hand** (hours) - A physician-informatician judges plausibility edge by edge in the Neo4j Browser; of
+    the top 150 predictions, 99 were drug classes too general to use; one drug had 7,883 reasoning pathways
+
+    5. **KG-RAG variant** (minutes per question) - An LLM matches entity names to graph nodes, retrieves their
+    neighborhoods as sentences with provenance, keeps those above the 75th percentile of similarity to the question, and
+    answers; no end-user interface is described
+
+    6. **Hand off** - Accepted hypotheses with their supporting sentences; for RAG, the answer with its subgraph
+
+
+    **Decision Points**:
+
+    - Which predicates and semantic types to allow in a pattern?
+
+    - Is a predication supported by its sentences, or an extraction error?
+
+    - Is a candidate a specific drug or an uselessly general class?
+
+    - Does the retrieved subgraph actually support the generated answer?
+
+
+    **Information Needs**:
+
+    - For any edge: predicate, sentences, PMIDs, counts and classifier confidence
+
+    - Ranked hypotheses with the number of supporting intermediate concepts
+
+    - Accept or reject marks that persist and filter the view
+
+    - For an answer: the retrieved nodes and edges with provenance and similarity scores
+
+
+    **Pain Points**:
+
+    - "A human expert is needed to sort out the noise"
+
+    - Presenting thousands of reasoning pathways for review is "an open challenge"
+
+    - The source tools are no longer maintained after 2024
+
+    - Licenses (UMLS) restrict sharing
+
+
+    **Data Flow**:
+
+    - Input: Predication tables or Neo4j dump; or an LLM answer plus retrieved context
+
+    - Transformations: Precision filtering, pattern search, path ranking, accept or reject marking
+
+    - Output: Reviewed hypothesis list with evidence; answer-with-subgraph record
+success_criteria:
+    - metric: Evidence reading
+      target: Source sentences of an edge visible on selection without leaving the graph
+    - metric: Review throughput
+      target: Accept and reject marks recorded per edge and used to filter subsequent views
+    - metric: Answer inspection
+      target: The subgraph behind a generated answer drawn with its provenance
+sources:
+    - title: SemMedDB
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC3509487
+      summary: Semantic predications from PubMed with links to source sentences
+    - title: SemRep and SemMedDB final release notes
+      url: https://lhncbc.nlm.nih.gov/ii/tools/SemRep_SemMedDB_SKR/SemMedDB_download.html
+      summary: 2024 final release; tools no longer maintained; UMLS license required
+    - title: Zhang et al. 2021 - COVID-19 literature-based discovery
+      url: https://arxiv.org/pdf/2010.09600
+      summary: PubMedBERT filtering, Cypher discovery patterns, expert review in Neo4j Browser; 99 of top 150 too general
+    - title: Cohen et al. 2015 - Discovery by analogy
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4474167
+      summary: 7,883 reasoning pathways for one drug; presenting them for review called an open challenge
+    - title: KG-RAG over SPOKE (Soman et al. 2024)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11441322/
+      summary: Neighborhood retrieval with provenance, 75th percentile pruning, 97 percent retrieval accuracy
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

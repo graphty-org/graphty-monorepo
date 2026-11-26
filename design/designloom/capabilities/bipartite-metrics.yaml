@@ -1,0 +1,15 @@
+id: bipartite-metrics
+name: Bipartite ecological indices
+category: analysis
+description: Connectance, NODF and weighted NODF, H2', d', bipartite modularity and robustness for two-mode networks.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W163
+    - W164
+    - W165
+    - W166
+implemented_by_components: []
+requirements: []
+sources: []

@@ -1,0 +1,64 @@
+id: kinship-participatory-anthropologist
+name: Kinship and Participatory Mapping Anthropologist
+role: Anthropologist (Kinship Networks and Applied Participatory Mapping)
+quote: Genealogy software draws the family tree but cannot count marriage circuits, and network software forgets who is whose parent.
+bio: >-
+    Dr. Amara Osei is an anthropologist who works from fieldwork. Part of her work is kinship: genealogies collected in
+    a village or from archives, with individuals as nodes, directed parent-child links and undirected marriage or union
+    links. She analyzes them in Puck, a free Java program from the Paris TIP group, and uses the Kinsources archive of
+    peer-reviewed kinship datasets, which range from 17 to about 50,000 individuals and are often incomplete. Her
+    applied work uses Net-Map: in a one- to two-hour interview an informant names the actors around a local decision,
+    draws up to five colored link types between them on a large sheet, stacks towers under each actor to show
+    influence, and marks each actor's goals. She later retypes those maps into UCINET, one matrix per link type, or
+    redraws them in VennMaker or Network Canvas. She learned UCINET and EgoNet in coursework.
+characteristics:
+    expertise: intermediate
+    time_pressure: low
+    graph_literacy: intermediate
+    domain_knowledge: advanced
+motivations:
+    - Census marriage circuits (who marries whom along which kin paths) in a community
+    - Draw genealogies laid out by generation while still computing network measures
+    - Compare kinship structure across societies
+    - Turn participant-drawn influence maps into data without losing what the participant drew
+behaviors:
+    - Records individuals with sex, parent-child links and marriages from fieldwork or archives
+    - Downloads peer-reviewed datasets from Kinsources and checks completeness (24.8% of individuals in the aggregate have no recorded parent)
+    - Infers generations from parent-child direction because records carry no generation field
+    - Runs Net-Map sessions with colored link types drawn one at a time, influence towers and goal codes
+    - Digitizes each Net-Map link type as its own matrix, or redraws the map with node size for tower height
+frustrations:
+    - Genealogy tools draw trees but compute no network measures
+    - Network tools ignore generations and the parent versus spouse distinction
+    - Hand-drawn maps must be retyped as one matrix per link type before any software can use them
+    - Positions, heights and annotations the participant made are lost when digitized
+context:
+    frequency: monthly
+    devices:
+        - laptop
+    voluntary: true
+workflows:
+    - W34
+    - W35
+sources:
+    - title: Puck -- La parente radiographiee
+      url: https://halshs.archives-ouvertes.fr/halshs-00445418
+      summary: Puck's purpose is a complete census of marriage circuits in kinship networks
+    - title: Puck project page
+      url: https://sourceforge.net/p/simpa-puck/
+      summary: Free Java software for genealogical network analysis
+    - title: Network analysis of 105 Kinsources datasets (2026)
+      url: https://arxiv.org/html/2606.18210
+      summary: 17 to about 50,000 individuals, 24.8% without recorded parents, no generation field, Graphviz layering into pseudogenerations
+    - title: Kinsources platform
+      url: https://csac.anthropology.ac.uk/Research/Kinsources
+      summary: Open-access, peer-reviewed kinship data repository with Puck integrated (page unavailable when checked)
+    - title: Net-Map manual
+      url: https://media.tciurbanhealth.org/wp-content/uploads/2018/02/12125549/Net-Map-Manual.pdf
+      summary: Step-by-step participatory influence mapping with link types, influence towers, goals and digitizing
+    - title: Florida anthropology network analysis syllabus (Johnson, 2019)
+      url: https://anthro.ufl.edu/wp-content/uploads/sites/306/syllabus-network-analysis-Fall2019-Johnson.pdf
+      summary: UCINET, NetDraw, EgoNet and E-Net taught to anthropologists
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

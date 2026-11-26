@@ -1,0 +1,123 @@
+id: W250
+name: Metabolic Flux and Metabolomics Overlay
+category: analysis
+validated: false
+personas:
+    - metabolic-network-modeler
+requires_capabilities:
+    - data-import
+    - visual-encoding-edges
+    - visual-encoding-nodes
+    - legend-display
+    - filtering
+    - node-merging
+    - comparison-view
+    - search
+    - export-image
+    - fixed-node-positions
+    - biological-network-formats
+    - currency-node-handling
+suggested_components:
+    - data-import-dialog
+    - visual-encoding-panel
+    - gradient-editor
+    - legend-panel
+    - filter-panel
+    - search-panel
+    - comparison-view
+    - graph-canvas
+    - image-export-dialog
+starting_state:
+    data_type: bipartite metabolite-reaction model (COBRA JSON, SBML) or curated map plus flux or concentration values
+    node_count: tens to hundreds on a map; thousands of reactions per model
+    edge_density: sparse with currency hubs
+    user_expertise: advanced
+goal: >-
+    **Intent**: Show predicted fluxes or measured metabolite changes on a metabolic map, test knockouts, and see which
+    reactions carry more or less flux.
+
+
+    **Mental Model**: "Traffic on a road map." Reactions are roads with a direction; flux is traffic volume and its sign
+    the direction of travel; currency metabolites like water and ATP are not destinations.
+
+
+    **Task Phases**:
+
+    1. **Load the model** (5 min) - cobra.io.load_json_model, or convert SBML
+
+    2. **Solve** (1 min) - model.optimize(); or knock out reactions in Escher-FBA, which re-solves in the page
+
+    3. **Load the map** (2 min) - Builder(map_name, model); maps are hand-built JSON drawings
+
+    4. **Paint data** (5 min) - reaction_data from solution fluxes: width by magnitude, color by value, arrow by sign;
+    metabolite data as node color or size
+
+    5. **Handle currency metabolites** (10 min) - Hide, remove or duplicate water, ATP, NADH and H+
+
+    6. **Export** (2 min) - SVG
+
+
+    **Decision Points**:
+
+    - Which map, or draw a new one?
+
+    - Which currency metabolites to hide or duplicate?
+
+    - Absolute flux or difference from a reference condition?
+
+
+    **Information Needs**:
+
+    - Flux magnitude and sign per reaction
+
+    - Reversibility
+
+    - Metabolites that appear several times on the map
+
+    - Which reactions changed after a knockout
+
+
+    **Pain Points**:
+
+    - Currency metabolites dominate degree and layout
+
+    - Maps are built by hand
+
+    - SBML must be converted to COBRA JSON
+
+    - General network tools ignore reversibility and flux sign
+
+
+    **Data Flow**:
+
+    - Input: COBRA JSON or SBML model; flux solution; metabolite concentrations; map JSON or KGML
+
+    - Transformations: Optimization, knockouts, flux-to-edge mapping, currency-node handling
+
+    - Output: Flux map figure; changed-reaction list
+success_criteria:
+    - metric: Flux readable
+      target: Magnitude and direction of flux visible on every reaction
+    - metric: Currency handling
+      target: Listed currency metabolites can be hidden or duplicated in one step
+    - metric: Knockout feedback
+      target: Map updates after a knockout
+sources:
+    - title: Escher
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4552468
+      summary: Hand-built maps and flux overlays
+    - title: Escher Python
+      url: https://escher.readthedocs.io/en/latest/escher-python.html
+      summary: Builder and reaction_data
+    - title: Escher-FBA
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6158907
+      summary: In-browser FBA and knockouts
+    - title: MetaboAnalyst network explorer
+      url: https://www.metaboanalyst.ca/MetaboAnalyst/Secure/network/MnetParamView.xhtml
+      summary: KEGG global map and DSPC networks
+    - title: Currency metabolites
+      url: https://arxiv.org/pdf/0806.2763
+      summary: Currency metabolites removed before topology analysis
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -8,6 +8,41 @@ implements_capabilities:
 used_in_workflows:
     - W02
     - W07
+    - W115
+    - W124
+    - W142
+    - W15
+    - W187
+    - W197
+    - W202
+    - W210
+    - W224
+    - W239
+    - W276
+    - W305
+    - W314
+    - W315
+    - W316
+    - W317
+    - W322
+    - W323
+    - W325
+    - W327
+    - W329
+    - W364
+    - W414
+    - W417
+    - W426
+    - W43
+    - W55
+    - W57
+    - W65
+    - W67
+    - W68
+    - W83
+    - W89
+    - W92
+    - W99
 dependencies:
     - button
     - text-input

@@ -1,0 +1,15 @@
+id: reproducible-edge-rules
+name: Reproducible Edge Rules
+category: analysis
+description: Save the rule that turned raw interactions into ties (window, thresholds, reciprocity, participant caps,
+    weighting) with the project and apply it identically to the next period or survey wave.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W187
+    - W188
+    - W189
+implemented_by_components: []
+requirements: []
+sources: []

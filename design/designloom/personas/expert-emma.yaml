@@ -1,43 +1,54 @@
 id: expert-emma
 name: Expert Emma
-role: Power User / Graph Expert
-quote: I need full control - show me the adjacency matrix, let me write custom queries, and don't hide the complexity I
-    need to do my job.
-bio: Dr. Emma is a network science researcher and consultant who has published papers on graph algorithms and advises
-    organizations on complex network analysis problems. She thinks in terms of graph theory and expects tools to expose
-    the full power of the underlying algorithms. She's frustrated by simplified interfaces that hide the parameters and
-    data structures she needs to do rigorous analysis.
+role: Computational Network Scientist (Assistant Professor, Physics or Complex Systems)
+quote: Don't give me one number. Give me the run-to-run spread, the null it was compared against, and the seed, or a referee will.
+bio: >-
+    Dr. Emma Larsen is an assistant professor in physics or complex systems with three PhD students. She publishes on
+    community structure, spreading processes and group (higher-order) interactions. She works in code every day:
+    graph-tool for stochastic block model inference, rewiring ensembles and motif significance; python-igraph for Leiden;
+    NetworkX for prototyping; XGI for hypergraphs; the powerlaw package for tail fitting; EoN or NDlib for epidemic
+    simulation. She opens Gephi only to lay out a figure with ForceAtlas2 and finishes it in Inkscape. Her data comes by
+    name from Netzschleuder (more than 160,000 network datasets), ICON and SNAP, from XGI-DATA hypergraphs, or from LFR
+    and block-model benchmark generators, and ranges from 10^3 to 10^9 edges; she reduces the largest before drawing
+    anything. What she needs from a GUI tool is not convenience but method validity and provenance: correct algorithm
+    variants, explicit weight semantics, null ensembles, seeds, run-to-run stability and a record of every parameter.
 characteristics:
     expertise: expert
-    time_pressure: high
+    time_pressure: medium
     graph_literacy: advanced
     domain_knowledge: advanced
 motivations:
-    - Perform rigorous, publishable-quality network analysis
-    - Access full algorithm parameterization without artificial constraints
-    - Integrate graph analysis into custom pipelines and workflows
-    - Push the boundaries of what's possible with network analysis techniques
-    - Mentor others in graph analysis best practices
+    - Characterize a network against the right null model before making any headline claim ("scale-free", "small-world", "rich club")
+    - Report communities that are statistically supported, not one lucky run of a degenerate objective
+    - Know how a process spreads on a network and how fragile the network is to failure and attack
+    - Produce a figure that does not mislead a reader about distances, clusters or scale
+    - Make every analysis rerunnable by a referee from recorded parameters, versions and seeds
+    - Analyze multilayer, two-mode and group data as they are, without silently flattening them to pairs
 behaviors:
-    - Immediately looks for API access, scripting capabilities, or export options
-    - Configures algorithm parameters precisely based on theoretical understanding
-    - Validates tool results against reference implementations
-    - Combines multiple analysis techniques in custom workflows
-    - Exports raw data for analysis in specialized tools (R, Python, Mathematica)
-    - Reads source code or documentation to understand implementation details
-    - Reports bugs or limitations with technical precision
+    - Records what an edge means and decides the representation explicitly (directed or not, weights, parallel edges, layers, projections) before computing anything
+    - Fits degree tails by the Clauset-Shalizi-Newman protocol (k_min by Kolmogorov-Smirnov, discrete maximum likelihood, bootstrap p, likelihood-ratio tests against log-normal and cutoff alternatives), never least squares on a log-log histogram
+    - Builds 100 to 1000 degree-preserving rewirings and reports observed value, null mean, null standard deviation and z for each statistic
+    - Uses Leiden or a nested degree-corrected stochastic block model, never Louvain except to reproduce older work, and sweeps resolution over many seeded runs
+    - Compares partitions by normalized mutual information, adjusted Rand or variation of information
+    - States the weight convention for every path measure ("betweenness on distances 1/w")
+    - Runs many seeded realizations of spreading simulations and removal experiments and plots means with spread
+    - Benchmarks new methods on LFR graphs, plotting NMI against the mixing parameter with error bars
+    - Puts code, data and seeds in a GitHub or Zenodo repository alongside the paper
 goals:
-    - Maximum efficiency with minimal clicks
-    - Full feature access
-    - Keyboard-driven workflow
-    - Complex multi-step investigations
-    - Customization and extensibility
+    - Valid methods as the easy path (Leiden default, nulls one click away, correct tail fitting)
+    - Seeded, repeatable runs of every stochastic algorithm, with the seed recorded
+    - Stability and uncertainty shown, not hidden behind a single partition
+    - A provenance record that can be exported with every figure
+    - Vector figure export and a handoff back to igraph, NetworkX or graph-tool
 frustrations:
-    - Mouse-heavy interfaces
-    - Hidden advanced features
-    - Lack of keyboard shortcuts
-    - No command palette or scripting
-    - Forced wizard workflows
+    - Louvain partitions that change every run and can be internally disconnected
+    - Modularity's exponentially many near-optimal partitions presented as one answer
+    - Tools that give one number with no ensemble, null or spread
+    - Inconsistent weight conventions between libraries (strength for communities, distance for paths) and silent unweighted path measures in Gephi
+    - Gephi silently merging parallel edges on import and recording nothing about what was done
+    - Default community settings that return near-singletons (CPM at resolution 1 on an unweighted graph)
+    - Hypergraph, multilayer and simulation tools living in separate notebooks from layout and community tools
+    - PDF export of large graphs hanging
 context:
     frequency: daily
     devices:
@@ -52,10 +63,49 @@ workflows:
     - W15
     - W18
     - W19
+    - W37
+    - W38
+    - W39
+    - W40
+    - W41
+    - W42
+    - W43
+    - W44
+    - W45
+    - W46
+    - W47
+    - W48
+    - W49
+    - W335
 sources:
-    - title: Progressive Disclosure - Nielsen Norman Group
-      url: https://www.nngroup.com/articles/progressive-disclosure/
-      summary: Expert users need keyboard shortcuts and command palettes to bypass progressive disclosure layers
-    - title: Hick's Law - Laws of UX
-      url: https://lawsofux.com/hicks-law/
-      summary: Time to make decisions increases with number of choices - experts need efficient paths to functionality
+    - title: From Louvain to Leiden - guaranteeing well-connected communities (Traag, Waltman and van Eck 2019)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6435756/
+      summary: Louvain yields up to 25% badly connected and up to 16% disconnected communities; Leiden guarantees connected communities and is faster
+    - title: Performance of modularity maximization in practical contexts (Good, de Montjoye and Clauset 2010)
+      url: https://arxiv.org/abs/0910.0165
+      summary: Modularity has exponentially many near-optimal partitions and should be interpreted cautiously in scientific contexts
+    - title: Power-law distributions in empirical data (Clauset, Shalizi and Newman 2009)
+      url: https://arxiv.org/abs/0706.1062
+      summary: The accepted tail-fitting protocol; least squares on log-log histograms is biased
+    - title: Scale-free networks are rare (Broido and Clauset 2019)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6399239/
+      summary: Across 928 datasets, 49% not scale free, 4% strongest evidence, log-normal fits at least as well for 88%
+    - title: graph-tool network collection (Netzschleuder)
+      url: https://graph-tool.skewed.de/doc/collection.html
+      summary: Datasets fetched by name inside graph-tool, the network scientist's standard data source
+    - title: igraph-help thread on weights in path functions (2019)
+      url: https://lists.gnu.org/archive/html/igraph-help/2019-10/msg00007.html
+      summary: Maintainer states path-based functions read weights as distances and results depend on the transformation chosen
+    - title: Gephi Fieldnotes and the reflexive use of Gephi (van Geenen et al. 2023, Frontiers in Big Data)
+      url: https://www.frontiersin.org/articles/10.3389/fdata.2022.510310/full
+      summary: Gephi cannot record what was done; Fieldnotes plugin built to capture it; over 9,800 citing publications
+    - title: Gephi release notes (v0.7.0 parallel-edge merge)
+      url: https://github.com/gephi/gephi/releases
+      summary: Gephi merges parallel edges on import and by default increases the edge weight
+    - title: Postdoctoral posting, Northwestern Center for Network Dynamics
+      url: https://cnd.northwestern.edu/?p=673
+      summary: Job requirements name complex networks, computational modeling, percolation and spreading
+    - title: Gephi bug 808617 - PDF export of large graph hangs
+      url: https://bugs.launchpad.net/gephi/+bug/808617
+      summary: A 50K-node PDF export stuck at 100%
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,58 @@
+id: leadership-network-coach
+name: Leadership Network Coach
+role: Executive Coach or Leadership Development Facilitator using personal network assessments
+quote: Thirty managers each named fifteen people. Each of them needs one readable picture of their own network before Thursday's session.
+bio: >-
+    Grace Lin is an executive coach and leadership development facilitator who runs cohort programs for 20 to 40
+    managers. Part of the program is a personal network assessment: each participant names the people they go to for
+    information, advice, decisions and support, rates each contact (level, function, frequency, closeness, what the tie
+    provides) and sometimes says which of their contacts know each other. She uses Cross's personal network diagnostic,
+    the Connected Commons multi-rater assessment with its virtual course, or a general survey tool with an ego-network
+    template. There is no organization-wide roster: each participant has one small egocentric network that only they
+    and the coach see. Her job is to show each person the makeup of their network -- over-reliance on peers at one
+    level, a network confined to one division -- and agree on actions such as delegating decision rights or a rotation.
+characteristics:
+    expertise: novice
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Give every participant a readable map and profile of their own network
+    - Compare each network with patterns from research (diversity and bridging rather than size)
+    - Agree on concrete actions per participant and, where possible, re-measure later
+    - Keep each participant's map private to that participant and the coach
+behaviors:
+    - Collects free-recall name lists with per-contact ratings and optional contact-to-contact ties
+    - Colors each ego map by function or level and reads the share of contacts in each category
+    - Looks for structural diversity -- separate clusters of contacts around the ego -- rather than network size
+    - Prepares one map per participant for one-on-one debriefs
+frustrations:
+    - General survey tools treat named contacts as text fields, not nodes
+    - Producing 20 to 40 separate maps by hand for one cohort
+    - No standard re-measurement interval or tooling to compare a participant's before and after networks (no source found for a standard interval)
+context:
+    frequency: as-needed
+    devices:
+        - laptop
+    voluntary: true
+workflows:
+    - W194
+sources:
+    - title: egor vignette - ego-network survey data from Qualtrics
+      url: https://cran.csail.mit.edu/web/packages/egor/vignettes/qualtrics.html
+      summary: Name generator, name interpreters and alter-alter questions; templates start at about five slots
+    - title: Training magazine - Personal Network Assessment in executive coaching
+      url: https://trainingmag.com/?p=12055
+      summary: Ego network profiles compared with research patterns; actions such as delegation and rotation
+    - title: Cross and Parker, The Hidden Power of Social Networks, Appendix B
+      url: https://www.oreilly.com/library/view/the-hidden-power/9781633691537/19_appendixB.html
+      summary: Personal network diagnostic used in leadership programs
+    - title: i4cp - Organizational network insights without conducting an ONA
+      url: https://www.i4cp.com/productivity-blog/how-to-leverage-organizational-network-insights-without-conducting-an-ona
+      summary: Connected Commons multi-rater network assessment with a five-module virtual course
+    - title: Network Canvas and egocentric surveys (Social Networks)
+      url: https://nosh.northwestern.edu/wp-content/uploads/2021/02/1-s2.0-S0378873321000186-main.pdf
+      summary: Purpose-built egocentric network data collection where contacts are nodes
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

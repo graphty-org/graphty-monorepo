@@ -1,0 +1,48 @@
+id: multiplex-relations
+name: Multiplex Relations
+category: analysis
+description: Several relations (link types) on one actor set, each switchable, combinable and exportable as its own edge
+    list or matrix.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W10
+    - W187
+    - W188
+    - W190
+    - W191
+    - W207
+    - W208
+    - W213
+    - W241
+    - W248
+    - W255
+    - W26
+    - W31
+    - W35
+    - W389
+    - W63
+    - W64
+    - W66
+    - W71
+    - W72
+    - W76
+    - W83
+implemented_by_components: []
+requirements:
+    - Two or more independently typed edge layers over the same nodes (for example laboratory-derived genetic links,
+      interview-derived contact links, and place-sharing links), each separately colored, filtered and shown or hidden,
+      with several relationship types on the same pair of nodes kept distinct rather than collapsed into one edge or one
+      color.
+    - Several typed edge sets (Layer 1 cables, Layer 2 VLANs, Layer 3 routes; calls versus deployment) over the same
+      placed nodes, switchable without losing positions, with port or interface endpoints on edges.
+    - Keep one edge set per relationship type (survey question or communication channel) on the same nodes; filter,
+      style and compute metrics per type, and combine types with a chosen rule (sum, any, all).
+    - Keep several relation types between the same pair (reply, mention, repost, quote, follow, forward), keep duplicate
+      events or merge them into a weight, keep self-loops, and filter, weight and color edges per type with a legend.
+    - Group edges by a layer column (ligand-receptor pair, pathway, evidence channel, contact type), show or hide
+      layers, step through layers on a fixed drawing, and aggregate layers into a summary network.
+    - Several edges between the same two places, one per carrier, aircraft type, cargo type or mode, filterable and
+      comparable layer by layer.
+sources: []

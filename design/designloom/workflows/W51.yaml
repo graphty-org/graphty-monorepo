@@ -1,0 +1,154 @@
+id: W51
+name: Term and Keyword Co-occurrence with Thesaurus Cleaning
+category: analysis
+validated: false
+personas:
+    - bibliometric-review-author
+    - research-impact-librarian
+    - patent-landscape-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - filtering
+    - node-merging
+    - community-detection
+    - community-profiling
+    - layout-force-directed
+    - visual-encoding-nodes
+    - legend-display
+    - search
+    - analysis-history
+    - export-image
+    - data-export
+    - analysis-provenance
+    - bibliographic-record-import
+    - record-projection
+    - threshold-preview
+    - thesaurus-cleaning
+    - co-occurrence-weighting
+    - cluster-labeling
+suggested_components:
+    - data-import-dialog
+    - data-table-panel
+    - filter-panel
+    - range-slider
+    - node-merge-dialog
+    - search-panel
+    - community-panel
+    - cluster-table
+    - visual-encoding-panel
+    - gradient-editor
+    - legend-panel
+    - graph-canvas
+    - analysis-history-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: Bibliographic records with titles, abstracts and keyword fields (or patent records with assignee fields)
+    node_count: 1,000-2,000 candidate terms reduced to 100-500 shown
+    edge_density: medium
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Build a map of the topical themes of a field from keywords or from terms extracted from titles and
+    abstracts, and clean it until each cluster reads as a theme: merge synonyms, spelling variants and abbreviations,
+    and drop noise terms. Topic maps appear in nearly every bibliometric review, and the same cleaning loop is used for
+    author, organization and patent-assignee names.
+
+
+    **Mental Model**: "Map, read, fix the vocabulary, redraw." The first map is a diagnostic; what the user sees in it
+    (two nodes for "h-index" and "Hirsch index", a cluster of copyright boilerplate) becomes entries in a thesaurus, and
+    the final map is whatever the last thesaurus produces.
+
+
+    **Task Phases**:
+
+    1. **Choose text or keywords** (5 min) - Extract noun phrases from titles and abstracts (ignoring copyright
+    statements and structured-abstract labels, unifying plurals) or use author keywords or indexed keywords
+
+    2. **Choose counting** (1 min) - Binary counting (once per document) is usually preferred over full counting
+
+    3. **Threshold and relevance** (10-20 min) - Default minimum of 10 occurrences; drop the 40% of terms with the lowest
+    relevance score; lower the threshold until 1,000-2,000 terms remain, then review the list
+
+    4. **First map, then thesaurus** (2-5 rounds, hours to days) - Read the map and term list, write a tab-separated
+    thesaurus with columns "label" and "replace by" (an empty replacement removes the term); rebuild the map from scratch
+    with the thesaurus; repeat
+
+    5. **Clean upstream when needed** (hours) - Fix records in Excel or OpenRefine; "100 records in 5 minutes, 10,000 in
+    8 hours"
+
+    6. **Report** (1-2 hours) - Name clusters as themes from their largest terms; use the overlay by average year to
+    describe emerging topics
+
+
+    **Decision Points**:
+
+    - Text-mined terms or the keyword fields?
+
+    - Which variants are true synonyms and which are distinct concepts?
+
+    - Delete a generic term, or keep it because it bridges clusters?
+
+    - When is the vocabulary clean enough to stop iterating?
+
+
+    **Information Needs**:
+
+    - Term list with occurrences, relevance score, cluster and links, sortable and searchable
+
+    - Candidate duplicate terms (same stem, abbreviation, spelling variant) suggested side by side
+
+    - Which records contain a given term, to judge whether it is noise
+
+    - A diff of the map before and after a thesaurus change (which clusters split, merged or moved)
+
+    - The thesaurus itself as a table that can be saved, reused on the next corpus and cited in methods
+
+
+    **Pain Points**:
+
+    - Abbreviations are not linked to written-out terms automatically
+
+    - Every thesaurus change rebuilds the whole map, and positions and cluster colors change
+
+    - Excluding a long term can re-count it as an embedded shorter term
+
+    - Cleaning takes 2-3 days and is done in a different tool from the map
+
+    - English-only term extraction
+
+
+    **Data Flow**:
+
+    - Input: Titles, abstracts and keyword fields of each record; an optional existing thesaurus file
+
+    - Transformations: Term extraction and plural unification, binary counting, relevance scoring and threshold, term
+    merges and deletions from the thesaurus, co-occurrence projection, normalization, layout and clustering
+
+    - Output: Cleaned co-occurrence map with named theme clusters, overlay-by-year map, reusable thesaurus file
+success_criteria:
+    - metric: Thesaurus round-trip time
+      target: A merge or deletion is reflected in the map in under a minute without re-running the import wizard
+    - metric: Thesaurus reuse
+      target: The thesaurus is a saved table that can be applied to the next corpus and exported in VOSviewer format
+    - metric: Stability across edits
+      target: Unaffected clusters keep their positions and colors after a thesaurus change
+sources:
+    - title: VOSviewer Manual 1.6.20
+      url: https://www.vosviewer.com/documentation/Manual_VOSviewer_1.6.20.pdf
+      summary: Text-data maps, binary counting, 10-occurrence default, 60% most relevant terms, thesaurus format, embedded-term re-counting
+    - title: Leiden Gorlaeus library - Creating an overview of topics
+      url: https://gorlaeus-library.github.io/VOSviewer/howto-topics.html
+      summary: Binary counting preferred, 1,000-2,000 terms reviewed, abbreviations not linked, emerging topics from overlay
+    - title: UIC library - VOSviewer guide
+      url: https://researchguides.uic.edu/bibliometrics/vosviewer
+      summary: Thesaurus building and reuse for keywords and names
+    - title: Bibliometric gardening - cleaning
+      url: https://sites.google.com/view/bibliometricgardening/structure/7-cleaning
+      summary: Manual cleaning in Excel at about 100 records per 5 minutes
+    - title: WIPO Open Source Patent Analytics manual - Gephi
+      url: https://wipo-analytics.github.io/manual/gephi-1.html
+      summary: Same cleaning problem for patent applicant names before an assignee network
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

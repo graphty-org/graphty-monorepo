@@ -1,0 +1,12 @@
+id: outline-import
+name: Mind-Map Outline Import
+category: data
+description: Import trees from XMind, OPML or indented text outlines for radial and tree layouts.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W203
+implemented_by_components: []
+requirements: []
+sources: []

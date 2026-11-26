@@ -1,0 +1,15 @@
+id: process-detail-sliders
+name: Process Detail Sliders
+category: analysis
+description: Activities and paths sliders that keep every shown node on a start-to-end path, flag whether the shown
+    numbers add up, and distinguish a view simplification from a log filter.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W340
+    - W342
+    - W343
+implemented_by_components: []
+requirements: []
+sources: []

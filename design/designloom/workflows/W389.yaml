@@ -1,0 +1,177 @@
+id: W389
+name: Air or Maritime Network Hubs and Robustness
+category: analysis
+validated: false
+personas:
+    - air-maritime-network-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - filtering
+    - node-merging
+    - degree-analysis
+    - centrality-degree
+    - centrality-betweenness
+    - centrality-closeness
+    - community-detection
+    - component-analysis
+    - removal-impact-analysis
+    - temporal-analysis
+    - comparison-view
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - statistics-panel
+    - export-image
+    - data-export
+    - multiplex-relations
+    - geographic-layout
+    - od-flow-import
+    - spatial-aggregation
+    - globe-view
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - filter-panel
+    - node-merge-dialog
+    - algorithm-panel
+    - ranked-node-table
+    - community-panel
+    - impact-analysis-dialog
+    - comparison-view
+    - temporal-controls
+    - visual-encoding-panel
+    - legend-panel
+    - statistics-panel
+    - graph-canvas
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: airline segment or market counts (BTS T-100, OpenFlights) or ship port-call journeys derived from AIS, with airport or port coordinates
+    node_count: 300-3500
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Build an airline or shipping network, find its hubs and bridges, and test what disconnects when a hub,
+    port, canal or strait is removed -- with results shown on a map or globe where their geographic meaning is
+    visible.
+
+
+    **Mental Model**: "A service network on the globe." Airports and ports are nodes at fixed coordinates; edges are
+    services (non-stop segments or journeys between consecutive port calls), one layer per carrier or cargo type.
+
+
+    **Task Phases**:
+
+    1. **Choose segment or market data** (the first decision) - T-100 Segment counts non-stop legs with carrier,
+    aircraft type, seats, departures and passengers (the service network); Market and the DB1B 10 percent ticket
+    sample describe demand; T-100 is monthly from 1990 and international lags domestic by three months; OpenFlights is
+    free but frozen at June 2014; OAG schedules are licensed
+
+    2. **Download and clean** - Select passengers and origin, destination and city market ids; drop zero-passenger rows
+
+    3. **Choose nodes** - Airports, or city markets that group airports serving one metro area
+
+    4. **Build directed weighted graphs** - One per month, year or carrier, summing passengers by origin and
+    destination
+
+    5. **Compute structure** - Degree and strength; betweenness on hop count or inverse passengers; Atlanta has the
+    highest degree (153) while Anchorage has the highest betweenness; Louvain gives 8 geographically coherent
+    communities (modularity 0.28) versus 50 from label propagation
+
+    6. **Test robustness** - Remove airports in order of betweenness, degree, closeness or at random, tracking the
+    largest connected component; removing top-betweenness airports collapses it fastest (after five removals) while
+    random removal barely matters; some studies add cascade failure with load thresholds
+
+    7. **Compare to null models** - Erdos-Renyi and Barabasi-Albert graphs of the same size
+
+    8. **Draw** - Airports at their coordinates with great-circle arcs on a world map or globe, sized by strength and
+    colored by community; or export GML to Gephi
+
+    Maritime variant: link consecutive port calls of each ship into journeys (490,517 journeys); build a directed graph
+    of 951 ports and 36,351 port pairs; split into container (378 ports), dry-bulk (616) and tanker (505) layers;
+    compute betweenness per layer (Suez Canal and Shanghai rank high in every layer; Wilhelmshaven is tenth for tankers
+    but 241st for dry bulk) and directed modularity communities (container 12, Q 0.605; dry bulk 7, Q 0.592; oil 6, Q
+    0.716); canals appear as nodes, so chokepoint removal can be tested
+
+
+    **Decision Points**:
+
+    - Segment (service) or market (demand) counts?
+
+    - Airports or city markets as nodes?
+
+    - Weight per measure: hop count, passengers or inverse passengers?
+
+    - Removal order: betweenness, degree, closeness, random or a chosen hub or canal?
+
+    - One network or one layer per carrier or cargo type?
+
+
+    **Information Needs**:
+
+    - Degree versus betweenness per node, to flag bridges such as Anchorage
+
+    - Largest connected component size after each removal step, as a curve
+
+    - The places disconnected by a removal, shown on the map
+
+    - Per-layer rankings side by side (container, dry bulk, tanker)
+
+    - Snapshot comparison across months or years around a shock
+
+
+    **Pain Points**:
+
+    - Graph tools ignore geography and map tools ignore graph structure
+
+    - Bridge results such as Anchorage only make sense on a map
+
+    - Parallel edges per carrier or cargo type collapse in most tools
+
+    - Robustness results are tables with no map of what disconnected
+
+    - Weights must be inverted by hand for path-based measures
+
+
+    **Data Flow**:
+
+    - Input: Route or segment table (origin, destination, carrier, passengers, month) or port-call records (ship, port,
+    arrival, departure), plus airport or port coordinates
+
+    - Transformations: Cleaning, node grouping, per-period and per-layer graph construction, centrality, communities,
+    node removal with component tracking, null-model comparison
+
+    - Output: Globe or map with great-circle arcs, ranked tables, robustness curves, exported network (GML)
+success_criteria:
+    - metric: Geographic context
+      target: Centrality and community results drawn at airport or port coordinates on a map or globe
+    - metric: Robustness legibility
+      target: After removing a hub or canal the user sees the component-size change and the disconnected places on the map
+    - metric: Layer comparison
+      target: Two carrier or cargo layers compared side by side with their rankings
+sources:
+    - title: BTS T-100 database info
+      url: https://www.transtats.bts.gov/DatabaseInfo.asp?QO_VQ=EEE
+      summary: Segment versus market tables, monthly from 1990, international lag
+    - title: BTS DB1B database info
+      url: https://transtats.bts.gov/DatabaseInfo.asp?QO_VQ=EFI
+      summary: 10 percent ticket sample of itineraries, markets and coupons
+    - title: metagraph - Airline connectedness use case
+      url: https://metagraph.readthedocs.io/en/stable/getting_started/use_case_1_airline_connectedness.html
+      summary: City markets, zero-passenger rows dropped, inverse-passenger betweenness ranking
+    - title: US airport network centrality and robustness study
+      url: https://arxiv.org/html/2505.11559v1
+      summary: Atlanta degree 153, Anchorage top betweenness, Louvain 8 communities, targeted removal collapses the network after five removals
+    - title: US airport network over 16 years
+      url: https://arxiv.org/pdf/2005.01101
+      summary: Snapshot comparison of the airport network over time
+    - title: Kaluza et al. - The complex network of global cargo ship movements
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC2880080
+      summary: 951 ports, 490,517 journeys, container, dry-bulk and tanker layers, canal betweenness, directed modularity
+    - title: OpenFlights data
+      url: https://openflights.org/data
+      summary: Free global routes frozen at June 2014
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

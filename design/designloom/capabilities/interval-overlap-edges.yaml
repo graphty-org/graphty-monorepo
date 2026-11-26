@@ -1,0 +1,17 @@
+id: interval-overlap-edges
+name: Interval Data and Overlap-Derived Edges
+category: analysis
+description: Treat a stay, a movement or an exposure period as first-class data with a start and an end, and derive
+    edges from overlap in place and time within a configurable window, weighted by the amount of time shared, with the
+    overlap rule visible and adjustable.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W64
+    - W66
+    - W71
+    - W72
+implemented_by_components: []
+requirements: []
+sources: []

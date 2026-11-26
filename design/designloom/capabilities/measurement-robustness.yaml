@@ -1,0 +1,27 @@
+id: measurement-robustness
+name: Measurement Robustness
+category: analysis
+description: Edge or node subsampling with rank correlation to the original, threshold and density sweeps, rerun spread,
+    alternative representations and nulls.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W03
+    - W104
+    - W177
+    - W180
+    - W184
+    - W23
+    - W245
+    - W254
+    - W41
+    - W42
+implemented_by_components: []
+requirements:
+    - Test whether centrality rankings hold under random edge removal or addition, to allow for missing data.
+    - Subsample nodes or edges repeatedly (or remove a fraction) and show the spread and rank correlation of each
+      centrality against the full network.
+    - Rebuild a network at several cutoffs, databases or clustering resolutions and show which hubs and clusters
+      persist, including a clustering tree of members moving between clusters across resolutions.
+sources: []

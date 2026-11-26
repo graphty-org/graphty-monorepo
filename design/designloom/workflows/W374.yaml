@@ -1,0 +1,142 @@
+id: W374
+name: Intensive Longitudinal (ESM) Temporal and Contemporaneous Networks
+category: analysis
+validated: false
+personas:
+    - experience-sampling-dynamics-researcher
+requires_capabilities:
+    - data-import
+    - visual-encoding-edges
+    - visual-encoding-nodes
+    - legend-display
+    - layout-radial
+    - comparison-view
+    - filtering
+    - hover-highlight
+    - tooltip-display
+    - temporal-analysis
+    - computed-attributes
+    - export-image
+    - data-export
+    - signed-edges
+    - matrix-import
+    - shared-fixed-layout
+    - signed-centrality
+    - directed-self-loop-rendering
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - comparison-view
+    - graph-canvas
+    - visual-encoding-panel
+    - legend-panel
+    - layout-panel
+    - ranked-node-table
+    - node-tooltip
+    - image-export-dialog
+starting_state:
+    data_type: mlVAR or graphicalVAR output -- a directed lag-1 coefficient matrix with self-loops, an undirected contemporaneous matrix, an undirected between-subjects matrix, optional random-effect SD matrices and per-edge significance -- from long-format ESM data
+    node_count: 6-12 (median 7, maximum about 30)
+    edge_density: dense before hiding non-significant edges; sparse after
+    user_expertise: advanced
+goal: >-
+    **Intent**: Show what predicts what over time within persons (temporal, directed), what co-occurs in the same
+    moment (contemporaneous) and how people's averages relate (between-subjects), for a group or a single patient.
+    All 43 reviewed temporal articles reported a temporal network; 51 percent added contemporaneous and 36 percent
+    between-subjects.
+
+
+    **Mental Model**: "One model, three networks on the same nodes." The temporal network has arrows and self-loops
+    (a mood predicting itself) and lives on a smaller scale; the other two are undirected.
+
+
+    **Task Phases**:
+
+    1. **Collect** (weeks) - Fixed or pseudo-random prompts on phones; median 61 possible and 47.5 completed time points
+    per person
+
+    2. **Preprocess** (hours, in R) - Long format with id, day, beep; exclude low compliance (often below 30 percent);
+    check stationarity and detrend
+
+    3. **Fit** (minutes) - mlVAR with lag 1 for groups; graphicalVAR with gamma 0.5 for one patient; psychonetrics
+    panelgvar for panel data
+
+    4. **Load the three matrices** (3 min) - Directed temporal with self-loops, undirected contemporaneous and
+    between-subjects, with significance per edge
+
+    5. **Draw** (10 min) - Three synced panels on one circle layout; the temporal panel with its own maximum; hide
+    non-significant edges; curve reciprocal pairs; keep self-loops; for one patient optionally overlay directed and
+    undirected edges in one view
+
+    6. **Centrality** (5 min) - In-strength, out-strength and expected influence for the temporal network
+
+    7. **Individual differences** (10 min) - Random-effect SD networks or one network per participant
+
+
+    **Decision Points**:
+
+    - Which compliance cutoff and detrending?
+
+    - Shared maximum or a separate maximum for the temporal panel?
+
+    - Hide non-significant edges, or fade them?
+
+    - Show three panels, or overlay temporal and contemporaneous edges for one patient?
+
+
+    **Information Needs**:
+
+    - Direction and sign of each lagged effect, including self-loops
+
+    - Each panel's maximum edge weight for the caption
+
+    - In- and out-strength per node
+
+    - How much individuals differ (random-effect SDs)
+
+
+    **Pain Points**:
+
+    - Three networks need one layout but separate maxima
+
+    - Self-loops and reciprocal edges clutter small figures
+
+    - Idiographic models vary widely and differ from patients' own predictions
+
+    - Listwise deletion and steep learning curves in the R packages
+
+    - None of the 43 reviewed articles was a replication, and only 12 percent reported missing-data handling
+
+
+    **Data Flow**:
+
+    - Input: Temporal, contemporaneous and between-subjects weight matrices (CSV) with significance, node table
+
+    - Transformations: Directed graph with self-loops plus two undirected graphs on one node set, shared circle
+    layout, per-panel maxima, significance filter, in and out strength
+
+    - Output: Three synced panels or a mixed overlay, centrality table, exported figure
+success_criteria:
+    - metric: Three-panel figure
+      target: Temporal, contemporaneous and between-subjects networks on shared positions with per-panel maxima in under 15 minutes
+    - metric: Self-loop and reciprocity legibility
+      target: Every self-loop and both directions of a reciprocal pair are distinguishable
+sources:
+    - title: Epskamp et al. 2018 - mlVAR paper
+      url: https://arxiv.org/pdf/1609.04156v2
+      summary: Three networks; temporal network drawn with a different maximum value
+    - title: mlVAR reference
+      url: https://search.r-project.org/CRAN/refmans/mlVAR/html/mlVAR.html
+      summary: Arguments, plot types, nonsig hide
+    - title: graphicalVAR vignette
+      url: https://ftp.fau.de/cran/web/packages/idiographic/vignettes/graphical-var.html
+      summary: PDC and PCC networks for one subject; mixed overlay plot
+    - title: Scoping review of 43 temporal network articles
+      url: https://link.springer.com/content/pdf/10.3758/s13428-022-01839-y.pdf
+      summary: Schedules, compliance cutoffs, which networks are reported, no replications
+    - title: psychonetrics panel data paper
+      url: https://link.springer.com/10.1007/s11336-020-09697-3
+      summary: panelgvar and CIplot for panel data
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

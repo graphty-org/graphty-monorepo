@@ -1,0 +1,13 @@
+id: periodicity-views
+name: Periodicity and Pattern of Life
+category: visualization
+description: Hour-of-day and day-of-week activity for selected entities (scale wrapping), and selection lines that mark
+    a selected entity's events on the time bar.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W305
+implemented_by_components: []
+requirements: []
+sources: []

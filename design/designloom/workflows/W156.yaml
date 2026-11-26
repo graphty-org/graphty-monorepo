@@ -1,0 +1,126 @@
+id: W156
+name: Neuron-Centric Exploration of a Fly Connectome
+category: exploration
+validated: false
+personas:
+    - cellular-connectomics-neuroscientist
+requires_capabilities:
+    - search
+    - ego-network
+    - neighborhood-expansion
+    - filtering
+    - node-merging
+    - shortest-path
+    - path-highlighting
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - details-on-demand
+    - large-graph-rendering
+    - progressive-loading
+    - data-export
+    - dataset-version-tracking
+suggested_components:
+    - search-panel
+    - search-input
+    - ego-network-dialog
+    - ranked-node-table
+    - filter-panel
+    - range-slider
+    - path-finder-dialog
+    - node-details-panel
+    - graph-canvas
+    - legend-panel
+    - data-export-dialog
+starting_state:
+    data_type: directed synapse-weighted multigraph served from a database (one edge per neuron pair per brain region)
+    node_count: about 25,000 (hemibrain) to 139,255 (FlyWire), of which 10-300 are shown at once
+    edge_density: sparse (median in/out degree 11 and 13, maximum degree 6,399)
+    user_expertise: expert
+goal: >-
+    **Intent**: Start from one neuron or cell type, list and draw its strongest upstream and downstream partners,
+    group them by cell type, and find pathways from sensory neurons to it, to plan experiments. Fly researchers do
+    this daily in FlyWire Codex and neuPrint.
+
+
+    **Mental Model**: "Who talks to my neuron, and how strongly?" The whole brain is the database; the view is one
+    neighborhood.
+
+
+    **Task Phases**:
+
+    1. **Find the neuron** (1 min) - Search by cell type (for example a "like" match on Pm2) or transmitter
+
+    2. **Partners** (3 min) - Upstream and downstream tables counted at or above the dataset minimum (5 synapses in
+    FAFB and male CNS, 3 in BANC, 1 in MANC), which users may raise but not lower; one row per pair per region; or
+    fetch a neuron table and a connection table (pre, post, region, weight)
+
+    3. **Network graph** (5 min) - Labels, group by cell type, color by hemilineage or transmitter, minimum synapse
+    threshold, cap on top connections, edge filters
+
+    4. **Pathways** (5 min) - Shortest paths from a source set to the target, downloadable as a path-length matrix CSV
+
+    5. **Export and analyze** (varies) - CSV, JSON or Feather tables; continue in NetworkX or navis, or query with
+    Cypher in neuPrint
+
+
+    **Decision Points**:
+
+    - Which synapse threshold separates real partners from noise for this question?
+
+    - Sum connections over regions, or keep them per region?
+
+    - Group partners by cell type or keep individual neurons?
+
+    - Shortest by hops or strongest by synapse count?
+
+
+    **Information Needs**:
+
+    - Partner list sorted by synapse count with cell type, transmitter and hemisphere
+
+    - Per-region breakdown of a connection on request
+
+    - Dataset release and the threshold in force
+
+    - Path lengths from a sensory population to the target
+
+
+    **Pain Points**:
+
+    - Full-graph drawings are useless at this size
+
+    - Per-region rows inflate counts unless summed per pair
+
+    - IDs change after proofreading, so saved lists go stale
+
+
+    **Data Flow**:
+
+    - Input: Database query by cell type or ID (Codex, neuPrint), or released neuron and connection tables
+
+    - Transformations: Threshold on synapse count, aggregate parallel edges per pair or per cell type, ego-network expansion, shortest paths
+
+    - Output: Partner tables, neuron-centric network figure, path-length matrix, exported tables
+success_criteria:
+    - metric: Partner lookup
+      target: Strongest upstream and downstream partners of a named cell type shown within 2 minutes
+    - metric: Aggregation clarity
+      target: User can switch between per-region and summed edges and see which is shown
+    - metric: Scale
+      target: Neighborhood views stay interactive while the full dataset has more than 100,000 neurons
+sources:
+    - title: FlyWire Codex FAQ
+      url: https://codex.flywire.ai/faq
+      summary: Search syntax, partner thresholds per dataset, network graph options, pathways, exports, root ID changes
+    - title: neuprint-python query tutorial
+      url: https://connectome-neuprint.github.io/neuprint-python/docs/notebooks/QueryTutorial.html
+      summary: NeuronCriteria and fetch_adjacencies returning neuron and per-region connection tables
+    - title: FlyWire connectome data release on Zenodo
+      url: https://zenodo.org/records/10676866
+      summary: Feather tables of neurons and connections
+    - title: Hemibrain connectome paper (eLife)
+      url: https://elifesciences.org/articles/57443
+      summary: About 25,000 neurons in the hemibrain
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

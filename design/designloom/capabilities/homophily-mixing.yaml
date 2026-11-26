@@ -1,0 +1,12 @@
+id: homophily-mixing
+name: Homophily and Mixing Matrices
+category: analysis
+description: Mixing matrix per attribute with empty cells flagged, EI index and assortativity.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W30
+implemented_by_components: []
+requirements: []
+sources: []

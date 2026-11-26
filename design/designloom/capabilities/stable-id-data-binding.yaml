@@ -1,0 +1,15 @@
+id: stable-id-data-binding
+name: Stable-Id Data Binding
+category: analysis
+description: "Re-binding data merges by stable id: no re-creation, no duplicates, existing positions kept, and
+    incremental layout only for new nodes."
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W278
+    - W281
+    - W282
+implemented_by_components: []
+requirements: []
+sources: []

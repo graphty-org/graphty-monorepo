@@ -1,0 +1,123 @@
+id: W35
+name: Participatory Influence Mapping (Net-Map)
+category: exploration
+validated: false
+personas:
+    - kinship-participatory-anthropologist
+requires_capabilities:
+    - graph-rendering
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - annotation
+    - filtering
+    - centrality-degree
+    - centrality-betweenness
+    - export-image
+    - data-export
+    - multiplex-relations
+    - participant-drawn-data
+suggested_components:
+    - graph-canvas
+    - toolbar
+    - annotation-toolbar
+    - visual-encoding-panel
+    - color-picker
+    - legend-panel
+    - filter-panel
+    - node-details-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: participant-drawn map -- actors named by the informant, up to five colored link types, influence height and goal codes per actor
+    node_count: 10-50
+    edge_density: medium
+    user_expertise: novice
+goal: >-
+    **Intent**: Capture, with an informant, who is involved in a local issue, how they are linked, how influential each
+    is and what they want, and turn that drawing into analyzable data without losing what the participant drew.
+
+
+    **Mental Model**: "The drawing is the instrument." Positions, link colors, influence towers and goal marks are all
+    data the participant made, not decoration.
+
+
+    **Task Phases**:
+
+    1. **Prepare** (outside the tool) - Define the issue and at most five link types (the manual's example: formal
+    command, funding, advice, information), define "influence" and the goals to code; pre-test. Ask interviewees for
+    one to two hours.
+
+    2. **Who is involved?** (estimate: 15 min) - The interviewee names actors; each goes on a card on a large sheet.
+
+    3. **How are they linked?** (estimate: 30 min) - Draw arrows one link type at a time, each in its own color, starting
+    with the rarest type.
+
+    4. **How influential?** (estimate: 15 min) - Stack tower pieces under each actor ("the more influence an actor has
+    the higher the tower"); ties allowed; zero stays on the ground. The interviewer reads the towers back, the
+    interviewee adjusts, and heights are written on the map.
+
+    5. **What are their goals?** (estimate: 10 min) - Mark each actor with goal codes (for example D for development, P
+    for protection).
+
+    6. **Discuss** (estimate: 15 min) - Sources of influence and conflicts, recorded by a note taker.
+
+    7. **Digitize** (estimate: 1 hour per map) - One matrix per link type into UCINET, or redraw in VisuaLyzer with node
+    size showing tower height.
+
+
+    **Decision Points**:
+
+    - Which link types to include, and in which order to draw them?
+
+    - How to define influence for this issue?
+
+    - Which goal codes apply?
+
+    - Compare maps from several informants, or merge them?
+
+
+    **Information Needs**:
+
+    - Each link type shown and hidden on its own, with its color
+
+    - Influence height and goal codes visible per actor
+
+    - Who is reachable from whom through which link type
+
+    - Discussion notes attached to actors and links
+
+
+    **Pain Points**:
+
+    - Hand-drawn maps must be retyped as one matrix per link type before analysis
+
+    - Participant positions, heights and annotations lost in digitizing
+
+    - General tools have no notion of an ordinal influence score drawn as a tower
+
+
+    **Data Flow**:
+
+    - Input: Paper map (actors, colored directed links by type, tower heights, goal codes, notes), or a direct drawing in
+    the tool during the interview
+
+    - Transformations: Digitizing into a multiplex network with per-actor influence and goal attributes and kept
+    positions
+
+    - Output: Digital map with legend, one matrix or edge list per link type, actor table with influence and goals
+success_criteria:
+    - metric: Drawing fidelity
+      target: Participant positions, link types, influence heights and goal codes survive into the saved data
+    - metric: Digitizing effort
+      target: A map can be entered once and exported as one edge list per link type
+sources:
+    - title: Net-Map manual
+      url: https://media.tciurbanhealth.org/wp-content/uploads/2018/02/12125549/Net-Map-Manual.pdf
+      summary: Step-by-step participatory influence mapping -- link types, towers, goal codes, discussion and digitizing
+    - title: Net-map toolbox (Wikipedia)
+      url: https://en.wikipedia.org/wiki/Net-map_toolbox
+      summary: Origin of Net-Map (Eva Schiffer, IFPRI, 2006)
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,17 @@
+id: flow-arithmetic
+name: Flow arithmetic
+category: analysis
+description: Computed per-pair net, gross, net ratio and two-way merge, and per-place in, out, internal (self-flow), net
+    and net rate; signed net tables deduplicated to one row per pair and oriented by sign with absolute weight;
+    self-flows kept as data with include or exclude options.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W380
+    - W383
+    - W386
+    - W387
+implemented_by_components: []
+requirements: []
+sources: []

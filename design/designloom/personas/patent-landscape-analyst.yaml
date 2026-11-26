@@ -1,0 +1,76 @@
+id: patent-landscape-analyst
+name: Patent Landscape Analyst
+role: Patent Information Analyst in a Corporate IP Department
+quote: Siemens appears under forty spellings and three subsidiaries. Until those are one node, every assignee map I draw is wrong.
+bio: >-
+    Priya Natarajan is a senior patent information analyst in a medical-device company's IP department, with an
+    engineering degree and a patent-search certification. She works with patent attorneys and R&D leads and produces
+    landscape reports that feed portfolio management, R&D investment, licensing and freedom-to-operate work; in industry
+    these are usually confidential. She searches Derwent Innovation, PatSnap, Orbit or Lens with Boolean queries over
+    full text, claims and classification codes, collapses results to patent families (a Lens example returned 44,773
+    publications in 19,856 simple families), and exports a few thousand to tens of thousands of family records. Each
+    family carries CPC and IPC codes, applicants and assignees, inventors, priority dates, jurisdictions, legal status,
+    and backward and forward citations split into examiner and applicant citations. She cleans assignee names in Excel,
+    OpenRefine or VantagePoint, builds assignee and CPC co-occurrence networks in Gephi or VOSviewer, and uses the
+    commercial platform's citation map for key patents. She does no coding, or light R.
+characteristics:
+    expertise: intermediate
+    time_pressure: high
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Show who files, in which technology classes, where and how fast
+    - Find white space and potential licensing partners or competitors
+    - Identify the most important patents by forward citations, weighting examiner citations
+    - Deliver a confidential report quickly without hand-finishing every figure in Illustrator
+behaviors:
+    - Collapses search results to one record per family before any counting
+    - Splits multi-applicant fields, strips suffixes, expands abbreviations and fuzzy-groups assignee variants
+    - Rolls subsidiaries up to parent companies
+    - Builds an assignee co-occurrence network, removes self-loops, runs modularity and filters by frequency
+    - Builds CPC co-occurrence maps or overlays on an IPC base map
+    - Centers a forward-citation map on a key patent, grouped by assignee
+    - Links patents to the scientific papers they cite
+    - Finishes labels and layout of exported figures in Illustrator
+frustrations:
+    - Assignees recorded as written on the patent, so one company appears under many names
+    - Applicant rankings that are raw counts over unnormalized names
+    - Family definitions that differ by database
+    - Examiner and applicant citations mixed together
+    - About 20 minutes of manual label cleanup per Gephi network and no undo
+    - Proprietary exports from commercial platforms that other tools cannot read
+context:
+    frequency: weekly
+    devices:
+        - desktop
+    voluntary: false
+workflows:
+    - W51
+    - W56
+    - W57
+    - W59
+sources:
+    - title: WIPO Open Source Patent Analytics manual - The Lens
+      url: https://wipo-analytics.github.io/manual/the-lens-1.html
+      summary: Boolean search, collapse to one family, 44,773 publications in 19,856 families, 50,000-record exports, raw applicant rankings
+    - title: WIPO Open Source Patent Analytics manual - Gephi
+      url: https://wipo-analytics.github.io/manual/gephi-1.html
+      summary: Applicant co-occurrence network, self-loops removed, modularity, frequency filter, label cleanup, Illustrator finishing
+    - title: WIPO Guidelines for Preparing Patent Landscape Reports
+      url: https://tind.wipo.int/record/28858
+      summary: Planning, scope and structure of a landscape report (table of contents only seen)
+    - title: Patent analysis (Wikipedia)
+      url: https://en.wikipedia.org/wiki/Patent_analysis
+      summary: Landscape reports feed portfolio, R&D and licensing decisions and are usually confidential in industry
+    - title: van der Pol - Extracting patent data (NetworkIsLife)
+      url: https://jpvdp.github.io/NetworkIsLife/Package_patents.html
+      summary: Assignees as written on the patent; JSONL exports carry all fields
+    - title: EPO - patent families
+      url: https://epo.org/en/searching-for-patents/helpful-resources/first-time-here/patent-families
+      summary: DOCDB simple and INPADOC extended family definitions
+    - title: Hegde and Sampat 2009 - Examiner citations, applicant citations and the private value of patents
+      url: https://econpapers.repec.org/RePEc:eee:ecolet:v:105:y:2009:i:3:p:287-289
+      summary: Examiner citations predict renewal better than applicant citations
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,13 @@
+id: component-browser
+name: Component browser and packing layout
+category: visualization
+description: List thousands of small connected components with size and attribute summaries, sort and open one, export
+    it, and pack all components plus singletons in one view ordered by an attribute.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W253
+implemented_by_components: []
+requirements: []
+sources: []

@@ -1,0 +1,13 @@
+id: attribution-tags
+name: Attribution Tags
+category: analysis
+description: Tags naming the real-world owner or service of a node, with source, heuristic and confidence, shown on
+    nodes and in exports.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W105
+implemented_by_components: []
+requirements: []
+sources: []

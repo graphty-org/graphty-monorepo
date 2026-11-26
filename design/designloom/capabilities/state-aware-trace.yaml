@@ -1,0 +1,16 @@
+id: state-aware-trace
+name: State-Aware Network Trace and Isolation
+category: analysis
+description: Upstream, downstream and connected traces from designated sources where open switches or closed valves
+    remove edges from traversal; isolation query returning the minimum set of devices that cuts flow to a feature;
+    compare alternative switch-state configurations.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W219
+    - W222
+    - W223
+implemented_by_components: []
+requirements: []
+sources: []

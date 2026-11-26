@@ -1,0 +1,70 @@
+id: insurance-siu-investigator
+name: Insurance SIU Investigator
+role: Special Investigation Unit (SIU) Investigator, motor insurer (UK, with US differences)
+quote: Each detail looks harmless alone. The same garage, the same solicitor and the same payout account across six claims is a crash-for-cash ring.
+bio: >-
+    Gareth Owen investigates claims for a UK motor insurer's special investigation unit. An automated fraud-scoring engine
+    refers claims above a threshold to him; automated tools now make a large share of referrals while SIU staffing barely
+    grows. For each referral he switches from the rule-based tool to a link-analysis view (Linkurious on Neo4j, Quantexa,
+    SAS or Verisk, depending on the insurer) and expands from the claim to its policies, claimants, drivers, passengers,
+    vehicles, addresses, phones, emails, payout accounts, garages, credit-hire firms, solicitors and medical experts, and to
+    their other claims. He checks industry data (the Insurance Fraud Register, the Insurance Fraud Bureau hub, the Cifas
+    National Fraud Database). He must discount hubs: one busy garage links hundreds of honest claims. He decides whether to
+    settle or move the claim to special fraud processing and refers networks to the Insurance Fraud Bureau or the police. His
+    US counterpart adds Verisk ClaimSearch and National Insurance Crime Bureau referrals and must report suspected fraud to
+    the state fraud bureau.
+characteristics:
+    expertise: intermediate
+    time_pressure: high
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Decide quickly whether a referred claim is isolated or part of a staged-accident network
+    - Stop payment where it is justified without delaying honest claimants
+    - Find the other members of a ring, including those whose own claims looked clean and were paid
+    - Produce a referral package the fraud bureau, the police or (US) the state insurance department will accept
+behaviors:
+    - Starts from a referred claim and opens its network of parties, vehicles, contact details and service providers
+    - Expands to the parties' other claims and looks for shared addresses, phones, payout accounts, garages, credit-hire firms, solicitors and doctors
+    - Treats busy garages and repairers as hubs that need their own check rather than as evidence
+    - Checks industry databases and company and credit records for the parties
+    - Layers geography for property claims and looks at shared patients for medical claims
+    - Records a settle or special-fraud-processing decision and writes the referral
+frustrations:
+    - Link analysis runs only after referral, so clean-looking ring members are already paid
+    - Referral volumes grow while investigator headcount stays flat
+    - One shared garage or body shop pulls hundreds of innocent claims into the picture
+    - Industry match reports and the claims system live in separate screens
+context:
+    frequency: daily
+    devices:
+        - desktop
+    voluntary: false
+workflows:
+    - W06
+    - W127
+sources:
+    - title: Neo4j customer story - Zurich Insurance
+      url: https://neo4j.com/customer-stories/zurich-insurance/
+      summary: Investigators switch from the rule-based tool to the graph application for escalated cases; about 20 million nodes and 35 million relationships
+    - title: Linkurious - Insurance fraud investigation
+      url: https://linkurious.com/blog/insurance-fraud-investigation/
+      summary: Shared addresses, phones, payout accounts and providers; each detail looks harmless alone; geography for property, shared patients for medical
+    - title: Xebia - How can insurers detect fraud rings before paying claims?
+      url: https://xebia.com/articles/how-can-insurers-detect-fraud-rings-before-paying-claims/
+      summary: Link analysis after referral means clean-looking ring members are paid
+    - title: Insurance Business - automated tools now make 45 percent of SIU referrals
+      url: https://www.insurancebusinessmag.com/us/news/technology/automated-tools-now-make-45-of-siu-referrals--investigators-havent-kept-pace-596528.aspx
+      summary: Coalition Against Insurance Fraud 2024 benchmarking of 35 carriers; SIU staffing grew 0.5 percent
+    - title: Insurance Business UK - Zurich uncovers record fraud
+      url: https://www.insurancebusinessmag.com/uk/news/claims/zurich-uncovers-record-109-million-of-fraud-as-gangs-turn-to-ai-596232.aspx
+      summary: Zurich UK links claims to Companies House, Equifax and the Insurance Fraud Register with Quantexa
+    - title: Cifas - National Fraud Database
+      url: https://www.cifas.org.uk/fraud-prevention-community/member-benefits/data/nfd
+      summary: Cross-sector fraud data shared among members
+    - title: Which? - Crash-for-cash hotspots
+      url: https://www.which.co.uk/news/article/insurance-fraud-do-you-live-in-a-crash-for-cash-hotspot-aD76p9P9jfWm
+      summary: The IFB linked about 170,000 of 2.7 million motor claims to suspected crash-for-cash networks
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

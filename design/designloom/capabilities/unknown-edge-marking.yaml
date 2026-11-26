@@ -1,0 +1,15 @@
+id: unknown-edge-marking
+name: Unknown and Unresolved Edge Marking
+category: analysis
+description: Show unresolved endpoints (IP-only, unknown process), components with missing dependency data and dropped
+    or low-traffic edges distinctly, treating missing edges as unknown rather than absent.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W76
+    - W78
+    - W82
+implemented_by_components: []
+requirements: []
+sources: []

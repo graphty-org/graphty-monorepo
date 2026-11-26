@@ -1,0 +1,126 @@
+id: W202
+name: Narrated Presentation and Public Embed
+category: reporting
+validated: false
+personas:
+    - systems-change-strategist
+    - mel-theory-of-change-officer
+    - participatory-systems-mapping-facilitator
+    - civic-power-researcher
+requires_capabilities:
+    - view-bookmarks
+    - animated-transitions
+    - filtering
+    - saved-filters
+    - path-highlighting
+    - annotation
+    - legend-display
+    - zoom-pan
+    - export-image
+    - report-generation
+    - guided-presentation
+suggested_components:
+    - graph-canvas
+    - bookmark-panel
+    - annotation-toolbar
+    - filter-panel
+    - legend-panel
+    - zoom-controls
+    - share-dialog
+    - image-export-dialog
+    - report-generator-dialog
+starting_state:
+    data_type: a finished systems, theory of change or power map with narratives on items
+    node_count: 20-200
+    edge_density: any
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Present a map to a board, partners or the public so readers who did not build it can follow it: a
+    sequence of steps, each with a saved view, a focus or filter and a short text, revealed loop by loop or pathway by
+    pathway; then publish a link or an embed and print a poster.
+
+
+    **Mental Model**: "A slide deck made of views of one map." The map stays live; the presentation is an ordered story
+    through it.
+
+
+    **Task Phases**:
+
+    1. **Plan the story** (30 min) - Pick the order: central dynamic first, then each loop or pathway; decide what each
+    audience needs
+
+    2. **Build steps** (1-2 h) - For each step save the camera, a focus or filter (one loop, one pathway, one cluster)
+    and a Markdown text panel; add text-only steps for context
+
+    3. **Rehearse** (30 min) - Step through with animated transitions; check readability on a projector
+
+    4. **Publish** (10 min) - Private, password or public link; an embed for a website that can autoplay steps; republish
+    after edits
+
+    5. **Print** (15 min) - PNG of the current view for slides; poster-sized PDF or SVG with legend
+
+
+    **Decision Points**:
+
+    - Which audience: board, partners, public, funders?
+
+    - How much of the map to reveal per step?
+
+    - Public, password-protected or private?
+
+    - Live link or frozen export?
+
+
+    **Information Needs**:
+
+    - Ordered list of steps with their view, filter and text
+
+    - Preview of each step at the target screen size
+
+    - Which edits since the last publish change what readers see
+
+
+    **Pain Points**:
+
+    - Sending a raw map link overwhelms readers; maps are notoriously difficult to navigate
+
+    - Labels too small when projected
+
+    - Embeds that go stale when the map is edited
+
+    - Rebuilding the story in PowerPoint because the tool cannot present
+
+
+    **Data Flow**:
+
+    - Input: Finished map with narratives
+
+    - Transformations: Saved views with camera, filter and text; ordered steps; animated transitions; publish and embed
+
+    - Output: Presentation link, embed code, slide images, poster PDF or SVG
+success_criteria:
+    - metric: Story build time
+      target: A 10-step loop-by-loop presentation built in under an hour
+    - metric: Reader comprehension
+      target: A reader who did not build the map can name the central loop after the walk-through
+    - metric: Freshness
+      target: Edits to the map appear in the published presentation after one republish
+sources:
+    - title: Kumu - Presentations guide
+      url: https://docs.kumu.io/guides/presentations
+      summary: Create a presentation instead of sharing a raw link; map slides save view, zoom and focus; Markdown text slides; embed and autoplay
+    - title: Hewlett Foundation - Madison Initiative systems map launch
+      url: https://hewlett.org/?p=66747
+      summary: Narrative walks the user through the map step by step
+    - title: Defra Policy Design Lab - From systems maps to system stories
+      url: https://publicpolicydesign.blog.gov.uk/2025/11/27/from-systems-maps-to-system-stories/
+      summary: Map split into 8 system stories with animated visuals and how-might-we questions
+    - title: Oligrapher workshop notes
+      url: https://influencemapping.github.io/workshop/oligrapher.html
+      summary: Story mode walks readers through a power map
+    - title: Democracy Fund - Systems maps
+      url: https://democracyfund.org/type/systems-map
+      summary: Published interactive systems maps as living documents
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

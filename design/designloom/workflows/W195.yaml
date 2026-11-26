@@ -1,0 +1,119 @@
+id: W195
+name: Enterprise Social Network Community Analysis
+category: analysis
+validated: false
+personas:
+    - esn-community-manager
+requires_capabilities:
+    - data-import
+    - filtering
+    - centrality-degree
+    - degree-analysis
+    - computed-attributes
+    - community-profiling
+    - neighborhood-expansion
+    - visual-encoding-nodes
+    - legend-display
+    - statistics-panel
+    - temporal-analysis
+    - report-generation
+    - activity-balance-roles
+suggested_components:
+    - data-import-dialog
+    - filter-panel
+    - computed-attributes-panel
+    - ranked-node-table
+    - visual-encoding-panel
+    - legend-panel
+    - graph-canvas
+    - statistics-panel
+    - metric-card
+    - temporal-controls
+    - report-generator-dialog
+starting_state:
+    data_type: posts, replies, reactions and mentions per community over a rolling window, as directed person-to-person interactions with organizational attributes
+    node_count: 100-100000
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Judge the health of enterprise social network communities -- who engages two ways versus who only
+    broadcasts, and which communities depend on one or two hubs -- and report it monthly against benchmarks.
+
+
+    **Mental Model**: "Conversation, not broadcast." A healthy community has many people both giving and receiving; an
+    unhealthy one is a few people posting into silence or a single hub everyone depends on.
+
+
+    **Task Phases**:
+
+    1. **Scope** - Choose a community or the whole network and a period; count a person active when they average at
+    least one post, reply or reaction every two weeks
+
+    2. **Classify by activity balance** - Engagers balance giving and receiving, Catalysts start threads that draw
+    replies, Responders mostly reply and react, Broadcasters post more than they receive, Observers rarely participate
+
+    3. **Rank influence and hub risk** - Rank people by reach (people engaged); compute the percentage drop from the
+    first- to the third-ranked person's reach; no score with fewer than six listed users
+
+    4. **Filter and benchmark** - Filter by organizational attributes and report against internal targets and
+    cross-company benchmarks
+
+
+    **Decision Points**:
+
+    - Which window and activity threshold define "active"?
+
+    - Which communities need a second or third champion to reduce hub dependence?
+
+    - Which broadcasters to coach toward two-way engagement?
+
+
+    **Information Needs**:
+
+    - Given and received counts per person and the resulting role
+
+    - Reach per person and the drop between top-ranked people per community
+
+    - Role distribution per community, trended over months
+
+
+    **Pain Points**:
+
+    - Role and risk rules are vendor-defined and cannot be changed
+
+    - Network analytics unavailable when fewer than half of users hold a qualifying license
+
+    - Benchmarks show a drift toward broadcasting without showing where
+
+
+    **Data Flow**:
+
+    - Input: Interaction events per community (actor, target, type, time) with organizational attributes
+
+    - Transformations: Windowing, in and out activity counts, role classification, reach ranking, concentration score
+
+    - Output: Monthly community health report with role distributions and hub-risk scores
+success_criteria:
+    - metric: Role transparency
+      target: User can see and change the thresholds that assign each activity role
+    - metric: Hub risk
+      target: Communities whose reach drops by more than half from the first to the third person are listed
+sources:
+    - title: SWOOP Analytics - Personas
+      url: https://www.swoopanalytics.com/personas
+      summary: Engager, Catalyst, Responder, Broadcaster, Observer from activity balance
+    - title: SWOOP support - Persona distribution for Viva Engage
+      url: https://support.swoopanalytics.com/hc/en-us/articles/14366255955993-Persona-Distribution-What-and-How-SWOOP-for-Viva-Engage
+      summary: Active-user rule of one activity every two weeks on average
+    - title: SWOOP support - Influential people and Influencer Risk Score
+      url: https://support2.swoopanalytics.com/hc/en-us/influential-people-what-and-how-swoop-for-viva-engage
+      summary: Percentage drop from first- to third-ranked reach; no score below six users
+    - title: Microsoft Learn - Viva Engage analytics
+      url: https://learn.microsoft.com/viva/engage/analytics
+      summary: Network analytics with organizational attribute filters; 50 percent license threshold
+    - title: SWOOP 2025/26 Viva Engage benchmark
+      url: https://www.swoopanalytics.com/viva-engage-bm-25
+      summary: About 17 million interactions across 5,758 communities at 73 enterprises; drift toward one-way broadcasting
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

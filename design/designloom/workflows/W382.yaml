@@ -1,0 +1,162 @@
+id: W382
+name: Phone-Derived Hourly Mobility to an Animated, Clustered Flow Map
+category: exploration
+validated: false
+personas:
+    - urban-mobility-analyst
+    - mobility-epidemiologist
+requires_capabilities:
+    - data-import
+    - data-validation
+    - progressive-loading
+    - large-graph-rendering
+    - filtering
+    - node-merging
+    - temporal-navigation
+    - temporal-analysis
+    - visual-encoding-edges
+    - visual-encoding-nodes
+    - zoom-pan
+    - legend-display
+    - hover-highlight
+    - tooltip-display
+    - view-bookmarks
+    - export-image
+    - geographic-layout
+    - od-flow-import
+    - flow-clutter-control
+    - spatial-aggregation
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - progressive-loader
+    - filter-panel
+    - range-slider
+    - temporal-controls
+    - visual-encoding-panel
+    - legend-panel
+    - node-tooltip
+    - graph-canvas
+    - zoom-controls
+    - share-dialog
+    - image-export-dialog
+starting_state:
+    data_type: published hourly or daily OD counts between districts or H3 cells (for example Spain's open mobility data), plus a zone table with centroids
+    node_count: 500-10000
+    edge_density: moderate
+    user_expertise: advanced
+goal: >-
+    **Intent**: Explore an already aggregated phone-derived mobility table -- millions of hourly OD rows -- as an
+    interactive flow map that stays readable at every zoom, and scrub through the hours of the day to compare peaks.
+    A team holding raw pings first runs the trajectories-to-OD workflow.
+
+
+    **Mental Model**: "A living map of trips." Places cluster together when zoomed out and split apart when zoomed in;
+    only the biggest flows in view are drawn; a time slider replays the day.
+
+
+    **Task Phases**:
+
+    1. **Get zones and dates** (minutes) - Fetch the zone set (districts) and the valid date range; zone versions change
+    between data releases (Spain v1 2020-02-14 to 2021-05-09; v2 from 2022 with sociodemographics)
+
+    2. **Query lazily** (minutes) - The OD table stays on disk as a DuckDB table of 19 columns (date, hour, origin,
+    destination, activity, income, age, sex, trips); one week is 135,866,524 records and three years exceed 200 GB
+
+    3. **Aggregate** (minutes) - Sum trips per origin and destination per day, or per hour, which gives 24 times more
+    rows
+
+    4. **Build the location table** (minutes) - Zone centroids in WGS84 as id, lon, lat; flows naming an id missing
+    from it are lost
+
+    5. **Clip the study area** (a decision) - A 10 km buffer around a city; keep flows with both ends inside;
+    intra-zonal pairs are kept
+
+    6. **Map** (seconds) - Clustered flow map; clustering stays on for hundreds to thousands of locations; a time column
+    adds a time filter and playback
+
+    7. **Read** - Zoom so clusters split and the largest flows in the viewport appear; scrub time to compare peaks; take
+    numbers back to code for analysis
+
+    8. **Hand off** - Share an interactive link or HTML widget; a static PNG for reports
+
+
+    **Decision Points**:
+
+    - Daily or hourly aggregation, given the 24-fold size difference?
+
+    - Which study area and buffer?
+
+    - Clustering on (random pick-up points) or off (fixed stations)?
+
+    - How many top flows to draw, and should small flows fade?
+
+    - Which hours or days to compare?
+
+
+    **Information Needs**:
+
+    - Count of flows dropped because an id is missing from the place table
+
+    - Location totals (incoming, outgoing, internal) per place or cluster
+
+    - Top flows in the current viewport, recomputed as the user zooms
+
+    - The current time slice shown on the map and in the legend
+
+
+    **Pain Points**:
+
+    - Arc layers become many intersecting lines
+
+    - Long flows over-plot while short intra-urban flows are basically invisible
+
+    - Hourly data is too large to load whole; aggregation must happen before or during loading
+
+    - Location clustering by proximity disregards which flows connect the places
+
+    - Vendor or licensed data cannot be uploaded to a third-party server
+
+
+    **Data Flow**:
+
+    - Input: Long OD table (origin, destination, trips, date, hour, optional demographic columns) and a zone table
+    (id, name, lon, lat)
+
+    - Transformations: Lazy query, daily or hourly aggregation, id join with missing-id report, spatial clip,
+    zoom-dependent location clustering with summed flows, top-N per viewport, time filter
+
+    - Output: Interactive clustered flow map with time playback, shared link, static image
+success_criteria:
+    - metric: Responsiveness
+      target: Zoom and time scrubbing stay interactive with a week of district-level hourly flows loaded
+    - metric: Readability
+      target: At any zoom the user can name the largest flows in view without hovering
+    - metric: Privacy
+      target: No row of the user's data leaves the browser
+sources:
+    - title: spanishoddata README
+      url: https://ftp.fau.de/cran/web/packages/spanishoddata/readme/README.html
+      summary: Zone and date discovery, lazy DuckDB query, one week is 135,866,524 records
+    - title: spanishoddata - Interactive flow maps vignette
+      url: https://ropenspain.github.io/spanishoddata/articles/flowmaps-interactive.html
+      summary: Aggregation, location table, study-area clipping, hourly time filter
+    - title: Tartu 2026 course workbook
+      url: https://tdscience.github.io/tartu26/workbook.html
+      summary: Course steps from OD data to flow maps and analysis outside the map
+    - title: flowmapblue R vignette
+      url: https://cran.r-project.org/web/packages/flowmapblue/vignettes/flowmapblue.html
+      summary: Clustering recommended for hundreds and thousands of locations; time column
+    - title: Kotov et al. 2026
+      url: https://eprints.whiterose.ac.uk/id/eprint/236055
+      summary: Spanish open mobility data and its tooling
+    - title: Foursquare Studio - Flow layer
+      url: https://docs.foursquare.com/analytics-products/docs/layer-flow
+      summary: Clustering, Max Top Flows, Fade, Adaptive Scaling, Location Totals, Animation
+    - title: kepler.gl - Time playback
+      url: https://docs.kepler.gl/docs/user-guides/h-playback
+      summary: Time filter playback for animated flows
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

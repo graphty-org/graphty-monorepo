@@ -1,0 +1,16 @@
+id: causal-edge-marks
+name: Causal edge types and endpoint marks
+category: visualization
+description: Draw directed, bidirected and undirected edges, PAG endpoint marks (tail, arrowhead, circle) and
+    conflicting x-x links, and show an orientation as uncertain.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W424
+    - W425
+    - W427
+    - W428
+implemented_by_components: []
+requirements: []
+sources: []

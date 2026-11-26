@@ -1,40 +1,52 @@
 id: analyst-alex
 name: Analyst Alex
-role: Intermediate Graph Analyst
-quote: I know there's a pattern here - I just need the right algorithm to prove it.
-bio: Alex is a data analyst with 3 years of experience who regularly works with graph data as part of broader analytical
-    projects. He understands basic graph concepts and has used tools like Gephi and NetworkX, but he's not a specialist.
-    He wants to apply established algorithms to answer specific questions without needing to implement them from scratch
-    or understand every mathematical detail.
+role: Research Data Analyst (Digital Scholarship or Computational Social Science Lab)
+quote: I need to find the groups and the important people and explain them to colleagues who have never heard of modularity -- and I'd like the groups to be the same tomorrow.
+bio: >-
+    Alex Moreno is a research data analyst in a digital-scholarship or computational social science lab; he also stands
+    for policy and market researchers, communication and political-science researchers, social-media analysts and
+    librarians who teach Gephi. He taught himself network analysis from the Programming Historian, Katherine Ognyanova's
+    R igraph tutorials and library Gephi guides. He works in Gephi (0.10 or 0.11) plus NetworkX in a notebook, handing
+    graphs between them with write_gexf; some colleagues pull social-media data into NodeXL in Excel. His data is
+    correspondence networks (the Quaker lesson has 119 nodes and 174 edges), co-authorship and citation exports from Web
+    of Science or Scopus, retweet and hashtag networks (10^3 to 10^5 nodes), and person-organization tables, all as CSV,
+    with several categorical and date columns for coloring. Graphs are often directed and weighted but analyzed as
+    undirected, and two-mode data is projected without saying so. For him the drawing is the analysis: a force-directed
+    map colored by modularity class plus a paragraph naming groups and key actors is the usual deliverable. He works on
+    a project basis -- weekly during a study, then idle.
 characteristics:
     expertise: intermediate
     time_pressure: medium
     graph_literacy: moderate
-    domain_knowledge: moderate
+    domain_knowledge: advanced
 motivations:
-    - Answer specific analytical questions with quantitative evidence
-    - Apply appropriate algorithms without needing to implement them from scratch
-    - Produce reports and visualizations that support data-driven decisions
-    - Build graph analysis skills as part of broader analytical toolkit
-    - Balance analytical depth with project time constraints
+    - Find "the groups" and "the important people" and explain them to non-network colleagues in a figure and a paragraph
+    - Get the same answer twice, so a figure in a report does not change when it is rebuilt
+    - Know which centrality to report and what it means for his domain (brokers vs popular actors)
+    - Produce a figure readers do not misread as a whole population or as a map with meaningful distances
+    - Hand results to a code-literate colleague without redoing the analysis
 behaviors:
-    - Starts with a specific question or hypothesis to investigate
-    - Selects algorithms based on the type of insight needed (centrality, clustering, paths)
-    - Compares algorithm results to validate findings
-    - Adjusts algorithm parameters to tune results for the specific dataset
-    - Exports metrics for use in downstream analysis or reports
-    - References documentation to understand what algorithms do before applying them
-    - Iterates between visualization and metrics to build understanding
+    - Follows tutorial recipes step by step (Grandjean's Gephi tutorial, Programming Historian, library guides)
+    - Runs Gephi Modularity (Louvain) once, picks a resolution "between 0.1 and 2" by eye, and colors by Modularity Class
+    - Sizes nodes by degree, runs Fruchterman-Reingold then ForceAtlas2 with Prevent Overlap, labels the biggest nodes
+    - Computes degree, betweenness and eigenvector centrality in NetworkX and looks for high-betweenness, low-degree brokers
+    - Hits nx.diameter errors on disconnected graphs and works around them by hand
+    - Unchecks Gephi's "create missing nodes" after phantom nodes appear from name variants
+    - Exports SVG or PDF for Inkscape because PNG resolution is poor
+    - Treats one run's output as the answer and reports it descriptively
 goals:
-    - Quick access to common operations
-    - Reproducible analyses
-    - Regular analysis tasks like centrality and communities
-    - Use specific workflows repeatedly
+    - Common analyses (communities, centrality, paths) in a few clicks with sensible, current defaults
+    - Results that are stable across reruns, or a warning when they are not
+    - Plain explanations of what each measure says about his domain
+    - A figure with a legend and a recorded method he can cite in the methods section
+    - Export to GEXF, GraphML or CSV with computed columns for notebook follow-up
 frustrations:
-    - Inefficient access to frequent operations
-    - Lack of workflow templates
-    - Too many clicks for common tasks
-    - No way to save analysis patterns
+    - Modularity giving a different number of communities on each run, and results varying with the order of input rows
+    - No rule for choosing the resolution parameter
+    - Path statistics that error out on disconnected graphs instead of using the giant component
+    - Weighted path measures silently treating weights as distances (or ignoring them)
+    - Readers taking a sample map for the whole population
+    - Gephi needing more than 8 GB of RAM around a million elements
 context:
     frequency: weekly
     devices:
@@ -52,10 +64,37 @@ workflows:
     - W17
     - W18
     - W19
+    - W38
+    - W39
+    - W40
+    - W41
+    - W43
+    - W47
 sources:
-    - title: Progressive Disclosure - Nielsen Norman Group
-      url: https://www.nngroup.com/articles/progressive-disclosure/
-      summary: Intermediate users need quick access to common operations while specialized options remain discoverable
-    - title: Shneiderman's Visual Information Seeking Mantra
-      url: https://www.cs.umd.edu/~ben/papers/Shneiderman1996eyes.pdf
-      summary: Overview first, zoom and filter, then details-on-demand - foundational UX pattern for data analysis
+    - title: A close look at the Gephi user community (Gephi blog, 6 Feb 2016)
+      url: https://gephi.wordpress.com/2016/02/06/a-close-look-at-the-gephi-user-community/
+      summary: 285 respondents (not representative); academia largest sector; 70% analyze social networks, 46% social media, 43% semantic; about a third use it weekly
+    - title: Exploring and Analyzing Network Data with Python (Programming Historian)
+      url: https://programminghistorian.org/en/lessons/exploring-and-analyzing-network-data-with-python
+      summary: Quaker correspondence network (119 nodes, 174 edges), NetworkX centralities, diameter error on disconnected graphs, write_gexf handoff to Gephi
+    - title: Network analysis and visualization with R and igraph (Ognyanova)
+      url: https://kateto.net/networks-r-igraph
+      summary: The R igraph tutorial applied analysts learn from
+    - title: Brown University Library Gephi guide
+      url: https://libguides.brown.edu/gephi
+      summary: Library-taught Gephi practice for applied researchers
+    - title: Introduction to network visualization with Gephi (Grandjean)
+      url: https://www.martingrandjean.ch/introduction-to-network-visualization-gephi/
+      summary: Resolution "between 0.1 and 2", color by Modularity Class, ForceAtlas2 settings, SVG/PDF export, uncheck create missing nodes
+    - title: Gephi bug 727701 - modularity varies between runs
+      url: https://bugs.launchpad.net/gephi/+bug/727701
+      summary: Different community counts per run; results can vary with the initial order of rows
+    - title: Gephi system requirements
+      url: https://gephi.org/users/requirements
+      summary: About 2 GB RAM for 100,000 elements and more than 8 GB for about a million
+    - title: How we analyzed Twitter social media networks with NodeXL (Pew Research, archived)
+      url: https://web.archive.org/web/2020/https://legacy.pewresearch.org/wp-content/uploads/sites/9/2014/02/How-we-analyzed-Twitter-social-media-networks.pdf
+      summary: NodeXL social-media workflow with CNM, Wakita-Tsurumi and Newman-Girvan clustering
+    - title: Gephi Fieldnotes (van Geenen et al. 2023, Frontiers in Big Data)
+      url: https://www.frontiersin.org/articles/10.3389/fdata.2022.510310/full
+      summary: Readers take a sample map as the whole population; clusters checked against bios and PageRank rather than treated as final

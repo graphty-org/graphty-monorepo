@@ -1,0 +1,15 @@
+id: private-share-link
+name: Private Read-Only Share Link
+category: export
+description: Share a project or a saved starting state by a link that is private by default and read-only for graders,
+    group members or a class.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W234
+    - W239
+    - W240
+implemented_by_components: []
+requirements: []
+sources: []

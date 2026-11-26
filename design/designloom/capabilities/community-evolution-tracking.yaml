@@ -1,0 +1,15 @@
+id: community-evolution-tracking
+name: Community Evolution Tracking
+category: analysis
+description: Match communities across windows by overlap threshold, label births, deaths, merges and splits, check
+    stability or significance by resampling, and draw an alluvial view; two-period edge diff and node rewiring score.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W19
+    - W306
+    - W309
+implemented_by_components: []
+requirements: []
+sources: []

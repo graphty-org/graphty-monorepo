@@ -1,0 +1,141 @@
+id: W56
+name: Main Path Analysis and Algorithmic Historiography
+category: analysis
+validated: false
+personas:
+    - bibliometric-review-author
+    - scientometrics-analyst
+    - patent-landscape-analyst
+requires_capabilities:
+    - data-import
+    - component-analysis
+    - all-paths-finding
+    - path-highlighting
+    - layout-hierarchical
+    - filtering
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - details-on-demand
+    - metric-histograms
+    - analysis-history
+    - export-image
+    - data-export
+    - analysis-provenance
+    - main-path-analysis
+    - time-axis-layout
+suggested_components:
+    - data-import-dialog
+    - algorithm-panel
+    - path-finder-dialog
+    - layout-panel
+    - filter-panel
+    - graph-canvas
+    - node-details-panel
+    - ranked-node-table
+    - histogram
+    - visual-encoding-panel
+    - legend-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: Records with cited references (papers from Web of Science or OpenAlex, or patents with backward citations) forming a direct citation network
+    node_count: 500-20,000 documents; main path of 10-60 documents shown
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Find the backbone of knowledge flow in a field or technology: the chain of documents through which most
+    citation paths pass, drawn chronologically as a historiograph, and complemented by the years of the field's
+    historical roots.
+
+
+    **Mental Model**: "The river through the delta." A citation network is a delta of many small channels from old
+    sources to new sinks; the main path is the channel that carries the most flow.
+
+
+    **Task Phases**:
+
+    1. **Build the direct citation network** (10 min) - From records with cited references; keep only citations inside
+    the corpus
+
+    2. **Make it acyclic** (5 min) - Remove or shrink cycles from mutual or same-year citations
+
+    3. **Compute traversal weights** (minutes) - SPC (search path count: source-to-sink paths through each link), SPLC or
+    SPNP; in Pajek via Network > Acyclic Network > Create Weighted Network + Vector > Traversal Weights, or with mpaR in R
+
+    4. **Search for the main path** (minutes) - Local "priority first" search follows the heaviest outgoing link; global
+    search finds the chain with the largest total weight; key-route search forces the top key links into the path and
+    adds detail as their number grows
+
+    5. **Draw** (30 min) - A year-layered directed graph with time on one axis, as in HistCite historiographs;
+    bibliometrix histNetwork returns the matrix for one
+
+    6. **Complement with RPYS** (30 min) - Plot the distribution of cited references' publication years to find
+    historical roots; compare with the main path, since the two can disagree
+
+
+    **Decision Points**:
+
+    - Which weight (SPC, SPLC, SPNP) and which search (local, global, key-route with how many key links)?
+
+    - How to break cycles without distorting the history?
+
+    - Which documents on the path deserve a narrative paragraph?
+
+
+    **Information Needs**:
+
+    - Number of cycles found and how they were resolved
+
+    - Link weight distribution and the top key links
+
+    - Path documents with year, title, weight and citations in corpus
+
+    - The RPYS spectrum with peak years and the references behind each peak
+
+
+    **Pain Points**:
+
+    - Pajek's menus are the main tool, and its usability has no published evaluation (no source found)
+
+    - Generic layouts ignore time, so the historiograph is drawn by hand or in a separate tool
+
+    - Static and over-time analyses of one corpus can disagree, and nothing shows both together
+
+
+    **Data Flow**:
+
+    - Input: Documents with publication years and cited references
+
+    - Transformations: In-corpus citation filtering, cycle removal, traversal weights, main path search, year-layered
+    layout, cited-year distribution
+
+    - Output: Main path figure, path document table, RPYS chart, exported weighted network
+success_criteria:
+    - metric: Time to a main path from loaded records
+      target: Under 15 minutes without leaving the tool
+    - metric: Method coverage
+      target: SPC, SPLC and SPNP weights with local, global and key-route search
+    - metric: Chronological readability
+      target: Every node on the drawn path sits at its publication year
+sources:
+    - title: Main path analysis (Wikipedia)
+      url: https://en.wikipedia.org/wiki/Main_path_analysis
+      summary: SPC, SPLC and SPNP weights; local, global and key-route search; Pajek menu path
+    - title: Batagelj - Efficient algorithms for citation network analysis
+      url: https://arxiv.org/abs/cs/0309023
+      summary: Search path counts and cycle shrinking in citation networks
+    - title: mpaR R package manual
+      url: https://cran.r-universe.dev/mpaR/mpaR.pdf
+      summary: Main path analysis in R
+    - title: Lucio-Arias and Leydesdorff - main paths in HistCite historiograms
+      url: https://arxiv.org/abs/0911.1454
+      summary: Historiographs as chronological citation networks
+    - title: Leydesdorff et al. - RPYS and algorithmic historiography
+      url: https://arxiv.org/abs/1604.04705
+      summary: Reference publication year spectroscopy; static and over-time analyses can disagree
+    - title: bibliometrix histNetwork reference
+      url: https://search.r-project.org/CRAN/refmans/bibliometrix/html/histNetwork.html
+      summary: Direct citation matrix for a historiograph
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

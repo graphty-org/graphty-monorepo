@@ -1,0 +1,105 @@
+id: W45
+name: Percolation and Robustness to Failure and Attack
+category: analysis
+validated: false
+personas:
+    - expert-emma
+requires_capabilities:
+    - removal-impact-analysis
+    - component-analysis
+    - centrality-degree
+    - centrality-betweenness
+    - algorithm-progress
+    - comparison-view
+    - data-export
+    - seeded-runs
+    - attack-robustness-curves
+suggested_components:
+    - impact-analysis-dialog
+    - algorithm-panel
+    - progress-bar
+    - statistics-panel
+    - comparison-view
+    - data-export-dialog
+starting_state:
+    data_type: infrastructure, communication, biological or social graph
+    node_count: 1000-1000000
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Measure how a network falls apart as nodes are removed at random (failure) or in order of importance
+    (attack), and report the curve of the giant component's share against the fraction removed, plus the critical
+    fraction where it collapses.
+
+
+    **Mental Model**: "Remove one node at a time and watch the giant component." Robustness is a curve per strategy,
+    not a single removal.
+
+
+    **Task Phases**:
+
+    1. **Pick removal strategies** (1 min) - Random failure; targeted attack by decreasing degree or betweenness
+
+    2. **Decide whether to recompute** (1 min) - Recalculate the ranking after each removal or not; recalculated attacks
+    are often more harmful
+
+    3. **Remove step by step** (minutes) - Record the giant component's share S against the fraction removed f
+
+    4. **Repeat random removal** (minutes) - Many seeded runs; mean curve with spread
+
+    5. **Read the curves** (5 min) - Heavy-tailed networks keep a giant component under random failure but break
+    quickly when hubs are attacked; random graphs fall apart beyond a threshold (about f = 0.28 in Albert et al.'s
+    exponential network)
+
+    6. **Hand off** (5 min) - S(f) curves per strategy, the critical fraction, and the order of removed nodes
+
+
+    **Decision Points**:
+
+    - Which strategies model the threat?
+
+    - Recompute rankings after each removal or not?
+
+    - How many random runs?
+
+    - Node or edge removal?
+
+
+    **Information Needs**:
+
+    - S(f) per strategy with spread for random removal
+
+    - Critical fraction per strategy
+
+    - Ordered list of removed nodes for targeted attacks
+
+
+    **Pain Points**:
+
+    - Existing impact tools report one removal at a time, not a curve
+
+    - Recomputing betweenness after each removal is expensive and needs progress feedback
+
+
+    **Data Flow**:
+
+    - Input: Graph, strategies, recompute flag, seed
+
+    - Transformations: Sequential removal, component tracking, repeated random runs
+
+    - Output: Robustness curves, critical fractions, removal order, provenance record
+success_criteria:
+    - metric: Curves produced
+      target: S(f) per strategy plotted with spread for random removal
+    - metric: Critical fraction reported
+      target: User can state f at which the giant component collapses per strategy
+sources:
+    - title: Error and attack tolerance of complex networks (Albert, Jeong and Barabasi 2000)
+      url: https://arxiv.org/abs/cond-mat/0008064
+      summary: Scale-free networks robust to random failure, fragile to hub attack; exponential network breaks near f = 0.28
+    - title: Attack vulnerability of complex networks (Holme, Kim, Yoon and Han 2002)
+      url: https://arxiv.org/abs/cond-mat/0202410
+      summary: Degree and betweenness attacks, with recalculated rankings often more harmful
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

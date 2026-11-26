@@ -1,0 +1,191 @@
+id: W72
+name: Chains of Transmission in an Emergency Response
+category: analysis
+validated: false
+personas:
+    - emergency-contact-tracing-supervisor
+    - outbreak-response-epidemiologist
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - temporal-analysis
+    - temporal-navigation
+    - filtering
+    - saved-filters
+    - node-selection
+    - selection-statistics
+    - component-analysis
+    - search
+    - details-on-demand
+    - tooltip-display
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - style-presets
+    - layout-hierarchical
+    - layout-force-directed
+    - path-highlighting
+    - anomaly-detection
+    - annotation
+    - data-export
+    - export-image
+    - report-generation
+    - multiplex-relations
+    - time-respecting-paths
+    - interval-overlap-edges
+    - linked-views-selection
+    - de-identified-display
+    - bipartite-layout
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - temporal-controls
+    - filter-panel
+    - filter-chip
+    - graph-canvas
+    - cluster-collapse-control
+    - node-details-panel
+    - node-tooltip
+    - visual-encoding-panel
+    - legend-panel
+    - context-menu
+    - annotation-toolbar
+    - anomaly-panel
+    - data-table-panel
+    - report-generator-dialog
+    - data-export-dialog
+starting_state:
+    data_type: a case line list with onset dates and likely sources, a contact list, exposure events and daily follow-up status
+    node_count: 100-3000
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Keep an accurate, current picture of who infected whom during an active response, attach every new
+    case to a chain, make sure every contact is visited every day of their follow-up window, and find the
+    transmission settings. The picture changes hourly and is briefed every morning.
+
+
+    **Mental Model**: "Cases, contacts and events, joined by exposures." Three node types, one edge type meaning
+    exposure. A cluster is an event node (a funeral, a ward, a market) that several people were exposed at, which is
+    also the workaround for a system where the built-in cluster field only appears as text on an edge.
+
+
+    **Task Phases**:
+
+    1. **Configure the outbreak** (half a day, once) - Set the follow-up period and visits per day, and edit
+    reference data so each dropdown value carries an icon and a color; this is what makes the chain graph readable
+    later
+
+    2. **Register cases, contacts and events** (continuous) - The three node types, with exposure relationships as
+    the edges
+
+    3. **Model clusters as events** (as they appear) - Create each setting as an event node and link cases and
+    contacts to it as exposures; the alternative is to store the setting in reference data and color the edges by it
+
+    4. **Run daily follow-up** (every day) - Generate the day's contact follow-up lists, which field teams fill in on
+    a mobile application, and record each visit
+
+    5. **Read the chain graph** (every morning) - Filter by date and status, collapse or expand events, and color
+    edges by context of exposure to see which setting is driving spread
+
+    6. **Check link plausibility** (daily) - Compute each case's exposure window from an editable incubation period
+    and test the recorded likely source against it; in one Sudan virus disease outbreak this linked 11 previously
+    unconnected cases, corrected 13 wrong links and flagged 5 possible hospital-acquired infections
+
+    7. **Overlay sequencing when it arrives** (weekly) - Put genetic distances on the epidemiologic links and look at
+    the disagreements
+
+    8. **Take a question to R or a graph database when the tool cannot answer it** (as needed) - A line list joined
+    to a contact list for measures and interactive plots; at larger scale, one canton loaded laboratory results,
+    venue attendance and travel records as people and exposure-event nodes to ask who likely infected whom, in which
+    direction, who is a prolific spreader, and which chains to prioritize
+
+
+    **Decision Points**:
+
+    - Whether a recorded likely-source link is possible at all, given the incubation period
+
+    - Whether to split a chain, merge two, or reassign a case's source
+
+    - Which setting to model as an event, and at what granularity
+
+    - Which chains get the next day's field capacity
+
+    - When a facility appears often enough in the chains to call it nosocomial transmission
+
+
+    **Information Needs**:
+
+    - Each case's exposure window as an interval, against the candidate source's infectious period
+
+    - Follow-up status per contact per day, visible in the same place as the chain
+
+    - Chain length and chain membership, and which chains are still generating cases
+
+    - Event nodes collapsible, so one briefing graph serves several audiences
+
+    - Edges colored by exposure setting
+
+    - A record of which links were corrected and why, since the chain is an official account
+
+
+    **Pain Points**:
+
+    - Clusters must be modeled as events to appear as nodes at all, which every new user has to be taught
+
+    - Chains recorded in good faith contain links the incubation period rules out, with nothing flagging them
+    automatically
+
+    - Paper and slide decks were the previous chain tool, and a slide cannot be recomputed when a case is reassigned
+
+    - Follow-up status and the chain picture live on different screens, so "who is overdue" and "who is in this
+    chain" are separate questions
+
+    - The data changes hourly, so any exported figure is stale by the afternoon
+
+    - Hospital-acquired transmission only shows if someone cross-reads facility stays against the chain
+
+
+    **Data Flow**:
+
+    - Input: A case line list with case identifiers, onset dates and a likely-source field; a contact list with
+    source and target; exposure events; daily follow-up records; optional genetic distances; optional facility stay
+    records
+
+    - Transformations: Exposure-window computation from an editable incubation period, plausibility testing of
+    recorded links, chain assembly and component extraction, event collapse and expansion, follow-up status
+    aggregation, overlay of genetic distance on epidemiologic edges
+
+    - Output: A current chain-of-transmission graph with event nodes, a list of implausible or missing links, daily
+    follow-up compliance, flagged facility-associated transmission, and the morning briefing figure
+success_criteria:
+    - metric: Plausibility checking
+      target: Every recorded source link is tested against the exposure window, with the implausible ones listed
+    - metric: One surface
+      target: Chain membership and follow-up status are readable together, not in separate systems
+    - metric: Recompute speed
+      target: Reassigning a case updates the chain picture immediately, with no manual redrawing
+sources:
+    - title: WHO Go.Data
+      url: https://www.who.int/tools/godata/about
+      summary: Outbreak investigation tool used in more than 60 countries, covering cases, contacts, follow-up and chains of transmission
+    - title: Go.Data reference data guide
+      url: https://worldhealthorganization.github.io/godata/refdata
+      summary: Follow-up period configuration, reference data values carrying icons and colors, cases contacts and events as node types, and the cluster feature appearing only as edge text so clusters are modeled as events
+    - title: PAHO Go.Data country information pack
+      url: https://paho.org/sites/default/files/2021-04/go-data-country-information-pack.pdf
+      summary: Field deployment of case and contact registration, daily follow-up lists and the mobile application
+    - title: Akunzirwe et al., Chainchecker in the 2022 Sudan virus disease outbreak, Uganda (PLOS Global Public Health 2025)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC12011214/
+      summary: Line list input with onset dates and a likely source, exposure windows from editable incubation periods, a healthcare-facility view, 11 cases linked, 13 links corrected and 5 possible nosocomial events flagged, and genetic distance overlay
+    - title: Nagraj et al., epicontacts (F1000Research 2018)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6572866
+      summary: Joining a line list to a contact list, directedness, interactive plots and network measures
+    - title: Contact tracing with a graph database in the canton of Geneva (2021)
+      url: https://neo4j.com/blog/graph-visualization/extensive-representation-of-contact-tracing-with-neo4j-in-the-canton-of-geneva/
+      summary: People and exposure-event node types over laboratory, venue and travel data, asking direction of transmission, prolific spreaders and chain prioritization
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

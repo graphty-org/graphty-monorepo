@@ -1,0 +1,194 @@
+id: W430
+name: Herbal Formula to Mechanism Network Pipeline
+category: analysis
+validated: false
+personas:
+    - network-pharmacology-graduate-student
+    - herbal-formula-mechanism-lead
+    - phytochemistry-network-pharmacology-researcher
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - filtering
+    - component-analysis
+    - centrality-degree
+    - centrality-betweenness
+    - centrality-closeness
+    - centrality-eigenvector
+    - community-detection
+    - computed-attributes
+    - node-selection
+    - visual-encoding-nodes
+    - legend-display
+    - layout-force-directed
+    - comparison-view
+    - analysis-history
+    - report-generation
+    - export-image
+    - data-export
+    - provenance-tracking
+    - threshold-sweep
+    - identifier-mapping
+    - set-operations
+    - input-rederivation
+suggested_components:
+    - data-import-dialog
+    - file-drop-zone
+    - column-mapper
+    - attribute-table-join-dialog
+    - data-table-panel
+    - filter-panel
+    - range-slider
+    - algorithm-panel
+    - ranked-node-table
+    - cluster-table
+    - network-list-panel
+    - enrichment-results-table
+    - analysis-history-panel
+    - report-generator-dialog
+    - graph-canvas
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: herb names; compound tables with ADME columns; predicted target lists; disease gene lists; STRING TSV edge list; enrichment term table
+    node_count: 300-600 raw compounds, 100-200 intersected targets in the PPI
+    edge_density: medium (STRING network of 100-200 nodes with 500-3,000 edges)
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Explain how a herbal formula treats a disease by finding which of its compounds are predicted to act on
+    which disease genes, which of those genes are hubs, and which pathways they fall in. This is the near-fixed recipe
+    behind most of the 3,357 network pharmacology papers indexed in PubMed in 2024, and it decides which compound is
+    docked and which protein is blotted.
+
+
+    **Mental Model**: "Narrow the funnel." Hundreds of compounds and thousands of genes go in at the top; each filter
+    (ADME, prediction score, intersection, STRING confidence, hub rule) narrows them, and the handful left at the bottom
+    are the mechanism. Every count at every step ends up in the methods section.
+
+
+    **Task Phases**:
+
+    1. **Name the herbs** (10 min) - Chinese, pinyin and Latin pharmacopoeial names plus plant part
+
+    2. **Collect compounds** (30-90 min) - Copy each herb's ingredient table from TCMSP (MOL ID, name, oral
+    bioavailability, drug-likeness, Caco-2, BBB, half-life) with a herb column added by hand; herbs TCMSP lacks come
+    from HERB, BATMAN-TCM, ETCM or SymMap
+
+    3. **Filter by ADME** (10 min) - Oral bioavailability >= 30% and drug-likeness >= 0.18 by default; variants use
+    40%/0.2, half-life >= 4 h, or SwissADME rules; some add back compounds measured in serum
+
+    4. **Predict targets** (1-3 h) - TCMSP targets and/or SwissTargetPrediction one compound at a time at a probability
+    cutoff anywhere from > 0 to 0.5
+
+    5. **Normalize identifiers** (30-60 min) - Protein names to UniProt to human gene symbols, deduplicated; unmapped
+    names drop without a count
+
+    6. **Collect disease genes** (30 min) - GeneCards keyword search filtered by a relevance score, unioned with OMIM,
+    DisGeNET, TTD and CTD across several spellings of the disease
+
+    7. **Intersect** (10 min) - Overlap of herb targets and disease genes in Venny; the Venn is Figure 1
+
+    8. **Build the PPI** (15 min) - STRING multiple proteins, human, minimum score 0.4, 0.7, 0.9 or 0.99, disconnected
+    nodes hidden
+
+    9. **Screen core targets** (20-40 min) - Top 10 by degree, cytoHubba MCC or the intersection of several top-10 lists,
+    or CytoNCA median rules (degree >= 2x median, then above median on betweenness, closeness, eigenvector and others);
+    optional MCODE modules; figure shows full, filtered and core networks side by side
+
+    10. **Enrich** (20 min) - DAVID, Metascape or clusterProfiler; top GO bars, top KEGG bubbles, sometimes a gene-pathway
+    Sankey
+
+    11. **Compound-target-pathway network** (30 min) - Add pathways, prune by degree, pick two or three pathways to
+    validate
+
+    12. **Dock and validate** (days) - Top compounds against top targets in AutoDock Vina; cell and animal experiments
+
+
+    **Decision Points**:
+
+    - Which ADME thresholds, and are measured serum compounds added back?
+
+    - Which target-prediction probability cutoff, and which disease-gene relevance cutoff (it changes the list tenfold)?
+
+    - Which STRING confidence (135 nodes and 2,348 edges at 0.4 versus 70 nodes and 101 edges at 0.99 in published
+    examples)?
+
+    - Which hub rule: top-N degree, MCC, intersection of top lists, or median multiples?
+
+    - Which two or three pathways and targets get the bench budget?
+
+
+    **Information Needs**:
+
+    - The count surviving each filter, recorded so methods, figures and tables cannot disagree
+
+    - The list of identifiers that failed to map, with the reason
+
+    - The intersection as node sets with membership flags, not just a Venn picture
+
+    - A ranked hub table showing several centralities side by side and which rule selected each hub
+
+    - Full, filtered and core subnetworks kept together and switchable
+
+    - Which herb each compound came from and which herbs reach each target
+
+
+    **Pain Points**:
+
+    - Every list is carried between web tools in Excel, and counts drift between reruns
+
+    - Unmapped protein names and Excel-mangled gene symbols vanish silently
+
+    - Hub screening rules stated in the methods cannot be connected to the cutoffs actually applied
+
+    - Changing one cutoff means redoing every downstream step and figure by hand
+
+    - Results converge on the same compounds and targets (quercetin, AKT1) regardless of formula
+
+
+    **Data Flow**:
+
+    - Input: Herb list; TCMSP or HERB compound tables (CSV or XGMML); predicted target lists; disease gene lists from
+    GeneCards, OMIM, DisGeNET; STRING TSV; enrichment term tables
+
+    - Transformations: ADME filter, identifier mapping, set intersection, PPI import, centrality and clique ranking,
+    module detection, enrichment join as pathway nodes, degree pruning
+
+    - Output: Venn counts, PPI with core subnetwork, ranked hub table, compound-target-pathway network, figures,
+    supplementary Excel tables, methods paragraph with every threshold and count
+success_criteria:
+    - metric: Count consistency
+      target: Every count in the exported methods paragraph matches the networks and tables it describes
+    - metric: Time from compound tables to ranked core targets
+      target: Under 2 hours once lists are collected
+    - metric: Hub rule transparency
+      target: User can state which rule and cutoff selected each core target
+sources:
+    - title: Lotus leaf network pharmacology study (PMC8566053)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8566053
+      summary: 93 to 15 compounds by OB/DL, 189 targets, 135 intersected, STRING 0.4 mislabeled highest confidence, top-5 degree hubs
+    - title: Pulsatilla decoction study (Frontiers in Oncology 2023)
+      url: https://www.frontiersin.org/journals/oncology/articles/10.3389/fonc.2023.1174848/full
+      summary: Four herbs, 346 compounds, GeneCards relevance >= 1, STRING 0.99 giving 70 nodes and 101 edges
+    - title: Two-herb pair study (PMC7838196)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC7838196
+      summary: CytoNCA median rule in Methods versus fixed cutoffs in Results; docking table from -9.9 to +4.5 kcal/mol
+    - title: TCMSP (PMC4001360)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4001360
+      summary: 499 herbs, 13,144 molecules, 3,311 targets, twelve ADME properties per compound
+    - title: Yougui Pill study (PMC6877955)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6877955
+      summary: OB >= 40%, DL >= 0.2, half-life filter; BATMAN-TCM targets; CTD inference score > 40; degree pruning of the layered network
+    - title: cytoHubba (PMC4290687)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4290687/
+      summary: Eleven hub-ranking methods; MCC reported most precise for yeast essential proteins
+    - title: STRING getting started
+      url: https://string-db.org/help/getting_started/
+      summary: Minimum interaction score levels 0.4, 0.7 and 0.9
+    - title: MCODE user manual
+      url: https://baderlab.org/Software/MCODE/UsersManual
+      summary: Default degree cutoff 2, node score 0.2, k-core 2, depth 100
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

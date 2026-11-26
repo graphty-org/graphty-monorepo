@@ -1,0 +1,20 @@
+id: variant-analysis
+name: Variant Analysis
+category: analysis
+description: List distinct case sequences with counts and a coverage curve, linked to the map for highlight and filter.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W340
+    - W343
+    - W344
+    - W350
+    - W353
+    - W354
+    - W356
+implemented_by_components: []
+requirements:
+    - List distinct case sequences (variants) with case counts and a coverage curve, linked to the map so a variant can
+      be highlighted or filtered, with top-k and coverage-percentage filters.
+sources: []

@@ -1,0 +1,19 @@
+id: model-output-overlay
+name: Model Output Overlay
+category: analysis
+description: Attach per-node and per-edge arrays produced by a trained model (prediction, true label, probability,
+    explainer importance mask, train/validation/test split) keyed by original id, and map them to color, size, opacity
+    or width, with an on-screen top-k or threshold control for importance masks.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W16
+    - W267
+    - W268
+    - W269
+    - W272
+    - W273
+implemented_by_components: []
+requirements: []
+sources: []

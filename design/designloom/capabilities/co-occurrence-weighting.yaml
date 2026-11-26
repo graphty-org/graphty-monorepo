@@ -1,0 +1,21 @@
+id: co-occurrence-weighting
+name: Co-occurrence and Association Weighting
+category: analysis
+description: Normalize co-occurrence link weights by association strength, Jaccard, Salton cosine, inclusion,
+    equivalence or none before layout and clustering.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W403
+    - W404
+    - W405
+    - W409
+    - W50
+    - W51
+    - W53
+implemented_by_components: []
+requirements:
+    - Edge weights from count, binary or full counting, Jaccard, cosine, association strength, PMI, c-coefficient, and
+      collocation statistics such as logDice, MI, log-likelihood and directional Delta P.
+sources: []

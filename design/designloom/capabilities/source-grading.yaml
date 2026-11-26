@@ -1,0 +1,17 @@
+id: source-grading
+name: Source and Grade on Every Item
+category: analysis
+description: Source reference and reliability grade on every node and edge, with configurable grading schemes (4x4, 6x6
+    Admiralty, UK 5x5x5 and 3x5x2, US standards, i2 default), styling driven by grade (confirmed solid, suspected
+    dotted), and judgment confidence (ICD 203) kept separate from item grades.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W09
+    - W103
+    - W104
+    - W106
+implemented_by_components: []
+requirements: []
+sources: []

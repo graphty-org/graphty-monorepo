@@ -12,6 +12,61 @@ algorithms:
 used_by_workflows:
     - W01
     - W12
+    - W02
+    - W06
+    - W07
+    - W102
+    - W11
+    - W113
+    - W119
+    - W125
+    - W127
+    - W128
+    - W129
+    - W130
+    - W143
+    - W146
+    - W163
+    - W166
+    - W167
+    - W190
+    - W193
+    - W195
+    - W201
+    - W208
+    - W212
+    - W217
+    - W227
+    - W228
+    - W233
+    - W234
+    - W266
+    - W293
+    - W298
+    - W30
+    - W303
+    - W304
+    - W307
+    - W324
+    - W326
+    - W331
+    - W333
+    - W34
+    - W361
+    - W37
+    - W387
+    - W389
+    - W431
+    - W433
+    - W435
+    - W66
+    - W71
+    - W74
+    - W75
+    - W89
+    - W91
+    - W94
+    - W97
 implemented_by_components:
     - histogram
     - statistics-panel

@@ -1,0 +1,158 @@
+id: W345
+name: Conformance Checking Against a Discovered or Reference Model
+category: analysis
+validated: false
+personas:
+    - process-mining-researcher
+    - process-mining-auditor
+    - clinical-pathway-analyst
+    - customer-journey-analyst
+requires_capabilities:
+    - data-import
+    - layout-hierarchical
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - comparison-view
+    - filtering
+    - node-selection
+    - details-on-demand
+    - statistics-panel
+    - animated-transitions
+    - export-image
+    - data-export
+    - case-drilldown
+    - process-model-notation
+    - conformance-overlay
+    - token-replay-animation
+suggested_components:
+    - file-drop-zone
+    - graph-canvas
+    - slider
+    - comparison-view
+    - legend-panel
+    - ranked-node-table
+    - data-table-panel
+    - metric-card
+    - temporal-controls
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: event log (XES or CSV) plus a reference model (BPMN 2.0, PNML) or a model discovered from the log
+    node_count: 10-60 activities, plus places or gateways
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Check whether execution follows a model -- discovered from the log or designed by the business -- and
+    see where it does not, drawn on the model itself, with the cases behind every deviation.
+
+
+    **Mental Model**: "Lay the log over the model." Each case is aligned to the closest run through the model; steps
+    the model did not allow and steps the case skipped become marks on the model.
+
+
+    **Task Phases**:
+
+    a. Discover and read deviations (ProM Inductive visual Miner or PM4Py):
+
+    1. **Import and discover** (5 min) - Set the classifier, an activity threshold and a noise threshold; the chain of
+    filter, discover, align and animate reruns from the first step a change affects
+
+    2. **Read the model** (10 min) - Petri net or process tree with execution counts on every element
+
+    3. **Turn on deviations** (10 min) - A log move (event not allowed by the model) drawn as a self-edge, a model move
+    (required event missing) drawn as an edge circumventing the activity, both dashed red with frequencies
+
+    4. **Select and animate** (10 min) - Click nodes to keep only traces through them; animate the log on the model
+
+    5. **Scores and export** (10 min) - Fitness and precision (about 0.90-0.95 fitness is usual for structured
+    processes); export the model, images and animation
+
+    b. Compare against a reference BPMN (Celonis Process Adherence Manager, Power Automate):
+
+    1. **Create the target model** (30 min) - Mine a baseline and edit it, or import BPMN 2.0 (one start, one end, only
+    exclusive or parallel gateways)
+
+    2. **Read the conformance rate and deviations** (20 min) - Deviations grouped into categories (skipped, unexpected
+    events) and ranked by impact on performance
+
+    3. **Drill and allowlist** (20 min) - Select a deviation to see its variants and cases; allowlist accepted deviations
+    so they leave the conformance rate but stay on the model
+
+    4. **Compare layers** (10 min) - Overlay the BPMN as a colored layer on the discovered map; shared elements take a
+    common color
+
+
+    **Decision Points**:
+
+    - Discovered or reference model?
+
+    - Which noise threshold gives a model that is fit and precise enough?
+
+    - Which deviations are acceptable (allowlist) and which are findings?
+
+
+    **Information Needs**:
+
+    - Per-element execution counts on the model
+
+    - Log moves and model moves with case counts, on the model
+
+    - Ranked deviation list with impact and case lists
+
+    - Fitness, precision and conformance rate, shown with the model
+
+    - Deviating variants and individual cases
+
+
+    **Pain Points**:
+
+    - No single tool shows the map, the deviations and the global scores together
+
+    - Petri nets and BPMN need notations (places, transitions, gateways) that general graph tools do not draw
+
+    - Imported BPMN restrictions and no editing of imported models
+
+    - Static model images from Python
+
+
+    **Data Flow**:
+
+    - Input: Event log, plus BPMN 2.0 XML, PNML or Declare constraints
+
+    - Transformations: Model discovery, alignment or token replay, deviation aggregation, layer comparison
+
+    - Output: Model with deviation overlay, deviation list with cases, fitness and precision, exported model and images
+success_criteria:
+    - metric: Deviations on the model
+      target: User can point to the activity most often skipped and open its cases in under 2 minutes
+    - metric: Scores with the picture
+      target: Fitness, precision or conformance rate visible beside the model they describe
+sources:
+    - title: Leemans, Fahland and van der Aalst - Inductive visual Miner (BPM 2014)
+      url: https://www.vdaalst.com/publications/p789.pdf
+      summary: Thresholds, rerun chain, log and model moves drawn on the model, node selection filter, animation
+    - title: TU/e research record - Process and deviation exploration with Inductive visual Miner
+      url: https://research.tue.nl/en/publications/process-and-deviation-exploration-with-inductive-visual-miner/
+      summary: Publication record for the tool
+    - title: Celonis community - Process Adherence Manager product update
+      url: https://community.celonis.com/product-updates/137
+      summary: Mining, modeling and conformance in one interface; general availability December 2023
+    - title: Celonis - Creating a Process Adherence Manager model
+      url: https://docs.celonis.com/en/creating-a-process-adherence-manager-model.html
+      summary: Baseline or imported BPMN target; one start and end; exclusive or parallel gateways only
+    - title: Celonis community - unexpected event deviation category
+      url: https://community.celonis.com/product-updates/process-adherence-manager-unexpected-event-deviation-category-added-2025-02-13-5109
+      summary: Deviation category for unexpected events added February 2025
+    - title: Celonis community - deviation allowlisting
+      url: https://community.celonis.com/product-updates/process-adherence-manager-deviation-allowlisting-added-2025-02-13-5108
+      summary: Allowlisted deviations stay on the model graph but leave the conformance rate
+    - title: Microsoft Power Automate - compare and compliance
+      url: https://learn.microsoft.com/en-us/power-automate/minit/process-compare-compliance
+      summary: BPMN layer compared with the open view; shared elements in the compare color
+    - title: UiPath Process Mining - conformance checking
+      url: https://docs.uipath.com/process-mining/automation-suite/2.2510/user-guide/conformance-checking
+      summary: Deviations labeled Skip and Invalid activity
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

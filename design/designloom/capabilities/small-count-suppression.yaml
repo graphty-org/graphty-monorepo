@@ -1,0 +1,16 @@
+id: small-count-suppression
+name: Small-Count Suppression
+category: analysis
+description: A configurable rule that hides or masks any label, cell or exported value below a minimum count, applied
+    consistently to the drawing, the tables and the export, including derivable values and complementary cells. Required
+    for anything drawn from CMS research identifiable files or limited data sets.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W260
+    - W75
+implemented_by_components: []
+requirements:
+    - Refuse or flag export of a patient-derived graph when any node or edge falls below a minimum patient count.
+sources: []

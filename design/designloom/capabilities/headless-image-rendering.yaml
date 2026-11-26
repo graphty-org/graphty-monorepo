@@ -1,0 +1,14 @@
+id: headless-image-rendering
+name: Headless Image Rendering
+category: visualization
+description: Render a graph to PNG or SVG offscreen or on a server, for tests and server-side report generation, without
+    writing browser automation.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W281
+    - W288
+implemented_by_components: []
+requirements: []
+sources: []

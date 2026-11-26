@@ -1,0 +1,109 @@
+id: W81
+name: Why Is This Package Installed and Which Version Wins
+category: exploration
+validated: false
+personas:
+    - software-supply-chain-security-engineer
+requires_capabilities:
+    - data-import
+    - search
+    - all-paths-finding
+    - path-highlighting
+    - node-merging
+    - filtering
+    - layout-hierarchical
+    - details-on-demand
+    - visual-encoding-nodes
+    - export-image
+    - dependency-format-import
+suggested_components:
+    - file-drop-zone
+    - search-input
+    - path-finder-dialog
+    - graph-canvas
+    - node-merge-dialog
+    - node-details-panel
+    - filter-panel
+    - image-export-dialog
+starting_state:
+    data_type: package dependency tree from a lockfile, npm ls --json, Maven or Gradle tree (same package at several versions)
+    node_count: 100-5,000
+    edge_density: sparse, mostly acyclic (npm allows cycles), many repeated subtrees
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Explain why a package is present in a build and which version the resolver chose, then decide to pin,
+    exclude or upgrade a parent. Also used to find bloated or forbidden-license dependencies and the parent that pulls
+    them in.
+
+
+    **Mental Model**: "Who asked for this?" Each copy of a package has one or more chains back to the project root;
+    conflicts are two chains asking for different versions.
+
+
+    **Task Phases** (no source gives per-step durations):
+
+    1. **Explain presence** - All chains from the root to each installed copy (npm explain, gradle dependencyInsight
+    "Selection reasons", mvn dependency:tree -Dverbose "omitted for conflict"); repeated subtrees collapsed
+
+    2. **Decide** - Pin, exclude or upgrade the parent; for bloat, remove unused direct or transitive dependencies
+
+    3. **Visualize when needed** - Render the tree or graph when text is not enough (npm2dot, dependency-cruiser to DOT,
+    madge, npmgraph)
+
+
+    **Decision Points**:
+
+    - Pin, exclude or upgrade the parent?
+
+    - Which version should win, and which chain must change to get it?
+
+
+    **Information Needs**:
+
+    - Every path from the root to the package, deduplicated
+
+    - Versions as distinct nodes, groupable by package name
+
+    - Edge type (runtime, dev, optional, peer) and the resolver's selection reason
+
+
+    **Pain Points**:
+
+    - Text trees repeat subtrees and bury the path
+
+    - Maven's verbose mode was removed in plugin 3.0
+
+    - Bloat is common: one study found 57% of transitive dependencies bloated
+
+
+    **Data Flow**:
+
+    - Input: `npm ls --json`, lockfiles, Maven or Gradle dependency trees, CycloneDX SBOM
+
+    - Transformations: Root-to-target path enumeration, version grouping, edge-type filter
+
+    - Output: Decision recorded in a pull request; optional diagram
+success_criteria:
+    - metric: Explanation
+      target: User can show every chain from the root to a package copy in one view
+    - metric: Version conflict
+      target: User can see which versions are present and which one was selected
+sources:
+    - title: npm explain documentation
+      url: https://docs.npmjs.com/cli/v10/commands/npm-explain
+      summary: Each installed copy with its chain to the root
+    - title: Gradle - Viewing and debugging dependencies
+      url: https://docs.gradle.org/current/userguide/viewing_debugging_dependencies.html
+      summary: dependencyInsight selection reasons; repeated subtrees marked (*)
+    - title: DepClean - bloated dependencies in Maven (Empirical Software Engineering)
+      url: https://link.springer.com/article/10.1007/s10664-020-09914-8
+      summary: 2.7% of direct, 15.4% of inherited and 57% of transitive dependencies bloated
+    - title: dependency-cruiser
+      url: https://www.npmjs.com/package/dependency-cruiser
+      summary: Emits DOT for rendering module dependency graphs
+    - title: madge
+      url: https://github.com/pahen/madge
+      summary: Module dependency graphs and circular import lists
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

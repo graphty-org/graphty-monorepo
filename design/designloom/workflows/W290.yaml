@@ -1,0 +1,109 @@
+id: W290
+name: Data Scientist's Metric to the Browser
+category: analysis
+validated: false
+personas:
+    - plugin-author-data-scientist
+requires_capabilities:
+    - data-import
+    - computed-attributes
+    - visual-encoding-nodes
+    - metric-histograms
+    - legend-display
+    - centrality-pagerank
+    - statistics-panel
+    - table-to-graph-binding
+    - plugin-layout-algorithm-contract
+    - precomputed-metric-columns
+    - service-plugin-bridge
+suggested_components:
+    - data-import-dialog
+    - attribute-table-join-dialog
+    - computed-attributes-panel
+    - ranked-node-table
+    - histogram
+    - gradient-editor
+    - legend-panel
+    - graph-canvas
+starting_state:
+    data_type: a NetworkX graph and a per-node metric dict computed in Python
+    node_count: 100-50000
+    edge_density: sparse to moderate
+    user_expertise: intermediate programmer, expert in graph metrics
+goal: >-
+    **Intent**: Show a metric already computed in Python on a browser graph, colored and sized like a built-in
+    algorithm, and only port it to JavaScript when the browser must recompute it.
+
+
+    **Mental Model**: "A metric is a dict from node to number." Whether it comes from Python or is ported, it should
+    behave exactly like the built-in PageRank: a ramp, a ranking, a legend.
+
+
+    **Task Phases**:
+
+    1. **Compute** - Run the metric in NetworkX
+
+    2. **Hand it over** - Pass the dict to a notebook or dashboard widget, or export GEXF, GraphML or JSON with the score
+    as a node attribute
+
+    3. **Port if needed** - Translate idioms (neighbors and weights) and return a map plus an assign variant that writes
+    the node attribute
+
+    4. **Check parity** - Compare against NetworkX with matching defaults (alpha 0.85, 100 iterations, tolerance 1e-6 for
+    PageRank)
+
+
+    **Decision Points**:
+
+    - Precompute in Python or port to the browser?
+
+    - Which defaults and normalization to match?
+
+
+    **Information Needs**:
+
+    - Whether an imported numeric column can be treated as a metric (ranked, ramped, in the legend)
+
+    - Per-node differences between Python and browser results
+
+
+    **Pain Points**:
+
+    - Notebook and Streamlit widgets that stop loading at about 1,000 nodes
+
+    - Imported scores treated as plain attributes, without the built-in metric treatment
+
+    - Silent NaN or zero from misspelled attribute names
+
+
+    **Data Flow**:
+
+    - Input: NetworkX graph and metric dict, or an exported file with the score column
+
+    - Transformations: Import or port, parity check, color and size mapping
+
+    - Output: A browser graph colored and sized by the metric, with a ranked list and a legend
+success_criteria:
+    - metric: No-port path
+      target: A precomputed score column gets the same color, size, ranking and legend as a built-in metric
+    - metric: Parity
+      target: A ported metric matches NetworkX to stated tolerance on a test graph
+sources:
+    - title: ipysigma
+      url: https://pypi.org/project/ipysigma
+      summary: Metric dicts passed to node size and color in a notebook
+    - title: Dash Cytoscape - Events
+      url: https://dash.plotly.com/cytoscape/events
+      summary: Graph events bound to Python callbacks
+    - title: streamlit-agraph
+      url: https://github.com/ChrisDelClea/streamlit-agraph
+      summary: Python Node and Edge lists to a vis.js component
+    - title: Streamlit forum - pyvis large network
+      url: https://discuss.streamlit.io/t/streamlit-pyvis-error-when-displaying-large-network/28501
+      summary: pyvis stops loading above about 1,000 nodes
+    - title: graphology metrics README
+      url: https://raw.githubusercontent.com/graphology/graphology/master/src/metrics/README.md
+      summary: fn plus assign convention; PageRank defaults match NetworkX
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

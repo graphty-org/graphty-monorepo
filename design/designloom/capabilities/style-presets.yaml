@@ -9,6 +9,29 @@ used_by_workflows:
     - W15
     - W20
     - W25
+    - W103
+    - W145
+    - W152
+    - W159
+    - W165
+    - W211
+    - W246
+    - W264
+    - W287
+    - W31
+    - W323
+    - W327
+    - W370
+    - W383
+    - W393
+    - W417
+    - W427
+    - W43
+    - W431
+    - W440
+    - W63
+    - W68
+    - W72
 implemented_by_components:
     - visual-encoding-panel
 requirements:

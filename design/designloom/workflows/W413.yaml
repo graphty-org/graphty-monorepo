@@ -1,0 +1,129 @@
+id: W413
+name: Multilayer Network from Cytoscape to 3D Layers (Arena3Dweb)
+category: analysis
+validated: false
+personas:
+    - multilayer-network-3d-biologist
+requires_capabilities:
+    - data-import
+    - data-validation
+    - graph-rendering
+    - layout-force-directed
+    - community-detection
+    - centrality-degree
+    - centrality-betweenness
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - path-highlighting
+    - filtering
+    - legend-display
+    - export-image
+    - data-export
+    - multilayer-networks
+    - render-mode-switching
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - layout-panel
+    - layout-option
+    - graph-canvas
+    - community-panel
+    - visual-encoding-panel
+    - path-finder-dialog
+    - filter-panel
+    - legend-panel
+    - image-export-dialog
+    - session-save-dialog
+starting_state:
+    data_type: Cytoscape network with a layer-defining node column, or a TSV of node, layer, connected node, connected layer, weight
+    node_count: 64-1,600 (online cap 5,000)
+    edge_density: sparse, with typed inter-layer edges
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Show a network whose nodes are different kinds of things (proteins, processes, drugs, viral proteins) as
+    stacked or arranged 3D layers, and highlight one path across layers for a figure.
+
+
+    **Mental Model**: "Each kind of thing gets its own plane; the edges between planes are the story."
+
+
+    **Task Phases**:
+
+    1. **Build in Cytoscape** (15 min) - For example a stringApp STITCH query for aspirin plus enriched diseases,
+    tissues and pathways
+
+    2. **Send to the 3D tool** (3 min) - Choose the column that defines layers (up to 18 groups), directionality, and
+    whether to keep unassigned nodes; styles and coordinates carry over. Or upload the tab-delimited layer file
+
+    3. **Arrange layers** (5 min) - Side by side, zig-zag, star or cube; rotate, translate, scale and space each layer
+
+    4. **Lay out** (5 min) - Per layer, or one layout across several layers to align nodes and reduce inter-layer
+    crossings
+
+    5. **Cluster and encode** (10 min) - Louvain, Walktrap, Fast-Greedy or label propagation; up to nine edge channels
+    drawn as curves; separate styling for inter-layer edges; size by centrality
+
+    6. **Highlight the story** (5 min) - Highlight a path across layers from the drug to a disease
+
+    7. **Optional VR view** (2 min) - Open a static VR view in a new tab on a headset or a gyroscope phone
+
+    8. **Export** (3 min) - Light theme for publication figures; a session JSON with 3D coordinates
+
+
+    **Decision Points**:
+
+    - Which node attribute defines the layers, and what to do with nodes that have no value?
+
+    - Which arrangement makes the cross-layer path readable?
+
+    - Lay out each layer alone or align them with one shared layout?
+
+
+    **Information Needs**:
+
+    - Count of nodes per layer and of unassigned nodes
+
+    - Inter-layer edge counts between each pair of layers
+
+    - Which edge channel each curve represents
+
+
+    **Pain Points**:
+
+    - Inter-layer edges are hard to follow from one end to the other
+
+    - Layer comparison and pattern matching are easier in 2D than in 3D for large networks
+
+    - The VR view is static
+
+    - Node cap and browser memory problems at larger sizes
+
+
+    **Data Flow**:
+
+    - Input: Cytoscape network and styles, or a layer-annotated edge list with weights
+
+    - Transformations: Layer assignment from an attribute, layer arrangement, per-layer or cross-layer layout,
+    clustering, centrality sizing, path highlight
+
+    - Output: Publication figure, session JSON with 3D coordinates, optional VR view
+success_criteria:
+    - metric: Time from Cytoscape network to layered 3D view
+      target: Under 10 minutes
+    - metric: Cross-layer path readability
+      target: User can trace the highlighted path from start to end without moving into the scene
+    - metric: Reopenable session
+      target: A coauthor reopens the session with the same layers, positions and styles
+sources:
+    - title: Karatzas et al. 2021 - Arena3Dweb
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8128064
+      summary: Input format, arrangements, per-layer and cross-layer layouts, clustering, 5,000-node cap
+    - title: Kokoli et al. 2023 - Arena3Dweb update and Cytoscape app
+      url: https://escholarship.org/uc/item/19w7c52r
+      summary: Cytoscape bridge, layer column, edge channels, static VR, light theme, JSON session
+    - title: Feyer et al. 2023 - multilayer network exploration in VR
+      url: https://arxiv.org/pdf/2307.10674
+      summary: 3D better for cross-layer paths in small networks; 2D better for layer comparison
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

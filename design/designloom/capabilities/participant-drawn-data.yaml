@@ -1,0 +1,14 @@
+id: participant-drawn-data
+name: Participant-Drawn Map Data
+category: visualization
+description: Keep participant-drawn positions and per-node annotations (ordinal influence height, goal codes, notes) as
+    data that survive save and export.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W29
+    - W35
+implemented_by_components: []
+requirements: []
+sources: []

@@ -1,0 +1,152 @@
+id: W214
+name: Media Ecosystem Map of Outlets by Hyperlinks or Shared Audiences
+category: analysis
+validated: false
+personas:
+    - communication-network-scholar
+requires_capabilities:
+    - data-import
+    - data-validation
+    - node-merging
+    - computed-attributes
+    - centrality-degree
+    - component-analysis
+    - layout-force-directed
+    - large-graph-rendering
+    - filtering
+    - visual-encoding-nodes
+    - legend-display
+    - search
+    - details-on-demand
+    - comparison-view
+    - temporal-navigation
+    - export-image
+    - data-export
+    - bipartite-projection
+    - group-collapse
+    - table-to-graph-builder
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - attribute-table-join-dialog
+    - node-merge-dialog
+    - computed-attributes-panel
+    - layout-panel
+    - filter-panel
+    - range-slider
+    - visual-encoding-panel
+    - gradient-editor
+    - legend-panel
+    - graph-canvas
+    - comparison-view
+    - search-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: story or page records with source outlet, links between stories, and optionally which users shared which stories; a per-outlet attribute table
+    node_count: 900 shown of about 40000 sources
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Map the media sources around an issue or election - outlets or websites as nodes, linked by hyperlinks
+    or by shared audiences - sized by attention and colored by the partisanship of their audience, to support claims
+    about asymmetric polarization. Berkman Klein's 2016 election study and Sciences Po medialab's Hyphe crawls are the
+    reference methods.
+
+
+    **Mental Model**: "Outlets, not accounts." Stories and pages roll up to their source; links or co-sharing between
+    sources show which parts of the media sphere talk to each other; color describes who reads a source, not what it
+    says.
+
+
+    **Task Phases**:
+
+    1. **Assemble outlets** (days) - A story database (over two million election stories in Media Cloud) or a curated
+    crawl: define web entities, crawl their links to a depth limit, sort suggestions into IN, OUT, UNDECIDED and
+    DISCOVERED with tags, in repeated rounds
+
+    2. **Aggregate to outlet nodes** (30 min) - Roll stories or pages up to their source or web entity, summing link
+    counts
+
+    3. **Build edges** (30 min) - Hyperlinks between sources weighted by story-to-story link count, or audience
+    co-sharing (two sources linked when the same user shared stories from both on the same day), projected from a user x
+    source two-mode network
+
+    4. **Size and filter** (15 min) - Size by inlinks from other sources or by social shares; lay out the giant
+    component (about 40,000 sources) with ForceAtlas2, then hide all but the top 900 by inlinks
+
+    5. **Color by audience** (15 min) - A partisanship score per source from -1 to 1 (share of its stories shared by
+    users aligned with one side), cut into five quintiles
+
+    6. **Compare views** (1 hour) - The same sources mapped by inlinks, Twitter shares and Facebook shares side by side,
+    and across time periods
+
+
+    **Decision Points**:
+
+    - Hyperlinks or shared audiences as the edge?
+
+    - What counts as one outlet (page, site, subdomain, combination)?
+
+    - How many sources to show after layout?
+
+    - Which audience score and cut points define the colors?
+
+
+    **Information Needs**:
+
+    - Mapping from pages or stories to outlets with counts
+
+    - Inlink and share counts per source
+
+    - Partisanship score distribution to place quintile breaks
+
+    - Side-by-side maps of the same sources under different measures and periods
+
+
+    **Pain Points**:
+
+    - Aggregation from pages to outlets is a script step
+
+    - Crawls at depth use large disk space
+
+    - Laying out 40,000 sources and showing 900 needs separate layout and display filters
+
+    - Comparing several measures of the same sources means rebuilding the map each time
+
+
+    **Data Flow**:
+
+    - Input: Story or page tables with source, links and sharing users (CSV, Hyphe or Media Cloud exports, GEXF)
+
+    - Transformations: Many-to-one aggregation to outlets, weighted link or co-sharing edges, two-mode projection,
+    inlink sizing, top-N display filter, quintile coloring
+
+    - Output: Media ecosystem map with partisanship legend, comparison panels across measures and periods
+success_criteria:
+    - metric: Aggregation
+      target: Page or story records roll up to outlet nodes with summed weights without a script
+    - metric: Layout versus display
+      target: The full giant component is laid out while only the top sources are shown
+    - metric: Comparison
+      target: The same outlet positions are kept across inlink, share and period views
+sources:
+    - title: Berkman Klein Center - Partisanship, Propaganda and Disinformation (2016 election report)
+      url: https://cyber.harvard.edu/sites/cyber.harvard.edu/files/2017-08_electionReport.pdf
+      summary: Media Cloud stories, link and co-sharing networks, inlink sizing, top 900 shown of about 40,000, partisanship quintiles
+    - title: Benkler, Faris and Roberts - Network Propaganda
+      url: https://library.oapen.org/bitstream/id/4439e7a2-e60f-49cc-b706-384fb6283cbc/9780190923624.pdf
+      summary: Book-length treatment of the media ecosystem maps and asymmetric polarization
+    - title: Hyphe (Sciences Po medialab)
+      url: https://github.com/medialab/hyphe
+      summary: Web-entity crawler with IN, OUT, UNDECIDED and DISCOVERED statuses
+    - title: Hyphe user manual
+      url: https://github.com/medialab/hyphe/wiki/User-Manual
+      summary: Crawl depth settings and corpus curation rounds
+    - title: Sciences Po medialab - Hyphe tool page
+      url: https://medialab.sciencespo.fr/en/tools/hyphe
+      summary: Issue-mapping by curated hyperlink corpora
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

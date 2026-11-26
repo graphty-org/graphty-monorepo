@@ -12,6 +12,14 @@ used_by_workflows:
     - W06
     - W07
     - W09
+    - W115
+    - W284
+    - W418
+    - W47
+    - W63
+    - W67
+    - W69
+    - W82
 implemented_by_components:
     - minimap
 requirements:

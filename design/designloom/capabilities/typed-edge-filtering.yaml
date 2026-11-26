@@ -1,0 +1,25 @@
+id: typed-edge-filtering
+name: Typed Edge Filtering
+category: analysis
+description: Keep typed, directed multi-edges (MemberOf, AdminTo, resolves-to, spawned, logon type) and include or
+    exclude edge types from views and path queries.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W07
+    - W108
+    - W109
+    - W112
+    - W113
+    - W114
+    - W324
+    - W328
+    - W330
+    - W331
+    - W332
+implemented_by_components: []
+requirements:
+    - Edge kinds by origin (inline link, property link per property, tag, embed, folder, canvas edge, similarity,
+      LLM-extracted, citation), each filterable and stylable, with optional traversal through tag nodes.
+sources: []

@@ -1,0 +1,143 @@
+id: W402
+name: Protein Sequence Similarity Network Threshold Loop
+category: analysis
+validated: false
+personas:
+    - protein-family-ssn-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - large-graph-rendering
+    - progressive-loading
+    - filtering
+    - component-analysis
+    - layout-force-directed
+    - visual-encoding-nodes
+    - legend-display
+    - metric-histograms
+    - node-merging
+    - details-on-demand
+    - search
+    - data-export
+    - export-image
+    - interactive-threshold
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - attribute-table-join-dialog
+    - progressive-loader
+    - range-slider
+    - histogram
+    - filter-panel
+    - cluster-table
+    - graph-canvas
+    - legend-panel
+    - node-details-panel
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: XGMML sequence similarity network from EFI-EST (full or representative-node), node attributes from UniProt
+    node_count: 10^3-10^5 nodes
+    edge_density: dense within clusters; 10^5-10^8 edges
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Raise the alignment-score threshold on a protein similarity network until clusters separate by
+    function, color clusters by known annotations, and choose uncharacterized clusters for lab work.
+
+
+    **Mental Model**: "Turn up the stringency until families fall apart into functions." Each connected cluster at the
+    right threshold is a candidate isofunctional family.
+
+
+    **Task Phases**:
+
+    1. **Submit** (10 min) - Pfam or InterPro family, BLAST query, FASTA or accession list to EFI-EST with optional
+    fragment, length and taxonomy filters
+
+    2. **Read the plots** (10 min) - Edges per alignment score, length histogram, alignment length and percent
+    identity by score
+
+    3. **Pick a starting threshold** (5 min) - Isofunctional families often share over 40% identity; start lower near
+    35% (alignment score 50 in one example, 100 for a multidomain example); a download link arrives by email, active
+    14 days
+
+    4. **Download** (10-60 min) - Full network (about 500 MB and greater; not generated above 10 million edges) or a
+    representative-node network collapsed by CD-HIT at 40-100% identity
+
+    5. **Threshold loop in Cytoscape** (1-3 hours) - Import XGMML; organic layout; filter out edges below a higher
+    score; re-lay out; repeat until clusters with known SwissProt functions separate
+
+    6. **Color and analyze** (30 min) - Color SSN utility numbers and colors clusters and lists functions and FASTA
+    per cluster; cluster analysis builds alignments, logos and HMMs
+
+    7. **Genome context** (30 min) - EFI-GNT returns genome neighborhood networks and diagrams per cluster
+
+    8. **Viral variant** (30 min) - vConTACT2 c1.ntw as a network; import genome_by_genome_overview.csv keyed on the
+    Genome column
+
+
+    **Decision Points**:
+
+    - Which alignment-score threshold makes clusters isofunctional?
+
+    - Full or representative-node network, at which identity?
+
+    - Which uncharacterized clusters to send to the lab?
+
+
+    **Information Needs**:
+
+    - Edge count and cluster count at each threshold
+
+    - Cluster membership with SwissProt functions and taxonomy
+
+    - Members behind each representative node
+
+    - Join result of the annotation table (matched and unmatched keys)
+
+
+    **Pain Points**:
+
+    - Full networks exceed desktop memory; Cytoscape handles a few thousand nodes and under about 500,000 edges
+
+    - A 47.5-million-edge network cannot be opened on most computers
+
+    - Each threshold change needs a slow manual re-layout
+
+    - Annotation tables fail to attach without the right key column
+
+
+    **Data Flow**:
+
+    - Input: XGMML network, UniProt annotations, optional annotation CSV
+
+    - Transformations: Edge threshold filtering, connected components, cluster numbering and coloring, representative
+    node expansion
+
+    - Output: Colored SSN figure, cluster tables with FASTA, clusters passed to genome-neighborhood analysis
+success_criteria:
+    - metric: Live threshold
+      target: Moving the threshold slider updates components and cluster colors without a manual re-layout
+    - metric: Scale
+      target: A network of 63,000 nodes and millions of edges opens in the browser
+    - metric: Join transparency
+      target: User sees matched and unmatched annotation keys
+sources:
+    - title: EFI-EST analysis tutorial
+      url: https://efi.igb.illinois.edu/efi-est/tutorial_analysis.php
+      summary: Plots, threshold choice, 35% start, email link active 14 days
+    - title: EFI-EST download tutorial
+      url: https://efi.igb.illinois.edu/efi-est/tutorial_download.php
+      summary: Full and representative networks, ~500 MB, Cytoscape limits, organic layout and filter loop
+    - title: EFI tools paper 2023
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10291204
+      summary: Users and jobs; 5,801-node 2.1M-edge and 63,359-node 65M-edge networks; Color SSN, cluster analysis, EFI-GNT
+    - title: vConTACT2 in Cytoscape (Genomics Aotearoa)
+      url: https://genomicsaotearoa.github.io/metagenomics_summer_school/day3/ex10.2_viruses
+      summary: c1.ntw network plus genome overview table
+    - title: vConTACT2 issue 69
+      url: https://bitbucket.org/MAVERICLab/vcontact2/issues/69/cytoscape-visualization-headings-show-up
+      summary: Key-column problem when attaching annotations
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

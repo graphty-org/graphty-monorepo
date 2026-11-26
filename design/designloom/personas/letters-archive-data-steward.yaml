@@ -1,0 +1,72 @@
+id: letters-archive-data-steward
+name: Letters Archive Data Steward
+role: Postdoctoral Researcher on a Large Correspondence Meta-Archive (Python or R)
+quote: Every time we re-clean the names I have to re-import, re-style and re-export everything, and my historians still cannot open the result without Python.
+bio: >-
+    Dr. Tomas Rhee is a postdoc merging about half a million letter records from several catalogs, working beside a
+    network scientist on a project modeled on Networking Archives (State Papers Online plus EMLO). His data has more
+    than 20,000 people and more than 100,000 letters: directed, temporal and multi-edge, with persons reconciled to VIAF
+    and places to GeoNames as the CMIF letter standard expects. He cleans with pandas or R, clusters name variants,
+    retrained an NER model for early modern place names, computes metrics in NetworkX or igraph, and uses Gephi only for
+    pictures. The project releases its data as a temporal, directed edge list on GitHub and Zenodo. Disambiguation is
+    the most labor-intensive part of his job, and he has to show reviewers that the findings survive the loss of
+    records that never reached the archive.
+characteristics:
+    expertise: advanced
+    time_pressure: medium
+    graph_literacy: advanced
+    domain_knowledge: advanced
+motivations:
+    - Reliable person disambiguation with authority ids (VIAF, GeoNames) kept as node ids
+    - Betweenness and other centralities computed per time slice, not just over the whole archive
+    - Show that findings survive archival loss, as Ryan and Ahnert did by removing records until 60 percent or more were gone
+    - Let historians on the team explore results without writing Python
+    - Publish a reusable, versioned dataset with provenance intact
+behaviors:
+    - Merges catalogs in pandas or R and clusters spelling variants before any network is built
+    - Uses NER to extract places and people from calendar summaries, then corrects by hand
+    - Computes degree, betweenness and eigenvector per period in NetworkX or igraph and writes GEXF for Gephi
+    - Runs robustness checks by removing random or ordered fractions of letters and recomputing rankings
+    - Keeps letters as a temporal directed multigraph and aggregates to weights only for display
+    - Releases data as CSV edge lists with a license and a DOI
+frustrations:
+    - GUI tools cannot hold the whole archive or keep ids and provenance through import and export
+    - Every re-clean means re-importing and re-styling the graph by hand
+    - Colleagues without Python cannot explore the results
+    - Uncertain dates have to be collapsed to a single value before most temporal tools accept them
+context:
+    frequency: daily
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W176
+    - W177
+    - W178
+    - W180
+sources:
+    - title: Networking Archives postdoc posting (Queen Mary University of London)
+      url: https://digitalhumanitiesnow.org/2018/11/job-postdoc-networking-archives-queen-mary-university-of-london/
+      summary: Meta-archive of about 430,000 letters joining State Papers Online and EMLO, historian paired with network science
+    - title: Tudor State Papers correspondence dataset (Cambridge repository)
+      url: https://www.repository.cam.ac.uk/items/version/300
+      summary: A temporal, directed edge list of 132,747 letters among 20,560 people, CC BY-NC-SA
+    - title: Ryan and Ahnert - The Measure of the Archive
+      url: https://culturalanalytics.scholasticahq.com/article/25943-the-measure-of-the-archive-the-ro-bustness-of-network-analysis-in-early-modern-correspondence.pdf
+      summary: Most centrality measures stay robust until 60 percent or more of the data is removed; transitivity does not
+    - title: Cromwell letters transcription blog (Cultures of Knowledge)
+      url: https://cofk.site.ox.ac.uk/articles/bring-transcriptions-letters-thomas-cromwell
+      summary: Disambiguation described as very labor-intensive
+    - title: Helsinki Centre for Digital Humanities - Ryan abstract
+      url: https://www.helsinki.fi/en/helsinki-centre-for-digital-humanities/ryan-abstract
+      summary: NER retrained for half a million letter records
+    - title: CMIF - Correspondence Metadata Interchange Format
+      url: https://encoding-correspondence.bbaw.de/v1/CMIF.html
+      summary: Letter metadata standard keyed to VIAF person ids and GeoNames place ids
+    - title: Programming Historian - Exploring and Analyzing Network Data with Python
+      url: https://programminghistorian.org/en/lessons/exploring-and-analyzing-network-data-with-python
+      summary: NetworkX steps from node and edge lists to metrics, communities and GEXF export
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

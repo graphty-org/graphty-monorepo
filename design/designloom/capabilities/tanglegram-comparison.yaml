@@ -1,0 +1,13 @@
+id: tanglegram-comparison
+name: Tanglegram Tree Comparison
+category: analysis
+description: Two trees face to face with matching tips linked and crossings minimized, plus tree distances such as
+    Robinson-Foulds.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W395
+implemented_by_components: []
+requirements: []
+sources: []

@@ -1,0 +1,138 @@
+id: W318
+name: Interactive Web Exports, Newsroom Embeds and Public Databases
+category: reporting
+validated: false
+personas:
+    - publication-figure-author
+    - graph-deliverable-recipient
+requires_capabilities:
+    - filtering
+    - search
+    - ego-network
+    - details-on-demand
+    - tooltip-display
+    - legend-display
+    - keyboard-shortcuts
+    - data-export
+    - export-image
+    - large-graph-rendering
+    - de-identified-display
+    - provenance-tracking
+    - guided-presentation
+suggested_components:
+    - graph-canvas
+    - filter-panel
+    - search-panel
+    - ego-network-dialog
+    - node-details-panel
+    - node-tooltip
+    - legend-panel
+    - share-dialog
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: verified network from a story, research project or investigation (people, companies, records) with attributes
+    node_count: 50-5,000 per export; millions in a public database
+    edge_density: sparse to moderate
+    user_expertise: intermediate+
+goal: >-
+    **Intent**: Put an interactive graph in front of readers - a standalone web page, a newsroom embed, a project site or
+    a searchable public database with a graph per entity - without leaking data that was not meant to ship and without
+    losing phone readers.
+
+
+    **Mental Model**: "A web export ships the data, not just the picture." Whatever is in the file can be read by
+    anyone who opens it, including attributes hidden in the view.
+
+
+    **Task Phases**:
+
+    1. **Pick the vehicle** (15 min) - Network to web page (about 1,000 nodes well, 5,000 slowly), a public gist read by
+    Gephi Lite, a private, organization or public-link share, a guest link to a database, a pyvis or Plotly HTML file,
+    a Streamlit or Dash app, or a D3 or sigma.js project site
+
+    2. **Simplify for the page** (1-4 h) - Verified subset only, manual layout, background zones, scroll reveal, motion
+    stopped, text moved out of the canvas for phones
+
+    3. **Public database** (project) - Search plus a graph per entity; cap entities with too many connections; state
+    that inclusion does not imply wrongdoing; offer CSV and graph database downloads under an open license
+
+    4. **Check what leaks** (30 min) - Strip attributes not meant to ship; confirm guest access cannot browse the whole
+    database
+
+
+    **Decision Points**:
+
+    - Public, link-only, organization or private?
+
+    - Which attributes ship with the export?
+
+    - How much of the graph fits a phone screen without hover?
+
+    - What happens for entities with too many connections to draw?
+
+
+    **Information Needs**:
+
+    - The full list of fields included in the exported file
+
+    - Node count against what the vehicle can render
+
+    - How the embed looks on a phone with no hover
+
+
+    **Pain Points**:
+
+    - Hidden attributes still ship in the exported JSON; few tools warn about it
+
+    - Public gists are the only path in some tools; confidential data cannot use them
+
+    - Guest links can expose the full database read-only
+
+    - Notebook interactive output may not survive on GitHub or nbviewer; project sites decay
+
+    - Tooltips and hover do not exist on phones
+
+
+    **Data Flow**:
+
+    - Input: Verified subgraph with attributes and styles
+
+    - Transformations: Field stripping, subset selection, fixed layout, mobile simplification, access configuration
+
+    - Output: Standalone HTML or embed, share link, public database pages with downloadable data
+success_criteria:
+    - metric: No unintended data
+      target: The exported file contains only fields the author chose
+    - metric: Phone readability
+      target: Labels and key facts readable without hover on a phone
+    - metric: Access control
+      target: The author chooses who can open the export and guest access cannot reach the rest of the data
+sources:
+    - title: Cytoscape User Manual - Export Your Data
+      url: https://manual.cytoscape.org/en/3.10.3/_sources/Export_Your_Data.md.txt
+      summary: Network to web page export and its size limits
+    - title: Gephi Lite - Share a graph as URL
+      url: https://docs.gephi.org/lite/user-manual/share-graph-as-url
+      summary: Open a graph from a public URL such as a gist
+    - title: Gephi Web Publish plugin
+      url: https://gephi.org/desktop/plugins/web-publish-plugin
+      summary: Publishes to a public gist; do not publish confidential networks
+    - title: Graphistry - Privacy
+      url: https://pygraphistry.readthedocs.io/en/latest/server/privacy.html
+      summary: Private, organization and public-link sharing modes
+    - title: Linkurious - Guest mode
+      url: https://doc.linkurious.com/admin-manual/4.0/guest-mode
+      summary: Anyone reaching the guest URL can browse the full database read-only unless restricted
+    - title: ICIJ Offshore Leaks - How to use
+      url: https://offshoreleaks.icij.org/pages/howtouse
+      summary: Search with per-entity graphs, too-many-connections cases, no implication of wrongdoing
+    - title: ICIJ Offshore Leaks - Database download
+      url: https://offshoreleaks.icij.org/pages/database
+      summary: CSV and Neo4j downloads under the Open Database License
+    - title: journalism.co.uk - WSJ data interactives on mobile
+      url: https://www.journalism.co.uk/how-the-wall-street-journal-approaches-data-interactives-on-mobile/
+      summary: No tooltips or hover on small screens
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

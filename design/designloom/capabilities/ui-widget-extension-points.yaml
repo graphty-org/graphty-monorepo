@@ -1,0 +1,14 @@
+id: ui-widget-extension-points
+name: UI Widget Extension Points
+category: analysis
+description: Extension points for tooltips, context menus, minimaps, map underlays and custom node renderers bound to
+    application data.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W278
+    - W285
+implemented_by_components: []
+requirements: []
+sources: []

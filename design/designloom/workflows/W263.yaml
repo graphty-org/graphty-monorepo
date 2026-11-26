@@ -1,0 +1,139 @@
+id: W263
+name: Metapath Exploration and Prediction Explanation
+category: exploration
+validated: false
+personas:
+    - biomedical-kg-ml-scientist
+requires_capabilities:
+    - data-import
+    - search
+    - pattern-search
+    - all-paths-finding
+    - path-highlighting
+    - neighborhood-expansion
+    - filtering
+    - link-prediction
+    - visual-encoding-edges
+    - visual-encoding-nodes
+    - legend-display
+    - node-merging
+    - tooltip-display
+    - details-on-demand
+    - export-image
+    - data-export
+    - interactive-threshold
+    - ranked-path-search
+    - answer-subgraph-provenance
+suggested_components:
+    - data-import-dialog
+    - search-panel
+    - pattern-search-dialog
+    - path-finder-dialog
+    - link-prediction-panel
+    - filter-panel
+    - slider
+    - cluster-collapse-control
+    - node-tooltip
+    - node-details-panel
+    - graph-canvas
+    - legend-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: heterogeneous biomedical knowledge graph (Hetionet, PrimeKG, DRKG, SPOKE) with typed nodes and edges, plus model predictions with per-edge importance
+    node_count: 10-60 drawn from 47k-129k nodes (public) or about 27M (SPOKE)
+    edge_density: dense
+    user_expertise: expert
+goal: >-
+    **Intent**: Explain why a drug is connected to or predicted for a disease by reading typed paths: which metapaths
+    (sequences of node and edge types) are over-represented compared with permuted networks, which concrete paths carry
+    them, and which edges a model relied on for a prediction, sparsified to a readable size.
+
+
+    **Mental Model**: "Explanations are paths of types." Compound-binds-gene-associates-disease is a reason; the
+    explanation subgraph is the union of the most important reasons.
+
+
+    **Task Phases**:
+
+    1. **Pick a pair** (1 min) - Choose source and target nodes (for example a compound and a disease) by search
+
+    2. **Read the metapath table** (5 min) - Path count and adjusted p-value against permuted networks per metapath
+    (het.io/search)
+
+    3. **Open paths** (5 min) - Show up to 100 paths for a metapath as a draggable subgraph of about 10 to 60 nodes
+
+    4. **Expand neighborhoods** (10 min) - In the Neo4j Browser (at most 300 nodes shown first, 100 neighbors per
+    expansion) or the SPOKE Neighborhood Explorer (node and edge type filters, path length 1 or 2, a warning at 2,000
+    nodes plus edges, provenance on hover, leaf nodes collapsed into groups)
+
+    5. **Explain a prediction** (10 min) - Load model edge importance (GraphMask, 0 to 1); move a threshold to make the
+    explanation sparser or denser (edges above 0.5, on average 14.9 percent, keep nearly all accuracy)
+
+    6. **Export** - Cytoscape JSON or SVG for papers and companion websites
+
+
+    **Decision Points**:
+
+    - Which metapaths are meaningful, not just frequent through hub nodes?
+
+    - Which importance threshold keeps the explanation faithful but readable?
+
+    - Which node and edge types to include before expanding?
+
+
+    **Information Needs**:
+
+    - Per-metapath counts and permutation p-values
+
+    - Node and edge types with filters applied before expansion
+
+    - Per-edge provenance and model importance
+
+    - Counts of nodes and edges currently shown versus available
+
+
+    **Pain Points**:
+
+    - Every graph or model has its own viewer (het.io, SPOKE explorer, txgnn.org)
+
+    - Path lists are too long to read without importance thresholds
+
+    - Browsers cap the drawing; expansion floods the view through hub nodes
+
+    - Results depend on method choices; users compare several
+
+
+    **Data Flow**:
+
+    - Input: Knowledge graph (CSV, TSV triples, Neo4j), prediction scores, per-edge importance
+
+    - Transformations: Typed path enumeration, permutation statistics, importance thresholding, leaf grouping
+
+    - Output: Explanation subgraph figures, exported JSON
+success_criteria:
+    - metric: Explanation size control
+      target: A threshold control sparsifies the explanation live with a count of edges kept
+    - metric: Type-aware expansion
+      target: Expansion restricted by node and edge type before it runs
+    - metric: Clinician acceptance
+      target: Explanation readable by a non-modeler (TxGNN study raised accuracy by 46 percent with explanations)
+sources:
+    - title: Hetionet and Hetnet connectivity search
+      url: https://het.io/
+      summary: Metapath tables with adjusted p-values; up to 100 paths per metapath as a subgraph
+    - title: SPOKE Neighborhood Explorer documentation
+      url: https://spoke.rbvi.ucsf.edu/ne_docs.html
+      summary: Type filters, path length 1 or 2, 2,000-element warning, provenance on hover, leaf grouping, Cytoscape JSON export
+    - title: TxGNN clinician study
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11326339
+      summary: GraphMask importance threshold; 12-participant study; accuracy up 46 percent, confidence up 49 percent
+    - title: Neo4j Browser settings
+      url: https://neo4j.com/docs/browser-manual/current/operations/browser-settings/
+      summary: 300-node initial display and 100-neighbor expansion caps
+    - title: PrimeKG
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC9893183
+      summary: 129,375-node precision medicine knowledge graph
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,156 @@
+id: W210
+name: Telegram Channel Forwarding Network Investigation
+category: analysis
+validated: false
+personas:
+    - coordination-detection-scientist
+requires_capabilities:
+    - data-import
+    - data-validation
+    - neighborhood-expansion
+    - community-detection
+    - community-profiling
+    - centrality-degree
+    - layout-force-directed
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - search
+    - details-on-demand
+    - metric-histograms
+    - temporal-navigation
+    - annotation
+    - view-bookmarks
+    - export-image
+    - data-export
+    - cluster-labeling
+    - linked-views-selection
+    - provenance-tracking
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - attribute-table-join-dialog
+    - algorithm-panel
+    - community-panel
+    - cluster-table
+    - visual-encoding-panel
+    - legend-panel
+    - graph-canvas
+    - search-panel
+    - node-details-panel
+    - histogram
+    - temporal-controls
+    - annotation-toolbar
+    - bookmark-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: seed channel list plus forwarded-message records (source channel, forwarding channel, message, date) and channel metadata (creation date, name history, subscribers, description, language)
+    node_count: 1000-5000
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Show that a set of Telegram channels forms a network that spreads the same content, find its regional or
+    language clusters, and tie it to an operator through evidence outside the graph. Modeled on DFRLab's study of
+    pro-Kremlin channels: 56 seed channels, 3,871 channels and 57,646 forwarded messages.
+
+
+    **Mental Model**: "Follow the forwards." A forward is a visible, directed act of amplification from a source channel
+    to a forwarding channel. The graph shows the structure; creation dates, name histories and archives prove the
+    connection.
+
+
+    **Task Phases**:
+
+    1. **Seed** (30 min) - Assemble seed channels and group them by naming pattern ("Node of Time", "Surf Noise", "Info
+    Defense"); Telegram has no channel directory, so discovery is snowball sampling
+
+    2. **Collect** (hours) - Telegram API for messages the seeds forwarded (45,054); TGStat for messages others forwarded
+    from them (12,593) plus creation dates, name histories and subscriber counts; fix a time window
+
+    3. **Build** (10 min) - Nodes are channels; directed edges from source to forwarding channel weighted by forward
+    count; node size by incoming forwards; GESIS Telegram Toolkit outputs this as GML
+
+    4. **Cluster** (5 min) - Modularity communities (nine clusters in DFRLab's case), colored by class
+
+    5. **Label clusters** (30 min) - Use channel name suffixes ("_ger", "_ita", "SPAIN"), descriptions and post
+    language; report where labels and clusters disagree (one German channel fell outside the German cluster)
+
+    6. **Corroborate outside the graph** (hours) - Shared creation dates and name changes link networks; subscriber
+    charts flag inactive channels; archived captures; forwards traced from embassy channels; translation review
+
+    7. **Publish** (hours) - Full graph plus annotated close-ups, charts, screenshots, archive links, and explicit flags
+    on every unconfirmed claim
+
+
+    **Decision Points**:
+
+    - Which seeds define the network, and how many snowball hops to expand?
+
+    - What forward count makes an edge meaningful (no published standard threshold was found)?
+
+    - Do cluster labels from names and language match the detected communities?
+
+    - Which links are confirmed by forensics and which stay flagged as unconfirmed?
+
+
+    **Information Needs**:
+
+    - Channel attributes beside the graph: creation date, name history, subscribers over time, language
+
+    - Channels created in the same week or renamed together, selectable from a chart
+
+    - Per-cluster languages and name patterns
+
+    - For a forward edge, the messages behind it with dates and links
+
+
+    **Pain Points**:
+
+    - No ground truth; studies admit they lack definitive confirmation
+
+    - Snowball discovery makes the network's boundary arbitrary
+
+    - Evidence (archives, screenshots, metadata) lives outside the graph tool
+
+    - Interactive sharing of a Gephi file requires conversion to a web viewer
+
+
+    **Data Flow**:
+
+    - Input: GML from GESIS Telegram Toolkit, or CSV of forwards plus a channel metadata table from TGStat or the
+    Telegram API
+
+    - Transformations: Weighted directed forward graph, modularity communities, attribute join of forensic metadata,
+    per-cluster language and name summaries
+
+    - Output: Annotated full graph and close-ups, cluster table, flagged evidence list, exported data
+success_criteria:
+    - metric: Forensic linkage
+      target: Analyst can select channels by creation date or rename event and see where they sit in the graph
+    - metric: Evidence trace
+      target: Every published edge or cluster claim links to messages or records, and unconfirmed claims are flagged
+    - metric: Cluster labeling
+      target: Mismatches between name-based labels and detected clusters are visible
+sources:
+    - title: DFRLab - Networks of pro-Kremlin Telegram channels spread disinformation at a global scale
+      url: https://dfrlab.org/2023/03/01/networks-of-pro-kremlin-telegram-channels-spread-disinformation-at-a-global-scale/
+      summary: 56 seeds, 45,054 and 12,593 forwards, 3,871 channels, 57,646 forwards, nine modularity clusters, forensic corroboration
+    - title: DFRLab - Coordinated Telegram channels aggregate anti-Ukrainian news
+      url: https://dfrlab.org/2023/06/01/coordinated-telegram-channels-aggregate-anti-ukrainian-news-from-around-the-globe/
+      summary: Companion study of 19 aggregator channels
+    - title: GESIS Methods Hub - Telegram Toolkit
+      url: https://methodshub.gesis.org/library/methods/TelegramToolkit
+      summary: Channel-to-channel GML graph with forward counts
+    - title: Oxford Internet Institute - Junk news distribution on Telegram
+      url: https://demtech.oii.ox.ac.uk/wp-content/uploads/sites/12/2020/07/Junk-News-Distribution-on-Telegram.-Data-Memo.pdf
+      summary: No channel directory, so discovery is snowball sampling
+    - title: Telegram propaganda study admitting no ground truth
+      url: https://arxiv.org/html/2406.08084v1
+      summary: Study states it lacks definitive ground truth
+    - title: Graphika - Spamouflage report
+      url: https://graphika.com/spamouflageUS
+      summary: Paid reports list full network maps, attribution indicators, cross-platform topology and takedown timeline
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

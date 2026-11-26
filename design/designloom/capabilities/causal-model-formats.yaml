@@ -1,0 +1,19 @@
+id: causal-model-formats
+name: Causal model import and export
+category: data
+description: Read and write DAGitty model code and BIF, and also Tetrad graph text, XML-BIF, NET, DSC, XDSL, lavaan
+    syntax, Tigramite result arrays, and NetworkX or GML for DoWhy.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W423
+    - W424
+    - W425
+    - W426
+    - W427
+    - W428
+    - W429
+implemented_by_components: []
+requirements: []
+sources: []

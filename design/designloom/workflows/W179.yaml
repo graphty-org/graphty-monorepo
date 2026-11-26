@@ -1,0 +1,138 @@
+id: W179
+name: Uncertainty, Provenance and Two-Mode Data in a Historical Database
+category: analysis
+validated: false
+personas:
+    - prosopography-archivist
+    - correspondence-historian
+requires_capabilities:
+    - data-import
+    - data-validation
+    - filtering
+    - saved-filters
+    - visual-encoding-edges
+    - visual-encoding-nodes
+    - details-on-demand
+    - temporal-navigation
+    - computed-attributes
+    - legend-display
+    - data-export
+    - bipartite-projection
+    - uncertainty-encoding
+    - provenance-tracking
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - filter-panel
+    - range-slider
+    - visual-encoding-panel
+    - legend-panel
+    - node-details-panel
+    - data-table-panel
+    - temporal-controls
+    - graph-canvas
+    - data-export-dialog
+starting_state:
+    data_type: database export of objects (Person, Letter, Place, Event) with certainty grades, date ranges, sources and conflicting statements
+    node_count: 500-20,000
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Keep what historians know about how sure they are, and where each statement came from, all the way
+    into the network view: filter by certainty, show uncertain ties differently, click any tie to see its sources, and
+    project two-mode data (person to charter) only when a metric needs it.
+
+
+    **Mental Model**: "Every edge is a claim with a source and a confidence." Removing the source or the certainty
+    turns evidence into decoration.
+
+
+    **Task Phases**:
+
+    1. **Model objects** (days) - Object types with sub-objects such as Birth or Letter-sent, each with a date and place
+
+    2. **Grade uncertainty** (ongoing) - Per field, a flag, a certainty class with "Derived from" (Primary, Secondary,
+    Inference, Conjecture), or a 1-100 score that can be filtered with "at least 80"
+
+    3. **Store uncertain dates** (ongoing) - Before or after, between ("around 1666" stored as 1664-1668), or relative
+    to another event; nodegoat built ChronoJSON because EDTF could not handle relational date statements
+
+    4. **Store uncertain places** (ongoing) - Polygons for "probably in or near London"
+
+    5. **Attach sources** (ongoing) - A source per statement; conflicting statements side by side
+
+    6. **Two-mode data** (1 hour) - Charter-witness data where frequent co-witnessing makes a real tie more probable;
+    project to person-person for metrics, keep two-mode for readers
+
+    7. **View or export** (30 min) - Geographic, social and chronological views, or export for another tool
+
+
+    **Decision Points**:
+
+    - What certainty threshold does a figure use, and is it stated in the caption?
+
+    - How should a date range be treated by a time filter (any overlap or fully inside)?
+
+    - Project two-mode data with raw counts or a normalized weight?
+
+
+    **Information Needs**:
+
+    - Certainty and "derived from" for any node or edge on click, with the source citation
+
+    - Count of ties hidden by the current certainty filter
+
+    - Conflicting statements about the same tie, side by side
+
+    - Weight of a projected tie and the shared documents behind it
+
+
+    **Pain Points**:
+
+    - Tools flatten assertions into bare edges; uncertainty is lost on export
+
+    - Uncertainty cannot be shown with the visual variables current tools offer (Frontiers 2024)
+
+    - Six Degrees of Francis Bacon's confidence calculations could not be independently reproduced
+
+
+    **Data Flow**:
+
+    - Input: Object and relation tables with certainty, date ranges, place polygons and source fields
+
+    - Transformations: Certainty filtering, uncertainty encoding (opacity, dashes), date-range filtering, two-mode
+    projection with weights
+
+    - Output: Filtered network view, figures with stated thresholds, export that keeps certainty and source fields
+success_criteria:
+    - metric: Provenance on click
+      target: Every edge shows its source citation and certainty
+    - metric: Round trip
+      target: Certainty, date range and source columns survive import and export unchanged
+    - metric: Honest filtering
+      target: User can state how many ties the current certainty threshold hides
+sources:
+    - title: nodegoat - How to store uncertain data
+      url: https://nodegoat.net/blog.s/43/how-to-store-uncertain-data-in-nodegoat-incomplete-source-material
+      summary: Certainty classes, Derived from grades, 1-100 scores and filtering
+    - title: nodegoat - ChronoJSON and EDTF limits
+      url: https://nodegoat.net/blog.p/82.m/go/28
+      summary: Chronology statements and why EDTF could not handle relational dates
+    - title: Factoid Prosopography - About
+      url: https://www.kcl.ac.uk/factoid-prosopography/about
+      summary: Statements with sources as the unit of prosopographical data
+    - title: FactGrid help - feeding data
+      url: https://database.FactGrid.de/wiki/Help:How_do_I_feed_data_into_FactGrid%3F
+      summary: Conflicting statements side by side
+    - title: People of Medieval Scotland - closing thoughts
+      url: https://poms.kdl.kcl.ac.uk/documents/91/10-Closing-Thoughts.pdf
+      summary: Charter-witness two-mode data and co-witnessing as evidence of ties
+    - title: Frontiers in Communication 2023 - uncertainty in historical network visualization
+      url: https://www.frontiersin.org/articles/10.3389/fcomm.2023.1305137/full
+      summary: Uncertainty encodings and the limits of current network visualization software
+    - title: Spenser Review - Six Degrees of Francis Bacon
+      url: https://www.english.cam.ac.uk/spenseronline/review/item/45.3.18
+      summary: Confidence calculations could not be independently reproduced
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

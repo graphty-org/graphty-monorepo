@@ -1,0 +1,14 @@
+id: matrix-stack-navigation
+name: Matrix Stack Navigation
+category: analysis
+description: Navigate stacks of networks over the same node set indexed by subject, condition, method, frequency
+    band/bin and time window, with a slider per dimension and small multiples along one dimension.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W161
+    - W162
+implemented_by_components: []
+requirements: []
+sources: []

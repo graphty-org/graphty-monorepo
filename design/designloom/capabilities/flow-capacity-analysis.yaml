@@ -1,0 +1,14 @@
+id: flow-capacity-analysis
+name: Flow and Capacity Analysis
+category: analysis
+description: Edge capacity and flow in algorithms (max flow, min cut, weighted paths); flow volume as edge width on
+    maps; facility open/close toggles per scenario.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W220
+    - W224
+implemented_by_components: []
+requirements: []
+sources: []

@@ -1,0 +1,13 @@
+id: implied-independence-testing
+name: Testing a graph against data
+category: analysis
+description: Test each conditional independence the graph implies against a dataset, correct for multiple testing, and
+    mark the failed node pairs on the graph.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W424
+implemented_by_components: []
+requirements: []
+sources: []

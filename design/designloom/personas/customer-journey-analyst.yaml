@@ -1,0 +1,56 @@
+id: customer-journey-analyst
+name: Customer Journey Analyst
+role: CX Analyst / Customer Journey Analyst
+quote: We designed four journeys. I want to see the journeys customers actually take, how many follow the design, and which device or campaign sends them off it.
+bio: >-
+    Tom is a customer experience analyst who applies process mining to touchpoints. The case is a customer or a session,
+    the activity is a touchpoint or channel event (web page, app screen, call, SMS, store visit), and the log comes from
+    web analytics or a cross-channel customer data export. He discovers the journeys customers really take, compares
+    them with the journeys the business designed, and slices them by device, campaign or landing page. Published cases
+    show the pattern: Weijs and Caron mapped Google Analytics 4 data into Celonis and found that only 10.31 percent of
+    journeys conformed to one designed journey; Telenor used Disco on 4,934 customers' cross-channel traces and found
+    designed journeys produced unintended deviations for 10 to 25 percent of customers, then added an SMS notification
+    and measured the drop in deviations. He is a variant of the process mining consultant working on marketing data.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: basic
+    domain_knowledge: advanced
+motivations:
+    - See the journeys customers actually take across channels
+    - Measure how many customers follow each designed journey and where they leave it
+    - Find which segments (device, campaign, landing page) deviate most
+    - Show the effect of a journey change, such as an added notification, before and after
+behaviors:
+    - Maps analytics data to an event log (user as customer, session as journey, event as touchpoint)
+    - Discovers journeys with a simplified map because raw web journeys are spaghetti
+    - Checks conformance against designed journeys and reports the conforming share
+    - Filters the log by device, campaign or landing page and compares the resulting maps
+    - Adds a designed step and compares deviation rates before and after
+frustrations:
+    - Web and touchpoint logs with huge numbers of variants and loops
+    - Sessions and customers that are hard to link across channels
+    - Tools built for ERP processes, with vocabulary that does not fit marketing data
+    - No easy way to overlay the designed journey on the discovered one
+context:
+    frequency: as-needed
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W340
+    - W343
+    - W345
+    - W348
+    - W358
+sources:
+    - title: Weijs and Caron - customer journey mining with Google Analytics 4 and Celonis (ICSOFT 2022)
+      url: https://scitepress.org/PublishedPapers/2022/112639/pdf/index.html
+      summary: User as customer, session as journey, event as touchpoint; fuzzy-miner discovery; only 10.31 percent conform to one designed journey
+    - title: Hansson et al. 2021 - Telenor cross-channel customer journeys with Disco
+      url: https://ceur-ws.org/Vol-3112/paper3.pdf
+      summary: 4,934 customers; designed journeys deviate for 10-25 percent; an SMS notification lowered deviations
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

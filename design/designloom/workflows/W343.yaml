@@ -1,0 +1,135 @@
+id: W343
+name: Simplify a Spaghetti Process Map Without Misleading Numbers
+category: analysis
+validated: false
+personas:
+    - process-mining-consultant
+    - process-mining-auditor
+    - clinical-pathway-analyst
+    - customer-journey-analyst
+requires_capabilities:
+    - filtering
+    - saved-filters
+    - node-merging
+    - layout-hierarchical
+    - visual-encoding-edges
+    - statistics-panel
+    - analysis-history
+    - data-validation
+    - process-map-derivation
+    - process-detail-sliders
+    - variant-analysis
+    - case-drilldown
+suggested_components:
+    - graph-canvas
+    - slider
+    - range-slider
+    - filter-panel
+    - filter-chip
+    - cluster-collapse-control
+    - statistics-panel
+    - analysis-history-panel
+    - status-bar
+starting_state:
+    data_type: event log of an unstructured process (hundreds to thousands of variants)
+    node_count: 30-250 activities before simplification
+    edge_density: dense
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Make an unreadable map readable while keeping the numbers on it true. Simplification is routine, and
+    it is also where process maps mislead: most tools hide an activity by deleting edges from the built graph instead of
+    re-deriving the graph from a log without that activity, so durations and frequencies on the remaining edges are
+    wrong.
+
+
+    **Mental Model**: "Cut the log, then redraw." A filter changes which events and cases count; the map is recomputed
+    from what remains. A slider is only a view simplification, and the analyst must know which of the two is in effect.
+
+
+    **Task Phases** (in practice order):
+
+    1. **Sliders** (2 min) - Lower paths, then activities
+
+    2. **Keep main variants** (5 min) - Variation filter, only for structured processes; then both sliders can go back
+    to 100 percent and the numbers add up
+
+    3. **Remove incomplete cases** (2 min) - Endpoints filter; half-finished cases otherwise look faster than they are
+
+    4. **Split process types** (10 min) - By attribute into named data sets
+
+    5. **Split scenarios** (5 min) - Mandatory or forbidden activity
+
+    6. **Trim to a phase or split by start and end points** (5 min)
+
+    7. **Remove spider activities** (2 min) - Activities like "Send email" that connect to everything
+
+    8. **Milestones** (30 min, with a domain expert) - Keep 5 to 7 agreed milestones, then drill between two of them
+
+
+    **Decision Points**:
+
+    - Is this process structured enough for variant filtering?
+
+    - Is a hidden activity removed from the log (re-derive) or bridged in the view?
+
+    - Which activities are spiders?
+
+    - Which milestones does the domain expert agree on?
+
+
+    **Information Needs**:
+
+    - Whether each edge's numbers come from a re-derived graph or a bridged view
+
+    - Share of cases and events still included after each filter
+
+    - Whether the current map's numbers add up
+
+    - The filter chain currently applied
+
+
+    **Pain Points**:
+
+    - The filtering trap: 500 traces a-b-c and 500 traces a-c with b removed should give a->c in 1,000 cases and 6 days;
+    two leading tools showed 50 percent of cases and 10 days
+
+    - Concurrency creating loops between activities that run once; two tools simplifying such a map produced
+    contradictory graphs
+
+    - Frequency filtering does not fix chaotic activities
+
+    - Analysts losing track of their current data selection
+
+
+    **Data Flow**:
+
+    - Input: Event log and its derived map
+
+    - Transformations: View sliders, log filters (variant, endpoints, attribute, mandatory, forbidden, trim), activity
+    projection with re-derivation, milestone clustering
+
+    - Output: Simplified, honest map; named filtered data sets; filter chain
+success_criteria:
+    - metric: Correct re-derivation
+      target: Hiding an activity gives the a->c count and duration of the projected log, not of the deleted edges
+    - metric: Provenance visible
+      target: User can state at any time which filters and slider settings produced the map
+sources:
+    - title: Fluxicon Process Mining in Practice - Simplification
+      url: https://fluxicon.com/book/read/simplification/
+      summary: Simplification strategies in practice order, from sliders to milestones
+    - title: van der Aalst 2019 - A practitioner's guide to process mining, limitations of the directly-follows graph
+      url: https://www.vdaalst.com/publications/p1101.pdf
+      summary: The filtering trap example; contradictory DFGs after simplification; long tail holds most problems
+    - title: Celonis - KPI calculations
+      url: https://docs.celonis.com/en/kpi-calculations.html
+      summary: Panel versus slider mode edge KPIs disagree
+    - title: Tax et al. - chaotic activities
+      url: https://link.springer.com/article/10.1007/s10844-018-0507-6
+      summary: Frequency filtering does not remove chaotic activities
+    - title: ProMiSE - provenance in process mining
+      url: https://ceur-ws.org/Vol-3413/paper9.pdf
+      summary: Analysts often lose awareness of their current data selection
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

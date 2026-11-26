@@ -1,0 +1,19 @@
+id: import-report
+name: Import Report and Log
+category: data
+description: After any import, show and export rows read and skipped with reasons, nodes, edges, endpoints created,
+    duplicate edges merged, self-loops, reciprocal pairs collapsed, unmatched endpoints and join keys, and the settings
+    used (separator, direction, merge rule), so the import can be checked and reproduced.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W18
+    - W291
+    - W292
+    - W293
+    - W298
+    - W299
+implemented_by_components: []
+requirements: []
+sources: []

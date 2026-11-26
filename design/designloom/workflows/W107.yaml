@@ -1,0 +1,133 @@
+id: W107
+name: Gang and Trafficking Networks from Social Media, Ads and Provider Returns
+category: analysis
+validated: false
+personas:
+    - crime-intelligence-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - node-merging
+    - filtering
+    - community-detection
+    - centrality-degree
+    - centrality-eigenvector
+    - centrality-betweenness
+    - component-analysis
+    - details-on-demand
+    - search
+    - export-image
+    - bipartite-projection
+    - entity-resolution-review
+    - provenance-tracking
+    - saved-import-mappings
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - node-merge-dialog
+    - network-merge-dialog
+    - filter-panel
+    - community-panel
+    - ranked-node-table
+    - graph-canvas
+    - node-details-panel
+    - image-export-dialog
+starting_state:
+    data_type: provider warrant returns (ZIP of HTML, JSON, CSV, PDF, mbox and images), OSINT collections of public profiles, adult service ads, CDRs and RMS records
+    node_count: thousands of accounts; Harris County linked 244.6K ads through 13,336 phone numbers
+    edge_density: sparse multi-modal
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Build a gang or trafficking network from social media accounts, provider returns and online ads,
+    linking accounts and ads through shared phone numbers, emails, IP addresses and devices, then join it to call
+    records and agency records in the case chart.
+
+
+    **Mental Model**: "Shared identifiers tie the pieces together." An ad and an account are linked when they share a
+    phone number; two accounts are linked by messages, friends and followers; accounts tie to IP addresses, login times
+    and devices.
+
+
+    **Task Phases**:
+
+    1. **Collect** (days) - Provider returns arrive as ZIP files of HTML, JSON, CSV, PDF, mbox and images with no
+    standard layout; public profiles are collected and preserved with OSINT tools
+
+    2. **Extract link types** (hours) - Account to account (messages, friends, followers), account to IP address and
+    login time, account to device, account to phone and email
+
+    3. **Link ads and accounts by shared identifiers** (30 min) - Ads joined through phone numbers (two-mode ad to
+    number data projected to ad to ad)
+
+    4. **Add the friend and follower graph** (30 min) - Friends used for link analysis; combined with official records,
+    network analysis can show a gang's hierarchy
+
+    5. **Join to CDRs and RMS** (30 min) - Merge into the case chart with call records and records-management data
+
+
+    **Decision Points**:
+
+    - Which shared identifiers are strong enough to link two accounts or ads?
+
+    - Is a friend or follower tie meaningful for this gang?
+
+    - Which account belongs to which real person?
+
+
+    **Information Needs**:
+
+    - Per identifier: how many ads or accounts share it
+
+    - Account metadata: IP addresses, login times, devices
+
+    - Clusters of ads and accounts tied by shared identifiers
+
+    - The return file and record behind each link
+
+
+    **Pain Points**:
+
+    - Every provider's return has its own layout inside a ZIP
+
+    - Two-mode ad-to-number data must be projected by hand
+
+    - Accounts, phones and people need merging across sources
+
+
+    **Data Flow**:
+
+    - Input: Provider returns, OSINT collections, ads, CDRs, RMS records
+
+    - Transformations: Parsing per provider, link-type extraction, shared-identifier projection, identity merging,
+    joining with call and agency data
+
+    - Output: Multi-modal network of accounts, ads, phones and people with hierarchy and clusters, merged into the case
+    chart
+success_criteria:
+    - metric: Shared-identifier linking
+      target: Ads and accounts sharing a phone number, email or IP are linked with counts in one step
+    - metric: Source traceability
+      target: Every link names the return file and record it came from
+sources:
+    - title: IACA 2024 Virtual Conference - Social Network Analysis (Harris County)
+      url: https://iaca.net/assets/Training-Files/Webinars/VirtualConferences/2024VirtualConference/2024%20IACA%20SNA%20Bush.pdf
+      summary: 244.6K adult service ads linked through 13,336 phone numbers; Cash App bridge accounts
+    - title: COPS Office - Cincinnati gang network report
+      url: https://portal.cops.usdoj.gov/resourcecenter/content.ashx/cops-w0859-pub.pdf
+      summary: Official records combined with social media data; network analysis showed the gang's hierarchy (search excerpt)
+    - title: Maryland Coordination and Analysis Center - gang activity on social media
+      url: https://mcac.maryland.gov/2024/01/using-gang-activity-on-social-media-to-drive-intelligence-led-policing/
+      summary: Friends used for link analysis (search excerpt)
+    - title: Magnet Forensics - Warrant return analysis in AXIOM
+      url: https://www.magnetforensics.com/blog/warrant-return-analysis-in-magnet-axiom/
+      summary: Provider returns arrive as ZIP files of HTML, JSON, CSV, PDF, mbox and images with no standard layout
+    - title: Maltego for law enforcement
+      url: https://www.maltego.com/law-enforcement/
+      summary: Collect, preserve and monitor social media intelligence (vendor)
+    - title: PenLink - CDR analysis 101
+      url: https://www.penlink.com/blog/cdr-analysis-101/
+      summary: Joining call records with other case data
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

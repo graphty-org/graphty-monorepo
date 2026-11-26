@@ -1,0 +1,153 @@
+id: W410
+name: Topic Model or Embeddings to a Topic or Document Network
+category: analysis
+validated: false
+personas:
+    - text-network-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - filtering
+    - component-analysis
+    - community-detection
+    - layout-force-directed
+    - layout-hierarchical
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - details-on-demand
+    - temporal-analysis
+    - large-graph-rendering
+    - export-image
+    - data-export
+    - analysis-provenance
+    - backbone-extraction
+    - provenance-tracking
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - data-preview-table
+    - heatmap-panel
+    - filter-panel
+    - range-slider
+    - status-bar
+    - community-panel
+    - layout-panel
+    - visual-encoding-panel
+    - legend-panel
+    - graph-canvas
+    - node-details-panel
+    - temporal-controls
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: topic-by-document proportions, topic correlation matrix, or document embedding matrix
+    node_count: 10-100 topics, or thousands to tens of thousands of documents
+    edge_density: complete before thresholding; kept pairs above a similarity or k nearest neighbors
+    user_expertise: intermediate to advanced
+goal: >-
+    **Intent**: Turn a fitted topic model or a set of document embeddings into a network of topics that co-occur in
+    documents, a hierarchy of nested topics, or a network of similar documents, and use it to detect patterns that are
+    then refined by reading documents and confirmed with other methods (computational grounded theory).
+
+
+    **Mental Model**: "Detection, refinement, confirmation." The network is a detection tool; nothing is claimed until
+    the documents behind a topic or an edge have been read.
+
+
+    **Task Phases**:
+
+    1. **Topic correlations** (15 min) - Fit a structural topic model with K topics; threshold topic-proportion
+    correlations (cutoff 0.01) or select edges with a graphical model; plot with Fruchterman-Reingold, labels Topic #,
+    vertex size per topic
+
+    2. **Topic hierarchy and distances** (15 min) - BERTopic intertopic distance map (UMAP of c-TF-IDF), Ward
+    hierarchy on 1 - cosine similarity with a color threshold, topic similarity heat map
+
+    3. **Document similarity network** (30-60 min) - Document-by-feature matrix (tf-idf, topic proportions or
+    embeddings), pairwise similarity, keep pairs above a threshold or each node's k nearest neighbors, group by
+    period, export to Gephi; large runs (19,598 articles, 384 million comparisons, 16,000 edges kept) can fragment
+    into many tiny clusters
+
+    4. **Refine** (hours) - Read documents per topic or cluster
+
+    5. **Confirm** (hours) - Test patterns with other computational methods
+
+
+    **Decision Points**:
+
+    - Correlation cutoff or graphical-model edge selection?
+
+    - Similarity threshold or k nearest neighbors, and how many edges to keep?
+
+    - Is a fragmented document network a finding or a thresholding artifact?
+
+    - Do topic numbers still mean the same after a re-fit?
+
+
+    **Information Needs**:
+
+    - Edges kept versus total and the similarity distribution
+
+    - Top words and representative documents per topic
+
+    - Documents behind a cluster or an edge
+
+    - Topic prevalence by period
+
+
+    **Pain Points**:
+
+    - Static igraph plots; the interactive stm add-on was archived from CRAN in 2025
+
+    - Topics renumber when a model is re-fit
+
+    - Document embedding networks give many tiny isolated clusters at common thresholds
+
+    - Hand-tuned thresholds rarely recorded
+
+
+    **Data Flow**:
+
+    - Input: Topic proportion matrix, topic correlation matrix, document embeddings or pairwise similarity edge list,
+    document metadata
+
+    - Transformations: Correlation or similarity computation, threshold or kNN edge selection, hierarchical
+    clustering, community detection, grouping by period
+
+    - Output: Topic correlation network, topic hierarchy, document similarity network, notes from close reading
+success_criteria:
+    - metric: Threshold transparency
+      target: User sees the similarity distribution and edges kept for the chosen threshold or k
+    - metric: Document access
+      target: Representative documents for a topic or cluster open from the node
+    - metric: Scale
+      target: A 20,000-document similarity network renders and filters interactively
+sources:
+    - title: stm topicCorr reference
+      url: https://search.r-project.org/CRAN/refmans/stm/html/topicCorr.html
+      summary: Simple method with cutoff 0.01 and huge method with graphical-model selection
+    - title: stm plot.topicCorr reference
+      url: https://search.r-project.org/CRAN/refmans/stm/html/plot.topicCorr.html
+      summary: Thin igraph wrapper, Fruchterman-Reingold, Topic # labels
+    - title: stmCorrViz CRAN page
+      url: https://cran.r-project.org/web/packages/stmCorrViz/index.html
+      summary: Archived on 2025-06-17
+    - title: BERTopic visualization guide
+      url: https://maartengr.github.io/BERTopic/getting_started/visualization/visualization.html
+      summary: Intertopic distance map, hierarchy and heat map
+    - title: BERTopic visualize_hierarchy reference
+      url: https://maartengr.github.io/BERTopic/api/plotting/hierarchy.html
+      summary: Ward linkage on 1 - cosine similarity with color threshold
+    - title: Nelson 2020, Computational Grounded Theory
+      url: https://ideas.repec.org/a/sae/somere/v49y2020i1p3-42.html
+      summary: Pattern detection, refinement by close reading, confirmation
+    - title: GDELT, document embeddings to story clusters in Gephi
+      url: https://blog.gdeltproject.org/using-the-gsg-document-embeddings-to-visualize-story-clusters-using-gephi/
+      summary: 19,598 articles, cosine 0.6-0.99, 16,000 edges, OpenOrd, many tiny isolated clusters
+    - title: Welbers network-tools, content similarity network
+      url: https://rdrr.io/github/kasperwelbers/network-tools/f/howto/howto_content_similarity_network.md
+      summary: Document similarity graphs with min.similarity, grouped by period, export to Gephi
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

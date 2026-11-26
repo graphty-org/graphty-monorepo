@@ -1,0 +1,160 @@
+id: W140
+name: Build and Mine a Biomedical Knowledge Graph
+category: analysis
+validated: false
+personas:
+    - biomedical-kg-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - basic-statistics
+    - filtering
+    - search
+    - shortest-path
+    - all-paths-finding
+    - pattern-search
+    - path-highlighting
+    - link-prediction
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - details-on-demand
+    - data-export
+    - export-image
+    - multi-valued-categories
+    - metapath-search
+    - predicted-edge-overlay
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - statistics-panel
+    - filter-panel
+    - search-input
+    - path-finder-dialog
+    - pattern-search-dialog
+    - link-prediction-panel
+    - ranked-node-table
+    - graph-canvas
+    - visual-encoding-panel
+    - legend-panel
+    - node-details-panel
+    - data-export-dialog
+starting_state:
+    data_type: KGX nodes.tsv and edges.tsv with Biolink categories and predicates, or Hetionet / PrimeKG (Neo4j dump, JSON, CSV), plus scored predicted edges
+    node_count: 10000-200000
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Assemble a Biolink-conformant knowledge graph from many sources, then find compounds connected to a
+    disease through mechanistically plausible typed paths, predict new links, and check each top prediction against its
+    supporting paths with a domain expert.
+
+
+    **Mental Model**: "Typed roads between a drug and a disease." A metapath such as compound-binds-gene-associates-
+    disease is a road type; the number and quality of roads of each type is the evidence for a candidate.
+
+
+    **Task Phases**:
+
+    1. **Transform sources to KGX** (hours) - Each source becomes nodes.tsv (id, category, name, provided_by) and
+    edges.tsv (subject, predicate, object, primary_knowledge_source, publications); multi-valued fields use pipes, so a
+    gene's category is biolink:NamedThing|biolink:BiologicalEntity|biolink:Gene. KG-OBO publishes every OBO ontology
+    the same way
+
+    2. **Validate against Biolink** (15 min) - Categories come from the NamedThing hierarchy and predicates from the
+    related_to hierarchy; querying related_to also returns narrower predicates such as positively_regulates
+
+    3. **Merge and count** (30 min) - Merge sources; check counts per category, per predicate and per
+    primary_knowledge_source
+
+    4. **Load an analysis graph** (10 min) - Hetionet (47,031 nodes, 2,250,197 edges) as a Neo4j dump, JSON or edge list;
+    PrimeKG (129,375 nodes, 4,050,249 edges) as CSV or through PyKEEN's loader
+
+    5. **Metapath query** (30 min) - For example (:Compound)-[:BINDS]-(:Gene)-[:ASSOCIATES]-(:Disease) in Cypher, or het.io
+    connectivity search, which ranks metapaths by degree-weighted path count (DWPC) against permuted networks and lists
+    up to 100 paths per metapath
+
+    6. **Predict links** (hours) - Train TransE, RotatE or ComplEx in PyKEEN; report MRR and Hits@k
+
+    7. **Inspect top predictions** (1-2 h) - For each predicted compound-disease edge pull the supporting metapaths and
+    paths and read them with a domain expert; done today with path tables and per-lab viewers
+
+
+    **Decision Points**:
+
+    - Which sources and knowledge-source licenses to include (DrugBank is non-commercial)?
+
+    - Which metapaths are mechanistically meaningful for this disease?
+
+    - Do paths through hub nodes inflate a candidate's score?
+
+    - Which predictions go to the clinician or the bench?
+
+
+    **Information Needs**:
+
+    - Counts by Biolink category, predicate and knowledge source after a merge
+
+    - Category filtering where selecting a parent category selects its descendants
+
+    - Typed-path search between two nodes with path counts per pattern and a cap
+
+    - Predicted edges drawn distinct from observed ones, with supporting paths per prediction
+
+    - Provenance (knowledge source, publications) on each edge of a path
+
+
+    **Pain Points**:
+
+    - Explanations are long path lists that are hard to interpret
+
+    - Each lab builds its own front end for predictions
+
+    - KGX TSV can be sparse and its non-core column order is inconsistent
+
+    - The same disease has different identifiers across graphs
+
+    - Public graphs are frozen (Hetionet unchanged since 2017)
+
+
+    **Data Flow**:
+
+    - Input: Source files, KGX TSV or JSON Lines, Hetionet or PrimeKG, model predictions
+
+    - Transformations: KGX transform and validation, merge, metapath counting, embedding training, prediction scoring
+
+    - Output: A merged KGX graph, a ranked candidate list with supporting paths, figures for a paper
+success_criteria:
+    - metric: Merge check
+      target: Counts per category, predicate and knowledge source visible right after import
+    - metric: Prediction review
+      target: For a top prediction, its supporting typed paths are drawn and highlighted in under 1 minute
+    - metric: Typed search
+      target: User finds all paths matching a metapath between a compound and a disease with a per-pattern count
+sources:
+    - title: KGX format
+      url: https://biolink.github.io/kgx/kgx_format.html
+      summary: nodes.tsv and edges.tsv columns, pipe-delimited multi-valued fields, JSON Lines
+    - title: Biolink Model
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC9372416/
+      summary: Category and predicate hierarchies
+    - title: KG-Hub
+      url: https://arxiv.org/abs/2302.10800
+      summary: Building and merging KGX graphs; KG-OBO
+    - title: Hetionet
+      url: https://github.com/hetio/hetionet
+      summary: Node and edge counts and distribution formats
+    - title: Hetionet connectivity search
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10375517/
+      summary: DWPC ranking against permuted networks; up to 100 paths per metapath
+    - title: PrimeKG
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC9893183
+      summary: Node and edge counts and types
+    - title: PyKEEN PrimeKG dataset
+      url: https://pykeen.readthedocs.io/en/latest/api/pykeen.datasets.PrimeKG.html
+      summary: Loader for embedding-model training
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

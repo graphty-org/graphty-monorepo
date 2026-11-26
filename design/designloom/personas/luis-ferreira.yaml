@@ -1,0 +1,72 @@
+id: luis-ferreira
+name: Luis Ferreira
+role: Tier-2 SOC Analyst / Incident Responder at an MDR Provider
+quote: Show me what launched this process and what it did next, then tell me which other hosts that account logged on to, in order, and with what logon type.
+bio: >-
+    Luis Ferreira is a tier-2 analyst at a managed detection and response provider who rotates into incident response
+    engagements. On shift he works an alert queue in Microsoft Defender XDR, Elastic Security and SentinelOne: open the
+    alert, walk the process tree before and after the trigger, decide true or false, act (isolate a device, quarantine
+    a file) and move to the incident graph when the alert is part of something larger. On engagements he collects
+    Security event logs from domain controllers and key hosts, loads them into LogonTracer or IRFlow Timeline, and builds
+    a host-to-host logon graph colored by logon type to scope lateral movement, confirming each hop with execution
+    evidence and handing the customer a chronological hop table. He writes KQL and SPL, knows Windows event IDs by heart,
+    and has no interest in graph theory beyond "who reached what, when".
+characteristics:
+    expertise: advanced
+    time_pressure: high
+    graph_literacy: intermediate
+    domain_knowledge: advanced
+motivations:
+    - Classify each alert correctly and fast, without missing the one that matters
+    - Scope an incident completely, every account and host the attacker touched
+    - Produce a defensible incident timeline a customer and their lawyers can rely on
+    - Contain quickly by acting from the same screen where the evidence is
+behaviors:
+    - Opens the alert story and walks the process tree, expanding non-alert entities and reading the condensed timeline beside it
+    - Reads event-category markers (file, registry, network) and elapsed time between processes in the Elastic analyzer
+    - Resolves alerts as true (with a determination) or false, and creates suppression rules for line-of-business false positives
+    - Moves to the incident graph to replay alerts over time, filter by severity and source, and view blast radius
+    - Collects Security EVTX (4624, 4625, 4648, 4672, 4768, 4769, 4776) plus Sysmon from domain controllers and key hosts
+    - Colors logon edges by logon type and removes the type 3 logon that precedes each RDP type 10 so sessions are not double-counted
+    - Traces A to B to C chains with first and last seen per hop and jumps to raw events in a five-minute window
+    - Confirms each hop with execution evidence such as Sysmon event 1
+frustrations:
+    - Alert volume; a 2026 practitioner survey reports a median of about 100 alerts a day and 27 percent of organizations receiving 500 or more
+    - A process tree shows what spawned what, but not whether those relationships matter more broadly
+    - Naive logon graphs double-count RDP sessions
+    - Hand-assembling the hop table from three tools at the end of an engagement
+    - Vendor blast-radius paths are possible, not guaranteed, and must be checked by hand
+context:
+    frequency: daily
+    devices:
+        - desktop
+        - laptop
+    voluntary: false
+workflows:
+    - W111
+    - W112
+sources:
+    - title: Microsoft Learn - Investigate alerts in Defender for Endpoint
+      url: https://learn.microsoft.com/en-us/defender-endpoint/investigate-alerts
+      summary: Alert story process tree, condensed timeline, classify true or false, suppression rules
+    - title: Microsoft Learn - Investigate incidents in Defender XDR
+      url: https://learn.microsoft.com/en-us/defender-xdr/investigate-incidents
+      summary: Incident graph replay over time, severity and source filters, Go hunt, blast radius up to seven hops
+    - title: Elastic Security - Visual event analyzer
+      url: https://www.elastic.co/guide/en/security/current/visual-event-analyzer.html
+      summary: Process graph with event-category pills, elapsed time between processes, alerts oldest to newest
+    - title: JPCERT/CC - LogonTracer
+      url: https://blogs.jpcert.or.jp/en/2017/11/visualise-event-logs-to-identify-compromised-accounts---logontracer-.html
+      summary: Event logs into Neo4j as account-host logon graph, PageRank ranking, ChangeFinder bursts
+    - title: IRFlow Timeline - Lateral movement
+      url: https://r3nzsec.github.io/irflow-timeline/features/lateral-movement
+      summary: Source to target logon edges with counts, first and last seen, users and logon type colors
+    - title: IRFlow Timeline - Lateral movement tracing tips
+      url: https://r3nzsec.github.io/irflow-timeline/dfir-tips/lateral-movement-tracing
+      summary: Type 3 logon before RDP type 10, confirming hops with execution evidence
+    - title: NHI Mgmt Group - SOC and alert statistics guide
+      url: https://www.nhimg.org/soc-and-alert-statistics-guide
+      summary: Survey of 250 practitioners on alerts per day
+    - title: Symantec - Threat tracer investigation capabilities
+      url: https://www.security.com/product-insights/threat-tracer-investigations-capabilities-you-need
+      summary: Vendor view that a process tree alone does not show whether relationships matter

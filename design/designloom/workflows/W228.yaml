@@ -1,0 +1,110 @@
+id: W228
+name: Venture Co-Investment Network
+category: exploration
+validated: false
+personas:
+    - economic-network-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - node-merging
+    - computed-attributes
+    - degree-analysis
+    - filtering
+    - layout-force-directed
+    - ego-network
+    - centrality-degree
+    - visual-encoding-nodes
+    - details-on-demand
+    - export-image
+    - bipartite-projection
+    - linked-views-selection
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - node-merge-dialog
+    - computed-attributes-panel
+    - filter-panel
+    - range-slider
+    - graph-canvas
+    - layout-panel
+    - ego-network-dialog
+    - ranked-node-table
+    - node-details-panel
+    - image-export-dialog
+starting_state:
+    data_type: investor-to-company funding rounds from Crunchbase or PitchBook
+    node_count: 500-20000
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: See who co-invests with whom, which investors sit at the center of deal flow, and how co-investment
+    relates to success.
+
+
+    **Mental Model**: "Two investors are linked if they wrote checks in the same round." The network is a projection
+    of investor-company rounds.
+
+
+    **Task Phases**:
+
+    1. **Pull and clean** - Funding rounds (incomplete and self-selecting data); merge duplicate firms by hand
+
+    2. **Project** - Link investors that invested in the same company, in the same round, on the same date, weighted by
+    count
+
+    3. **Filter, lay out, rank** - Drop investors with fewer than five investments; force-directed layout; plot success
+    rate against investment count
+
+
+    **Decision Points**:
+
+    - What counts as co-investment (same round, same company, any time)?
+
+    - What minimum activity keeps an investor in view?
+
+
+    **Information Needs**:
+
+    - Co-investment count per pair
+
+    - An investor's ego network
+
+    - Success rate alongside centrality
+
+
+    **Pain Points**:
+
+    - Drawn edges are more or less decorative in dense co-investment maps
+
+    - Projections lose the multi-layered structure of rounds
+
+    - Duplicate firm names
+
+
+    **Data Flow**:
+
+    - Input: Round-level investor-company records
+
+    - Transformations: Duplicate merge, bipartite projection with a matching rule, degree filter, layout, ranking
+
+    - Output: Co-investment map, ranked investor table, ego networks
+success_criteria:
+    - metric: Projection transparency
+      target: Matching rule and weight stated on the result
+    - metric: Readability
+      target: Filtered network readable without decorative hairball
+sources:
+    - title: Venture co-investment map (reactionwheel.net)
+      url: https://reactionwheel.net/2010/11/venture-coinvestment-map.html
+      summary: Crunchbase rounds, same-round matching, drawn edges more or less decorative
+    - title: Evaluating investor performance using Neo4j, GraphXR and ML
+      url: https://neo4j.com/blog/evaluating-investor-performance-using-neo4j-graphxr-and-ml/
+      summary: Investor graph built in Neo4j and explored in GraphXR
+    - title: Carniel et al. 2023, venture network analysis
+      url: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC9815571/
+      summary: Projections cannot capture multi-layered interactions
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

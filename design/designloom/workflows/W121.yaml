@@ -1,0 +1,150 @@
+id: W121
+name: Allocating Traced Funds Under a Tracing Rule
+category: analysis
+validated: false
+personas:
+    - forensic-accountant
+    - crypto-blockchain-investigator
+requires_capabilities:
+    - data-import
+    - node-selection
+    - temporal-navigation
+    - computed-attributes
+    - visual-encoding-edges
+    - layout-hierarchical
+    - legend-display
+    - details-on-demand
+    - comparison-view
+    - analysis-history
+    - annotation
+    - export-image
+    - data-export
+    - report-generation
+    - provenance-tracking
+    - flow-allocation-tracing
+    - flow-of-funds-diagram
+suggested_components:
+    - data-import-dialog
+    - graph-canvas
+    - select
+    - temporal-controls
+    - computed-attributes-panel
+    - visual-encoding-panel
+    - layout-panel
+    - legend-panel
+    - data-table-panel
+    - node-details-panel
+    - comparison-view
+    - analysis-history-panel
+    - annotation-toolbar
+    - image-export-dialog
+    - data-export-dialog
+    - report-generator-dialog
+starting_state:
+    data_type: reconciled transaction table across all accounts in the matter, with running balances or opening balances, plus a seed deposit or target account
+    node_count: 5-200 accounts or addresses
+    edge_density: sparse, directed, many parallel transactions
+    user_expertise: expert
+goal: >-
+    **Intent**: Answer how much of a specific deposit reached a specific account or asset, or where the money in an
+    account came from, under a legal tracing rule the court or engagement accepts. Restitution, forfeiture and asset
+    recovery depend on the number. Paths and sums (W120) are not enough when money is commingled: the answer depends on
+    balances and order in time.
+
+
+    **Mental Model**: "Tracing is an accounting convention, not a discovery." The accepted methods are the lowest
+    intermediate balance rule (LIBR), pro rata, first in first out (FIFO) and last in first out; for crypto, poison,
+    haircut and FIFO. Under LIBR the account holder is presumed to spend its own money first, and the traced claim is
+    capped at the lowest balance after the deposit; later deposits do not restore it. Different rules give very different
+    answers (on one Bitcoin theft haircut tainted 93 percent of addresses and FIFO 1.3 percent).
+
+
+    **Task Phases**:
+
+    1. **Fix the seed and the question** (10 min) - Forward from a victim's deposit, or backward from an account or asset
+
+    2. **Choose the rule** (5 min) - The one the jurisdiction or engagement accepts; often a second for sensitivity
+
+    3. **Walk accounts in time order** (the core step) - Keep a running balance and the traced portion at every
+    transaction; record a balance checkpoint wherever the traced amount is capped
+
+    4. **Split onward payments** - Divide each outgoing payment into traced and untraced parts under the rule and carry
+    the traced part into the next account
+
+    5. **Summarize as flow of funds** (20 min) - A Sankey or flow-of-funds diagram sized by traced amount, each band
+    drillable to its transactions
+
+    6. **Compare rules** (10 min) - Show the traced amount per destination under each rule side by side
+
+    7. **Export the allocation table** (15 min) - Each step, rule, balance, traced amount and source document page, for
+    the exhibit
+
+
+    **Decision Points**:
+
+    - Forward or backward trace?
+
+    - Which rule, and is a second rule needed to show sensitivity?
+
+    - How are transfers between the subject's own accounts treated?
+
+    - Where does the trace stop (cash withdrawal, asset purchase, an account with no records)?
+
+
+    **Information Needs**:
+
+    - Running balance and traced balance per account at each transaction
+
+    - Balance checkpoints where the traced amount was capped
+
+    - Traced amount reaching each destination, per rule
+
+    - The source document and page for every transaction used
+
+
+    **Pain Points**:
+
+    - Flow-of-funds tools draw Sankeys but do not document LIBR or FIFO
+
+    - Crypto vendors do not document their allocation rule publicly
+
+    - The rule is applied by hand in spreadsheets and is hard to reproduce under cross-examination
+
+    - Charts show that money moved, not how much of a deposit arrived
+
+
+    **Data Flow**:
+
+    - Input: Reconciled transaction table with account, date, amount, direction, opening balance and source page; seed
+    transaction or target account; chosen rule
+
+    - Transformations: Time-ordered balance walk, rule-based split of each payment, checkpoints, per-destination totals,
+    rule comparison
+
+    - Output: Flow-of-funds diagram, allocation table, per-rule comparison, exhibit report
+success_criteria:
+    - metric: Reproducible allocation
+      target: Rerunning the same seed and rule on the same data gives identical traced amounts at every step
+    - metric: Rule sensitivity
+      target: User can see the traced amount at each destination under two rules side by side
+    - metric: Exhibit tie-out
+      target: Every traced amount in the export names its transaction and source page
+sources:
+    - title: A taxonomy of tracing rules - one size does not fit all (ABI Journal 2018, via Cozen O'Connor)
+      url: https://cozen.com/news-resources/publications/2018/a-taxonomy-of-tracing-rules-one-size-does-not-fit-all
+      summary: Tracing as an equitable substitute; LIBR, pro rata, FIFO and LIFO
+    - title: Fifth Circuit unpublished opinion on the lowest intermediate balance rule
+      url: https://www.ca5.uscourts.gov/Opinions/unpub/00/00-50358.0.wpd.pdf
+      summary: Claim capped at the lowest intermediate balance; later deposits do not restore it (read through search summary)
+    - title: Anderson et al. - Bitcoin Redux (WEIS 2018)
+      url: https://www.cl.cam.ac.uk/~rja14/Papers/bitcoin-redux-weis2018.pdf
+      summary: Poison, haircut and FIFO taint; haircut tainted 93 percent and FIFO 1.3 percent of addresses on the Linode theft
+    - title: DocuClipper - Flow of funds analysis
+      url: https://www.docuclipper.com/docs/flow-of-funds-analysis/
+      summary: Sankey with pinned links listing transactions and workbook export; no tracing rule documented
+    - title: LawNext - Valid8 follow-the-money software
+      url: https://www.lawnext.com/2023/01/this-new-category-of-legal-software-lets-you-follow-the-money-through-financial-evidence-data.html
+      summary: Sankey diagrams with relative size accuracy and export of underlying transactions
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

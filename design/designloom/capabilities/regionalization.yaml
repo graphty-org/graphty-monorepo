@@ -1,0 +1,14 @@
+id: regionalization
+name: Regionalization from flows
+category: analysis
+description: Community detection on directed weighted flows that handles self-loops and can require contiguous regions,
+    with self-containment statistics per region and a place-to-region lookup export.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W384
+    - W387
+implemented_by_components: []
+requirements: []
+sources: []

@@ -1,0 +1,15 @@
+id: ownership-propagation
+name: Ownership percentage propagation
+category: analysis
+description: "Compute indirect ownership over a weighted ownership hierarchy under two documented rules: effective
+    ownership (product along paths, sum across paths, interval arithmetic for bands, configurable threshold) and
+    sanctions ownership (aggregate blocked owners, propagate full stakes through blocked intermediaries at 50 percent or
+    more, with a 'more than 50 percent' option), handling cycles; each flag names the rule that produced it."
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W123
+implemented_by_components: []
+requirements: []
+sources: []

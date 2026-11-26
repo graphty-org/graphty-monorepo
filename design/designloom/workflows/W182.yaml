@@ -1,0 +1,117 @@
+id: W182
+name: From a Wikidata or Linked-Data Query to a Network
+category: exploration
+validated: false
+personas:
+    - prosopography-archivist
+    - literary-network-scholar
+requires_capabilities:
+    - data-import
+    - data-preview
+    - data-validation
+    - node-merging
+    - layout-force-directed
+    - visual-encoding-nodes
+    - details-on-demand
+    - search
+    - data-export
+    - query-result-import
+    - in-place-data-editing
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - attribute-table-join-dialog
+    - graph-canvas
+    - search-input
+    - node-details-panel
+    - data-export-dialog
+starting_state:
+    data_type: SPARQL result table (CSV) with Q-id and label columns per subject, property and object
+    node_count: 50-5,000
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Pull relationships such as "student of", "influenced by" or "spouse" for a set of people out of
+    Wikidata (or FactGrid or another SPARQL endpoint), turn the result table into a network, and re-run the query later
+    without losing styling and notes. Programming Historian published a Wikidata lesson for historians in 2026.
+
+
+    **Mental Model**: "The query is the dataset." The network is a snapshot of a living database, so node ids must be
+    the Q-ids that make a later re-run mergeable.
+
+
+    **Task Phases**:
+
+    1. **Find properties** (15 min) - Q-ids for items and P-ids for properties (P1066 student of, P737 influenced by,
+    P26 spouse)
+
+    2. **Query** (30 min) - Query Builder for single-subject conditions, then SPARQL in the Query Service adapting
+    example queries; chatbot-written queries need checking
+
+    3. **Export** (2 min) - CSV with one row per subject-property-object, Q-id columns and Label columns
+
+    4. **Map columns** (10 min) - Subject Q-id to source, object Q-id to target, labels to names, property to edge
+    type; often done by script
+
+    5. **Visualize** (10 min) - Palladio or Gephi
+
+    6. **Re-run and merge** (later) - Wikidata changes; keep Q-ids as node ids so styles and notes survive
+
+
+    **Decision Points**:
+
+    - Which properties define ties, and should they be one typed graph or several graphs?
+
+    - Keep or drop items without labels in the working language?
+
+    - Merge a re-run into the existing graph or replace it?
+
+
+    **Information Needs**:
+
+    - Which columns are ids and which are labels
+
+    - Rows whose source or target id is missing a label
+
+    - What changed between two runs (added and removed ties)
+
+
+    **Pain Points**:
+
+    - SPARQL is unforgiving of typos
+
+    - The query service has no network view; the CSV must be reshaped by hand or script
+
+    - A re-run means rebuilding the graph and its styling
+
+
+    **Data Flow**:
+
+    - Input: SPARQL result CSV (or endpoint query)
+
+    - Transformations: Column mapping to source, target and edge type; label assignment; merge by Q-id on re-run
+
+    - Output: Typed network with authority ids, exported CSV or GEXF
+success_criteria:
+    - metric: Time from result CSV to network
+      target: Under 10 minutes without a script
+    - metric: Stable ids
+      target: Re-importing an updated result keeps styles and notes on existing Q-ids
+sources:
+    - title: Programming Historian - Wikidata for Historical Research
+      url: https://programminghistorian.org/en/lessons/wikidata-for-historical-research
+      summary: Query Builder, SPARQL, unforgiving of typos, CSV export
+    - title: Ohio State - Wikidata query to CSV guide
+      url: https://www.asc.ohio-state.edu/lewis.239/public/project/mydh-xr/docs/wikiData.pdf
+      summary: Exporting Wikidata results as CSV for visualization
+    - title: Facepager wiki - Getting started with Wikidata (writers network)
+      url: https://github-wiki-see.page/m/strohne/Facepager/wiki/Getting-Started-with-Wikidata-(writers-network)
+      summary: Wikidata to node and edge lists by R script, then Gephi
+    - title: Bodleian worksheet - Wikidata to Palladio
+      url: https://bodreader.web.ox.ac.uk/sites/default/files/bodreader/documents/media/session-six-worksheet.pdf
+      summary: Library workshop from a Wikidata query to Palladio
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

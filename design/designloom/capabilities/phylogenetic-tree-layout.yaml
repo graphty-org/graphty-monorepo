@@ -1,0 +1,16 @@
+id: phylogenetic-tree-layout
+name: Phylogenetic Tree Layout
+category: visualization
+description: Rectangular phylogram and cladogram, slanted, circular, fan and unrooted (equal-angle, daylight) layouts
+    with branch lengths, aligned tip labels, ladderizing, a scale bar and a time axis with HPD bars.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W393
+    - W394
+    - W395
+    - W401
+implemented_by_components: []
+requirements: []
+sources: []

@@ -1,0 +1,98 @@
+id: W400
+name: Phylogenetic Network with Hybrid Edges
+category: analysis
+validated: false
+personas:
+    - phylogenomics-comparative-biologist
+    - population-genomics-snp-analyst
+requires_capabilities:
+    - data-import
+    - layout-hierarchical
+    - visual-encoding-edges
+    - visual-encoding-nodes
+    - legend-display
+    - comparison-view
+    - export-image
+    - tree-import-and-axes
+    - tree-editing-operations
+    - time-fixed-dag-layout
+suggested_components:
+    - data-import-dialog
+    - graph-canvas
+    - legend-panel
+    - comparison-view
+    - image-export-dialog
+starting_state:
+    data_type: extended Newick networks with gamma on hybrid edges (SNaQ output), from gene trees and quartet concordance factors
+    node_count: 10-50 taxa
+    edge_density: tree plus 1-3 reticulations
+    user_expertise: expert
+goal: >-
+    **Intent**: Draw a rooted phylogenetic network in which a few lineages arose by hybridization, showing what share of
+    genes each hybrid inherited from each parent.
+
+
+    **Mental Model**: "A species tree with a few borrowed branches." Major hybrid edges carry most inheritance; minor
+    ones the rest; gamma states the split.
+
+
+    **Task Phases**:
+
+    1. **Estimate** (hours to days) - Gene trees, quartet concordance factors, SNaQ for h = 0, 1, 2 ... reticulations;
+    output extended Newick with gamma
+
+    2. **Plot** (10 min) - plot(net, showgamma=true) prints gamma under each hybrid edge; showedgenumber=true to pick a
+    root edge; major and minor hybrid edges in separate colors, minor ones as arrows; :majortree or :fulltree styles
+
+    3. **Reroot** (5 min) - Reroot on a chosen edge consistent with the hybrid directions
+
+    4. **Compare** (15 min) - Hardwired-cluster distance between networks; write for Dendroscope (di=true) which loses
+    gamma
+
+
+    **Decision Points**:
+
+    - How many reticulations does the data support?
+
+    - Where can the network be rooted consistently?
+
+    - Show the major tree only or the full network?
+
+
+    **Information Needs**:
+
+    - Gamma on each hybrid edge
+
+    - Which hybrid edge is major and which minor
+
+    - Score improvement for each added reticulation
+
+    - Differences between candidate networks
+
+
+    **Pain Points**:
+
+    - Julia-only, static plots
+
+    - Exporting to Dendroscope loses gamma
+
+
+    **Data Flow**:
+
+    - Input: Extended Newick with gamma
+
+    - Transformations: Rooting, major-tree extraction, network distance
+
+    - Output: Network figure with gamma labels
+success_criteria:
+    - metric: Gamma preserved
+      target: Gamma values survive import, rerooting and export
+    - metric: Hybrid edge distinction
+      target: Major and minor hybrid edges are visually distinct with a legend
+sources:
+    - title: PhyloNetworks plotting manual
+      url: https://juliaphylo.github.io/PhyloNetworks.jl/dev/man/net_plot
+      summary: showgamma, showedgenumber, major and minor hybrid edge styles, :majortree and :fulltree, Dendroscope export loses gamma
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

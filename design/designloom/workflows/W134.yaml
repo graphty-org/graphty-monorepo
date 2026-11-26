@@ -1,0 +1,142 @@
+id: W134
+name: Review Ontology Structure and the Inferred Hierarchy
+category: exploration
+validated: false
+personas:
+    - knowledge-engineer
+requires_capabilities:
+    - data-import
+    - layout-hierarchical
+    - layout-radial
+    - search
+    - neighborhood-expansion
+    - filtering
+    - visual-encoding-nodes
+    - details-on-demand
+    - comparison-view
+    - basic-statistics
+    - export-image
+    - graph-diff
+    - rdf-import
+    - polyhierarchy-view
+suggested_components:
+    - data-import-dialog
+    - layout-panel
+    - graph-canvas
+    - search-input
+    - filter-panel
+    - visual-encoding-panel
+    - node-details-panel
+    - comparison-view
+    - statistics-panel
+    - image-export-dialog
+starting_state:
+    data_type: OWL ontology (Turtle, OWL Functional, RDF/XML or OBO) with optional instance data in a triple store
+    node_count: 100-400000
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Check that the class hierarchy, especially the reasoner's inferred hierarchy, is correct, find
+    unsatisfiable classes, see how the ontology is actually used by instance data, and produce diagrams for
+    stakeholders.
+
+
+    **Mental Model**: "Asserted vs inferred family tree." The ontologist wrote some parent links by hand; the reasoner
+    adds others. A class in the wrong place or under owl:Nothing is a modeling bug.
+
+
+    **Task Phases**:
+
+    1. **Open** (2 min) - Load the ontology in Protege; the Active Ontology tab shows class, property and axiom counts
+
+    2. **Classify** (1-10 min) - Reasoner > HermiT > Start (Ctrl+R); switch the class tree from Asserted to Inferred;
+    unsatisfiable classes appear under owl:Nothing. The indented text tree is the main working view (an empirical test
+    found it beat the graphical views for locating entities)
+
+    3. **Graph view** (10 min) - OWLViz (asserted vs inferred is-a graph) or OntoGraf (expandable, relationship filters);
+    both struggle with large ontologies
+
+    4. **Stakeholder view** (15 min) - WebVOWL: classes as circles sized by instance count, datatypes as rectangles, some
+    elements drawn several times to simplify layout; small and medium TBoxes only
+
+    5. **Against real data** (15 min) - GraphDB Explore > Class hierarchy (nested circles by instance count, named-graph
+    filter, SVG export) and Class relationships (bundles of instance links between classes, width by count; slow on
+    large repositories)
+
+    6. **Decide** (varies) - Rename or move classes, add domain and range axioms, split modules; commit and export
+    diagrams
+
+
+    **Decision Points**:
+
+    - Is each inferred parent intended, or a sign of a wrong axiom?
+
+    - Which unsatisfiable class is the root cause of others?
+
+    - Which part of the ontology fits a node-link view (DBpedia 768 classes and schema.org 823 types do; FIBO about
+    1,750 classes and SNOMED CT 374,672 concepts do not)?
+
+    - Which classes are unused by data and candidates for removal?
+
+
+    **Information Needs**:
+
+    - The class hierarchy with multiple parents drawn once, asserted and inferred edges distinguishable
+
+    - Unsatisfiable classes and their subclasses
+
+    - Instance counts per class and link counts between classes
+
+    - Labels by language preference with IRIs shortened by prefix
+
+
+    **Pain Points**:
+
+    - OWLViz cannot display large ontologies whole; OntoGraf has no image export
+
+    - WebVOWL duplicates nodes and overlaps labels past a few hundred classes
+
+    - Graph views lose to the indented tree for finding a class, so they are used only for shape checks
+
+    - GraphDB class relationships view is slow on large repositories
+
+
+    **Data Flow**:
+
+    - Input: Ontology file, reasoner output, optional instance data
+
+    - Transformations: Classification, hierarchy layout, instance and link counting
+
+    - Output: Modeling changes committed to the ontology repository, exported diagrams
+success_criteria:
+    - metric: Inferred-hierarchy check
+      target: User sees asserted and inferred parent links distinguished, with multiple parents shown once
+    - metric: Scale
+      target: A 2,000-class module is navigable by collapsing and expanding subtrees
+    - metric: Stakeholder diagram
+      target: A readable SVG of a chosen module is exported without hand editing
+sources:
+    - title: Protege getting started
+      url: https://protegeproject.github.io/protege/getting-started
+      summary: Active Ontology counts, reasoner, asserted and inferred class trees
+    - title: GraphDB 10.8 - Visualize and explore
+      url: https://graphdb.ontotext.com/documentation/10.8/visualize-and-explore.html
+      summary: Class hierarchy and class relationships views over loaded data
+    - title: VOWL - Visual Notation for OWL Ontologies
+      url: https://journals.sagepub.com/doi/full/10.3233/SW-150200
+      summary: WebVOWL notation and its limits on larger TBoxes
+    - title: Comparing ontology visualizations in Protege (UBC course project)
+      url: https://www.cs.ubc.ca/~tmm/courses/547-14/projects/arash/report.pdf
+      summary: Indented list beat graphical views for locating entities
+    - title: Ontology visualization tool failures
+      url: https://arxiv.org/html/2507.13759v1
+      summary: OWLViz and OntoGraf limits on large ontologies
+    - title: DBpedia ontology
+      url: https://www.dbpedia.org/resources/ontology/
+      summary: 768 classes
+    - title: SNOMED CT release statistics
+      url: https://conf.spaces.snomed.org/wiki/spaces/RMT/pages/131992659
+      summary: 374,672 active concepts
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

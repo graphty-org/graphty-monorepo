@@ -1,0 +1,65 @@
+id: desktop-3d-graph-investigator
+name: Desktop 3D Graph Investigator
+role: Internet-Investigation or Fraud Analyst
+quote: I don't need a headset. I need the ring of accounts on a map and a timeline, in 3D on my monitor, in time for the briefing.
+bio: >-
+    Daan Verbeek is an internet-investigation analyst in a police intelligence unit; his counterpart in a bank's fraud
+    team works the same way. He is not a programmer and learned 2D link analysis first, then trained on Kineviz GraphXR
+    through a specialist anticrime academy. He uses GraphXR in a browser or as a Neo4j Desktop graph app on an ordinary
+    monitor. His data are entities (people, accounts, phones, addresses, posts) and relations from CSV exports or a
+    Neo4j database, sometimes fed by OCR and entity extraction. He drags a CSV in, extracts new node types from columns,
+    runs a 3D force layout, then switches to parametric views that put a property on an axis, a map and a timeline. He
+    presents the result to a supervisor or prosecutor. Evidence for this persona is vendor-published: a multinational
+    law-enforcement agency's approved case study, a training academy serving police, banks and insurers, and a Europol
+    and CEPOL conference talk; no independent self-report was found.
+characteristics:
+    expertise: intermediate
+    time_pressure: high
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Find a fraud ring or a network of accounts quickly in a large export
+    - Place the network on a map and a timeline to show where and when
+    - Present a clear picture to a supervisor or a prosecutor
+    - Work without writing queries or code
+behaviors:
+    - Connects to Neo4j or drags a CSV into a workspace where each row becomes a node
+    - Extracts new nodes (phones, addresses) from an existing label's properties, only for the selection when one exists
+    - Sets colors and property tags per entity type
+    - Runs a 3D force layout, then maps a property to an axis, bins nodes along an axis or sorts them on a line
+    - Uses geospatial and timeline filtering as the main analytic views
+    - Reads an enhanced property table with aggregations of neighbor values and images on nodes
+frustrations:
+    - Schema-loading problems in the user interface reported by a user
+    - Export and case-file steps are not documented
+    - 3D views are hard to print and some colleagues find them disorienting
+    - No independent evidence he can cite that 3D helped
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W417
+    - W419
+    - W420
+sources:
+    - title: 5-minute interview with Sony Green (Kineviz)
+      url: https://neo4j.com/blog/graph-visualization/5-minute-interview-with-sony-green/
+      summary: Training academy working with law enforcement, banks and insurers looking for fraud rings; NIAID portal built on GraphXR
+    - title: GraphXR graph app for Neo4j Desktop
+      url: https://neo4j.com/blog/graph-visualization/graphxr-graph-app-neo4j-desktop/
+      summary: Vendor says most GraphXR users work in traditional 2D computing environments; link analysis, geospatial, timeline, images
+    - title: Kineviz - Visualization-first analytics (EUCrimACon22 deck)
+      url: https://www.slideshare.net/Kineviz/visualizationfirst-analytics-252312625
+      summary: Fusion-center pipeline with OCR and entity extraction; fraud analyst testimonial
+    - title: Visualizing Breast Cancer - a user's Neo4j plus GraphXR workflow
+      url: https://www.github.com/Bleunomics/Visualizing-Breast-Cancer
+      summary: Step-by-step user tutorial reporting schema-loading UI problems
+    - title: GraphXR API reference
+      url: https://cdn.jsdelivr.net/npm/@kineviz/graphxr-api@0.0.256/readme.md
+      summary: parametric, distributionBy and line layouts mapping properties to axes
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

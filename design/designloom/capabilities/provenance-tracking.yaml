@@ -1,0 +1,95 @@
+id: provenance-tracking
+name: Per-Item Provenance and Verification Status
+category: analysis
+description: Every node, edge and property value carries its source (document or dataset, URL, capture date and hash,
+    first and last seen or cited, who added it), a verification status (accepted, conflict, work needed) and a
+    confidence rating; visible in details, usable in filters and styling, and kept in every export.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W09
+    - W102
+    - W103
+    - W107
+    - W118
+    - W121
+    - W123
+    - W125
+    - W126
+    - W132
+    - W133
+    - W141
+    - W174
+    - W179
+    - W180
+    - W181
+    - W209
+    - W210
+    - W211
+    - W213
+    - W217
+    - W230
+    - W293
+    - W301
+    - W314
+    - W315
+    - W318
+    - W321
+    - W364
+    - W366
+    - W367
+    - W403
+    - W404
+    - W405
+    - W406
+    - W407
+    - W408
+    - W409
+    - W410
+    - W430
+    - W432
+    - W437
+    - W438
+    - W441
+    - W446
+    - W447
+    - W88
+    - W89
+    - W90
+    - W92
+    - W93
+    - W95
+    - W96
+    - W97
+implemented_by_components: []
+requirements:
+    - Every node and edge traces to the source records behind it (file and row, extraction artifact, message), which can
+      be opened from the element and exported as a list.
+    - Carry and display the source of every node and edge (institution, filing or report, information-sharing response,
+      statement file and page, vendor label set) and filter or style by source, so every exported number can be tied
+      back to its origin.
+    - From a node or edge, reach the source chunks, documents, episodes or knowledge sources it came from, and back from
+      a source to the elements it produced; highlight the subgraph a given id list (such as a RAG answer's context)
+      used.
+    - Keep a citation, page or scene id, and evidence excerpt on every node and edge, show them on click, and carry them
+      through import and export to the figure.
+    - Every node and edge keeps or links its source records (post text, URL, timestamp, criterion that created a
+      projected edge), opened from a click on the canvas.
+    - Attach source, confidence and documents (record type, number, date, quantity, file reference) to edges and nodes;
+      show unknown links as unknown rather than absent; list edges with no evidence.
+    - Keep a reference to the source record or document on every node and edge created by import or extraction, so any
+      link can be traced back to its row or document.
+    - Attach record ids, exhibit or Bates numbers or URLs to nodes and edges and carry them through export as footnotes
+      or a linked source table; an evidence-only mode that hides unconfirmed links and non-evidence attributes and a
+      neutral-emphasis check.
+    - Each edge records which source (custodian copy or production) produced it; observed versus partly observed nodes
+      usable as a filter and as a caution on centrality.
+    - Every node and edge keeps the ids of the passages, segments or concordance lines behind it; clicking or hovering
+      shows them, sampled and fast when an edge rests on thousands.
+    - Every node and edge records its source database, version, access date and evidence class (curated, predicted with
+      native score, text-mined, measured, absorbed, metabolite); stylable and excludable by class to show what survives.
+    - Every node and edge carries its source, database version, access date and evidence class (curated, predicted with
+      its native score, text-mined, measured). The evidence class can be styled, for example dashed edges for
+      predictions, and a whole class can be excluded to see what survives.
+sources: []

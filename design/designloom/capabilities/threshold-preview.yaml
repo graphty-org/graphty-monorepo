@@ -1,0 +1,16 @@
+id: threshold-preview
+name: Threshold step with live item counts
+category: visualization
+description: Show how many items meet each minimum (occurrences, citations, links) as the threshold changes, with an
+    item table to untick items before the network is built, and draw only the N strongest links with a stated count of
+    hidden links.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W50
+    - W51
+    - W59
+implemented_by_components: []
+requirements: []
+sources: []

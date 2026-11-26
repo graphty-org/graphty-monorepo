@@ -1,0 +1,13 @@
+id: layout-circular-chord
+name: Circle and chord layouts
+category: visualization
+description: Circle and chord layouts for small dense directed weighted graphs, with self-loops drawn and edge widths on
+    a shared scale across panels.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W248
+implemented_by_components: []
+requirements: []
+sources: []

@@ -1,0 +1,134 @@
+id: W276
+name: Debug a Converted or Quantized Model's Computation Graph (Adjacent, Out of Scope)
+category: analysis
+validated: false
+personas:
+    - model-graph-and-interpretability-users
+requires_capabilities:
+    - data-import
+    - layout-hierarchical
+    - neighborhood-expansion
+    - search
+    - pattern-search
+    - comparison-view
+    - visual-encoding-nodes
+    - legend-display
+    - details-on-demand
+    - view-bookmarks
+    - export-image
+    - group-collapse
+    - graph-diff
+suggested_components:
+    - data-import-dialog
+    - graph-canvas
+    - cluster-collapse-control
+    - search-panel
+    - search-result-item
+    - comparison-view
+    - visual-encoding-panel
+    - gradient-editor
+    - legend-panel
+    - node-details-panel
+    - bookmark-panel
+    - image-export-dialog
+starting_state:
+    data_type: computation graphs of an original and a converted or quantized model (operators as nodes, tensors as edges) with per-operator numbers
+    node_count: 2000-50000 operators, viewed a few layers at a time
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Scope**: Recorded for completeness; out of scope for Graphty because the graph exists only through a parser per
+    model format and the value lies in model-specific data. The needs that carry over (nested groups laid out on open,
+    regex search, numeric overlays summarized on collapsed groups, two-graph diff through a node mapping) are shared
+    with in-scope users.
+
+
+    **Intent**: Find where a converted or quantized model diverges from the original, by comparing the two computation
+    graphs and overlaying per-operator error.
+
+
+    **Mental Model**: "Zoom into the layer that broke." The model is a hierarchy of layers; only the layer under suspicion
+    is expanded, and a color overlay of numeric error points to where to look.
+
+
+    **Task Phases**:
+
+    1. **Open both models** (3 min) - `model-explorer` starts a local server, or `model_explorer.visualize(path)` in
+    Colab; PyTorch goes through torch.export; select original and converted models
+
+    2. **Orient** (5 min) - Only top-level layers show; double-click expands one; expand-all can be slow; layers with
+    more than 1,000 children are split into sections
+
+    3. **Find an operator** (2 min) - Regex search over label, attributes (shape=.*x3), inputs or outputs; results
+    grouped by hierarchy; click locates the node
+
+    4. **Compare** (10 min) - Split pane with synchronized navigation, matched by node id or an uploaded mapping;
+    deleted and new nodes highlighted red and green; compare shapes and data types
+
+    5. **Overlay numbers** (10 min) - Upload per-node JSON (for example per-operator mean squared error between quantized
+    and float model) with color thresholds; layer nodes show a summary bar of their operators
+
+    6. **Save and share** (2 min) - Bookmarked view states, permalinks, PNG export
+
+
+    **Decision Points**:
+
+    - Which layer to expand next?
+
+    - Is a divergence a renamed operator or a real numerical change?
+
+    - Change the quantization method for the affected region?
+
+
+    **Information Needs**:
+
+    - Layer hierarchy with lazy expansion
+
+    - Operator attributes (shape, data type, quantization parameters)
+
+    - Node mapping between two graphs, with added and removed marks
+
+    - Per-node numeric overlay summarized on collapsed layers
+
+
+    **Pain Points**:
+
+    - Netron's layout chokes above about 5,000 nodes; the maintainer closed the expand-and-explore request as not planned
+
+    - SVG renderers are not designed for large numbers of objects
+
+    - An adapter is needed per framework
+
+
+    **Data Flow**:
+
+    - Input: Two model files, a node mapping, per-node numeric JSON
+
+    - Transformations: Hierarchy extraction, lazy layout, matching, numeric coloring
+
+    - Output: A quantization or conversion change; screenshots and bookmarks
+success_criteria:
+    - metric: Not a Graphty target
+      target: Carry-over needs are tracked under in-scope workflows
+sources:
+    - title: Model Explorer user guide
+      url: https://github.com/google-ai-edge/model-explorer/wiki/2.-User-Guide
+      summary: Expansion, regex search, split-pane comparison, node data overlays, bookmarks
+    - title: Model Explorer (Google Research blog)
+      url: https://research.google/blog/model-explorer/
+      summary: MobileBERT about 2,000 nodes; lazy layer layout; WebGL rendering; 50,000-node demo (vendor claim)
+    - title: Model Explorer for edge devices (Google Developers blog)
+      url: https://developers.googleblog.com/model-explorer-simplifying-ml-models-for-edge-devices/
+      summary: Per-node error overlay locating a quantization problem
+    - title: Talaria
+      url: https://arxiv.org/html/2404.03085
+      summary: Operators colored by profiled latency beside a linked table; interviewees split between graph-first and table-first
+    - title: TensorBoard graphs guide
+      url: https://www.tensorflow.org/tensorboard/graphs
+      summary: Op-level graph drawn bottom to top, name scopes expanded by double-click, profiler overlays
+    - title: Netron issue 68
+      url: https://www.github.com/lutzroeder/netron/issues/68
+      summary: Layout chokes above 5,000 nodes; closed as not planned
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

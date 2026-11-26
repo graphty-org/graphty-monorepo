@@ -1,0 +1,172 @@
+id: W143
+name: Search, Expand and Investigate with Supernode Safeguards
+category: exploration
+validated: false
+personas:
+    - no-code-graph-investigator
+    - investigative-journalist
+requires_capabilities:
+    - search
+    - neighborhood-expansion
+    - degree-analysis
+    - node-selection
+    - details-on-demand
+    - shortest-path
+    - all-paths-finding
+    - pattern-search
+    - filtering
+    - temporal-navigation
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - annotation
+    - view-bookmarks
+    - data-export
+    - export-image
+    - parallel-edge-aggregation
+    - live-data-source
+    - supernode-safeguards
+    - truncation-reporting
+    - parameterized-saved-searches
+suggested_components:
+    - search-input
+    - search-panel
+    - search-result-item
+    - graph-canvas
+    - badge
+    - context-menu
+    - ego-network-dialog
+    - node-details-panel
+    - path-finder-dialog
+    - pattern-search-dialog
+    - filter-panel
+    - temporal-controls
+    - visual-encoding-panel
+    - annotation-toolbar
+    - share-dialog
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: live graph database (Neo4j or a Gremlin store) behind Linkurious Enterprise; empty canvas or an alert case's seed subgraph
+    node_count: "stored: up to about a million in documented journalism cases, larger in banks; on screen: tens to a few hundred"
+    edge_density: any, with supernodes (thousands to tens of thousands of edges)
+    user_expertise: novice
+goal: >-
+    **Intent**: Find an entity by name, add it, see how many connections are hidden behind it, expand carefully around
+    hubs, run prepared templates, and turn what is found into a shared, annotated visualization or a case. This is the
+    daily investigation loop in Linkurious Enterprise, used by bank AML teams (BforBank, Ria) and by ICIJ journalists on
+    the Panama Papers.
+
+
+    **Mental Model**: "Pull the thread." Each node is a lead; the badge says how many threads hang off it; a hub is a
+    knot that must be untied selectively, not yanked.
+
+
+    **Task Phases**:
+
+    1. **Search** - Type at least 3 characters; scope ALL (database) or LOCAL (current visualization); toggle to edges;
+    Advanced narrows by category, fuzziness and property; syntax such as type:Person, name:john, quotes to turn off
+    fuzziness
+
+    2. **Add** - Click a result, or check several and ADD ALL (at most 500 at once)
+
+    3. **Read the badge** - A circular badge on each node shows its number of undisplayed relationships
+
+    4. **Expand** - Double-click to reveal neighbors; above 50 edges (expandThreshold) the Selective Expand dialog opens
+    to pick category, edge type, degree ordering (Neighbors, Most connected, Least connected) and maximum neighbors;
+    above 10,000 (superNodeThreshold) the node shows a plus badge with its count, a dialog lists relationships and
+    categories, and multi-node expand is disabled if any selected node is a supernode
+
+    5. **Run queries and templates** - Templates take typed inputs (node, nodeset, edge, string, number, date, enum),
+    for example "Maximum path length" default 4 (1 to 10); a No-Code Query Builder chains node and connection blocks;
+    raw queries return at most 500 results and time out after 60 s; typical templates are UBOs above 20 percent, outage
+    impact, common neighbors of a set
+
+    6. **Filter, group, time and place** - Per-category filters; dates through the Timeline ("As at" mode); geo mode on
+    latitude and longitude; node grouping and edge grouping with Sum, Average, Min or Max
+
+    7. **Style, annotate, share** - Color and size (linear or log) by property, icons; sticky notes saved with the
+    visualization; share as View-only, Edit, or Edit and share
+
+    8. **Export** - Data as Excel, CSV, GEXF, GraphML or JSON (without visual properties); images as SVG, PNG or PDF
+
+    9. **Alerts and cases** - Scheduled Cypher or Gremlin alert models turn each match into a case with status and
+    assignee; opening a case lands at phase 3 with the seed subgraph drawn
+
+
+    **Decision Points**:
+
+    - Which fuzzy match is the right person or company, and are two results duplicates?
+
+    - Expand this node fully, selectively, or not at all, given its badge count?
+
+    - Most connected or least connected neighbors first?
+
+    - Which template answers the question, and with what maximum path length?
+
+    - Is this a ring worth escalating, and what goes into the case?
+
+
+    **Information Needs**:
+
+    - Hidden-relationship count per node before expanding
+
+    - Breakdown of a hub's relationships by type and neighbor category
+
+    - Result count versus the 500-result and add-all caps
+
+    - Summed amounts on grouped parallel edges (transfers between two accounts)
+
+    - When each connection appeared (timeline)
+
+
+    **Pain Points**:
+
+    - Hubs such as a shared registered address or payment processor explode the view
+
+    - Name variants and duplicates split one entity
+
+    - Query results capped at 500 with no paging
+
+    - Exports drop styling, so a figure has to be re-made elsewhere
+
+    - Vendor pricing and deployment weight (no source quantified it)
+
+
+    **Data Flow**:
+
+    - Input: Name or identifier search against a live graph; an alert case's seed subgraph; template parameters
+
+    - Transformations: Incremental, degree-aware expansion; template and query results merged into the visualization;
+    filters, grouping, timeline
+
+    - Output: Shared annotated visualization, case with status and assignee, Excel/CSV/GEXF/GraphML/JSON data, SVG/PNG/PDF
+    image
+success_criteria:
+    - metric: Ring detection time from a flagged client
+      target: Within half an hour (BforBank reported 11 fraudsters found in half an hour versus several days before)
+    - metric: Hub safety
+      target: No expand freezes the view; every hub over the threshold asks before expanding
+    - metric: Case completeness
+      target: Saved visualization carries notes, filters and the template parameters used
+sources:
+    - title: Linkurious Enterprise user manual
+      url: https://doc.linkurious.com/user-manual/latest/page.html
+      summary: Search syntax and scopes, badges, selective expand, templates with typed inputs, timeline, geo, grouping, sharing, export, alerts and cases
+    - title: Linkurious advanced settings
+      url: https://doc.linkurious.com/admin-manual/4.1/advanced-settings
+      summary: minSearchQueryLength 3, searchAddAllThreshold 500, expandThreshold 50, superNodeThreshold 10,000, 500 raw query results, 60 s timeout
+    - title: Linkurious user manual 2.9 - expand
+      url: https://doc.linkurious.com/user-manual/2.9/expand
+      summary: Earlier safeguard popup for large expansions
+    - title: Linkurious top 10 query templates
+      url: https://linkurious.com/blog/top-10-query-templates-to-accelerate-your-investigations/
+      summary: UBO, outage impact and common-neighbor templates and their parameters
+    - title: BforBank detects fraud with Linkurious
+      url: https://linkurious.com/blog/bforbank-detects-fraud-with-linkurious/
+      summary: Ring of 11 fraudsters within half an hour; shared IP, email and address
+    - title: How ICIJ used Neo4j to unravel the Panama Papers
+      url: https://neo4j.com/blog/cypher-and-gql/icij-neo4j-unravel-panama-papers
+      summary: Journalists searched with fuzzy matching and one-click shortest paths in Linkurious
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

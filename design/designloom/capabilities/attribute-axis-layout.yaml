@@ -1,0 +1,13 @@
+id: attribute-axis-layout
+name: Attribute-axis layout
+category: visualization
+description: Place nodes by two attributes (for example year by citation count, momentum by connectivity), switchable at
+    any time, with user-pinned positions kept.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W55
+implemented_by_components: []
+requirements: []
+sources: []

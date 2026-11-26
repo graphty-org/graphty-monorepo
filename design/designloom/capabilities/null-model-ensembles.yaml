@@ -1,0 +1,28 @@
+id: null-model-ensembles
+name: Null Model Ensembles
+category: analysis
+description: Degree-preserving rewiring (directed and undirected, seed, swap count, vertex- or stub-labeled for
+    multigraphs) plus space- and layer-preserving nulls; shows observed value, null mean, sd and z per statistic;
+    exports to ERGM, SAOM and QAP tools.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W03
+    - W164
+    - W165
+    - W172
+    - W234
+    - W235
+    - W37
+    - W38
+    - W41
+    - W42
+    - W44
+implemented_by_components: []
+requirements:
+    - Generate N randomized networks under named constraints, or permute the raw observation stream or node labels, and
+      show the observed value against the null distribution with z-score and p-value and a recorded seed.
+    - Compute whole-network measures on random graphs of the same size and density (or degree sequence) and show them
+      beside the observed values.
+sources: []

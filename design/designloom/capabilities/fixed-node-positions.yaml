@@ -1,0 +1,40 @@
+id: fixed-node-positions
+name: Fixed Anatomical Node Positions
+category: analysis
+description: Place nodes at x, y, z coordinates from node attributes that no layout overrides, with a named coordinate
+    space (MNI template, fsaverage, patient-native) recorded per graph to catch mismatches.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W152
+    - W155
+    - W158
+    - W159
+    - W161
+    - W243
+    - W249
+    - W250
+    - W255
+    - W270
+    - W273
+    - W277
+    - W279
+    - W282
+    - W288
+    - W412
+    - W414
+    - W415
+    - W419
+implemented_by_components: []
+requirements:
+    - Keep node positions supplied by the data (curated pathway maps, Escher maps, spatial or 3D residue coordinates,
+      exported layouts) and draw on top of them without re-layout.
+    - Place nodes at caller-supplied 2D or 3D coordinates (a UMAP or t-SNE projection of embeddings, 2D molecule
+      coordinates, layer by token position) and link that view to a second layout of the same nodes with shared
+      selection.
+    - Per-node fixed or pinned coordinates supplied in the data and honored by every layout, kept across host refreshes.
+    - Import and pin precomputed 3D positions (embeddings, anatomical coordinates, analyst mental-model layouts, saved
+      layouts); map any attribute to the x, y or z axis, bin or sort nodes along an axis; switch between stored layouts
+      with an animated transition.
+sources: []

@@ -1,0 +1,177 @@
+id: W67
+name: Building and Reading a Time-Scaled Phylogeny
+category: analysis
+validated: false
+personas:
+    - phl-genomic-epidemiologist
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - filtering
+    - saved-filters
+    - layout-hierarchical
+    - layout-radial
+    - temporal-analysis
+    - temporal-navigation
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - node-selection
+    - selection-statistics
+    - search
+    - details-on-demand
+    - tooltip-display
+    - zoom-pan
+    - overview-minimap
+    - large-graph-rendering
+    - view-bookmarks
+    - computed-attributes
+    - data-export
+    - export-image
+    - analysis-history
+    - tree-import-and-axes
+    - linked-views-selection
+    - session-round-trip
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - filter-panel
+    - filter-chip
+    - layout-panel
+    - layout-option
+    - graph-canvas
+    - temporal-controls
+    - visual-encoding-panel
+    - legend-panel
+    - node-details-panel
+    - node-tooltip
+    - search-input
+    - minimap
+    - bookmark-panel
+    - share-dialog
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: pathogen genome FASTA plus a per-genome metadata table
+    node_count: 200-20000
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Turn a set of pathogen genomes into a dated tree that an epidemiologist can read against a map and a
+    timeline, in order to answer whether a group of cases is one introduction or several and when it began. The tree
+    is the primary artifact of genomic surveillance, and its time axis is what makes it epidemiologically useful
+    rather than only taxonomic.
+
+
+    **Mental Model**: "A family tree with dates on it." Branch lengths start as counted mutations and are then
+    converted into time, so the horizontal position of a tip is when its sample was taken and the position of an
+    internal node is an estimated date with a confidence interval. Color is whatever question is being asked:
+    region, lineage, a mutation, a local outbreak flag.
+
+
+    **Task Phases**:
+
+    1. **Assemble inputs** (30 min) - A sequence FASTA and a metadata table with at least a strain name, a date and
+    geography, plus local fields such as facility or outbreak identifier
+
+    2. **Index, filter, subsample, align** (minutes to an hour) - Precompute sequence composition, drop excluded
+    strains, subsample deliberately (for example 20 sequences per country per month), apply a date cutoff, and align
+    to a reference while filling gaps
+
+    3. **Build the divergence tree** (minutes to hours) - Infer a tree whose branch lengths are nucleotide divergence
+
+    4. **Date it** (minutes) - Estimate internal node dates, place tips at their sample dates, drop outlier tips and
+    record date confidence intervals; this is the step that turns divergence into a time axis
+
+    5. **Annotate** (minutes) - Put nucleotide and amino acid mutations on branches, infer region and country for
+    internal nodes, and add divergence measures
+
+    6. **Export one bundle** (seconds) - Tree, metadata, node annotations, colors and coordinates in a single file
+
+    7. **Read it** (30 min to hours) - Switch layout between rectangular, radial, unrooted, clock and scatter; switch
+    the x axis between divergence and time; color by any field; filter by attribute; show the map with transmission
+    lines, a mutation entropy panel and a measurements panel. The whole view state lives in the URL, so a particular
+    reading can be sent to a colleague as a link
+
+    8. **Hand off to a network tool** (15 min) - Switch the tree to divergence mode so branch lengths are mutation
+    counts, export it, and start a threshold network at about 6 SNPs to see whether the network reproduces the tree,
+    then adjust
+
+
+    **Decision Points**:
+
+    - What to subsample, and at what rate: the subsampling rule determines what the tree can show
+
+    - Whether local sequences are clean enough, since tools that do not remove ambiguous bases can yield misleading
+    results
+
+    - Which outlier tips the dating step should drop, and whether dropping them changes the story
+
+    - Divergence axis or time axis for the question being asked
+
+    - Which threshold to start a companion network at, so it agrees with the tree
+
+
+    **Information Needs**:
+
+    - Date confidence intervals on internal nodes, not just point estimates
+
+    - Which tips were excluded, by which filter, and how many
+
+    - The subsampling rule, recorded with the tree
+
+    - Mutations on branches, searchable, with the count of descendant tips for a match
+
+    - Linked map and timeline over the same selection as the tree
+
+    - A shareable view that reproduces exactly what the analyst was looking at
+
+
+    **Pain Points**:
+
+    - The build is a command-line pipeline, so the only person who can answer the question is the one who can run it
+
+    - A tree must be re-exported in divergence units before a network tool will agree with it, and the threshold
+    retuned
+
+    - Web tree builders that do not clean ambiguous bases produce confident wrong answers, which official training
+    warns about explicitly
+
+    - Subsampling choices are invisible in the finished picture
+
+    - Tip labels must match the metadata identifier exactly, or rows disappear without an error
+
+
+    **Data Flow**:
+
+    - Input: Genome FASTA, a metadata table (strain, date, geography, local fields), a reference sequence, and an
+    exclusion list
+
+    - Transformations: Filtering and subsampling, reference alignment, maximum-likelihood tree inference, molecular
+    clock dating with confidence intervals, ancestral state and mutation annotation, geographic trait inference,
+    export into a single tree-plus-metadata bundle
+
+    - Output: A dated annotated tree with linked map and timeline, a shareable view URL, a divergence-mode Newick
+    export for network work, and the parameter record
+success_criteria:
+    - metric: Axis switching
+      target: The same tree reads in divergence units and in time units without rebuilding
+    - metric: Reproducible view
+      target: A colleague opening a shared link sees the same layout, coloring and filters
+    - metric: Hand-off fidelity
+      target: A threshold network built from the exported tree reproduces the tree's groupings at a stated threshold
+sources:
+    - title: Nextstrain - creating a workflow with Augur
+      url: https://docs.nextstrain.org/en/latest/tutorials/creating-a-workflow.html
+      summary: The index, filter and subsample, align, tree, refine, ancestral, translate, traits, distance and export steps and what each contributes
+    - title: Auspice view settings
+      url: https://docs.nextstrain.org/projects/auspice/en/stable/advanced-functionality/view-settings.html
+      summary: Rectangular, radial, unrooted, clock and scatter layouts, divergence and time axes, coloring, filtering, map with transmission lines, entropy and measurements panels, and view state in the URL
+    - title: CDC genomic epidemiology toolkit, module 3.2
+      url: https://www.cdc.gov/advanced-molecular-detection/media/pdfs/ToolkitModule_3.2-508C.pdf
+      summary: Exporting in divergence mode before building a network, the 6-SNP starting threshold for SARS-CoV-2, and the warning about web tree builders that do not clean ambiguous bases
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

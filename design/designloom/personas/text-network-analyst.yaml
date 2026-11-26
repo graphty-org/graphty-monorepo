@@ -1,0 +1,78 @@
+id: text-network-analyst
+name: Text Network Analyst
+role: Associate Professor of Public Health / Text-Mining Social Scientist
+quote: Show me which words travel together in these 3,000 answers, and then show me the answers behind each cluster.
+bio: >-
+    Dr. Aiko Morimoto is an associate professor of public health in Japan who supervises three master's students. Her
+    data are words, not tables: hundreds to thousands of open-ended survey answers, or tens of thousands of tweets split
+    by day or by region, each carrying a few document variables such as age group or date. She builds word
+    co-occurrence networks in KH Coder (MeCab for Japanese, R for the plots), sometimes moves a term list to Gephi, and
+    her student fits a structural topic model on the same corpus and wants its topic network beside hers. She chooses
+    a counting unit (sentence, paragraph, document), a measure (Jaccard), a threshold (top 60 edges or Jaccard 0.1),
+    reads the clusters, and then goes back to the text to write one paragraph per cluster backed by quotations. She is
+    an expert reader of text and a careful methodologist but not a graph theorist; reviewers ask her why Jaccard and why
+    0.1, and she needs the answer to be on record.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: intermediate
+    domain_knowledge: advanced
+motivations:
+    - Produce a figure of the main word clusters in a corpus and how they differ between groups or days
+    - Write one paragraph per cluster with the quotations that support it
+    - Defend the unit, measure and threshold to reviewers with the parameters on record
+    - Compare her word network with a student's topic-model network on the same corpus
+    - Keep human-subjects text on her own machine
+behaviors:
+    - Starts from raw text (a spreadsheet column or plain-text file), not from an edge list
+    - Chooses words by part of speech and minimum frequency, keeping 60 to 150 words for a readable figure
+    - Checks candidate words in a keyword-in-context concordance before building the network
+    - Picks the co-occurrence unit (sentence, paragraph, document) and Jaccard or Cosine as the edge measure
+    - Filters to the top N edges or a minimum coefficient, and reads the "drawn of total" node and edge counts
+    - Colors words by community and sizes them by frequency, with solid edges inside and dashed edges between communities
+    - Builds one network per group or per day and lays them side by side, even though each run has its own layout
+    - Searches documents for a word pair to find the passages behind an edge
+    - Exports PNG, SVG or PDF figures and sometimes the R source of the plot
+frustrations:
+    - Every figure is a static plot; changing the unit or the threshold means re-running and re-reading from scratch
+    - Networks for different days or groups have different layouts, so positions cannot be compared
+    - Community colors change when the community method changes
+    - No click from a word or an edge to the passages behind it
+    - Readers infer meaning from distance when only the presence of an edge is meaningful
+    - Reviewers ask for parameters that the tool never recorded with the figure
+context:
+    frequency: monthly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W403
+    - W404
+    - W408
+    - W410
+sources:
+    - title: KH Coder home page
+      url: https://khcoder.net/en/
+      summary: Free software for quantitative content analysis or text mining
+    - title: KH Coder (Wikipedia)
+      url: https://en.wikipedia.org/wiki/KH_Coder
+      summary: Back-end tools (ChaSen, MeCab, Stanford tagger, R) and Google Scholar paper counts
+    - title: KH Coder 3 reference manual
+      url: https://khcoder.net/en/manual_en_v3.pdf
+      summary: Units, co-occurrence network options, Jaccard filter, community colors, status line, Search Documents, export formats, warning that distance is not meaningful
+    - title: Yagahara et al. 2018, fear-related tweets after Fukushima
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5876491/
+      summary: 82,905 tweets, 100-150 words per day, Jaccard 0.1, one co-occurrence network per day for seven days
+    - title: KH Coder developer discussion on measures by unit size
+      url: https://github.com/ko-ichi-h/khcoder/discussions/1108
+      summary: Jaccard for small units, Cosine or Euclid for large ones; unit size matters more than dataset size
+    - title: Levallois, Working with text in Gephi
+      url: https://seinecle.github.io/gephi-tutorials/generated-pdf/working-with-text-en.pdf
+      summary: Term selection, about 300 words maximum, Modularity, label-only styling, ForceAtlas2
+    - title: stm topicCorr reference
+      url: https://search.r-project.org/CRAN/refmans/stm/html/topicCorr.html
+      summary: Topic correlation network from a structural topic model, simple cutoff 0.01 or graphical-model selection
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

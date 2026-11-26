@@ -1,0 +1,17 @@
+id: case-drilldown
+name: Case Drilldown
+category: analysis
+description: From a node, edge, variant or deviation, list the cases behind it and show each case's full event history;
+    follower, four-eyes, mandatory and forbidden filters created from the map; named filtered copies with an exportable
+    filter recipe and counts.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W340
+    - W341
+    - W343
+    - W345
+implemented_by_components: []
+requirements: []
+sources: []

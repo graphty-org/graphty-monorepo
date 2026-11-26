@@ -1,0 +1,146 @@
+id: W98
+name: Telephone Analysis and Appending Live Pen-Register Data
+category: analysis
+validated: false
+personas:
+    - crime-intelligence-analyst
+requires_capabilities:
+    - data-import
+    - visual-encoding-edges
+    - filtering
+    - temporal-navigation
+    - centrality-degree
+    - centrality-betweenness
+    - search
+    - details-on-demand
+    - annotation
+    - metric-histograms
+    - selection-statistics
+    - export-image
+    - parallel-edge-aggregation
+    - saved-import-mappings
+    - manual-layout-preservation
+    - common-neighbor-finder
+    - incremental-append
+suggested_components:
+    - graph-canvas
+    - visual-encoding-panel
+    - filter-panel
+    - temporal-controls
+    - heatmap-panel
+    - ranked-node-table
+    - node-details-panel
+    - annotation-toolbar
+    - data-import-dialog
+    - image-export-dialog
+starting_state:
+    data_type: imported calling network of several subject phones (from W97), later extended by pen-register and wiretap records that keep arriving
+    node_count: 50-2000 phone numbers
+    edge_density: sparse multigraph
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Find out who the subject phones talk to, how often, which unknown numbers several subjects share, and
+    how calling changed around an event -- then keep the chart current as live records arrive during an ongoing
+    investigation. The output is a short list of priority numbers for subpoenas or a wiretap application, and a toll
+    chart.
+
+
+    **Mental Model**: "A tally of who called whom." The manual method still taught is a square, directed "from x to"
+    matrix of call counts, redrawn as a chart with the most-linked numbers in the center and counts in each direction;
+    UNODC says this works "only ... for the most simple of datasets", so software does the same thing at scale.
+
+
+    **Task Phases**:
+
+    1. **Import subject phones** (10 min) - Import every subject phone with one line per direction (W97)
+
+    2. **Size links by count** (2 min) - Link width by call count through a conditional formatting rule
+
+    3. **Find common numbers** (5 min) - Numbers linked to two or more subjects; a subject-by-number heat matrix where
+    available
+
+    4. **Trim and focus** (10 min) - Hide one-off contacts, filter to a date window around the event, and switch one
+    pair to show every call; look at time-of-day and weekday patterns
+
+    5. **Identify unknowns** (hours to days) - Subscriber lookups on unknown numbers; add names, aliases and addresses
+    to the nodes
+
+    6. **Rank** (5 min) - Run degree and betweenness on the number network (see W104)
+
+    7. **Hand off** (15 min) - Priority numbers for legal process or a wiretap application, and a toll chart
+
+    8. **Append live data** (repeating, minutes each) - Pen registers, trap-and-trace orders and wiretaps deliver
+    records continuously; re-import through the same specification, match new rows to entities already on the chart,
+    keep the hand layout and annotations, and highlight what is new since the last update (inferred from vendor
+    material; how i2 users do this: no source found)
+
+
+    **Decision Points**:
+
+    - Which numbers are worth a subscriber lookup or subpoena?
+
+    - How wide a window around the event shows the change in calling?
+
+    - Is a common number meaningful (a shared associate) or noise (a pizza shop, voicemail, a carrier service number)?
+
+    - When new records arrive, what changed enough to tell the detective?
+
+
+    **Information Needs**:
+
+    - Call count and summed duration per pair and direction
+
+    - Numbers shared by two or more subjects, with how many subjects each is shared by
+
+    - Calls per hour of day and day of week, before and after the event
+
+    - Subscriber name, aliases and addresses on each identified number
+
+    - Which links and numbers are new since the last import
+
+
+    **Pain Points**:
+
+    - The tally matrix is impossible by hand beyond a few phones
+
+    - Re-importing risks moving nodes the detectives already know and losing annotations
+
+    - Nothing marks what is new since the last update
+
+    - Common carrier service numbers clutter the shared-number list
+
+
+    **Data Flow**:
+
+    - Input: Calling network from W97; subscriber returns; continuous pen-register, trap-and-trace and wiretap records
+
+    - Transformations: Count-based link width, common-neighbor search across subjects, date filtering, time-of-day
+    histograms, centrality, incremental append with entity matching
+
+    - Output: Priority number list, annotated toll chart, updated chart with new activity highlighted
+success_criteria:
+    - metric: Common-number discovery
+      target: Numbers called by N or more subjects are listed with counts in one step
+    - metric: Append without disruption
+      target: New records join existing nodes, hand positions and notes survive, and new items are highlighted
+    - metric: Hand-off readiness
+      target: Priority numbers export with call counts and date ranges for a legal process request
+sources:
+    - title: UNODC Criminal Intelligence Manual for Analysts, chapter 9 (telephone analysis)
+      url: https://www.azdps.gov/sites/default/files/2023-07/Criminal_Intelligence_Manual_for_Analysts.pdf
+      summary: Directed telephone matrix, chart with most-linked numbers in the center, works only for the simplest datasets by hand
+    - title: PenLink - CDR analysis 101
+      url: https://www.penlink.com/blog/cdr-analysis-101/
+      summary: Call detail record analysis practice and data types
+    - title: IBM technote 6520022 - link thickness by count
+      url: https://www.ibm.com/support/pages/node/6520022
+      summary: Conditional formatting to size links by count
+    - title: PenLink - Live communication collection
+      url: https://www.penlink.com/platform/live-communication/
+      summary: Live collection of phone data and near-real-time provider delivery for pen register and wiretap support (vendor claim)
+    - title: i2 Insights information sheet
+      url: https://i2group.com/hubfs/i2_Infosheets_i2%20Insights_US%20Letter_Digital.pdf
+      summary: Heat matrix and phone analysis dashboards
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

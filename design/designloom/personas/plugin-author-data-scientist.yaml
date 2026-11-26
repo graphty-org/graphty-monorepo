@@ -10,7 +10,11 @@ bio: >-
     JavaScript only when he has to: he can follow an example, change a loop and read a stack trace, but he has never
     configured a bundler, does not know what a generic type parameter is, and reads "Promise" as a hint that something
     will go wrong. He thinks of a graph as `G.nodes`, `G.edges` and `G[u][v]["weight"]`, and he expects a metric to be a
-    function that takes a graph and returns a dict.
+    function that takes a graph and returns a dict. Today his usual path is not to port anything: he computes the
+    metric in Python and hands the values to a browser widget -- ipysigma takes `node_size=nx.eigenvector_centrality(g)`
+    in a notebook, Dash Cytoscape binds node taps to Python callbacks, streamlit-agraph takes lists of Node and Edge
+    objects, and pyvis writes vis-network HTML that users report stops loading above about 1,000 nodes in Streamlit.
+    Porting to JavaScript is his fallback when the dashboard must recompute the score itself.
 characteristics:
     expertise: intermediate
     time_pressure: medium
@@ -28,6 +32,8 @@ behaviors:
     - Validates the port by running both versions on a small graph and comparing the numbers by eye, then in a spreadsheet
     - Runs code in the Storybook or a CodePen-style page rather than setting up a project
     - Asks a colleague when the error mentions a type he does not recognize
+    - Expects "same name, same arguments, same dict" from any second engine, the way NetworkX backends keep the function signature
+    - Checks the cases where libraries disagree before trusting a port - dangling nodes with personalization, isolated nodes, direction, normalization and convergence tolerance
 goals:
     - Write a metric as one function from a graph to a number per node
     - Register it with one call and see it in the element's algorithm list
@@ -39,7 +45,9 @@ frustrations:
     - No obvious way to read an edge weight or a node attribute in the shape NetworkX gives them
     - TypeScript errors about generic types that say nothing about what he did wrong
     - Having to set up npm, a bundler and a build step to try one function
-    - Results that are silently NaN or zero because an attribute name was misspelt
+    - Results that are silently NaN or zero because an attribute name was misspelled
+    - Defaults that differ silently between engines (betweenness normalization and endpoints, PageRank dangling-node handling, isolated nodes dropped, edges treated as undirected)
+    - Engines that drop a parameter of the reference function without saying so
 knows:
     - Graph theory and centrality measures at the level of a practitioner, including their numerical pitfalls
     - Python, NetworkX, pandas and Jupyter
@@ -57,7 +65,10 @@ context:
         - laptop
         - desktop
     voluntary: true
-workflows: []
+workflows:
+    - W271
+    - W279
+    - W290
 sources:
     - title: NetworkX Algorithms reference
       url: https://networkx.org/documentation/stable/reference/algorithms/index.html
@@ -65,3 +76,36 @@ sources:
     - title: Stack Overflow Developer Survey 2024 - Most popular technologies
       url: https://survey.stackoverflow.co/2024/technology
       summary: Python dominates data work while JavaScript dominates the web; many data scientists are occasional JavaScript users
+    - title: NetworkX pagerank reference
+      url: https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.link_analysis.pagerank_alg.pagerank.html
+      summary: pagerank returns a dictionary of nodes with PageRank as value
+    - title: graphology standard library - metrics
+      url: https://graphology.github.io/standard-library/metrics.html
+      summary: JavaScript pagerank(graph) returns per-node values and pagerank.assign writes them as node attributes, with NetworkX-like defaults
+    - title: NetworkX betweenness_centrality reference
+      url: https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.centrality.betweenness_centrality.html
+      summary: Normalization depends on endpoints and directedness and has changed across versions
+    - title: igraph-help mailing list - PageRank differences from NetworkX
+      url: https://lists.gnu.org/archive/html/igraph-help/2020-01/msg00009.html
+      summary: igraph and NetworkX PageRank disagree with dangling nodes and personalization because of solver choice
+    - title: Stack Overflow - inconsistency between PageRank results in NetworkX and igraph
+      url: https://kiwix.lema.org/stackoverflow.com_en_all_2023-11/questions/42160566/inconsistency-between-results-in-pagerank-networkx-vs-igraph
+      summary: Differences from a silently dropped isolated node or edges treated as undirected
+    - title: NetworkX backends guide
+      url: https://networkx.org/documentation/stable/reference/backends.html
+      summary: Backends keep function names and arguments, list unsupported parameters, and test against the NetworkX suite
+    - title: ipysigma
+      url: https://pypi.org/project/ipysigma
+      summary: Python metric dicts passed straight to node size and color in a notebook sigma widget
+    - title: Dash Cytoscape - Events
+      url: https://dash.plotly.com/cytoscape/events
+      summary: tapNodeData and other events bound to Python callbacks
+    - title: streamlit-agraph
+      url: https://github.com/ChrisDelClea/streamlit-agraph
+      summary: Streamlit component wrapping vis.js that takes Python Node and Edge lists
+    - title: Streamlit forum - pyvis error when displaying large network
+      url: https://discuss.streamlit.io/t/streamlit-pyvis-error-when-displaying-large-network/28501
+      summary: pyvis output stops loading above about 1,000 nodes in Streamlit
+version: 1.1.0
+created_at: 2026-09-28T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,12 @@
+id: globe-view
+name: Globe view with great-circle arcs
+category: visualization
+description: A 3D globe as a first-class view for global air, shipping and migration networks with great-circle arcs.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W389
+implemented_by_components: []
+requirements: []
+sources: []

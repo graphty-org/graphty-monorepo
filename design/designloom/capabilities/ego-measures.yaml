@@ -1,0 +1,18 @@
+id: ego-measures
+name: Per-Ego Network Measures
+category: analysis
+description: Effective size, efficiency, constraint, hierarchy, EI index, composition and diversity for every ego,
+    exported as one row per ego, including many separate personal networks loaded from ego, alter and alter-alter
+    tables.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W191
+    - W194
+    - W29
+implemented_by_components: []
+requirements:
+    - Build many small ego networks in one project from ego, alter and alter-alter tables, apply one style to all,
+      compute per-ego size, category shares and structural diversity, and export each privately.
+sources: []

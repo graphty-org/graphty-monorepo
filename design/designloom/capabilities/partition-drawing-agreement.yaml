@@ -1,0 +1,12 @@
+id: partition-drawing-agreement
+name: Partition-Drawing Agreement
+category: visualization
+description: Highlights nodes whose visual neighborhood in the layout disagrees with their computed community.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W43
+implemented_by_components: []
+requirements: []
+sources: []

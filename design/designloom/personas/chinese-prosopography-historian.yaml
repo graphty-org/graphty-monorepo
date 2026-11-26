@@ -1,0 +1,58 @@
+id: chinese-prosopography-historian
+name: Chinese Prosopography Historian
+role: Historian of Song-Dynasty Officials Using the China Biographical Database
+quote: I pull five thousand officials out of half a million people, and I need their kin network and their patronage network side by side on a map of prefectures.
+bio: >-
+    Dr. Wen Li studies how marriage and patronage shaped the careers of Song-dynasty officials. She downloads the China
+    Biographical Database (CBDB) as a standalone SQLite file, about 470,000 individuals in 2020 and over 515,000 by
+    December 2021, and follows the CBDB user guide to query kinship and social associations by office, period and
+    place. Each query extracts 1,000 to 10,000 people: kinship rows coded with normalized kin codes (F, S, D, H, W and
+    compounds), social association rows (letters, prefaces, teacher and student) and office postings with dates and
+    places. She uses Python (pandas, NetworkX) for joins and metrics and Gephi for pictures. Her analyses depend on
+    typed ties: a kin tie and a patronage tie over the same two people mean different things.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: intermediate
+    domain_knowledge: expert
+motivations:
+    - Compare a kinship network with a patronage network over the same people
+    - Place both networks on a map of prefectures and follow careers over time
+    - Re-run a query for another office or period without rebuilding the styling
+    - Trace descent lines and marriage links between official families
+behaviors:
+    - Writes SQL against the CBDB SQLite file to extract a subnetwork by office, period and place
+    - Normalizes raw kinship relations to basic kin terms before rebuilding families
+    - Keeps kin, social and office ties as separately typed edges and filters by type
+    - Exports to CSV, computes metrics in NetworkX, and draws in Gephi
+frustrations:
+    - Raw kinship links do not form a clean tree until relations are normalized
+    - Every new query means a new export and a re-styled graph
+    - Tools treat kin and social ties as untyped edges
+    - Maps of the network need separate GIS work
+context:
+    frequency: monthly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W176
+    - W177
+    - W183
+sources:
+    - title: Tsui and Wang 2020 - Harvesting Big Biographical Data for Chinese History (Journal of Chinese History)
+      url: https://www.cambridge.org/core/journals/journal-of-chinese-history/article/harvesting-big-biographical-data-for-chinese-history-the-china-biographical-database-cbdb/066593EBDCEDBADD5FCCE968D64EA76E
+      summary: CBDB holds about 470,000 individuals
+    - title: Introducing the China Biographical Database (Fairbank Center blog)
+      url: https://fairbank.fas.harvard.edu/research/blog/introducing-the-china-biographical-database-cbdb/
+      summary: 515,488 individuals as of December 2021
+    - title: CBDB user guide
+      url: https://cbdb.hsites.harvard.edu/resource/cbdbusersguidepdf
+      summary: Standalone SQLite distribution and queries for kinship and social networks
+    - title: Li et al. - Normalization of kinship relations to enrich family network analysis (CBDB)
+      url: https://cbdb.hsites.harvard.edu/resource/normalizationofkinshiprelationstoenrichfamilynetworkanalysispdf
+      summary: 484,066 kin relation instances among 255,149 persons normalized to basic terms before trees can be rebuilt
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

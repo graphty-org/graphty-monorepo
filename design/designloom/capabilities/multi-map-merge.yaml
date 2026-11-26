@@ -1,0 +1,15 @@
+id: multi-map-merge
+name: Merge and Compare Many Maps
+category: visualization
+description: Reconcile labels across many maps with a correspondence table, average edge weights (weighted or not) per
+    group, report disagreement per edge, and compare an individual map with the merged map.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W199
+    - W200
+    - W204
+implemented_by_components: []
+requirements: []
+sources: []

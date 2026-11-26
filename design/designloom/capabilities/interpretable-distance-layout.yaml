@@ -1,0 +1,15 @@
+id: interpretable-distance-layout
+name: Interpretable distance and anchored layouts
+category: visualization
+description: "Layouts whose positions are measurements: MDS on weights with a stress value, Procrustes alignment of two
+    layouts with congruence, and a deterministic seeded force layout rotated to its principal axis with a chosen node
+    anchored on the left, with coordinates exportable as node data."
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W372
+    - W379
+implemented_by_components: []
+requirements: []
+sources: []

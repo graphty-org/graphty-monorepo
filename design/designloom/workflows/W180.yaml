@@ -1,0 +1,130 @@
+id: W180
+name: Review Machine-Extracted Historical Ties (NER and LLM Extraction)
+category: analysis
+validated: false
+personas:
+    - letters-archive-data-steward
+    - prosopography-archivist
+requires_capabilities:
+    - data-import
+    - data-validation
+    - node-merging
+    - filtering
+    - visual-encoding-edges
+    - details-on-demand
+    - annotation
+    - analysis-history
+    - data-export
+    - measurement-robustness
+    - uncertainty-encoding
+    - provenance-tracking
+    - edge-evidence-review
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - data-table-panel
+    - node-merge-dialog
+    - filter-panel
+    - range-slider
+    - node-details-panel
+    - annotation-toolbar
+    - graph-canvas
+    - data-export-dialog
+starting_state:
+    data_type: JSON or CSV of extracted entities and relations with confidence, model and evidence text
+    node_count: 1,000-2,500,000
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Build a network from text with named entity recognition or a large language model, measure how wrong
+    the extraction is on a sample, review and correct the ties, then analyze only what survives. 2025 projects
+    extracted millions of ties this way and all reported errors that needed expert review.
+
+
+    **Mental Model**: "The machine proposes, the historian disposes." Every extracted edge stays linked to the passage
+    that produced it, and accepting or rejecting it is a recorded decision.
+
+
+    **Task Phases**:
+
+    1. **Get text** (weeks) - OCR or transcription (AffilKG: six social registers 1892-1965, OCR corrected by hand;
+    Norcia: a daily newspaper 1860-1870)
+
+    2. **Extract** (hours to days) - Classic NER (weak on early modern spelling) or LLM prompts with structured output;
+    "A City of Millions" produced 70,509 networks from about 30,000 texts in 58 languages, each tie typed and rated
+
+    3. **Resolve entities** (days) - Merge name variants; AffilKG hand-checked 150 entity comparisons per dataset
+
+    4. **Measure error on a sample** (days) - About 200 hand-annotated triplets per book; AffilKG edge F1 ranged from
+    about 54 to 96 with "numerous errors by all LLMs on all texts"; a classical Chinese study reached F1 = 0.68 and
+    reported hallucination
+
+    5. **Review and correct** (ongoing) - Domain experts monitor extraction and disambiguation; each fact links to its
+    newspaper page
+
+    6. **Build and analyze** (hours) - Filter by confidence, compute metrics, return to the passages behind surprising
+    edges
+
+
+    **Decision Points**:
+
+    - Which confidence threshold to analyze at, and how sensitive are results to it?
+
+    - Are two extracted names the same person?
+
+    - Accept, reject or correct a tie, given its evidence text?
+
+
+    **Information Needs**:
+
+    - Evidence text, source page, model and confidence for any edge
+
+    - Queue of unreviewed edges, ordered by confidence or by influence on metrics
+
+    - Counts of accepted, rejected and unreviewed edges
+
+    - Candidate duplicate entities with their mentions
+
+
+    **Pain Points**:
+
+    - Hallucinated ties look exactly like real ones in a network picture
+
+    - Entity resolution is manual and repeated after every extraction run
+
+    - No general tool records review decisions on edges
+
+
+    **Data Flow**:
+
+    - Input: Extraction output (entities, relations, confidence, model, evidence text, page id)
+
+    - Transformations: Entity merging, confidence filtering, review decisions stored as edge attributes
+
+    - Output: Reviewed network, error estimate for the methods section, released corpus with provenance
+success_criteria:
+    - metric: Evidence on click
+      target: Every machine-made edge shows its evidence text and source page
+    - metric: Review traceability
+      target: Accept and reject decisions are stored and exported with the edges
+    - metric: Threshold sensitivity
+      target: User can see how top-ranked nodes change across confidence thresholds
+sources:
+    - title: A City of Millions (arXiv 2502.19590)
+      url: https://arxiv.org/abs/2502.19590
+      summary: LLM-extracted networks, 70,509 networks and 2.5 million nodes from about 30,000 texts in 58 languages
+    - title: AffilKG (arXiv 2505.10798)
+      url: https://arxiv.org/html/2505.10798v1
+      summary: Person-member-club extraction from social registers, edge F1 about 54 to 96, numerous LLM errors
+    - title: Norcia newspaper knowledge graph with LLMs (CEUR-WS)
+      url: https://ceur-ws.org/Vol-4304/short2.pdf
+      summary: Domain experts monitor extraction and disambiguation; facts linked to newspaper pages
+    - title: Classical Chinese relation extraction (arXiv 2506.15241)
+      url: https://arxiv.org/pdf/2506.15241v1
+      summary: F1 = 0.68 and hallucinated relations
+    - title: UW thesis on NER for early modern letters
+      url: https://digital.lib.washington.edu/researchworks/handle/1773/44845
+      summary: NER problems with early modern spelling
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

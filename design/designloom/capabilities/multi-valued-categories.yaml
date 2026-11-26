@@ -1,0 +1,14 @@
+id: multi-valued-categories
+name: Multi-Valued Category Attributes
+category: analysis
+description: Read pipe-delimited or JSON-array columns (for example KGX Biolink categories, multi-typed LLM entities) as
+    sets, and filter by a category hierarchy where selecting a parent selects its descendants.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W130
+    - W140
+implemented_by_components: []
+requirements: []
+sources: []

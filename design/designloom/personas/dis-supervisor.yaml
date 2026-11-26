@@ -1,0 +1,63 @@
+id: dis-supervisor
+name: Partner Services Supervisor
+role: Disease Intervention Specialist Supervisor and Cluster Response Lead
+quote: I do not need the picture. I need to know who in this cluster has not been interviewed yet.
+bio: >-
+    Rosa Delgado supervises a team of disease intervention specialists at a health department and leads the field side
+    of cluster response. She attends the monthly cluster review, where the epidemiologist presents clusters, and walks
+    out with field assignments. She is not a data analyst: her working surfaces are partner services records, the
+    epidemiologist's line lists and her own assignment board. What she needs from a cluster is operational and
+    answerable as a list: who has not been interviewed, which named partners are untested, who is not virally
+    suppressed, which addresses and venues come up repeatedly. Program guidance tells her team not to use molecular
+    network diagrams when talking to clients and partners, so the network never leaves the review room. Her hard
+    numbers are completion rates, and they are low: in a West Virginia HIV outbreak response only 39 of 192 reported
+    contacts, 20%, were interviewed, and across seven jurisdictions interviewed early syphilis patients named partners
+    of whom an estimated 78% to 85% were never reached.
+characteristics:
+    expertise: beginner
+    time_pressure: high
+    graph_literacy: beginner
+    domain_knowledge: advanced
+motivations:
+    - Turn a cluster into a work list her specialists can finish this week
+    - Know which cluster members and partners are still missing an interview, a test or a care linkage
+    - Spend the team's limited field hours where the response has the most left to gain
+    - Report completion honestly to the review group without needing the analyst to re-run anything
+    - Protect clients: nothing she carries into the field identifies anyone by their place in a network
+behaviors:
+    - Works from line lists and status columns, not from a canvas, and reads a graph only when someone walks her through it
+    - Asks for one row per person with interview status, partner count, test status and viral suppression
+    - Sorts by what is outstanding rather than by any network measure
+    - Tracks named partners back to whether anyone reached them, and how many were named without locating information
+    - Recognizes repeat venues and addresses across cases faster than any tool does, from field knowledge
+    - Reports back new names and corrected links that change the cluster, so the analyst re-runs with better data
+    - Keeps the cluster's existence confidential in client conversations, per program guidance
+frustrations:
+    - Most reported contacts are never interviewed, so a cluster's drawn edges are a small part of the real ones
+    - Three quarters of partners reported in partner services work were unnamed, and most were never reached
+    - A cluster arrives as a drawing or a cluster id column when what she needs is a status list
+    - Nothing connects the network picture to the operational state of each person in it
+    - She is told not to show the diagram, which leaves her explaining a cluster in words to her own staff
+    - Updating one person's status means asking the analyst for a fresh export
+context:
+    frequency: weekly
+    devices:
+        - laptop
+        - mobile
+    voluntary: false
+workflows:
+    - W61
+    - W66
+sources:
+    - title: CDC cluster review and prioritization guidance
+      url: https://www.Cdc.gov/hiv/programresources/guidance/hiv-cluster-detection-and-response-guidance/cluster-review-and-prioritization.html
+      summary: Partner services leadership sits on the review group; line lists are access-limited; molecular network diagrams are to be avoided when communicating with partners
+    - title: HIV outbreak response among people who inject drugs, West Virginia
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11304816
+      summary: Only 39 of 192 reported contacts (20%) were interviewed during the response
+    - title: Cope et al., partner services outcomes for early syphilis across seven jurisdictions
+      url: https://stacks.cdc.gov/view/cdc/119646
+      summary: 84,224 partners reported, 75% unnamed, an estimated 78% to 85% never reached
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

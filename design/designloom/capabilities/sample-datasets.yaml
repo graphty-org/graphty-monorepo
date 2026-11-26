@@ -8,6 +8,15 @@ notes: "Ships: graph-samples and graphty/src/workspace/start/SamplesDialog.tsx."
 algorithms: []
 used_by_workflows:
     - W14
+    - W171
+    - W181
+    - W231
+    - W239
+    - W271
+    - W280
+    - W286
+    - W37
+    - W48
 implemented_by_components:
     - sample-data-dialog
 requirements:

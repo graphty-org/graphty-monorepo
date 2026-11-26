@@ -1,0 +1,13 @@
+id: multilevel-cluster-view
+name: Two-level cluster view
+category: visualization
+description: A coarse cluster graph (for example PAGA) linked to its member nodes, with the fine layout seeded from
+    coarse positions.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W254
+implemented_by_components: []
+requirements: []
+sources: []

@@ -1,0 +1,74 @@
+id: air-maritime-network-analyst
+name: Air and Maritime Network Analyst
+role: Aviation and Shipping Network Researcher / Transport Research Institute or Airline Network Planning
+quote: Anchorage tops betweenness and Atlanta tops degree. That only makes sense on a map, and my graph tool will not draw one.
+bio: >-
+    Tomas is an aviation and shipping network researcher at a transport research institute, or a network planner at
+    an airline, with an MSc or PhD in transport economics, operations research or network science. He works in Python
+    (pandas, NetworkX) or R (igraph) and SQL, sometimes Neo4j Graph Data Science, and uses Gephi or matplotlib for
+    figures. His edges are services rather than demand: non-stop flight segments from BTS T-100, itineraries from the
+    DB1B ticket sample, global routes from OpenFlights (frozen at June 2014) or licensed OAG schedules, and ship
+    journeys between consecutive port calls derived from AIS. Networks hold hundreds to a few thousand airports or
+    ports, with directed weighted edges per month, carrier or cargo type. His questions are the most graph-theoretic
+    of any flow user: hubs versus bridges, hub-and-spoke versus point-to-point, and what disconnects when a hub, port,
+    canal or strait is removed.
+characteristics:
+    expertise: expert
+    time_pressure: medium
+    graph_literacy: advanced
+    domain_knowledge: expert
+motivations:
+    - Identify hubs and bridge airports or ports (high betweenness, low degree)
+    - Measure how hub-and-spoke a carrier's network is and compare carriers or cargo types
+    - Test what disconnects when a hub, port, canal or strait is removed
+    - Show how the network changed after a shock such as 9/11, COVID-19 or the Suez blockage
+    - Publish figures that place results on a world map or globe
+behaviors:
+    - Chooses between segment data (the service network) and market or itinerary data (demand) before anything else
+    - Drops zero-passenger rows and groups airports into city markets when asked about metro areas
+    - Builds one directed weighted graph per month, year, carrier or cargo type and compares them
+    - Chooses the edge weight per measure -- hop count or inverse passengers for betweenness, raw passengers for strength and PageRank
+    - Runs targeted and random node removal and tracks the size of the largest connected component
+    - Compares results to Erdos-Renyi and Barabasi-Albert null models
+    - Exports GML to Gephi, or plots airports at their coordinates with great-circle arcs sized by strength and colored by community
+frustrations:
+    - Graph tools ignore geography and map tools ignore graph structure
+    - Force-directed layouts hide the geographic reason a node is central
+    - The meaning of the weight (hops, passengers, inverse passengers) has to be set by hand for each measure
+    - Several edges between the same two places (one per carrier or cargo type) collapse into one in most tools
+    - Free global route data stopped in June 2014; current schedules are licensed
+    - Robustness results are tables, with no map of the places that became disconnected
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W387
+    - W389
+sources:
+    - title: Kaluza et al. - The complex network of global cargo ship movements
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC2880080
+      summary: 951 ports from 16,363 ships' AIS itineraries; container, dry-bulk and tanker layers; Suez and Panama as high-betweenness nodes
+    - title: US airport network centrality and robustness study
+      url: https://arxiv.org/html/2505.11559v1
+      summary: Anchorage highest betweenness, Atlanta highest degree; targeted removal collapses the largest component fastest
+    - title: metagraph - Airline connectedness use case
+      url: https://metagraph.readthedocs.io/en/stable/getting_started/use_case_1_airline_connectedness.html
+      summary: BTS-based tutorial; city markets as nodes; inverse-passenger betweenness ranks Anchorage near the top
+    - title: BTS T-100 database info
+      url: https://www.transtats.bts.gov/DatabaseInfo.asp?QO_VQ=EEE
+      summary: Segment versus market tables; monthly since 1990; international lags domestic by three months
+    - title: OpenFlights data
+      url: https://openflights.org/data
+      summary: 67,663 routes, 3,321 airports, 548 airlines, frozen at June 2014
+    - title: Neo4j GDS client centrality tutorial
+      url: https://neo4j.com/docs/graph-data-science-client/current/tutorials/centrality-algorithms/
+      summary: Centrality algorithms demonstrated on an airline network
+    - title: Review of air transport network modeling
+      url: https://arxiv.org/abs/1605.04872
+      summary: Snapshot time series versus temporal paths as two modeling approaches
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

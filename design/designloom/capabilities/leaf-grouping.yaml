@@ -1,0 +1,13 @@
+id: leaf-grouping
+name: Grouping of Same-Type Leaves
+category: analysis
+description: Fold same-type nodes that share the same neighbors into one group node above a size threshold, with member
+    counts, and pin members out of the group.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W88
+implemented_by_components: []
+requirements: []
+sources: []

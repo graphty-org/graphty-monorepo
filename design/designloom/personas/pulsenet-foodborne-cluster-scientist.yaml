@@ -1,0 +1,71 @@
+id: pulsenet-foodborne-cluster-scientist
+name: PulseNet Laboratory Scientist
+role: Enteric Laboratory Scientist and Foodborne Cluster Coordinator, Public Health Laboratory
+quote: Five cases within ten alleles in sixty days. The hard part is knowing when the rule has quietly stopped meaning anything.
+bio: >-
+    Tomas Herrera sequences enteric isolates (Salmonella, Shiga toxin-producing E. coli, Listeria, Campylobacter) for a
+    public health laboratory in the PulseNet network of more than 80 laboratories, reviews candidate clusters on a
+    rolling basis and hands the credible ones to the state foodborne epidemiologist for interviews and traceback. Since
+    September 2024 his national system is PulseNet 2.0, which replaced a customized BioNumerics 7.6 and calls alleles
+    with BLASTn against reference alleles; elsewhere the equivalents are Ridom SeqSphere+ or chewBBACA, with GrapeTree
+    or PHYLOViZ Online for minimum spanning trees and NCBI Pathogen Detection for national context. His data is allele
+    profile tables with one column per locus (2,513 loci for the STEC core-genome scheme, 30,717 for the chromosomal
+    whole-genome scheme), isolate metadata (source, state, collection date) and high-quality SNP matrices for
+    confirmation. Detection is continuous over a rolling 60-day window, not a monthly cycle.
+characteristics:
+    expertise: advanced
+    time_pressure: medium
+    graph_literacy: intermediate
+    domain_knowledge: expert
+motivations:
+    - Detect a multistate outbreak early enough that a food vehicle can still be found
+    - Apply the organism's published allele and time-window rule consistently, and see when it breaks down
+    - Confirm a candidate cluster with an independent SNP analysis before anyone is interviewed
+    - Place local isolates in national context without waiting on a national system's own cluster definitions
+    - Hand the epidemiologist a short, legible list with the tree picture attached
+behaviors:
+    - Checks assembly quality and contamination before anything else, and treats the proportion of loci successfully called as a quality metric
+    - Compares isolates by counting pairwise allele differences, excluding loci missing in either isolate
+    - Draws a minimum spanning tree over allele profiles, collapsing identical profiles into one node sized by isolate count and labeling branches with allele differences
+    - Colors and labels nodes by any metadata column: state, source, collection month
+    - Applies the organism's rule (for example five or more clinical cases within 60 days and 0 to 10 core-genome allele differences for STEC; three or more cases within 25 whole-genome alleles in 120 days for Listeria)
+    - Watches for chaining, where each new isolate is close to one member but not to the others
+    - Re-analyzes a candidate cluster with a reference-based high-quality SNP pipeline and compares the SNP tree against the allele-based dendrogram
+    - Reads national clusters as context only, knowing they are re-analyzed continuously and are not archival
+frustrations:
+    - Chaining inflates a cluster silently: a New York Salmonella Enteritidis cluster defined at 5 alleles grew to 14 alleles of internal diversity
+    - National clusters cannot be customized, and the national system states it does not identify outbreaks or outbreak membership
+    - Minimum spanning tree tools fail at the scale he already has: about 8,000 sequence types on a laptop, 100,000 needing roughly 300 GB of RAM, and trees above 20,000 nodes opening collapsed
+    - Missing loci change a pairwise distance without changing the picture, so two comparisons are not on the same footing
+    - A cut-off and a tree are not evidence on their own; epidemiology and traceback are required, and the guidance says so plainly
+    - The cloud system is the only place the national comparison happens, so an outage is a blind week
+context:
+    frequency: daily
+    devices:
+        - desktop
+        - laptop
+    voluntary: false
+workflows:
+    - W70
+sources:
+    - title: Leeper et al., PulseNet 2.0 (Microorganisms 2025)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC12195096/
+      summary: More than 80 member laboratories, September 2024 replacement of a customized BioNumerics 7.6, BLASTn allele calling with MD5 hashing, rolling 60-day detection window, STEC rule of five cases within 60 days and 0 to 10 alleles
+    - title: Inter-EURL NGS working group, guidance for cluster analysis of whole genome sequence data (v03, 2024)
+      url: https://zenodo.org/records/14536255
+      summary: Quality control pipeline, allele-based analysis as routine surveillance and SNP analysis as focused follow-up, missing loci as a quality metric, and the insistence that interpretation needs epidemiology and traceback
+    - title: Zhou et al., GrapeTree - visualization of core genomic relationships (Genome Research 2018)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6120633
+      summary: MSTree V2 for allele profiles with missing data, identical profiles collapsed and sized by isolate count, metadata coloring, and the scale limits on laptops and servers
+    - title: Chaining in allele-based cluster definitions, New York State
+      url: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10282972/
+      summary: A Salmonella Enteritidis cluster defined at 5 alleles grew to 14 alleles of internal diversity through chaining
+    - title: NCBI Pathogen Detection frequently asked questions
+      url: https://ncbi.nlm.nih.gov/pathogens/faq/
+      summary: 50-SNP single-linkage clusters, continuous re-analysis so accessions are not archival, clusters not customizable, and the statement that the system does not identify outbreaks
+    - title: Silva et al., chewBBACA - allele calling for core-genome and whole-genome MLST
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5885018
+      summary: Allele calling from predicted coding sequences scored by BLAST score ratio, the open-source alternative to vendor schemes
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

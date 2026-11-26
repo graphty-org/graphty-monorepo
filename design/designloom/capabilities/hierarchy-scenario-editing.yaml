@@ -1,0 +1,14 @@
+id: hierarchy-scenario-editing
+name: Hierarchy Scenario Editing
+category: analysis
+description: Collapsible tree layout for large reporting hierarchies; copy a baseline into scenarios, drag nodes or
+    branches to new parents, recompute spans, layers and attribute sums (headcount, cost) live, and diff scenarios
+    against the baseline as moved, added and removed nodes.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W193
+implemented_by_components: []
+requirements: []
+sources: []

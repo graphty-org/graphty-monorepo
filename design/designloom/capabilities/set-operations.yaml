@@ -1,0 +1,23 @@
+id: set-operations
+name: Set operations over node and id lists
+category: analysis
+description: Intersect, union and difference of imported identifier lists (drug targets, disease genes) with identifier
+    mapping, a count in and out at every step and the dropped identifiers listed, recorded as provenance.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W338
+    - W430
+    - W434
+    - W438
+    - W439
+    - W443
+    - W447
+implemented_by_components: []
+requirements:
+    - Intersect, union and difference 2-12 id lists or node sets with counts, a Venn or UpSet view, membership flags per
+      node, and the result kept as a selection or a new network.
+    - Intersection, union and difference across 2 to 12 id lists or node sets. Shows counts in a Venn or UpSet view,
+      returns the result as a selection or a new network, and writes a membership flag to each node.
+sources: []

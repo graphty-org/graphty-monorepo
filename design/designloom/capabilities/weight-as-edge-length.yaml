@@ -1,0 +1,13 @@
+id: weight-as-edge-length
+name: Weight as Edge Length and Side Constraints
+category: analysis
+description: Layout where edge length is set by a weight and nodes are constrained left, right or middle by an
+    attribute, as in collocation graphs.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W409
+implemented_by_components: []
+requirements: []
+sources: []

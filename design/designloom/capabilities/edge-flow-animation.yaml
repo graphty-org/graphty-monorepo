@@ -1,0 +1,14 @@
+id: edge-flow-animation
+name: Edge Flow Animation
+category: analysis
+description: Animated particles along edges whose rate and speed map to data fields, with per-edge width, color and dash
+    from data.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W282
+    - W283
+implemented_by_components: []
+requirements: []
+sources: []

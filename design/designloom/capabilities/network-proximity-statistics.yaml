@@ -1,0 +1,15 @@
+id: network-proximity-statistics
+name: Network Proximity and Module Statistics
+category: analysis
+description: Set-to-set closest distance and separation with a degree-matched random null returning z and p, largest
+    component significance of a node set, and seed-based module expansion (DIAMOnD-style, random walk with restart).
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W08
+    - W256
+    - W257
+implemented_by_components: []
+requirements: []
+sources: []

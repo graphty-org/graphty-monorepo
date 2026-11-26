@@ -1,0 +1,187 @@
+id: W407
+name: Group Comparison with Epistemic Network Analysis, Including Automated Coding
+category: analysis
+validated: false
+personas:
+    - epistemic-network-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - comparison-view
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - filtering
+    - details-on-demand
+    - basic-statistics
+    - temporal-analysis
+    - analysis-history
+    - report-generation
+    - export-image
+    - data-export
+    - analysis-provenance
+    - local-only-processing
+    - provenance-tracking
+    - shared-fixed-layout
+    - coded-segment-co-occurrence
+    - coder-provenance
+suggested_components:
+    - file-drop-zone
+    - column-mapper
+    - data-import-dialog
+    - data-preview-table
+    - comparison-view
+    - graph-canvas
+    - visual-encoding-panel
+    - legend-panel
+    - range-slider
+    - filter-panel
+    - node-details-panel
+    - statistics-panel
+    - metric-card
+    - analysis-history-panel
+    - report-generator-dialog
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: utterance table (one row per line, IDs, text, metadata, one 0/1 column per code)
+    node_count: 3-10 codes per network; 10-50 unit networks
+    edge_density: up to n(n-1)/2 weighted edges per network, most small
+    user_expertise: advanced
+goal: >-
+    **Intent**: Show that two groups connect the same codes differently, where (the subtracted network) and how strongly
+    (a statistical test and effect size), on networks that share one node layout, then confirm with the utterances
+    behind the strongest connections. When the data are too large to code by hand, build an automated coder first and
+    show that its network agrees with human coding.
+
+
+    **Mental Model**: "Same nodes, same positions, different wiring." Comparability comes from fixed node positions;
+    the subtraction is meaningless unless shown beside the two networks it came from.
+
+
+    **Task Phases**:
+
+    1. **Segment and code** (days to weeks) - One sentence or utterance per line, stanza breaks, several codes per line;
+    code locally so data are not uploaded; merge coders; measure agreement (Cohen's kappa)
+
+    2. **Optional: automated coding** (hours to days) - nCoder: write regular expressions per code, compare with human
+    coding on about 100 training lines, inspect disagreements, refine, test on about 100 unseen lines, then code the
+    whole dataset once kappa, precision, recall and Shaffer's rho are acceptable; or prompt GPT-4; or use BERTopic
+    topics as codes, tuning granularity and the inclusion threshold
+
+    3. **Build the table** (30 min) - One row per line with IDs, text, metadata and at least three code columns; CSV,
+    XLSX or Rdata
+
+    4. **Set units, conversations and window** (15 min) - Units define whose network (for example condition by
+    student); conversations define which lines may connect; moving stanza window (web default 4 lines, R example 7),
+    whole conversation, infinite or threaded
+
+    5. **Group and rotate** (5 min) - Means rotation puts the group difference on the x axis; otherwise SVD; sphere
+    normalization
+
+    6. **Model** (1 min) - Accumulate co-occurrences per unit, normalize, reduce; all networks share node positions
+
+    7. **Plot** (15 min) - Mean network per group, then the subtracted network colored by the larger side; minimum edge
+    weight, scaling, hide unconnected codes; unit points with 95 percent confidence intervals
+
+    8. **Test** (10 min) - Welch t and Mann-Whitney with effect size; check goodness of fit (usually above 0.90);
+    generate a write-up
+
+    9. **Close the interpretive loop** (hours) - Open the lines behind a unit's connection and quote them
+
+    10. **Compare codings** (hours) - Show human-coded and machine-coded networks on the same layout and where they
+    disagree
+
+    11. **Reuse** - Unit positions into a regression; ordered network analysis for directed connections with self-loops
+
+
+    **Decision Points**:
+
+    - What is a unit, a conversation and a window, given that segmentation is the heart of the analysis?
+
+    - Means rotation or SVD?
+
+    - Is automated coding agreement high enough to code the whole dataset?
+
+    - Which minimum edge weight makes the subtraction readable without hiding real differences?
+
+    - Which connections deserve quotations in the paper?
+
+
+    **Information Needs**:
+
+    - Both group means and the subtraction on one shared layout
+
+    - Edge weights and which group is larger for each edge
+
+    - Test statistics, effect size and goodness of fit
+
+    - The utterances behind a connection for a unit or a group, sampled when there are thousands
+
+    - Coder per segment (person or model) and agreement metrics
+
+    - Every parameter (units, conversation, window, rotation, threshold) for the methods section
+
+
+    **Pain Points**:
+
+    - Many interacting parameters with thin documentation
+
+    - Three figures per comparison that must stay consistent
+
+    - No side-by-side view of human-coded and machine-coded models
+
+    - General graph tools give each network its own layout
+
+
+    **Data Flow**:
+
+    - Input: Utterance table with metadata and binary code columns, or raw lines plus regular-expression or model coders
+
+    - Transformations: Automated coding and agreement testing, windowed co-occurrence accumulation per unit,
+    normalization, dimensional reduction to fixed node positions, group means, subtraction, statistical tests
+
+    - Output: Two mean networks and a subtracted network on one layout, test results and write-up, quoted lines,
+    unit coordinates for further modeling
+success_criteria:
+    - metric: Shared layout
+      target: Group means, subtraction and coding comparisons all use identical node positions
+    - metric: Evidence
+      target: User reaches the utterances behind any connection for a unit or group in one click
+    - metric: Reproducibility
+      target: All model parameters are exported with the figures
+sources:
+    - title: Tan, Swiecki, Ruis and Shaffer, ENA and ONA in R
+      url: https://par.nsf.gov/servlets/purl/10608654
+      summary: Units, window.size.back 7, same node positions, subtraction shown with both networks, t test d = 1.88, goodness of fit, view() of lines, ONA
+    - title: ENA web tool guide, data format
+      url: https://bookdown.org/tan78/intro_to_ena/features.html
+      summary: One row per line, metadata and binary code columns
+    - title: ENA web tool guide, conversations
+      url: https://bookdown.org/tan78/intro_to_ena/conversations.html
+      summary: Moving stanza windows, default 4 lines
+    - title: ENA web tool guide, codes
+      url: https://bookdown.org/tan78/intro_to_ena/codes.html
+      summary: At least three codes
+    - title: ENA web tool guide, plot tools
+      url: https://bookdown.org/tan78/intro_to_ena/plotTools.html
+      summary: Minimum edge weight, scaling, hiding unconnected codes
+    - title: ENA web tool guide, statistics
+      url: https://bookdown.org/tan78/intro_to_ena/stats.html
+      summary: Tests and write-up generator
+    - title: Zambrano et al., From nCoder to ChatGPT (ICQE)
+      url: https://learninganalytics.upenn.edu/ryanbaker/ChatGPT_ICQE_FinalVersion.pdf
+      summary: nCoder training and test lines, kappa 0.53 vs 0.46, precision and recall trade-off with GPT-4
+    - title: Lu and Hsu 2026, TopicENA
+      url: https://arxiv.org/abs/2603.03307v1
+      summary: BERTopic topics as ENA codes, granularity and inclusion threshold
+    - title: Zorgo and Peters 2023, ROCK and ENA tutorial
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC9809407/
+      summary: Segmentation, local coding with iROCK, merging coders
+    - title: Siebert-Evenstone et al. 2017, conversational grain size
+      url: https://learning-analytics.info/index.php/JLA/article/view/5416
+      summary: Window choice as a research question
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

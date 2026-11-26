@@ -1,0 +1,14 @@
+id: directed-self-loop-rendering
+name: Self-loops, reciprocal edges and mixed overlays
+category: visualization
+description: Render directed self-loops, curve reciprocal edge pairs, and overlay directed and undirected edge sets on
+    one node set in a single view.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W374
+    - W378
+implemented_by_components: []
+requirements: []
+sources: []

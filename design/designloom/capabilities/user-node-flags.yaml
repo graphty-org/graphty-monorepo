@@ -1,0 +1,15 @@
+id: user-node-flags
+name: User Node Flags
+category: analysis
+description: User-set marks on nodes (owned, high value, believed, validated) stored as calculated values that queries,
+    filters and styles can use.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W108
+    - W109
+    - W110
+implemented_by_components: []
+requirements: []
+sources: []

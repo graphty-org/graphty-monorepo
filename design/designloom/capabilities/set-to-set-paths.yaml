@@ -1,0 +1,21 @@
+id: set-to-set-paths
+name: Set-to-Set Path Queries
+category: analysis
+description: Shortest or all paths from a source set (owned, internet-exposed) to a target set (Tier Zero, critical
+    assets), with a hop limit, waypoints and reverse direction.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W07
+    - W08
+    - W108
+    - W109
+    - W114
+    - W256
+    - W257
+implemented_by_components: []
+requirements:
+    - Draw only one or more node sets plus the shortest paths between them, cut out of a 15k-350k edge graph, with the
+      rest of the graph hidden or faint; connectors distinguished from set members.
+sources: []

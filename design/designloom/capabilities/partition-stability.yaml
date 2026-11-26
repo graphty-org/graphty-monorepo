@@ -1,0 +1,15 @@
+id: partition-stability
+name: Partition Stability
+category: analysis
+description: Run-to-run partition comparison by NMI, adjusted Rand and variation of information, plus per-node
+    co-assignment strength; also scores partitions against known or planted labels.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W04
+    - W38
+    - W48
+implemented_by_components: []
+requirements: []
+sources: []

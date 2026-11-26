@@ -1,0 +1,120 @@
+id: W283
+name: Embedding a 3D Graph
+category: exploration
+validated: false
+personas:
+    - 3d-graph-embedder
+requires_capabilities:
+    - graph-rendering
+    - large-graph-rendering
+    - layout-force-directed
+    - layout-hierarchical
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - zoom-pan
+    - hover-highlight
+    - node-selection
+    - edge-flow-animation
+    - level-of-detail-rendering
+    - xr-graph-interaction
+suggested_components:
+    - graph-canvas
+    - zoom-controls
+    - node-tooltip
+    - layout-panel
+starting_state:
+    data_type: JSON nodes and links from a notes vault (links and tags) or a client dataset
+    node_count: 200-50000
+    edge_density: sparse to moderate
+    user_expertise: intermediate developer
+goal: >-
+    **Intent**: Put an explorable 3D graph, and optionally a VR or AR version of it, into a website or a host plugin
+    such as an Obsidian plugin, with custom node appearance and visible flow.
+
+
+    **Mental Model**: "Drop in a 3D scene and decorate it." The library owns the simulation and the camera; the
+    developer swaps meshes and labels and reaches into the scene for anything else.
+
+
+    **Task Phases**:
+
+    1. **Install** - Script tag or npm; choose 2D, 3D, VR or AR packages that share one interface
+
+    2. **Bind data** - Pass nodes and links or a JSON URL; color automatically by a group field
+
+    3. **Camera** - Choose trackball, orbit or fly controls and an initial camera position
+
+    4. **Customize nodes** - Replace spheres with custom meshes or text sprites; add particles along links for flow;
+    switch to a DAG mode for trees
+
+    5. **Tune for size** - Warmup and cooldown ticks, pause the animation for a static view, turn off pointer
+    interaction (documented as the biggest gain)
+
+    6. **VR** - Switch to the A-Frame package and handle controllers by hand
+
+    7. **Export or share** - No documented route found
+
+
+    **Decision Points**:
+
+    - Which camera control mode suits the content?
+
+    - Labels on every node, on hover only, or by distance?
+
+    - When to freeze the simulation?
+
+    - Is a headset mode worth the extra work?
+
+
+    **Information Needs**:
+
+    - Frame rate at the target size with labels on
+
+    - Whether the render loop idles when nothing changes
+
+    - How to select a node with a controller in VR
+
+
+    **Pain Points**:
+
+    - Text sprites on 10,000+ nodes are very slow
+
+    - The animation loop never stops on graphs over 5,000 nodes and gets slower each time data is replaced
+
+    - No WebGPU path for 200k elements
+
+    - VR controller hit-testing and camera access undocumented; any React state change re-renders the VR graph
+
+    - No export or share route for a 3D view
+
+
+    **Data Flow**:
+
+    - Input: Nodes and links JSON
+
+    - Transformations: 3D force or DAG layout, custom meshes and sprites, particles on links
+
+    - Output: An embedded 3D or XR view (no documented export)
+success_criteria:
+    - metric: Idle cost
+      target: Zero rendering work when the simulation has settled and the camera is still
+    - metric: Labeled scale
+      target: Readable labels at 10,000 nodes at interactive frame rates
+    - metric: XR input
+      target: A controller can select a node in VR with no custom hit-testing code
+sources:
+    - title: 3d-force-graph
+      url: https://github.com/vasturiano/3d-force-graph
+      summary: controlType, nodeThreeObject, linkDirectionalParticles, dagMode, cooldown settings; issues 479, 491, 515
+    - title: react-force-graph
+      url: https://github.com/vasturiano/react-force-graph
+      summary: 2D, 3D, VR and AR packages; issues 243, 285 and 581
+    - title: obsidian-3d-graph
+      url: https://github.com/Apoo711/obsidian-3d-graph
+      summary: 3D notes graph as an Obsidian plugin
+    - title: nextjs-3d-force-graph-impl
+      url: https://github.com/mohidmakhdoomi/nextjs-3d-force-graph-impl
+      summary: react-force-graph in Next.js manipulating three.js objects
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

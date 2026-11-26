@@ -1,0 +1,37 @@
+id: local-only-processing
+name: Local-Only Processing with a Data Location Statement
+category: analysis
+description: Run the whole analysis in the browser with nothing uploaded, and state visibly where data goes.
+    Identifiable surveillance, patient movement and claims data cannot leave the building, and in public health genomics
+    the choice between local processing and a streaming server is a data-sensitivity decision made before a performance
+    one.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W108
+    - W110
+    - W112
+    - W115
+    - W403
+    - W405
+    - W406
+    - W407
+    - W408
+    - W61
+    - W63
+    - W68
+    - W69
+    - W71
+    - W75
+    - W89
+    - W90
+    - W92
+implemented_by_components: []
+requirements:
+    - Work fully offline with no network calls for data, state that guarantee, and save encrypted projects for sensitive
+      unpublished investigations.
+    - All import, analysis and export run on the user's machine with no data sent to a server, and work offline, for
+      engagement and incident data that cannot leave the environment.
+    - Guarantee that imported text and transcripts are processed in the browser and never uploaded.
+sources: []

@@ -1,0 +1,75 @@
+id: aml-investigator
+name: AML Investigator
+role: Level 2 Anti-Money-Laundering Investigator at a bank (consolidated; KYC and ownership, blockchain and FIU analysts as variants)
+quote: The alert is one account. The case is the network around it. Give me the summed flows, the other open alerts and the reason each link exists, and let me write the narrative from that.
+bio: >-
+    Dana Whitfield is a Level 2 AML investigator at a mid-size US bank and the consolidated persona for the analysts who
+    work an escalated alert or a generated case through to a file or no-file decision. Cases reach her from a vendor
+    case manager (Actimize, Oracle FCCM, Verafin) or from a graph platform's alert list (Linkurious, Quantexa), where a
+    saved detection query or a scored model raised them. She pulls 6 to 12 months of transactions for every subject,
+    sums hundreds of parallel wires and ACH payments per account pair and direction, groups free-text counterparty
+    spellings, checks the subject's 1 to 2 hop neighborhood for other open alerts and prior SARs, and tests typologies
+    (fan-in, fan-out, pass-through, cycles, structuring) on the summed graph. Her output is a decision, a narrative with
+    the five essential elements, and supporting documentation retained for five years. Most alerts are false positives
+    (working-paper estimates of 70 to 95 percent), so the ranked case list and a fast, explainable dismissal matter as
+    much as the deep investigation. Variants: corporate KYC and beneficial-ownership analysts, blockchain tracers, FIU
+    and tax intelligence analysts; the forensic accountant splits between this persona and trial exhibit work. A more
+    detailed record of the SAR-writing role is aml-investigator-sar-writer. She does not code; graph literacy is
+    operational (hops, linked, cluster, summed edge).
+characteristics:
+    expertise: intermediate
+    time_pressure: high
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Reach a supported, reasonable file or no-file decision inside the 30-day deadline
+    - Work a connected network once, as one case, instead of five alerts five times
+    - Dismiss false positives quickly with a rationale a quality-control reviewer accepts
+    - Explain every link (which identifier, transaction, filing or registry record) in the narrative
+    - Feed confirmed and dismissed outcomes back so the detection rules improve
+behaviors:
+    - Starts from the case list, sorted by score, amount or age, and opens the case graph rather than loading a file
+    - Assigns cases, comments on them and moves them through Open, In progress, Confirmed or Dismissed
+    - Collapses parallel transactions into one edge per pair and direction with count, sum, first and last date
+    - Checks the subject's neighborhood for open alerts, prior SARs and shared identifiers, discounting identifiers shared by very many accounts
+    - Filters by time window and amount and follows directed, time-ordered paths
+    - Requests 314(b) information from peer banks and merges their legs into the case with the source recorded
+    - Writes the narrative and saves the case graph and tables as supporting documentation
+frustrations:
+    - Alert queues dominated by false positives, with no explanation of why a case scored high
+    - Hairballs from unsummed parallel transactions
+    - The trail goes dark where money leaves the bank
+    - Nothing drawn in the graph flows into the narrative or the case record
+    - Dispositions that never reach the people tuning the rules
+context:
+    frequency: daily
+    devices:
+        - desktop
+    voluntary: false
+workflows:
+    - W336
+sources:
+    - title: FFIEC BSA/AML Examination Manual - Suspicious Activity Reporting
+      url: https://bsaaml.ffiec.gov/manual/AssessingComplianceWithBSARegulatoryRequirements/04
+      summary: Alert generation, alert management (Level 1, Level 2, quality control) and the SAR decision as separate components
+    - title: 31 CFR 1020.320 - Reports by banks of suspicious transactions
+      url: https://www.ecfr.gov/current/title-31/subtitle-B/chapter-X/part-1020/subpart-C/section-1020.320
+      summary: 30-day filing deadline from detection (up to 60 with no suspect); five-year retention of supporting documentation
+    - title: Linkurious Enterprise user manual 4.2 - Alert setup
+      url: https://doc.linkurious.com/user-manual/4.2/alert-setup/
+      summary: Alerts are Cypher or Gremlin read queries grouped by a target entity, run hourly by default, producing cases in a case list
+    - title: Linkurious Enterprise user manual 3.0 - Investigating alerts
+      url: https://doc.linkurious.com/user-manual/3.0/alert-investigate
+      summary: Case statuses Open, In progress, Confirmed and Dismissed with optional notes; assignment and comments logged in case history
+    - title: Linkurious Enterprise user manual 4.2 - Edge grouping
+      url: https://doc.linkurious.com/user-manual/4.2/edgegrouping/
+      summary: Parallel edges grouped with count, sum, average, min, max and first and last date per type and direction
+    - title: Redhead - SWIFT Institute / RUSI working paper on transaction monitoring (2021)
+      url: https://swift.com/swift-resource/252235/download
+      summary: False-positive rates about 70 to 95 percent and alert-to-report conversion 2 to 10 percent (read through search summary)
+    - title: FinCEN - SAR supporting documentation guidance
+      url: https://www.fincen.gov/index.php/resources/statutes-regulations/guidance/suspicious-activity-report-supporting-documentation
+      summary: Supporting documentation is deemed filed and must be produced on request
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

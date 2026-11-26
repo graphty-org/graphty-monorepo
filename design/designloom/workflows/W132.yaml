@@ -1,0 +1,127 @@
+id: W132
+name: Schema-Guided LLM Extraction into Neo4j
+category: analysis
+validated: false
+personas:
+    - graphrag-developer
+    - enterprise-kg-engineer
+requires_capabilities:
+    - data-import
+    - data-validation
+    - basic-statistics
+    - filtering
+    - search
+    - neighborhood-expansion
+    - details-on-demand
+    - visual-encoding-nodes
+    - legend-display
+    - comparison-view
+    - node-merging
+    - provenance-tracking
+    - schema-meta-graph
+suggested_components:
+    - data-import-dialog
+    - statistics-panel
+    - filter-panel
+    - search-input
+    - graph-canvas
+    - node-details-panel
+    - visual-encoding-panel
+    - legend-panel
+    - comparison-view
+    - node-merge-dialog
+starting_state:
+    data_type: Neo4j graph with a lexical layer (Document, Chunk) and an entity layer written by an LLM pipeline under a declared schema
+    node_count: 1000-100000
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Extract a knowledge graph from documents with an LLM constrained to a declared schema, then check that
+    the written graph respects that schema, that entities trace back to chunks, and that entity resolution merged the
+    right nodes.
+
+
+    **Mental Model**: "Two floors and a staircase." Documents and chunks are the ground floor, extracted entities the
+    upper floor, and FROM_CHUNK edges the stairs between them. The schema is the floor plan the upper floor must obey.
+
+
+    **Task Phases**:
+
+    1. **Declare the schema** (15 min) - LangChain LLMGraphTransformer takes allowed_nodes, allowed_relationships and
+    node_properties; neo4j-graphrag SimpleKGPipeline takes a schema with node_types, relationship_types, patterns and
+    additional_node_types
+
+    2. **Run** (minutes to hours) - The pipeline loads files, splits chunks, embeds them, extracts per chunk, prunes,
+    writes and resolves; it returns a summary such as number_of_nodes_to_resolve 12 and number_of_created_nodes 10.
+    Neo4j LLM Graph Builder runs the same flow with a UI
+
+    3. **Inspect the lexical layer** (5 min) - MATCH (d:Document)<-[:FROM_DOCUMENT]-(c:Chunk) RETURN d.path, c.text
+
+    4. **Inspect the entity layer** (10 min) - MATCH p = (c:Chunk)<-[:FROM_CHUNK]-(e1:__Entity__)-[*1..2]->(e2:__Entity__)
+    RETURN p in Browser or Bloom; check the schema view for labels and relationship types outside the declared schema
+
+    5. **Prune** (automatic, then checked) - With additional_node_types false undefined types are removed; nodes with an
+    empty label or id and relationships with invalid endpoints are always pruned
+
+    6. **Merge and re-check** (10 min) - Resolvers do exact match on name within a label, RapidFuzz fuzzy match, or spaCy
+    embedding match; they replace written nodes, so the user re-checks counts
+
+
+    **Decision Points**:
+
+    - How strict a schema: allow additional node types or not?
+
+    - Which resolver and threshold to use?
+
+    - Is an off-schema label a schema gap or an extraction error?
+
+    - Is the result good enough to stop iterating on prompts?
+
+
+    **Information Needs**:
+
+    - Declared schema vs labels and types actually written, with counts
+
+    - For an entity, the chunks and documents it came from, with the chunk text
+
+    - Counts before and after resolution, and which nodes were merged into which
+
+    - Lexical and entity layers distinguishable at a glance
+
+
+    **Pain Points**:
+
+    - Browser and Bloom show a few hundred nodes, so the schema check runs on samples
+
+    - Resolution rewrites nodes, so earlier inspection results go stale
+
+    - Lexical and entity layers mix in one picture unless styled by label by hand
+
+
+    **Data Flow**:
+
+    - Input: Documents, declared schema, LLM and embedding model
+
+    - Transformations: Chunking, extraction, pruning, writing, entity resolution
+
+    - Output: A Neo4j graph with lexical and entity layers, a run summary, schema-conformance notes
+success_criteria:
+    - metric: Schema conformance
+      target: User sees every off-schema label and relationship type with counts in one view
+    - metric: Provenance
+      target: From any entity the user reaches its source chunk text in one step
+    - metric: Resolution transparency
+      target: User can list which nodes each resolver merged
+sources:
+    - title: neo4j-graphrag user guide - knowledge graph builder
+      url: https://neo4j.com/docs/neo4j-graphrag-python/current/user_guide_kg_builder.html
+      summary: SimpleKGPipeline schema, pruning rules and resolvers (exact, fuzzy, spaCy)
+    - title: GraphAcademy - create a graph
+      url: https://graphacademy.neo4j.com/courses/genai-graphrag-python/2-knowledge-graph-pipeline/2-create-a-graph/
+      summary: Run summary and Cypher queries for the lexical and entity layers
+    - title: Neo4j - importing a graph from unstructured data
+      url: https://neo4j.com/developer/genai-ecosystem/importing-graph-from-unstructured-data/
+      summary: LLMGraphTransformer allowed_nodes and allowed_relationships; LLM Graph Builder
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

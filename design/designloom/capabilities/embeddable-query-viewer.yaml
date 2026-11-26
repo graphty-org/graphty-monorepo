@@ -1,0 +1,14 @@
+id: embeddable-query-viewer
+name: Embeddable query-time subgraph viewer
+category: export
+description: A network view that a database website drops into its result page. It renders a server-returned subgraph
+    with edge width taken from confidence, expands a clicked node's neighbors from the server, links out to the record
+    page, and exports GraphML or CX2.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W446
+implemented_by_components: []
+requirements: []
+sources: []

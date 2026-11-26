@@ -1,0 +1,81 @@
+id: network-pharmacology-graduate-student
+name: Network Pharmacology Graduate Student
+role: Master's or PhD Student at a University of Chinese Medicine
+quote: My supervisor gave me a four-herb formula and a disease. I need the Venn, the PPI, the top ten targets and the layered network, and this time the numbers in the methods have to match the figures.
+bio: >-
+    Lin is a second-year master's student at a university of Chinese medicine who must publish one SCI paper to
+    graduate. Her supervisor hands her a four-herb hospital formula and a disease, and she copies a prior paper's
+    methods, cutoffs included. She searches each herb on TCMSP or HERB and pastes 300 to 600 compounds into Excel with a
+    herb column added by hand, filters them to 40 to 150 by oral bioavailability >= 30% and drug-likeness >= 0.18,
+    predicts 150 to 700 targets with SwissTargetPrediction one compound at a time, converts protein names to gene
+    symbols in UniProt, pulls 1,000 to 11,000 disease genes from GeneCards, OMIM and DisGeNET, intersects the lists in
+    Venny, and builds a STRING network of the 100 to 200 shared targets (500 to 3,000 edges). In Cytoscape 3.9 or 3.10
+    she ranks hubs with cytoHubba, finds modules with MCODE, draws the layered herb-compound-target-pathway network,
+    and then docks the top compound into the top protein with AutoDock Vina. Figures are fixed up in Illustrator or
+    PowerPoint. She produces two or three such papers in a degree, each with four to six networks, working intensively
+    for two to six weeks and then stopping. Domain knowledge is strong and graph literacy low: degree is understood,
+    betweenness and closeness are used because the protocol says so, and she does not distinguish a bipartite network
+    from a one-mode one although she builds both. The field is large (3,357 PubMed records naming "network
+    pharmacology" in 2024, 5,172 in 2025, 88% with a China affiliation) and taught through paid workshops and WeChat
+    tutorials.
+characteristics:
+    expertise: intermediate
+    time_pressure: high
+    graph_literacy: novice
+    domain_knowledge: advanced
+motivations:
+    - Produce the standard figure set reviewers expect -- workflow diagram, Venn, PPI with filtered and core subnetworks, GO and KEGG plots, layered network, docking -- and a methods section they accept
+    - Pick the two or three core targets and pathways the lab will spend its bench budget validating
+    - Keep every count consistent between methods, figures and supplementary tables
+    - Regenerate the layered figure when the supervisor changes a cutoff, without re-dragging nodes
+behaviors:
+    - Builds every list in Excel and pastes compound, target and disease lists between web tools by hand
+    - Applies OB >= 30% and DL >= 0.18 because the prior paper did, and sometimes adds back compounds measured in serum
+    - Runs SwissTargetPrediction one compound at a time and picks a probability cutoff anywhere from > 0 to 0.5
+    - Intersects herb targets with disease genes in Venny 2.1 and uses the Venn as Figure 1
+    - Builds the STRING network at whatever confidence the template used (0.4, 0.7, 0.9 or 0.99) with disconnected nodes hidden
+    - Screens core targets by top-10 degree, cytoHubba MCC, or CytoNCA median rules, and shows full, filtered and core networks as three panels
+    - Assembles one stacked edge table (herb-compound, compound-target, target-pathway) and styles node types by shape and color chosen for this paper
+    - Drags node types into tiers by hand in Cytoscape, then fixes labels and the legend in Illustrator
+frustrations:
+    - Protein names must be converted to gene symbols before anything joins, and unmapped names drop silently; Excel turns some symbols into dates
+    - Assembling the herb-compound-target table across databases is the longest step of the whole study
+    - Cytoscape's force layout scatters the node types, and the hand-made tiers cannot be regenerated after a cutoff changes
+    - Counts drift between reruns, so the methods say one number and the figure another
+    - No way to see which compounds came from which herb once the spreadsheets have been joined
+    - Foreign databases are sometimes unreachable from China and TCMSP has moved addresses
+context:
+    frequency: occasional
+    devices:
+        - laptop
+        - desktop
+    voluntary: false
+workflows:
+    - W430
+    - W431
+    - W434
+sources:
+    - title: Lotus leaf network pharmacology study (PMC8566053)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8566053
+      summary: 93 compounds to 15 by OB/DL, 189 targets, 135 intersected, STRING at 0.4, top-5 degree hubs; papaverine absent from its own compound table
+    - title: Pulsatilla decoction network pharmacology study (Frontiers in Oncology 2023)
+      url: https://www.frontiersin.org/journals/oncology/articles/10.3389/fonc.2023.1174848/full
+      summary: Four herbs, 346 compounds, GeneCards relevance >= 1 giving 11,373 genes, 162 intersected targets, STRING 0.99, a 172-node layered network
+    - title: Two-herb pair network pharmacology study (PMC7838196)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC7838196
+      summary: 354 compounds to 66, median-rule hub screening stated in Methods but fixed cutoffs in Results, fifteen figures, every database dated
+    - title: Network pharmacology and the integration of multiple databases (TCMNPAS, PMC10958928)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10958928
+      summary: States that integrating results from multiple databases can be time-consuming and demanding
+    - title: Biostars question on drawing layered herb-compound-target networks
+      url: https://www.biostars.org/p/460186
+      summary: Users ask how to arrange node types into tiers in Cytoscape; answers point to manual arrangement
+    - title: Paid network pharmacology workshop (Pharnexcloud, 2022)
+      url: https://www.pharnexcloud.com/meeting/6618.html
+      summary: Two-day 3,000 RMB course including building the network diagram in Cytoscape
+    - title: Tencent Cloud tutorial on saving network pharmacology inputs
+      url: https://cloud.tencent.com/developer/article/1666096
+      summary: Advises saving downloaded data with the access date because databases move or become unreachable
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

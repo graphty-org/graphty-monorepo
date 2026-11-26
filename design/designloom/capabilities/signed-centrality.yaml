@@ -1,0 +1,16 @@
+id: signed-centrality
+name: Strength, expected influence and bridge centrality
+category: analysis
+description: Weighted strength, signed expected influence, in and out strength for directed networks, and bridge
+    strength and bridge expected influence given a community per node, reported as raw values.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W370
+    - W371
+    - W374
+    - W376
+implemented_by_components: []
+requirements: []
+sources: []

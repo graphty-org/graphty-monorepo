@@ -1,0 +1,14 @@
+id: causal-attribution-overlay
+name: Causal attribution on nodes
+category: analysis
+description: Show signed attribution scores with confidence intervals on nodes, ranked, for a chosen target (anomaly or
+    distribution change). Highlight the path from a root cause to the symptom, and build a causal graph by reversing
+    every edge of an imported dependency graph.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W429
+implemented_by_components: []
+requirements: []
+sources: []

@@ -1,0 +1,14 @@
+id: probabilistic-inference
+name: Bayesian network inference
+category: analysis
+description: Show each node's state probabilities as belief bars on the node. Set evidence by clicking a state and
+    update the posteriors. Also covers parameter sensitivity (tornado chart) and sensitivity to findings, expected
+    utility on decision nodes, EM parameter learning and cross-validation.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W426
+implemented_by_components: []
+requirements: []
+sources: []

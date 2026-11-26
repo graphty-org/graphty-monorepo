@@ -1,0 +1,27 @@
+id: journal-figure-export
+name: Journal Figure Export
+category: export
+description: Export at a chosen width in mm and dpi (90, 140, 190 mm; 300-1000 dpi) as SVG, EPS, PDF or TIFF with
+    legend, standard fonts, grayscale preview, saved and re-importable layout coordinates, and a caption note of
+    pruning.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W15
+    - W31
+    - W313
+    - W314
+    - W322
+    - W423
+    - W427
+implemented_by_components: []
+requirements:
+    - Export the whole graph or a chosen region independent of the viewport as vector SVG or PDF with embedded fonts and
+      Unicode, or a bitmap at a physical size (mm or inches) and 300-600 dpi, with presets (85/114/174 mm columns,
+      Letter, A4, A0, 16:9) and a legibility and grayscale preview; legend embedded in the export covering node and edge
+      encodings.
+    - "Export SVG or PDF with subscripts and math labels, curved edges, a box to mark conditioning, black-and-white
+      styles and journal column widths. Also covers SEM drawing conventions: ellipses for latents, rectangles for
+      observed variables, residual arrows, and estimates with significance stars on the arrows."
+sources: []

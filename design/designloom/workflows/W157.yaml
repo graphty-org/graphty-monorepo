@@ -1,0 +1,131 @@
+id: W157
+name: Querying a Versioned Mouse Cortex Connectome
+category: exploration
+validated: false
+personas:
+    - cellular-connectomics-neuroscientist
+requires_capabilities:
+    - data-import
+    - data-validation
+    - node-merging
+    - computed-attributes
+    - ego-network
+    - filtering
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - details-on-demand
+    - large-graph-rendering
+    - analysis-history
+    - data-export
+    - dataset-version-tracking
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - attribute-table-join-dialog
+    - data-table-panel
+    - filter-panel
+    - ego-network-dialog
+    - node-details-panel
+    - graph-canvas
+    - analysis-history-panel
+    - data-export-dialog
+starting_state:
+    data_type: synapse rows (pre root ID, post root ID, position) plus cell-type and functional tables at one materialization version
+    node_count: hundreds to tens of thousands of neurons per query (about 120,000 neurons in the volume)
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Pull the synapses among a set of neurons from the MICrONS cubic millimeter of mouse cortex at a
+    pinned data version, aggregate them into a neuron graph or a cell-type matrix, attach cell type, position and
+    functional responses, and keep the result valid as IDs change.
+
+
+    **Mental Model**: "A query against a moving database." The graph is a snapshot of a dataset that keeps being
+    proofread; the version is part of the result.
+
+
+    **Task Phases**:
+
+    1. **Connect and pin a version** (2 min) - Open the public datastack and set a materialization version; each is a
+    timestamped snapshot with an expiry date
+
+    2. **List tables** (2 min) - Synapse tables, cell-type tables and functional co-registration tables
+
+    3. **Query synapses** (minutes) - Filter by pre and post IDs without downloading the whole table (hundreds of
+    millions of rows), removing autapses
+
+    4. **Aggregate to a graph** (5 min) - Count synapses per pre/post pair for a weighted edge list, or pivot by pre and
+    post cell type for a cell-type matrix
+
+    5. **Join node attributes** (5 min) - Cell type, soma position, proofreading status and functional properties of
+    co-registered cells
+
+    6. **Handle ID churn** (varies) - Check whether IDs are still current at a timestamp, map old IDs to their
+    successors, avoid repeated live queries that may return inconsistent IDs
+
+
+    **Decision Points**:
+
+    - Which version, and is it still available?
+
+    - Neuron-level graph or cell-type matrix?
+
+    - Restrict to proofread neurons only?
+
+
+    **Information Needs**:
+
+    - Version number and timestamp attached to every result
+
+    - Which IDs are no longer current and what replaced them
+
+    - Count of synapses per pair and per cell-type pair
+
+    - Functional data available for which neurons
+
+
+    **Pain Points**:
+
+    - Access is code-only; no visual explorer for a query result
+
+    - IDs saved from one version are invalid in the next
+
+    - Synapse tables are too large to download
+
+
+    **Data Flow**:
+
+    - Input: Synapse, cell-type and co-registration tables at one version
+
+    - Transformations: Filtered synapse query, group-by aggregation to weighted edges or a cell-type matrix, attribute join, old-to-new ID mapping
+
+    - Output: Versioned neuron graph with attributes, cell-type matrix, exported tables
+success_criteria:
+    - metric: Version traceability
+      target: Every saved graph states its dataset and version
+    - metric: ID remapping
+      target: User can apply an old-to-new ID table and see how many nodes changed
+    - metric: Attribute join
+      target: Matched and unmatched neuron counts shown after joining cell types and functional data
+sources:
+    - title: MICrONS CAVE quickstart
+      url: https://tutorial.microns-explorer.org/quickstart_notebooks/00_cave_quickstart.html
+      summary: Connecting to the public datastack and pinning a version
+    - title: MICrONS synapse query tutorial
+      url: https://tutorial.microns-explorer.org/quickstart_notebooks/04-cave-query-synapses.html
+      summary: Filtered synapse queries and aggregation to edge lists and cell-type matrices
+    - title: CAVEclient materialization guide
+      url: https://caveclient.readthedocs.io/en/latest/guide/materialization.html
+      summary: Versions, expiry, live queries and ID validity
+    - title: CAVEclient changelog
+      url: https://caveconnectome.github.io/CAVEclient/changelog
+      summary: suggest_latest_roots added in 5.11 to map old IDs to successors
+    - title: MICrONS cortical mm3 dataset page
+      url: https://www.microns-explorer.org/cortical-mm3
+      summary: Public releases, functional co-registration counts
+    - title: Allen Institute MICrONS announcement
+      url: https://alleninstitute.org/news/scientists-complete-largest-wiring-diagram-and-functional-map-of-the-brain-to-date
+      summary: About 120,000 neurons and more than 523 million synapses
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,56 @@
+id: geographic-layout
+name: Geographic layout over a basemap
+category: visualization
+description: Place nodes with locations (claim addresses, provider sites, regions) on a map layer and combine geographic
+    position with network links.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W11
+    - W125
+    - W127
+    - W171
+    - W173
+    - W175
+    - W176
+    - W184
+    - W215
+    - W216
+    - W218
+    - W219
+    - W220
+    - W221
+    - W222
+    - W223
+    - W224
+    - W225
+    - W229
+    - W230
+    - W380
+    - W381
+    - W382
+    - W383
+    - W384
+    - W385
+    - W386
+    - W387
+    - W389
+    - W390
+    - W394
+    - W397
+    - W398
+implemented_by_components: []
+requirements:
+    - Use node coordinates as a fixed layout over a map, with raster and shapefile input and GIS export for spatial
+      graphs.
+    - Place nodes at latitude and longitude over a base map (or a user shapefile), draw edges as directed routes between
+      places, and keep the map linked to network and timeline filters.
+    - Place nodes from latitude/longitude or projected x/y on a basemap with synchronized zoom; draw edges straight or
+      as stored polylines; list nodes missing coordinates instead of hiding them; switch between geographic, schematic
+      and force layouts keeping the selection.
+    - Place nodes at coordinates, polygon centroids or geocoded names on a basemap with a choice of projection, and show
+      algorithm results (centrality size, community color, regions as filled areas) at their geographic positions.
+    - Place nodes or pies at sampling coordinates on a map, with linked selection and colors shared between map, graph
+      and legend.
+sources: []

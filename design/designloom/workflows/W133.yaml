@@ -1,0 +1,121 @@
+id: W133
+name: Debug an Agent's Temporal Memory Graph
+category: analysis
+validated: false
+personas:
+    - agent-memory-developer
+requires_capabilities:
+    - data-import
+    - search
+    - ego-network
+    - neighborhood-expansion
+    - temporal-navigation
+    - temporal-analysis
+    - filtering
+    - visual-encoding-edges
+    - details-on-demand
+    - path-highlighting
+    - provenance-tracking
+    - temporal-validity
+suggested_components:
+    - data-import-dialog
+    - search-input
+    - graph-canvas
+    - ego-network-dialog
+    - temporal-controls
+    - filter-panel
+    - visual-encoding-panel
+    - node-details-panel
+    - data-table-panel
+starting_state:
+    data_type: Graphiti temporal knowledge graph (episode, entity and community nodes; fact edges with valid_at, invalid_at, created_at, expired_at and episode ids) in Neo4j, FalkorDB or Neptune
+    node_count: 100-100000
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Explain an agent's wrong or stale answer by reconstructing what its memory graph believed at a given
+    time, which fact was invalidated and by which message, and whether extraction or invalidation was at fault.
+
+
+    **Mental Model**: "Rewind the memory." Each fact has a lifespan in the world and a lifespan in the system;
+    invalidated facts are kept, so the graph is a history to scrub through, not a current snapshot.
+
+
+    **Task Phases**:
+
+    1. **Locate the entity** (2 min) - Search for the person, account or object the answer was about
+
+    2. **Know the edge times** (once) - valid_at and invalid_at say when a fact was true in the world; created_at and
+    expired_at say when the system recorded and invalidated it; episodes lists the supporting episode ids
+
+    3. **List the fact timeline** (5 min) - The entity's fact edges ordered by valid_at, including expired ones
+
+    4. **Find the invalidation** (5 min) - When a new edge contradicts an older overlapping one, an LLM decides and the
+    older edge's invalid_at is set to the new edge's valid_at; nothing is deleted
+
+    5. **Trace to the episode** (5 min) - Follow episodes to the message that introduced or contradicted the fact;
+    decide whether extraction or invalidation was wrong
+
+    6. **Ask what it believed at T** (5 min) - Filter edges valid at T and recorded before T and compare with the answer
+    the agent gave
+
+
+    **Decision Points**:
+
+    - Was the wrong answer caused by a missing fact, a wrongly extracted fact, or a wrong invalidation?
+
+    - Which time axis matters: world time or system time?
+
+    - Fix the prompt, the invalidation logic, or the data?
+
+
+    **Information Needs**:
+
+    - The entity's facts on a timeline with both time axes, invalidated facts visible but distinct
+
+    - Point-in-time view: the subgraph valid at T and known before T
+
+    - Episode text for any fact, one step away
+
+    - Which new edge invalidated which old one
+
+
+    **Pain Points**:
+
+    - The open-source Graphiti library has no viewer and tells developers to build their own tools
+
+    - Generic graph views ignore edge validity intervals and show contradictory facts side by side
+
+    - Four timestamps per edge are hard to read in a query result table
+
+
+    **Data Flow**:
+
+    - Input: Memory graph export or query result with edge timestamps and episode ids
+
+    - Transformations: Entity lookup, timeline ordering, point-in-time filtering, episode join
+
+    - Output: A diagnosis (extraction error, invalidation error or missing data) and a fix ticket
+success_criteria:
+    - metric: Point-in-time reconstruction
+      target: User sees the facts valid and known at a chosen time T in under 2 minutes
+    - metric: Provenance
+      target: Each fact links to its source episode text in one step
+    - metric: Invalidation clarity
+      target: User can name which edge invalidated a fact and when
+sources:
+    - title: Zep - a temporal knowledge graph architecture for agent memory
+      url: https://arxiv.org/html/2501.13956
+      summary: Episodes as a non-lossy store; entity and community subgraphs; bi-temporal edges and LLM invalidation
+    - title: Graphiti edge model
+      url: https://raw.githubusercontent.com/getzep/graphiti/main/graphiti_core/edges.py
+      summary: valid_at, invalid_at, created_at, expired_at, reference_time and episodes fields
+    - title: Graphiti README
+      url: https://github.com/getzep/graphiti
+      summary: Backends and the advice to build your own tools for inspection
+    - title: Mem0 graph memory
+      url: https://docs.mem0.ai/open-source/features/graph-memory
+      summary: Alternative graph memory; typed relationships no longer recorded
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

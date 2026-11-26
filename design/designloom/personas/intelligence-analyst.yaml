@@ -1,41 +1,54 @@
 id: intelligence-analyst
 name: Intelligence Analyst
-role: Law Enforcement / Criminal Network Analyst
-quote: The answer is always in the connections - who knows who, who talked to whom, and when did that pattern change.
-bio: Marcus spent a decade in military intelligence before moving to a civilian agency focused on counter-terrorism. He
-    works with classified communication metadata, travel records, and financial transactions to map threat networks. His
-    expertise lies in identifying hidden coordinators and detecting when dormant networks suddenly activate. He needs
-    tools that can handle sensitive data while providing the analytical depth to brief decision-makers.
+role: Counter-Terrorism and Military Intelligence Analyst
+quote: A central figure is not always the leader, and a link chart is a freeze-frame unless I pair it with a timeline.
+bio: >-
+    Marcus spent a decade in military intelligence -- first as an all-source analyst in a brigade and then a division
+    intelligence section, then in a targeting cell -- before moving to a civilian counter-terrorism role. He works under
+    public doctrine (Army ATP 2-33.4 and FM 3-24) even where his systems are classified. His data is multi-source
+    reporting, biometrics, forensics and captured media (DOMEX), personality files, communications metadata, and travel
+    and financial records. He builds activities matrices (people by events, organizations and places) and association
+    matrices, draws link diagrams with doctrinal shapes and line styles, and asks which entity is central, who bridges
+    subgroups, and how interactions changed over time. In targeting he ranks high-value individuals, works out how the
+    network would react to losing each, and nominates high-payoff targets to the commander with supporting reporting;
+    after an operation he checks what it did to the network's density. His tools are DCGS-A's Axis Pro link diagrams,
+    i2 Analyst's Notebook, Palantir Gotham and spreadsheets -- and, when connectivity fails, sticky notes on a
+    whiteboard, which doctrine endorses. Every product has to be released in versions for different classification
+    levels. (Police crime analysts, trial analysts and cryptocurrency investigators are separate personas.)
 characteristics:
     expertise: intermediate
     time_pressure: high
     graph_literacy: moderate
     domain_knowledge: advanced
 motivations:
-    - Identify threats before they materialize into attacks
-    - Uncover hidden network coordinators who deliberately minimize their visible connections
-    - Provide actionable intelligence to decision-makers under time pressure
-    - Connect disparate data sources to reveal patterns invisible in siloed analysis
-    - Maintain operational security while conducting thorough investigations
+    - Answer "Which nodes should be targeted for collection or defeat?"
+    - Nominate high-value individuals with the supporting reporting attached
+    - Predict how the network will react to the loss of each targeted individual
+    - Measure what an operation did to the network
+    - Brief commanders with charts that separate what is reported from what is judged, with stated confidence
 behaviors:
-    - Uses betweenness centrality to find brokers who bridge otherwise disconnected groups
-    - Applies temporal analysis to detect activation patterns in dormant networks
-    - Looks for communication bursts that precede known events
-    - Builds network evolution timelines to track how organizations change over time
-    - Uses geographic overlays to correlate digital connections with physical proximity
-    - Works with multi-modal networks (communication + travel + financial)
-    - Prepares visualizations for briefings that non-technical decision-makers can understand
+    - Extracts entities and relationships from multi-source intelligence holdings, including biometrics, forensics and DOMEX
+    - Builds a two-mode activities matrix (people by organizations, events, addresses and activities) and an association matrix of direct contacts
+    - Draws link diagrams with circles for people, rectangles for activities and triangles for facilities, and a line style per activity (money transfers, communications) with a legend
+    - Uses degree, betweenness (the broker role) and density, and treats peripheral nodes as links to networks not yet mapped
+    - Pairs every link chart with pattern-of-life timelines and time event charts
+    - Ranks high-value targets by relative worth and groups the confirmed ones into a high-payoff target list
+    - Maps density over time to monitor the effects of operations
+    - Releases briefing versions per classification level with ICD 203 likelihood and confidence language
+    - Falls back to sticky notes on a whiteboard in environments with intermittent connectivity
 goals:
-    - Map criminal organization structure
-    - Identify key players for targeted investigations
-    - Trace flows of money, drugs, weapons
-    - Build prosecution cases with network evidence
-    - Predict criminal activity based on network patterns
+    - Map a threat network's structure, brokers and subgroups
+    - Nominate targets for collection or defeat with supporting reporting
+    - Anticipate the network's response to the loss of key individuals
+    - Assess the effect of operations on the network over time
+    - Produce releasable briefing products for decision-makers
 frustrations:
-    - Losing context when exploring deep paths
-    - No way to bookmark or annotate findings
-    - Difficulty documenting evidence for links
-    - Inability to save and share investigation state
+    - One person appears under many spellings and selectors across reports
+    - Source grades and confidence get lost when a chart is redrawn for a briefing
+    - Analysts wrongly assume a central figure is the leader
+    - Link charts freeze one moment and hide change over time unless paired with a timeline
+    - Producing releasable versions of classified charts by hand
+    - No way to attach supporting reports to the node they justify
 context:
     frequency: daily
     devices:
@@ -47,7 +60,21 @@ workflows:
     - W09
     - W15
     - W17
+    - W99
+    - W103
+    - W106
+    - W305
+    - W308
 sources:
+    - title: Army ATP 2-33.4 Intelligence Analysis (2020)
+      url: https://irp.fas.org/doddir/army/atp2-33-4.pdf
+      summary: Link analysis steps, activities and association matrices, link diagram shapes and line styles, pitfalls (central figure is not the leader, freeze-frame), Axis Pro link diagrams, whiteboard fallback, high-payoff target nomination, ICD 203 likelihood bands
+    - title: Army FM 3-24 Insurgencies and Countering Insurgencies (2014)
+      url: https://irp.fas.org/doddir/army/fm3-24.pdf
+      summary: Degree, betweenness as broker role, density over time to monitor operations, peripheral nodes connected to unmapped networks
+    - title: i2 Analyst's Notebook product sheet
+      url: https://i2group.com/hubfs/Products/i2-Analysts-Notebook.pdf
+      summary: Redacted copies by clearance level for releasable charts
     - title: "Big Graph Data Visualization: 5 Steps To Large-scale Visual Analysis"
       url: https://cambridge-intelligence.com/big-graph-data-visualization/
       summary: Guidance on visualizing large networks for intelligence analysis - filtering, aggregation, and exploration patterns
@@ -59,3 +86,6 @@ sources:
       bibliography:
           date: 2023-08
           publisher: Communications of the ACM
+version: 1.1.0
+created_at: 2026-01-16T16:42:37.868Z
+updated_at: 2026-11-25T00:00:00.000Z

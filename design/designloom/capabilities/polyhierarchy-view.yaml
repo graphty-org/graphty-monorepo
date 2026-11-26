@@ -1,0 +1,15 @@
+id: polyhierarchy-view
+name: Polyhierarchy View
+category: visualization
+description: Draw a class or concept hierarchy where each node appears once with all of its parents, distinguishes
+    asserted and inferred parent links, and shows non-tree links such as skos:related on demand.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W134
+    - W135
+    - W136
+implemented_by_components: []
+requirements: []
+sources: []

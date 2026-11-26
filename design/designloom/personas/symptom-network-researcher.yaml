@@ -1,0 +1,79 @@
+id: symptom-network-researcher
+name: Symptom Network Researcher
+role: Clinical Psychology PhD Student / Postdoc Estimating Symptom Networks in R
+quote: Reviewers will ask for the CS-coefficient before they read a word about my central symptom, so the stability check comes first and the pretty picture comes last.
+bio: >-
+    Lena is a third-year clinical psychology PhD student studying PTSD and depression comorbidity in a trauma clinic
+    sample of about 400 patients who answered 20 to 30 questionnaire items. She learned R from a methods course and
+    the bootnet tutorial and attended one network psychometrics workshop. Her graphs are small (15 to 30 nodes) but
+    every edge is estimated, not observed: a regularized partial correlation that is signed, weighted, sparse by
+    design and uncertain. She cleans data in SPSS, estimates the network with bootnet and EBICglasso, draws it with
+    qgraph, computes strength, expected influence and bridge centrality with networktools, bootstraps edge intervals
+    and centrality stability, and compares groups with NetworkComparisonTest. The field's reporting standards decide
+    what she may claim: a centrality index with a CS-coefficient below 0.25 is not reported, an edge interval that
+    includes zero is not evidence the edge is absent, and node position in a spring layout means nothing.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: intermediate
+    domain_knowledge: advanced
+motivations:
+    - Find central and bridge symptoms in a form reviewers accept under the network reporting standards
+    - Show which edges are accurately estimated and which centrality rankings are stable before claiming anything
+    - Compare symptom networks between groups (widowed vs separated, clinic vs community, before vs after treatment) on one fixed layout
+    - Produce journal figures (network, centrality plot, edge-interval plot, stability plot, difference matrix) that print well in grayscale
+    - Put code, data, layout matrix and package versions on OSF so the figure can be reproduced
+behaviors:
+    - Starts from a respondent-by-item matrix (.sav or CSV, ordinal 0-3 or 1-5, a few percent missing), never from an edge list
+    - Checks item redundancy first (goldbricker, UVA) and merges items with overlapping content before estimating
+    - Estimates with EBICglasso on polychoric correlations, trying gamma between 0 and 0.5 and watching the edge count change
+    - Draws with qgraph's spring layout, a shared maximum edge weight, short node labels with a legend of full item text, and node colors by subscale
+    - Uses blue for positive and red for negative edges (the colorblind theme), and dashed negatives for print
+    - Reports strength and expected influence as raw scores and distrusts betweenness and closeness after they fail the stability check
+    - Runs edge bootstraps and case-dropping bootstraps that take minutes to hours, then softens wording in the paper accordingly
+    - Saves the layout matrix because spring layouts drift between package versions
+frustrations:
+    - Case-dropping bootstraps that run for hours on 50+ nodes
+    - Betweenness and closeness failing the stability check (CS of 0.05 in the standard tutorial example)
+    - Two group networks drawn with different spring layouts that must be forced onto one averaged layout by hand
+    - Overlapping labels in the edge-interval plot and in tight layouts
+    - Not positive definite errors with ordinal data
+    - Drawing tools that show an estimated edge exactly like an observed one, with no uncertainty and nothing warning against reading node distance as meaning
+    - Green-red edge colors as the qgraph default
+context:
+    frequency: monthly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W370
+    - W371
+    - W372
+    - W375
+    - W378
+sources:
+    - title: Robinaugh et al. 2020 - The network approach to psychopathology, a review of the literature 2008-2018
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC7334828
+      summary: 363 articles, 204 empirical; 141 of 170 network psychometrics papers used cross-sectional data; median N 508
+    - title: Epskamp, Borsboom and Fried 2018 - Estimating psychological networks and their accuracy (bootnet tutorial)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5809547
+      summary: PTSD example (N 359, 17 symptoms); edge bootstraps, case-dropping, CS strength 0.44, betweenness and closeness 0.05
+    - title: Burger et al. 2023 - Reporting standards for psychological network analyses in cross-sectional data
+      url: https://pure.uva.nl/ws/files/184239260/ContentServer_2_.pdf
+      summary: Redundancy merging, raw centrality, no double thresholding, shared layouts and maxima, dashed negative edges for print
+    - title: qgraph reference manual
+      url: https://cran.r-project.org/web/packages/qgraph/qgraph.pdf
+      summary: maximum, minimum and cut arguments; colorblind theme called the de facto standard while classic green-red stays the default
+    - title: networktools bridge reference
+      url: https://search.r-project.org/CRAN/refmans/networktools/html/bridge.html
+      summary: Bridge strength and bridge expected influence need a community assignment per node
+    - title: bootnet GitHub issues 108, 129 and 139
+      url: https://github.com/SachaEpskamp/bootnet/issues/139
+      summary: User reports of 10+ hour bootstraps (N 2,000, 60-70 nodes), label overlap and not positive definite errors
+    - title: Bringmann et al. 2019 - What do centrality measures measure in psychological networks?
+      url: https://research-collection.ethz.ch/bitstream/20.500.11850/383309.1/1/Bringmannetal.2019JAP.pdf
+      summary: Betweenness and closeness assume shortest-path flow and are especially unsuitable for psychological variables
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

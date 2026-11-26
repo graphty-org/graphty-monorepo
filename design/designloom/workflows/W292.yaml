@@ -1,0 +1,138 @@
+id: W292
+name: Network and Attribute Import with Key-Column Joins
+category: onboarding
+validated: false
+personas:
+    - graph-data-wrangler
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - node-merging
+    - filtering
+    - details-on-demand
+    - import-report
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - attribute-table-join-dialog
+    - data-table-panel
+    - network-list-panel
+starting_state:
+    data_type: Interaction table (source, target, interaction type, attributes) plus a separate node attribute table
+    node_count: 100-10,000
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Build a network from an interaction table by assigning column roles, then join one or more attribute
+    tables onto its nodes or edges through a key column, and confirm the join actually matched. Modeled on Cytoscape's
+    Network from File and Table from File imports, which most network biology protocols use.
+
+
+    **Mental Model**: "Build the skeleton, then hang data on it." The network comes from one table; every later table
+    joins by a shared identifier, like a spreadsheet lookup.
+
+
+    **Task Phases** (no source gives step timings):
+
+    1. **Import the network table** - Text or Excel, one worksheet at a time
+
+    2. **Assign column roles** - Source node, target node, optional interaction type (where layered data puts its layer);
+    remaining columns become edge or node attributes with types String, Boolean, Integer, Floating Point or List; a
+    list column uses one delimiter for the whole table
+
+    3. **Watch for attribute overwrite** - When a node appears in several rows, a node attribute keeps only the last
+    value imported
+
+    4. **Import the attribute table** - Choose where it goes (a network collection, one network, or an unassigned table
+    linked later), whether it is node, edge or network data, and which file column matches which network key column
+
+    5. **Check the match** - The network key is always a string, so a numeric id column must be switched to string; the
+    default key is the file's first column; when nothing matches only the column headers import
+
+    6. **Clean up** - Remove duplicated edges (same source and target, keep one) and remove self-loops; decide whether
+    A-to-B and B-to-A collapse while staying directed
+
+    7. **Map identifiers if needed** - Convert a column between namespaces (symbol, Ensembl, UniProt) with species
+    constraint; a force-single option keeps the first answer
+
+
+    **Decision Points**:
+
+    - Which columns are source, target and interaction type?
+
+    - Node attribute or edge attribute for each extra column?
+
+    - Which column in the file is the key, and does its type match the network key?
+
+    - Remove duplicate edges and self-loops, or keep them as data?
+
+
+    **Information Needs**:
+
+    - Count of rows matched, unmatched and duplicated by the join, with the unmatched keys listed
+
+    - Warning when a node attribute received conflicting values from several rows
+
+    - Key type and normalization in effect (string versus number, trimmed, case-sensitive)
+
+    - Count of duplicate edges and self-loops before removal
+
+
+    **Pain Points**:
+
+    - Numeric keys read as numbers on one side and strings on the other, so nothing matches
+
+    - Default key is the first column, which is often not the identifier
+
+    - Only column headers import when no key matches, with no explanation
+
+    - Half the values import with no explanation of why the other half did not
+
+    - Only the last value survives when a node appears in several rows
+
+    - Excel files read one sheet at a time
+
+
+    **Data Flow**:
+
+    - Input: Interaction table, one or more node or edge attribute tables
+
+    - Transformations: Column role assignment, typed parsing, key-column join, duplicate and self-loop removal,
+    identifier mapping
+
+    - Output: Network with joined attribute columns and a join report
+success_criteria:
+    - metric: Join transparency
+      target: User can state how many keys matched and see the list of those that did not
+    - metric: Type mismatch caught
+      target: A string-versus-number key mismatch is detected and offered a fix before the join runs
+    - metric: Overwrite visibility
+      target: Conflicting values for one node are reported, not silently overwritten
+sources:
+    - title: Cytoscape User Manual - Creating Networks
+      url: https://manual.cytoscape.org/en/stable/Creating_Networks.html
+      summary: Network from File column roles, attribute types, list delimiter, one sheet at a time
+    - title: Cytoscape User Manual - Node and Edge Column Data
+      url: https://manual.cytoscape.org/en/3.10.3/_sources/Node_and_Edge_Column_Data.md.txt
+      summary: Table import destinations, key column for network, identifier mapping with force single
+    - title: Cytoscape tutorial - Importing Network From Table
+      url: https://cytoscape.org/cytoscape-tutorials/protocols/importing-network-from-table/
+      summary: Bait-prey example where a prey seen with several baits keeps the last value imported
+    - title: Cytoscape helpdesk - only column headers imported
+      url: https://groups.google.com/g/cytoscape-helpdesk/c/O0Qpdb0zuLc
+      summary: shared name is a string; numeric key must be switched to string; first column is the default key
+    - title: Cytoscape helpdesk - half the values imported
+      url: https://groups.google.com/g/cytoscape-helpdesk/c/tB4mcg8VHvA
+      summary: User report of a partial join with no explanation
+    - title: Cytoscape - Quick Tour
+      url: https://manual.cytoscape.org/en/latest/Quick_Tour_of_Cytoscape.html
+      summary: Edit menu Remove Duplicated Edges and Remove Self-Loops
+    - title: Biostars - collapse reciprocal edges in a directed network
+      url: https://www.biostars.org/p/9524627
+      summary: Users asking how to merge A-to-B and B-to-A while staying directed
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

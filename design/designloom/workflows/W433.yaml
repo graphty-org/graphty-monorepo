@@ -1,0 +1,123 @@
+id: W433
+name: Gut Microbe and Metabolite Correlation Network for a Herbal Treatment
+category: analysis
+validated: false
+personas:
+    - herbal-formula-mechanism-lead
+requires_capabilities:
+    - data-import
+    - data-validation
+    - filtering
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-force-directed
+    - degree-analysis
+    - community-detection
+    - path-highlighting
+    - details-on-demand
+    - analysis-history
+    - export-image
+    - data-export
+    - similarity-graph-construction
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - heatmap-panel
+    - filter-panel
+    - range-slider
+    - visual-encoding-panel
+    - gradient-editor
+    - legend-panel
+    - node-details-panel
+    - analysis-history-panel
+    - graph-canvas
+    - image-export-dialog
+starting_state:
+    data_type: Spearman correlation and p-value matrices of differential taxa against differential metabolites, plus a compound-target network from the standard pipeline
+    node_count: 20-150 taxa and metabolites, plus 100-400 compounds and targets
+    edge_density: dense before thresholding, sparse after
+    user_expertise: expert
+goal: >-
+    **Intent**: Show which gut bacteria and which metabolites move together under treatment, and connect them to the
+    host targets the formula is predicted to reach. 782 PubMed records combine network pharmacology with gut
+    microbiota or 16S work.
+
+
+    **Mental Model**: "A signed bipartite web." Taxa on one side, metabolites on the other, edges colored by the sign of
+    the correlation and weighted by its strength; the threshold decides what is drawn.
+
+
+    **Task Phases**:
+
+    1. **Narrow the formula** - Standard pipeline to a short compound and target list
+
+    2. **Dose an animal model** - For example DSS colitis rats in several groups
+
+    3. **Sequence the microbiota** - 16S, QIIME, alpha and beta diversity, LEfSe differential taxa (LDA > 4.0)
+
+    4. **Profile metabolites** - OPLS-DA, VIP > 1.0 and p < 0.05
+
+    5. **Correlate** - Spearman matrix of taxa against metabolites; choose |r| and p thresholds
+
+    6. **Join to host targets** - By shared pathways or by argument (today often only in prose)
+
+    7. **Validate** - Western blot, qPCR or ELISA
+
+
+    **Decision Points**:
+
+    - Which |r| and p thresholds define an edge (often unreported)?
+
+    - Positive only, or both signs?
+
+    - How to link taxa or metabolites to host targets: shared pathway, metabolite-target prediction, or literature?
+
+
+    **Information Needs**:
+
+    - Edge count at each threshold, live as the threshold moves
+
+    - Sign and strength of each correlation, and the p-value behind it
+
+    - Which metabolites map to enriched host pathways
+
+
+    **Pain Points**:
+
+    - Correlation thresholds are unstated, so the drawn network depends on an invisible cutoff
+
+    - The correlation network is drawn outside Cytoscape and never joined to the compound-target network
+
+    - Heatmap and network show the same matrix but are not linked
+
+
+    **Data Flow**:
+
+    - Input: Correlation and p-value matrices (CSV), taxa and metabolite annotation tables, compound-target-pathway
+    network
+
+    - Transformations: Matrix to signed weighted bipartite edges, live threshold filter, join to pathways and targets
+
+    - Output: Taxon-metabolite network with recorded thresholds, linked host-target view, figures
+success_criteria:
+    - metric: Threshold transparency
+      target: The exported figure and record state the |r| and p cutoffs used
+    - metric: Join to host
+      target: User can trace at least one taxon-metabolite-pathway-target chain on the canvas
+sources:
+    - title: Weifuchun Capsule (Frontiers in Microbiology 2025)
+      url: https://www.frontiersin.org/journals/microbiology/articles/10.3389/fmicb.2025.1634410/text
+      summary: 99 components narrowed to 10, microbiome and metabolome integration
+    - title: Guanyu Zhixie Granule (PMC11149358)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11149358/
+      summary: 60 rats in six groups; Proteobacteria with epinephrine r = 0.749
+    - title: Shen Ling Bai Zhu San (PMC6612409)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6612409
+      summary: 980 compounds to 97, 171-node compound-target network, DSS colitis rats, link to host made in prose
+    - title: Tongxieyaofang (PMC11604607)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11604607/
+      summary: Microbiome branch joined to network pharmacology; hub intersection of several methods
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

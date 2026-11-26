@@ -1,0 +1,15 @@
+id: query-editor
+name: Graph Query Editor
+category: analysis
+description: Write and run Cypher, Gremlin, SPARQL or GQL, see the result as graph, table and raw data, and see returned
+    rows and paths against drawn nodes and edges, with query time shown apart from render time.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W144
+    - W146
+    - W151
+implemented_by_components: []
+requirements: []
+sources: []

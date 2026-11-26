@@ -1,0 +1,16 @@
+id: undo-redo
+name: Undo and Redo
+category: analysis
+description: Undo and redo every step, including imports, layouts, style mappings, filters and hand edits, so a wrong
+    click or crash never forces starting over. Gephi has none; novices 'had to start over'.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W14
+    - W231
+    - W232
+    - W240
+implemented_by_components: []
+requirements: []
+sources: []

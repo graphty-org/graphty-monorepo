@@ -1,0 +1,70 @@
+id: dana-okafor
+name: Dana Okafor
+role: Internal Penetration Tester / Red Team Consultant
+quote: In a domain with twenty thousand users the path to Domain Admins is in there somewhere. I need it in minutes, I need to prove every hop, and I need one finding per path, not three hundred screenshots.
+bio: >-
+    Dana Okafor is a senior consultant at a security services firm who runs internal network and Active Directory
+    assessments. On every engagement she collects one SharpHound zip per domain (users, groups, computers, ACLs,
+    sessions, GPOs, trusts, certificate services) and an AzureHound collection when the client has Entra ID, loads them
+    into BloodHound Community Edition running in Docker on her test laptop, and drops into Neo4j Browser for raw Cypher
+    when the prebuilt queries do not fit. Her graphs are large and heterogeneous: one recent client had twenty thousand
+    users and hundreds of thousands of typed, directed edges (MemberOf, AdminTo, HasSession, GenericAll, WriteDacl).
+    She marks the accounts she has phished or cracked as owned, runs shortest paths to Domain Admins, filters out edge
+    types she cannot quietly abuse, and turns each believable path into a report finding with reproduction commands.
+    She is fluent in Cypher and PowerShell and thinks in typed edges and hop counts, never in centrality vocabulary.
+    Client data never leaves the engagement environment.
+characteristics:
+    expertise: expert
+    time_pressure: high
+    graph_literacy: advanced
+    domain_knowledge: advanced
+motivations:
+    - Find the shortest believable path from an owned or cracked account to Domain Admins or Tier Zero
+    - Prove every hop with the abuse steps and commands the client can reproduce
+    - Group near-duplicate paths into one finding the client can actually fix
+    - Rate severity by who the starting principal is (any domain user versus a single service account)
+    - Finish analysis within the engagement window without exposing client data
+behaviors:
+    - Runs SharpHound with Default or All collection methods, loops session collection because sessions are transient, and password-protects the output zip
+    - Ingests one zip per domain into BloodHound CE through File Ingest, splitting very large collections or using third-party importers when uploads fail
+    - Right-clicks compromised accounts to "Add to Owned" and checks the Tier Zero set before running any query
+    - Starts with the saved query for shortest paths to Domain Admins, then pathfinds between a start node and up to three destinations
+    - Uses the edge type filter to drop edges she cannot or will not abuse, and reverses paths to look inbound from a target
+    - Writes custom Cypher for owned-to-high-value paths and keeps a personal library of saved queries exported as JSON
+    - Reads results in the left-to-right layered layout, clicks an edge for its Abuse and OPSEC panels, and expands node accordions (Member Of, Local Admin Privileges, Outbound Object Control) into the graph
+    - Cross-references cracked-password lists against group membership by hand
+    - Exports JSON or images with labels hidden for the report
+frustrations:
+    - The path exists but finding the useful one among hundreds of thousands of edges takes hours
+    - Hundreds of near-duplicate paths have to be grouped into findings by hand
+    - Large collections import slowly and break on non-ASCII names
+    - Image export is an Enterprise-only feature, so report figures are screenshots
+    - Cracked-password and owned-account lists live outside the graph and must be matched manually
+    - Node identifiers containing a colon break search in OpenGraph extensions
+context:
+    frequency: weekly
+    devices:
+        - laptop
+    voluntary: true
+workflows:
+    - W108
+    - W114
+sources:
+    - title: NetSPI - ADPathfinder, OpenGraph attack path mapping in BloodHound CE
+      url: https://www.netspi.com/blog/technical-blog/network-pentesting/adpathfinder-opengraph-attack-path-mapping-in-bloodhound-ce/
+      summary: Pentester pain with twenty thousand users and hundreds of thousands of edges, duplicate paths grouped by hand, severity by starting principal
+    - title: Dealing with large BloodHound datasets (Helvio Junior)
+      url: https://helviojunior.com.br/en/offsec/dealing-with-large-bloodHound-datasets
+      summary: Slow imports of large collections, a client environment with 95,369 user accounts, third-party importers
+    - title: BloodHound docs - SharpHound flags
+      url: https://bloodhound.specterops.io/collect-data/ce-collection/sharphound-flags
+      summary: Collection methods (Default, All, DCOnly), session loop collection, zip passwords
+    - title: BloodHound docs - Search and pathfinding
+      url: https://bloodhound.specterops.io/analyze-data/explore/search
+      summary: Add to Owned and Tier Zero, pathfinding with waypoints and edge filter, Abuse and OPSEC panels, colon-in-ID search limit
+    - title: BloodHound docs - Cypher search
+      url: https://bloodhound.specterops.io/analyze-data/explore/cypher-search
+      summary: Saved queries by platform, category and source; sharing and JSON export
+    - title: BloodHound docs - Graph controls
+      url: https://bloodhound.specterops.io/analyze-data/explore/graph-controls
+      summary: Sequential layered default layout, Hide Labels, image export only in Enterprise

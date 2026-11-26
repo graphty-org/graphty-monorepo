@@ -1,0 +1,14 @@
+id: sbm-inference
+name: Stochastic Block Model Inference
+category: analysis
+description: Nested degree-corrected stochastic block model fitted by minimum description length, with posterior node
+    marginals and drill-down through levels.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W38
+    - W47
+implemented_by_components: []
+requirements: []
+sources: []

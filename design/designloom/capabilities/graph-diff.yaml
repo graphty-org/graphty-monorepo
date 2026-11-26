@@ -1,0 +1,31 @@
+id: graph-diff
+name: Graph Version Diff
+category: analysis
+description: "Compare two versions of a graph with matched node ids (before/after a change, live versus staging, live
+    versus baseline path): added and removed nodes and edges, and per-node metric differences usable for color and
+    sort."
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W108
+    - W109
+    - W115
+    - W13
+    - W134
+    - W135
+    - W136
+    - W276
+    - W76
+    - W79
+    - W83
+    - W86
+implemented_by_components: []
+requirements:
+    - Compare two versions of a graph (two collections, two binaries) and show matched, changed, removed and new nodes,
+      edges and paths.
+    - Compare two versions of a hierarchy or graph and highlight added, removed and moved nodes, including nodes that
+      gained or lost a parent.
+    - Compare two graphs matched by node id or a supplied mapping, marking added, removed and changed nodes and edges
+      with synchronized navigation.
+sources: []

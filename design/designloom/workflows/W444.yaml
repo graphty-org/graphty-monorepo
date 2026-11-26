@@ -1,0 +1,146 @@
+id: W444
+name: Prescription Mining With Herb Co-occurrence Networks
+category: analysis
+validated: false
+personas:
+    - network-pharmacology-researcher
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - node-merging
+    - computed-attributes
+    - filtering
+    - saved-filters
+    - centrality-degree
+    - community-detection
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-force-directed
+    - node-selection
+    - details-on-demand
+    - export-image
+    - data-export
+    - bipartite-projection
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - node-merge-dialog
+    - attribute-table-join-dialog
+    - filter-panel
+    - range-slider
+    - algorithm-panel
+    - community-panel
+    - visual-encoding-panel
+    - legend-panel
+    - graph-canvas
+    - ranked-node-table
+    - image-export-dialog
+starting_state:
+    data_type: >-
+        A table of prescriptions from hospital records or classical texts (300-3,900 prescriptions), each listing herbs;
+        herb attributes from the Chinese Pharmacopoeia (property, flavor, meridian) and formula roles
+    node_count: 100-740 herbs
+    edge_density: dense (105 nodes and 1,603 edges; 243 nodes and 3,552 edges in published examples)
+    user_expertise: novice to intermediate
+goal: >-
+    **Intent**: Find which herbs a physician or a classical tradition combines for a syndrome, and extract a core
+    formula from those combinations, often as the input to a new hospital formula and then to the standard mechanism
+    pipeline.
+
+
+    **Mental Model**: "Herbs that travel together." The graph is one-mode and weighted: herbs joined by
+    co-prescription. The k-core or densest community is the physician's core formula; traditional properties (cold to
+    hot, flavor, meridian, monarch-minister-assistant-guide role) are the natural colors.
+
+
+    **Task Phases**:
+
+    1. **Assemble the table** (hours) - Prescriptions as rows, herbs as columns (aplastic anemia: 859 prescriptions, 255
+    herbs; influenza-like illness: 457 records, 105 herbs); scripts turn it into a Boolean prescription-by-herb matrix
+
+    2. **Standardize herb names** (1-2 h) - Merge processed and raw forms; attach property, flavor and meridian
+
+    3. **Frequencies** (20 min) - Pivot tables of herb counts
+
+    4. **Association rules** (30 min) - Apriori in SPSS Modeler (support 0.20, confidence 0.8), R arules or Python mlxtend
+
+    5. **Build the network** (30 min) - Project the incidence table onto herbs; size herbs by frequency, weight edges by
+    co-occurrence count, rule confidence or mutual information; remove a herb present in every prescription; keep the top
+    pairs or a weight cut
+
+    6. **Extract the core formula** (20 min) - k-core (k > 26 gave ten herbs, a four-herb core matching a classical
+    decoction), clustering or modularity communities; check pairs against known traditional herb pairs
+
+    7. **Hand on** the core herbs to the formula-to-mechanism pipeline
+
+
+    **Decision Points**:
+
+    - Which edge weight (count, support, confidence, mutual information) and which cut?
+
+    - Remove ubiquitous herbs before building the network?
+
+    - Which k or which community defines the core formula?
+
+
+    **Information Needs**:
+
+    - Herb frequency and co-occurrence weight on every node and edge
+
+    - Edge and node counts at each weight cut, with the cut recorded
+
+    - k-core and community membership per herb
+
+    - Traditional attributes (property, flavor, meridian, role) available for color and shape
+
+
+    **Pain Points**:
+
+    - The network step leaves the rule-mining tool: rules in SPSS or R, networks in Cytoscape or Gephi
+
+    - Projection from the incidence table is done with custom Python or Perl
+
+    - The cut that defined the drawn network is not recorded and cannot be changed later
+
+
+    **Data Flow**:
+
+    - Input: Prescription-by-herb incidence table, herb attribute table
+
+    - Transformations: Name standardization (node merge), bipartite-to-one-mode projection with weights, weight cut,
+    k-core and community detection, attribute styling
+
+    - Output: Weighted herb co-occurrence network with core highlighted, frequency and rule tables, core herb list
+success_criteria:
+    - metric: Direct projection
+      target: A prescription table becomes a weighted herb network without custom code
+    - metric: Recorded cut
+      target: The weight measure and threshold are stored with the network and adjustable
+    - metric: Core formula extraction
+      target: User can highlight the k-core or densest community and export its herb list
+sources:
+    - title: Li et al. 2010, herb network from 3,865 formulae (PMC3024874)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC3024874/
+      summary: 737 herbs, mutual information with distance, top 100 pairs, nodes colored by cold-to-hot property, checked against 775 traditional pairs
+    - title: Aplastic anemia prescription mining (PMC9436587)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC9436587/
+      summary: 859 prescriptions and 255 herbs; Apriori association rules
+    - title: Influenza-like illness prescription rules (Journal of Multidisciplinary Healthcare)
+      url: https://www.dovepress.com/diagnostic-features-and-prescription-rules-of-influenza-like-illnesses-peer-reviewed-fulltext-article-JMDH
+      summary: 457 records, 105 herbs, 1,603 edges in Gephi colored by modularity, k-core with k > 26 giving ten herbs
+    - title: Ginseng for Xiaoke in classical prescriptions (PMC7140142)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC7140142/
+      summary: 303 prescriptions; ginseng removed as ubiquitous; 243 nodes and 3,552 edges in Cytoscape; DPClus clusters
+    - title: Coronary heart disease prescription mining (PMC8557045)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8557045/
+      summary: 715 cases and 182 herbs; five core herbs handed on to a network pharmacology pipeline
+    - title: TCMNPAS platform (PMC10958928)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10958928
+      summary: R/Shiny platform combining prescription mining with network pharmacology
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

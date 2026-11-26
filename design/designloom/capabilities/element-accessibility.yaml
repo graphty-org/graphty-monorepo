@@ -1,0 +1,14 @@
+id: element-accessibility
+name: Built-In Graph Accessibility
+category: analysis
+description: Keyboard walk of nodes and edges, a focus model, a built-in find-node entry point, ARIA roles and labels, a
+    generated text alternative listing nodes and edges, reduced-motion support, and a published WCAG and Section 508
+    conformance statement.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W287
+implemented_by_components: []
+requirements: []
+sources: []

@@ -1,0 +1,14 @@
+id: lagged-causal-edges
+name: Lag-indexed edges and time-unrolled view
+category: visualization
+description: Keep several lags per variable pair, each with a value and p-value, and show self-dependence on nodes.
+    Switch between a process graph (one node per variable) and an unrolled time-series graph, with an alpha or q
+    threshold that filters links live.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W428
+implemented_by_components: []
+requirements: []
+sources: []

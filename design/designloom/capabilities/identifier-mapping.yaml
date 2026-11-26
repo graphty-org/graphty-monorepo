@@ -1,0 +1,26 @@
+id: identifier-mapping
+name: Identifier mapping and disambiguation
+category: data
+description: Map gene, protein, metabolite and RNA identifiers between namespaces (symbol, Entrez, Ensembl, UniProt,
+    STRING, KEGG, miRBase, BiGG), list ambiguous matches with the chosen resolution, report matched and unmatched
+    counts, and flag spreadsheet-mangled gene symbols such as dates.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W20
+    - W241
+    - W243
+    - W251
+    - W430
+    - W431
+    - W439
+    - W447
+implemented_by_components: []
+requirements:
+    - Map protein names, UniProt accessions, gene symbols, compound names, PubChem CIDs and InChIKeys with a species
+      filter, and report matched, unmatched and duplicate identifiers instead of dropping them silently.
+    - Maps protein names, UniProt ids, gene symbols, compound names, PubChem CIDs and InChIKeys to one another, with a
+      species filter. Reports counts of matched, unmatched and duplicate ids and lists the unmatched ones instead of
+      dropping them silently.
+sources: []

@@ -1,0 +1,151 @@
+id: W306
+name: Time-Sliced Evolution of a Research Field
+category: analysis
+validated: false
+personas:
+    - bibliometric-evolution-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - temporal-analysis
+    - temporal-navigation
+    - community-detection
+    - community-profiling
+    - centrality-betweenness
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - statistics-panel
+    - report-generation
+    - export-image
+    - data-export
+    - network-collection-small-multiples
+    - burst-detection
+    - community-evolution-tracking
+suggested_components:
+    - data-import-dialog
+    - file-drop-zone
+    - temporal-controls
+    - algorithm-panel
+    - community-panel
+    - cluster-table
+    - ranked-node-table
+    - legend-panel
+    - graph-canvas
+    - statistics-panel
+    - report-generator-dialog
+    - image-export-dialog
+starting_state:
+    data_type: bibliographic records (Web of Science plain text, Scopus CSV, RIS) with publication years and cited references
+    node_count: 300-3000 references, authors or keywords after per-slice selection
+    edge_density: medium
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Map how a research field evolved: build one co-citation or co-word network per year, keep the most
+    important nodes in each, merge the slices, cluster and label the result, and read when clusters formed, which
+    papers burst, and which papers bridged clusters. The output is a timeline figure and tables for a review or a
+    strategy report.
+
+
+    **Mental Model**: "Tree rings." Each year adds a ring to every node; color says when a link first appeared, and
+    bursts and bridges are marked rings.
+
+
+    **Task Phases**:
+
+    1. **Export records** (10 min) - Full records with cited references from Web of Science, or convert Scopus, Lens,
+    PubMed exports
+
+    2. **Set span and slice length** (2 min) - For example 2010-2024 with one year per slice
+
+    3. **Select nodes per slice** (2 min) - g-index with k = 25, or top N per slice (top 100 over 13 one-year slices in
+    one published example)
+
+    4. **Build and merge** (5 min) - One network per slice, merged into one (655 references in that example)
+
+    5. **Cluster and check quality** (5 min) - Modularity Q and silhouette; 0.7 or higher makes labeling
+    straightforward; label clusters from title terms
+
+    6. **Read time from encodings** (15 min) - Link color by slice of first co-occurrence, per-year rings on nodes,
+    burst and high-betweenness markers
+
+    7. **Timeline view** (10 min) - One row per cluster, nodes placed at their year
+
+    8. **Bursts and report** (20 min) - Burst list with start, end and strength; export timeline figure, cluster table
+    and burst table with the slice parameters in the caption
+
+
+    **Decision Points**:
+
+    - Slice length and node selection rule (they change the clusters)
+
+    - Which unit: references, authors, keywords?
+
+    - Is the clustering good enough to label (modularity, silhouette)?
+
+    - Which bursts are worth naming in the text?
+
+
+    **Information Needs**:
+
+    - Records loaded per year and records without a usable year
+
+    - Nodes kept per slice and the selection rule used
+
+    - Modularity and per-cluster silhouette
+
+    - Year of first appearance and burst interval per node
+
+    - The full parameter string to paste into a caption
+
+
+    **Pain Points**:
+
+    - Too many options; small changes in slicing change the clusters
+
+    - Converting non Web of Science formats is tricky
+
+    - Average-year coloring (VOSviewer overlay) hides spread
+
+    - Parameters are not saved with the figure, so maps are hard to reproduce
+
+    - No playback; time is read only from color
+
+
+    **Data Flow**:
+
+    - Input: Bibliographic export (500-20,000 records)
+
+    - Transformations: Per-year network construction, per-slice node selection, slice merge, clustering and labeling,
+    first-appearance and burst detection
+
+    - Output: Timeline figure, cluster table (size, label, silhouette, mean year), burst table, saved parameters
+success_criteria:
+    - metric: Reproducibility
+      target: Exported figure carries slice length, selection rule and clustering parameters
+    - metric: Time readable
+      target: User can state when each labeled cluster emerged
+    - metric: Sensitivity checked
+      target: User compares at least two slice settings before reporting clusters
+sources:
+    - title: CiteSpace 101 - Time slicing
+      url: https://sites.google.com/site/citespace101/6-configure-a-citespace-run/6-1-time-slicing
+      summary: Span, years per slice, g-index and top N selection
+    - title: CiteSpace 101 - Interpret results
+      url: https://sites.google.com/site/citespace101/first-example/4-3-interpret-results
+      summary: Modularity, silhouette, tree rings, burst and betweenness markers, timeline view
+    - title: Chen, Ibekwe-SanJuan and Hou 2010 (arXiv 1002.1985)
+      url: https://arxiv.org/abs/1002.1985
+      summary: Top 100 per slice over 13 slices merged into 655 references; synthesizing network snapshots
+    - title: CiteSpace application study (arXiv 2411.19858)
+      url: https://arxiv.org/pdf/2411.19858
+      summary: Reported g-index k = 25 and slice settings in a recent application
+    - title: TU Delft Library - Evolution of research
+      url: https://tudelft.nl/library/research-analytics/case-2-evolution-of-research
+      summary: VOSviewer overlay by average publication year as the simple alternative
+    - title: bibliometrix thematicEvolution
+      url: https://rdrr.io/cran/bibliometrix/man/thematicEvolution.html
+      summary: Cutting years and a Sankey diagram of themes across periods
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

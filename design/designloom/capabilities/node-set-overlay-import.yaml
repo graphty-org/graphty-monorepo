@@ -1,0 +1,16 @@
+id: node-set-overlay-import
+name: Node Set and Score Overlay Import with ID Mapping
+category: data
+description: Import node sets (disease genes, drug targets, seeds), per-node scores and path sets from TSV/CSV onto a
+    large base graph, map gene identifiers (HGNC, Entrez, Ensembl, UniProt) and report mapped, unmapped and duplicate
+    IDs; set membership becomes a node attribute usable in styling and filters.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W08
+    - W256
+    - W257
+implemented_by_components: []
+requirements: []
+sources: []

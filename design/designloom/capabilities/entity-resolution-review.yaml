@@ -1,0 +1,51 @@
+id: entity-resolution-review
+name: Entity Resolution with Review
+category: visualization
+description: Collapse several records (sequences, isolates, stays, claim lines) into one entity (person, holding,
+    provider) with the collapse visible, and report identifier mismatches across input files with counts and the
+    unmatched identifiers listed, instead of dropping rows silently.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W102
+    - W106
+    - W107
+    - W118
+    - W123
+    - W124
+    - W125
+    - W126
+    - W13
+    - W130
+    - W131
+    - W291
+    - W294
+    - W297
+    - W300
+    - W301
+    - W361
+    - W365
+    - W366
+    - W367
+    - W61
+    - W63
+    - W64
+    - W68
+    - W70
+    - W75
+    - W97
+implemented_by_components: []
+requirements:
+    - Suggest candidate duplicates across sources, review and merge them into identity nodes that keep every identifier,
+      remember does-not-match decisions, and undo merges.
+    - Propose, confirm, reject and undo merges of records that may be the same entity (fuzzy names, shared identifiers,
+      heuristics such as co-spend or change), recording the reason for each merge, and keep 'possibly the same'
+      tentative links that leave both records intact and are drawn differently from confirmed merges.
+    - Step through duplicate-candidate groups with scores, each member's neighbors and source text, accept or reject
+      each, and keep a merge and invalidation log that re-applies after a rebuild or re-extraction.
+    - Detect near-duplicate node names and identifiers with fingerprint, n-gram, phonetic and edit-distance keys and
+      present clusters for review before merging; complements node-merging, which only performs merges.
+    - Many identifiers per node with assign, merge, remove and unmerge, survivor rules and an exclusion list; every
+      change audited and reversible.
+sources: []

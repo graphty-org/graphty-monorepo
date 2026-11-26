@@ -8,6 +8,30 @@ implements_capabilities:
 used_in_workflows:
     - W01
     - W18
+    - W105
+    - W131
+    - W138
+    - W147
+    - W150
+    - W188
+    - W235
+    - W254
+    - W284
+    - W299
+    - W301
+    - W312
+    - W382
+    - W397
+    - W402
+    - W418
+    - W437
+    - W446
+    - W47
+    - W58
+    - W63
+    - W69
+    - W70
+    - W75
 dependencies:
     - progress-bar
     - button

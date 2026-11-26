@@ -1,0 +1,13 @@
+id: multi-valued-attributes
+name: Multi-Valued Attributes and Multi-Relational Edges
+category: analysis
+description: Several values in one node attribute (goal codes) and several typed, separately styled edges between one pair.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W200
+    - W205
+implemented_by_components: []
+requirements: []
+sources: []

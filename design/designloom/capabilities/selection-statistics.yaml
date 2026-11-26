@@ -10,6 +10,50 @@ used_by_workflows:
     - W17
     - W21
     - W24
+    - W110
+    - W119
+    - W137
+    - W158
+    - W186
+    - W190
+    - W198
+    - W209
+    - W216
+    - W268
+    - W270
+    - W272
+    - W274
+    - W315
+    - W338
+    - W341
+    - W351
+    - W358
+    - W359
+    - W362
+    - W416
+    - W434
+    - W436
+    - W443
+    - W445
+    - W57
+    - W60
+    - W61
+    - W62
+    - W63
+    - W64
+    - W65
+    - W66
+    - W67
+    - W68
+    - W69
+    - W70
+    - W71
+    - W72
+    - W74
+    - W75
+    - W82
+    - W93
+    - W98
 implemented_by_components:
     - metric-card
 requirements:

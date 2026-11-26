@@ -1,0 +1,20 @@
+id: distance-threshold-network
+name: Distance Threshold Network Construction
+category: analysis
+description: Build a network in-tool from genetic distance inputs (aligned FASTA with a substitution-model or SNP
+    distance computed in-tool, a full distance matrix, a PHYLIP matrix, or a long-form pairwise distance list) by
+    keeping pairs under a threshold, and keep the full distance set so the threshold can be moved without rebuilding.
+    Includes a live distance histogram whose bars set the threshold, and live cluster count and size distribution as it
+    moves.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W61
+    - W62
+    - W63
+    - W64
+    - W70
+implemented_by_components: []
+requirements: []
+sources: []

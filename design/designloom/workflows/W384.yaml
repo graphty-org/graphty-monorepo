@@ -1,0 +1,155 @@
+id: W384
+name: Functional Regions from a Commuting Matrix
+category: analysis
+validated: false
+personas:
+    - migration-flow-demographer
+requires_capabilities:
+    - data-import
+    - data-validation
+    - filtering
+    - community-detection
+    - community-profiling
+    - comparison-view
+    - visual-encoding-nodes
+    - legend-display
+    - statistics-panel
+    - algorithm-progress
+    - data-export
+    - export-image
+    - geographic-layout
+    - regionalization
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - filter-panel
+    - algorithm-panel
+    - algorithm-card
+    - progress-bar
+    - community-panel
+    - cluster-table
+    - comparison-view
+    - visual-encoding-panel
+    - legend-panel
+    - graph-canvas
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: residence-to-workplace commuting matrix between small areas or counties, with a large diagonal of same-area commuters
+    node_count: 3000-35000
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Partition places into self-contained functional regions -- labor market areas, commuting zones,
+    travel-to-work areas -- from a commuting matrix, validate them against official boundaries, and publish a boundary
+    file plus a place-to-region lookup.
+
+
+    **Mental Model**: "Where people live and work in the same region." A good region keeps most of its residents'
+    commutes inside; the boundaries should follow the flows, not administrative lines.
+
+
+    **Task Phases**:
+
+    1. **Assemble the matrix** - UK census residence-to-workplace matrix at small areas; US county-to-county commuting
+    flows; or aggregated home and work locations of opted-in app users
+
+    2. **Choose the method** (the core decision) - Threshold self-containment (UK travel-to-work areas: at least 75
+    percent of resident workers work inside and 75 percent of workers live inside, relaxed to 66.7 percent above 25,000
+    workers, minimum 3,500; 228 areas in 2011); hierarchical clustering on proportional flows (USDA commuting zones:
+    741 in 1990; preliminary 2020 puts 3,222 counties in 592 zones); modularity (Louvain) on symmetrized flows, with
+    Facebook pruning edges above the 95th distance percentile and running Louvain twice for a hierarchy every three
+    months; or a configuration-model method for networks with a high share of self-loop weight, which finds overlapping
+    regions and single-county regions
+
+    3. **Run and compare** - Compare partitions and their quality (modularity, self-containment) across methods and
+    resolutions
+
+    4. **Validate** - Compare against official regions (a 3,042-pixel phone-call partition with modularity 0.60
+    corresponds well to Government Office Regions); note that most mobility borders are not state borders
+
+    5. **Clean geometry and publish** - Make each region contiguous with no fragments; output a boundary file and a
+    lookup from zone to region; warn that small regions carry more sampling error
+
+
+    **Decision Points**:
+
+    - Which method: threshold, hierarchical clustering, modularity or a self-loop-aware model?
+
+    - Symmetrize directed flows, and how (sum, mean)?
+
+    - Count self-flows (same-area commuters) or drop them, given they dominate the matrix?
+
+    - Require contiguous regions?
+
+    - Which resolution or minimum size?
+
+
+    **Information Needs**:
+
+    - Share of flow volume on the diagonal
+
+    - Per-region self-containment (share of residents working inside, share of workers living inside)
+
+    - Region count and size distribution per method
+
+    - Places whose assignment differs between methods
+
+    - Overlay of computed regions on official boundaries
+
+
+    **Pain Points**:
+
+    - Standard community detection mishandles or ignores self-loops, which carry most commuting
+
+    - Modularity communities may be non-contiguous on the map
+
+    - Algorithm choice changes the region count by an order of magnitude
+
+    - Regions are computed in one tool and mapped as filled areas in another
+
+
+    **Data Flow**:
+
+    - Input: Long or square commuting matrix (residence, workplace, workers) with places and their polygons or
+    centroids
+
+    - Transformations: Optional distance pruning and symmetrization, self-loop handling, partitioning, contiguity
+    cleaning, self-containment statistics
+
+    - Output: Regions shown as filled areas, place-to-region lookup table, per-region statistics
+success_criteria:
+    - metric: Method comparison
+      target: User can compare at least two partitions side by side on the map with their quality scores
+    - metric: Self-loop transparency
+      target: User can state whether same-area flows were included in the partition
+    - metric: Publishable output
+      target: Lookup table and region map export without leaving the tool
+sources:
+    - title: ONS - Travel to work area analysis in Great Britain 2016
+      url: https://www.ons.gov.uk/employmentandlabourmarket/peopleinwork/employmentandemployeetypes/articles/traveltoworkareaanalysisingreatbritain/2016
+      summary: 75 percent self-containment thresholds, minimum size, cleaning for contiguity, sampling error warning
+    - title: USDA ERS - Commuting zones and labor market areas documentation
+      url: https://www.ers.usda.gov/data-products/commuting-zones-and-labor-market-areas/documentation
+      summary: Hierarchical clustering on proportional flows; 741 commuting zones in 1990
+    - title: Fowler 2024 - US commuting zone delineation
+      url: https://doaj.org/article/dc8fcf1861e845fdada7bea5cf272d69
+      summary: Preliminary 2020 product places 3,222 counties in 592 zones
+    - title: Facebook commuting zones methodology
+      url: https://facebookincubator.github.io/CommutingZones/docs/Methodology/CZMethodology
+      summary: Distance pruning at the 95th percentile, Louvain twice, quarterly updates
+    - title: He et al. - Functional regions from networks with self-loops
+      url: https://arxiv.org/abs/1903.06029
+      summary: Configuration-model method for high self-loop weight; overlapping regions
+    - title: New Zealand labor market areas (IZA discussion paper 13642)
+      url: https://docs.iza.org/dp13642.pdf
+      summary: Louvain on symmetrized commuting flows
+    - title: Ratti et al. - Redrawing the map of Great Britain from a network of human interactions
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC2999538
+      summary: Phone-call partition with modularity 0.60 corresponds to official regions
+    - title: Thiemann et al. - The structure of borders in a small world
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC2987795
+      summary: Most mobility borders are not state borders
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

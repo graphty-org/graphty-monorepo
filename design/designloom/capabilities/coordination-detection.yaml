@@ -1,0 +1,19 @@
+id: coordination-detection
+name: Coordinated behavior detection
+category: analysis
+description: "Build a coordination network from object id, account id, content id and share timestamp: accounts sharing
+    the same object within a time window, with minimum participation and an edge-weight threshold defaulting to the
+    median."
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W209
+    - W93
+    - W94
+implemented_by_components: []
+requirements:
+    - Time-windowed co-action edges (window in seconds, minimum repetitions, support minimum per account),
+      top-percentile or minimum-weight edge filtering, component extraction, and a sensitivity view of group membership
+      as thresholds move.
+sources: []

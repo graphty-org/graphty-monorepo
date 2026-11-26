@@ -1,0 +1,14 @@
+id: cumulative-weight-pruning
+name: Pruning by Cumulative Weight
+category: analysis
+description: Keep the smallest set of nodes and edges reaching a chosen share of total influence or weight, with the
+    threshold adjustable on screen.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W269
+    - W277
+implemented_by_components: []
+requirements: []
+sources: []

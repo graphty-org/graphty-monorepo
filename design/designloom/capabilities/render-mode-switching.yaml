@@ -1,0 +1,18 @@
+id: render-mode-switching
+name: 2D, perspective 3D and orthographic 3D views of one graph
+category: visualization
+description: Switch the same graph between 2D, perspective 3D and orthographic 3D per task, keeping node positions
+    projected so the reader keeps their bearings; no assumption that 3D is the right default (studies favor 2D for
+    speed, spatial memory and comparison).
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W411
+    - W413
+    - W417
+    - W419
+    - W422
+implemented_by_components: []
+requirements: []
+sources: []

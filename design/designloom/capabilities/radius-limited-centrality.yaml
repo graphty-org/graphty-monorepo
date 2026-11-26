@@ -1,0 +1,14 @@
+id: radius-limited-centrality
+name: Radius-Limited Weighted Centrality
+category: analysis
+description: Closeness and betweenness (node and edge) limited to several radii (steps, meters, travel time, angle) in
+    one run, each stored as a named column.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W220
+    - W229
+implemented_by_components: []
+requirements: []
+sources: []

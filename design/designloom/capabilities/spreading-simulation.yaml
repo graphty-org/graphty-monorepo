@@ -1,0 +1,13 @@
+id: spreading-simulation
+name: Spreading Simulation
+category: analysis
+description: SI, SIR, SIS, threshold and cascade models with parameters, initial-node choice, many seeded realizations,
+    prevalence and final-size curves with spread, null comparison, and per-node replay of one run.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W44
+implemented_by_components: []
+requirements: []
+sources: []

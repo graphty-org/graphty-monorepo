@@ -1,0 +1,62 @@
+id: cloud-migration-architect
+name: Cloud Migration Architect
+role: Data Center Migration Architect (systems integrator)
+quote: I have 2,400 servers and six months. Show me which ones talk to each other so I can move them together without cutting a live connection.
+bio: >-
+    Leila is a migration architect at a systems integrator, moving a retailer's 2,400 VMware servers to the cloud. She
+    deploys a discovery appliance, waits at least a day for connection data, then opens the multi-server dependency
+    map in Azure Migrate (now Azure Catalyst) or the AWS Migration Hub network diagram. Her job is graph partitioning
+    done mostly by eye: set aside shared services such as Active Directory, DNS and monitoring that connect to
+    everything, lasso clusters of interconnected servers, tag them as applications, and combine those move groups into
+    waves with few cut dependencies. Because the tools show connections but do not propose groups, she exports a
+    zipped CSV of time-sliced connections and finishes the work in Power BI with Microsoft's network connections
+    template, Excel and a wave planning runbook, validating each group with application owners. She is fluent in
+    PowerShell, SQL and Power BI, and thinks in servers, ports and processes, not in community detection.
+characteristics:
+    expertise: expert
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Turn thousands of servers into move groups that can be moved together
+    - Order move groups into waves, with small early waves, that never cut a live dependency between migrated and unmigrated servers
+    - Explain each grouping to application owners with evidence (ports, processes, connection counts)
+    - Avoid failed cutovers and rollbacks
+behaviors:
+    - Waits at least 24 hours of collection and checks per-server discovery status before trusting the map
+    - Filters the map by server name, destination port, operating system, connection count and appliance
+    - Removes shared infrastructure hubs (Active Directory, DNS, monitoring) before grouping
+    - Ctrl-drags a box or shift-clicks to multi-select interconnected servers, then tags them as an application
+    - Hovers a port to highlight every connection that opens it, and expands a server connection to see process-to-process connections
+    - Exports 7 to 30 days of connections as CSV, one row per dependency per six-hour slot, including unresolved IP-only connections
+    - Applies move group rules (shared database, same owner, same patch window) and records them in a runbook
+frustrations:
+    - Must wait at least 24 hours before enough data exists
+    - The multi-server view hides unresolved (IP-only, unknown process) connections
+    - Shared services connect to everything and must be removed by hand
+    - The map shows connections but does not propose groups or show how many edges a grouping cuts
+    - Analysis ends in Power BI and Excel because the product view cannot partition the graph
+context:
+    frequency: daily
+    devices:
+        - laptop
+        - desktop
+    voluntary: false
+workflows:
+    - W82
+sources:
+    - title: Microsoft Learn - Analyze machine dependencies (agentless) in Azure Migrate
+      url: https://learn.microsoft.com/en-us/azure/migrate/how-to-create-group-machine-dependencies-agentless
+      summary: Up to 3,000 servers per appliance; 24-hour wait; multi-server map, filters, lasso tagging, process drill-down, CSV export columns, Power BI template
+    - title: AWS Migration Hub - Network diagram
+      url: https://docs.aws.amazon.com/migrationhub/latest/ug/network-diagram-how-to.html
+      summary: Shift-click selection, port hover highlighting, Group as application; Application Discovery Service closed to new customers in 2025
+    - title: AWS Prescriptive Guidance - Wave planning
+      url: https://docs.aws.amazon.com/prescriptive-guidance/latest/large-migration-portfolio-playbook/wave-planning.html
+      summary: Move groups as blocks of servers moved together; move group rules; shared services such as Active Directory set aside
+    - title: Cloudamize - AI-augmented move groups and waves (vendor)
+      url: https://support.cloudamize.com/kb/ai-augmented-move-groups-waves
+      summary: Graph cleaning and deterministic community detection with a size limit, then manual adjustment
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,180 @@
+id: W124
+name: Crypto Tracing to a Cash-Out Service
+category: analysis
+validated: false
+personas:
+    - crypto-blockchain-investigator
+requires_capabilities:
+    - search
+    - node-selection
+    - neighborhood-expansion
+    - node-merging
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-hierarchical
+    - temporal-navigation
+    - filtering
+    - path-highlighting
+    - details-on-demand
+    - tooltip-display
+    - annotation
+    - analysis-history
+    - view-bookmarks
+    - export-image
+    - data-export
+    - report-generation
+    - time-respecting-paths
+    - entity-resolution-review
+    - flow-allocation-tracing
+    - external-label-overlays
+    - reified-edge-view
+    - live-graph-streaming
+suggested_components:
+    - search-input
+    - graph-canvas
+    - context-menu
+    - node-merge-dialog
+    - cluster-collapse-control
+    - visual-encoding-panel
+    - legend-panel
+    - layout-panel
+    - temporal-controls
+    - filter-panel
+    - node-details-panel
+    - node-tooltip
+    - data-table-panel
+    - annotation-toolbar
+    - analysis-history-panel
+    - bookmark-panel
+    - image-export-dialog
+    - data-export-dialog
+    - report-generator-dialog
+starting_state:
+    data_type: public ledger transactions (UTXO inputs and outputs, or account-based transfers), vendor address clusters and attribution labels, the exchange's own customer and deposit records
+    node_count: 10-1,000 addresses, clusters and transactions in the working view
+    edge_density: sparse chains and fans (peel chains), with occasional large multi-input transactions
+    user_expertise: expert
+goal: >-
+    **Intent**: From an address or transaction hash, decide whether funds come from a hack, scam, sanctioned party or
+    darknet market, and trace them across hops, swaps and bridges to the regulated service where they were cashed out, so
+    that records can be requested and a SAR filed. The tracing tool's graph is the investigator's main screen all day.
+
+
+    **Mental Model**: "Transactions are nodes, clusters are guesses." On Bitcoin-style ledgers a transaction spends several
+    inputs and creates several outputs, one usually change back to the sender. Addresses are grouped into clusters by
+    heuristics that can be wrong; attribution labels say who a cluster probably is. Every merge must be explainable.
+
+
+    **Task Phases**:
+
+    1. **Seed** (2 min) - An address or transaction hash from an alert, a victim report or a seized device
+
+    2. **Read the transaction structure** (5 min) - Transaction-as-node with input and output edges; identify the likely
+    change output
+
+    3. **Apply clustering** (5 min) - Co-spend (common-input) and change heuristics, skipping detected CoinJoin
+    co-spends; exchange deposit addresses join a cluster because they sweep into a consolidation address
+
+    4. **Overlay attribution** (2 min) - Vendor labels on clusters (exchange, mixer, darknet market, sanctioned entity)
+    with their source
+
+    5. **Expand hop by hop** (30-120 min) - In the direction of the funds, noting the amount carried at each hop; collapse
+    swaps, bridges and mixers into one displayed step that expands on demand
+
+    6. **Allocate** (15 min) - Where funds were commingled, apply poison, haircut or FIFO (W121)
+
+    7. **Find the cash-out** (5 min) - Stop at a cluster attributed to a regulated exchange
+
+    8. **Watch** (2 min) - Put addresses still holding funds on a watch list for movement alerts
+
+    9. **Export** (15 min) - Graph image, transaction list and report; exports recorded in an audit log
+
+    10. **Request records** (days) - Law enforcement by subpoena or warrant; an exchange by 314(b) or SAR; the KYC return
+    names the account holder
+
+
+    **Decision Points**:
+
+    - Which output is change, and should it be merged into the sender's cluster?
+
+    - Is a large co-spend a real single owner or a CoinJoin or PayJoin?
+
+    - Trust a vendor attribution, or treat it as tentative until a subpoena return confirms it?
+
+    - Which allocation rule applies, and how sensitive is the answer to it?
+
+    - Is the cash-out service reachable by request?
+
+
+    **Information Needs**:
+
+    - Inputs, outputs, amounts and times of each transaction
+
+    - Which heuristic merged each address into a cluster, so a wrong merge can be undone
+
+    - Attribution label and its source on each cluster
+
+    - Amount carried at each hop and total reaching each service
+
+    - Which addresses still hold funds
+
+
+    **Pain Points**:
+
+    - The multi-input heuristic is vulnerable to CoinJoin and PayJoin; naively merging predicted change produced one large
+    supercluster (a 1596 percent jump in addresses)
+
+    - One wrong change link between two exchanges can merge both
+
+    - Cross-chain hops break simple paths
+
+    - The exchange's own deposit and sweep addresses add noise
+
+    - Allocation rules give very different answers and vendors do not document theirs
+
+
+    **Data Flow**:
+
+    - Input: Seed address or hash; ledger data through a vendor or node; vendor clusters and labels; exchange customer and
+    deposit records
+
+    - Transformations: Transaction-as-node graph, heuristic clustering with recorded reasons, attribution overlay,
+    hop-by-hop expansion with amounts, swap and bridge collapse, allocation
+
+    - Output: Trace graph, transaction list, report, watch list, records requests, SAR
+success_criteria:
+    - metric: Undoable clusters
+      target: Every address merge names its heuristic and can be undone, splitting the cluster back
+    - metric: Hop amounts
+      target: Each hop on the trace shows the amount carried and the time
+    - metric: Cash-out found
+      target: The trace ends at a labelled service, with the label's source shown
+sources:
+    - title: Chainalysis Reactor product page
+      url: https://www.chainalysis.com/product/reactor/
+      summary: Vendor; swaps, bridges and mixers auto-interpreted; attribution coverage; integrations with i2, Cellebrite and Siren
+    - title: Chainalysis Academy - Reactor Essentials
+      url: https://chainalysis-academy-clone.skilljar.com/reactor-essentials
+      summary: Course ending with exporting from Reactor and OSINT (read through search summary)
+    - title: Chainalysis Academy - Automated change detection in peel chains
+      url: https://chainalysis-academy-clone.skilljar.com/automated-change-detection-peelchains
+      summary: Change detection along peel chains (read through search summary)
+    - title: Bisbee declaration, United States v. Sterlingov
+      url: https://storage.courtlistener.com/recap/gov.uscourts.dcd.232431/gov.uscourts.dcd.232431.149.1.pdf
+      summary: Co-spend clustering skipping CoinJoin, deposit-address sweeps, attributions confirmed by subpoena returns
+    - title: Moser and Narayanan - Resurrecting address clustering in Bitcoin (FC 2022)
+      url: https://arxiv.org/abs/2107.05749
+      summary: False positives from CoinJoin and PayJoin; naive change merging produced a supercluster
+    - title: Anderson et al. - Bitcoin Redux (WEIS 2018)
+      url: https://www.cl.cam.ac.uk/~rja14/Papers/bitcoin-redux-weis2018.pdf
+      summary: Poison, haircut and FIFO allocation
+    - title: TRM Labs - What's new, October 2026
+      url: https://www.trmlabs.com/forensics/whats-new-2026-10
+      summary: Swap matching across 36 EVM chains and 21 bridges
+    - title: TRM Labs - January 2026 product highlights
+      url: https://www.trmlabs.com/resources/blog/january-product-highlights-accelerating-investigations-with-intuitive-workflows
+      summary: Add a graph address to monitoring for near real-time movement alerts
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

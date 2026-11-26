@@ -1,0 +1,164 @@
+id: W161
+name: EEG/MEG Band-Specific and Spectral Connectivity Networks
+category: analysis
+validated: false
+personas:
+    - eeg-meg-connectivity-researcher
+    - ieeg-epilepsy-network-researcher
+requires_capabilities:
+    - data-import
+    - filtering
+    - layout-radial
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - ego-network
+    - details-on-demand
+    - comparison-view
+    - temporal-navigation
+    - centrality-degree
+    - export-image
+    - matrix-view
+    - matrix-import
+    - fixed-node-positions
+    - threshold-sweep
+    - matrix-stack-navigation
+suggested_components:
+    - data-import-dialog
+    - network-list-panel
+    - layout-panel
+    - filter-panel
+    - range-slider
+    - slider
+    - temporal-controls
+    - comparison-view
+    - heatmap-panel
+    - node-details-panel
+    - legend-panel
+    - graph-canvas
+    - image-export-dialog
+starting_state:
+    data_type: stack of N x N matrices indexed by subject, condition, method, frequency band or bin, and optionally time window
+    node_count: 30-256 sensors or 39-72 source regions (100+ contacts for intracranial EEG)
+    edge_density: complete before thresholding; top 5 percent or a few hundred edges shown
+    user_expertise: expert
+goal: >-
+    **Intent**: Compute connectivity between sensors or source regions in chosen frequency bands with several
+    methods, and compare the resulting networks across bands, methods and conditions as circle plots, sensor-layout
+    plots and matrices. Intracranial researchers follow the same pattern per patient with directed measures and rank
+    contacts by out-strength.
+
+
+    **Mental Model**: "One figure is a slice through a stack." The same node set carries a different network for every
+    band, method, condition and window.
+
+
+    **Task Phases**:
+
+    1. **Sensor or source level** (decision) - Source level is anatomically interpretable but huge, so reduce to an
+    atlas parcellation (68 labels) or ROIs
+
+    2. **Pattern** (decision) - All pairs, one seed against all (a star graph or a value per node), or two lists
+
+    3. **Epoch with rejection** (10 min) - Time window, baseline and rejection thresholds; some epochs dropped
+
+    4. **Source extraction** (10 min) - Inverse solution per epoch, one time course per atlas label, label colors kept
+    for node coloring
+
+    5. **Compute measures** (minutes) - Several methods at once (PLI, debiased wPLI, ciPLV) over a band or every bin;
+    directed measures (Granger, phase transfer entropy) where needed; time-resolved windows for some measures
+
+    6. **Band summary** (5 min) - Average within bands (theta, alpha, beta) or keep the spectrum; click a connection to
+    see its value across frequency
+
+    7. **Threshold** (2 min) - Top percent within a file, strongest N lines, or a minimum spanning tree
+
+    8. **Order and lay out** (10 min) - Source: circle with left-hemisphere labels ordered anterior to posterior and the
+    right hemisphere mirrored; or grouped by lobe. Sensor: lines on a 2D scalp layout or 3D helmet, with arrowheads for
+    directed measures
+
+    9. **Filter** (5 min) - By intensity (value and percentile kept in step), minimum distance between nodes, direction
+    (In, Out, Both), and anatomy (between lobes or hemispheres); absolute or signed values
+
+    10. **Small multiples** (10 min) - One circle plot per method, band or condition in a row
+
+    11. **Group statistics** (varies) - Permutation tests between conditions, cluster-permutation over connection
+    pairs, or per-band t-tests with the significant MST drawn on the scalp
+
+
+    **Decision Points**:
+
+    - Sensor or source level, and which atlas?
+
+    - Which measures, given leakage robustness versus reliability?
+
+    - Band averages or full spectrum?
+
+    - Percentile threshold, top-N lines or minimum spanning tree?
+
+
+    **Information Needs**:
+
+    - Current slice (subject, condition, method, band, window) always labeled on the figure
+
+    - Spectrum of a selected connection
+
+    - Distance between nodes, to discount near-neighbor field spread
+
+    - In- and out-strength per node for directed measures
+
+
+    **Pain Points**:
+
+    - Sensor-level results are hard to interpret anatomically; source-level data can reach hundreds of gigabytes
+
+    - Every band, method or condition multiplies figures built by hand
+
+    - Leakage-sensitive measures look reliable because of a few spurious strong edges
+
+
+    **Data Flow**:
+
+    - Input: Per-band or per-bin connectivity matrices over sensors (with positions) or atlas labels (with colors), per method and condition
+
+    - Transformations: Band averaging, percentile or MST threshold, hemisphere-mirrored circular ordering, distance and direction filters
+
+    - Output: Circle plots, scalp or helmet plots, matrices, small-multiple figures, statistics on connection pairs
+success_criteria:
+    - metric: Slice navigation
+      target: User moves between bands, methods or conditions without rebuilding the figure
+    - metric: Small multiples
+      target: One row of plots across a chosen dimension with shared scale and node order
+    - metric: Directed reading
+      target: In/Out/Both filter and arrowheads available for directed measures
+sources:
+    - title: MNE-Connectivity label connectivity example
+      url: https://mne.tools/mne-connectivity/stable/auto_examples/mne_inverse_label_connectivity.html
+      summary: Epoching, dSPM, 68 labels, three methods in the alpha band, hemisphere-mirrored circular layout, three-plot row
+    - title: MNE-Connectivity sensor connectivity example
+      url: https://mne.tools/mne-connectivity/stable/auto_examples/sensor_connectivity.html
+      summary: PLI 4-9 Hz over 203 gradiometers, 49 of 73 epochs kept
+    - title: plot_sensors_connectivity reference
+      url: https://mne.tools/mne-connectivity/stable/generated/mne_connectivity.viz.plot_sensors_connectivity.html
+      summary: Lines on the MEG helmet with a minimum distance filter and diverging colormap
+    - title: Brainstorm connectivity tutorial
+      url: https://neuroimage.usc.edu/brainstorm/Tutorials/Connectivity
+      summary: NxN, 1xN and AxB patterns, directed measures, windows, storage size warnings
+    - title: Brainstorm connectivity graph tutorial
+      url: https://neuroimage.usc.edu/brainstorm/Tutorials/ConnectivityGraph
+      summary: Percentile threshold, intensity, distance, direction and anatomy filters, frequency slider
+    - title: FieldTrip ft_connectivityplot
+      url: https://github.com/fieldtrip/fieldtrip/blob/release/ft_connectivityplot.m
+      summary: Grid of spectra, one per channel pair
+    - title: 256-channel EEG band study
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4186758
+      summary: Theta, alpha1, alpha2 and beta bands over 214 channels
+    - title: Chen et al. 2018, per-band MST on a scalp projection
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6233332
+      summary: 30 electrodes, 15 subjects, uncorrected per-band t-tests
+    - title: Stone et al., interictal Granger causality in SEEG
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10553068
+      summary: Contacts ranked by summed outward Granger weights
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

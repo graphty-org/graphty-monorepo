@@ -1,0 +1,14 @@
+id: exposure-choke-points
+name: Exposure and Choke Point Metrics
+category: analysis
+description: Share of sources that reach a target set, nodes and edges that appear on the most paths into it, and
+    what-if recount after removing a node or edge type.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W109
+    - W114
+implemented_by_components: []
+requirements: []
+sources: []

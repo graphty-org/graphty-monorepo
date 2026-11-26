@@ -1,0 +1,122 @@
+id: W280
+name: Selecting a Graph Visualization Library
+category: administration
+validated: false
+personas:
+    - graph-product-frontend-engineer
+    - observability-service-map-engineer
+    - 3d-graph-embedder
+requires_capabilities:
+    - graph-rendering
+    - large-graph-rendering
+    - layout-force-directed
+    - visual-encoding-nodes
+    - sample-datasets
+    - basic-statistics
+suggested_components:
+    - graph-canvas
+    - sample-data-dialog
+    - status-bar
+    - progress-bar
+starting_state:
+    data_type: the product's own data exported to JSON or CSV, plus public sample graphs
+    node_count: 1000-100000 for benchmarks
+    edge_density: varies
+    user_expertise: expert developer or tech lead
+goal: >-
+    **Intent**: Choose the library a product will be built on. The choice is made once per product and is expensive
+    to reverse: Memgraph evaluated the field, rejected the leading options and wrote its own renderer.
+
+
+    **Mental Model**: "A bake-off with our data." Criteria are written first, licenses cut the list, and the survivors
+    are benchmarked on a real export before anyone looks at feature lists.
+
+
+    **Task Phases**:
+
+    1. **Write the criteria** (1 day) - Popularity and maintenance, documentation quality rated 1 to 5, whether the
+    library depends on the DOM (so work can move to Web Workers), whether its styling can express the product's own
+    style language
+
+    2. **Shortlist by license** (1 hour) - BSD and MIT open source (D3, vis.js, sigma.js, G6, react-force-graph) versus
+    commercial annual subscriptions with unpublished prices (KeyLines, Ogma)
+
+    3. **Benchmark with your own data** (days) - Time to first render and time to settle at 10k nodes and edges; compare
+    with rules of thumb (SVG about 2k nodes, Canvas about 5k, WebGL about 10k) and frame rate under interaction
+
+    4. **Check fit** (1 day) - Framework story, published TypeScript types, algorithms included, 3D
+
+    5. **Security, deployment and accessibility review** (days) - Strict Content Security Policy, offline install,
+    WCAG and Section 508; often done late, by the customer
+
+    6. **Decide build, buy or write your own** (1 day) - Weigh license cost against development time
+
+
+    **Decision Points**:
+
+    - Is a commercial license acceptable for the product's price and customers?
+
+    - Does the library meet the size and frame-rate bar on the product's data?
+
+    - Will it pass the strictest customer's security and accessibility review?
+
+    - Is 3D or VR a requirement now or later?
+
+
+    **Information Needs**:
+
+    - Published, reproducible benchmarks at 1k, 10k and 100k elements on stated hardware
+
+    - License, price model and distribution method
+
+    - A published Content Security Policy and accessibility conformance statement
+
+    - Type definitions and framework recipes
+
+
+    **Pain Points**:
+
+    - Benchmarks that differ by orders of magnitude between libraries (vis.js simulation took 15 to 20 minutes at 10k
+    in Memgraph's test, sigma.js 15 seconds)
+
+    - Fast libraries with thin documentation; well-documented ones that depend on the DOM
+
+    - Security and accessibility gaps discovered by the customer after the choice is made
+
+    - Vendor comparisons that are marketing ("free, but development time isn't")
+
+
+    **Data Flow**:
+
+    - Input: Product data exports, sample graphs, license terms, customer security and accessibility requirements
+
+    - Transformations: Scored criteria, benchmark runs, prototype per shortlisted library
+
+    - Output: A decision record naming the library and the reasons
+success_criteria:
+    - metric: Evidence available without a prototype
+      target: Benchmarks, CSP policy, accessibility statement, license and framework recipes are all published
+    - metric: Benchmark reproducibility
+      target: An evaluator can rerun the published benchmark on their own data in under an hour
+sources:
+    - title: Cylynx - A comparison of JavaScript graph network visualisation libraries
+      url: https://dev.to/timlrx/a-comparison-of-javascript-graph-network-visualisation-libraries-34a8
+      summary: Criteria, licenses and rendering ceilings across libraries
+    - title: Memgraph - You want a fast, easy-to-use and popular graph visualization tool
+      url: https://memgraph.com/blog/you-want-a-fast-easy-to-use-and-popular-graph-visualization-tool
+      summary: Written criteria, 10k-element benchmarks, rejection of Cytoscape.js and Cosmos, building Orb
+    - title: Ogma - Compare with Cytoscape.js
+      url: https://doc.linkurious.com/ogma/latest/compare/cytoscape.html
+      summary: Vendor comparison arguing development time over license cost
+    - title: Cambridge Intelligence - Procurement
+      url: https://cambridge-intelligence.com/pricing/procurement/
+      summary: Commercial annual subscriptions with unpublished prices
+    - title: Cytoscape.js WebGL preview
+      url: https://blog.js.cytoscape.org/2025/01/13/webgl-preview/
+      summary: 1,200 nodes and 16,000 edges from about 20 to over 100 frames per second
+    - title: yFiles - Large graph performance
+      url: https://docs.yworks.com/yfiles-html/dguide/large_graph_performance/
+      summary: Rendering technology guidance by graph size
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

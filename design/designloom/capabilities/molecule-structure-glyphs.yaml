@@ -1,0 +1,13 @@
+id: molecule-structure-glyphs
+name: Molecule Structure Node Glyphs
+category: visualization
+description: Draw nodes as 2D chemical structures from SMILES, falling back to dots when zoomed out, with potency color scales.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W264
+    - W265
+implemented_by_components: []
+requirements: []
+sources: []

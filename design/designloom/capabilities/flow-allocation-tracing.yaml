@@ -1,0 +1,16 @@
+id: flow-allocation-tracing
+name: Balance-aware flow allocation
+category: analysis
+description: Trace a seed amount forward or a destination backward through accounts in time order with running balances,
+    splitting onward payments under a named rule (lowest intermediate balance, FIFO, LIFO, pro rata; crypto poison,
+    haircut, FIFO), recording balance checkpoints, and exporting an allocation table of step, rule, balance and traced
+    amount.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W121
+    - W124
+implemented_by_components: []
+requirements: []
+sources: []

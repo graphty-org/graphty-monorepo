@@ -1,0 +1,77 @@
+id: process-mining-auditor
+name: Process Mining Auditor
+role: Internal Audit Data Analytics Lead / IT Auditor
+quote: The rare path is the finding. Do not simplify it away, and give me the exact filter chain behind every exhibit.
+bio: >-
+    Hannah leads data analytics in an internal audit department. Instead of sampling 25 invoices she tests the whole
+    population: every purchase-to-pay and order-to-cash case in the audit period, with the user id on every event. She
+    works in Disco for its Follower filter with a four-eyes option and its audit report export, in Celonis when the
+    company has it, and occasionally ProM. Her questions are rule questions: were payments made without approval, was a
+    mandatory release step skipped, did the same person create a purchase order item and record its goods receipt?
+    Published process mining audits found exactly these: segregation-of-duties violations and payments without approval
+    at a financial institution, and 3,384 cases in the BPI Challenge 2019 SAP log where one user created the order item
+    and recorded the goods receipt. Every finding must be reproducible by a reviewer months later.
+characteristics:
+    expertise: advanced
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: expert
+motivations:
+    - Test 100 percent of transactions against controls instead of a sample
+    - Produce evidence (the list of violating cases and each case's history) that survives review
+    - Find segregation-of-duties conflicts between users on segregated steps
+    - Tell real violations apart from data errors such as timestamp ties and missing events
+    - Hand the auditee a reproducible filter recipe, not a screenshot
+behaviors:
+    - Loads the full audit period with user ids, never a sample
+    - Spots a path on the map that should not exist, such as an invoice authorized for payment without the mandatory release step
+    - Clicks that path and turns it into a follower filter (directly or eventually followed, or never), sometimes with a time constraint
+    - Adds a four-eyes condition requiring the resource to be the same or different on both events
+    - Uses mandatory and forbidden activity filters to isolate scenarios
+    - Copies the filtered data set under a name and opens every remaining case as evidence
+    - Exports an audit report bundle with the filtered CSV, the filter recipe and a text filter report
+    - Compares violation rates between process types (49 percent of complete Service cases versus 0.8 percent of Standard cases in BPIC 2019)
+frustrations:
+    - Simplified maps that hide the rare paths which are exactly the findings
+    - Timestamp ties that make the order of two events, and therefore a violation, uncertain
+    - Exhibits that do not state the filter chain that produced them
+    - User ids recorded as NONE on a quarter of events
+    - Time-zone shifts between two exports of the same log
+    - Employee data rules (works councils) that restrict which resource views can be shown
+context:
+    frequency: monthly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W339
+    - W340
+    - W341
+    - W342
+    - W343
+    - W345
+    - W350
+    - W351
+    - W353
+    - W355
+    - W359
+sources:
+    - title: Celonis blog - Process mining and internal audit
+      url: https://celonis.com/blog/process-mining-and-internal-audit-a-match-made-in-heaven
+      summary: Auditors test entire populations instead of samples
+    - title: Jans, Depaire and Vanhoof - process mining for internal audit at a financial institution
+      url: https://documentserver.uhasselt.be/bitstream/1942/13639/1/Process_Mining_EAA.pdf
+      summary: Found segregation-of-duties violations and payments without approval
+    - title: Fluxicon Process Mining in Practice - Filtering
+      url: https://fluxicon.com/book/read/filtering/
+      summary: Follower filter with never, time constraint and 4-Eyes options; mandatory and forbidden attribute filters; audit report export
+    - title: BPI Challenge 2019 report (SAP purchase-to-pay)
+      url: https://ckmnet-website-blog.s3.amazonaws.com/CKM_BPI_Challenge2019_FINAL+(SUBMIT).pdf
+      summary: 3,384 same-user create-item and goods-receipt cases; timestamp ties; 25 percent NONE resources; time-zone shift between files
+    - title: Fluxicon Process Mining in Practice - Tutorial
+      url: https://fluxicon.com/book/read/tutorial/
+      summary: Step 9 shows the skipped release step and filtering the path to its 10 cases
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

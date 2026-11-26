@@ -1,0 +1,14 @@
+id: cycle-detection
+name: Cycle and Strongly Connected Component Detection
+category: analysis
+description: Find strongly connected components, show each as one collapsible super-component, mark back-edges against a
+    layer order, and show the weight of each edge in a cycle.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W84
+    - W85
+implemented_by_components: []
+requirements: []
+sources: []

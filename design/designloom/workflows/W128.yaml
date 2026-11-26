@@ -1,0 +1,146 @@
+id: W128
+name: Healthcare Program Integrity Provider Networks
+category: analysis
+validated: false
+personas:
+    - healthcare-program-integrity-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - computed-attributes
+    - degree-analysis
+    - metric-histograms
+    - filtering
+    - component-analysis
+    - community-detection
+    - anomaly-detection
+    - pattern-search
+    - centrality-pagerank
+    - ego-network
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - large-graph-rendering
+    - algorithm-progress
+    - details-on-demand
+    - data-export
+    - report-generation
+    - bipartite-projection
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - computed-attributes-panel
+    - histogram
+    - filter-panel
+    - algorithm-panel
+    - progress-bar
+    - anomaly-panel
+    - community-panel
+    - pattern-search-dialog
+    - ranked-node-table
+    - graph-canvas
+    - ego-network-dialog
+    - visual-encoding-panel
+    - legend-panel
+    - node-details-panel
+    - data-export-dialog
+    - report-generator-dialog
+starting_state:
+    data_type: claims linking patients to rendering and referring providers, pharmacies, diagnoses and procedures
+    node_count: thousands of providers from millions of patients (the working view is one region or provider type)
+    edge_density: dense after projection; bipartite before
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Find providers who share implausible patient populations, referral loops or prescriber-pharmacy pairings,
+    rank them, and refer the strongest to a Medicaid Fraud Control Unit, the HHS Office of Inspector General or the police
+    with evidence. The analyst mostly works in SQL; the graph is the tool for seeing sharing structure.
+
+
+    **Mental Model**: "Who shares patients with whom, and is it normal?" Patients connect providers; normal referral hubs
+    look like rings at first glance, so every structure is compared with peers before it counts.
+
+
+    **Task Phases**:
+
+    1. **Extract claims** (hours) - A provider type and period (O'Malley et al. used all Medicare home health claims
+    2002-2016 across 306 regions)
+
+    2. **Build the bipartite graph** (15 min) - Patients to providers, one edge per patient-provider-year
+
+    3. **Project to providers** (10 min) - Two providers linked when they share a patient, weighted by shared patients
+
+    4. **Measure sharing structure** (30 min) - A bipartite mixture index (0 to 1) rose with billing; one standard
+    deviation was associated with about 173 dollars more billing per enrollee and an 8.6 percent higher chance of a DOJ
+    strike force; it may not catch newer schemes such as telemedicine fraud
+
+    5. **Search for anomalous substructures** (1 hour) - Graph-based anomaly detection over patient, provider, claim,
+    diagnosis and procedure graphs; referral loops; prescriber-pharmacy pairs
+
+    6. **Rank and refer** (hours) - Rank providers, look at each one's neighborhood, and write a referral with evidence
+
+
+    **Decision Points**:
+
+    - Which provider type, region and period?
+
+    - What sharing weight is unusual for this provider type?
+
+    - Is a hub a legitimate referral center or a scheme?
+
+    - Which providers go to referral?
+
+
+    **Information Needs**:
+
+    - Shared-patient counts per provider pair
+
+    - Distribution of sharing measures across peers in the region
+
+    - Anomalous substructures with the claims that make them up
+
+    - Each provider's billing alongside its network position
+
+
+    **Pain Points**:
+
+    - Patient-sharing networks are huge bipartite graphs
+
+    - Normal referral hubs look like rings
+
+    - Data cannot leave the claims environment
+
+    - No public source documents an MFCU running a prescriber-pharmacy-patient graph in practice; MFCU data mining has
+    required OIG approval (sources disagree on a 2026 waiver)
+
+
+    **Data Flow**:
+
+    - Input: Claims extract (CSV or database query) with patient, provider, pharmacy, diagnosis, procedure and date
+
+    - Transformations: Bipartite graph, weighted projection, sharing measures, anomaly detection, ranking
+
+    - Output: Ranked provider list, provider neighborhoods with supporting claims, referral package
+success_criteria:
+    - metric: Weighted projection
+      target: User can turn a patient-provider table into a provider network weighted by shared patients without code
+    - metric: Peer comparison
+      target: Each flagged provider shows its sharing measure against the distribution for its region and type
+sources:
+    - title: O'Malley, Bubolz and Skinner - Social Science and Medicine 2023
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10290506/
+      summary: Medicare home health patient-sharing networks; bipartite mixture index associated with billing and strike-force action
+    - title: Paudel, Eberle and Talbert - FLAIRS 2017
+      url: https://cdn.aaai.org/ocs/15455/15455-68704-1-PB.pdf
+      summary: Graph-based anomaly detection on CMS claims graphs; hit-and-run versus steal-a-little schemes
+    - title: HHS-OIG - MFCU data mining
+      url: https://oig.hhs.gov/fraud/medicaid-fraud-control-units-mfcu/data-mining.asp
+      summary: Data mining by MFCUs under 42 CFR 1007.20
+    - title: KFF - Understanding the role of MFCUs
+      url: https://www.kff.org/medicaid/understanding-the-role-of-medicaid-fraud-control-units-mfcus/
+      summary: Reports an August 2026 waiver of prior OIG approval (read through search summary; conflicts with OIG page)
+    - title: Linkurious - Insurance fraud investigation
+      url: https://linkurious.com/blog/insurance-fraud-investigation/
+      summary: For medical claims, see whether providers share many common patients
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

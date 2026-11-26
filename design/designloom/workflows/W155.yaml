@@ -1,0 +1,130 @@
+id: W155
+name: Group-Representative Brain Network, Consensus Modules and Hubs
+category: analysis
+validated: false
+personas:
+    - clinical-connectome-researcher
+    - computational-network-neuroscientist
+    - whole-brain-modeler
+    - tract-tracing-connectomics-researcher
+requires_capabilities:
+    - data-import
+    - filtering
+    - community-detection
+    - community-profiling
+    - centrality-degree
+    - computed-attributes
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - comparison-view
+    - layout-force-directed
+    - export-image
+    - missing-tie-states
+    - matrix-view
+    - matrix-import
+    - fixed-node-positions
+    - multi-graph-sets
+    - paired-edge-matrices
+suggested_components:
+    - data-import-dialog
+    - network-list-panel
+    - algorithm-panel
+    - community-panel
+    - cluster-table
+    - ranked-node-table
+    - comparison-view
+    - graph-canvas
+    - legend-panel
+    - image-export-dialog
+starting_state:
+    data_type: per-subject weight matrices (and, for structural data, a fiber-length matrix per subject)
+    node_count: 68-1000
+    edge_density: dense (functional) or sparse (structural)
+    user_expertise: expert
+goal: >-
+    **Intent**: Collapse many subjects into one representative network, find stable modules on it, and name hub
+    regions by their role within and between modules. This is the interpretive core of many papers and the input
+    to whole-brain models.
+
+
+    **Mental Model**: "The group's wiring diagram, and its neighborhoods." Modules are systems (visual, default mode);
+    hubs are the regions that connect them.
+
+
+    **Task Phases**:
+
+    1. **Represent the group** (10 min) - Functional: average Fisher-z matrices. Structural: keep edges present in at
+    least a fraction of subjects, or use distance-dependent consensus, which bins candidate edges by fiber length and
+    keeps the most consistent edge per bin within and between hemispheres so long connections survive
+
+    2. **Find modules** (10 min to hours) - Run Louvain many times, build an agreement matrix, threshold and
+    re-cluster to a consensus partition; sweep the resolution gamma (for example 0 to 4 in 0.05 steps) and pick a
+    stable range
+
+    3. **Find hubs** (5 min) - Participation coefficient and within-module degree z-score per node; rich club against
+    random networks
+
+    4. **Visualize** (20 min) - Nodes colored by module in 3D at anatomical positions; matrix reordered by module with
+    block outlines; parcels colored by module (W159); sometimes a 2D topological layout next to the anatomical one
+
+
+    **Decision Points**:
+
+    - Uniform consensus fraction or distance-dependent consensus?
+
+    - Which gamma range gives a stable partition?
+
+    - Hub thresholds for participation and within-module degree
+
+
+    **Information Needs**:
+
+    - Edge length distribution of the representative network versus individual subjects
+
+    - Partition stability across runs and gamma values
+
+    - Module sizes and which known systems each module overlaps
+
+    - Node roles (connector hub, provincial hub, peripheral)
+
+
+    **Pain Points**:
+
+    - Uniform consensus under-represents long-range connections
+
+    - Single Louvain runs are unstable; consensus needs hundreds of runs and bookkeeping
+
+    - Dense 3D node-link drawings become visual clutter; anatomical and topological views are not available side by side
+
+
+    **Data Flow**:
+
+    - Input: Per-subject weight matrices, optional length matrices, node coordinates and atlas labels
+
+    - Transformations: Averaging or consensus thresholding, repeated community detection, agreement matrix, gamma sweep, participation coefficient and within-module degree, rich club
+
+    - Output: Representative network, consensus module labels, hub roles, module-colored 3D, matrix and parcel figures
+success_criteria:
+    - metric: Long-range edge preservation
+      target: User can compare edge length distributions of the group network and of subjects
+    - metric: Module stability
+      target: Consensus partition and its stability across gamma shown before modules are colored
+    - metric: View consistency
+      target: The same module colors appear in 3D, matrix and parcel views
+sources:
+    - title: Betzel et al. 2019, distance-dependent consensus
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6444521/
+      summary: Uniform consensus loses long connections; binning by fiber length per hemisphere pair preserves them; 70 subjects, 68 to 1,000 regions
+    - title: Community detection in network neuroscience (review)
+      url: https://arxiv.org/pdf/2011.06723
+      summary: Repeated Louvain, consensus partitions and resolution sweeps
+    - title: netneurotools consensus clustering example
+      url: https://netneurotools.readthedocs.io/en/latest/auto_examples/plot_consensus_clustering.html
+      summary: Agreement matrix and consensus partition from repeated runs
+    - title: NeuroMArVL
+      url: https://immersive.erc.monash.edu/neuromarvl/
+      summary: Switches between physical (anatomical) and topological layouts
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,21 @@
+id: bipartite-layout
+name: Two-row bipartite layout
+category: visualization
+description: Distinct node types (person, place, event, facility, holding, isolate) with their own shapes or icons, and
+    layouts that separate the modes of a two-mode graph, for person-place and patient-ward data.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W163
+    - W164
+    - W165
+    - W63
+    - W66
+    - W71
+    - W72
+implemented_by_components: []
+requirements:
+    - Lay out a two-mode network as two rows, ordered by totals, a crossing-reducing ordering or module, with bar width
+      by abundance and link width by weight.
+sources: []

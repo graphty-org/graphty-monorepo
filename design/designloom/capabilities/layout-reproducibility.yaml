@@ -1,0 +1,13 @@
+id: layout-reproducibility
+name: Reproducible Layout
+category: visualization
+description: Seeded force layouts with exposed parameters (scaling, gravity, LinLog, prevent overlap), visible
+    convergence and stop rule, pinned qualifying nodes, and side-by-side layout comparison.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W43
+implemented_by_components: []
+requirements: []
+sources: []

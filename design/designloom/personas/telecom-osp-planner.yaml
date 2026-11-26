@@ -1,0 +1,51 @@
+id: telecom-osp-planner
+name: Telecom Outside Plant Planner
+role: Fiber Outside Plant (OSP) and Transport Planner at a regional carrier
+quote: The customer bought diverse circuits. Prove to me the primary and the backup never share a conduit, a pole line
+    or a bridge crossing.
+bio: >-
+    Sam plans and documents the carrier's fiber outside plant: routes, conduits and poles; cables, buffer tubes and
+    strands; splice closures and splice matrices; panels and ports; and the circuits mapped onto strands. The plant
+    lives in IQGeo Network Manager Telecom (with Comsof Fiber for design), VETRO FiberMap or ArcFM Fiber Manager, plus
+    KMZ files and an inventory system. He traces a circuit end to end down to individual strands and splices, finds free
+    strand paths for new circuits, writes splice reports with tube, strand, loss and circuit, and audits whether a
+    primary and its backup share any physical risk. Diversity audits today are done by overlaying KMZ paths and
+    treating anything within about 10 meters as overlapping.
+characteristics:
+    expertise: advanced
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: expert
+motivations:
+    - Trace any circuit end to end in seconds when a cut or a customer complaint comes in
+    - Find a free strand path for a new circuit without walking the plant
+    - Prove physical diversity to customers who pay for it
+    - Keep the plant records accurate down to the strand
+behaviors:
+    - Imports or draws routes, conduits, cables, splices and panels down to strand level
+    - Starts traces from a fiber, a splice case or a port
+    - Assigns circuits from a trace and produces splice reports
+    - Audits diversity by comparing the geometry of two paths within a distance tolerance
+    - Works in layers (route, conduit, cable, strand, circuit) that must stay consistent
+frustrations:
+    - Shared-risk overlaps are found by auditing KMZ data by hand
+    - No built-in shared-risk group modeling found in the common OSP tools
+    - Logical circuit identifiers and physical strand identifiers live in different systems
+context:
+    frequency: daily
+    devices:
+        - desktop
+        - laptop
+    voluntary: false
+workflows:
+    - W225
+sources:
+    - title: IQGeo Network Manager Telecom
+      url: https://www.iqgeo.com/product/network-manager-telecom/insight-edition
+      summary: Traces fiber and coax networks down to individual strands, splices and connections
+    - title: Microsoft patent US12366716 on shared risk link groups
+      url: https://patents.google.com/patent/US12366716
+      summary: Overlaps found by auditing KMZ data; paths within 10 meters treated as overlapping
+    - title: Xu et al., SRLG-diverse routing
+      url: https://cse.unl.edu/~netgroup/publication/xu-srlg-diverse-2011
+      summary: Finding paths disjoint in shared risk link groups is NP-hard in general

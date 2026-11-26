@@ -1,0 +1,148 @@
+id: W358
+name: Task Mining and Customer Journey Analysis
+category: analysis
+validated: false
+personas:
+    - task-mining-analyst
+    - customer-journey-analyst
+    - process-mining-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - node-merging
+    - layout-hierarchical
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - filtering
+    - comparison-view
+    - details-on-demand
+    - selection-statistics
+    - export-image
+    - process-map-derivation
+    - conformance-overlay
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - graph-canvas
+    - cluster-collapse-control
+    - node-merge-dialog
+    - range-slider
+    - filter-panel
+    - comparison-view
+    - node-details-panel
+    - visual-encoding-panel
+    - image-export-dialog
+starting_state:
+    data_type: >-
+        Desktop interaction recordings (clicks, keystrokes, copy and paste, application and screen, screenshots,
+        timestamps; 20,000-70,000 actions from 2-7 users) or web analytics touchpoints (user, session, event, channel,
+        device, campaign)
+    node_count: hundreds of raw UI actions or touchpoints abstracted to 10-50 steps or tasks
+    edge_density: dense at the action level; moderate after clustering
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Apply the process map to finer-grained or customer-facing data. Task mining finds repetitive desktop
+    work worth automating; customer journey analysis compares the designed journey with the one customers actually
+    take.
+
+
+    **Mental Model**: Task mining: "zoom into what people do inside one activity." Customer journey: "the customer is
+    the case and every touchpoint is an activity."
+
+
+    **Task Phases**:
+
+    1. **(Task) Record** - Record selected users' desktops with PII masking; users pause when off task; an active user
+    gives 200-1,000 actions an hour
+
+    2. **(Task) Cluster into steps and tasks** - The vendor clusters screenshots of the same application and screen
+    across traces, merges matching steps and creates decision points; UI logs are one unsegmented stream per user with
+    no case ids, so routines are segmented first
+
+    3. **(Task) Review and link** - Review each step's screenshots; link tasks to system-level cases (case matching);
+    read the map at several levels: UI actions inside tasks inside system activities
+
+    4. **(Journey) Map touchpoints** - User as customer, session as journey, event as touchpoint; discover journeys with
+    a fuzzy miner
+
+    5. **(Journey) Compare with the designed journey** - Measure conformance (one study found only 10.31 percent
+    conforming to a designed journey); slice by device, campaign or landing page
+
+    6. **(Journey) Test a change** - Add a designed step and measure the change in deviations (Telenor's SMS
+    notification lowered deviations; designed journeys produced unintended deviations for 10-25 percent of customers)
+
+
+    **Decision Points**:
+
+    - Which users and how many actions to record?
+
+    - At which level of the hierarchy to read the map?
+
+    - Which tasks are frequent and repetitive enough to automate?
+
+    - Which segment of customers deviates most from the designed journey?
+
+
+    **Information Needs**:
+
+    - Step and task frequency, duration and automation potential
+
+    - The screenshots behind a step
+
+    - The link from a desktop task to the system case it served
+
+    - Conformance share per designed journey and per segment
+
+
+    **Pain Points**:
+
+    - UI logs have no case ids and must be segmented
+
+    - Maps at the action level are unreadable without hierarchical abstraction
+
+    - Privacy of recorded screens and customer identifiers
+
+    - Always-on unassisted recording was deprecated by UiPath, so data comes from shorter assisted sessions
+
+
+    **Data Flow**:
+
+    - Input: UI action logs with screenshots, or web analytics events
+
+    - Transformations: Segmentation, clustering into steps and tasks, hierarchical abstraction, case matching, journey
+    conformance by segment
+
+    - Output: Multi-level task map, automation candidates, journey deviation shares by segment
+success_criteria:
+    - metric: Hierarchical reading
+      target: User can expand a system activity into its tasks and a task into its UI actions on the same map
+    - metric: Segment comparison
+      target: Designed and actual journeys can be compared for two segments side by side
+sources:
+    - title: UiPath Task Mining - recorder overview
+      url: https://docs.uipath.com/task-mining/automation-cloud/latest/user-guide/recorder-client-overview.md
+      summary: Captures screenshots and metadata for every input and click, applies PII masking
+    - title: UiPath Task Mining - introduction
+      url: https://docs.uipath.com/task-mining/automation-cloud/latest/user-guide/introduction
+      summary: Clusters screenshots across traces, merges matching steps, creates decision points
+    - title: UiPath Task Mining - best practices
+      url: https://docs.uipath.com/task-mining/automation-suite/2023.4/user-guide/best-practices-utm
+      summary: 2-7 experienced users, 20,000-70,000 actions, 200-1,000 actions an hour per active user
+    - title: Celonis - what is task mining
+      url: https://www.celonis.com/process-mining/what-is-task-mining
+      summary: Records clicks, copy and paste, time per application and matches actions to business cases
+    - title: Microsoft Power Automate Process Mining - process map
+      url: https://learn.microsoft.com/en-us/power-automate/minit/process-map
+      summary: Hierarchical maps to drill into UI recordings combined with system event logs
+    - title: Leno et al. 2020 - robotic process mining from unsegmented UI logs
+      url: https://arxiv.org/pdf/2008.05782
+      summary: UI logs have no case ids; routines are segmented before discovery
+    - title: Weijs and Caron, ICSOFT 2022 - customer journey mining from Google Analytics 4
+      url: https://scitepress.org/PublishedPapers/2022/112639/pdf/index.html
+      summary: User, session and event mapped to customer, journey and touchpoint; only 10.31 percent conformed to one designed journey
+    - title: Hansson et al. 2021 - Telenor cross-channel customer journeys in Disco
+      url: https://ceur-ws.org/Vol-3112/paper3.pdf
+      summary: 4,934 customers; designed journeys caused unintended deviations for 10-25 percent
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

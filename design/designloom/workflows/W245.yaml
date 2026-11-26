@@ -1,0 +1,127 @@
+id: W245
+name: Robustness Check Across Cutoffs, Databases and Resolutions
+category: analysis
+validated: false
+personas:
+    - genomics-cytoscape-user
+    - proteomics-bench-scientist
+    - signaling-network-modeler
+    - single-cell-computational-biologist
+requires_capabilities:
+    - comparison-view
+    - community-detection
+    - centrality-degree
+    - centrality-betweenness
+    - computed-attributes
+    - filtering
+    - basic-statistics
+    - statistics-panel
+    - analysis-history
+    - data-export
+    - network-collection-small-multiples
+    - analysis-provenance
+    - measurement-robustness
+suggested_components:
+    - comparison-view
+    - network-list-panel
+    - ranked-node-table
+    - cluster-table
+    - slider
+    - statistics-panel
+    - analysis-history-panel
+    - data-export-dialog
+starting_state:
+    data_type: one gene list or matrix rebuilt at several cutoffs, databases or clustering resolutions
+    node_count: 100-5,000 (up to 10^5 cells for resolution sweeps)
+    edge_density: varies with cutoff
+    user_expertise: intermediate+
+goal: >-
+    **Intent**: Find out whether a hub list, a cluster set or a module survives a different confidence cutoff, a
+    different interaction database or a different clustering resolution, before reporting it.
+
+
+    **Mental Model**: "Shake the table and see what stays standing." A result that appears at 0.4, 0.7 and 0.9, or in
+    STRING and BioGRID, is biology; one that appears at a single setting is a parameter choice.
+
+
+    **Task Phases**:
+
+    1. **Rebuild at each setting** (10-30 min) - Re-query at confidence 0.4, 0.7 and 0.9, or swap STRING for BioGRID or
+    IntAct, or recluster at several resolutions
+
+    2. **Recompute** (10 min) - Re-run hub ranking and clustering on each version
+
+    3. **Compare** (20-60 min) - Today this is a spreadsheet of top-10 lists side by side; single-cell users draw a
+    clustering tree with one layer per resolution
+
+    4. **Decide and report** (10 min) - Keep results that persist; state the settings tried in the methods
+
+
+    **Decision Points**:
+
+    - Which settings span a reasonable range (STRING: 0.4 for coverage, 0.7 conservative, 0.9 small and biased to
+    well-studied proteins)?
+
+    - Which databases count as independent evidence?
+
+    - How much overlap counts as stable for a top-10 list or a cluster?
+
+
+    **Information Needs**:
+
+    - Node and edge counts at each setting
+
+    - Rank of each hub at each setting, side by side
+
+    - Cluster membership flows between settings (which cells or genes moved)
+
+    - Settings recorded for each version
+
+
+    **Pain Points**:
+
+    - Every rerun is manual: re-query, re-rank, copy into a spreadsheet
+
+    - No tool found offers a one-step stability view
+
+    - Higher STRING thresholds favor well-studied proteins, so stability can reflect study bias
+
+    - GRN users rarely check rankings at another threshold at all
+
+
+    **Data Flow**:
+
+    - Input: Gene list or matrix; a list of settings to sweep
+
+    - Transformations: Rebuilds at each setting, recomputed rankings and clusters, cross-version comparison
+
+    - Output: Stability table of hubs and clusters across settings; methods statement
+success_criteria:
+    - metric: Sweep effort
+      target: Three cutoffs compared in one view without a spreadsheet
+    - metric: Stable set visible
+      target: User can name which hubs or clusters persist across all settings
+    - metric: Settings recorded
+      target: Each version carries its source, version and cutoff
+sources:
+    - title: STRING help - scores
+      url: https://string-db.org/help/scores/
+      summary: 0.7 conservative, 0.4 broader coverage, higher thresholds biased to well-studied proteins
+    - title: PPI best practices guide (anonymous)
+      url: https://neuro-psycho-group.github.io/Protein-Protein-Interaction-Toolkit/06-best-practices.html
+      summary: The only prescriptive 0.4, 0.7, 0.9 sweep found
+    - title: Interaction database overlap
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC3011985
+      summary: Databases are largely independent curation efforts
+    - title: Network choice and disease-gene recovery
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5920724
+      summary: The choice of network changes results
+    - title: Clustering trees
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6057528
+      summary: One layer per resolution with edges for cells moving between clusters
+    - title: Biostars - cytoHubba instability
+      url: https://biostars.org/p/9529294
+      summary: Hub rankings criticized for weak validation and run-to-run changes
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

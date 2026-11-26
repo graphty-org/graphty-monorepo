@@ -1,0 +1,134 @@
+id: W200
+name: Net-Map Influence Interviews
+category: analysis
+validated: false
+personas:
+    - participatory-systems-mapping-facilitator
+    - civic-power-researcher
+requires_capabilities:
+    - data-import
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - filtering
+    - details-on-demand
+    - centrality-degree
+    - comparison-view
+    - node-merging
+    - export-image
+    - data-export
+    - matrix-import
+    - graph-authoring
+    - multi-map-merge
+    - multi-valued-attributes
+suggested_components:
+    - graph-canvas
+    - toolbar
+    - context-menu
+    - node-details-panel
+    - visual-encoding-panel
+    - legend-panel
+    - filter-panel
+    - network-list-panel
+    - network-merge-dialog
+    - comparison-view
+    - data-import-dialog
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: paper Net-Map per interviewee (actor cards, colored arrows per link type, influence towers, goal codes), photographed
+    node_count: 10-40 actors per interview
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Capture, with one interviewee at a time, who is involved in a governance question, how they are linked
+    by several kinds of relationship, how influential each is and what they want, then digitize and compare the maps.
+    Net-Map was developed at IFPRI for agricultural and natural resource governance and is used where interviewees may
+    not read.
+
+
+    **Mental Model**: "Who is in the game, what flows between them, who has power, and what do they want?" Influence is
+    a tower of stacked pieces; each link type is a colored arrow.
+
+
+    **Task Phases**:
+
+    1. **Prepare** (before fieldwork) - Guiding question, link types each with a color (money red, command black, advice
+    green, information blue), a shared definition of influence, goal codes; pre-test
+
+    2. **Interview** (1-2 h each, on paper) - Name actors on cards (colored by group); draw one link type at a time,
+    starting with the least common, with two-headed arrows for exchange; build influence towers and read them back;
+    mark goal codes, more than one per actor allowed; discuss surprises
+
+    3. **Digitize** (30-60 min per map) - Enter actors with group, tower height and goal codes; enter links per type
+    (one matrix per link type, or an edge list with a type column); several typed links between one pair
+
+    4. **Draw** (15 min) - Size nodes by tower height; color edges by link type; show goal codes as badges; filter to one
+    link type
+
+    5. **Compare** (1-2 h) - One map per interviewee; reconcile actor names; compare towers and link patterns across
+    interviewees; ask why a well-linked actor is not influential
+
+
+    **Decision Points**:
+
+    - Which link types to ask about and in what order?
+
+    - Are two interviewees' actors the same organization?
+
+    - Treat an exchange as two directed links or one two-headed link?
+
+    - Show all link types at once or one at a time?
+
+
+    **Information Needs**:
+
+    - Several typed, colored links between the same pair kept distinct
+
+    - Influence score drawn as node size with the value readable
+
+    - Multi-valued goal codes per actor
+
+    - Degree per link type next to influence, to spot well-linked but powerless actors
+
+    - Side-by-side maps from different interviewees
+
+
+    **Pain Points**:
+
+    - Retyping each paper map as one matrix per link type by hand
+
+    - Tools that collapse parallel links of different types into one
+
+    - No standard way to compare many interviewees' maps
+
+
+    **Data Flow**:
+
+    - Input: Hand entry from photographs, or one adjacency matrix per link type plus an actor attribute sheet (UCINET
+    style)
+
+    - Transformations: Multi-relational edge import, size by influence, color by link type, per-type filtering, actor
+    name reconciliation across maps, per-type degree
+
+    - Output: Digitized map per interviewee, comparison across interviewees, figures for the study report
+success_criteria:
+    - metric: Digitizing time per map
+      target: Under 30 minutes for a 25-actor, 4-link-type map
+    - metric: Link type fidelity
+      target: Every typed link between a pair remains separately visible and filterable
+    - metric: Comparison
+      target: User can show two interviewees' maps side by side with shared actors matched
+sources:
+    - title: Schiffer - Net-Map Manual (IFPRI 2007)
+      url: https://media.tciurbanhealth.org/wp-content/uploads/2018/02/12125549/Net-Map-Manual.pdf
+      summary: Link colors, influence towers, goal codes, two-headed arrows, one matrix per link type, UCINET and VisuaLyzer, figurines for illiterate interviewees
+    - title: MSP Guide - Net-Mapping
+      url: https://mspguide.org/2022/03/18/netmapping/
+      summary: Net-Map steps and facilitation in multi-stakeholder partnerships
+    - title: Wikipedia - Net-map toolbox
+      url: https://en.wikipedia.org/wiki/Net-map_toolbox
+      summary: Origin at IFPRI and use in governance research
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

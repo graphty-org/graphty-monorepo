@@ -1,0 +1,182 @@
+id: W61
+name: Monthly HIV Molecular Cluster Detection
+category: analysis
+validated: false
+personas:
+    - hiv-molecular-cluster-epidemiologist
+    - dis-supervisor
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - node-merging
+    - filtering
+    - component-analysis
+    - selection-statistics
+    - basic-statistics
+    - statistics-panel
+    - metric-histograms
+    - temporal-analysis
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-force-directed
+    - search
+    - details-on-demand
+    - data-export
+    - export-image
+    - report-generation
+    - analysis-history
+    - distance-threshold-network
+    - local-only-processing
+    - entity-resolution-review
+    - export-by-cluster
+    - cluster-identity-across-runs
+    - de-identified-display
+    - session-round-trip
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - node-merge-dialog
+    - filter-panel
+    - range-slider
+    - histogram
+    - cluster-table
+    - statistics-panel
+    - graph-canvas
+    - node-details-panel
+    - data-table-panel
+    - visual-encoding-panel
+    - legend-panel
+    - data-export-dialog
+    - report-generator-dialog
+starting_state:
+    data_type: de-identified HIV-1 pol sequences with a surveillance attribute table
+    node_count: 1000-5000
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Once a month, find the groups of people whose HIV sequences are close enough to indicate recent
+    transmission, decide which of those groups need a response, and write each one up as a cluster definition, a
+    narrative and a line list. This is the routine that drives HIV cluster response in a United States health
+    department, on a cadence the funder sets: health departments at least monthly, the national program quarterly.
+
+
+    **Mental Model**: "A cluster is a connected blob at a fixed distance." Two people are linked when the genetic
+    distance between their virus sequences is under a threshold, a cluster is a connected component, and the number
+    that matters is how many of its members were diagnosed in the last 12 months. The epidemiologist does not tune
+    the threshold: the program fixes it at 0.5% and 1.5% TN93 distance so that clusters mean the same thing
+    everywhere.
+
+
+    **Task Phases**:
+
+    1. **Export** (30 min) - Pull persons and sequences from the state surveillance system; sequences arrive from
+    routine clinical drug-resistance genotyping, with a median 34 days from sample to health department in 2023
+
+    2. **De-identify** (15 min) - Run the program-supplied de-identification step; identifiers never leave the health
+    department, and only the de-identified file goes anywhere else
+
+    3. **Build the networks** (minutes, unattended) - Align to a reference pol segment, compute pairwise TN93
+    distances, build the network at both 0.5% and 1.5%, and run a data quality screen
+
+    4. **Read the flags** (20 min) - Look at automatically flagged priority clusters (at 0.5%, among people diagnosed
+    in the past 3 years, 5 or more diagnoses in the previous 12 months, or 3 or more in a jurisdiction with fewer than
+    200 diagnoses a year) and at locally defined clusters; the national median cluster size at detection was 7, range
+    3 to 24
+
+    5. **Assemble the case** (2 to 4 hours) - Join partner services, sexually transmitted infection and care data onto
+    the members; write the cluster case definition (diagnosis years, demographics, geography), a narrative and a line
+    list
+
+    6. **Prioritize** (the monthly meeting) - The review group weighs increase over baseline, alternative explanations
+    such as more testing or a data change, potential for ongoing transmission, how well the network is understood
+    given sequence completeness, and potential for poor outcomes
+
+    7. **Report and record** (1 hour) - File the cluster report form (initial, quarterly, annual, closeout) and record
+    cluster identifiers in the surveillance system without identifiers
+
+
+    **Decision Points**:
+
+    - Is the growth real, or an artifact of more testing, a reporting change or a late batch of sequences?
+
+    - Does this cluster get a response, stay monitored, or close?
+
+    - Which threshold is the right lens for this question: 0.5% for priority flagging, 1.5% for context
+
+    - How much does low sequence coverage undermine the picture, and does that lower the priority or raise it?
+
+    - Which members belong in the line list that leaves the room, and which detail must be left out
+
+
+    **Information Needs**:
+
+    - Cluster membership as rows, not as a cluster-id column on nodes: one node and edge file per cluster
+
+    - New members in the last 12 months per cluster, and the cluster's total size
+
+    - Stable cluster identity against last month's run, so growth is a count and not a renumbering
+
+    - Share of diagnoses with any sequence at all (about 52% in 2021-2023), stated in the output
+
+    - Data quality screen results before anything is interpreted
+
+    - Per-member status columns: interview, test, viral suppression, care
+
+
+    **Pain Points**:
+
+    - About 80% of detected clusters cross jurisdictions, and a local-only view misses roughly 20% of national clusters
+
+    - Turning "node has cluster id" into "cluster has these members" was manual spreadsheet work until per-cluster
+    export existed
+
+    - Every artifact must be access-limited even with no names on it, because the combination of attributes identifies
+    people
+
+    - Program guidance says to avoid molecular network diagrams when communicating with partners, so the clearest
+    artifact is the one that may not circulate
+
+    - A hosted analysis service makes the whole monthly routine depend on another organization's funding and uptime
+
+    - Half the diagnoses have no sequence, and nothing in the picture shows the people who cannot appear in it
+
+
+    **Data Flow**:
+
+    - Input: De-identified aligned pol sequences (FASTA) or a precomputed pairwise distance list, plus a person
+    attribute table (diagnosis date, demographics, transmission category, viral suppression, county)
+
+    - Transformations: Pairwise genetic distance, thresholding at 0.5% and 1.5%, several sequences collapsed to one
+    person, connected components, new-members-in-12-months count per component, join of program data
+
+    - Output: Per-cluster node and edge files, a line list, a cluster narrative, epi curves, a report form submission,
+    and cluster identifiers written back to the surveillance system
+success_criteria:
+    - metric: Time from export to a prioritized cluster list
+      target: One working day, repeatable every month by one person
+    - metric: Cluster identity stability
+      target: A cluster keeps its name across monthly runs, so growth counts are comparable
+    - metric: Membership usability
+      target: Each cluster can be exported as its own node and edge list without manual spreadsheet work
+    - metric: Honesty of coverage
+      target: Every output states what fraction of diagnoses had a sequence
+sources:
+    - title: Secure HIV-TRACE and national HIV molecular cluster detection (Emerging Infectious Diseases 2025)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC12078553/
+      summary: The upload-and-review routine, alignment to a reference pol segment, networks at 0.5% and 1.5%, automatic priority cluster flagging since May 2023, median cluster size 7 at detection, and the roughly 20% of national clusters a local view misses
+    - title: CDC HIV cluster detection guidance
+      url: https://www.cdc.gov/hiv/programresources/guidance/hiv-cluster-detection-and-response-guidance/cluster-detection.html
+      summary: Monthly health department and quarterly national cadence, the priority cluster definition, the surveillance export and the supplied de-identification program
+    - title: CDC cluster review and prioritization guidance
+      url: https://www.Cdc.gov/hiv/programresources/guidance/hiv-cluster-detection-and-response-guidance/cluster-review-and-prioritization.html
+      summary: Who sits on the monthly review, the prioritization criteria, access-limited line lists, and the instruction to avoid network diagrams with partners
+    - title: MicrobeTrace issue 360 - export by cluster
+      url: https://github.com/CDCgov/MicrobeTrace/issues/360
+      summary: Per-cluster node and edge file export, which replaced hand-built membership lists
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

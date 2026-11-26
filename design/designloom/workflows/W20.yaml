@@ -5,6 +5,8 @@ validated: false
 personas:
     - genomics-cytoscape-user
     - bioinformatics-researcher
+    - proteomics-bench-scientist
+    - network-biology-core-bioinformatician
 requires_capabilities:
     - data-import
     - data-validation
@@ -22,6 +24,7 @@ requires_capabilities:
     - statistics-panel
     - export-image
     - data-export
+    - identifier-mapping
 suggested_components:
     - file-drop-zone
     - column-mapper
@@ -83,6 +86,12 @@ goal: >-
 
     - Which genes deserve a bypass highlight for the figure?
 
+    - Which ambiguous names map to which protein? stringApp preselects the first match, and the DE protocol maps UniProt
+    to NCBI Gene before the join
+
+    - Which cutoff fits this query? 0.4 for gene lists, 0.95 for a disease query, 0.999 for AP-MS prey-prey edges; small
+    lists may disconnect at 0.4, and dropping to 0.15 was called close to 9 in 10 false positives
+
 
     **Information Needs**:
 
@@ -98,6 +107,10 @@ goal: >-
 
     - Legend that states the column name, the color scale endpoints and the size mapping
 
+    - List of ambiguous names with the chosen match, and symbols that look spreadsheet-mangled (dates such as 2-Sep)
+
+    - Interaction source name, version and access date, kept with the network
+
 
     **Pain Points**:
 
@@ -112,6 +125,11 @@ goal: >-
     - Rebuilding the same style for the down-regulated list after finishing the up-regulated one
 
     - Legend is not part of the export and has to be redrawn
+
+    - Excel gene-name conversions appeared in 30.9 percent of articles with Excel gene lists (2014-2020) and fail to
+    match silently
+
+    - Ambiguous names resolved to the first match unless the user checks
 
 
     **Data Flow**:
@@ -145,6 +163,15 @@ sources:
     - title: JensenLab stringApp exercises
       url: https://jensenlab.org/training/stringapp/
       summary: Disambiguation dialogs and gradient optimization for skewed data listed as pain points
-version: 1.0.0
+    - title: Gene name errors in spreadsheets
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8357140
+      summary: 30.9 percent of articles with Excel gene lists had conversion errors
+    - title: Bioconductor support - STRING threshold for small lists
+      url: https://support.bioconductor.org/p/9137624
+      summary: 0.15 described as close to 9 in 10 false positives
+    - title: STRING help - scores
+      url: https://string-db.org/help/scores/
+      summary: Score is confidence, not interaction strength; 0.4 and 0.7 guidance
+version: 1.1.0
 created_at: 2026-09-08T02:34:20.000Z
-updated_at: 2026-11-18T07:06:16.000Z
+updated_at: 2026-11-25T00:00:00.000Z

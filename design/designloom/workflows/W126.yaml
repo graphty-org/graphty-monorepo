@@ -1,0 +1,145 @@
+id: W126
+name: Rebuilding Money Flows From Subpoenaed Bank Records
+category: analysis
+validated: false
+personas:
+    - forensic-accountant
+requires_capabilities:
+    - data-import
+    - data-preview
+    - data-validation
+    - node-merging
+    - computed-attributes
+    - filtering
+    - metric-histograms
+    - temporal-navigation
+    - visual-encoding-edges
+    - layout-hierarchical
+    - legend-display
+    - details-on-demand
+    - annotation
+    - analysis-history
+    - export-image
+    - data-export
+    - report-generation
+    - entity-resolution-review
+    - provenance-tracking
+    - parallel-edge-aggregation
+    - flow-of-funds-diagram
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - network-merge-dialog
+    - node-merge-dialog
+    - data-table-panel
+    - computed-attributes-panel
+    - filter-panel
+    - histogram
+    - temporal-controls
+    - graph-canvas
+    - visual-encoding-panel
+    - layout-panel
+    - legend-panel
+    - annotation-toolbar
+    - analysis-history-panel
+    - image-export-dialog
+    - data-export-dialog
+    - report-generator-dialog
+starting_state:
+    data_type: statements, check images, deposit tickets and wire records from several banks, extracted from PDF into rows
+    node_count: 5-100 accounts, payees and sources
+    edge_density: sparse, with many parallel transactions per pair
+    user_expertise: expert
+goal: >-
+    **Intent**: Turn many banks' subpoenaed records into one reconciled transaction database, show sources and uses of
+    funds, and present an exhibit in which every number ties back to a page of a statement. Forensic accountants and
+    law-enforcement financial investigators follow a long-established sequence (Peterson's 14 steps for the National White
+    Collar Crime Center) that ends in a chart.
+
+
+    **Mental Model**: "Spreadsheet first, chart last." The chart is the summary of a reconciled ledger, not the place where
+    the analysis happens; it has to be defensible line by line.
+
+
+    **Task Phases**:
+
+    1. **Plan and obtain** (weeks) - Subpoenas; inventory every record received with an index and status log
+
+    2. **Extract** (the longest step) - Statements, checks, deposit items and wires into rows by OCR
+
+    3. **Normalize** (hours) - One template: date, account, counterparty, amount, instrument, check number, memo, source
+    file and page; import many files into one graph
+
+    4. **Review for leads** (hours) - Payees, endorsements, signatories, where checks were negotiated
+
+    5. **Match internal transfers** (1 hour) - Pair a debit and a credit of the same amount within a few days across the
+    subject's own accounts so they are not counted as income
+
+    6. **Analyze** (hours) - By date, payee and source; a flow matrix among accounts
+
+    7. **Chart** (1 hour) - Flow-of-funds Sankey or link chart sized by amount, each flow drillable to its transactions
+
+    8. **Trace under a rule** (when needed) - W121
+
+    9. **Present** (hours) - Exhibit and summary tied to source documents
+
+
+    **Decision Points**:
+
+    - Which debit and credit pairs are internal transfers, and which matches are coincidences?
+
+    - Which payees are the same party under different names?
+
+    - What goes on the exhibit and what stays in the workpapers?
+
+
+    **Information Needs**:
+
+    - For every transaction, the source file and page
+
+    - Proposed transfer matches with amount and day gap, accepted or rejected one by one
+
+    - Totals by source, use and payee
+
+    - Flow matrix between accounts
+
+
+    **Pain Points**:
+
+    - Extraction and transfer matching across banks take most of the time
+
+    - Charting tools do not carry the source page, so tie-out is manual
+
+    - Link charts show movement but not the totals a court asks about
+
+
+    **Data Flow**:
+
+    - Input: PDF statements and images extracted to CSV or Excel per bank and account
+
+    - Transformations: Normalization to one template, multi-file import, transfer matching, payee grouping, aggregation,
+    flow matrix
+
+    - Output: Reconciled transaction database, flow-of-funds chart, exhibit tables tied to source pages
+success_criteria:
+    - metric: Tie-out
+      target: Clicking any flow lists its transactions with source file and page
+    - metric: Transfer matching
+      target: User reviews proposed internal-transfer matches and the chart excludes accepted ones from income
+    - metric: Multi-file import
+      target: Statements from several banks load into one graph with each row's file recorded
+sources:
+    - title: Peterson - A Guide to the Financial Analysis of Personal and Corporate Bank Records (NW3C, 2nd ed. 1998)
+      url: https://www.ojp.gov/pdffiles1/Digitization/174809NCJRS.pdf
+      summary: Fourteen steps from planning and inventory through flow among accounts, charts and presentation
+    - title: DocuClipper - Flow of funds analysis
+      url: https://www.docuclipper.com/docs/flow-of-funds-analysis/
+      summary: Sankey of sources, accounts and destinations; transfer pairing; workbook export
+    - title: LawNext - Valid8 follow-the-money software
+      url: https://www.lawnext.com/2023/01/this-new-category-of-legal-software-lets-you-follow-the-money-through-financial-evidence-data.html
+      summary: Claims 30+ source system types; Sankey with drill-down and export
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

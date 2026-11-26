@@ -1,0 +1,16 @@
+id: spatial-aggregation
+name: Spatial aggregation and clustering of places
+category: analysis
+description: Zoom-dependent clustering of places with flows summed, administrative roll-up (block to tract to county,
+    airports to city markets), and flow-aware clustering that respects flow connections.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W381
+    - W382
+    - W386
+    - W389
+implemented_by_components: []
+requirements: []
+sources: []

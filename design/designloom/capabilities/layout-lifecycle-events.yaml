@@ -1,0 +1,14 @@
+id: layout-lifecycle-events
+name: Layout Lifecycle and Testable State
+category: visualization
+description: A layout-complete event or promise, deterministic layout given a seed, and positions, selection and styles
+    queryable through the public API, with screen-to-node hit testing for tests.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W278
+    - W288
+implemented_by_components: []
+requirements: []
+sources: []

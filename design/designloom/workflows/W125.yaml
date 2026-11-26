@@ -1,0 +1,145 @@
+id: W125
+name: FIU and Tax Analysis Across Filers
+category: analysis
+validated: false
+personas:
+    - fiu-tax-intelligence-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - node-merging
+    - search
+    - neighborhood-expansion
+    - component-analysis
+    - degree-analysis
+    - centrality-betweenness
+    - filtering
+    - saved-filters
+    - visual-encoding-nodes
+    - legend-display
+    - details-on-demand
+    - large-graph-rendering
+    - analysis-history
+    - annotation
+    - export-image
+    - report-generation
+    - entity-resolution-review
+    - provenance-tracking
+    - geographic-layout
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - node-merge-dialog
+    - search-input
+    - search-panel
+    - graph-canvas
+    - cluster-table
+    - ranked-node-table
+    - algorithm-panel
+    - filter-panel
+    - visual-encoding-panel
+    - legend-panel
+    - node-details-panel
+    - analysis-history-panel
+    - annotation-toolbar
+    - image-export-dialog
+    - report-generator-dialog
+starting_state:
+    data_type: suspicious transaction reports, cash-threshold and cross-border reports from many filers, each naming subjects, accounts and transactions in its own spelling; for tax, government and third-party records
+    node_count: 50-5,000 in a working view (stores hold billions of rows)
+    edge_density: sparse, fragmented until subjects are resolved
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Find which reports from different filers describe the same people and network, turn a cluster into a case
+    proposal or dissemination to police, prosecutors, foreign FIUs or tax compliance, and run strategic reviews by sector
+    or geography. No single bank's narrative covers the network; the FIU is where the pieces meet.
+
+
+    **Mental Model**: "Many partial stories about one network." Each report is a fragment from one filer's point of view.
+    Entity resolution stitches them together; where identity cannot be proven, a tentative link keeps both records visible
+    without merging them.
+
+
+    **Task Phases**:
+
+    1. **Ingest reports** (automated) - Reports into one store of people, companies, accounts and transactions
+
+    2. **Resolve subjects across filers** (30 min per network) - Merge or split by rules, logged and without altering
+    original data; where identity cannot be confirmed create a tentative "possibly the same" link (goAML calls it a
+    Virtual Object)
+
+    3. **Find report clusters** (20 min) - Subjects and accounts named in several reports; components after resolution;
+    centrality to find facilitators; paths across jurisdictions
+
+    4. **Run strategic pivots** (varies) - By sector, occupation or geography (HMRC plots undeclared work street by street)
+
+    5. **Disseminate** (30 min) - Case proposal with a chart to police, prosecutors, a foreign FIU or (tax) compliance
+    teams
+
+
+    **Decision Points**:
+
+    - Are two subjects from different filers the same person, possibly the same, or different?
+
+    - Which cluster is worth a case proposal?
+
+    - Who is a facilitator (accountant, formation agent, money service business) and who is a bystander?
+
+    - Which agency receives the dissemination?
+
+
+    **Information Needs**:
+
+    - For every merged subject, which records were merged, by which rule, and the original spellings
+
+    - Tentative links shown differently from confirmed ones
+
+    - Number of reports and filers per subject and per cluster
+
+    - Which report each link came from
+
+
+    **Pain Points**:
+
+    - Entity resolution across filers with different spellings
+
+    - Records that may be the same person but cannot be proven so
+
+    - Graph views that hide which report each link came from
+
+    - No public detail on how goAML charts, and no primary source on goAML exports to i2
+
+
+    **Data Flow**:
+
+    - Input: STRs, SARs, cash-threshold and cross-border reports (structured XML or forms); tax and third-party records
+
+    - Transformations: Rule-based subject unification with an audit log, tentative links, components, centrality, pivots
+
+    - Output: Case proposal or dissemination with chart, strategic review
+success_criteria:
+    - metric: Reversible resolution
+      target: Every merge can be inspected and undone, and original report records stay unchanged
+    - metric: Tentative links
+      target: Possibly-same links are visually distinct from confirmed merges and can be confirmed or rejected later
+    - metric: Report provenance
+      target: For any link the user can list the reports and filers behind it
+sources:
+    - title: UNODC goAML services
+      url: https://goaml.unodc.org/goaml/en/services.html
+      summary: Subject unification without altering original data, logged; Virtual Objects as tentative links (read through search summary)
+    - title: Linkurious - FIU intelligence and AML investigations with graph
+      url: https://linkurious.com/blog/fiu-intelligence-aml-investigations-graph/
+      summary: Vendor; report clusters, centrality to find facilitators, paths across jurisdictions
+    - title: European Labour Authority good-practice fiche - HMRC Connect
+      url: https://www.ela.europa.eu/sites/default/files/2021-09/Good%20Practice%20Fiche%20-%20UK%20Data%20mining%20tools%20and%20methods%20to%20tackle%20the%20hidden%20economy%20in%20the%20UK.pdf
+      summary: 22 billion lines of data, 500 million documents; about 250 specialist analysts
+    - title: Connect (computer system) - Wikipedia
+      url: https://en.wikipedia.org/wiki/Connect_(computer_system)
+      summary: HMRC Connect on NetReveal; geographic plotting of undeclared work
+    - title: FinCEN core career descriptions - Intelligence research specialist
+      url: https://fincen.gov/careers/core-career-descriptions/intelligence-research-specialist
+      summary: i2 Analyst's Notebook, link analysis charts, network diagrams and timelines
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

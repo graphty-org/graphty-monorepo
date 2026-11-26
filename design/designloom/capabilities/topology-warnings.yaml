@@ -1,0 +1,15 @@
+id: topology-warnings
+name: Suspicious Topology Warnings
+category: analysis
+description: "Warn when a drawn structure is the signature of a data error rather than a finding: a starburst from a
+    blank row parsed as a node, a long two-step chain from a bad alignment, a file read as a node list when it is an
+    edge list."
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W63
+    - W70
+implemented_by_components: []
+requirements: []
+sources: []

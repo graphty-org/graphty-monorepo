@@ -1,0 +1,83 @@
+id: bibliometric-review-author
+name: Bibliometric Review Author
+role: Domain Researcher Writing a "Bibliometric Analysis of X" Review
+quote: The reviewer wants the burst table, the co-citation map and every threshold I used. I just want the maps to come out the same twice.
+bio: >-
+    Dr. Lina Haddad is an assistant professor of nursing writing her second "bibliometric analysis" paper for a Q2
+    journal. She is a clinical researcher with no information-science training; she learned VOSviewer from a library
+    guide and uses SPSS, Excel and EndNote, but does not code. For each review she exports 2,000 to 12,000 Web of
+    Science records in 500-record batches ("Full Record and Cited References"), sometimes adds a Scopus CSV, and builds
+    four to six VOSviewer maps: country and institution co-authorship, co-cited references, keyword co-occurrence and a
+    keyword overlay by year. Reviewers then ask for a CiteSpace burst table, so she learns a second tool. She works in
+    intensive one- to three-week stretches with a co-author who screens records independently. She knows the tools'
+    vocabulary (co-citation, coupling, fractional counting) but not the graph theory underneath, and her deliverable is
+    a set of static figures, top-10 tables and a methods paragraph listing every parameter. This is the largest group in
+    bibliometrics: titles with "bibliometric" rose from 826 in 2015 to 16,959 in 2025 in OpenAlex.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Publish a review whose figures and methods section reviewers accept on the first round
+    - Show the topical themes, intellectual foundations, collaboration patterns and emerging topics of her field
+    - Report every parameter (database, query, dates, counting, thresholds, resolution) so the maps can be reproduced
+    - Avoid learning a second and third tool just to produce one table or one view
+behaviors:
+    - Exports Web of Science in 500-record batches and loads all batch files at once
+    - Builds several map types from the same corpus and repeats the threshold wizard for each
+    - Starts with strict thresholds, loosens them, and unticks irrelevant items in the item list
+    - Builds a two-column thesaurus file (label, replace by) over two to five rounds to merge synonyms and drop noise
+    - Raises the clustering resolution until clusters read as themes, then names clusters from their largest terms
+    - Reads the overlay view by average publication year and writes the yellow terms up as "emerging topics"
+    - Switches to CiteSpace for time slicing, citation bursts and the timeline view
+    - Screenshots maps at high resolution with a transparent background and crops them in PowerPoint
+    - Builds top-10 tables of countries, institutions, journals and cited references in Excel
+frustrations:
+    - The tedious 500-record export loop
+    - Merged Web of Science and Scopus files that VOSviewer will not read
+    - Noisy keyword maps until a thesaurus is built, and rebuilding every map from scratch after each thesaurus change
+    - Results that can be inconsistent between runs when no seed is recorded
+    - Reviewers asking for parameters she did not write down
+    - CiteSpace's numerous buttons, menus and options
+    - Two mapping tools with incompatible files for one paper
+context:
+    frequency: as-needed
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W50
+    - W51
+    - W52
+    - W53
+    - W56
+sources:
+    - title: Protocol for bibliometric analysis in biomedicine with CiteSpace and VOSviewer (STAR Protocols, 2024)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11408372/
+      summary: Step-by-step protocol for non-specialists; 47,458 to 11,547 records, two screeners, 2-3 days per phase, two mapping tools
+    - title: Notre Dame library - VOSviewer demo
+      url: https://libguides.library.nd.edu/vos-viewer/demo
+      summary: Web of Science export in 500-record batches with Full Record and Cited References; thresholds and screenshot settings
+    - title: Issues in Science and Technology Librarianship - CiteSpace case study
+      url: https://journals.library.ualberta.ca/istl/index.php/istl/article/download/2779/2822?inline=1
+      summary: Tedious export loop, 3,561 records to 857 nodes, burst detection, unmerged citation variants
+    - title: VOSviewer Manual 1.6.20
+      url: https://www.vosviewer.com/documentation/Manual_VOSviewer_1.6.20.pdf
+      summary: Map types, counting methods, thesaurus files, no cross-database merge, random seeds
+    - title: SMU Libraries - CiteSpace for power users
+      url: https://library.smu.edu.sg/topics-insights/citespace-bibliometric-mapping-tool-power-users-reviews-business
+      summary: Numerous buttons, menus and options overwhelm all but expert users
+    - title: Taming the wild west of bibliometric reviews in education
+      url: https://link.springer.com/article/10.1007/s11092-026-09492-1
+      summary: 1,873 bibliometric reviews, 87% published 2020-2024, unreported parameters
+    - title: OpenAlex API group-by queries (run 2026-11-25)
+      url: https://api.openalex.org/works?filter=title.search:bibliometric&group_by=publication_year
+      summary: Works with "bibliometric" in the title rose from 826 (2015) to 16,959 (2025)
+    - title: Google Group thread on merging Web of Science and Scopus for VOSviewer
+      url: https://groups.google.com/g/dataanalysistraining/c/Ku4ESanxUHo
+      summary: bibliometrix merged output (KW_Merged) unreadable by VOSviewer; practitioner wrote a Python fix
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,74 @@
+id: marcus-lindqvist
+name: Marcus Lindqvist
+role: Identity Security Engineer / Attack Path Management Owner
+quote: I do not need every misconfiguration. I need the three choke points that cut most of the paths into Tier Zero, proof that removing them breaks nothing, and a chart for the CISO showing exposure went down.
+bio: >-
+    Marcus Lindqvist owns Active Directory and Entra ID hardening at a 30,000-employee company. A former Windows
+    administrator, he runs BloodHound Enterprise with continuous SharpHound and AzureHound collection, defines what
+    counts as Tier Zero through Privilege Zones, and works the Attack Paths page as a ranked queue: each finding shows
+    severity, exposure (the share of principals with a path through it) and impact. He prioritizes choke points over
+    individual misconfigurations, checks every proposed change against business processes before making it, files
+    change tickets, and verifies after the next collection that the path is gone. He coordinates collection with the
+    SOC because vendors publish detections for SharpHound's LDAP enumeration. He also uses the Defender XDR hunting
+    graph for scenario queries such as Kerberoast paths to critical assets, and reports posture trends to leadership
+    and auditors. He reads graphs fluently but prefers prebuilt scenarios to writing Cypher.
+characteristics:
+    expertise: advanced
+    time_pressure: medium
+    graph_literacy: advanced
+    domain_knowledge: advanced
+motivations:
+    - Drive down the share of principals with any path into Tier Zero
+    - Fix the choke points that sever the most paths first
+    - Remediate without breaking a business process
+    - Prove each fix worked by re-collecting and showing the path gone
+    - Show leadership and auditors a trend of exposure over time
+behaviors:
+    - Defines and widens Tier Zero and other Privilege Zones, knowing that new definitions make new findings appear
+    - Filters the Attack Paths page by environment, zone and risk, and reads the choke point graph that aggregates exposed principals per finding
+    - Prioritizes findings with both high exposure and high impact
+    - Runs time-boxed remediation campaigns around a Privilege Zone, assigns owners and tracks reduction
+    - Checks each remediation against business processes before making it in ADUC or ADSI Edit
+    - Compares analysis runs on the Posture page to confirm resolved paths and catch regressions
+    - Uses Defender XDR hunting graph scenarios ("Paths to domain admins", "Choke points to SQL data stores") with edge-type and direction filters
+    - Coordinates SharpHound collection windows with the SOC so it is not raised as an attack
+frustrations:
+    - Finding counts can rise as visibility improves, which looks like failure in a leadership report
+    - No safe way to see in advance which business process a privilege removal will break
+    - Vendor claims about paths severed per choke point come without methodology
+    - Collection traffic triggers the company's own detections
+    - Fixed paths take a collection cycle or more to disappear, so verification lags the change
+context:
+    frequency: daily
+    devices:
+        - desktop
+    voluntary: false
+workflows:
+    - W108
+    - W109
+    - W114
+sources:
+    - title: SpecterOps - Attack path management pillar 2, empirical impact assessment
+      url: https://specterops.io/blog/2022/01/27/3-foundational-pillars-for-attack-path-management-pillar-2-empirical-impact-assessment/
+      summary: Exposure as share of principals with a path; example choke points at 93, 41 and 10 percent of users
+    - title: SpecterOps - Attack path management pillar 3, safe remediation guidance
+      url: https://specterops.io/blog/2022/03/03/attack-path-management-pillars-part-3-safe-ad-security-remediation-guidance/
+      summary: Choke points, checking business impact before remediation, verifiable outcomes
+    - title: SpecterOps - Getting started with BloodHound Enterprise part 2
+      url: https://specterops.io/blog/2025/03/19/getting-started-with-bhe-part-2/
+      summary: Adding assets such as a help desk group to Tier Zero creates new findings
+    - title: BloodHound docs - Attack Paths graph view
+      url: https://bloodhound.specterops.io/analyze-data/findings/graph-view
+      summary: Environment, zone and risk filters; choke point graph; severity, exposure and impact per finding
+    - title: BloodHound docs - Posture
+      url: https://bloodhound.specterops.io/analyze-data/findings/posture
+      summary: Counts and changes per attack path type across analysis runs
+    - title: BloodHound docs - Run remediation campaigns
+      url: https://bloodhound.specterops.io/analyze-data/privilege-zones/use-cases/run-remediation-campaigns
+      summary: Time-boxed campaigns around a Privilege Zone with owners and tracked reduction
+    - title: Microsoft Learn - Defender XDR advanced hunting graph
+      url: https://learn.microsoft.com/defender-xdr/advanced-hunting-graph
+      summary: Predefined path scenarios, edge-type and direction filters, shortest-paths-only option, choke points
+    - title: Sophos - Sniffing out SharpHound on its hunt for Domain Admin
+      url: https://www.sophos.com/en-us/blog/sniffing-out-sharphound-on-its-hunt-for-domain-admin
+      summary: Detections for SharpHound collection, why defensive collection must be coordinated with the SOC

@@ -1,0 +1,16 @@
+id: host-link-index-adapter
+name: Host link index adapter
+category: analysis
+description: Accept a live graph from a host app's own resolved link index (for Obsidian, resolvedLinks and
+    unresolvedLinks with counts plus per-file metadata) so links resolve exactly as the host resolves them, with no
+    parsing of its own.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W324
+    - W325
+    - W334
+implemented_by_components: []
+requirements: []
+sources: []

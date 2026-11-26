@@ -1,0 +1,139 @@
+id: W135
+name: Review an Ontology Release with ODK and ROBOT
+category: reporting
+validated: false
+personas:
+    - knowledge-engineer
+requires_capabilities:
+    - data-import
+    - comparison-view
+    - layout-hierarchical
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - filtering
+    - search
+    - details-on-demand
+    - export-image
+    - report-generation
+    - graph-diff
+    - rdf-import
+    - polyhierarchy-view
+    - validation-report-overlay
+    - mapping-set-view
+suggested_components:
+    - data-import-dialog
+    - comparison-view
+    - layout-panel
+    - graph-canvas
+    - visual-encoding-panel
+    - legend-panel
+    - filter-panel
+    - search-input
+    - node-details-panel
+    - image-export-dialog
+    - report-generator-dialog
+starting_state:
+    data_type: Two versions of an OWL ontology in an ODK GitHub repository, a ROBOT diff (markdown) and a ROBOT QC report (TSV), optional SSSOM mapping set
+    node_count: 500-50000
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Review a proposed ontology change on a pull request before it is merged and released: read what changed,
+    check the QC report, and make sure no subtree moved and no class gained a parent by accident.
+
+
+    **Mental Model**: "Code review for a hierarchy." The pull request is a change set; the reviewer wants to see the
+    tree before and after, not only a list of added and removed axioms.
+
+
+    **Task Phases**:
+
+    1. **Ticket and branch** (2 min) - "No change to the ontology should be performed without a good ticket"; branch
+    from main
+
+    2. **Edit** (varies) - Change src/ontology/<name>-edit.owl in Protege; keep changes small, take care with 100+ terms,
+    never edit imports directly; review git diff
+
+    3. **Local QC** (5-20 min) - sh run.sh make IMP=false test (the ODK Docker wrapper), or rely on CI
+
+    4. **Pull request and CI** (10 min) - CI goes green or red; a diff workflow posts robot diff --left old.owl --right
+    new.owl --format markdown as a comment (plain, pretty with labels, and html also exist); layout changes are ignored
+
+    5. **Read the QC report** (10 min) - robot report flags ERROR (must be fixed before releasing), WARN and INFO, such as
+    multiple labels or missing definitions; output as TSV, HTML, JSON, YAML or XLSX; fails on ERROR by default
+
+    6. **Second review, merge, release** (15 min) - The reviewer reads the diff and report; after merge a release
+    workflow builds the release files
+
+    7. **Mappings** (as needed) - Cross-ontology mappings live in SSSOM TSV: a YAML header (curie_map, mapping_set_id,
+    license) and rows with subject_id, predicate_id (skos:exactMatch, skos:broadMatch), object_id,
+    mapping_justification and confidence 0 to 1
+
+
+    **Decision Points**:
+
+    - Does each moved or re-parented class match the ticket's intent?
+
+    - Are WARN items acceptable for this release?
+
+    - Is a one-to-many or low-confidence mapping cluster correct?
+
+    - Approve, request changes, or split the pull request?
+
+
+    **Information Needs**:
+
+    - A two-version hierarchy view with added, removed and moved classes highlighted, and classes that gained a second
+    parent called out
+
+    - QC findings attached to the classes they concern, grouped by rule and severity
+
+    - The SSSOM mapping set as a bipartite graph between two ontologies, colored by predicate and confidence
+
+
+    **Pain Points**:
+
+    - The ROBOT diff is an axiom list, so a moved subtree or a new second parent is invisible
+
+    - QC reports are tables disconnected from the hierarchy
+
+    - SSSOM files are reviewed as spreadsheets, hiding one-to-many mappings
+
+
+    **Data Flow**:
+
+    - Input: Old and new ontology files, ROBOT diff and report, SSSOM TSV
+
+    - Transformations: Hierarchy extraction for both versions, structural diff, report-to-class join
+
+    - Output: An approved or rejected pull request, review comments, a diff picture attached to the pull request
+success_criteria:
+    - metric: Structural change visibility
+      target: Reviewer sees every moved subtree and new second parent without reading the axiom list
+    - metric: QC triage
+      target: Every ERROR is located on its class in one click
+    - metric: Review time
+      target: A 50-term pull request is reviewed in under 20 minutes
+sources:
+    - title: ODK editors' workflow
+      url: https://obofoundry.org/COB/odk-workflows/EditorsWorkflow/
+      summary: Ticket, branch, edit, local QC, pull request, second reviewer
+    - title: ROBOT
+      url: https://robot.obolibrary.org/
+      summary: Command-line tool for ontology QC, diff and release
+    - title: ROBOT report
+      url: https://robot.obolibrary.org/report
+      summary: ERROR, WARN, INFO levels and output formats
+    - title: ROBOT diff
+      url: https://robot.obolibrary.org/diff
+      summary: Axiom diff formats including markdown
+    - title: OBO Academy - diff on pull requests with GitHub Actions
+      url: https://oboacademy.github.io/obook/howto/github-actions
+      summary: Posting the ROBOT diff as a pull request comment
+    - title: SSSOM
+      url: https://mapping-commons.github.io/sssom/dev/
+      summary: Mapping TSV header and columns
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

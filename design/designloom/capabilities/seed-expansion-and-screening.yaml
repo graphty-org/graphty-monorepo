@@ -1,0 +1,14 @@
+id: seed-expansion-and-screening
+name: Seed-based citation expansion with screening log
+category: analysis
+description: Expand a selected set by references, citations and co-citation or coupling similarity from a scholarly API
+    into a growing collection, list ancestor and descendant candidates, record an include or exclude decision with stage
+    and iteration per candidate, export PRISMA counts, and rerun a saved expansion to flag new items.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W55
+implemented_by_components: []
+requirements: []
+sources: []

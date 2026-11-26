@@ -1,0 +1,67 @@
+id: ethnopharmacology-reviewer
+name: Ethnopharmacology Reviewer
+role: Peer Reviewer or Section Editor at an Ethnopharmacology Journal
+quote: Your methods say 162 intersection genes and your figure shows 130. Which threshold removed which nodes, and what is left if I drop every predicted edge?
+bio: >-
+    A reviewer or section editor at an ethnopharmacology or phytomedicine journal who reads dozens of network
+    pharmacology manuscripts a year. They apply Frontiers in Pharmacology's "Four Pillars of Best Practice", under
+    which docking is not accepted without benchwork confirming affinity, network analysis must be combined with
+    experimental pharmacology or rest on referenced experimental work, network studies on complex extracts are
+    generally not considered, and the network must be drawn so the underlying mechanism and the individual data
+    points can be understood. Some also use the 2021 WFCMS Network Pharmacology Evaluation Method Guidance, which
+    scores the reliability, standardization and rationality of data collection, network analysis and validation, and
+    is available only in Chinese. The role is growing because the recipe is cheap to produce: whole journal series
+    have been retracted for systematic manipulation of the publication process, and in every full methods section read
+    for this research the counts contradicted each other somewhere. A reviewer today receives static PNG figures and
+    Excel supplements and cannot check a count, a cutoff or the evidence behind an edge.
+characteristics:
+    expertise: expert
+    time_pressure: medium
+    graph_literacy: intermediate
+    domain_knowledge: expert
+motivations:
+    - Decide quickly whether a manuscript's mechanism is supported or is the generic recipe output
+    - Re-derive the counts in the methods from the recorded inputs and thresholds
+    - See which nodes and edges are measured and which are only predicted
+    - Check whether the hub list survives a different STRING or degree cutoff
+behaviors:
+    - Reads the methods for database versions, access dates, cutoffs and tool versions, and flags any that are missing
+    - Compares counts across methods, figures and tables and lists every discrepancy
+    - Asks for the network excluding predicted edges, and for the individual data points behind a claimed link
+    - Flags quercetin, kaempferol, AKT1, TNF and AGE-RAGE results as likely frequent hitters or popularity effects
+    - Rejects docking with energies above -5 kcal/mol described as binding, and blind docking with no positive control
+frustrations:
+    - Figures arrive as images; the session file and full lists are rarely supplied
+    - No reporting standard or risk-of-bias tool exists for network pharmacology
+    - Cannot tell which threshold removed which nodes or how many identifiers failed to map
+    - Cannot see whether a central target is central because of the formula or because it is well studied
+context:
+    frequency: weekly
+    devices:
+        - laptop
+        - desktop
+    voluntary: false
+workflows:
+    - W438
+sources:
+    - title: Frontiers in Pharmacology Four Pillars of Best Practice in Ethnopharmacology
+      url: https://www.frontiersin.org/files/pdf/4_pillars_FULL_TEXT.pdf
+      summary: Docking needs benchwork; network analysis needs experimental pharmacology; networks must be visualized so the mechanism and data points are understandable
+    - title: Frontiers research topic restating the network analysis rules
+      url: https://www.frontiersin.org/research-topics/16577
+      summary: Compound information preferably from benchwork with quantities stated
+    - title: WFCMS Network Pharmacology Evaluation Method Guidance (2021)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC9508683
+      summary: Scores reliability, standardization and rationality of data collection, network analysis and validation
+    - title: Retraction notice, Simiao Pill hyperuricemia study (PMC10791413)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10791413/
+      summary: Retracted for systematic manipulation of the publication process, including discrepancies in the research described
+    - title: Diao et al. 2026, census of network pharmacology results
+      url: https://www.frontiersin.org/journals/pharmacology/articles/10.3389/fphar.2026.1748478/full
+      summary: Homogeneous key compounds, targets and pathways across 1,038 studies; remedies include exposure data and frequent-hitter screening
+    - title: Che and Zhang 2025, docking practice in network pharmacology
+      url: https://www.frontiersin.org/journals/pharmacology/articles/10.3389/fphar.2025.1566772/full
+      summary: Of 35 papers, none used a positive control and only 6 docked into a specific site; -5.0 kcal/mol most common pass threshold
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,155 @@
+id: W185
+name: Family Tree to Relationship Graph or Wall Chart (GEDCOM, Gramps, Graphviz)
+category: reporting
+validated: false
+personas:
+    - family-historian-dna
+    - kinship-demographer
+requires_capabilities:
+    - data-import
+    - data-validation
+    - layout-hierarchical
+    - ego-network
+    - neighborhood-expansion
+    - shortest-path
+    - path-highlighting
+    - filtering
+    - saved-filters
+    - visual-encoding-edges
+    - export-image
+    - de-identified-display
+    - genealogy-import
+    - kinship-analysis
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - ego-network-dialog
+    - filter-panel
+    - layout-panel
+    - path-finder-dialog
+    - graph-canvas
+    - visual-encoding-panel
+    - image-export-dialog
+starting_state:
+    data_type: GEDCOM export from family-tree software (INDI and FAM records, child links marked birth, adopted or foster)
+    node_count: 600-6,000
+    edge_density: sparse
+    user_expertise: novice
+goal: >-
+    **Intent**: Draw the whole family, or a chosen part of it, as one chart that standard pedigree and descendant
+    charts cannot show: several marriages, step and adopted children, and cousins who married cousins. Print it as a
+    poster or share it with relatives, with living people hidden. Family historians are the largest population that
+    could use this; today they fight Graphviz reports.
+
+
+    **Mental Model**: "My family is not a tree." Once ancestors repeat, the chart has loops, and the chart must still
+    read top to bottom by generation.
+
+
+    **Task Phases**:
+
+    1. **Export GEDCOM** (2 min) - Individuals and family records linking up to two partners and their children; three
+    marriages mean three family records
+
+    2. **Pick a chart** (5 min) - Pedigree, descendant, hourglass and fan are trees and the default; for everyone at
+    once, Gramps Relationship Graph (generations in rows, optional family nodes), Family Lines Graph, Graph View
+    add-on, Family Historian's All Relatives diagram, ged2dot or GedGraph (shortest named relationship path)
+
+    3. **Select a subset** (15-60 min) - A whole tree of about 600 people came out "a mess", so users set a center
+    person, generation limits and filters, add people of interest "without their relations", or make several partial
+    charts
+
+    4. **Render** (minutes) - Gramps writes a Graphviz file and runs dot; blank or frozen output sends users to "Find
+    database loop"; pedigree collapse creates loops and crossings, handled by duplicating the repeated ancestor
+    (Family Historian links duplicates with ribbons) or drawing the loop
+
+    5. **Fix the layout by hand** (hours) - Drag boxes in a reopened .gv file, edit the SVG in Inkscape, try yEd's
+    family tree layout, or run GrampsCrossing to reorder the file for several minutes; one user found no usable editor
+    and gave up
+
+    6. **Print or share** (30 min) - PDF or SVG, tiled or sent to a chart printer; clickable SVG on a family website;
+    living people hidden first
+
+
+    **Decision Points**:
+
+    - Whole tree or a center person with N generations up and down?
+
+    - Show a repeated ancestor once with a loop, or as linked duplicates?
+
+    - Show family (couple) nodes or only people?
+
+    - Who is living and must be hidden before sharing?
+
+
+    **Information Needs**:
+
+    - Generation of each person relative to the center person
+
+    - Which children are birth, adopted, foster or step
+
+    - Loops where someone appears as their own ancestor (data errors) versus genuine pedigree collapse
+
+    - The named relationship between any two people
+
+
+    **Pain Points**:
+
+    - Reports freeze or come out blank on real trees
+
+    - Hand-picked selections are effortful and not saved
+
+    - Moving boxes means editing a .gv file; hand moves are lost on re-render
+
+    - The Family Lines Graph ignores fostered and adopted links
+
+
+    **Data Flow**:
+
+    - Input: GEDCOM file
+
+    - Transformations: People and family nodes, generation assignment, subset selection from a center person, loop
+    detection, privacy filtering
+
+    - Output: Poster PDF or SVG, clickable web chart, saved selection for next time
+success_criteria:
+    - metric: Whole-family chart
+      target: A 600-person tree with remarriages and cousin marriages renders in generation rows without freezing
+    - metric: Saved selection
+      target: Center person, generation limits and people of interest are saved and reusable
+    - metric: Privacy
+      target: Living people are hidden in every export by one setting
+sources:
+    - title: Gramps Discourse - Printable visualization of the complete family tree
+      url: https://gramps.discourse.group/t/printable-visualization-of-the-complete-family-tree/2260
+      summary: Whole-tree poster request; 600-person chart a mess
+    - title: Gramps Discourse - Relationship graph freezes
+      url: https://gramps.discourse.group/t/relationship-graph-immediately-freezes-application/4007
+      summary: Freezes and the Find database loop advice
+    - title: Gramps Discourse - Family Lines Graph feature request
+      url: https://gramps.discourse.group/t/family-lines-graph-feature-request/4902
+      summary: People of interest without their relations; effortful selection
+    - title: Gramps Discourse - Exporting the Graph View add-on
+      url: https://gramps.discourse.group/t/exporting-the-graph-view-add-on/4059
+      summary: .gv export, graphviz2drawio and yEd suggestions for hand editing
+    - title: GrampsCrossing
+      url: https://github.com/hewettp/GrampsCrossing
+      summary: Reorders Gramps .gv files to reduce crossings
+    - title: ged2dot
+      url: https://vmiklos.hu/ged2dot/
+      summary: Individuals and families as Graphviz nodes
+    - title: GedGraph on PyPI
+      url: https://pypi.org/project/kimon-gedgraph/
+      summary: Shortest relationship path, dotted adoptive links, privacy restrictions
+    - title: yEd family tree layout
+      url: https://yed.yworks.com/support/manual/layout/layout_family_tree.html
+      summary: GEDCOM import, family nodes, generation spacing, partner order
+    - title: Family Historian - duplicate options
+      url: https://www.family-historian.co.uk/help/fh7/duplicateoptionsdialog.html
+      summary: Duplicate boxes for repeated ancestors linked by ribbons
+    - title: Family ChartMasters ordering (MacKiev)
+      url: https://support.mackiev.com/754878-Ordering-Printed-Charts-through-Family-ChartMasters
+      summary: PDF sent to a large-format chart printer
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

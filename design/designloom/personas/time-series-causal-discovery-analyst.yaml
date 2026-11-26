@@ -1,0 +1,71 @@
+id: time-series-causal-discovery-analyst
+name: Time-Series Causal Discovery Analyst
+role: Climate Research Scientist learning lagged causal graphs from multivariate time series
+quote: I know the Pacific index drives monsoon rain. What I need to see is at which lags, how strongly, and whether it still holds in El Nino years.
+bio: >-
+    Dr. Lena Brandt is a research scientist who studies teleconnections -- for example how a tropical sea-surface
+    temperature index drives monsoon rainfall at particular lags -- and ecosystem fluxes from station data. She works
+    in Python with Tigramite (PCMCI, PCMCI+, LPCMCI), xarray and pandas, and uses statsmodels or R's vars package for
+    Granger tests and vector autoregression when a reviewer asks for the classical approach. Her data are 4 to a few
+    dozen climate indices or grid-cell aggregates over hundreds to tens of thousands of time steps. She picks the
+    maximum lag from lag-function plots, runs PCMCI, corrects p-values for false discovery rate and thresholds the
+    result, which comes back as arrays of shape (variables, variables, lags). One variable pair can carry links at
+    several lags; contemporaneous links can stay unoriented; self-links mean a variable depends on its own past. Her
+    figures are Tigramite's static matplotlib process graph (one node per variable, lags listed on edge labels) and
+    time-series graph (variables as rows, time steps as columns).
+characteristics:
+    expertise: expert
+    time_pressure: low
+    graph_literacy: advanced
+    domain_knowledge: expert
+motivations:
+    - See which variables drive which, at which lags and with what strength
+    - Tell lagged, oriented links from contemporaneous unoriented ones
+    - Compare causal graphs across regimes, seasons or contexts
+    - Change the significance threshold and see the graph change without re-plotting
+    - Publish a process-graph figure that a climate reader understands at a glance
+behaviors:
+    - Wraps arrays in a Tigramite DataFrame with variable names, masks and missing values
+    - Plots the series to check stationarity and gaps before testing
+    - Chooses a conditional independence test (linear partial correlation or a nonlinear test)
+    - Reads lag functions to choose tau_max where dependence decays (8 in the basics tutorial)
+    - Runs PCMCI, applies Benjamini-Hochberg FDR correction, thresholds at alpha 0.01 and prints significant links
+    - Plots the process graph with node color as auto-dependence strength and edge color as the strongest cross-lag value
+    - Unrolls the time-series graph to trace spatio-temporal pathways
+    - Reruns per dataset, variable selection, tau_max and alpha; switches to PCMCI+, LPCMCI or RPCMCI for contemporaneous links, latent confounders or regimes
+frustrations:
+    - No source found describing her complaints directly; the following are implied by the tools
+    - Figures are static matplotlib; every threshold change means a new plot
+    - Several significant lags are crammed into one edge label
+    - The unrolled time-series graph grows to variables times lags nodes and becomes unreadable
+    - Granger and VAR tools give tables, with no standard graph view
+context:
+    frequency: weekly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W428
+sources:
+    - title: Tigramite documentation
+      url: https://jakobrunge.github.io/tigramite/
+      summary: PCMCI family, result arrays of shape (N, N, tau_max+1), link strings -->, o-o and x-x
+    - title: Tigramite basics tutorial
+      url: https://notebook.community/jakobrunge/tigramite/tutorials/tigramite_tutorial_basics
+      summary: N = 4 variables, T = 1,000 steps, lag functions, tau_max 8, FDR correction, process and time-series graph plots
+    - title: Tigramite project page (PIK Potsdam)
+      url: https://tocsy.pik-potsdam.de/tigramite.php
+      summary: Method family and intended Earth-system use
+    - title: Runge et al. - PCMCI method preprint
+      url: https://arxiv.org/pdf/1702.07007
+      summary: Causal discovery in large nonlinear time series datasets
+    - title: CRAN downloads - vars
+      url: https://cranlogs.r-pkg.org/downloads/total/last-month/vars
+      summary: Granger and VAR tooling in R is widely installed (also used for forecasting)
+    - title: GeNIe manual - dynamic Bayesian networks
+      url: https://support.bayesfusion.com/docs/GeNIe/dbns_creatingdbn.html
+      summary: Time-sliced models with temporal arcs; a neighboring way to model lagged causation
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

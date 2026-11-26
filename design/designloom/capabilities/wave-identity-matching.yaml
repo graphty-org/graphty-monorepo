@@ -1,0 +1,15 @@
+id: wave-identity-matching
+name: Stable Identity Across Waves and Re-Imports
+category: analysis
+description: Match nodes across survey waves or re-imported sheets by a stable ID, update rows instead of duplicating,
+    list added and removed members, and show ties gained and lost.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W201
+    - W205
+    - W206
+implemented_by_components: []
+requirements: []
+sources: []

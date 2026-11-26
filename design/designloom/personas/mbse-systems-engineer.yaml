@@ -1,0 +1,67 @@
+id: mbse-systems-engineer
+name: MBSE Systems Engineer
+role: Systems Engineer, model-based systems engineering (aerospace)
+quote: When this requirement changes I need every derived requirement, block and test it touches -- and I do not want to spend the afternoon re-aligning ports on the diagram.
+bio: >-
+    Ken is a systems engineer at an aerospace prime who maintains a SysML model of an avionics subsystem in Cameo
+    Systems Modeler with Teamwork Cloud, and works in Capella on some programs. His model is a typed graph:
+    requirements linked by derive and containment, blocks that satisfy requirements, tests that verify them, and blocks
+    nested in blocks with ports and connectors. When a requirement changes he builds a relation map from it, choosing
+    relationship types and depth, and checks Satisfy and Verify matrices for empty rows that show coverage gaps before a
+    design review. His second job is keeping block and internal block diagrams readable as the model changes; generic
+    "Arrange All" layouts do not fit nested boxes with ports, so he either buys an auto-layout add-on or spends hours
+    aligning lines by hand. SysML v2 and its standard Systems Modeling API are arriving as a new way to read the model.
+characteristics:
+    expertise: expert
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - List every derived requirement, satisfying block and verifying test affected when a requirement changes
+    - Show coverage gaps (requirements with no satisfy or verify relationship) at a design review
+    - Keep structure diagrams readable and in step with the model without hand layout
+    - Avoid certification findings and rework caused by untraced requirements
+behaviors:
+    - Starts from the changed requirement's traceability properties
+    - Builds relation maps with chosen relationship types, element types, scope and depth, in tree or radial layout
+    - Reads Satisfy, Refine and Verify matrices and adds missing relationships directly in the matrix
+    - Groups elements into nested structures to control the level of detail shown
+    - Runs automatic layout (ELK in Capella, an add-on in Cameo) and then hand-tunes ports and lines
+    - Brings matrices, relation maps and regenerated diagrams to the design review
+frustrations:
+    - Diagram arrangement is time-consuming and hand-drawn diagrams show the wrong contents as the model changes
+    - Generic layouts are not adapted to nested boxes with ports and typed connectors
+    - Automatic layout fails on architecture diagrams with allocated functions, or leaves large areas of white space
+    - Traceability matrices grow very large
+context:
+    frequency: weekly
+    devices:
+        - desktop
+    voluntary: false
+workflows:
+    - W87
+sources:
+    - title: No Magic documentation - Relation map criteria, layout and depth
+      url: https://docs.nomagic.com/x/OwcmC
+      summary: Relation maps with context element, relationship criteria, element types, scope, tree or radial layout and depth
+    - title: No Magic documentation - Traceability
+      url: https://docs.nomagic.com/x/OS8mC
+      summary: Tracing is fundamental to impact analysis when requirements change; Satisfy, Refine and Verify matrices
+    - title: Tom Sawyer Software - Model-Based Engineering (vendor)
+      url: https://tomsawyer.com/model-based-engineering
+      summary: Automatic layout of block, internal block and parametric diagrams with nested drawing structures
+    - title: Tom Sawyer blog - Growing pains, learning from SysML v1 (vendor)
+      url: https://blog.tomsawyer.com/growing-pains-learning-from-sysml-v1
+      summary: Diagram arrangement is time-consuming and hand-drawn diagrams drift from the model
+    - title: Obeo blog - A picture is worth a thousand words
+      url: https://blog.obeosoft.com/a-picture-is-worth-a-thousand-words
+      summary: Generic Arrange All layouts are not adapted to all kinds of diagrams
+    - title: Capella forum - Beautifying diagrams with automatic functions
+      url: https://forum.mbse-capella.org/t/effectively-beatifying-diagrams-with-automatic-functions-how/6516
+      summary: Users spend hours aligning lines and ports; ELK fails on architecture diagrams with allocated functions
+    - title: OMG - Systems Modeling API and Services 1.0 adoption
+      url: https://www.omg.org/news/releases/pr2025/07-21-25.htm
+      summary: Standard REST/OpenAPI interface to navigate, query and update SysML v2 models
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

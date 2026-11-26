@@ -1,0 +1,13 @@
+id: plugin-file-reader-contract
+name: File Reader Plugin Contract
+category: analysis
+description: Register a reader for a custom file format with an import preview and row-level error codes naming the file
+    row and the expected value.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W289
+implemented_by_components: []
+requirements: []
+sources: []

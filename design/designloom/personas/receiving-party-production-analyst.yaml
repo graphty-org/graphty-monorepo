@@ -1,0 +1,65 @@
+id: receiving-party-production-analyst
+name: Receiving-Party Production Analyst
+role: Litigation-Support Analyst at a Plaintiff Firm, or Agency Staff Reviewing a Production
+quote: They sent us a load file and images. I need to know whom their custodians talked to and what they did not give us.
+bio: >-
+    Ellen is a litigation-support analyst at a plaintiff firm, or agency staff reviewing a merger Second Request or a
+    subpoena production. She never sees the other side's native mailboxes: a production arrives as TIFF or PDF images,
+    extracted text, a few natives, a .dat load file of metadata and an .opt image cross-reference. From, To and CC
+    arrive as delimited strings, custodian and threading fields may be absent or blank, and some header values appear
+    only on the face of the image. Her first job is validation: row counts against the expected number of documents,
+    Bates ranges with no unexplained gaps, populated key fields. Then she maps fields into whatever platform loads
+    productions (Relativity, Everlaw, GoldFynch), groups duplicates by hash, runs threading and name normalization on
+    the string fields, and builds a people view to see whom the producing party's custodians talked to, which outside
+    domains appear, and which expected pairs or date ranges are empty. Those gaps feed deficiency letters and requests
+    for missing data. She is strong in Excel and load-file mechanics and moderately comfortable with graphs.
+characteristics:
+    expertise: advanced
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: expert
+motivations:
+    - Validate that the production is complete and consistent with the production specification
+    - Build a usable people view without the producer's processing or native headers
+    - Find whom the producing party's custodians communicated with, including outside domains
+    - Spot gaps in people, pairs and dates that suggest withheld or missing data
+    - Support deficiency letters with concrete counts and ranges
+behaviors:
+    - Checks the DATA, IMAGES, NATIVES and TEXT folders against the ESI agreement before loading anything
+    - Compares .dat row counts with the expected document count and spot-checks Bates, custodian, file extension and email-from fields
+    - Looks for Bates gaps and classifies them as family attachments, multi-page documents, privilege withholdings or agreed exclusions
+    - Requests missing fields from opposing counsel and extracts header values that appear only on images
+    - Groups duplicates by MD5 hash and family values and compares them with records already coded
+    - Builds a people graph from the From, To and CC string fields once normalization has run
+    - Compares people, pairs and date ranges across productions to find what is missing
+frustrations:
+    - Empty or blank fields, Bates gaps and values that exist only on the face of PDFs
+    - No way to re-run the producer's processing, threading or deduplication
+    - Re-produced records with empty fields that overwrite values already loaded
+    - Graph tools that expect native email headers or a ready-made edge list rather than recipient strings
+    - No way to show absence -- expected pairs and periods with no documents -- on a graph
+context:
+    frequency: as-needed
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W361
+    - W367
+sources:
+    - title: GoldFynch - How to validate and QC what is received from a load file production
+      url: https://support.goldfynch.com/support/solutions/articles/21000004211-how-to-validate-and-qc-what-is-received-and-uploaded-from-a-load-file-production
+      summary: Row counts, field spot checks, Bates gap checks, empty fields overwriting existing values
+    - title: Consilio - eDiscovery deep dive, 6 key questions for opposing party productions
+      url: https://consilio.com/resource/ediscovery-deep-dive-6-key-questions-for-opposing-party-productions
+      summary: Receiving-party validation, values only on the face of PDFs, requesting missing data
+    - title: FTC - Making the Second Request Process Both More Streamlined and More Rigorous (2021)
+      url: https://www.ftc.gov/enforcement/competition-matters/2021/09/making-second-request-process-both-more-streamlined-more-rigorous-during-unprecedented-merger-wave
+      summary: Agency side of merger productions and custodian disclosures
+    - title: Relativity - Name normalization
+      url: https://help.relativity.com/RelativityOne/Content/Relativity/Analytics/Name_normalization.htm
+      summary: Normalization parses recipient strings split on semicolons into entities and aliases
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

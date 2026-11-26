@@ -1,0 +1,16 @@
+id: external-record-facet
+name: External Record List Facet
+category: analysis
+description: "Two-way link between the graph and a host's record list: a selection emits a neutral query descriptor
+    (sender-in, recipient-in, pair, role filter, or record ids) and the graph rebuilds when the host's record set
+    changes."
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W363
+    - W364
+    - W366
+implemented_by_components: []
+requirements: []
+sources: []

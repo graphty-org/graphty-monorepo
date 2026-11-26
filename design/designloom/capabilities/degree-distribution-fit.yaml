@@ -1,0 +1,14 @@
+id: degree-distribution-fit
+name: Degree Distribution Fit
+category: analysis
+description: "Clauset-Shalizi-Newman protocol: CCDF on log-log axes, k_min by KS distance, discrete maximum-likelihood
+    alpha, bootstrap p, likelihood-ratio tests against log-normal, exponential and cutoff; worded plausible / not
+    plausible / alternative favored. Corrects the power-law wording in degree-analysis."
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W37
+implemented_by_components: []
+requirements: []
+sources: []

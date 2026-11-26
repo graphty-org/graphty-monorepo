@@ -1,0 +1,21 @@
+id: immersive-xr-session
+name: Browser immersive VR and AR session
+category: visualization
+description: Offer Enter VR or Enter AR only when supported; controllers, hand tracking and gaze-and-pinch input;
+    two-handed grab to move, rotate and scale; ray selection with tolerance for small distant nodes; passthrough with
+    surface placement; a documented node budget for standalone headsets; selection, camera and findings kept when the
+    session ends and the 2D page returns.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W412
+    - W414
+    - W415
+    - W416
+    - W418
+    - W420
+    - W421
+implemented_by_components: []
+requirements: []
+sources: []

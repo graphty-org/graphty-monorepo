@@ -1,0 +1,66 @@
+id: therapist-receiving-network-feedback
+name: Therapist Receiving Network Feedback
+role: Outpatient Psychotherapist Reading a Patient's Personal Network (with the Patient as Co-Reader)
+quote: I wish it were a bit more intuitive, so I did not have to look at the table on the side -- one or two sentences under the network would help.
+bio: >-
+    Sara is a trainee psychotherapist in an outpatient clinic taking part in a personalized-feedback program. Before
+    therapy starts, each patient answers short phone questionnaires four times a day for two weeks (sleep, pleasant
+    activities, intrusive thoughts, tension, affect, up to three personal items, and open-text difficult experiences).
+    Researchers or a platform turn the answers into the patient's own network and hand Sara a one-page sheet: the
+    network with triangles for resource items and circles for problem items, green positive and red negative edges,
+    an influence table beside it, a sleep chart and the patient's difficult experiences by date. She had one training
+    session on reading it. She uses it for case formulation, sometimes to choose and justify interventions, and
+    sometimes shows it to the patient in session. She does not run R and has no network training beyond that session.
+characteristics:
+    expertise: novice
+    time_pressure: high
+    graph_literacy: novice
+    domain_knowledge: advanced
+motivations:
+    - Understand a new patient faster and support case formulation
+    - Choose and explain interventions with something the patient produced themselves
+    - Discuss the network with the patient without overwhelming them
+    - Read the network correctly months after the single training session
+behaviors:
+    - Reads the sheet alone before the first session, or skips it under time pressure
+    - Looks up each node's influence value in the side table and back again
+    - Bases parts of the therapy plan or particular interventions on the network
+    - Shows the network to some patients in session and leaves it out with others it might overwhelm
+    - Prefers time series and bar charts to network graphs when both are available
+frustrations:
+    - Having to look at the influence table on the side instead of seeing values on the network
+    - Red and green edge colors causing confusion in interpretation
+    - Patients finding the full network too overwhelming
+    - Forgetting how to interpret the network with later patients after one training session
+    - Explaining the network in session seeming too complex or too time-consuming
+    - No explanatory sentences printed under the network, and no digital version that fits existing clinic software
+context:
+    frequency: as-needed
+    devices:
+        - desktop
+        - tablet
+    voluntary: false
+workflows:
+    - W376
+sources:
+    - title: Hall, Lappenbusch, Wiegmann and Rubel 2024 - TheraNet therapist focus groups (Administration and Policy in Mental Health)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11703985
+      summary: 18 therapists in five focus groups; sheet layout; verbatim complaints about the side table, red-green colors, overwhelmed patients and fading understanding; request for one to two sentences under the network
+    - title: Bartels et al. 2023 - ESM feedback approaches
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10559801/
+      summary: Platforms (m-Path, RoQua, PsyMate, PETRA, Therap-i); researchers warn patients misread especially network graphs
+    - title: m-Path visual feedback
+      url: https://m-path.io/visual-feedback/
+      summary: Dashboard for therapists with network visualisations among graph types, moodboard and PDF export
+    - title: ESMvis (Bringmann et al. 2021)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8528801/
+      summary: Shows raw ESM data instead of VAR networks, which its authors consider hard for patients and therapists to interpret
+    - title: Piot et al. 2025 - Evaluating visual feedback of experience sampling data (Internet Interventions 42:100873)
+      url: https://research.tilburguniversity.edu/en/publications/evaluating-visual-feedback-of-experience-sampling-data-for-mental/
+      summary: Textual descriptions of effect size and confidence raised practitioners' accuracy and confidence (network graphs not tested)
+    - title: TU Delft thesis literature review on practitioner use of ESM feedback
+      url: https://repository.tudelft.nl/record/uuid:1073ad9f-2785-4ba8-8156-401643447df6
+      summary: Practitioners report uncertainty with network graphs and prefer time series, bar or pie charts
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

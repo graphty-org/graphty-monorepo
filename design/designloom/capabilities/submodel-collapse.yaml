@@ -1,0 +1,13 @@
+id: submodel-collapse
+name: Collapsible submodels with interface ports
+category: analysis
+description: Collapse a group of nodes into one submodel node. Arcs that cross the boundary attach to the submodel, and
+    it expands in place. Also covers reusable class instances (Hugin object-oriented networks) and temporal plates.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W426
+implemented_by_components: []
+requirements: []
+sources: []

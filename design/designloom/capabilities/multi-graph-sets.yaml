@@ -1,0 +1,16 @@
+id: multi-graph-sets
+name: Multi-Graph Sets
+category: analysis
+description: Load one graph per subject (folder or BIDS derivatives entities) with a covariate table, compute
+    per-subject metrics, build group-representative networks (mean, consensus fraction, distance-dependent consensus)
+    and export subjects x metrics tables.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W153
+    - W154
+    - W155
+implemented_by_components: []
+requirements: []
+sources: []

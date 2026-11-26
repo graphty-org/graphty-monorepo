@@ -1,0 +1,123 @@
+id: W177
+name: Scripted Historical Network Analysis Handed to an Interactive View (NetworkX or R)
+category: analysis
+validated: false
+personas:
+    - letters-archive-data-steward
+    - chinese-prosopography-historian
+    - kinship-demographer
+    - network-archaeologist
+requires_capabilities:
+    - data-import
+    - basic-statistics
+    - component-analysis
+    - shortest-path
+    - clustering-coefficient
+    - centrality-degree
+    - centrality-betweenness
+    - centrality-eigenvector
+    - community-detection
+    - computed-attributes
+    - visual-encoding-nodes
+    - details-on-demand
+    - data-export
+    - measurement-robustness
+    - parallel-edge-aggregation
+    - in-place-data-editing
+suggested_components:
+    - data-import-dialog
+    - statistics-panel
+    - metric-card
+    - ranked-node-table
+    - community-panel
+    - computed-attributes-panel
+    - graph-canvas
+    - node-details-panel
+    - data-export-dialog
+starting_state:
+    data_type: node and edge lists produced by a Python or R script, or GEXF written by NetworkX
+    node_count: 100-20,000
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Compute network statistics reproducibly in a script, then hand the result to a view that colleagues
+    without Python can explore. Programming Historian's NetworkX lesson and Sadler's R workflow are the templates;
+    the 2024 Mainz lab taught the same steps in Jupyter.
+
+
+    **Mental Model**: "The script is the method section; the picture is for reading." Numbers come from code that can
+    be rerun; the interactive view must show exactly those numbers, not recompute different ones.
+
+
+    **Task Phases**:
+
+    1. **Load lists** (5 min) - Node and edge lists into a graph with attributes (Quakers: 119 nodes, 174 edges)
+
+    2. **Whole-network measures** (5 min) - Density, shortest paths, diameter of the largest component, transitivity
+
+    3. **Node measures** (5 min) - Degree, betweenness (to find low-degree brokers), eigenvector
+
+    4. **Communities** (5 min) - Greedy modularity communities; rank people inside each community
+
+    5. **Robustness** (30 min) - Check stability before interpreting (de Valeriola, "Can historians trust centrality?")
+
+    6. **Hand off** (5 min) - Write GEXF for Gephi, or in R aggregate letters to weighted routes (Sadler: 114 letters
+    become 13 cities and 15 routes) and plot with igraph, ggraph or visNetwork
+
+
+    **Decision Points**:
+
+    - Analyze the whole graph or only the largest component?
+
+    - Which community method and which resolution?
+
+    - Do the computed values travel with the export, or does the viewer recompute them?
+
+
+    **Information Needs**:
+
+    - Script-computed attributes visible as columns in the viewer
+
+    - Component sizes and which nodes fall outside the largest component
+
+    - Community membership with rank inside the community
+
+
+    **Pain Points**:
+
+    - Static plots from scripts are weak for exploration
+
+    - Re-exporting after every re-clean loses styling and notes in the viewer
+
+    - Colleagues without Python cannot open the results
+
+
+    **Data Flow**:
+
+    - Input: CSV node and edge lists
+
+    - Transformations: Script-side metrics and communities stored as attributes; aggregation of letters to weighted
+    routes
+
+    - Output: GEXF or CSV with computed attributes, opened in an interactive view and shared
+success_criteria:
+    - metric: Attribute fidelity
+      target: Every script-computed column appears in the viewer and can drive color and size
+    - metric: Re-import
+      target: Updated output replaces data without losing the saved style
+sources:
+    - title: Programming Historian - Exploring and Analyzing Network Data with Python
+      url: https://programminghistorian.org/en/lessons/exploring-and-analyzing-network-data-with-python
+      summary: Quaker network, density, diameter, transitivity, centralities, modularity communities, GEXF export
+    - title: Jesse Sadler - Network analysis with R
+      url: https://www.jessesadler.com/post/network-analysis-with-r/
+      summary: 114 letters aggregated to 13 cities and 15 weighted routes, igraph, ggraph and visNetwork
+    - title: Petz 2024 HNR NetworkX tutorial
+      url: https://cprog7.github.io/HNR_workshops
+      summary: Mainz lab tutorial pointing to de Valeriola's robustness checks
+    - title: Bring Your Own Data Lab - Historical Network Analysis (Mainz 2024)
+      url: https://tcdh.uni-trier.de/en/event/bring-your-own-data-lab-historical-network-analysis
+      summary: NetworkX in Jupyter taught alongside Gephi 0.10 and nodegoat
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

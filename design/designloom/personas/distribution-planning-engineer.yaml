@@ -1,0 +1,58 @@
+id: distribution-planning-engineer
+name: Distribution Planning Engineer
+role: Distribution Planning Engineer at an investor-owned utility
+quote: My hosting capacity lives one feeder at a time, but the regulator and the solar developers ask about the whole
+    territory.
+bio: >-
+    Tomas plans the medium-voltage distribution system for an investor-owned utility with thousands of radial feeders,
+    each modeled with 142 to 6,001 buses. He exports feeder models from the GIS (ArcFM or ArcGIS Utility Network) into
+    CYME or Synergi, allocates load from smart-meter or SCADA data, and runs EPRI's DRIVE hosting capacity method, with
+    OpenDSS for research cases. For every node he gets how much distributed generation (rooftop solar, batteries, EV
+    chargers) it can take before voltage, thermal or protection limits are violated; the feeder's hosting capacity is
+    the minimum over its nodes. He publishes hosting capacity maps for regulators and developers, screens
+    interconnection requests against node values, rolls results up to substations, and plans upgrades. He knows the
+    feeder topology intimately and uses one-line color layers and heat maps daily.
+characteristics:
+    expertise: expert
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: expert
+motivations:
+    - Publish per-node hosting capacity for every feeder and keep it current as models change
+    - Screen interconnection requests quickly against the right node
+    - Find the upgrades that unlock the most capacity
+    - Answer territory-wide questions without opening thousands of feeder files one by one
+behaviors:
+    - Exports feeder models from GIS with allocated load into the planning tool
+    - Sets criteria (ANSI C84.1 voltage, thermal, temporary voltage, protection) before each run
+    - Reads node-level results as heat maps and one-line color layers, one layer per criterion
+    - Takes the minimum over nodes as the feeder value and rolls feeders up to substations
+    - Reruns hosting capacity whenever a feeder model or the interconnection queue changes
+frustrations:
+    - Iterative methods took 27 hours per feeder before streamlined methods cut it to minutes
+    - Results live per feeder while questions span the territory
+    - GIS identifiers and model identifiers do not match
+    - Switch changes reshape radial feeders, so yesterday's result may be for a different topology
+context:
+    frequency: weekly
+    devices:
+        - desktop
+    voluntary: false
+workflows:
+    - W222
+sources:
+    - title: Sandia 216-feeder hosting capacity study
+      url: https://www.osti.gov/servlets/purl/1581693
+      summary: Feeders of 142 to 6,001 buses; brute force about 40,000 scenarios per feeder; average feeder 2.05 MW versus 5.1 MW locational
+    - title: SDG&E EPIC-1 Project 4 Module 3 final report
+      url: https://www.sdge.com/sites/default/files/EPIC-1%20Project%204_Module%203_Final%20Report_0.pdf
+      summary: Iterative method took 27 hours per feeder versus minutes for EPRI DRIVE, with closely aligned results
+    - title: CYME EPRI DRIVE module
+      url: https://cyme.com/software/cymeepri
+      summary: Hosting capacity heat maps and one-line color layers per criterion (read via search summary)
+    - title: AES senior distribution planning engineer posting
+      url: https://themuse.com/jobs/theaescorporation/senior-distribution-planning-engineer
+      summary: CYME, Synergi, WindMil, OpenDSS and ArcFM GIS skills requested
+    - title: FirstEnergy Utility Network modernization (SSP Innovations)
+      url: https://sspinnovations.com/our-projects/how-firstenergy-modernized-grid-operations-with-arcgis-utility-network/
+      summary: 8,400 distribution circuits managed in the Utility Network

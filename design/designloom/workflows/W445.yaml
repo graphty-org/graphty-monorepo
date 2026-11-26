@@ -1,0 +1,115 @@
+id: W445
+name: Selecting Quality-Marker Compounds From a Layered Formula Network
+category: analysis
+validated: false
+personas:
+    - network-pharmacology-researcher
+requires_capabilities:
+    - data-import
+    - computed-attributes
+    - centrality-degree
+    - filtering
+    - node-selection
+    - selection-statistics
+    - visual-encoding-nodes
+    - legend-display
+    - layout-hierarchical
+    - details-on-demand
+    - report-generation
+    - export-image
+    - data-export
+    - layout-tiered-by-attribute
+suggested_components:
+    - data-import-dialog
+    - attribute-table-join-dialog
+    - data-table-panel
+    - computed-attributes-panel
+    - ranked-node-table
+    - filter-panel
+    - visual-encoding-panel
+    - legend-panel
+    - graph-canvas
+    - report-generator-dialog
+    - data-export-dialog
+starting_state:
+    data_type: >-
+        A "formula - herbs - compounds - targets - pathways" network; UPLC-QTOF-MS identifications (64-128 compounds);
+        compound content measured across 15-40 batches; optional bioassay results
+    node_count: 80-300
+    edge_density: moderate (79 nodes and 281 edges in one study)
+    user_expertise: intermediate to advanced
+goal: >-
+    **Intent**: Choose the few compounds a quality standard for an herbal product should assay. Manufacturers and
+    regulators-facing labs weigh network importance together with measured content and detectability; the deliverable
+    is a product specification, not a paper figure.
+
+
+    **Mental Model**: "Important, present and measurable." A marker must matter to the effect (degree or bioassay),
+    be present in useful amounts across batches, and be detectable by the assay.
+
+
+    **Task Phases**:
+
+    1. **Characterize** (days) - UPLC-QTOF-MS identification (64 or 128 compounds) and batch fingerprints (40 batches)
+
+    2. **Measure content** (days) - Content of candidate compounds across batches
+
+    3. **Build the layered network** (1-2 h) - Formula, herbs, compounds, targets, pathways
+
+    4. **Rank by effect and content** (1 h) - Combine degree, bioassay and content, for example by grey relational
+    analysis
+
+    5. **Choose markers and write the assay** - Six to ten compounds and a UPLC-DAD method
+
+
+    **Decision Points**:
+
+    - How to weigh network degree against content and detectability?
+
+    - How many markers, and from which herbs (each herb represented)?
+
+
+    **Information Needs**:
+
+    - Degree, content mean and batch variation, and detectability side by side for each compound
+
+    - Herb of origin per candidate
+
+    - A combined score from attributes, not topology alone
+
+
+    **Pain Points**:
+
+    - Network tools rank by topology only; content and detectability live in spreadsheets
+
+    - Combined scoring is done in separate statistics software
+
+
+    **Data Flow**:
+
+    - Input: Layered formula network, compound content and detectability tables
+
+    - Transformations: Attribute join, combined score from topology and measured attributes, ranking and selection
+
+    - Output: Marker list with scores, network figure highlighting markers, specification tables
+success_criteria:
+    - metric: Combined ranking
+      target: Compounds ranked by a score mixing degree with content and detectability in one table
+    - metric: Herb coverage
+      target: User can see which herbs the chosen markers represent
+sources:
+    - title: Quality-marker review (PMC12855425)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC12855425
+      summary: Quality-marker selection combining network pharmacology with content and detectability
+    - title: Hugan tablets quality markers (PMC10213786)
+      url: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10213786/
+      summary: 128 compounds identified, content across 15 batches
+    - title: Shenxian-Shengmai quality markers (Journal of Food and Drug Analysis)
+      url: https://www.jfda-online.com/journal/vol26/iss2/29
+      summary: 64 compounds identified, 10 markers, a UPLC-DAD assay
+    - title: Pheretima quality markers (PMC9553678)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC9553678/
+      summary: 40 batch fingerprints, 79-node 281-edge layered network, grey relational analysis selecting six markers
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,12 @@
+id: cross-case-matching
+name: Cross-Case Matching
+category: analysis
+description: Match entities in the current chart against earlier saved charts or stores to find people involved in other cases.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W102
+implemented_by_components: []
+requirements: []
+sources: []

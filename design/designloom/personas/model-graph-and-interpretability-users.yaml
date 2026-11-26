@@ -1,0 +1,80 @@
+id: model-graph-and-interpretability-users
+name: Model-Graph Inspectors and Interpretability Researchers (Adjacent)
+role: Model Deployment and Optimization Engineer / Interpretability Researcher
+quote: My graph is the model itself. I need to expand one layer, find the operator whose error jumped after quantization, and leave the other five thousand nodes collapsed.
+bio: >-
+    This record covers an adjacent population that draws the model, not graph data. It exists so the scope decision is
+    recorded, not as a target user. Model deployment engineers inspect a network's computation graph -- operators as
+    nodes, tensors as edges -- when converting a model between frameworks, quantizing it or fitting it to a device's
+    latency budget, using Netron, Google's Model Explorer or TensorBoard's Graphs dashboard. MobileBERT alone has almost
+    2,000 operator nodes, and Netron's layout chokes above about 5,000. Interpretability researchers study attribution
+    graphs: for one prompt, nodes are interpretable features, input tokens, error terms and output logits, edges are
+    direct effects, and a pruned graph has hundreds of nodes and tens of thousands of edges. They generate graphs with
+    circuit-tracer and explore, pin, group into supernodes, annotate and steer them on Neuronpedia; manual analysis
+    takes about two hours per prompt for an experienced tracer. Computation-graph inspection is out of scope because its
+    graph exists only through a parser per model format and its value lies in model-specific data (shapes, data types,
+    quantization parameters, profiler timings). Attribution-graph work is deferred: the JSON graph is small and generic,
+    but the work depends on feature dashboards and steering that need the model running. Needs that carry over to
+    in-scope users: nested groups that expand and collapse with layout on open, regex search over attributes, numeric
+    per-node overlays summarized on collapsed groups, a two-graph diff through a node mapping, and pruning by cumulative
+    weight.
+characteristics:
+    expertise: expert
+    time_pressure: medium
+    graph_literacy: advanced
+    domain_knowledge: expert
+motivations:
+    - Find where a converted or quantized model diverges from the original
+    - Locate operators by shape, type or name in a graph of thousands of nodes
+    - Trace which features carry a model's behavior from input tokens to an output logit
+    - Reduce hundreds of features to a few dozen labeled supernodes and share the annotated graph
+behaviors:
+    - Opens an original and a converted model side by side and compares shapes and data types through a node mapping
+    - Expands only the layers of interest; expand-all is slow on large graphs
+    - Searches operators with regular expressions over labels, attributes, inputs and outputs
+    - Uploads per-node numbers (per-operator error between quantized and float models, profiled latency) as color overlays
+    - Prunes attribution graphs by cumulative influence (node threshold 0.8, edge threshold 0.98 by default)
+    - Pins nodes into a subgraph pane, groups features into supernodes, labels them, and tests hypotheses by steering a feature
+frustrations:
+    - Graph layouts that try to render the whole computation graph and choke above about 5,000 nodes
+    - SVG renderers not designed for large numbers of objects
+    - An adapter or parser needed per model framework
+    - Attribution graphs whose edges grow to the millions before pruning
+    - Tools bound to hosted models and specific transcoders
+context:
+    frequency: as-needed
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W276
+    - W277
+sources:
+    - title: Netron
+      url: https://github.com/lutzroeder/netron
+      summary: Viewer for ONNX, TensorFlow Lite, PyTorch, Core ML, OpenVINO, Keras and other model formats
+    - title: Netron issue 68
+      url: https://www.github.com/lutzroeder/netron/issues/68
+      summary: Maintainer - graphs over 5,000 nodes choke the layout and need an expand-and-explore UI; closed as not planned
+    - title: Model Explorer (Google Research blog)
+      url: https://research.google/blog/model-explorer/
+      summary: MobileBERT has almost 2,000 nodes; layer hierarchy, lazy layout, WebGL rendering
+    - title: Model Explorer repository
+      url: https://github.com/google-ai-edge/model-explorer
+      summary: Supports TFLite, TF, TFJS, MLIR and PyTorch ExportedProgram; ONNX via community adapter
+    - title: "Talaria: Interactively Optimizing Machine Learning Models for Efficient Inference"
+      url: https://arxiv.org/abs/2404.03085
+      summary: Apple's internal tool; 800+ practitioners submitted 3,600+ models in two years
+    - title: Circuit tracing - attribution graph methods
+      url: https://transformer-circuits.pub/2025/attribution-graphs/methods.html
+      summary: Attribution graph definition, pruning by cumulative influence, sizes from 27 to 236 nodes by threshold
+    - title: Anthropic - open-source circuit tracing
+      url: https://anthropic.com/research/open-source-circuit-tracing
+      summary: circuit-tracer generates attribution graphs for open-weights models; Neuronpedia hosts the front end
+    - title: Probe prompting preprint
+      url: https://arxiv.org/html/2511.07002v1
+      summary: Manual circuit analysis takes about 2 hours per prompt for an experienced tracer
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

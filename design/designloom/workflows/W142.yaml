@@ -1,0 +1,217 @@
+id: W142
+name: Search Phrase to Saved Scene in a Graph Database Explorer
+category: exploration
+validated: false
+personas:
+    - no-code-graph-investigator
+requires_capabilities:
+    - search
+    - neighborhood-expansion
+    - node-selection
+    - details-on-demand
+    - hover-highlight
+    - shortest-path
+    - filtering
+    - metric-histograms
+    - temporal-navigation
+    - centrality-betweenness
+    - centrality-degree
+    - centrality-eigenvector
+    - centrality-pagerank
+    - community-detection
+    - component-analysis
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-force-directed
+    - layout-hierarchical
+    - view-bookmarks
+    - export-image
+    - data-export
+    - parallel-edge-aggregation
+    - live-data-source
+    - supernode-safeguards
+    - truncation-reporting
+    - reveal-relationships
+    - parameterized-saved-searches
+    - curated-perspectives
+    - algorithm-result-scope
+    - deep-links
+suggested_components:
+    - search-input
+    - search-panel
+    - search-result-item
+    - graph-canvas
+    - context-menu
+    - node-tooltip
+    - node-details-panel
+    - path-finder-dialog
+    - filter-panel
+    - histogram
+    - range-slider
+    - temporal-controls
+    - algorithm-panel
+    - visual-encoding-panel
+    - legend-panel
+    - layout-panel
+    - bookmark-panel
+    - share-dialog
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: live graph database (Neo4j) seen through a curated perspective; empty canvas
+    node_count: "stored: thousands to billions; on screen: tens to 1,000 (default cap, adjustable 100-10,000)"
+    edge_density: any
+    user_expertise: novice
+goal: >-
+    **Intent**: Start from one entity or a prepared search, pull just its neighborhood out of a graph database far too
+    large to draw, grow it by expanding, read it, optionally score it with an algorithm, and save the scene for a
+    colleague. This is how no-code users work in Neo4j Bloom and Aura Explore, which Neo4j calls a "search-first
+    environment".
+
+
+    **Mental Model**: "Search, show context, expand on demand." The database is a city with no map; the user arrives at
+    one address and walks outward street by street. The overview never exists; what is on screen is always a small
+    excerpt the user built.
+
+
+    **Task Phases**:
+
+    1. **Open a perspective** - Pick the perspective mapped to her database role; it fixes the categories, visible
+    properties and relationship types, styles and saved queries
+
+    2. **Search** - Type into one box that suggests four kinds of thing: a search phrase (saved, possibly parameterized
+    Cypher such as "Customers from $country ordering $category" with chained suggestion lists), a near-natural-language
+    pattern of labels, relationship types and indexed values, a full-text match, or an action ("Expand selection",
+    "Dismiss others")
+
+    3. **Result lands in the scene** - Added to whatever is already drawn, up to the node query limit (100 to 10,000,
+    1,000 by default); search phrases process at most 10,000 records
+
+    4. **Inspect** - Hover shows caption properties; double-click opens the Inspector with every property
+
+    5. **Expand on demand** - Right-click Expand (capped by the node query limit), Expand with a per-call limit, or
+    Advanced Expansion by relationship type, direction, neighbor category and limit; "Reveal relationships" adds edges
+    among nodes already shown
+
+    6. **Find connections** - Select two nodes, right-click Shortest Path (within 20 hops, first path found)
+
+    7. **Reduce** - Filter drawer with histograms and sliders greys out elements that can then be dismissed; "Dismiss
+    single nodes"; the Slicer animates up to five ranges of a numeric or temporal property
+
+    8. **Run an algorithm (optional)** - Pick Betweenness, Degree, Eigenvector or PageRank centrality, or Louvain, Label
+    Propagation or Weakly Connected Components; restrict to labels and relationship types; then choose scope: Current
+    scene (runs on the drawn elements only, nothing written) or Entire graph (writes a new, unrenamable property to every
+    affected element in the database)
+
+    9. **Style from the result** - Centrality as size or color gradient, communities as one color each; the algorithm
+    alone changes nothing on screen; rule-based styling works on string, number, boolean and temporal properties
+
+    10. **Group and lay out** - Group nodes, group parallel relationships with a count; force-based, hierarchical,
+    coordinate (latitude and longitude) or circular layout
+
+    11. **Save and share** - Save the scene (3 on the free tier, 5 on Pro, unlimited on Enterprise), share view-only,
+    let colleagues copy it; export PNG, SVG or CSV, or send a deep link
+
+
+    No source gives per-step timings; each step is an interaction of seconds. The only end-to-end figure is BforBank's
+    ring of 11 fraudsters identified within half an hour, against several days for a similar earlier case (in
+    Linkurious, workflow W143).
+
+
+    **Decision Points**:
+
+    - Which search phrase fits the question?
+
+    - Is this node a hub worth expanding? (Bloom shows no hidden-degree badge, unlike Linkurious)
+
+    - What to dismiss to keep the scene readable?
+
+    - Has the node cap silently cut the answer? (users report seeing 38 of 236 nodes and assume data is missing)
+
+    - Run the algorithm on the scene (safe, local, possibly misleading) or on the whole graph (writes to the database)?
+
+
+    **Information Needs**:
+
+    - How many results the search returned versus how many were drawn
+
+    - For each node, how many relationships are not yet shown
+
+    - Which relationship types and neighbor categories an expand would bring in, and how many
+
+    - Whether an algorithm score describes the drawn scene or the stored graph (an ingredient with degree 6 in a scene
+    had more than 16,000 recipes in the store)
+
+    - Which filters were active when the scene was saved
+
+
+    **Pain Points**:
+
+    - Caps (1,000 by default) cut results with no "showing N of M" message
+
+    - Filters are not saved with the scene
+
+    - A search phrase cannot take the current selection as input
+
+    - The shortest path "may not be the one you were expecting"
+
+    - Scene-scoped and whole-graph algorithm runs give different answers, and whole-graph runs write to the database
+
+    - The query tab's limit and the explore tab's limit are separate settings
+
+
+    **Data Flow**:
+
+    - Input: Search phrase, pattern or full-text term against a live labeled property graph; a perspective
+
+    - Transformations: Query results added to the scene, incremental expansion, filtering and dismissal, optional
+    scene-scoped or store-wide algorithm run, rule-based styling
+
+    - Output: Saved scene (view-only share, copyable), PNG, SVG or CSV export, deep link
+success_criteria:
+    - metric: Time from a named entity to its readable neighborhood
+      target: Under 2 minutes, without writing a query
+    - metric: Truncation awareness
+      target: User can state whether the drawn result is complete or how much was cut
+    - metric: Algorithm scope awareness
+      target: User can state whether a score was computed on the scene or the stored graph
+    - metric: Reopenable result
+      target: A colleague opens the saved scene and sees the same nodes, styles and filters
+sources:
+    - title: Bloom search bar
+      url: https://neo4j.com/docs/bloom-user-guide/current/bloom-visual-tour/search-bar/
+      summary: Search phrases, patterns, full-text search and actions; search-first environment; co-pilot
+    - title: Bloom scene interactions
+      url: https://neo4j.com/docs/bloom-user-guide/current/bloom-visual-tour/bloom-scene-interactions/
+      summary: Expand, advanced expansion, reveal relationships, 20-hop shortest path, filters not saved, grouping, layouts
+    - title: Bloom advanced search phrases
+      url: https://neo4j.com/docs/bloom-user-guide/current/bloom-tutorial/search-phrases-advanced/
+      summary: Parameterized search phrases with suggestion lists; 10,000-record ceiling
+    - title: Bloom settings drawer
+      url: https://neo4j.com/docs/bloom-user-guide/current/bloom-visual-tour/settings-drawer/
+      summary: Node query limit range 100-10,000
+    - title: Aura Explore feedback - I can't see all my nodes
+      url: https://aura.feedback.neo4j.com/explore/p/i-cant-see-all-my-nodes
+      summary: 38 of 236 nodes shown; staff say Bloom is not built to load an entire graph
+    - title: Aura Explore scenes and export
+      url: https://neo4j.com/docs/aura/explore/explore-features/scenes-export/
+      summary: Scene counts by tier, view-only sharing, PNG, SVG and CSV export
+    - title: Aura Explore slicer
+      url: https://neo4j.com/docs/aura/explore/explore-features/slicer/
+      summary: Up to five ranges over a numeric or temporal property, playback
+    - title: Aura Explore Graph Data Science integration
+      url: https://www.neo4j.com/docs/aura/explore/explore-features/gds-integration/
+      summary: Four centralities and three community algorithms; current scene versus entire graph scope
+    - title: Seeds of science - whole-graph projections in Bloom
+      url: https://neo4j.com/blog/developer/seeds-of-science-visuals-in-bloom-introudcing-whole-graph-projections/
+      summary: Scene and whole-graph outputs differ; degree 6 in scene versus more than 16,000 in store
+    - title: Neo4j Bloom tips and tricks for domain experts
+      url: https://neo4j.com/blog/graph-visualization/neo4j-bloom-tips-tricks-domain-knowledge-experts/
+      summary: Shortest path may not be the one expected
+    - title: van Ham and Perer, Search, Show Context, Expand on Demand (InfoVis 2009)
+      url: https://dig.cmu.edu/publications/2009-doigraphs.html
+      summary: For large graphs an overview is often not practical; start from search and expand
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

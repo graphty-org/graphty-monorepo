@@ -1,0 +1,165 @@
+id: W104
+name: Network Analysis of a Criminal Group from Intelligence Records
+category: analysis
+validated: false
+personas:
+    - crime-intelligence-analyst
+requires_capabilities:
+    - data-import
+    - filtering
+    - component-analysis
+    - basic-statistics
+    - centrality-degree
+    - centrality-betweenness
+    - centrality-closeness
+    - centrality-eigenvector
+    - removal-impact-analysis
+    - comparison-view
+    - link-prediction
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - statistics-panel
+    - export-image
+    - measurement-robustness
+    - multilayer-networks
+    - source-grading
+suggested_components:
+    - data-import-dialog
+    - filter-panel
+    - algorithm-panel
+    - ranked-node-table
+    - statistics-panel
+    - impact-analysis-dialog
+    - comparison-view
+    - visual-encoding-panel
+    - graph-canvas
+    - image-export-dialog
+starting_state:
+    data_type: graded police intelligence logs (identifier, date, people, linked reports, grade) with typed relations (gang, criminal, drugs, social), optionally RMS, court and call data
+    node_count: 100-1000 people (Manchester study 137; Sinaloa trial 188)
+    edge_density: sparse multiplex
+    user_expertise: intermediate+
+goal: >-
+    **Intent**: Map a gang or organized crime group from intelligence records, profile each member by their position,
+    and plan disruption: who to arrest, who to divert, who to approach for information, and how the group would
+    rewire. The method follows a UK Home Office study of a Manchester gang and the disruption literature.
+
+
+    **Mental Model**: "Profiles, not just rankings." Plot degree against betweenness: gatekeepers are uniquely
+    connected to parts of the network but not to many others; central people have many links and unique roles;
+    highly visible people have many links but no unique role; the rest are peripheral. Each profile suggests a
+    different action, and a removed person is often replaced.
+
+
+    **Task Phases**:
+
+    1. **Seed and sweep** (days) - Choose seeds (five gang-linked individuals) and a window (six months); code everyone
+    the logs mention and the relation type; sweep again (the study stopped after two sweeps)
+
+    2. **Filter by grade** (15 min) - Keep reliable links (about 600 cut to 424 on the 5x5x5 scale), knowing that
+    untested intelligence may be the most operationally important
+
+    3. **Load** (30 min) - Import the coded list (the study used UCINET via a script, then NodeXL; Harris County used
+    a CSV-to-link-chart path, then added RMS, court and call data and re-ran)
+
+    4. **Measure each link type, then overlay** (30 min) - Size, components, density and centrality per sub-network
+    (all, gang, criminal, drugs, social, drugs plus social); Manchester's three drug components were "actually
+    connected via other social links"
+
+    5. **Profile people** (15 min) - Degree against betweenness into gatekeeper, central, highly visible and
+    peripheral (Manchester: 3, 7, 10 and 117 of 137)
+
+    6. **Match profile to action** (30 min) - Fragment through gatekeepers or central people; spread or gather
+    information through central and highly visible people; aim prevention at peripheral people
+
+    7. **Simulate removal** (30 min) - Rank by a centrality; remove one at a time (an arrest), re-ranking what remains,
+    or in blocks (a raid); track the largest connected component after each step
+
+    8. **Model replacement** (judgment) - Orphaned actors recruit same-role replacements; a non-criminal tie may turn
+    criminal to replace a broken one
+
+    9. **Allow for missing data** (judgment) - Wiretaps run at most 40 days and leaders avoid phones; research tests
+    ranking stability and predicts missing links; in practice the checks are grading and officer review
+
+    10. **Validate and report** (hours) - Review with officers who know the group; do not scale nodes by tie strength
+    when intelligence accuracy is limited; weigh profiles alongside diagrams and operational experience
+
+
+    **Decision Points**:
+
+    - Which seeds, window and number of sweeps define the network boundary?
+
+    - Which grades are reliable enough to keep?
+
+    - Which link types to combine for the question at hand?
+
+    - Remove the top people one at a time or all at once?
+
+    - Do rankings hold if some links are missing?
+
+
+    **Information Needs**:
+
+    - Per-link-type size, components, density and centralities, side by side
+
+    - A degree-by-betweenness scatter with profile regions
+
+    - Largest-component size after each simulated removal, for several centralities
+
+    - Which links are reliable, untested or unreliable
+
+
+    **Pain Points**:
+
+    - Operational systems treat every link as binary and equal
+
+    - Disruption metrics are "quite opaque" to the officers who must act on them
+
+    - Ties past the first degree need more evidence than the chart suggests
+
+    - Rewiring after arrests is not modeled by simple removal
+
+
+    **Data Flow**:
+
+    - Input: Graded, typed intelligence links; optional RMS, court and call data
+
+    - Transformations: Grade filter, per-type sub-networks and overlays, centrality, profile classification, sequential
+    and block removal with re-ranking, stability checks
+
+    - Output: Member profiles, removal curves, recommended actions per profile, network diagrams for the briefing
+success_criteria:
+    - metric: Per-type measures
+      target: Analyst can compare measures across link types and overlays without re-importing
+    - metric: Removal curves
+      target: Largest-component size after each removal is plotted for at least two centralities and both removal modes
+    - metric: Profiles
+      target: Every member is assigned gatekeeper, central, highly visible or peripheral with the values behind it
+sources:
+    - title: Home Office Research Report 89 - Social network analysis of a gang
+      url: https://assets.publishing.service.gov.uk/media/5a80e27ae5274a2e87dbc5d0/horr89.pdf
+      summary: Seeds and sweeps, grade filtering from about 600 to 424 links, UCINET and NodeXL, per-type sub-networks, degree-by-betweenness profiles, actions per profile, validation with officers
+    - title: IACA 2024 Virtual Conference - Social Network Analysis (Harris County)
+      url: https://iaca.net/assets/Training-Files/Webinars/VirtualConferences/2024VirtualConference/2024%20IACA%20SNA%20Bush.pdf
+      summary: CSV to link chart, node scores, adding RMS and court data; eigenvector for leaders and betweenness for bridges
+    - title: Dempsey 2021 - Social network analysis primer for a police ethics committee
+      url: https://www.westmidlands-pcc.gov.uk/wp-content/uploads/2021/10/2021-07-21-EC-Agenda-Item-2-Social-Network-Analysis-Primer.pdf
+      summary: Descriptive graphs are about 90 percent of real usage; dismantling metrics are opaque; links treated as binary
+    - title: Cavallaro et al. 2020 - Disrupting resilient criminal networks
+      url: https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0236476
+      summary: Removing the top 5 percent by betweenness reduced the largest component by up to 70 percent; wiretaps at most 40 days
+    - title: Jia et al. 2024 - criminal network disruption strategies
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11338461/
+      summary: Betweenness, degree and greedy removal compared under different removal constraints
+    - title: Duijn et al. 2014 - The relative ineffectiveness of criminal network disruption
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC3937802
+      summary: 793-actor cannabis chain often became more efficient after removals because of replacement
+    - title: Bright et al. 2015 - Networks within networks
+      url: https://researchnow.flinders.edu.au/en/publications/networks-within-networks-using-multiple-link-types-to-examine-net/
+      summary: Multiple link types examined separately and together
+    - title: Berlusconi et al. 2016 - Link prediction in criminal networks
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4841537
+      summary: Predicting missing links in criminal networks
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,22 @@
+id: dependency-format-import
+name: Dependency and Lineage Format Import
+category: data
+description: Import dbt manifest.json, CycloneDX and SPDX SBOMs, OpenLineage events, npm ls --json, migration connection
+    CSVs, NetBox exports, Nx graph JSON, crawler inlink exports with cleanup options, and SysML v2 models through the
+    Systems Modeling API.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W78
+    - W79
+    - W80
+    - W81
+    - W82
+    - W83
+    - W84
+    - W86
+    - W87
+implemented_by_components: []
+requirements: []
+sources: []

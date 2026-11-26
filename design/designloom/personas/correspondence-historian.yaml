@@ -1,0 +1,80 @@
+id: correspondence-historian
+name: Correspondence Historian
+role: Associate Professor of Early Modern History (solo, spreadsheet plus GUI tools)
+quote: I have four thousand letters in a spreadsheet. Show me who sat between the English circle and the continent, and let me cite every line on the figure.
+bio: >-
+    Dr. Helen Marsh is an associate professor writing a monograph on a seventeenth-century scholarly circle. She has
+    spent years reading letters and typing them into a spreadsheet that is her master copy: 2,000 to 5,000 letters among
+    400 to 900 correspondents, each row a letter with sender, recipient, a date that is often partial ("after Easter
+    1648"), places of writing and receipt, repository and shelfmark, edition page, people mentioned and carrier. She
+    looks letters up in Early Modern Letters Online (EMLO), took one Programming Historian lesson and a Gephi workshop,
+    and does not program. She uses Palladio for a quick network, map and timeline look, Gephi 0.10 for metrics and the
+    figure, and Inkscape to clean the SVG. Her network figures are evidence inside a prose argument; she treats a
+    network finding as an invitation to more research rather than a proof, and she distrusts any number she cannot
+    explain from the letters themselves.
+characteristics:
+    expertise: novice
+    time_pressure: low
+    graph_literacy: novice
+    domain_knowledge: expert
+motivations:
+    - Find who acted as a broker between her circle and continental scholars, including overlooked people such as couriers
+    - Show how the network changed across the Civil War years
+    - Produce one clean, citable figure per chapter with a legend
+    - Keep every node and edge traceable to the letter, shelfmark and edition page it came from
+    - Find people who shared correspondents without writing to each other, to direct further archival search
+behaviors:
+    - Codes one row per letter while reading, so the data is a directed multigraph with many letters per pair
+    - Keeps one spreadsheet for storage and a copy for visualization, and normalizes name variants by hand
+    - Stores dates as written plus an earliest and latest date, because many dates are partial or uncertain
+    - Pastes the wide letter table into Palladio to see network, map and timeline together, then moves to Gephi for metrics
+    - Sizes nodes by degree, runs betweenness and modularity in Gephi, and reads the top 20 lists against the letters
+    - Overlays the Gephi SVG on a map in Inkscape because Gephi draws no base map behind a geographic layout
+    - Returns to the source letters for every surprising tie before writing about it
+frustrations:
+    - A spelling variant becomes a duplicate node, and Palladio cannot edit data in place, so she fixes the spreadsheet and starts over
+    - Palladio has no metrics and no weighted edges; Gephi collapses parallel letters into one edge unless she weights them
+    - Partial and uncertain dates fit no tool's date column
+    - No tool keeps the source citation on each edge through to the exported figure
+    - Network, map, timeline and print figure are spread across three or four tools
+    - Not knowing how much the layout algorithm shapes what the picture appears to show
+context:
+    frequency: monthly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W174
+    - W175
+    - W176
+    - W178
+    - W179
+sources:
+    - title: Programming Historian - From Hermeneutics to Data to Networks (Duering)
+      url: https://programminghistorian.org/en/lessons/creating-network-diagrams-from-historical-sources
+      summary: Coding a tie from sources, one spreadsheet for storage and a copy for visualization, Palladio network and caveats about layouts
+    - title: Conroy, DHQ 2021, on Palladio
+      url: https://dhq.digitalhumanities.org/vol/15/1/000534/000534.html
+      summary: Data cannot be edited within Palladio; typos create duplicate nodes
+    - title: Harvard histecon - Visualizing historical networks
+      url: https://histecon.fas.harvard.edu/visualizing/index.html
+      summary: Gephi keeps one edge per pair, forcing separate graphs or weights for parallel letters
+    - title: Martin Grandjean - Gephi introduction
+      url: https://www.martingrandjean.ch/gephi-introduction
+      summary: Letters exercise in Gephi, GeoLayout and finishing the figure over a map in Inkscape
+    - title: Leiden DMT - SNA exercises
+      url: https://bookandbyte.universiteitleiden.nl/DMT/SNA/sna-exercises.php
+      summary: Palladio then Gephi exercise sequence taught to humanities students
+    - title: EMLO - About
+      url: https://emlo.bodleian.ox.ac.uk/about
+      summary: Union catalog of early modern letters used to look up correspondence
+    - title: Hartlib papers record counts (Reviews in History)
+      url: https://reviews.history.ac.uk/review/1316
+      summary: Scale of a single scholarly correspondence catalog (about 4,585 letters)
+    - title: Searching for missing links in the Republic of Letters (Vossius and Hartlib)
+      url: https://www.ebsco.com/articles/history/43254ed7-1de2-5d0c-81bb-f9002abf19b2/searching-for-missing-links-in-the-republic-of-letters-vossius-and-the-dutch-dimension-of-hartlib-s-circle
+      summary: Shared-correspondent analysis used to direct archival search
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

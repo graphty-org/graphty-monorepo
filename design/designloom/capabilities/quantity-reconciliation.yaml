@@ -1,0 +1,13 @@
+id: quantity-reconciliation
+name: Input-Output Quantity Reconciliation
+category: analysis
+description: Per node, compare input and output volume with a yield factor and flag nodes whose inputs come from both
+    flagged and unflagged sources.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W230
+implemented_by_components: []
+requirements: []
+sources: []

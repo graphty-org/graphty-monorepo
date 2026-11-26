@@ -1,0 +1,15 @@
+id: framework-neutral-embedding
+name: Framework-Neutral Embedding
+category: export
+description: "Install-to-graph in about 15 lines from a script tag, ES module or any framework: simple options as HTML
+    attributes, rich data as DOM properties, all events as DOM CustomEvents with typed detail, SSR-safe import, a
+    self-sizing container, and documented recipes for plain HTML, Vue, Angular and React 19."
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W278
+    - W279
+implemented_by_components: []
+requirements: []
+sources: []

@@ -1,0 +1,15 @@
+id: algorithm-result-scope
+name: Algorithm Result Scope
+category: analysis
+description: Every algorithm result records whether it was computed on the drawn subgraph or the stored graph, keeps
+    subgraph results with the saved view, warns that capped or partial subgraphs may give different answers, and makes
+    writing results back to the source a separate opt-in action.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W142
+    - W148
+implemented_by_components: []
+requirements: []
+sources: []

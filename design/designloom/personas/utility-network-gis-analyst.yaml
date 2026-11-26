@@ -1,0 +1,58 @@
+id: utility-network-gis-analyst
+name: Utility Network GIS Analyst
+role: GIS Network Analyst at a water and electric utility
+quote: A 12-inch main just broke on Elm Street. Give me the valves to close, the customers who lose water, and a
+    schematic the crew can read in the truck.
+bio: >-
+    Marcus maintains the utility's network model in ArcGIS Pro Utility Network (and ArcFM on the electric side) and
+    answers trace questions for operations, engineering and the capital plan. Water mains, valves, hydrants and meters,
+    and electric conductors, transformers and switches are all features with connectivity rules and open or closed
+    states. Daily he runs upstream, downstream, connected, subnetwork and isolation traces; an isolation trace returns
+    the minimum set of valves or switches that stops flow to a break. He generates schematic network diagrams for crews.
+    For the capital plan he exports the water model to EPANET or InfoWater, and uses the WNTR Python package to find
+    articulation points, bridges and valve segments and to run hydraulic N-1 criticality (close each pipe, count
+    junctions that fall below a pressure threshold). He knows that topology alone misleads and that hydraulics decide.
+characteristics:
+    expertise: advanced
+    time_pressure: high
+    graph_literacy: intermediate
+    domain_knowledge: expert
+motivations:
+    - Give dispatch the right valves and the affected customers within minutes of a break
+    - Keep topology valid so traces never fail in an emergency
+    - Rank pipes and valves by criticality for capital replacement
+    - Produce crew schematics that stay in sync with the map
+behaviors:
+    - Validates topology and clears dirty areas before tracing
+    - Runs upstream, downstream, isolation and subnetwork traces from a chosen feature, honoring valve and switch states
+    - Reports isolating valves and affected customers with a tree or schematic diagram
+    - Trims an all-pipes model (12,000 to 13,000 nodes) to a skeleton of about 4,500 by dropping small pipes before hydraulic runs
+    - Computes articulation points, bridges and valve segments, then confirms with hydraulic N-1 per pipe
+frustrations:
+    - Traces fail when topology has dirty areas
+    - In looped systems a trace returns the whole loop unless flow direction is known
+    - Network diagrams have to be regenerated to stay in sync with the map
+    - Graph metrics alone miss hydraulic behavior
+context:
+    frequency: daily
+    devices:
+        - desktop
+    voluntary: false
+workflows:
+    - W219
+sources:
+    - title: ArcGIS Pro - About tracing utility networks
+      url: https://pro.arcgis.com/en/pro-app/3.3/help/data/utility-network/about-tracing-utility-networks.htm
+      summary: Upstream, downstream, isolation and subnetwork traces; loops return all features unless flow direction is determinate
+    - title: ArcGIS Pro - Network diagram layouts
+      url: https://pro.arcgis.com/en/pro-app/2.7/help/data/network-diagrams/diagram-layouts.htm
+      summary: Tree, schematic and geo-positions layouts for crew diagrams
+    - title: WNTR criticality analysis
+      url: https://usepa.github.io/WNTR/criticality.html
+      summary: Pipe criticality by closing each pipe and counting junctions below a pressure threshold
+    - title: WNTR resilience metrics
+      url: https://usepa.github.io/WNTR/resilience.html
+      summary: Topographic metrics (articulation points, bridges) paired with hydraulic metrics
+    - title: Water distribution model skeletonization study (PMC5896566)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5896566
+      summary: All-pipes models of 12,000 to 13,000 nodes reduced to about 4,300 to 4,500 when pipes under 20 cm were trimmed

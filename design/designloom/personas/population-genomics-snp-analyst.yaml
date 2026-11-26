@@ -1,0 +1,74 @@
+id: population-genomics-snp-analyst
+name: Population and Ancient-DNA Genomicist
+role: Postdoctoral Researcher / Staff Scientist in Population Genomics
+quote: PCA blurs the families and sub-populations together. A k-nearest-neighbor network with communities shows them -- but which k is right?
+bio: >-
+    Dr. Arjun Mehta works in a human, ancient-DNA, livestock or non-model-organism genomics group. His data are hundreds
+    to tens of thousands of individuals genotyped at 10^4 to 10^7 SNPs, delivered as VCF or PLINK files, with metadata
+    giving population, region and sample age. He filters genotypes with bcftools and PLINK, runs PCA and ADMIXTURE, and
+    then uses explicitly graph-based methods: mutual k-nearest-neighbor networks from a genetic distance matrix with
+    Walktrap, Infomap or Fast-Greedy community detection (netview in R), NetStruct similarity networks pruned by
+    threshold and partitioned by modularity, identity-by-descent networks, admixture graphs fitted in ADMIXTOOLS 2,
+    ancestral recombination graphs from tskit tree sequences in Jupyter, and phylogenetic networks with hybrid edges.
+    For him, k-NN graph construction, modularity and community detection are core methods. He codes in R and Python
+    daily and works on a cluster.
+characteristics:
+    expertise: expert
+    time_pressure: medium
+    graph_literacy: advanced
+    domain_knowledge: expert
+motivations:
+    - Show fine-scale structure (families, sub-populations) that PCA blurs
+    - Choose k or a similarity threshold defensibly by sweeping it and watching community counts
+    - Compare detected communities against sampling populations and ADMIXTURE results
+    - Test which admixture graph fits the f-statistics and find features shared across good fits
+    - Explore local genealogies along a genome region in an ancestral recombination graph
+behaviors:
+    - Builds an N x N distance matrix (allele sharing, Hamming, cophenetic) and a metadata table with ID, Colour and Group
+    - Builds mutual k-NN graphs over k = 10 to 60, optionally adding minimum spanning tree edges so no one is isolated
+    - Runs several community algorithms and colors nodes by sampling population to compare
+    - Places the network beside ADMIXTURE bar plots and PCA in a multi-panel figure
+    - Writes admixture graphs as from-to edge lists and runs graph searches many times because they get stuck
+    - Drags ARG nodes sideways in a time-fixed layout to remove crossings
+    - Exports GML, interactive D3 HTML, SVG or PNG
+frustrations:
+    - There is no objective procedure to choose k
+    - Many very different admixture graphs fit equally well
+    - Force layouts of ancestral recombination graphs become tangled for large empirical data
+    - Network outputs are GML or D3 pages with no linked PCA or admixture view
+    - Graphs of hundreds of thousands of individuals do not open in desktop viewers
+context:
+    frequency: weekly
+    devices:
+        - laptop
+        - desktop
+        - HPC cluster through Jupyter
+    voluntary: true
+workflows:
+    - W396
+    - W397
+    - W398
+    - W399
+    - W400
+sources:
+    - title: NetView (Neuditschko, Khatkar and Raadsma 2012)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC3485224/
+      summary: k-NN networks from SNP distances, k = 10 default, "no suitable objective procedure to optimize k-NN", Cytoscape display
+    - title: netview R README
+      url: https://github.com/esteinig/netview/blob/master/README_OLD.md
+      summary: Inputs, netview() signature, plotSelection, Walktrap, Infomap and Fast-Greedy defaults, GML and D3 output
+    - title: NetStruct (Greenbaum, Templeton and Bar-David 2016)
+      url: https://www.biorxiv.org/content/10.1101/024042v4.full-text
+      summary: Similarity network, iterative edge pruning, modularity, permutation tests, strength of association
+    - title: Han et al. 2017 - AncestryDNA IBD network
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5309710
+      summary: 769,444-vertex IBD network partitioned by recursive Louvain; spectral embedding
+    - title: ADMIXTOOLS 2 graphs vignette
+      url: https://uqrmaie1.github.io/admixtools/articles/graphs.html
+      summary: qpgraph, find_graphs, plotting; "A low score doesn't mean that an admixture graph is a good model of reality"
+    - title: Kitchens and Wong 2025 - tskit_arg_visualizer
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC12701794/
+      summary: Time-fixed ARG layout; force layouts confusingly tangled for larger empirical ARGs
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

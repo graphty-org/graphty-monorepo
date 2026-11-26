@@ -1,0 +1,64 @@
+id: hr-business-partner
+name: HR Business Partner
+role: HR Business Partner who reads, presents and acts on ONA results
+quote: My president asked me what this map means for his team. I need to answer in one sentence, without naming anyone I'm not allowed to name.
+bio: >-
+    Elena Ruiz is the HR business partner to a division president. She is not an analyst: she reads dashboards and
+    slides, sits in the executive readout of an organizational network analysis, and then holds the one-on-one
+    conversations that follow it. In a confidential project she never sees row-level network data; she sees
+    group-level collaboration matrices, counts of people in each role, and, for named leaders who consented, their own
+    percentile band. She works from Power BI or Viva dashboards, PowerPoint decks and a shared Kumu or Polinode view
+    link. Her job is to turn the readout into actions -- relieve overloaded leaders, push decisions down, plan
+    onboarding ramps, pick change agents -- and to explain the results to employees without breaking the trust the
+    survey depended on.
+characteristics:
+    expertise: novice
+    time_pressure: high
+    graph_literacy: none
+    domain_knowledge: advanced
+motivations:
+    - Turn the ONA readout into a short list of concrete people actions for her division
+    - Explain the findings to her president in plain language he can repeat
+    - Give consenting leaders their own results in a way that motivates rather than threatens
+    - Protect employee trust so the next survey still gets answered
+behaviors:
+    - Opens a shared view link or dashboard rather than any analysis tool
+    - Asks to "drill in" on one unit from a group-level view
+    - Reads role counts (connectors, brokers, peripheral people) and group-to-group matrices more readily than node-link maps
+    - Delivers percentile bands to individual leaders in one-on-ones, with the analyst's notes beside her
+    - Reviews sensitive findings with one subgroup at a time instead of a department-wide meeting
+frustrations:
+    - Maps she cannot explain to her president
+    - Findings that cannot be shown because a group is below the minimum size
+    - No way to drill in without seeing names she is not allowed to see
+    - Pictures where node placement suggests conclusions the analyst says are not real
+context:
+    frequency: as-needed
+    devices:
+        - laptop
+        - tablet
+    voluntary: false
+workflows:
+    - W187
+    - W189
+    - W190
+    - W191
+sources:
+    - title: Michael Arena - how organizational network analysis works in the real world (i4cp)
+      url: https://www.i4cp.com/productivity-blog/awss-michael-arena-how-organizational-network-analysis-works-in-the-real-world
+      summary: Confidential projects, percentile bands to consenting leaders, HR follow-up one-on-one
+    - title: Umbrex - Organizational Network Analysis framework
+      url: https://umbrex.com/resources/frameworks/organization-frameworks/organizational-network-analysis-ona/
+      summary: HR business partner on the project team; action plans such as deputies, decision rights and onboarding ramps
+    - title: The Organizational Network Fieldbook - reviewing the results with the department
+      url: https://www.oreilly.com/library/view/the-organizational-network/9780470542200/9780470542200_reviewing_the_results_with_the_departmen.html
+      summary: Review sensitive findings subgroup by subgroup
+    - title: Microsoft Learn - Viva Insights privacy settings
+      url: https://learn.microsoft.com/en-us/viva/insights/advanced/setup-maint/privacy-settings
+      summary: Minimum group size for leader views and Power BI templates
+    - title: Kumu documentation - SNA and network mapping
+      url: https://docs.kumu.io/disciplines/sna-network-mapping
+      summary: Share links and presentations used to show maps to non-analysts
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

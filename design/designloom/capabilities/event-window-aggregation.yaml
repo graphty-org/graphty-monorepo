@@ -1,0 +1,17 @@
+id: event-window-aggregation
+name: Event Duration and Window Aggregation
+category: analysis
+description: Give point events a user-set lifetime or decay (kept separate from start + duration mapping), bin events
+    into windows with length, step and overlap, and aggregate parallel events per pair per window (count, sum, first,
+    last) so styles and algorithms use the aggregate.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W19
+    - W304
+    - W305
+    - W307
+implemented_by_components: []
+requirements: []
+sources: []

@@ -1,0 +1,18 @@
+id: expensive-run-cost-warning
+name: Cost Estimate Before an Expensive Run
+category: analysis
+description: Before a quadratic distance computation or a build whose candidate edge count will not fit, state the
+    expected size and cost, offer to proceed or narrow the input, and report honest progress with partial results
+    instead of failing after fifteen minutes.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W62
+    - W63
+    - W69
+    - W70
+    - W75
+implemented_by_components: []
+requirements: []
+sources: []

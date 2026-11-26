@@ -1,0 +1,15 @@
+id: time-fixed-dag-layout
+name: Time-Fixed Directed Acyclic Layout
+category: visualization
+description: Layered layout for admixture graphs, phylogenetic networks and ancestral recombination graphs with time or
+    drift fixed on one axis, two-parent nodes, labeled hybrid edges, and horizontal dragging that pins nodes.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W398
+    - W399
+    - W400
+implemented_by_components: []
+requirements: []
+sources: []

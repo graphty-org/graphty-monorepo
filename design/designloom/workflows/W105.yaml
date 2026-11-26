@@ -1,0 +1,158 @@
+id: W105
+name: Cryptocurrency Tracing from a Seed Address to a Cash-Out Exchange
+category: analysis
+validated: false
+personas:
+    - crypto-tracing-investigator
+requires_capabilities:
+    - neighborhood-expansion
+    - progressive-loading
+    - filtering
+    - path-highlighting
+    - all-paths-finding
+    - visual-encoding-edges
+    - visual-encoding-nodes
+    - details-on-demand
+    - annotation
+    - legend-display
+    - export-image
+    - time-respecting-paths
+    - group-collapse
+    - parallel-edge-aggregation
+    - value-flow-tracing
+    - attribution-tags
+suggested_components:
+    - graph-canvas
+    - cluster-collapse-control
+    - progressive-loader
+    - filter-panel
+    - range-slider
+    - path-finder-dialog
+    - node-details-panel
+    - context-menu
+    - visual-encoding-panel
+    - legend-panel
+    - annotation-toolbar
+    - image-export-dialog
+starting_state:
+    data_type: a seed address or transaction; a vendor or GraphSense server-side ledger with address clusters and attribution tags; later exchange KYC returns
+    node_count: 1 seed growing to tens to hundreds of clusters (one service had over 900,000 attributed addresses)
+    edge_density: sparse directed flow
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Follow funds from a seed -- a ransom address, a victim's payment, an address on a seized device -- hop
+    by hop until they reach an exchange or other identified service, serve legal process there for the account
+    holder's identity, seize what remains, and present the flow in court with the heuristics behind it.
+
+
+    **Mental Model**: "Follow the money downstream." Nodes are clusters of addresses believed to be one controller,
+    which open into their addresses; edges are transactions with amount, asset and time; the analyst cares how much of
+    the traced value went down each branch. The graph lives on a server and is never imported whole.
+
+
+    **Task Phases**:
+
+    1. **Get a seed** (minutes) - Ransom note address, victim transaction, seized-device or exchange-record address
+    (Colonial Pipeline: 63.7 of 75 bitcoin traced with a block explorer and seized)
+
+    2. **Look up the cluster and attribution** (2 min) - Co-spend heuristic (inputs to one transaction likely one
+    owner) and change heuristic (change output belongs to the sender), both fallible; attribution tags from vendor
+    data or GraphSense TagPacks
+
+    3. **Expand hop by hop** (30 min to days) - Forward or backward one hop at a time; restrict by amount and time;
+    path search between two nodes
+
+    4. **Handle peel chains, mixers and bridges** (hours) - Follow the change output at each step of a peel chain;
+    track every relevant token in one graph and dim other assets
+
+    5. **Reach a labeled service** (minutes) - An exchange deposit address is where identity can be obtained
+
+    6. **Serve legal process** (weeks, outside the tool) - Account registration, KYC and activity records
+
+    7. **Add off-chain identities** (15 min) - Add people, bank accounts and documents to the graph, or move the
+    identity to the case chart
+
+    8. **Produce the court graph** (hours) - Show the flow, the value per branch and which clustering heuristic made
+    each attribution; attributions confirmed by undercover transactions where possible
+
+
+    **Decision Points**:
+
+    - Which output is change and which is payment at each hop?
+
+    - Where to stop expanding (amount threshold, time window, known service)?
+
+    - Does a cluster attribution hold up, and which heuristic produced it?
+
+    - Which exchange gets the legal process?
+
+
+    **Information Needs**:
+
+    - Amount, asset and time on every edge, and value per branch from the seed
+
+    - Cluster membership with the heuristic and confidence behind it
+
+    - Attribution tags with their source
+
+    - Paths from the seed to labeled services
+
+
+    **Pain Points**:
+
+    - Graphs become cluttered ("a veritable Christmas tree of multicolor types of transactions")
+
+    - Defense attacks clustering heuristics as "junk science"
+
+    - The vendor graph cannot be combined with the off-chain case chart without re-drawing
+
+    - Filters for amount and time are poorly documented in public
+
+
+    **Data Flow**:
+
+    - Input: Seed address or transaction; server-side ledger, clusters and tags; exchange returns
+
+    - Transformations: Cluster lookup, hop expansion with amount and time filters, peel-chain following, cross-asset
+    tracking, path search, off-chain identity joins
+
+    - Output: Flow graph from seed to cash-out with value per branch and attribution evidence, for affidavits, seizure
+    and trial
+success_criteria:
+    - metric: Incremental expansion
+      target: Each hop loads from the server on demand, without importing the ledger
+    - metric: Value accounting
+      target: The analyst can state how much traced value reached each labeled service
+    - metric: Heuristic transparency
+      target: Every cluster and attribution shows the heuristic and source behind it in the export
+sources:
+    - title: Chainalysis Reactor
+      url: https://www.chainalysis.com/chainalysis-reactor/
+      summary: First deposit to final cash-out, labeled service clusters, financial entities and documents added to the graph
+    - title: Chainalysis - Cross-chain investigations
+      url: https://www.chainalysis.com/blog/cross-chain-investigations/
+      summary: Every case-relevant token in one graph with an asset selector that dims other clusters
+    - title: TRM Forensics
+      url: https://www.trmlabs.com/forensics
+      summary: Single-click forward or backward UTXO tracing; shows which clustering heuristic is used (search excerpt)
+    - title: GraphSense
+      url: http://graphsense.org/
+      summary: Transaction traversal, automatic path search between two nodes, public and private TagPacks
+    - title: INTERPOL GraphSense Maltego transform
+      url: https://www.github.com/INTERPOL-Innovation-Centre/GraphSense-Maltego-transform
+      summary: To Cluster and To Tags transforms
+    - title: Haslhofer and Meiklejohn 2022
+      url: https://arxiv.org/abs/2205.13882
+      summary: Change heuristic and peel chains (search excerpt)
+    - title: Stout - Judicial scrutiny of Chainalysis
+      url: https://www.stout.com/en/insights/article/judicial-scrutiny-chainalysis
+      summary: Co-spend heuristic, Bitcoin Fog's 900,000+ attributed addresses, admissibility after Daubert hearings
+    - title: Elliptic - US authorities seize DarkSide ransom
+      url: https://www.elliptic.co/blog/us-authorities-seize-darkside
+      summary: 63.7 of 75 bitcoin traced and seized after the Colonial Pipeline attack
+    - title: Bracewell - IRS requests to cryptocurrency exchanges
+      url: https://bracewell.com/node/54234
+      summary: Account registration, KYC and activity records sought from exchanges (search excerpt)
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,71 @@
+id: sem-path-diagram-analyst
+name: SEM Path Diagram Analyst
+role: Associate Professor of Organizational Psychology / Structural Equation Modeler
+quote: The model fit in ten minutes. The path diagram has taken me two days and it still looks like spaghetti.
+bio: >-
+    Dr. Marco Silva is an associate professor of organizational psychology (his ecologist colleagues do the same work
+    with piecewise SEM). He fits structural equation models in lavaan: 5 to 15 latent factors measured by 15 to 60
+    survey indicators, hundreds to thousands of respondents. Each paper needs one path diagram per fitted model, drawn
+    by convention -- ellipses for latent factors, rectangles for observed indicators, single-headed arrows for
+    regressions and loadings, curved double-headed arrows for covariances, small residual arrows -- with standardized
+    estimates, significance stars and fit indices, at journal column width. He gets a first look from semPlot's
+    semPaths, then fights semptools and tidySEM layout matrices to place nodes, mark significance and rotate residuals,
+    and often gives up and redraws the figure in TikZ, PowerPoint or draw.io. Students in his lab sometimes draw the
+    model first in lavaangui or Onyx and let the tool write the lavaan syntax.
+characteristics:
+    expertise: advanced
+    time_pressure: medium
+    graph_literacy: intermediate
+    domain_knowledge: expert
+motivations:
+    - Produce a journal-ready path diagram for every fitted model without hand-drawing it
+    - Show standardized estimates, significance marks and confidence intervals on the arrows
+    - Keep the diagram and the model specification in sync through respecifications
+    - Teach students what the model claims by letting them draw it before writing syntax
+behaviors:
+    - Writes lavaan syntax with =~ for measurement, ~ for regression and ~~ for covariance
+    - Fits with cfa() or sem(), reads fit indices, standardized estimates and modification indices
+    - Runs semPaths with a tree layout rotated left to right for a first look
+    - Edits node positions through a layout matrix and marks significance, standard errors and confidence intervals with semptools
+    - Curves covariance arrows and rotates residual arrows so they do not cross labels
+    - Redraws the final figure in TikZ, PowerPoint or draw.io when the R output will not cooperate
+    - Reports two or more fit indices and justifies each respecification
+frustrations:
+    - SEM plotting packages are very difficult to customize and default placement is not aesthetically pleasing
+    - semPaths adds no significance markers
+    - The lavaan author himself drew publication diagrams by hand in LaTeX and TikZ
+    - Few free WYSIWYG options; AMOS is proprietary
+    - Every respecification means redoing the hand-drawn figure
+context:
+    frequency: monthly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W427
+sources:
+    - title: lavaan tutorial
+      url: https://lavaan.ugent.be/tutorial/
+      summary: Model syntax operators, cfa() and sem(), fit measures and standardized estimates
+    - title: tidySEM vignette - plotting graphs
+      url: https://cran.r-project.org/web/packages/tidySEM/vignettes/Plotting_graphs.html
+      summary: Existing packages very difficult to customize; default placement not aesthetically pleasing; layout matrix workflow
+    - title: semptools vignette
+      url: https://cran.r-project.org/web/packages/semptools/vignettes/semptools.html
+      summary: mark_sig, mark_se, rotate_resid and set_curve fix what semPaths leaves out
+    - title: semPaths reference
+      url: https://search.r-project.org/CRAN/refmans/semPlot/html/semPaths.html
+      summary: Tree layout, rotation, standardized estimates on paths
+    - title: lavaan Google group - drawing publication path diagrams
+      url: https://groups.google.com/g/lavaan/c/yEOgyBZVK_Q
+      summary: The lavaan author drew publication diagrams by hand in LaTeX and TikZ
+    - title: SEM reporting practices
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC3755633
+      summary: A path diagram per fitted model and multiple fit indices are expected in reports
+    - title: Onyx workshop - export
+      url: https://brandmaier.github.io/lip2026-onyx-workshop/export.html
+      summary: Draw-first SEM tool that exports model syntax and figures
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

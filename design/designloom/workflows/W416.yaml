@@ -1,0 +1,108 @@
+id: W416
+name: Single-Cell VR Session with an Automatic Report (CellexalVR)
+category: analysis
+validated: false
+personas:
+    - correlation-network-3d-biologist
+requires_capabilities:
+    - data-import
+    - large-graph-rendering
+    - node-selection
+    - search
+    - computed-attributes
+    - selection-statistics
+    - analysis-history
+    - report-generation
+    - export-image
+    - data-export
+    - immersive-xr-session
+    - viewpoint-and-video-export
+    - multi-user-session
+suggested_components:
+    - data-import-dialog
+    - graph-canvas
+    - search-input
+    - heatmap-panel
+    - statistics-panel
+    - analysis-history-panel
+    - report-generator-dialog
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: single-cell expression with at least one 2D or 3D embedding, converted from Seurat or Scanpy
+    node_count: 20,000-250,000 cells; transcription-factor networks of about 130 interactions
+    edge_density: sparse (small derived networks)
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Explore single-cell embeddings in VR, select groups of cells by hand, compute transcription-factor
+    networks for them, and leave with a reproducible record of everything done in the headset.
+
+
+    **Mental Model**: "Pick up the cell map, carve out a population, ask what regulates it." The VR session is a lab
+    notebook that writes itself.
+
+
+    **Task Phases**:
+
+    1. **Prepare data** (30 min) - Process in Seurat or Scanpy; convert with the R package cellexalvrR (expression plus
+    at least one 2D or 3D embedding)
+
+    2. **Explore embeddings** (20 min) - Grab embeddings as objects in any SteamVR headset, select cells freehand,
+    search genes on a virtual keyboard
+
+    3. **Compute networks** (10 min) - Transcription-factor networks for selected groups (top 130 interactions by
+    default) and heatmaps
+
+    4. **Capture** (5 min) - Record a fly-by camera path to MP4; save networks as images or adjacency lists
+
+    5. **Collaborate** (optional) - Up to 16 participants, each with a local copy of the data; desktop users join as
+    spectators
+
+    6. **Report** (automatic) - On save or exit an HTML report of every action is generated with figures, p-values and
+    false discovery rates
+
+
+    **Decision Points**:
+
+    - Which freehand selection defines a population worth comparing?
+
+    - Which group's network goes into the paper?
+
+
+    **Information Needs**:
+
+    - Selected cell counts and the genes that distinguish the selection
+
+    - Network edges for each selection, exportable as adjacency lists
+
+    - A record of every selection and statistic for the methods section
+
+
+    **Pain Points**:
+
+    - A Windows VR workstation is required and the data must be copied to every participant's machine
+
+    - Text entry in the headset is slow
+
+    - Without the report, freehand selections cannot be reproduced
+
+
+    **Data Flow**:
+
+    - Input: Single-cell expression matrix and embeddings
+
+    - Transformations: Freehand selection, differential statistics, transcription-factor network inference, heatmaps
+
+    - Output: Network images and adjacency lists, MP4 fly-by, automatic HTML report
+success_criteria:
+    - metric: Session record
+      target: Every selection, network and statistic from the session appears in a report readable on a desktop
+    - metric: Video capture
+      target: A camera path can be recorded and exported without leaving the headset
+sources:
+    - title: Legetth et al. 2021 - CellexalVR
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8609247
+      summary: Data conversion, VR interaction, TF networks, fly-by video, HTML report, multi-user sessions
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

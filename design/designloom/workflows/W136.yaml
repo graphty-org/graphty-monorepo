@@ -1,0 +1,130 @@
+id: W136
+name: Maintain a SKOS Taxonomy
+category: administration
+validated: false
+personas:
+    - taxonomist
+requires_capabilities:
+    - data-import
+    - data-validation
+    - layout-hierarchical
+    - component-analysis
+    - search
+    - filtering
+    - visual-encoding-edges
+    - details-on-demand
+    - comparison-view
+    - report-generation
+    - data-export
+    - graph-diff
+    - rdf-import
+    - polyhierarchy-view
+    - rdf-export
+suggested_components:
+    - data-import-dialog
+    - data-preview-table
+    - layout-panel
+    - graph-canvas
+    - search-input
+    - filter-panel
+    - visual-encoding-panel
+    - node-details-panel
+    - comparison-view
+    - report-generator-dialog
+    - data-export-dialog
+starting_state:
+    data_type: SKOS concept scheme (Turtle or RDF/XML) or a spreadsheet of concepts, broader, related and multilingual labels
+    node_count: 500-20000
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Keep a controlled vocabulary well-formed between publications: edit its hierarchy, labels and
+    cross-links, then check it for orphans, disconnected clusters, cycles over broader, missing labels and relation
+    clashes before approving and publishing.
+
+
+    **Mental Model**: "A tree that is secretly a graph." Editors think in a tree, but concepts can have two broader
+    concepts and related links cut across branches; the quality checks are graph questions.
+
+
+    **Task Phases**:
+
+    1. **Create or import** (10-60 min) - PoolParty quick start: concept schemes, then top concepts, then concepts;
+    spreadsheet import is common (VocBench ships Sheet2RDF)
+
+    2. **Edit the hierarchy** (ongoing) - In a tree: add narrower concepts, move or merge concepts by drag and drop, add a
+    second broader concept for a polyhierarchy
+
+    3. **Add labels and links** (ongoing) - prefLabel and altLabel per language, skos:related links, mappings to other
+    schemes
+
+    4. **Run quality checks** (10 min) - qSKOS checks include orphan concepts, disconnected concept clusters (connected
+    components), cyclic hierarchical relations (cycles over skos:broader), omitted top concepts, missing labels,
+    incomplete language coverage, relation clashes (related and hierarchically linked) and hierarchical redundancy; the
+    qSKOS study found possible issues in all 15 vocabularies analyzed
+
+    5. **Approve and publish** (varies) - VocBench offers history and validation, SKOS diffing and versioning; export SKOS
+    or a spreadsheet
+
+
+    **Decision Points**:
+
+    - Does a concept deserve a second broader concept, or a related link?
+
+    - Is a disconnected cluster an omission or a separate facet?
+
+    - Which cycle edge to remove?
+
+    - Is language coverage complete enough to publish?
+
+
+    **Information Needs**:
+
+    - Hierarchy with polyhierarchical concepts drawn once and related links shown on demand
+
+    - Quality findings located on the concepts they concern
+
+    - Label coverage per language
+
+    - What changed since the last published version
+
+
+    **Pain Points**:
+
+    - A pure tree shows a concept with two parents twice and hides related links
+
+    - Cycles, disconnected clusters and redundant links are graph properties invisible in a tree editor
+
+    - Version differences arrive as lists, not as moved branches
+
+
+    **Data Flow**:
+
+    - Input: SKOS file or spreadsheet, previous published version
+
+    - Transformations: Hierarchy layout, component and cycle detection, label coverage counts, version diff
+
+    - Output: An approved, published vocabulary (SKOS file and spreadsheet) and a quality report
+success_criteria:
+    - metric: Quality check coverage
+      target: Orphans, disconnected clusters, broader cycles and missing labels are each listed and locatable on the graph
+    - metric: Polyhierarchy readability
+      target: Every concept appears once, with all of its broader concepts visible
+    - metric: Pre-publication review
+      target: Changes since the last version are visible as added, removed and moved concepts
+sources:
+    - title: PoolParty user guide - concept schemes and concepts
+      url: https://help.poolparty.biz/en/user-guide-for-knowledge-engineers/basic-features/working-with-concept-schemes-and-concepts.html
+      summary: Quick start, drag-and-drop editing, polyhierarchical structure in a thesaurus
+    - title: qSKOS quality issues
+      url: https://github-wiki-see.page/m/cmader/qSKOS/wiki/Quality-Issues
+      summary: Catalog of SKOS quality checks
+    - title: qSKOS paper
+      url: https://arxiv.org/pdf/1206.1339
+      summary: Possible issues found in all 15 vocabularies analyzed
+    - title: VocBench user manual
+      url: https://vocbench.uniroma2.it/doc/user/
+      summary: Sheet2RDF, history and validation, SKOS diffing, versioning
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

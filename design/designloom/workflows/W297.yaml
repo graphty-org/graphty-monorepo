@@ -1,0 +1,126 @@
+id: W297
+name: Bibliographic Export to Co-Authorship or Co-Occurrence Map
+category: analysis
+validated: false
+personas:
+    - bibliometric-network-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - node-merging
+    - filtering
+    - community-detection
+    - visual-encoding-nodes
+    - layout-force-directed
+    - export-image
+    - entity-resolution-review
+    - multi-value-split-and-projection
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - data-preview-table
+    - node-merge-dialog
+    - filter-panel
+    - community-panel
+    - legend-panel
+    - graph-canvas
+    - image-export-dialog
+starting_state:
+    data_type: Web of Science tab-delimited, Scopus CSV or BibTeX, RIS or OpenAlex export batches
+    node_count: hundreds to a few thousand authors or keywords after thresholds
+    edge_density: sparse with many small clusters
+    user_expertise: advanced
+goal: >-
+    **Intent**: Turn bibliographic database exports into a co-authorship, institutional collaboration or keyword
+    co-occurrence map with defensible thresholds and counting, as done in VOSviewer and bibliometrix.
+
+
+    **Mental Model**: "Papers are events; authors and keywords are the people at them." It is a two-mode network
+    projected with a counting rule and filtered by minimum activity.
+
+
+    **Task Phases** (no source gives step timings):
+
+    1. **Search and export** - Web of Science: Full Record and Cited References, tab-delimited, 500 records per file;
+    Scopus: CSV or BibTeX, up to 2,000 per export
+
+    2. **Concatenate batches** - Into one file; optionally filter by affiliation
+
+    3. **Build a thesaurus** - Tab-delimited Label and Replace by columns; sort to find variants ("Smith J", "Smith JA");
+    delete rows not replaced
+
+    4. **Configure the map** - Analysis type (co-authorship, co-occurrence of keywords, co-citation), unit (authors,
+    organizations, countries), counting method (full or fractional), ignore documents with a large number of authors (25
+    in one guide), minimum documents per author, thesaurus file
+
+    5. **First look** - Expect a very colored map with many small clusters; lower the threshold if expected authors drop
+    out
+
+
+    **Decision Points**:
+
+    - Full or fractional counting?
+
+    - Cap on authors per document, and where?
+
+    - Minimum documents per author or occurrences per keyword?
+
+    - Which variants to merge in the thesaurus?
+
+
+    **Information Needs**:
+
+    - Record count after concatenation and duplicates removed
+
+    - Authors or keywords kept versus dropped by each threshold
+
+    - Merge candidates for the thesaurus
+
+    - Cluster count and sizes, and the largest connected set
+
+
+    **Pain Points**:
+
+    - Export caps force many batches that must be concatenated by hand
+
+    - Thesaurus built by hand in Excel
+
+    - Counting method changes the map and is easy to leave unreported
+
+    - Documents with hundreds of authors create giant cliques
+
+    - General graph tools cannot read bibliographic formats
+
+
+    **Data Flow**:
+
+    - Input: Bibliographic export files
+
+    - Transformations: Concatenation, field parsing, thesaurus replacement, projection with a counting method, thresholds
+
+    - Output: Collaboration or co-occurrence network, clusters, a figure, and the settings used
+success_criteria:
+    - metric: Settings recorded
+      target: Counting method, author cap and thresholds are recorded with the map
+    - metric: Threshold effect visible
+      target: User sees how many items each threshold removes
+sources:
+    - title: Leiden University Library - VOSviewer collaboration guide
+      url: https://gorlaeus-library.github.io/VOSviewer/collab.html
+      summary: Export, concatenate, filter by affiliation, thesaurus, co-authorship map with many small clusters
+    - title: UIC research guide - VOSviewer
+      url: https://researchguides.uic.edu/bibliometrics/vosviewer
+      summary: Export steps from Web of Science and Scopus
+    - title: University of Notre Dame LibGuide - VOSviewer demo
+      url: https://libguides.library.nd.edu/vos-viewer/demo
+      summary: Ignore documents with more than 25 authors; minimum documents per author
+    - title: bibliometrix - Introduction vignette
+      url: https://bibliometrix.org/vignettes/Introduction_to_bibliometrix.html
+      summary: Scripted import of bibliographic exports and network construction in R
+    - title: Perianes-Rodriguez, Waltman and van Eck - full and fractional counting
+      url: https://arxiv.org/abs/1607.02452v4
+      summary: Counting method changes link weights and maps
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

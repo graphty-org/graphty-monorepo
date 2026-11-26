@@ -1,0 +1,14 @@
+id: watch-list-proximity
+name: Watch-List Proximity Screening
+category: analysis
+description: Load a list of entities and flag every node with a path to one within k steps over chosen edge types
+    (trade, ownership), showing the path and its evidence; rerun when the list changes.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W217
+    - W230
+implemented_by_components: []
+requirements: []
+sources: []

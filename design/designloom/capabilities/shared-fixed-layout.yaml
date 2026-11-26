@@ -1,0 +1,22 @@
+id: shared-fixed-layout
+name: Shared fixed layout across networks
+category: export
+description: Reuse one layout (computed from averaged weights or supplied coordinates) across two to N networks on the
+    same node set, shown side by side with synced view, with a common or per-panel maximum edge weight.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W372
+    - W374
+    - W375
+    - W377
+    - W379
+    - W403
+    - W405
+    - W407
+implemented_by_components: []
+requirements:
+    - Show several weighted networks over the same node set (groups, periods, human versus model coding) with identical
+      node positions, and a subtracted network colored by the larger side.
+sources: []

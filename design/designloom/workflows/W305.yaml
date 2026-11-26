@@ -1,0 +1,158 @@
+id: W305
+name: Filter and Play a Case with a Time Bar
+category: exploration
+validated: false
+personas:
+    - intelligence-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - temporal-navigation
+    - temporal-analysis
+    - filtering
+    - node-selection
+    - details-on-demand
+    - metric-histograms
+    - visual-encoding-edges
+    - legend-display
+    - export-image
+    - view-bookmarks
+    - temporal-data-model-import
+    - event-window-aggregation
+    - stable-temporal-layout
+    - periodicity-views
+    - map-time-sync
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - temporal-controls
+    - histogram
+    - range-slider
+    - graph-canvas
+    - node-details-panel
+    - filter-panel
+    - legend-panel
+    - bookmark-panel
+    - image-export-dialog
+starting_state:
+    data_type: case events (call detail records with start, duration and cell site; transactions; logons; dated ownership links)
+    node_count: 10-5000 entities
+    edge_density: sparse, with many parallel events per pair
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Narrow a case to the time that matters, play the events forward to see who contacted whom before and
+    after an incident, see when a selected entity was active, and produce an exhibit that states its window. Every
+    commercial investigation toolkit (KeyLines/KronoGraph, Neo4j Bloom Slicer, Linkurious, Palantir Vertex, Oracle
+    Network Evolution, i2 timeline charts) ships some form of this.
+
+
+    **Mental Model**: "Rewind the tape." The chart is the whole case; the time bar is the playhead and the window is
+    what the jury sees at each moment.
+
+
+    **Task Phases**:
+
+    1. **Make time visible** (minutes in a self-serve tool; days when an admin must change a schema) - Mark which
+    properties are dates, which hold start and end, the unit and time zone
+
+    2. **Load events** (5 min) - Each event carries an id, a date or a start/end period, and optional value (amount,
+    duration)
+
+    3. **Read the histogram** (1 min) - Activity over the case span, stacked by event type, to spot the incident and
+    quiet periods
+
+    4. **Select a window** (1 min) - Drag handles, shift-drag, or type dates ("between"); out-of-window items fade
+    rather than vanish so context is kept
+
+    5. **Play** (5 min) - Slide a fixed window, grow it from the start (cumulative), or run backward; adjust speed and
+    step
+
+    6. **"When was this active?"** (2 min) - Select a phone or account and see its events marked on the time bar;
+    check hour-of-day and weekday patterns (pattern of life) and, for cell sites, where it was
+
+    7. **Aggregate parallel events** (2 min) - Collapse calls or transfers per pair into count, total, first and last
+    for the window
+
+    8. **Report** (15 min) - Export the chart or a timeline chart with the window dates in the caption; record the
+    window behind each exhibit
+
+
+    **Decision Points**:
+
+    - Which property is the time of an event, and does it have an end?
+
+    - Fade or hide out-of-window items?
+
+    - Show undated entities always, never, or flagged?
+
+    - Sliding window or cumulative playback?
+
+    - Aggregate per pair (count or sum) or show every event?
+
+
+    **Information Needs**:
+
+    - Counts of missing and invalid dates for the time property
+
+    - Window bounds stated precisely (inclusive or half-open), with time zone
+
+    - Per-entity activity marks on the time bar for the selection
+
+    - Hour-of-day and weekday activity for a selected entity
+
+    - Per-pair totals and first/last dates within the window
+
+
+    **Pain Points**:
+
+    - Time must be configured in a schema (and an i2 server redeployed) before anything plots
+
+    - Start and end are not first class in some tools: items cannot be made to vanish after an expiry date
+
+    - Filter-then-relayout moves nodes and breaks the analyst's mental map
+
+    - Time zone handling differs between display and returned ranges
+
+    - Network, map and timeline are separate tools or separate charts
+
+
+    **Data Flow**:
+
+    - Input: Event table (CDRs, transactions, logons) or dated entities and links from a case store
+
+    - Transformations: Date mapping, window filter, fade, playback, selection-to-time highlighting, per-pair
+    aggregation, periodicity bins
+
+    - Output: Exhibit image or timeline chart captioned with the window, per-pair summary table, saved window bookmarks
+success_criteria:
+    - metric: Time to first filtered view
+      target: Under 10 minutes from event table to a windowed, playable chart with no admin step
+    - metric: Window transparency
+      target: Every exported exhibit states its window bounds and time zone
+    - metric: Activity lookup
+      target: Selecting an entity shows when it was active without a separate tool
+sources:
+    - title: KeyLines time bar
+      url: https://developers.cambridge-intelligence.com/docs/keylines/time-bar
+      summary: Items with dt or {dt1, dt2}, stacked histogram, play and extend play, selection lines, filter then layout
+    - title: Neo4j Bloom Slicer
+      url: https://neo4j.com/docs/bloom-user-guide/current/bloom-tutorial/slicer/
+      summary: Ranges over date or numeric properties, three play modes, up to five ranges
+    - title: Linkurious user manual 3.1 - Timeline
+      url: https://doc.linkurious.com/user-manual/3.1/timeline
+      summary: Date property in the schema, histogram filter, missing and invalid value counts
+    - title: Palantir Vertex timeline
+      url: https://palantir.com/docs/foundry/vertex/timeline/
+      summary: Shift-drag window selection, fade instead of hide, time series beside the graph
+    - title: IBM i2 - Date and time analysis with an Information Store
+      url: https://www.ibm.com/support/pages/how-can-i-do-datetime-analysis-analysts-notebook-data-information-store
+      summary: Schema edit and server redeploy before date and time can be charted
+    - title: Cambridge Intelligence - Timeline investigation tools for law enforcement
+      url: https://cambridge-intelligence.com/blog/timeline-investigation-tools-for-law-enforcement/
+      summary: CDRs, tower dumps, phone downloads; pattern of life by hour and weekday beside a map
+    - title: Neo4j community forum - make things appear and disappear in Slicer
+      url: https://community.neo4j.com/t/timeline-in-slicer-make-things-appear-and-disappear/63672
+      summary: A user could not make items vanish after an expiry date
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

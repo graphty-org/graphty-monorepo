@@ -1,0 +1,16 @@
+id: boundary-measures
+name: Attribute Boundary and Brokerage Measures
+category: analysis
+description: E-I index and density within and between attribute groups, brokerage roles (Gould-Fernandez style),
+    boundary-spanner counts, Burt's constraint, effective size and efficiency, core-periphery fit, and share of ties
+    external to a node's own attribute value.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W187
+    - W189
+    - W190
+implemented_by_components: []
+requirements: []
+sources: []

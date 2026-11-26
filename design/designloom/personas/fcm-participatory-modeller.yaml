@@ -1,0 +1,64 @@
+id: fcm-participatory-modeller
+name: FCM Participatory Modeller
+role: Environmental Management or Global Health Researcher (Fuzzy Cognitive Mapping)
+quote: I have 60 maps from fishers, managers and clinicians, each with its own words for the same thing. I need them merged per group, compared, and turned into a what-if the community can argue about.
+bio: >-
+    Dr. Lena Ortiz is an environmental management (or global health) researcher who uses fuzzy cognitive mapping to
+    capture how different stakeholder groups think a system works. In the field she runs small-group or individual
+    sessions with paper and cards: participants name 10 to 20 concepts, draw arrows, and weight each link on a 1-5
+    scale or as weak, medium or strong. Back at the office she digitizes each map as an adjacency matrix in Mental
+    Modeler or yEd, rescales weights to 0-1 or -1 to 1, reconciles dozens of different labels into standard concepts
+    with a correspondence table in a spreadsheet, merges maps by averaging per stakeholder group, runs transitive
+    closure in CIETmap and centrality in R or yEd, and finally clamps chosen concepts to run scenarios. A study can
+    hold up to 86 individual maps, with about 12 to 15 per stakeholder group needed for saturation. She is careful to
+    present scenarios as indicative, not predictive, and returns simplified maps to communities for discussion.
+characteristics:
+    expertise: expert
+    time_pressure: low
+    graph_literacy: intermediate
+    domain_knowledge: advanced
+motivations:
+    - Compare how stakeholder groups understand the same system
+    - Merge many individual maps into category-level maps without losing the disagreement between them
+    - Run what-if scenarios that start a conversation about priorities
+    - Report centrality and structure of merged maps in a peer-reviewed paper
+    - Return understandable summary maps to the communities who drew them
+behaviors:
+    - Runs groups of no more than five mappers, often split by age and gender, and individual sessions for sensitive topics
+    - Anchors the weight scale on the strongest and weakest links before participants weight the rest
+    - Stores every map as an adjacency matrix or weighted edge list with a source-map identifier
+    - Reconciles labels into standard concepts and categories with pattern correspondence tables
+    - Merges by weighted or unweighted averaging per group, or Bayesian updating of a literature map, and reports disagreement per link
+    - Computes degree, in-degree, out-degree and betweenness after transitive closure
+    - Clamps concepts between -1 and +1, iterates linear and sigmoid models to a fixed point, and trusts only factors ranked consistently under both
+frustrations:
+    - Work is split across three tools -- one to draw, one to merge and close, one for metrics
+    - Label reconciliation across dozens of maps is manual and error-prone
+    - Matrix entry by hand and no way to see an individual map next to its merged group map
+    - Drawing tools treat a signed weighted link as just a line with a label
+    - Scenario outputs that look like forecasts to readers
+context:
+    frequency: as-needed
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W199
+    - W204
+sources:
+    - title: Review of 25 fuzzy cognitive mapping practices in nine countries (Global Health Action)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11103993/
+      summary: Group sizes, 1-5 weights, matrices, label reconciliation, merging, transitive closure in CIETmap, centrality in R or yEd, up to 86 maps per study, not used predictively
+    - title: Sarmiento et al. 2024 - Four analysis moments for fuzzy cognitive mapping
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11613336/
+      summary: Analysis stages for participatory FCM; 12 to 15 maps per stakeholder group for saturation
+    - title: Gray et al. 2013 - Mental Modeler (HICSS)
+      url: https://www.mentalmodeler.com/articles/Gray%20et%20al%20Mental%20Modeler%202013.pdf
+      summary: Matrix interface with all concepts on both axes; scenarios clamping concepts between -1 and +1; designed for stakeholder-based environmental decisions
+    - title: Humber bio-based economy fuzzy cognitive map
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC3820682/
+      summary: 16 factors, weak/medium/strong weights, linear and sigmoid iteration, robust factors ranked consistently under both
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

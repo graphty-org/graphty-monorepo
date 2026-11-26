@@ -1,0 +1,50 @@
+id: tract-tracing-connectomics-researcher
+name: Tract-Tracing Connectomics Researcher
+role: Neuroanatomist or Modeler / Mesoscale Animal Connectomes
+quote: A blank cell in my matrix means nobody injected that area, not that there is no connection. Treat it as zero and every density you compute is wrong.
+bio: >-
+    Dr. Hana Sato works with tracer-injection connectomes of mouse and macaque cortex. In these datasets a region
+    becomes a row of the matrix only if a tracer was injected there, so the matrix is partially observed: the
+    Markov et al. macaque dataset injected 29 of 91 cortical areas, giving a 29 x 91 directed matrix weighted by the
+    fraction of labeled neurons, with 1,615 pathways and many one-way links; the Allen Mouse Brain Connectivity Atlas
+    used viral tracer injections in 469 mice across 295 regions. She computes density, reciprocity, modules and hubs,
+    but only on the fully observed block (29 x 29 in Markov), and draws directed region graphs and region maps for
+    papers. She scripts in Python or MATLAB and is an anatomist first.
+characteristics:
+    expertise: intermediate
+    time_pressure: low
+    graph_literacy: advanced
+    domain_knowledge: advanced
+motivations:
+    - Describe directed, weighted cortical connectivity without mistaking "not measured" for "absent"
+    - Compare connection strengths and reciprocity among injected areas
+    - Find modules and hubs in the observed subgraph
+    - Show region-level results on the cortex of the species studied
+behaviors:
+    - Loads a rectangular injected-by-target matrix and the list of injected areas
+    - Restricts statistics to the fully observed square block
+    - Uses log-scaled weights because fractions of labeled neurons span orders of magnitude
+    - Draws directed edges and asymmetric pairs distinctly
+frustrations:
+    - Graph tools assume square matrices and treat a missing value as zero
+    - Density and reciprocity computed over the whole matrix are silently wrong
+    - Brain figure tools ship human templates only
+context:
+    frequency: as-needed
+    devices:
+        - desktop
+    voluntary: true
+workflows:
+    - W153
+    - W155
+    - W159
+sources:
+    - title: Markov et al., A weighted and directed interareal connectivity matrix for macaque cerebral cortex
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC3862262
+      summary: Retrograde tracer in 29 of 91 areas, 29 x 91 matrix weighted by fraction of labeled neurons, 1,615 pathways, many nonreciprocal links
+    - title: Oh et al. 2014, A mesoscale connectome of the mouse brain
+      url: https://dx.doi.org/10.1038/nature13186
+      summary: Viral tracer injections in 469 mice spanning 295 regions
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

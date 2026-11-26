@@ -1,0 +1,129 @@
+id: W395
+name: Gene-Tree Sets, Conflict and Tree Comparison
+category: analysis
+validated: false
+personas:
+    - phylogenomics-comparative-biologist
+    - molecular-systematist-taxonomist
+requires_capabilities:
+    - data-import
+    - layout-hierarchical
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - comparison-view
+    - legend-display
+    - details-on-demand
+    - export-image
+    - tree-import-and-axes
+    - node-glyph-charts
+    - phylogenetic-tree-layout
+    - tree-editing-operations
+    - tree-set-overlay
+    - tanglegram-comparison
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - graph-canvas
+    - comparison-view
+    - node-chart-overlay
+    - legend-panel
+    - node-details-panel
+    - image-export-dialog
+starting_state:
+    data_type: a reference species tree plus 300-5,000 gene trees on the same taxa (Newick), or two trees to compare; IQ-TREE concord.cf.tree and concord.cf.stat
+    node_count: 50-500 taxa per tree
+    edge_density: tree; split networks are reticulated
+    user_expertise: expert
+goal: >-
+    **Intent**: Show, branch by branch, how many gene trees support the species tree and how many conflict; compare two
+    trees directly; and summarize disagreement as a network when a tree hides it.
+
+
+    **Mental Model**: "Every branch is a vote." Concordance factors and conflict pies count the voters; tanglegrams and
+    distances compare two candidates.
+
+
+    **Task Phases**:
+
+    1. **Concordance factors** (hours of compute) - Concatenated tree, single-locus trees, then gCF and sCF in IQ-TREE
+    against the concatenated reference; read "bootstrap / gCF / sCF" per branch and plot gCF against sCF from the stat
+    table
+
+    2. **Conflict pies** (30 min) - PhyParts over all gene trees; per-branch pies of concordant (blue), top alternative
+    (green), other conflict (red) and uninformative (grey), counts above and below
+
+    3. **Overlay** (15 min) - DensiTree overlays hundreds of gene or bootstrap trees; consensus summarizes them
+
+    4. **Tanglegram** (20 min) - Two trees in Dendroscope with crossing minimization and unequal taxon sets, or
+    phytools cophylo; eMPRess for host-parasite reconciliation
+
+    5. **Distances** (10 min) - TreeDist generalized Robinson-Foulds; MapTrees for tree space
+
+    6. **Split network** (15 min) - SplitsTree: alignment to p-distances to Neighbor-Net; the saved provenance graph
+    reapplies to new data
+
+
+    **Decision Points**:
+
+    - Concordance factors, conflict pies, or both?
+
+    - Which pairs of trees deserve a tanglegram?
+
+    - Is the conflict incomplete lineage sorting or hybridization (leading to a network analysis)?
+
+
+    **Information Needs**:
+
+    - Per-branch counts of concordant and conflicting gene trees
+
+    - Which alternative topology is most common for a conflicted branch
+
+    - Distance between two trees and which clades differ
+
+    - Crossing-minimized links between matching tips
+
+
+    **Pain Points**:
+
+    - PhyParts needs Maven, Java and git
+
+    - Tanglegrams scale poorly to large trees
+
+    - Each view lives in a different program (IQ-TREE, PhyParts, DensiTree, Dendroscope, SplitsTree, R)
+
+
+    **Data Flow**:
+
+    - Input: Species tree, gene-tree set, alignment
+
+    - Transformations: Bipartition matching, concordance counts, consensus, crossing minimization, tree distances,
+    split network inference
+
+    - Output: Annotated species tree with pies or concordance labels, tanglegram, distance table, split network figure
+success_criteria:
+    - metric: Per-branch conflict
+      target: Each branch of the species tree shows concordant, conflicting and uninformative counts
+    - metric: Tanglegram readability
+      target: Two trees of 200 tips are aligned with minimized crossings
+sources:
+    - title: Lanfear - concordance factors
+      url: http://www.robertlanfear.com/blog/files/concordance_factors.html
+      summary: gCF and sCF procedure and outputs
+    - title: Assessment of phylogenetic conflict (course slides 2025)
+      url: https://botany.natur.cuni.cz/fer/hybseqcourse/presentations2025/Assessment_of_phylogenetic_conflict.pdf
+      summary: PhyParts pie colors
+    - title: Dendroscope 3
+      url: https://uni-tuebingen.de/en/46161
+      summary: Large trees, tanglegrams, networks
+    - title: TreeDist vignette
+      url: https://cran.r-project.org/web/packages/TreeDist/vignettes/Using-TreeDist.html
+      summary: Generalized Robinson-Foulds and tree space
+    - title: SplitsTree App wiki
+      url: https://github.com/husonlab/splitstree6/wiki
+      summary: Neighbor-Net default pipeline and saved provenance graph
+    - title: Phylo.io
+      url: https://arxiv.org/pdf/1602.04258
+      summary: Tanglegrams scale poorly to large trees
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

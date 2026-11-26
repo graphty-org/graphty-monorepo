@@ -1,0 +1,174 @@
+id: W231
+name: Student Lab - Supplied Dataset to a Sized, Colored, Exported Figure
+category: analysis
+validated: false
+personas:
+    - class-project-student
+    - network-analysis-instructor
+requires_capabilities:
+    - sample-datasets
+    - data-import
+    - data-validation
+    - data-preview
+    - layout-force-directed
+    - basic-statistics
+    - centrality-degree
+    - centrality-betweenness
+    - centrality-pagerank
+    - community-detection
+    - visual-encoding-nodes
+    - legend-display
+    - filtering
+    - component-analysis
+    - export-image
+    - data-export
+    - undo-redo
+    - metric-explanations
+suggested_components:
+    - sample-data-dialog
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - layout-panel
+    - algorithm-panel
+    - statistics-panel
+    - visual-encoding-panel
+    - legend-panel
+    - filter-panel
+    - data-table-panel
+    - image-export-dialog
+    - data-export-dialog
+    - graph-canvas
+starting_state:
+    data_type: supplied node and edge CSVs or a GEXF file (Les Miserables, Quakers, a class network)
+    node_count: 30-1000
+    edge_density: sparse
+    user_expertise: novice
+goal: >-
+    **Intent**: Complete a one-session course lab: load the instructor's dataset, find the central people and the groups,
+    and hand in a sized, colored, labeled figure plus a top-five table. This is the lab that Rutgers, UGA, Aarhus,
+    Warwick, UF and Grinnell run in Gephi desktop, and the first graph-tool experience for most social-science and
+    humanities students.
+
+
+    **Mental Model**: "Follow the handout." Each menu path on the slide produces one visible change; the figure on the
+    final slide is the target. Statistics are buttons that create columns to size and color by.
+
+
+    **Task Phases**:
+
+    1. **Install** (before class; 10-60 minutes when it fails) - Gephi desktop with the right OS build; older releases
+    needed Java 8
+
+    2. **Open the data** (2 min) - A GEXF with its import report, or nodes CSV then edges CSV in the Data Laboratory,
+    choosing directed, undirected or mixed; uncheck "create missing nodes"
+
+    3. **Check the counts** (1 min, often skipped) - Compare node and edge counts with the file ("If you see 119 nodes
+    and 174 edges, then you've got all the necessary data")
+
+    4. **Run a layout** (2-10 min) - ForceAtlas2 with scaling 5 to 50 and prevent overlap; stop by eye when it no longer
+    moves
+
+    5. **Compute statistics** (2 min) - Average degree, modularity, diameter (which also gives betweenness), PageRank;
+    each writes a column
+
+    6. **Map size and color** (5 min) - Size ranked by degree (10-100); color partitioned by modularity class
+
+    7. **Filter** (optional) - Giant component and degree range
+
+    8. **Labels** (2-10 min) - Show labels, size labels by node, Label Adjust
+
+    9. **Preview and export** (5-15 min) - SVG or PDF; PNG at default resolution is too blurry
+
+    10. **Export the node table** - Top-five lists by each measure for the report
+
+    11. **Annotate and write** (30-120 min) - In Google Slides, Word or Inkscape
+
+
+    **Decision Points**:
+
+    - Directed, undirected or mixed graph type (usually dictated by the handout)
+
+    - Which centrality answers "most important"
+
+    - When to stop the layout
+
+    - Which modularity resolution, and whether to accept a result that differs from a classmate's
+
+    - PNG or vector export
+
+
+    **Information Needs**:
+
+    - Node and edge counts compared with the source file
+
+    - A plain-language note on what each measure means and how it was computed
+
+    - Legend for size and color with column names
+
+    - Colors for every community, not just the eight largest
+
+    - A preview that matches the exported figure
+
+
+    **Pain Points**:
+
+    - Installation and Java problems eat the lab
+
+    - No undo; a wrong click means starting over
+
+    - Measures are not explained in the tool
+
+    - Only the top eight modularity classes are colored by default
+
+    - Communities and layouts differ between runs and between classmates
+
+    - Preview differs from the overview; PNG export is low resolution
+
+
+    **Data Flow**:
+
+    - Input: Instructor-supplied GEXF or node and edge CSVs
+
+    - Transformations: Import, force layout, degree, betweenness, PageRank and modularity columns, size and color
+    mappings, giant-component filter
+
+    - Output: SVG, PDF or high-resolution PNG figure with legend; node table with computed columns; written report
+success_criteria:
+    - metric: Time from opening the dataset to an exported figure
+      target: Under 30 minutes with no install step
+    - metric: Import check
+      target: Student can state that node and edge counts match the source file
+    - metric: Interpretation
+      target: Student can explain in one sentence what the size measure means for a named node
+    - metric: Reproducibility
+      target: Reopening the saved work shows the same layout and community colors
+sources:
+    - title: Grandjean - Gephi introduction
+      url: https://martingrandjean.ch/gephi-introduction/
+      summary: Uncheck create missing nodes, ForceAtlas2 scaling 50 with prevent overlap, size 10-100 by degree, PNG resolution warning
+    - title: Frank Takes Gephi tutorial
+      url: https://github.com/franktakes/gephi-tutorial
+      summary: ForceAtlas2 scaling 5, giant-component filter caveat, preview differs from overview, export SVG or PDF and node table
+    - title: Warwick IM904 week 4
+      url: https://warwick.ac.uk/fac/cross_fac/cim/people/academic-technology/im904/week4
+      summary: Mixed graph type, modularity class coloring, giant component and degree range filters
+    - title: Gephi FAQ
+      url: http://gephi.org/faq/
+      summary: No undo, degree shown only after the statistic runs, top eight modularity classes colored
+    - title: Gephi desktop download page
+      url: https://gephi.org/desktop/
+      summary: Separate Apple Silicon and Intel builds; desktop app described as beta; parallel edges not visualized
+    - title: Arch Linux bug 68457
+      url: https://bugs.archlinux.org/task/68457
+      summary: Gephi did not work with JDK newer than 8
+    - title: Programming Historian - Exploring and Analyzing Network Data with Python
+      url: https://programminghistorian.org/en/lessons/exploring-and-analyzing-network-data-with-python
+      summary: Count check of 119 nodes and 174 edges
+    - title: Mapping Controversies 1.8
+      url: https://jacomyma.github.io/mapping-controversies/1.8
+      summary: Stop the layout by eye; clusters differ between runs; annotate in Google Slides
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

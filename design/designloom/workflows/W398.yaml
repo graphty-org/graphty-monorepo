@@ -1,0 +1,110 @@
+id: W398
+name: Admixture Graph in ADMIXTOOLS 2
+category: analysis
+validated: false
+personas:
+    - population-genomics-snp-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - layout-hierarchical
+    - visual-encoding-edges
+    - visual-encoding-nodes
+    - comparison-view
+    - details-on-demand
+    - export-image
+    - geographic-layout
+    - time-fixed-dag-layout
+suggested_components:
+    - data-import-dialog
+    - graph-canvas
+    - comparison-view
+    - node-details-panel
+    - legend-panel
+    - image-export-dialog
+starting_state:
+    data_type: genotype files reduced to f2 statistics blocks; candidate topologies as from-to edge lists
+    node_count: tens of nodes (populations plus internal and admixture nodes)
+    edge_density: directed acyclic graph with a handful of admixture events
+    user_expertise: expert
+goal: >-
+    **Intent**: Fit and search admixture graphs -- directed acyclic graphs of population splits and mixtures -- to
+    f-statistics, and compare the graphs that fit well to find features they share.
+
+
+    **Mental Model**: "A family tree of populations where some children have two parents." Edge lengths are genetic
+    drift; admixture edges carry mixing proportions.
+
+
+    **Task Phases**:
+
+    1. **f2 statistics** (hours) - extract_f2() from genotype files to disk; reload with f2_from_precomp()
+
+    2. **Define a topology** (15 min) - Two-column from-to edge list; edges_to_igraph(); is_valid() checks directed,
+    acyclic, at most two parents; plotly_graph() draws it; unidentifiable_edges() and highlight_unidentifiable mark
+    parameters the data cannot determine
+
+    3. **Fit** (minutes) - qpgraph(f2_blocks, graph) fits drift lengths and admixture weights from 10 random starts;
+    read res$edges and res$score
+
+    4. **Search** (hours) - find_graphs(f2_blocks, numadmix = 3, outpop = ..., stop_gen = 100), run many times because
+    it gets stuck in local optima; graph_plusone() and similar for semi-manual search
+
+    5. **Draw** (10 min) - plot_graph(res$edges) or plotly_graph() with drift lengths and admixture percentages on
+    edges; plot_graph_map() on a map
+
+    6. **Compare** (1 hour) - Out-of-sample score_test; bootstrap qpgraph_resample_multi() plus compare_fits(); look
+    for features shared across good graphs
+
+
+    **Decision Points**:
+
+    - How many admixture events to allow?
+
+    - Which outgroup?
+
+    - When are two graphs' scores meaningfully different?
+
+
+    **Information Needs**:
+
+    - Drift length and admixture proportion on every edge
+
+    - Which parameters are unidentifiable
+
+    - Fit score and worst-fitting f-statistic
+
+    - Shared and differing edges across several well-fitting graphs
+
+
+    **Pain Points**:
+
+    - Many very different graphs fit equally well
+
+    - Searches get stuck in local optima and must be repeated
+
+    - Drawing several candidate graphs side by side for comparison is manual
+
+
+    **Data Flow**:
+
+    - Input: Genotypes (PLINK or EIGENSTRAT), f2 block directories, edge-list topologies
+
+    - Transformations: f-statistic computation, graph validation, fitting, topology search, bootstrap comparison
+
+    - Output: Directed graph figures with drift and admixture labels, fit tables, map overlay
+success_criteria:
+    - metric: Time-ordered layout
+      target: Root at top, populations at bottom, no edge drawn upward
+    - metric: Candidate comparison
+      target: Two or more fitted graphs shown side by side with shared edges marked
+sources:
+    - title: ADMIXTOOLS 2 graphs vignette
+      url: https://uqrmaie1.github.io/admixtools/articles/graphs.html
+      summary: extract_f2, qpgraph, find_graphs, plotting, local optima, score_test, compare_fits, "a low score doesn't mean ... a good model of reality"
+    - title: ADMIXTOOLS 2 function reference
+      url: https://uqrmaie1.github.io/admixtools/reference/index.html
+      summary: edges_to_igraph, is_valid, unidentifiable_edges, plot_graph, plotly_graph, plot_graph_map, graph_plusone
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,81 @@
+id: systems-change-strategist
+name: Systems Change Strategist
+role: Foundation Program Officer / Strategy, Learning and Evaluation Officer
+quote: I don't want another logic model. I want to see whether our grants actually touch the loops that keep this system stuck.
+bio: >-
+    Maya Okafor is a senior program officer, later a strategy, learning and evaluation officer, at a mid-size
+    foundation that has taken a "systems" approach to a field such as democracy, local news or food systems. She works
+    with a developmental evaluator and a consultant who knows Kumu. Her map is built by hand over weeks of facilitated
+    sessions: 30 to 80 factors that can go up or down, joined by signed arrows and knitted into 15 to 30 named
+    reinforcing and balancing feedback loops, each with a narrative and citations. On top of it she lays a second
+    layer: the foundation's grants and grantees attached to the factors they address, so the board can ask whether the
+    portfolio matches the dynamics that drive the problem. She presents the map loop by loop to the board and partners,
+    publishes a draft for public comment, and refreshes it about every six months. She knows feedback-loop vocabulary
+    well but not network metrics, and she cannot write code. Her grantees still send her theories of change, which is
+    the format she deliberately departed from.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Make the team's shared mental model of a system visible and arguable
+    - Pressure-test the grant portfolio against the conditions and dynamics that drive the problem
+    - Find leverage points worth funding, including whole loops rather than single factors
+    - Generate learning questions for the evaluator and the board
+    - Publish the map for comment so the field can correct it
+    - Keep the map a living document instead of a one-time poster
+behaviors:
+    - Starts on sticky notes -- enablers and inhibitors one per note, clustered into 6 to 8 themes, chained into loops
+    - Marks each arrow as same direction or opposite direction and names loops "R" or "B" with a label (for example "R15 Trust in Government")
+    - Digitizes in a systems template with elements pinned by hand, because automatic layouts scramble a loop structure she arranged deliberately
+    - Writes a definition on every factor, a reason on every connection and a narrative with citations on every loop
+    - Overlays grants and grantees onto the factors they address and filters by program area
+    - Marks leverage qualitatively on a printout ("frozen", "energy for change", "bright spots", "ripple effects")
+    - Presents the map as a sequence of saved views revealed loop by loop rather than as one hairball link
+    - Revises roughly every six months and wants the rationale for each change recorded
+frustrations:
+    - Building a map "is not a one-day endeavor" and the team risks over-emphasizing getting it right
+    - Choosing the right level of zoom for different audiences
+    - Systems maps are "notoriously difficult to navigate" for readers who did not build them
+    - Fear that the map becomes a static communications artifact once the consultant leaves
+    - Collaboration where colleagues have to refresh to see each other's edits
+    - Automatic loop detection that fails or explodes on dense maps
+    - Exports to a spreadsheet that drop the loops and narratives
+context:
+    frequency: as-needed
+    devices:
+        - laptop
+        - desktop
+        - projector
+    voluntary: true
+workflows:
+    - W196
+    - W197
+    - W202
+    - W205
+sources:
+    - title: Hewlett Foundation - Madison Initiative systems map launch
+      url: https://hewlett.org/?p=66747
+      summary: Chose a systems map instead of a logic model or theory of change; integrated grants overlay; narrative walk-through; maps are notoriously difficult to navigate
+    - title: Hewlett Foundation - How we use the map and lessons learned
+      url: https://hewlett.org/?p=66760
+      summary: Revise about every six months; not a one-day endeavor; risks of getting it right, right level of zoom, and a static communications artifact
+    - title: Kumu story - Hewlett Foundation, making Congress work again
+      url: https://kumu.io/stories/hewlett-foundation-making-congress-work-again
+      summary: Map used to test whether grants correspond with the conditions and dynamics driving Congressional dysfunction
+    - title: Omidyar Group - Systems Practice workbook
+      url: https://github.com/kumu/docs/raw/main/content/Workbook-012617.pdf
+      summary: Team sizes, 2-4 weeks to 9-11 weeks of effort, 15-30 loops per map, leverage categories, socialization questions
+    - title: Media Impact Funders - Democracy Fund local news systems map
+      url: https://mediaimpactfunders.org/mapping-to-learn-applying-a-systems-lens-to-local-journalism
+      summary: Map went from roughly 43 feedback loops to 17 over a year of use; maps treated as living documents
+    - title: Walton Family Foundation - Strategy, Learning and Evaluation Officer posting
+      url: https://www.waltonfamilyfoundation.org/strategy-learning-evaluation-officer-home-region
+      summary: Foundation job posting preferring experience with place-based or systems-oriented work
+    - title: G2 - Kumu reviews
+      url: https://www.g2.com/products/kumu/reviews
+      summary: Reviewer reports having to refresh constantly to see collaborators' edits (2021)
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

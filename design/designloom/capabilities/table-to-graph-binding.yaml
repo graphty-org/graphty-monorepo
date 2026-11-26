@@ -1,0 +1,14 @@
+id: table-to-graph-binding
+name: Edge-List Table Binding
+category: analysis
+description: Build a graph from a table with source, target and optional weight columns, de-duplicating node ids and
+    aggregating weights, for BI, CSV and notebook hosts.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W279
+    - W290
+implemented_by_components: []
+requirements: []
+sources: []

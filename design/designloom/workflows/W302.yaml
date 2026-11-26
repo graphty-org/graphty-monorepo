@@ -1,0 +1,119 @@
+id: W302
+name: Time and Location Columns at Import
+category: onboarding
+validated: false
+personas:
+    - event-log-network-builder
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - temporal-analysis
+    - temporal-navigation
+    - computed-attributes
+    - time-location-parsing
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - temporal-controls
+    - data-table-panel
+    - status-bar
+starting_state:
+    data_type: Node or edge table with date, start and end, or timestamp columns, and latitude and longitude, cell-site, address or place-name columns
+    node_count: hundreds to tens of thousands
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Make time and place columns usable at import: choose timestamps or intervals, parse the formats and time
+    zones, join or geocode place columns, and count the rows that failed so they do not silently drop out of the
+    timeline or the map.
+
+
+    **Mental Model**: "When and where, or it did not happen." A row without a parsed time is invisible on the timeline;
+    a row without a place is invisible on the map.
+
+
+    **Task Phases - time** (no source gives step timings):
+
+    1. **Choose timestamps or intervals** - Gephi supports both, but they cannot be mixed within the same graph
+
+    2. **Parse the format** - yyyy-mm-dd and ISO 8601 with optional time zone; interval cells use a bracket syntax with
+    Infinity for an open end
+
+    3. **Or merge columns** - Build an interval from start and end columns
+
+    4. **Check it took effect** - An imported interval column was once ignored by Gephi's timeline (fixed in 0.7);
+    unparsed dates become nulls and silently drop from the timeline
+
+
+    **Task Phases - location**:
+
+    1. **Find the place column** - Latitude and longitude, a cell-site id, an address or a place name
+
+    2. **Join or geocode** - Call records join the carrier's cell-site list on cell id and sector; i2's map takes
+    coordinates only; place names need a gazetteer
+
+    3. **Count what did not place** - Before drawing a map
+
+
+    **Decision Points**:
+
+    - Event timestamps or validity intervals?
+
+    - Which time zone, and how to treat dates with no time?
+
+    - Join to a reference list, geocode, or leave unplaced?
+
+
+    **Information Needs**:
+
+    - Detected format per time column with a sample of parsed values
+
+    - Count and list of rows whose time or place failed to parse or match
+
+    - Time range and place coverage after import
+
+
+    **Pain Points**:
+
+    - Unparsed dates silently become nulls and drop out of the timeline
+
+    - Ambiguous formats (day-month versus month-day) and missing time zones
+
+    - Cell-site joins and geocoding happen outside the graph tool
+
+    - Mapping tools that accept only coordinates
+
+
+    **Data Flow**:
+
+    - Input: Tables with time and place columns, cell-site reference lists
+
+    - Transformations: Format detection and parsing, interval building, cell-site join or geocoding
+
+    - Output: Graph with parsed time and place attributes and a report of failed rows
+success_criteria:
+    - metric: Parse failures visible
+      target: User sees how many rows failed to parse or place, and which ones
+    - metric: Time model explicit
+      target: Timestamp versus interval and time zone are visible choices at import
+sources:
+    - title: Gephi User Manual - Import Dynamic Data
+      url: http://docs.gephi.org/desktop/User_Manual/Import_Dynamic_Data/
+      summary: Timestamps or intervals, which cannot be mixed in one graph; accepted date formats
+    - title: Gephi wiki - How to import a dynamic network
+      url: https://github.com/gephi/gephi/wiki/How-to-import-dynamic-network
+      summary: Merge Columns to create a time interval from start and end
+    - title: Gephi Launchpad bug 659017
+      url: https://bugs.launchpad.net/bugs/659017
+      summary: Imported interval column ignored by the timeline, fixed in 0.7
+    - title: Gephi Launchpad question 198168
+      url: https://answers.launchpad.net/gephi/+question/198168
+      summary: Interval bracket syntax with Infinity for an open end
+    - title: Gephi User Manual - CSV format
+      url: http://docs.gephi.org/desktop/User_Manual/Import/CSV_Format/
+      summary: Cells that cannot be parsed become null
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

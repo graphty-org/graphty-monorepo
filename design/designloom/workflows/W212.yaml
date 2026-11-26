@@ -1,0 +1,161 @@
+id: W212
+name: Follow-Network Community Map (Attentive Clustering)
+category: analysis
+validated: false
+personas:
+    - communication-network-scholar
+    - marketing-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - filtering
+    - degree-analysis
+    - computed-attributes
+    - community-detection
+    - community-profiling
+    - layout-force-directed
+    - large-graph-rendering
+    - visual-encoding-nodes
+    - legend-display
+    - details-on-demand
+    - search
+    - statistics-panel
+    - annotation
+    - export-image
+    - data-export
+    - bipartite-projection
+    - cluster-labeling
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - filter-panel
+    - range-slider
+    - histogram
+    - algorithm-panel
+    - community-panel
+    - cluster-table
+    - cluster-collapse-control
+    - layout-panel
+    - visual-encoding-panel
+    - legend-panel
+    - graph-canvas
+    - node-details-panel
+    - search-panel
+    - annotation-toolbar
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: follow edge list (follower, followed) collected from seed accounts, plus an account table (bio, followers, platform)
+    node_count: 10000-15000 after the core cut (hundreds of thousands collected)
+    edge_density: dense
+    user_expertise: advanced
+goal: >-
+    **Intent**: Map a population (a political sphere, a patient community, the audience around a topic) into
+    communities defined by what they pay attention to, using who follows whom. This is the method of Graphika, the
+    best-known commercial disinformation mapper, also used in health communication research, and close to what
+    marketing segmentation tools do.
+
+
+    **Mental Model**: "You are who you follow." A follow is standing attention, not an act; accounts that follow the same
+    sources belong together. The map shows where amplifiers sit and which communities a suspect network borders.
+
+
+    **Task Phases**:
+
+    1. **Seed the population** (30 min) - A short seed list (12 accounts for a pain map, 22 for oncology, about 13,500
+    well-connected accounts for a Congress map), keyword authors, or Bluesky starter pack members
+
+    2. **Collect followers and followings** (hours to days) - For each seed collect its followers and the accounts they
+    follow; Bluesky follows are open, X sells follower reads at $0.010 per account, so budget sets depth
+
+    3. **Cut to the well-connected core** (10 min) - Keep accounts well connected inside the collected set by an in-set
+    degree minimum or k-core; no published minimum was found
+
+    4. **Build the two-mode profile** (10 min) - Account x followed-account (or x cited source) matrix
+
+    5. **Cluster in two levels** (10 min) - Fine clusters by shared-following similarity (hierarchical agglomerative),
+    then grouped into segments (12,086 accounts into 47 clusters and 8 groups; 12,617 into 48 and 7); Louvain or Leiden
+    on the in-set follow graph is a practical substitute
+
+    6. **Lay out and encode** (15 min) - Force layout with a node near the accounts it follows; size by follow
+    relationships inside the map (or by follower count); color by cluster; dense graphs (about 60 follows per account
+    on Bluesky) need node-only views or edge sampling
+
+    7. **Label clusters** (hours) - Read each cluster's bios, cited sources, mentioned users and most-followed accounts
+    inside the map; check labels by hand
+
+    8. **Interpret and report** (hours) - Shared followers between groups, where amplifiers sit, which clusters a suspect
+    network borders
+
+
+    **Decision Points**:
+
+    - Which seeds define the population, and how deep to collect within budget?
+
+    - What in-set degree or k-core cutoff defines the core?
+
+    - Shared-following similarity clustering, or modularity on the follow graph?
+
+    - How many fine clusters and how many top-level groups?
+
+    - Which cluster labels survive manual review?
+
+
+    **Information Needs**:
+
+    - Account counts before and after the core cut
+
+    - Per-cluster most-followed accounts inside the map and frequent bio terms
+
+    - Cluster-to-group hierarchy
+
+    - Shared followers between any two groups
+
+    - Where a supplied list of suspect accounts sits
+
+
+    **Pain Points**:
+
+    - Follow graphs are dense and render as solid color without edge reduction
+
+    - Collection cost scales with followers per seed
+
+    - Shared-following clustering requires code
+
+    - Labeling hundreds of accounts per cluster by hand
+
+
+    **Data Flow**:
+
+    - Input: Follow edge list (CSV, NDJSON from Bluesky or the X API) and account table
+
+    - Transformations: In-set degree or k-core cut, two-mode profile, similarity or modularity clustering at two levels,
+    per-cluster summaries
+
+    - Output: Community map with labeled clusters and groups, cluster summary table, list overlay
+success_criteria:
+    - metric: Dense rendering
+      target: A 12,000-account follow map with about 60 edges per node stays legible and interactive
+    - metric: Label evidence
+      target: Each cluster shows its most-followed in-map accounts and top bio terms
+    - metric: Two-level structure
+      target: User can switch between fine clusters and grouped segments
+sources:
+    - title: Graphika maps of pain and oncology Twitter communities
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6932781/
+      summary: Seed counts, follower mining, well-connected core, bipartite similarity with hierarchical clustering, 47 and 48 clusters, labeling by reviewers
+    - title: US patent 8,635,281 - attentive clustering
+      url: https://patents.google.com/patent/US8635281
+      summary: Clusters sources that share a similar linking history
+    - title: TechCrunch - Graphika map of Congress followers (2018)
+      url: https://techcrunch.com/?p=1698763
+      summary: About 13,500 well-connected accounts, nodes sized by follower count, no shared followers between extreme groups
+    - title: Bluesky starter packs and follow graph dataset
+      url: https://arxiv.org/html/2505.11608v2
+      summary: 39.7 million accounts and 2.4 billion follow edges, starter packs as seeds
+    - title: X API pricing
+      url: https://docs.x.com/x-api/getting-started/pricing
+      summary: Follower and following reads at $0.010 per account returned
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

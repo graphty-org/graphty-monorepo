@@ -1,0 +1,15 @@
+id: algorithm-step-through
+name: Algorithm Step-Through Playback
+category: analysis
+description: Run traversal, shortest-path, spanning-tree and flow algorithms one step at a time with previous, next,
+    play and speed, showing visited order, queue contents, distance and parent table, a stated settable tie-break rule,
+    the ordered list of chosen edges, and export of each step's state.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W232
+    - W239
+implemented_by_components: []
+requirements: []
+sources: []

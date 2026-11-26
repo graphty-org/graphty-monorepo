@@ -1,0 +1,13 @@
+id: multi-view-figure-export
+name: Multi-View 3D Figure Export
+category: export
+description: Render a 3D scene with fixed (anatomical or geographic) positions from several named cameras into one
+    figure with a shared color bar, export a turntable video, and flatten to 2D in one step.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W322
+implemented_by_components: []
+requirements: []
+sources: []

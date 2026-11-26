@@ -1,0 +1,13 @@
+id: consensus-partition
+name: Consensus Partition
+category: analysis
+description: Co-assignment matrix over many runs, permutation-null subtraction, reclustering, and per-node uncertainty
+    shown visually.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W38
+implemented_by_components: []
+requirements: []
+sources: []

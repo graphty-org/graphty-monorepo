@@ -9,6 +9,13 @@ implements_capabilities:
     - visual-encoding-edges
 used_in_workflows:
     - W15
+    - W145
+    - W31
+    - W327
+    - W330
+    - W35
+    - W383
+    - W43
 dependencies:
     - color-swatch
     - text-input

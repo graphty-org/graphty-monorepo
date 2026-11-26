@@ -1,0 +1,13 @@
+id: time-location-parsing
+name: Time and Location Column Parsing
+category: data
+description: Parse timestamp or interval columns with format and time-zone detection, build intervals from start and end
+    columns, join or geocode place columns, and count and list rows that failed to parse or place.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W302
+implemented_by_components: []
+requirements: []
+sources: []

@@ -1,0 +1,151 @@
+id: W100
+name: Cell-Site, Timing-Advance and Radio-Survey Analysis
+category: analysis
+validated: false
+personas:
+    - crime-intelligence-analyst
+    - prosecution-trial-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - temporal-navigation
+    - filtering
+    - node-selection
+    - details-on-demand
+    - legend-display
+    - annotation
+    - export-image
+    - saved-import-mappings
+    - linked-timeline-view
+    - geospatial-location-events
+    - common-neighbor-finder
+    - co-location-network-builder
+    - identifier-normalization
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - temporal-controls
+    - graph-canvas
+    - filter-panel
+    - node-details-panel
+    - legend-panel
+    - annotation-toolbar
+    - image-export-dialog
+starting_state:
+    data_type: historical cell-site records in CDRs, timing-advance or distance reports, area-search returns, cell-site lists with azimuth and beamwidth, optional radio survey results
+    node_count: 1-50 phones, hundreds to 150,000 location records
+    edge_density: varies
+    user_expertise: expert
+goal: >-
+    **Intent**: Place a phone near a scene (or show it could not have been there) at the times that matter, and join
+    those locations back to the call chart and the timeline. This is very high stakes and often contested; only a
+    qualified expert testifies to it.
+
+
+    **Mental Model**: "Each call is a shape on the map, not a dot." Three record types mean different things: a CDR's
+    cell and sector draws as a wedge; a timing-advance record draws as an arc band between an inner and outer distance;
+    an area search is the carrier's own estimate. Each shape belongs to one phone at one time and carries its source
+    record and whether it was verified.
+
+
+    **Task Phases**:
+
+    1. **Request** (days, outside the tool) - Probable-cause warrant, carrier key, a cell-site list "representative of
+    the time period(s)", timing-advance reports (True Call, RTT, NELOS); at least 60 days for pattern analysis
+
+    2. **Normalize** (30-60 min) - Time zones (as in W97) and distance units; a band's inner edge is band number times
+    step (LTE 78.07 m, GSM about 550 m), the outer edge one step farther
+
+    3. **Plot** (30 min) - CDR events as sector wedges (without underestimating coverage); timing-advance events as an
+    arc across the sector angle; intersect overlapping arcs close in time
+
+    4. **Tower and area dumps** (1-4 h) - Intersect numbers seen at several scene towers in each offense window (in the
+    Scarecrow case two hours before to one hour after); survivors go to the call chart (W98)
+
+    5. **Validate coverage** (field days, when needed) - Radio survey (drive test) with several devices, idle and call
+    modes, approaches from many directions; a single-device five-minute static survey is "deeply flawed"
+
+    6. **Join back** (15 min) - Each event is a link on the association chart, a frame on the phone's theme line and a
+    wedge or arc on the map, selectable in all three
+
+    7. **Report** (hours) - Drafts marked "not fully verified"; court maps verified by a second method, with legends,
+    distance scales and true aspect ratio
+
+
+    **Decision Points**:
+
+    - Which towers and windows define the scene for a dump intersection?
+
+    - Is a radio survey needed for this question, and if skipped, how is that justified?
+
+    - Is the provider's estimated point usable, given its algorithm is undisclosed?
+
+    - Which inferences can the data carry in court and which cannot?
+
+
+    **Information Needs**:
+
+    - Per event: phone, time, cell, sector, band or distance, source record, verified flag
+
+    - Sector azimuth and beamwidth from the cell-site list for the right period
+
+    - Numbers present at every scene window
+
+    - The same event on map, timeline and chart at once
+
+
+    **Pain Points**:
+
+    - Distance units arrive as bands, steps, miles or meters, per provider
+
+    - Automated plots must be re-checked by manual mapping before court
+
+    - Courts reject inferences that conflate the mast's position with the phone's
+
+    - No public step-by-step for joining location to chart and timeline in common tools
+
+
+    **Data Flow**:
+
+    - Input: CDRs with cell IDs, timing-advance reports, area-search returns, cell-site lists, survey results
+
+    - Transformations: Time and unit normalization, wedge and arc geometry, arc intersection, multi-scene number
+    intersection, linking events across chart, timeline and map
+
+    - Output: Verified location maps with legend and scale, short list of phones at the scenes, location events joined
+    to the case chart and timeline
+success_criteria:
+    - metric: Dump intersection
+      target: Numbers present at all selected scene windows are listed from 100,000+ records in one step
+    - metric: Uncertainty shown
+      target: Every location event is drawn as a wedge, arc or point with radius, never a bare point
+    - metric: Court readiness
+      target: Exported maps have legend, distance scale, true aspect ratio and a draft or verified marking
+sources:
+    - title: SWGDE Recommendations for Cell Site Analysis 17-F-001 v2.0
+      url: https://www.swgde.org/wp-content/uploads/2024/06/2023-12-18-SWGDE-Recommendations-for-Cell-Site-Analysis-17-F-001-2.0.pdf
+      summary: Warrant, carrier key, cell-site list for the period, sector coverage, draft marking, second-method verification, legends, scales and aspect ratio
+    - title: SWGDE Technical Notes on the Use of Timing Advance Records 25-F-002
+      url: https://www.swgde.org/wp-content/uploads/2025/07/2025-06-29-Technical-Notes-on-the-Use-of-Timing-Advance-Records-25-F-002-1.0.pdf
+      summary: Band widths and inner-edge reading, multipath, provider-estimated points of unknown validity, area searches
+    - title: FBI CAST basic course flyer
+      url: https://www.in.gov/ilea/files/9.22.25-CAST-Basic-Fishers-flyer-REGISTRATION-EXTENDED.pdf
+      summary: CAST basic course does not qualify students as experts
+    - title: FBI CAST guide (leaked, DocumentCloud copy)
+      url: https://s3.documentcloud.org/documents/21094223/fbi-data-gu.pdf
+      summary: Request template for timing-advance reports, 60 days of records, CASTViz mapping tool (read partly from search summaries)
+    - title: UKAS technical bulletin - Cell site analysis for geolocation
+      url: https://www.ukas.com/resources/technical-bulletins/cell-site-analysis-for-geolocation/
+      summary: Accreditation must cover RF survey, CDR normalization and mapping; without a survey there is no testing of the CDR content
+    - title: Tart et al. 2021 - cell site survey practice
+      url: https://pure.coventry.ac.uk/ws/files/55114871/Post_Print.pdf
+      summary: Single-device static survey prone to false exclusions; better practice uses several devices and approaches
+    - title: CellHawk
+      url: https://leadsonline.com/cellhawk
+      summary: Static maps, animated routes, heatmaps and link charts from call records (vendor)
+    - title: i2 Group - Catching the Scarecrow Bandits
+      url: https://i2group.com/articles/catching-the-scarecrow-bandits
+      summary: About 150,000 tower records reduced to fewer than ten phones by window intersection
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

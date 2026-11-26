@@ -1,0 +1,17 @@
+id: biological-network-formats
+name: Biological network format import
+category: data
+description: Import SIF and extended SIF with interaction types, PSI-MITAB 2.5-2.8 (including CausalTAB) and BioGRID TAB
+    3.0 with a choice to collapse multi-edges, KGML and GPML with curated coordinates and relation subtypes, SBML (fbc,
+    qual), COBRA and Escher JSON, and BioPAX.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W241
+    - W243
+    - W244
+    - W250
+implemented_by_components: []
+requirements: []
+sources: []

@@ -1,0 +1,12 @@
+id: currency-node-handling
+name: Currency node handling
+category: analysis
+description: Hide, remove or duplicate listed or very high degree nodes (water, ATP, NADH) for drawing and analysis.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W250
+implemented_by_components: []
+requirements: []
+sources: []

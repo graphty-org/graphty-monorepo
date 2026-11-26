@@ -1,0 +1,129 @@
+id: W379
+name: Response Item Network (ResIN) for Belief Systems and Polarization
+category: analysis
+validated: false
+personas:
+    - network-psychometrics-methodologist
+requires_capabilities:
+    - data-import
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-force-directed
+    - community-detection
+    - centrality-betweenness
+    - centrality-closeness
+    - computed-attributes
+    - comparison-view
+    - temporal-navigation
+    - tooltip-display
+    - export-image
+    - data-export
+    - shared-fixed-layout
+    - interpretable-distance-layout
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - graph-canvas
+    - visual-encoding-panel
+    - legend-panel
+    - layout-panel
+    - community-panel
+    - comparison-view
+    - temporal-controls
+    - node-tooltip
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: survey responses recoded so every response option of every item is a node (item:level), with phi-correlation edges between options of different items, node covariate means, and optionally one network per survey wave
+    node_count: 25-60 (8 items x 5 options = 40 in the package vignette)
+    edge_density: moderate; positive correlations only
+    user_expertise: advanced
+goal: >-
+    **Intent**: Place attitudes and respondents on a latent ideological axis and measure whether a belief system is
+    polarizing over time. Unlike the rest of the field, this analysis reads node position as a measurement.
+
+
+    **Mental Model**: "Response options that people endorse together pull together; the main axis of the layout is the
+    left-right dimension." The x coordinate is the result, not decoration.
+
+
+    **Task Phases**:
+
+    1. **Recode** (30 min) - Each item's options become symbols ("Strongly Agree" to ++, "Strongly Disagree" to --)
+
+    2. **Build** (5 min) - Each option is a binary node; a positive phi correlation between options of two different
+    issues becomes a weighted edge
+
+    3. **Lay out** (2 min) - Fruchterman-Reingold, then rotate so the main dimension lies on the x axis; anchor a chosen
+    option on the left; fix the seed
+
+    4. **Read positions** (10 min) - Each option's x is its latent position (correlated 0.87 with endorsers' mean
+    partisanship in the vignette); each respondent gets the mean position of the options they endorsed
+
+    5. **Clusters and statistics** (5 min) - Leading-eigenvector clusters; strength, closeness, betweenness, expected
+    influence; mean covariates per node
+
+    6. **Compare waves** (30 min) - One network per survey wave (ANES 2000 to 2020 on five issues); linearization (x
+    spread over y spread) and link density, with 200 resamples of 80 percent of respondents for uncertainty
+
+    7. **Export** (2 min) - igraph, qgraph or Gephi CSV; node coordinates as data
+
+
+    **Decision Points**:
+
+    - Which option anchors the left of the axis?
+
+    - Which seed, and is the result stable across seeds and resamples?
+
+    - Are waves comparable on one rotated axis?
+
+
+    **Information Needs**:
+
+    - Node x and y as exported data, not only a picture
+
+    - Item grouping of option nodes (shared hue per item, ordered shade per response level)
+
+    - Linearization and density per wave with resampling intervals
+
+
+    **Pain Points**:
+
+    - Package output is ggplot only
+
+    - Ordinary force layouts are not deterministic or orientation-anchored, so positions cannot be compared or
+    reported
+
+    - Many option nodes per item with no visual grouping by item
+
+
+    **Data Flow**:
+
+    - Input: Option-level node table (item, level, covariates) and phi-correlation edge list, per wave
+
+    - Transformations: Seeded force layout, rotation to principal axis, left anchor, coordinate export, per-wave
+    statistics
+
+    - Output: Ideological-axis figure, node and respondent coordinates, per-wave comparison
+success_criteria:
+    - metric: Deterministic measurement
+      target: Same data and seed give the same coordinates and orientation on every run
+    - metric: Coordinates as data
+      target: Node x and y are exportable with the node table
+sources:
+    - title: ResIN package vignette
+      url: https://www.stats.bris.ac.uk/R/web/packages/ResIN/vignettes/ResIN-VIGNETTE.html
+      summary: Recoding, option nodes, Fruchterman-Reingold with rotation, left_anchor, seed, scores, clusters, exports
+    - title: ResIN CRAN page
+      url: https://cran.r-project.org/web/packages/ResIN/index.html
+      summary: Package functions and exports
+    - title: Chen et al. 2025 - A broken egg of US political beliefs (Network Science 13:e20)
+      url: https://www.cambridge.org/core/services/aop-cambridge-core/content/view/7E8EA3929B3ABF3F10E7E989FACDBADE/S2050124225100167a.pdf/a-broken-egg-of-us-political-beliefs-using-response-item-networks-resin-to-measure-ideological-polarization.pdf
+      summary: One ResIN per ANES wave 2000-2020, linearization and link density, 200 resamples of 80 percent
+    - title: Dalege et al. - attitude networks with ANES data
+      url: https://arxiv.org/pdf/1705.00193.pdf
+      summary: Belief and feeling items as nodes, 1980-2012, n 18,795
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

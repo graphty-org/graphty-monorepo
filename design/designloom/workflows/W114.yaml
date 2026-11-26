@@ -1,0 +1,157 @@
+id: W114
+name: Cloud and Kubernetes Attack Path Investigation
+category: analysis
+validated: false
+personas:
+    - marcus-lindqvist
+    - dana-okafor
+requires_capabilities:
+    - data-import
+    - shortest-path
+    - all-paths-finding
+    - path-highlighting
+    - removal-impact-analysis
+    - filtering
+    - saved-filters
+    - layout-hierarchical
+    - visual-encoding-nodes
+    - legend-display
+    - details-on-demand
+    - statistics-panel
+    - temporal-analysis
+    - report-generation
+    - typed-edge-filtering
+    - set-to-set-paths
+    - path-focus-dimming
+    - exposure-choke-points
+    - path-grouping
+suggested_components:
+    - data-import-dialog
+    - graph-canvas
+    - filter-panel
+    - path-finder-dialog
+    - impact-analysis-dialog
+    - node-details-panel
+    - legend-panel
+    - ranked-node-table
+    - statistics-panel
+    - metric-card
+    - report-generator-dialog
+starting_state:
+    data_type: Cloud security graph (resources, identities, permissions, network exposure, vulnerabilities, data stores) or KubeHound graph of containers, pods, nodes, identities, volumes and endpoints
+    node_count: 1,000-1,000,000 resources
+    edge_density: sparse, typed and directed (has permissions to, can authenticate as, routes traffic to, container escape)
+    user_expertise: advanced
+goal: >-
+    **Intent**: Find chains from the internet to sensitive data or critical clusters across cloud resources,
+    identities and Kubernetes objects, decide which link to break, assign the fix to the owning team, and track the
+    share of exposed services over time. Done daily from an issue queue in Wiz or Microsoft Defender for Cloud, and ad
+    hoc with Cartography (Neo4j) or KubeHound (JanusGraph).
+
+
+    **Mental Model**: "Toxic combinations." No single issue is critical; internet exposure plus a vulnerability plus a
+    privileged identity plus sensitive data, chained, is. Break the cheapest link in the chain.
+
+
+    **Task Phases**:
+
+    1. **Open the queue** (5 min) - Attack paths list with paths over time, top 5 choke points, scenarios, targets and
+    entry points; filter by risk level, asset type, remediation status and time frame; or a critical issue for a toxic
+    combination
+
+    2. **Read the evidence graph** (5 min) - The attack path map marks entry points, vulnerable nodes, target assets
+    and choke points
+
+    3. **Inspect nodes** (5-15 min) - ATT&CK tactics and techniques, risk factors and recommendations per node, and why
+    it is on the path; limited permissions hide parts of the path
+
+    4. **Decide which link to break** (10 min) - Separate recommendations that fix the path from ones that only lower
+    risk
+
+    5. **Assign and remediate** - Security triages and assigns; infrastructure owners fix
+
+    6. **Verify** (up to 24 h) - A resolved path can take up to a day to leave the list; ad hoc questions go to a query
+    explorer ("internet-exposed VMs with high-severity vulnerabilities and access to sensitive storage")
+
+    7. **Kubernetes variant** - KubeHound computes attack edges such as container escape, pod exec, token brute force
+    and identity assume; red teams start from externally exposed endpoints; blue teams find frequent path patterns,
+    simulate removing one attack type (blocking token brute force removed about 88 percent of critical paths from one
+    public service) and track the share of external services with a path to a critical asset; one cluster of 1,982
+    containers gave 66,984 critical paths, 771 after deduplication
+
+
+    **Decision Points**:
+
+    - Which path first: the most exposed entry point, the most sensitive target, or the most shared choke point?
+
+    - Which link is cheapest and safest to break, and which team owns it?
+
+    - Does a recommendation fix the path or only reduce risk?
+
+    - Is a hidden segment hidden by permissions or absent?
+
+
+    **Information Needs**:
+
+    - Entry point, target and choke point roles on the path
+
+    - Per-node risk factors, techniques and remediation
+
+    - Path counts before and after removing an edge type (what-if)
+
+    - Deduplicated path patterns with counts
+
+    - Exposure trend over time
+
+
+    **Pain Points**:
+
+    - Vendor graphs are proprietary and cannot be queried beyond the product's filters
+
+    - Up to 24 hours before a fixed path disappears
+
+    - Open-source alternatives need a graph database and Cypher or Gremlin
+
+    - Tens of thousands of raw paths reduce to hundreds only after deduplication
+
+
+    **Data Flow**:
+
+    - Input: Cloud inventory and permissions (Cartography in Neo4j, vendor graph), Kubernetes API snapshot (KubeHound)
+
+    - Transformations: Typed path search from exposed entry points to critical targets, choke point ranking, path
+    deduplication, what-if removal by edge type, time trend
+
+    - Output: Ranked remediation list with owners, exposure metrics over time
+success_criteria:
+    - metric: Path roles
+      target: Entry points, choke points and targets are distinguishable at a glance with a legend
+    - metric: What-if
+      target: User can remove an edge type and see the change in critical path count
+    - metric: Deduplication
+      target: Paths sharing the same pattern are grouped with a count
+sources:
+    - title: Microsoft Learn - Manage attack paths in Defender for Cloud
+      url: https://learn.microsoft.com/en-us/azure/defender-for-cloud/how-to-manage-attack-path
+      summary: Attack path overview, filters, attack path map, node insight, remediation tab, 24-hour clearing
+    - title: Microsoft Learn - Attack path concepts
+      url: https://learn.microsoft.com/en-us/azure/defender-for-cloud/concept-attack-path
+      summary: Cloud security graph
+    - title: Microsoft Learn - Cloud security explorer training module
+      url: https://learn.microsoft.com/en-in/training/modules/identify-security-risks-posture-management/5-hunt-risks-cloud-security-explorer
+      summary: Explorer queries over the cloud security graph
+    - title: Wiz - The anatomy of a toxic combination of risk
+      url: https://wiz.io/blog/the-anatomy-of-a-toxic-combination-of-risk
+      summary: Toxic combinations and who remediates
+    - title: Datadog Security Labs - KubeHound
+      url: https://securitylabs.datadoghq.com/articles/kubehound-identify-kubernetes-attack-paths/
+      summary: Kubernetes attack edges, path counts and deduplication, what-if removal, exposure tracking
+    - title: KubeHound repository
+      url: https://github.com/DataDog/kubehound
+      summary: Collection, JanusGraph storage, Gremlin DSL
+    - title: Cartography repository
+      url: https://github.com/cartography-cncf/cartography
+      summary: Cloud and identity infrastructure graph in Neo4j
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

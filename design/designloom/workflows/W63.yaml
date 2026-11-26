@@ -1,0 +1,218 @@
+id: W63
+name: Overlaying Genetic and Contact Networks
+category: exploration
+validated: false
+personas:
+    - outbreak-response-epidemiologist
+    - hiv-molecular-cluster-epidemiologist
+    - tb-genomic-cluster-epidemiologist
+    - phl-genomic-epidemiologist
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - node-merging
+    - filtering
+    - saved-filters
+    - component-analysis
+    - node-selection
+    - selection-statistics
+    - search
+    - details-on-demand
+    - tooltip-display
+    - hover-highlight
+    - metric-histograms
+    - temporal-analysis
+    - temporal-navigation
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - style-presets
+    - layout-force-directed
+    - graph-rendering
+    - large-graph-rendering
+    - progressive-loading
+    - zoom-pan
+    - overview-minimap
+    - data-export
+    - export-image
+    - multiplex-relations
+    - distance-threshold-network
+    - local-only-processing
+    - tree-import-and-axes
+    - nearest-neighbor-pruning
+    - entity-resolution-review
+    - export-by-cluster
+    - linked-views-selection
+    - session-round-trip
+    - bipartite-layout
+    - topology-warnings
+    - expensive-run-cost-warning
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - node-merge-dialog
+    - network-merge-dialog
+    - filter-panel
+    - filter-chip
+    - range-slider
+    - histogram
+    - graph-canvas
+    - node-tooltip
+    - node-details-panel
+    - visual-encoding-panel
+    - legend-panel
+    - temporal-controls
+    - minimap
+    - data-table-panel
+    - progressive-loader
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: a genetic distance source plus a typed contact edge list, a case line list and a place list
+    node_count: 100-5000
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Put what the sequences say and what the interviews say into one picture over the same people, and
+    read the disagreement. Agreement confirms a transmission link; a genetic link with no named contact points at an
+    unnamed partner or an unknown route; a named contact with no genetic support may be a real relationship that
+    carried nothing. This is the single most-used graph task in outbreak response, and the reason a browser tool
+    built for it had thousands of users.
+
+
+    **Mental Model**: "Two maps of the same town, drawn on tracing paper and laid on top of each other." The nodes
+    are people (and sometimes places and events). One layer of edges comes from the laboratory, another from the
+    interviews, and a third from shared attendance at a place. Each layer keeps its own color and can be shown or
+    hidden on its own.
+
+
+    **Task Phases**:
+
+    1. **Prepare inputs outside the tool** (30 min to hours) - Quality-control and align sequences; for large
+    genomes, compute thresholded distances in a separate utility and bring in an edge list; for a phylogeny, export
+    the tree in divergence mode so branch lengths are mutation counts
+
+    2. **Load several files** (10 min) - A genetic input (FASTA, full distance matrix, PHYLIP matrix, long-form
+    pairwise list, Newick, or a clustering tool's result file), a contact edge list, a case node list, and places as
+    a separate node type
+
+    3. **Confirm each file's role** (5 min, error-prone) - Automatic type guessing confuses node lists with link
+    lists, so the source and target columns on an edge list and the identifier column on a node list are mapped by
+    hand
+
+    4. **Set distance options** (5 min) - Reference-based pairwise alignment rather than a multiple alignment, a
+    distance measure, an ambiguity policy, and an initial link threshold
+
+    5. **Build** (1 to 10 min, sometimes fatal) - 5,000 HIV pol sequences take about 2.7 minutes and 1,000
+    SARS-CoV-2 genomes about 1.5 minutes, while 1,500 genomes froze a 16 GB machine
+
+    6. **Filter** (10 min) - Move the threshold with a histogram, set a minimum cluster size (a 1.5% threshold with 5
+    or more members hid 73.1% of sequences and kept 9.0% in one example), show or hide singletons, and optionally
+    prune each node's weighted links to its nearest connected neighbor, applied to the molecular layer before
+    epidemiologic links are added
+
+    7. **Style by meaning** (15 min) - Color nodes by cluster or an attribute, color links by their type so genetic
+    and contact layers separate, set link width by distance, node size by degree, node shape by entity type, and
+    group with polygons by an attribute; save the style for reuse
+
+    8. **Read it** (20 min to hours) - Find components where both layers agree, genetic links with no named contact,
+    and named contacts with no genetic support; check for topologies that mean a data error rather than biology
+
+    9. **Switch views on the same selection** (ongoing) - Timeline playback over a date field, map or choropleth,
+    exposure-period bars, epi curve, cross-tab, tree and table
+
+    10. **Save and export** (10 min) - A session file, per-cluster node and edge files, images, tables and geographic
+    output
+
+
+    **Decision Points**:
+
+    - Which layer to believe when they disagree, and what to send back to the field as a question
+
+    - Whether a genetic link with no contact is an unnamed partner, an intermediate, or a threshold artifact
+
+    - Whether to prune to nearest neighbors, which simplifies the molecular layer but hides alternatives
+
+    - What minimum cluster size to impose, knowing it can hide most of the data
+
+    - Whether a starburst or a long two-step chain is biology or a parsing or alignment error
+
+
+    **Information Needs**:
+
+    - Every link type on a pair kept distinct, because a pair can be both a sex partner and a household contact
+
+    - A per-layer legend naming the source of each edge color
+
+    - Counts of agreements and disagreements between layers, not just the picture
+
+    - Several sequences collapsed to one person, with the collapse visible
+
+    - A mismatch report when identifiers do not line up between the sequence file, the contact list and the line list
+
+    - Progress and a cost warning before a build that may not finish
+
+
+    **Pain Points**:
+
+    - Several link types on one pair collapse to a single color, erasing the multigraph
+
+    - Scale failures are abrupt: about 7 million candidate links crashed a browser tab after 15 to 30 minutes, and a
+    12,070-row edge list took 10 minutes to load
+
+    - Styling is lost when a session is reopened, so the figure is rebuilt by hand
+
+    - File type guessing gets node and link lists wrong, which silently changes the graph
+
+    - Trees have to be re-exported in divergence units and the threshold retuned before a network agrees with a
+    phylogeny
+
+    - Identifier mismatches across three or four input files drop people without saying so
+
+
+    **Data Flow**:
+
+    - Input: FASTA or a distance matrix or pairwise list or Newick tree; a typed contact edge list (case, contact,
+    type, dates); a case line list with dates, demographics, geography, risk and care status; a place or event node
+    list
+
+    - Transformations: Alignment and distance computation or threshold application, nearest-neighbor pruning,
+    identity collapse of several sequences per person, component extraction, minimum cluster size and singleton
+    filters, per-layer styling, date-based playback
+
+    - Output: A multi-layer network figure, agreement and disagreement counts, per-cluster exports, a session file,
+    images, tables and geographic output
+success_criteria:
+    - metric: Layer separability
+      target: Genetic, contact and place-sharing edges stay visually and logically distinct, including several types on one pair
+    - metric: Disagreement visibility
+      target: The user can list genetic links with no named contact, and named contacts with no genetic support
+    - metric: Session fidelity
+      target: Thresholds, filters, styles and layout survive save and reopen unchanged
+    - metric: Scale honesty
+      target: A build that cannot finish says so before it starts, with the candidate edge count
+sources:
+    - title: MicrobeTrace - a browser application for graph-based molecular epidemiology (PLOS Computational Biology 2021)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8491948/
+      summary: Combined genetic, contact and place layers, 4,119 users with a mean 8.7-minute visit, build times, and the effect of a minimum cluster size (73.1% of sequences hidden, 9.0% kept)
+    - title: MicrobeTrace wiki - loading files and the 2D network view
+      url: https://github.com/CDCgov/MicrobeTrace/wiki
+      summary: Accepted genetic and epidemiologic input formats, the type-guessing problem between node and link CSVs, threshold histogram, nearest connected neighbor pruning, styling and export by cluster
+    - title: MicrobeTrace wiki - suspicious network topologies
+      url: https://github.com/CDCgov/MicrobeTrace/wiki/Suspicious-Network-Topologies
+      summary: A starburst usually means a blank row parsed as a node; a two-step chain usually means a bad alignment
+    - title: MicrobeTrace issue 349 - slow edge list loading
+      url: https://github.com/CDCgov/MicrobeTrace/issues/349
+      summary: A 12,070-row edge list took 10 minutes to load
+    - title: MicrobeTrace issue 693 - styling lost on reopening a session
+      url: https://github.com/CDCgov/MicrobeTrace/issues/693
+      summary: Saved sessions do not restore styling, so figures must be rebuilt
+    - title: Comparison of named contacts and inferred genetic links, Scott County Indiana HIV outbreak
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5853229
+      summary: 411 people and 1,060 risk links; 66% of named risk links lacked genetic support and 40.6% of inferred transmissions had no reported contact
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,12 @@
+id: flow-uncertainty
+name: Per-flow uncertainty
+category: analysis
+description: Carry a margin of error per flow through filters and show it in details and on the map.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W380
+implemented_by_components: []
+requirements: []
+sources: []

@@ -1,0 +1,15 @@
+id: causal-path-analysis
+name: Causal path analysis and adjustment sets
+category: analysis
+description: Use d-separation to classify paths as causal or biasing and as open or closed. Compute ancestor classes,
+    minimal adjustment sets (total or direct effect, forced covariates, latents excluded), instruments, implied
+    independencies and the Markov equivalence class.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W423
+    - W424
+implemented_by_components: []
+requirements: []
+sources: []

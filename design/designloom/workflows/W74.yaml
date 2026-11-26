@@ -1,0 +1,161 @@
+id: W74
+name: Livestock Movement Tracing and Risk-Based Surveillance
+category: analysis
+validated: false
+personas:
+    - veterinary-movement-epidemiologist
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - temporal-analysis
+    - temporal-navigation
+    - filtering
+    - node-selection
+    - selection-statistics
+    - degree-analysis
+    - centrality-degree
+    - ego-network
+    - neighborhood-expansion
+    - all-paths-finding
+    - path-highlighting
+    - shortest-path
+    - component-analysis
+    - details-on-demand
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-hierarchical
+    - layout-force-directed
+    - statistics-panel
+    - data-export
+    - export-image
+    - report-generation
+    - time-respecting-paths
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - temporal-controls
+    - filter-panel
+    - ego-network-dialog
+    - path-finder-dialog
+    - graph-canvas
+    - node-details-panel
+    - ranked-node-table
+    - visual-encoding-panel
+    - legend-panel
+    - statistics-panel
+    - report-generator-dialog
+    - data-export-dialog
+starting_state:
+    data_type: national livestock movement records, one row per dated movement between holdings
+    node_count: 1000-100000
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Within hours of a holding testing positive, list every holding that could have passed infection in to
+    it and every holding it could have passed infection to, following only movement sequences that run in the
+    correct time order, and give each field veterinarian a report about one farm. Between outbreaks, the same
+    measures rank holdings by movement exposure for risk-based surveillance sampling.
+
+
+    **Mental Model**: "Follow the animals, in order." A movement is an edge with a date. A chain of movements is only
+    a transmission possibility if each movement happens after the one before it. Ignoring that order turns a national
+    movement network into an everything-is-connected graph and implicates farms that could not have been infected.
+
+
+    **Task Phases**:
+
+    1. **Get the movement extract** (minutes to hours) - One row per movement: source holding, destination holding,
+    date, and optionally animal category, number of animals and individual animal identifiers; one example dataset
+    holds 70,190 movements over three months, and a national foot-and-mouth disease exercise used real cattle, pig,
+    sheep and goat movements over 90 days
+
+    2. **Set the root and the window** (minutes) - Name the holding under investigation and the time window, for
+    example the presumed infectious window for the disease
+
+    3. **Trace both directions in time order** (seconds to minutes) - The ingoing contact chain is the set of
+    holdings that could have passed infection in, traced backward through time; the outgoing contact chain is the set
+    it could have passed infection to, traced forward. A holding appearing several times counts once
+
+    4. **Read the summary** (10 min) - A structure table giving source, destination and distance from the root, and a
+    summary table giving in-degree, out-degree and both contact chain sizes per root holding
+
+    5. **Report per holding** (minutes, batched) - Per-holding documents for one holding or many at once, plus
+    network diagrams and, where coordinates exist, maps of contacts over time; these go to the veterinarians who
+    visit the farms
+
+    6. **Reuse for surveillance** (between outbreaks) - Rank holdings by the same movement-exposure measures for
+    risk-based sampling
+
+
+    **Decision Points**:
+
+    - What time window to trace, which is a disease-biology decision with legal consequences
+
+    - Whether a holding reached only through a time-violating path is in or out: it is out, and that is the point
+
+    - How many roots to trace at once when several holdings test positive
+
+    - Which holdings to sample first between outbreaks, given movement exposure
+
+    - Whether to re-run after a refreshed extract, since late-reported movements change the answer
+
+
+    **Information Needs**:
+
+    - Both contact chains, with distance from the root for each holding
+
+    - In-degree and out-degree per holding over the window
+
+    - The actual movement sequence behind a holding's inclusion, with dates, so a restriction can be justified
+
+    - A per-holding document rather than a national diagram, for the field visit
+
+    - Holdings with and without coordinates, since the map is always partial
+
+    - The extract's date, because the trace is only as current as the reporting
+
+
+    **Pain Points**:
+
+    - Plain graph reachability overstates risk badly by ignoring movement order, which is precisely why
+    time-respecting contact chains exist
+
+    - A trace is only as good as the reporting lag, and late movements arrive after decisions were made
+
+    - The artifact a field veterinarian needs is a document about one farm, which network tools do not produce
+
+    - Batch reports for many roots means running the same analysis hundreds of times
+
+    - Species and animal counts matter for risk and turn every edge into a multi-attribute record
+
+    - Coordinates exist for some holdings and not others
+
+
+    **Data Flow**:
+
+    - Input: Dated movement rows (source holding, destination holding, date, optional species, animal count and
+    animal identifiers), a root holding or a list of roots, a time window, and optional holding coordinates
+
+    - Transformations: Time-respecting forward and backward reachability from each root within the window,
+    deduplication of repeated holdings, distance-from-root computation, in-degree and out-degree, ranking by
+    movement exposure
+
+    - Output: Ingoing and outgoing contact chains per root, a structure table and a summary table, per-holding
+    reports, network diagrams, maps of contacts over time, and a surveillance sampling ranking
+success_criteria:
+    - metric: Time order respected
+      target: A path that violates movement order never appears in a contact chain
+    - metric: Turnaround
+      target: Both chains for a newly positive holding are produced within the first hours of the investigation
+    - metric: Field-ready output
+      target: Each implicated holding gets its own report naming the movements that implicate it
+sources:
+    - title: Noremark and Widgren, EpiContactTrace - an R package for contact tracing (BMC Veterinary Research 2014, 10:71)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC3974595/
+      summary: Movement row format, time-respecting ingoing and outgoing contact chains, deduplication of repeated holdings, NetworkStructure and NetworkSummary outputs, batch per-holding HTML and PDF reports, contact maps over time, the 70,190-movement example dataset, the 2010 Swedish foot-and-mouth disease exercise, and the risk-based surveillance reuse
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

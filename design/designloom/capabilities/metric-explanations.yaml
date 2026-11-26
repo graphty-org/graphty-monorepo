@@ -1,0 +1,17 @@
+id: metric-explanations
+name: Plain-Language Metric Explanations
+category: analysis
+description: For each measure applied, a short neutral description of what it measures, how weights and direction affect
+    it, what it cannot tell, and warnings for misreadings (drawn distance as similarity, size as the only importance,
+    non-deterministic communities, disconnected graphs).
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W14
+    - W231
+    - W238
+    - W240
+implemented_by_components: []
+requirements: []
+sources: []

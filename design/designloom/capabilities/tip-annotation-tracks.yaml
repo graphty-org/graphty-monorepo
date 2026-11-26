@@ -1,0 +1,14 @@
+id: tip-annotation-tracks
+name: Tip Annotation Tracks
+category: visualization
+description: Color strips, binary columns, bars and heatmaps aligned beside tree tips from a table joined on tip label
+    with exact, substring or regex matching, plus clade highlighting.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W393
+    - W401
+implemented_by_components: []
+requirements: []
+sources: []

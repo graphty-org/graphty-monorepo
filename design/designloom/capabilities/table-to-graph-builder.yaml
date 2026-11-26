@@ -1,0 +1,16 @@
+id: table-to-graph-builder
+name: Graph from a record table
+category: analysis
+description: Build a graph from a flat post or action table without scripts by choosing which column pairs become edges,
+    which column is the weight and which are node attributes; keep 64-bit numeric IDs as text.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W208
+    - W209
+    - W213
+    - W214
+implemented_by_components: []
+requirements: []
+sources: []

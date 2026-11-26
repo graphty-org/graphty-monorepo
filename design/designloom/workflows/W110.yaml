@@ -1,0 +1,179 @@
+id: W110
+name: Threat Intelligence Pivoting from One Indicator
+category: exploration
+validated: false
+personas:
+    - aiko-tanaka
+requires_capabilities:
+    - data-import
+    - search
+    - node-selection
+    - neighborhood-expansion
+    - ego-network
+    - selection-statistics
+    - annotation
+    - filtering
+    - node-merging
+    - analysis-history
+    - details-on-demand
+    - layout-force-directed
+    - visual-encoding-nodes
+    - legend-display
+    - export-image
+    - data-export
+    - report-generation
+    - local-only-processing
+    - user-node-flags
+    - security-format-import
+    - expansion-history
+suggested_components:
+    - search-input
+    - graph-canvas
+    - context-menu
+    - ego-network-dialog
+    - node-details-panel
+    - annotation-toolbar
+    - filter-panel
+    - analysis-history-panel
+    - node-merge-dialog
+    - data-table-panel
+    - legend-panel
+    - report-generator-dialog
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: One indicator (domain, IP, file hash, URL or certificate) plus enrichment sources (passive DNS, WHOIS, certificates, sandbox, scan data)
+    node_count: 1 growing to 50-500
+    edge_density: sparse with high-fanout hubs (shared hosting IPs)
+    user_expertise: advanced
+goal: >-
+    **Intent**: Start from a single indicator handed over by the SOC or incident response and grow it, one expansion at
+    a time, into a defensible cluster of related attacker infrastructure, then hand that cluster on as blocklists, hunt
+    queries and STIX. This is the daily core of cyber threat intelligence work in Maltego, VirusTotal Graph, OpenCTI,
+    DomainTools Iris and Censys.
+
+
+    **Mental Model**: "Pull the thread, but check every knot." Each expansion is a hypothesis that two things are
+    related; a shared value is a lead, not a confirmation. The graph is built, not imported, and pruning matters as
+    much as expanding.
+
+
+    **Task Phases**:
+
+    1. **Record the seed** (2 min) - Defang it and note source and date
+
+    2. **Start a graph** (1 min) - Drop the indicator onto an empty canvas as a typed node
+
+    3. **Expand** (repeated, 1-5 min each) - Run one relationship at a time (domain to IP, IP to other domains,
+    certificate hash to hosts, hash to contacted domains); cap results per expansion (Maltego Small, Balanced, Large;
+    VirusTotal 40 nodes per API query; Iris up to 500 domains per certificate pivot)
+
+    4. **Judge each edge** (ongoing) - Discard shared hosting and high-fanout IPs; use "find commonalities" across a
+    selection to find what several indicators share; corroborate an edge with a second source
+
+    5. **Pivot on structure** (as needed) - As in a published Censys hunt: from confirmed hosts to certificate subject
+    names (4 hosts), to names from public C2 profiles (68 hosts), to a structural certificate rule (92 certificates),
+    to shared /24 subnets and ASNs, to a reused RDP certificate (53 hosts); keep matches as suspects until validated
+
+    6. **Prune** (5-15 min) - Bookmark or color what is believed, select by mark or type, bulk-delete the rest; roll
+    back bad expansions
+
+    7. **Save, share, report** (30 min) - Save the graph (optionally encrypted), export PDF of bookmarked entities, a
+    deduplicated defanged indicator feed, a STIX report bundle; hand blocklists and hunt queries to the SOC
+
+
+    **Decision Points**:
+
+    - Which relationship to expand next, and how many results to accept?
+
+    - Is this shared value attacker-specific or shared-hosting noise?
+
+    - When is a suspect validated enough to publish as attacker infrastructure?
+
+    - When to stop expanding?
+
+
+    **Information Needs**:
+
+    - Node type and source for every entity, and the first and last seen date of each relationship
+
+    - Fan-out of a node before expanding it (how many results will this add?)
+
+    - Attributes shared across a selection
+
+    - Which expansion added which nodes, so a bad branch can be removed
+
+    - Confidence or validation state per node
+
+
+    **Pain Points**:
+
+    - Expansions explode the graph with shared-hosting noise
+
+    - OpenCTI rolls back only the last 10 expansions
+
+    - VirusTotal caps API expansions at 40 nodes, spends quota, and private graphs need a premium license
+
+    - Maltego's cost and learning curve; growth controlled only by per-transform limits
+
+    - Pivot logs kept in a spreadsheet beside the graph
+
+
+    **Data Flow**:
+
+    - Input: Seed indicator; enrichment lookups (passive DNS, WHOIS, certificates, sandbox, scans); STIX 2.1 or MISP JSON
+
+    - Transformations: Typed expansion with per-step limits, commonality across selection, deduplication of the same
+    entity from several sources, marking and bulk pruning, expansion undo
+
+    - Output: Accepted cluster with confidence, defanged indicator feed, STIX bundle, PDF report, graph image
+success_criteria:
+    - metric: Expansion control
+      target: User sees how many nodes an expansion will add before accepting it, and can undo any earlier expansion
+    - metric: Pruning
+      target: User can remove all unmarked nodes of a type in one action
+    - metric: Provenance
+      target: Every node in the final cluster shows which pivot and source added it
+sources:
+    - title: Maltego - Beginner's guide, charting my first Maltego graph
+      url: https://www.maltego.com/blog/beginners-guide-to-maltego-charting-my-first-maltego-graph/
+      summary: Entity palette, running transforms, save with encryption
+    - title: Maltego support - Transform Result Limit slider
+      url: https://support.maltego.com/en/support/solutions/articles/15000061694-setting-the-transform-result-limit-slider
+      summary: Per-transform result limits
+    - title: Maltego support - Bulk actions with Select By
+      url: https://support.maltego.com/en/support/solutions/articles/15000059548-performing-bulk-actions-with-select-by-
+      summary: Select by bookmark or type, bulk delete
+    - title: Maltego support - Exporting results
+      url: https://support.maltego.com/en/support/solutions/articles/15000059538-exporting-results
+      summary: PDF reports of all or bookmarked entities
+    - title: VirusTotal docs - Graph overview
+      url: https://docs.virustotal.com/docs/graph-overview
+      summary: 30+ relationship types, Find commonalities, public and organization-private graphs
+    - title: VirusTotal docs - Graph nodes
+      url: https://docs.virustotal.com/docs/graph-nodes
+      summary: Node actions, full expansion, highlight, delete
+    - title: VirusTotal Graph API quickstart
+      url: https://virustotal.github.io/vt-graph-api/quickstart.html
+      summary: 40 nodes per expansion query, quota
+    - title: OpenCTI docs - Pivoting
+      url: https://docs.opencti.io/latest/usage/pivoting/
+      summary: Investigation graph, noisy expansion warning, rollback of 10 expansions, STIX export
+    - title: DomainTools docs - Iris SSL Profile panel
+      url: https://docs.domaintools.com/iris/investigate/data-panels/ssl-profile/
+      summary: Pivot from a certificate hash
+    - title: Microsoft Learn - DomainTools Iris connector
+      url: https://learn.microsoft.com/en-us/connectors/domaintoolsirisinves/
+      summary: Certificate-hash pivot returns up to 500 domains
+    - title: Censys - Using Cobalt Strike to find more Cobalt Strike
+      url: https://censys.com/blog/using-cobalt-strike-to-find-more-cobalt-strike/
+      summary: Published certificate and network pivot chain with host counts and validation
+    - title: CIRCL - MISP user stories
+      url: https://circl.lu/doc/misp/user-stories/
+      summary: A shared value is a lead, not confirmation
+    - title: CTI analyst field manual - Infrastructure pivoting worked case
+      url: https://1200km.com/cti-analyst-field-manual/docs/infrastructure-pivoting/infrastructure-pivoting-worked-case/
+      summary: Illustrative step-by-step pivot case using non-operational example values
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

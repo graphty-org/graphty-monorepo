@@ -1,0 +1,82 @@
+id: personal-knowledge-gardener
+name: Personal Knowledge Gardener
+role: Knowledge Worker with an Obsidian or Logseq vault (Zettelkasten writers, academic literature-note researchers and digital gardeners as variants)
+quote: I don't want to see my whole vault. I want to see what touches the note I'm writing, two links out, and I want it to look the same tomorrow.
+bio: >-
+    Sam is a product manager who has kept an Obsidian vault for three years: about 5,000 Markdown notes of meetings,
+    people, projects and reading. Notes are nodes; wikilinks, tags and links inside properties are edges; links to notes
+    not yet written are dangling nodes. The graph changes every time Sam types. Sam keeps the local graph docked in the
+    right sidebar at depth 2, following the active note, and opens the global graph about once a month to sweep for
+    orphans. Self-reported vault sizes run from a few hundred to 39,509 notes, typically 1,000 to 20,000 with about 1.6
+    to 3.1 links per note. The global view becomes a hairball of daily notes past a few thousand notes; a synthetic
+    130,000-note vault froze Obsidian's graph even at local depth 1. Variants: Zettelkasten writers who link
+    deliberately and care about structure notes, graduate researchers with one literature note per Zotero item,
+    digital gardeners who publish a local graph on each page, and long-term TheBrain curators. Graph literacy is
+    informal (notes, links, backlinks, hubs, orphans); a minority writes Dataview queries, CSS snippets or Python. The
+    work is private and solo, so local-only processing is a requirement, not a preference. Obsidian has no official
+    user count; its CEO was reported as estimating about one million users.
+characteristics:
+    expertise: intermediate
+    time_pressure: low
+    graph_literacy: novice
+    domain_knowledge: intermediate
+motivations:
+    - See what relates to the note being written, without leaving the editor
+    - Recover the context of a project after weeks away
+    - Find orphan and dead-end notes and link, merge or delete them
+    - Notice unexpected connections between topics
+    - Keep everything on the device, with no telemetry
+behaviors:
+    - Docks the local graph beside the editor at depth 2 or 3 and lets it follow the active note
+    - Toggles incoming, outgoing and neighbor links, tags, attachments and missing notes
+    - Filters daily notes and templates out with path queries and colors groups by folder or tag
+    - Hovers to preview and clicks to open a neighbor
+    - Sweeps the global graph for orphans and switches to a list when the graph is too dense
+    - Installs plugins (Extended Graph, Advanced Graph View) for saved views, pinning and larger vaults
+    - Exports the vault to Gephi or Python occasionally to find which notes "hold everything together"
+frustrations:
+    - The global graph is a hairball and mostly decorative
+    - Layout differs every time and nodes cannot be pinned
+    - Filters and color groups are lost or retyped; there are no saved presets
+    - Property links pull unrelated notes of the same type into depth 2, with no way to separate them
+    - Tag nodes stop traversal, and filters cut the paths between notes
+    - Large vaults freeze the graph view
+context:
+    frequency: daily
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W02
+sources:
+    - title: Obsidian Help - Graph view
+      url: https://obsidian.md/help/plugins/graph
+      summary: Global and local graph, filters, groups, display and force settings, depth
+    - title: Obsidian forum - You all say the graph is useless, let me show you how to use it
+      url: https://forum.obsidian.md/t/you-all-say-the-graph-is-useless-let-me-show-you-how-to-use-it/116738
+      summary: Local graph docked beside the editor at depth 2 or 3; global view a showcase
+    - title: Obsidian forum - What's the point of the graph view?
+      url: https://forum.obsidian.md/t/whats-the-point-of-the-graph-view-how-are-you-using-it/71316
+      summary: Self-reports of use and non-use; unstable layout; orphans as an outer ring
+    - title: Obsidian forum - How many notes do you have?
+      url: https://forum.obsidian.md/t/how-many-notes-do-you-have/36987
+      summary: Self-reported vault sizes up to 39,509 notes
+    - title: Obsidian forum - Graph view doesn't work for a large vault
+      url: https://forum.obsidian.md/t/obsidian-graph-view-doesnt-work-for-a-large-vault/106287
+      summary: A generated 130,000-note vault froze the global and local graph
+    - title: Obsidian forum - Option to disable frontmatter links in graph view
+      url: https://forum.obsidian.md/t/an-option-to-disable-frontmatter-links-to-show-up-in-graph-view/114940
+      summary: Property links clutter depth 2; no workaround
+    - title: Obsidian forum - Graph view presets
+      url: https://forum.obsidian.md/t/graph-view-presets-to-save-and-load-filters-display-settings/8131
+      summary: Request to save and load filters and display settings
+    - title: Advanced Graph View plugin
+      url: https://community.obsidian.md/plugins/graph-insight
+      summary: WebGL, worker layout, PageRank, Louvain, persistent pins, no network requests
+    - title: Getting to know the CEO of Obsidian
+      url: https://tfthacker.substack.com/p/getting-to-know-the-ceo-of-obsidian
+      summary: Reported estimate of about one million users (read through search summary)
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

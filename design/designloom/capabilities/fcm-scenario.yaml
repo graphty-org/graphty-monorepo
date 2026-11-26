@@ -1,0 +1,13 @@
+id: fcm-scenario
+name: Fuzzy Cognitive Map Scenario Run
+category: visualization
+description: Clamp chosen concepts between -1 and +1, iterate linear or sigmoid update to a fixed point, report relative
+    change per concept as indicative, and optional transitive closure of a weighted signed map.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W199
+implemented_by_components: []
+requirements: []
+sources: []

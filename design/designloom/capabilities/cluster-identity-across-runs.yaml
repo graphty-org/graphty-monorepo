@@ -1,0 +1,15 @@
+id: cluster-identity-across-runs
+name: Stable Cluster Identity Across Runs
+category: analysis
+description: Carry a previous run's cluster assignment forward so clusters keep their names when the analysis is
+    repeated on new data, report merges and splits explicitly, and compute new members per cluster over a chosen window
+    so growth is a comparable count rather than a renumbering artifact.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W61
+    - W65
+implemented_by_components: []
+requirements: []
+sources: []

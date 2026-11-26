@@ -1,0 +1,141 @@
+id: W311
+name: Positions to Association Networks per Period (Animal Social Networks)
+category: analysis
+validated: false
+personas:
+    - animal-social-network-researcher
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - temporal-analysis
+    - temporal-navigation
+    - centrality-degree
+    - centrality-eigenvector
+    - basic-statistics
+    - comparison-view
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - statistics-panel
+    - data-export
+    - export-image
+    - co-location-network-builder
+    - per-window-metrics
+    - map-time-sync
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - temporal-controls
+    - graph-canvas
+    - ranked-node-table
+    - comparison-view
+    - legend-panel
+    - statistics-panel
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: relocation table (animal id, date-time, projected x, y) at a fixed fix rate, or RFID / proximity-logger contacts
+    node_count: 10-300 animals
+    edge_density: medium to dense within a period
+    user_expertise: advanced
+goal: >-
+    **Intent**: Turn where animals were into who was with whom, one network per season or year, and compare those
+    networks against randomized movement to see whether sociality changed. The thresholds decide the network, so the
+    researcher needs to see the map and the network for the same window.
+
+
+    **Mental Model**: "Same place, same time." Two animals are associated when their fixes fall in the same time group
+    and within a distance; the network for a period is how often each pair met.
+
+
+    **Task Phases**:
+
+    1. **Load relocations** (5 min) - Table with id, date-time and projected coordinates; add a season or year column
+
+    2. **Group in time** (2 min) - Fixes within a threshold (for example 5 minutes) count as simultaneous, absorbing GPS
+    fix-time jitter
+
+    3. **Group or pair in space** (2 min) - Within each time group: chain rule groups within 50 meters, all pairs within
+    a distance, or each animal's nearest neighbor
+
+    4. **Build a network per period** (5 min) - Group-by-individual matrix, then a simple ratio index association
+    network per year or season
+
+    5. **Randomize** (30 min to hours) - Step, daily or trajectory randomizations within each year; rebuild networks
+    from each null data stream
+
+    6. **Compare** (20 min) - Strength and centrality per animal per period, observed against random; compare seasons
+    or years
+
+    7. **Check on the map** (10 min) - Where associations happened in a period, beside the network
+
+
+    **Decision Points**:
+
+    - Time threshold and distance threshold
+
+    - Grouping rule: chain, all pairs within distance, or nearest neighbor
+
+    - Period boundaries (calendar year, biological season)
+
+    - Association index and randomization type
+
+    - For wearable contacts: aggregate by day, by shift or by cumulative contact time
+
+
+    **Information Needs**:
+
+    - Number of time groups and groups per animal under the current thresholds
+
+    - Per-period network with association index weights
+
+    - Observed metric against the null distribution per animal
+
+    - Positions on a map filtered to the same window as the network
+
+
+    **Pain Points**:
+
+    - Results depend on thresholds with no standard values
+
+    - Map and network are separate plots
+
+    - Everything is R code; field collaborators cannot explore
+
+    - Many periods means many separate figures
+
+
+    **Data Flow**:
+
+    - Input: Relocation CSV or contact intervals; animal attribute table (sex, age, survival)
+
+    - Transformations: Time grouping, spatial grouping, per-period association networks, randomized nulls, per-animal
+    metrics
+
+    - Output: Per-period networks, metric table observed vs random, map-plus-network figures
+success_criteria:
+    - metric: Threshold sensitivity visible
+      target: Changing time or distance threshold updates the per-period network in under a minute
+    - metric: Map and network together
+      target: User sees positions and associations for the same window in one view
+    - metric: Period comparison
+      target: Per-animal metrics for every period exported as one table
+sources:
+    - title: spatsoc introduction vignette
+      url: https://cloud.r-project.org/web/packages/spatsoc/vignettes/intro.html
+      summary: group_times threshold, group_pts chain rule, edge_dist and edge_nn
+    - title: spatsoc for social network analysis vignette
+      url: https://cloud.r-project.org/web/packages/spatsoc/vignettes/using-in-sna.html
+      summary: get_gbi, asnipe get_network with SRI, randomizations by step, daily or trajectory split by year
+    - title: spatsoc repository (rOpenSci)
+      url: https://github.com/ropensci/spatsoc/
+      summary: Package source and documentation
+    - title: SocioPatterns hospital ward dynamic contact network
+      url: http://www.sociopatterns.org/datasets/hospital-ward-dynamic-contact-network/
+      summary: Wearable contacts recorded as 20-second intervals
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,110 @@
+id: W323
+name: Recurring Deliverables Regenerated from Refreshed Data
+category: reporting
+validated: false
+personas:
+    - graph-deliverable-recipient
+requires_capabilities:
+    - data-import
+    - saved-filters
+    - view-bookmarks
+    - style-presets
+    - legend-display
+    - comparison-view
+    - analysis-history
+    - export-image
+    - data-export
+    - report-generation
+    - analysis-provenance
+    - deliverable-templates
+suggested_components:
+    - data-import-dialog
+    - filter-panel
+    - bookmark-panel
+    - visual-encoding-panel
+    - legend-panel
+    - comparison-view
+    - analysis-history-panel
+    - report-generator-dialog
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: a deliverable already built once, plus a fresh extract of the same data source
+    node_count: any
+    edge_density: any
+    user_expertise: intermediate+
+goal: >-
+    **Intent**: Produce the same deliverable every period - an exposure trend, a monthly network dashboard, an
+    institutional bibliometric report, a semiannual resiliency score, a continuing-activity review, a dependency view -
+    from refreshed data with the same view, filters, styling, legend and parameters, and show what changed.
+
+
+    **Mental Model**: "Save the deliverable as a definition, not as pixels." The view, filters and tables are a recipe
+    that is run again against new data.
+
+
+    **Task Phases**:
+
+    1. **Build once** - View, filters, styling, legend, parameters block, tables
+
+    2. **Save as a definition** - Store the recipe, not the rendered image
+
+    3. **Re-render each period** - Load the new data, apply the same parameters, compare with the previous period
+
+    4. **Publish** - Export files, refresh the dashboard or update the embed
+
+
+    **Decision Points**:
+
+    - Which parts of the deliverable are fixed and which follow the data?
+
+    - What counts as a meaningful change between periods?
+
+    - Export on demand, on a schedule, or as a live embed?
+
+
+    **Information Needs**:
+
+    - Differences from the previous period (added, removed and changed nodes, edges and metrics)
+
+    - Confirmation that the same parameters were applied
+
+    - Data date of each regenerated deliverable
+
+
+    **Pain Points**:
+
+    - Graph tools save pictures, not re-runnable deliverables; no documented template that re-renders against new data
+
+    - Recurring work moves to notebooks, BI tools or vendor dashboards
+
+    - Layouts and styling drift between periods so comparison is unreliable
+
+
+    **Data Flow**:
+
+    - Input: Saved deliverable definition plus a new data extract
+
+    - Transformations: Re-import, re-apply filters, style and parameters, period comparison
+
+    - Output: Regenerated files, refreshed dashboard or embed, change summary
+success_criteria:
+    - metric: Regeneration effort
+      target: A new period's deliverable is produced without restyling or re-filtering by hand
+    - metric: Comparability
+      target: The deliverable shows what changed since the previous period
+    - metric: Parameter stability
+      target: The regenerated deliverable states the same parameters and its data date
+sources:
+    - title: BloodHound Enterprise datasheet
+      url: https://specterops.io/wp-content/uploads/sites/3/2025/07/BHE_Datasheet_1016-4_61bcf0.pdf
+      summary: Continuous attack path identification with exposure tracked over time
+    - title: Microsoft Viva Insights - privacy considerations
+      url: https://learn.microsoft.com/en-us/viva/insights/privacy/privacy-considerations
+      summary: Recurring organizational network dashboards with minimum group sizes
+    - title: FinCEN SAR form specification (SARX)
+      url: https://sdtmut.fincen.treas.gov/docs/SARX.pdf
+      summary: SAR filing structure reused in continuing-activity reviews
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

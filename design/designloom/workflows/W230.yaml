@@ -1,0 +1,165 @@
+id: W230
+name: Forced-Labor Trace to Origin for a Detained Shipment (UFLPA Tracing Package)
+category: reporting
+validated: false
+personas:
+    - trade-compliance-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - node-merging
+    - search
+    - neighborhood-expansion
+    - all-paths-finding
+    - path-highlighting
+    - pattern-search
+    - layout-hierarchical
+    - annotation
+    - details-on-demand
+    - filtering
+    - report-generation
+    - export-image
+    - data-export
+    - multilayer-networks
+    - provenance-tracking
+    - geographic-layout
+    - watch-list-proximity
+    - quantity-reconciliation
+    - tracing-package-export
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - attribute-table-join-dialog
+    - node-merge-dialog
+    - search-panel
+    - graph-canvas
+    - layout-panel
+    - path-finder-dialog
+    - pattern-search-dialog
+    - annotation-toolbar
+    - node-details-panel
+    - data-table-panel
+    - report-generator-dialog
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: one detained entry plus a standing supplier graph of trade and ownership links, with per-link documents and the UFLPA Entity List
+    node_count: 20-500
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Within the 30-day window, document every input of one detained shipment back to its raw materials,
+    showing that no step is in Xinjiang or performed by a listed entity or its affiliate, and submit a numbered tracing
+    package to CBP. Between detentions, prebuild packages per supply chain.
+
+
+    **Mental Model**: "A family tree for one shipment, with a receipt on every branch." The unit is the entry, not the
+    supplier; a gap anywhere breaks the proof.
+
+
+    **Task Phases**:
+
+    1. **Receive the detention notice** - Note the reasons and the 30-day deadline; request any extension before it
+
+    2. **Anchor on the entry** - Tie the goods to purchase orders via invoice, packing list and bill of lading
+
+    3. **Break the product into materials and steps** - Using the sector's production stages (apparel: fiber, yarn,
+    fabric, dyeing and finishing, assembly; polysilicon: quartzite to polysilicon to downstream goods; steel: mining to
+    finishing)
+
+    4. **Walk upstream one step at a time** - Per step: entity, role, address, related-party status and the documents
+    linking it to the next step; cite the record that identified each indirect supplier; collect affidavits
+
+    5. **Reconcile quantities** - Input volume matches output volume per node; production orders and capacity show the
+    supplier could make the goods; flag facilities sourcing the same input inside and outside Xinjiang
+
+    6. **Screen every entity** - Against the Entity List and the withhold-release-order and Findings dashboard, looking
+    through ownership to parents and affiliates
+
+    7. **Draw the flowchart and maps** - Number each step and each supporting document; maps show each step's region;
+    distinguish which company performs each step
+
+    8. **Optionally test origin** - Isotopic testing where viable
+
+    9. **Compile and submit** - Cover letter, summary, numbered exhibits grouped by component or stage, confidential
+    text in double brackets, originals plus translations, through the Forced Labor Portal
+
+    10. **Prebuild for next time** - Keep per-supply-chain packages current; drop suppliers that will not provide records
+
+
+    **Decision Points**:
+
+    - Applicability review (no Xinjiang input, no listed entity) or exception request?
+
+    - Is a link documented well enough, or is it a gap?
+
+    - Is a supplier within reach of a listed entity through ownership or trade?
+
+    - Drop a supplier that refuses to share records?
+
+
+    **Information Needs**:
+
+    - Upstream tree per material with every node labeled by production step
+
+    - Documents on every edge (type, number, date, quantity) and edges with none
+
+    - Paths from any node to a listed entity through trade or ownership edges
+
+    - Input versus output volume per node, and mixed-origin nodes
+
+    - One numbering shared by flowchart, maps and exhibit index
+
+
+    **Pain Points**:
+
+    - A gap for even one supplier can undermine the entire submission
+
+    - Sub-tier suppliers may refuse to share records
+
+    - Names vary across records, are redacted, or are in Chinese
+
+    - Packages are assembled by hand as numbered PDF exhibits
+
+    - Typical package size: no source found
+
+
+    **Data Flow**:
+
+    - Input: Entry records, POs, invoices, packing lists, BOMs, bills of lading, certificates of origin, payment,
+    inventory and production records, affidavits, ownership records, the Entity List
+
+    - Transformations: Shipment-scoped upstream extraction, entity resolution, evidence attachment per edge, watch-list
+    path search over trade and ownership edges, quantity reconciliation, step numbering
+
+    - Output: Numbered production flowchart, facility maps, exhibit index, gap list, submission to the Forced Labor Portal
+success_criteria:
+    - metric: Evidence coverage
+      target: Every edge in the shipment tree carries at least one document, or is listed as a gap
+    - metric: Watch-list screening
+      target: Every node checked for a path to a listed entity over trade and ownership edges
+    - metric: Deadline
+      target: Package ready inside the 30-day window
+sources:
+    - title: CBP Forced Labor Enforcement Operational Guidance for Importers (June 2026)
+      url: https://www.cbp.gov/sites/default/files/2026-06/fld_importer_guidance_final_06092026_0.pdf
+      summary: Production stages for twelve sectors, document lists, quantity reconciliation, numbering and exhibit format (Appendices A to E)
+    - title: CBP UFLPA guidance for importers (June 2022, superseded)
+      url: https://www.cbp.gov/sites/default/files/assets/documents/2022-Jun/CBP_Guidance_for_Importers_for_UFLPA_13_June_2022.pdf
+      summary: Earlier guidance replaced by the 2026 publication
+    - title: CBP UFLPA enforcement FAQ
+      url: https://www.cbp.gov/trade/programs-administration/forced-labor/faqs-uflpa-enforcement
+      summary: Small tier-3 or tier-4 components suffice; affiliates; review two to three weeks; summary reports cut detention to 10-14 days
+    - title: Foley and Lardner (2024)
+      url: https://www.foley.com/insights/publications/2024/02/multinational-company-cbps-uyghur-forced-labor-part-iii/
+      summary: 30-day window, extensions, volume reconciliation
+    - title: Holland and Knight (2026)
+      url: https://www.hklaw.com/en/insights/publications/2026/07/new-compliance-tools-cbp-issues-comprehensive-forced-labor-guidance
+      summary: Forced Labor Portal submission; one supplier gap undermines the package
+    - title: EU Deforestation Regulation geolocation requirements
+      url: https://green-forum.ec.europa.eu/nature-and-biodiversity/deforestation-regulation-implementation/traceability-and-geolocation-commodities-subject-eudr_en
+      summary: EU variant where origin nodes are land plots as points or polygons
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

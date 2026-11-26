@@ -1,0 +1,15 @@
+id: active-item-sync
+name: Active item follow and open-in-host
+category: analysis
+description: Host sets the active node and the view follows and marks it; click or hover hands the node id back so the
+    host opens or previews it.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W324
+    - W325
+    - W333
+implemented_by_components: []
+requirements: []
+sources: []

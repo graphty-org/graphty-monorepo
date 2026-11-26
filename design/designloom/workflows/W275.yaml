@@ -1,0 +1,122 @@
+id: W275
+name: Review Entity Resolution Clusters
+category: analysis
+validated: false
+personas:
+    - entity-resolution-cluster-reviewer
+requires_capabilities:
+    - data-import
+    - component-analysis
+    - computed-attributes
+    - centrality-betweenness
+    - centrality-degree
+    - removal-impact-analysis
+    - filtering
+    - data-preview
+    - visual-encoding-edges
+    - visual-encoding-nodes
+    - details-on-demand
+    - annotation
+    - data-export
+    - graph-collection-browser
+suggested_components:
+    - data-import-dialog
+    - cluster-table
+    - filter-panel
+    - histogram
+    - graph-canvas
+    - visual-encoding-panel
+    - legend-panel
+    - node-details-panel
+    - data-table-panel
+    - annotation-toolbar
+    - data-export-dialog
+starting_state:
+    data_type: pairwise record-match predictions (record A, record B, match weight, match probability) with record fields, clustered at a threshold
+    node_count: 2-200 per cluster; thousands to millions of clusters
+    edge_density: dense
+    user_expertise: advanced
+goal: >-
+    **Intent**: Choose a match threshold and blocking rules that neither fuse different people (over-merging through a
+    weak bridge) nor split one person (sparse clusters missing links), by ranking clusters on graph metrics and opening
+    the suspicious ones.
+
+
+    **Mental Model**: "Triage, then read." Each cluster is a small graph of records claiming to be one entity; metrics
+    point to the clusters worth reading, and a bridge between two dense halves is the signature of a false merge.
+
+
+    **Task Phases**:
+
+    1. **Predict pairs** (in code) - `linker.inference.predict()`; each pair carries a match weight and probability
+
+    2. **Cluster at a threshold** (in code) - `cluster_pairwise_predictions_at_threshold(df_predictions,
+    threshold_match_probability=0.5)` by connected components
+
+    3. **Compute graph metrics** (5 min) - Per node degree and centrality, per edge is_bridge, per cluster size, density
+    and centralisation
+
+    4. **Rank clusters for review** (5 min) - Largest clusters (over-merging), lowest density for their size (missed
+    links, `lowest_density_clusters_by_size`), clusters with bridges or high edge betweenness
+
+    5. **Inspect one cluster** (3 min each) - Records as nodes, pairs as edges labeled and colored by match probability,
+    bridges marked, record fields side by side
+
+    6. **Decide** (2 min each) - Raise or lower the threshold, tighten or loosen blocking rules, or send to clerical
+    review; re-cluster and repeat
+
+
+    **Decision Points**:
+
+    - Is this large cluster one entity or two joined by a weak bridge?
+
+    - Is a sparse cluster missing links or simply loosely matched?
+
+    - Change the global threshold or route this cluster to clerical review?
+
+
+    **Information Needs**:
+
+    - Table of clusters with size, density, centralisation and bridge count, sortable
+
+    - Match probability on every edge, bridges marked
+
+    - Record fields of every node in the cluster side by side
+
+    - How a cluster splits if a bridge is removed or the threshold raised
+
+
+    **Pain Points**:
+
+    - No single metric is definitive
+
+    - Review is one cluster at a time across a huge collection
+
+    - General graph tools load one graph, not a collection of clusters with per-cluster metrics
+
+
+    **Data Flow**:
+
+    - Input: Pairwise predictions and record table
+
+    - Transformations: Threshold clustering, node, edge and cluster metrics, ranking and sampling
+
+    - Output: Threshold and blocking rule changes; clusters routed to clerical review with notes
+success_criteria:
+    - metric: Triage
+      target: User can sort clusters by size, density and bridges and open any one directly
+    - metric: Over-merge detection
+      target: A bridge joining two dense halves is visible without reading every edge
+sources:
+    - title: Splink tutorial - Visualising predictions
+      url: https://moj-analytical-services.github.io/splink/demos/tutorials/06_Visualising_predictions.html
+      summary: Pairwise predictions clustered at a threshold by connected components
+    - title: Splink cluster studio dashboard
+      url: https://moj-analytical-services.github.io/splink/charts/cluster_studio_dashboard.html
+      summary: Per-cluster review dashboard sampled by cluster size
+    - title: Splink topic guide - graph metrics
+      url: https://moj-analytical-services.github.io/splink/topic_guides/evaluation/clusters/graph_metrics.html
+      summary: Density, centralisation, is_bridge; lowest_density_clusters_by_size sampling; no single definitive metric
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,57 @@
+id: veterinary-movement-epidemiologist
+name: Veterinary Movement Epidemiologist
+role: Veterinary Epidemiologist, National Veterinary Institute
+quote: Within the hour I need every holding that could have infected this farm, and every holding it could have infected, in the right order.
+bio: >-
+    Anna Lindqvist traces livestock movements during outbreaks (foot-and-mouth disease, African swine fever, bovine
+    tuberculosis) and designs risk-based surveillance between outbreaks. She works in R against a national livestock
+    movement database, using the EpiContactTrace package, which was written at a national veterinary institute for
+    exactly this job. Her data is one row per movement: source holding, destination holding, date, and optionally
+    species, number of animals and individual animal identifiers. Volume is high for a graph of this kind: the
+    package's example dataset holds 70,190 movements over three months, and a 2010 national foot-and-mouth disease
+    exercise used real cattle, pig, sheep and goat movements over 90 days. When a holding tests positive she must
+    produce, within hours, the ingoing contact chain (holdings that could have passed infection in, traced backward
+    through time) and the outgoing contact chain (holdings it could have passed infection to, traced forward), and
+    then per-holding reports that field veterinarians take with them on farm visits.
+characteristics:
+    expertise: advanced
+    time_pressure: high
+    graph_literacy: advanced
+    domain_knowledge: expert
+motivations:
+    - Name every holding at risk fast enough for a movement standstill to still matter
+    - Avoid over-restricting farms that a time-ignorant path analysis would wrongly implicate
+    - Give each field veterinarian a report about one holding, not a national diagram
+    - Rank holdings by movement exposure for surveillance sampling when there is no outbreak
+    - Keep the trace defensible, because its output restricts or destroys other people's animals
+behaviors:
+    - Starts from one root holding and a time window, often the presumed infectious window for the disease
+    - Traces both directions with paths that respect movement order, so a later movement cannot feed an earlier one
+    - Counts a holding once however many times it appears in a chain
+    - Reads structure and summary separately: source, destination and distance from the root; then in-degree, out-degree and both contact chain sizes per root holding
+    - Generates per-holding HTML or PDF reports, for one holding or for many roots in a batch
+    - Draws contact maps over time where holding coordinates exist
+    - Reuses the same measures between outbreaks to rank holdings for risk-based sampling
+    - Re-runs the whole trace when the movement extract is refreshed, since late-reported movements change the answer
+frustrations:
+    - Plain graph reachability overstates risk badly, because it ignores the order of movements; this is the reason the package counts time-respecting contact chains instead
+    - A trace is only as good as the reporting lag in the movement database, and late movements appear after decisions were made
+    - The output a field veterinarian needs is a document about one farm, which network tools do not produce
+    - Species and animal counts matter for risk but turn every edge into a multi-attribute record
+    - Batch reports for many root holdings means running the same analysis hundreds of times
+    - Holding coordinates exist for some farms and not others, so the map is always partial
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: false
+workflows:
+    - W74
+sources:
+    - title: Noremark and Widgren, EpiContactTrace - an R package for contact tracing (BMC Veterinary Research 2014, 10:71)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC3974595/
+      summary: Movement row format, ingoing and outgoing contact chains that respect movement order, NetworkStructure and NetworkSummary outputs, per-holding HTML and PDF reports, 70,190-movement example dataset and the 2010 Swedish foot-and-mouth disease exercise
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

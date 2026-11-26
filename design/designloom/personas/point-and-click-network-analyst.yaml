@@ -1,0 +1,63 @@
+id: point-and-click-network-analyst
+name: Point-and-Click Network Analyst
+role: Applied Health Researcher or MSc Student Running Network Analysis in JASP
+quote: I need a network figure, a centrality plot and a stability plot for this paper by the end of the afternoon, and I do not write code.
+bio: >-
+    Daniel is a nursing researcher who publishes network analyses of symptom and wellbeing scales, like many applied
+    health and public-health researchers did during COVID-19. He uses JASP because it is free and needs no code. His
+    data are 8 to 30 scale items from 200 to 3,000 respondents in a CSV or SPSS file. In JASP's Network module he drags
+    items into Variables, optionally a group into Split by, picks EBICglasso, ticks the centrality and bootstrap
+    options, and copies PNG figures into Word. He knows the words strength, expected influence and EBICglasso from the
+    paper he is imitating, but not what a bootstrap plot is telling him, and he cannot run a NetworkComparisonTest,
+    a cross-group difference matrix or a temporal network because the module does not offer them.
+characteristics:
+    expertise: novice
+    time_pressure: high
+    graph_literacy: novice
+    domain_knowledge: intermediate
+motivations:
+    - A publishable network figure, centrality plot and stability plot in about 30 minutes of menu work
+    - Follow the reporting conventions of the published network papers he imitates without writing R
+    - Compare two groups (men vs women, before vs during the pandemic) with the same layout
+    - Understand what the bootstrap and stability plots mean well enough to describe them in the results section
+behaviors:
+    - Opens a CSV or .sav file and drags items into the Variables box, a grouping variable into Split by
+    - Accepts the default estimator (EBICglasso) and default blue-red edge colors
+    - Ticks centrality table and plot, sometimes the Normalized option without knowing it switches to z-scores
+    - Runs Bootstrap Network and copies the resulting plots into the supplement whether or not he understands them
+    - Colors nodes by subscale and exports PNG or PDF into a Word manuscript
+    - Posts on the JASP forum when an estimator terminates or a plot looks wrong
+frustrations:
+    - Variables getting the wrong group color (reported for JASP 0.19.3)
+    - Bootstrap plots that look peculiar and that he does not know how to interpret
+    - mgm and IsingFit estimators terminating unexpectedly
+    - No NetworkComparisonTest, no cross-group difference matrix and no temporal networks in the GUI
+    - Features such as expected influence and the shared layout across groups exist but are not mentioned in the help file
+context:
+    frequency: as-needed
+    devices:
+        - laptop
+    voluntary: true
+workflows:
+    - W373
+    - W370
+    - W371
+sources:
+    - title: JASP Network Analysis help file
+      url: https://raw.githubusercontent.com/jasp-stats/jaspNetwork/master/inst/help/NetworkAnalysis.md
+      summary: Estimators (EBICglasso, correlation, partial correlation, huge, IsingFit, IsingSampler, mgm), Split by, Bootstrap Network, graphical options
+    - title: jaspNetwork R source
+      url: https://github.com/jasp-stats/jaspNetwork/blob/master/R/networkanalysis.R
+      summary: No NCT call; expected influence column; qgraph averageLayout shared across Split-by groups; layout saved to data
+    - title: JASP forum discussion 9830
+      url: https://forum.cogsci.nl/discussion/9830
+      summary: User reports wrong group colors and bootstrap plots that are peculiar and hard to interpret in JASP 0.19.3
+    - title: JASP forum comment 26597 (via search snippet)
+      url: https://forum.cogsci.nl/discussion/comment/26597/
+      summary: mgm and IsingFit terminating unexpectedly
+    - title: Applied COVID-era symptom network example
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10341738
+      summary: Typical applied paper reporting strength, bridge centrality and group comparisons
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

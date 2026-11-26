@@ -1,0 +1,30 @@
+id: layout-tiered-by-attribute
+name: Tiered layout keyed on a node column
+category: visualization
+description: Lay out nodes in tiers by a chosen categorical column (intervention, early, intermediate, long-term
+    outcome) bottom to top, and draw horizontal bands or lines across the layout such as an accountability ceiling.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W196
+    - W338
+    - W431
+    - W434
+    - W436
+    - W440
+    - W441
+    - W442
+    - W445
+implemented_by_components: []
+requirements:
+    - Arrange nodes in ordered tiers taken from a categorical node column (herb, compound, target, pathway) with
+      within-tier order chosen to reduce edge crossings; layout-hierarchical derives layers from edge direction instead.
+    - Places each node type (taken from a node column such as herb, compound, target, pathway, disease, taxon,
+      metabolite) in its own ordered column or ring, orders nodes inside a tier to reduce crossings with adjacent tiers,
+      and reproduces the same arrangement on reload; optional Sankey-like flow view.
+    - Places a typed multipartite graph in ordered tiers (columns or concentric rings) taken from a node column such as
+      herb, compound, target, pathway or disease. Nodes within each tier are ordered to reduce crossings with the next
+      tier, and the same arrangement comes back on reload. A Sankey-like flow view is optional. Cytoscape's
+      circle-per-type and hierarchical layouts each do only part of this.
+sources: []

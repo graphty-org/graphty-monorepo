@@ -1,0 +1,129 @@
+id: W116
+name: Hand-Building an Attack Flow from a Threat Report
+category: reporting
+validated: false
+personas:
+    - aiko-tanaka
+requires_capabilities:
+    - data-import
+    - data-validation
+    - annotation
+    - layout-hierarchical
+    - visual-encoding-nodes
+    - legend-display
+    - details-on-demand
+    - export-image
+    - data-export
+    - security-format-import
+    - typed-graph-editing
+suggested_components:
+    - graph-canvas
+    - annotation-toolbar
+    - context-menu
+    - node-details-panel
+    - layout-panel
+    - legend-panel
+    - session-save-dialog
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: A threat report (PDF or web page) and the MITRE ATT&CK technique list; output is STIX 2.1 Attack Flow JSON
+    node_count: 10-60 actions, assets, conditions and operators
+    edge_density: small directed acyclic graph with AND and OR operators
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Turn a narrative threat report into an ordered, technique-mapped graph of what the adversary did, with
+    confidence on every step, so detection engineers and purple teams can test against it and partners can import it.
+    Done by CTI analysts in MITRE's Attack Flow Builder; the graph is drawn by hand, not imported.
+
+
+    **Mental Model**: "Storyboard of an attack." Each card is one thing this adversary did, mapped to an ATT&CK
+    technique; arrows are sequence; OR and AND operators show alternatives and prerequisites; conditions record what
+    had to be true.
+
+
+    **Task Phases**:
+
+    1. **Choose a source** (5 min) - A credible technical report; public-corpus flows must cite at least one
+
+    2. **Set flow properties** (2 min) - Name, description, author, external references
+
+    3. **Create actions in order** (30-90 min) - Each with a name, an ATT&CK technique ID and a description of what this
+    adversary did (not the technique's generic name); start at reconnaissance, resource development or initial access
+    (or a condition saying it is unknown), join alternative entry vectors with an OR operator, end at impact; add
+    assets, conditions and operators
+
+    4. **Set confidence** (10 min) - STIX 0-100 per object, shown as Speculation, Very Doubtful, Doubtful, Even Odds,
+    Probable, Very Probable, Certainty
+
+    5. **Connect and validate** (10 min) - Drag arrows between anchors; a validation pane flags missing required fields
+
+    6. **Save and export** (5 min) - Save the editable file (there is no autosave), PNG of all or a selection, publish
+    as STIX JSON; the 2026 release adds drafting from a PDF or URL, technique suggestions, timeline and matrix views,
+    and TLP banners on exports
+
+
+    **Decision Points**:
+
+    - Is the report credible and detailed enough to flow?
+
+    - Which technique ID fits what the adversary actually did?
+
+    - Where are steps unknown, and how should the gap be shown?
+
+    - How confident is each step?
+
+
+    **Information Needs**:
+
+    - Required fields per object type and what is still missing
+
+    - ATT&CK technique lookup by ID or name
+
+    - Confidence shown visually on each object
+
+    - Left-to-right or top-to-bottom order that matches the story
+
+
+    **Pain Points**:
+
+    - No autosave in the builder
+
+    - Writing per-step descriptions and technique IDs by hand is slow
+
+    - Sensitive flows need local hosting because the online builder is reached over the internet
+
+
+    **Data Flow**:
+
+    - Input: Threat report; ATT&CK technique catalog; optionally an existing Attack Flow STIX bundle
+
+    - Transformations: Hand creation of typed nodes and edges with a property schema, layered layout, validation
+
+    - Output: Attack Flow STIX 2.1 JSON, editable file, PNG with TLP marking
+success_criteria:
+    - metric: Typed hand editing
+      target: User creates action, asset, condition and operator nodes with required fields enforced
+    - metric: Round trip
+      target: A published Attack Flow STIX file re-opens with every object and property intact
+    - metric: Confidence visibility
+      target: Confidence level readable on every object without opening it
+sources:
+    - title: MITRE CTID - Attack Flow Builder
+      url: https://center-for-threat-informed-defense.github.io/attack-flow/builder/
+      summary: Builder steps, validation pane, save, PNG and STIX export, no autosave, local Docker hosting
+    - title: MITRE CTID - Attack Flow best practices
+      url: https://center-for-threat-informed-defense.github.io/attack-flow/usage_guides/best-practices
+      summary: Credible sources, ordering from initial access to impact, OR operators, corpus rules
+    - title: MITRE CTID - Attack Flow language
+      url: https://center-for-threat-informed-defense.github.io/attack-flow/language
+      summary: Object types and the STIX confidence scale
+    - title: MITRE CTID - Attack Flow 2026
+      url: https://ctid.mitre.org/blog/2026/07/30/attack-flow-2026/
+      summary: Drafting from PDF or URL, technique suggestions, timeline and matrix views, TLP banners
+    - title: OASIS - STIX 2.1
+      url: https://docs.oasis-open.org/cti/stix/v2.1/os/stix-v2.1-os.html
+      summary: STIX objects and relationships
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

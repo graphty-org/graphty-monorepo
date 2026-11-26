@@ -1,0 +1,21 @@
+id: saved-import-mappings
+name: Saved Import Mappings
+category: data
+description: Saved, shareable import specifications that map columns to entities and links, name an identity column per
+    entity, replace or standardize values, and set the date format and time zone per column, so the next file from the
+    same source imports identically.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W100
+    - W107
+    - W18
+    - W298
+    - W97
+    - W98
+implemented_by_components: []
+requirements:
+    - Name, save, share and re-apply an import mapping (column roles, types, direction, merge rule) to new files of the
+      same layout, warning when columns changed.
+sources: []

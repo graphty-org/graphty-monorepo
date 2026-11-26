@@ -1,0 +1,133 @@
+id: W60
+name: Funder Portfolio Map
+category: reporting
+validated: false
+personas:
+    - research-portfolio-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - filtering
+    - centrality-degree
+    - community-detection
+    - layout-force-directed
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - comparison-view
+    - temporal-analysis
+    - selection-statistics
+    - report-generation
+    - export-image
+    - bibliographic-record-import
+    - record-projection
+    - fixed-base-map-layout
+suggested_components:
+    - data-import-dialog
+    - attribute-table-join-dialog
+    - data-table-panel
+    - filter-panel
+    - range-slider
+    - ranked-node-table
+    - community-panel
+    - visual-encoding-panel
+    - legend-panel
+    - comparison-view
+    - temporal-controls
+    - graph-canvas
+    - metric-card
+    - report-generator-dialog
+    - image-export-dialog
+starting_state:
+    data_type: Grant records (funder, award ID, investigators, institution, amount, dates, abstract) and linked papers from OpenAlex, Dimensions or NIH RePORTER
+    node_count: hundreds to tens of thousands of grants; tens to hundreds of institutions and fields shown
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Show a funder's board what the portfolio supports, how its fields shifted between strategy periods,
+    which institutions receive funding, and where it overlaps with other funders.
+
+
+    **Mental Model**: "Money flows to places and topics." The portfolio is a three-way network of funder, recipient
+    institutions and fields, with each grant as the record that links them; its shape is compared across periods.
+
+
+    **Task Phases**:
+
+    1. **Find the funder ID** (5 min) - For example NSF is F4320306076 in OpenAlex
+
+    2. **Portfolio by field** (15 min) - Works filtered by awards.funder_id, grouped by primary topic field
+
+    3. **Shifts** (30 min) - Compare field shares for two periods, such as 2015-2017 and 2023-2025
+
+    4. **Recipients** (30 min) - Group by institution; the graph form, a funder-institution-field network, is left to the
+    analyst
+
+    5. **Grant-text topic map** (hours) - Topic-model grant abstracts and lay grants out by similarity, as NIHMaps did
+    with a 700-topic model of NIH awards
+
+    6. **Check linkage** (hours) - Compare grant-to-paper links from a second source before reporting
+
+
+    **Decision Points**:
+
+    - Which linkage source to trust for grant-to-paper links?
+
+    - Field share by grants, papers or award amount?
+
+    - Which periods and peer funders to compare?
+
+
+    **Information Needs**:
+
+    - Grant and paper counts per field and period with share differences
+
+    - Top recipient institutions and their concentration
+
+    - Overlap with peer funders by field and institution
+
+    - Linkage coverage: grants with and without linked outputs, per source
+
+
+    **Pain Points**:
+
+    - Grant-to-paper links are inferred and differ by source
+
+    - Award amounts not available when grouping in OpenAlex
+
+    - Tutorials stop at tables; the network view is left to the analyst
+
+    - Maps whose positions move between periods cannot be compared
+
+
+    **Data Flow**:
+
+    - Input: Grant records and linked outputs, field classification, a second linkage source
+
+    - Transformations: Funder filter, grouping by field and institution, period comparison, funder-institution-field
+    projection, topic modeling and similarity layout
+
+    - Output: Board-ready portfolio figures, period comparison, recipient table, linkage caveats
+success_criteria:
+    - metric: Period comparison
+      target: Two periods shown on identical positions with share differences visible
+    - metric: Linkage transparency
+      target: Report states linkage coverage per source
+    - metric: Time to first portfolio map
+      target: Under 1 hour from grant export
+sources:
+    - title: OpenAlex tutorial - funder portfolios
+      url: https://help.openalex.org/tutorials/funder-portfolios/
+      summary: Funder ID, grouping by field and institution, period comparison; no award amounts when grouping
+    - title: Talley et al. 2011 - NIH grants database (NIHMaps)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5361216
+      summary: 700-topic model and similarity map of NIH awards
+    - title: Science as a public good - Dimensions vs RePORTER linkage
+      url: https://arxiv.org/pdf/2105.00152
+      summary: Grant-to-paper linkage differs by source
+    - title: Dimensions - funding strategy page (vendor)
+      url: https://www.dimensions.ai/resources/sharpen-your-funding-strategy-and-strengthen-your-grant-applications
+      summary: Grants linked to publications, patents and trials
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

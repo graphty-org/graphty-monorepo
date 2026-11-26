@@ -1,0 +1,168 @@
+id: W387
+name: Migration or Commuting Flows as a Network
+category: analysis
+validated: false
+personas:
+    - mobility-epidemiologist
+    - air-maritime-network-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - computed-attributes
+    - filtering
+    - component-analysis
+    - degree-analysis
+    - centrality-betweenness
+    - centrality-closeness
+    - centrality-eigenvector
+    - centrality-pagerank
+    - community-detection
+    - community-profiling
+    - comparison-view
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - statistics-panel
+    - export-image
+    - data-export
+    - geographic-layout
+    - od-flow-import
+    - flow-arithmetic
+    - regionalization
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - computed-attributes-panel
+    - filter-panel
+    - range-slider
+    - algorithm-panel
+    - algorithm-card
+    - ranked-node-table
+    - community-panel
+    - cluster-table
+    - comparison-view
+    - visual-encoding-panel
+    - legend-panel
+    - statistics-panel
+    - graph-canvas
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: national county-to-county net migration or commuting table (long form, signed net values) plus county centroids
+    node_count: 3000-3300
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Treat a migration or commuting table as a directed weighted network, compute centrality and
+    communities, and -- the step today's tools leave out -- see the results on a map rather than on a force layout
+    that ignores geography.
+
+
+    **Mental Model**: "Counties are nodes, net moves are edges." Which places are central in the flow network, and do
+    its communities form coherent regions on the map?
+
+
+    **Task Phases**:
+
+    1. **Pull flows** (minutes) - Every county's flows for one ACS vintage
+
+    2. **Keep one measure** - Only the net flow rows (MOVEDNET)
+
+    3. **Clean** - Drop moves from abroad (missing destination), malformed ids and self-loops: 1,440,390 rows become
+    406,348
+
+    4. **Deduplicate mirrored pairs** - Net A to B is minus net B to A, so keep one row per unordered pair: 203,174 rows
+
+    5. **Threshold** (a decision) - Keep pairs with absolute net above 50
+
+    6. **Orient signed edges** - Reverse every edge with a negative value and use the absolute value as weight, so
+    every edge points the way people net-moved
+
+    7. **Build the graph** - Directed and weighted: 3,083 vertices, 40,279 edges, density 0.0042, 3 components
+
+    8. **Centrality, with a weight choice per measure** - In- and out-strength; betweenness and closeness on inverse
+    weights (large flows are short distances); eigenvector, PageRank and hub and authority scores on raw weights; a
+    top-10 table. Some studies extract a disparity-filter backbone first
+
+    9. **Communities** - Collapse to undirected with summed weights; compare Louvain (13 communities, modularity
+    0.506), Walktrap (377, 0.465) and label propagation (98, 0.442); the algorithm changes the answer by an order of
+    magnitude
+
+    10. **Plot (the gap)** - A Kamada-Kawai drawing "does not respect the geographic locations"; positions must be fixed
+    to latitude and longitude by hand, and communities are mapped in a separate tool
+
+
+    **Decision Points**:
+
+    - Which measure: net, inbound, outbound or gross?
+
+    - Net threshold?
+
+    - Weight meaning per measure: raw volume, inverse volume, or hop count?
+
+    - Backbone extraction before centrality?
+
+    - Which community algorithm and resolution?
+
+
+    **Information Needs**:
+
+    - Row counts after each cleaning step
+
+    - Component count and sizes
+
+    - Top-10 table per centrality, with the weight meaning stated
+
+    - Community count and modularity per algorithm, and where communities fall on the map
+
+    - Nodes sized by a centrality and colored by community at their geographic positions
+
+
+    **Pain Points**:
+
+    - Antisymmetric net tables need manual deduplication and sign orientation
+
+    - The weight must be inverted by hand for path-based measures
+
+    - Network layouts ignore geography, so central places cannot be read in context
+
+    - Results move to another tool for mapping
+
+    - Community algorithms disagree by an order of magnitude with no side-by-side view
+
+
+    **Data Flow**:
+
+    - Input: Long net-flow table (origin, destination, signed net) and place coordinates
+
+    - Transformations: Cleaning, mirrored-pair deduplication, threshold, sign orientation, per-measure weight choice,
+    centrality, community detection
+
+    - Output: Geographic network with centrality sizing and community coloring, top-N tables, community lookup
+success_criteria:
+    - metric: Geographic result view
+      target: Centrality and community results shown at place coordinates without leaving the tool
+    - metric: Weight transparency
+      target: Each centrality result states whether raw, inverse or hop weights were used
+    - metric: Community comparison
+      target: Two community algorithms compared on the map with counts and modularity
+sources:
+    - title: Kaza - Network analysis of internal migration
+      url: https://nkaza.github.io/post/network-analysis-of-internal-migration
+      summary: Row counts per cleaning step, signed edge orientation, weight choice per measure, community comparison, Kamada-Kawai ignores geography
+    - title: Xu, Hu and Wang - IRS migration network before and during COVID-19
+      url: https://geog.ufl.edu/?p=21167
+      summary: Backbone extraction before centrality on a migration network
+    - title: Urban Science - Megaregions from county commuting
+      url: https://www2.mdpi.com/2413-8851/6/1/12
+      summary: Gephi nationally and NetworkX for Texas, regions mapped separately
+    - title: Review of migration network studies
+      url: https://arxiv.org/pdf/2002.10992
+      summary: Survey of network approaches to migration
+    - title: Serrano, Boguna and Vespignani - Disparity filter
+      url: https://arxiv.org/pdf/0704.1225
+      summary: Backbone extraction for dense weighted networks
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

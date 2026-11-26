@@ -1,0 +1,142 @@
+id: W253
+name: GNPS Molecular Networking, Job to Figure
+category: analysis
+validated: false
+personas:
+    - molecular-networking-chemist
+requires_capabilities:
+    - data-import
+    - component-analysis
+    - filtering
+    - search
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - details-on-demand
+    - large-graph-rendering
+    - export-image
+    - data-export
+    - analysis-provenance
+    - similarity-graph-construction
+    - node-glyph-charts
+    - component-browser
+suggested_components:
+    - data-import-dialog
+    - attribute-table-join-dialog
+    - filter-panel
+    - search-panel
+    - node-chart-overlay
+    - visual-encoding-panel
+    - legend-panel
+    - node-details-panel
+    - graph-canvas
+    - image-export-dialog
+starting_state:
+    data_type: GNPS GraphML (consensus spectra or features as nodes, cosine edges with mass difference) plus library hits
+    node_count: thousands; components capped at 100 nodes plus singletons (per-job count not found)
+    edge_density: sparse, many small components
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Turn an untargeted LC-MS/MS dataset into a molecular network, find the molecular families that differ
+    between sample groups, and name unknown spectra from annotated neighbors.
+
+
+    **Mental Model**: "Families of related molecules." Spectra that fragment alike are probably related compounds; a
+    library hit names its neighbors, and an edge's mass difference says what chemical change links them.
+
+
+    **Task Phases**:
+
+    1. **Convert** (varies) - Vendor files to mzML with ProteoWizard
+
+    2. **Detect features** (30-60 min) - Feature-based networking only: MZmine or MS-DIAL exports a feature table and an
+    MGF
+
+    3. **Submit** (10 min to hours) - Groups G1-G6; defaults precursor 2.0 Da, fragment 0.5 Da, cosine 0.7, 6 matched
+    peaks, TopK 10 mutual, maximum component size 100
+
+    4. **Read in the browser** (30 min) - View Spectral Families lists components; open one at a time; library hits
+    blue; pies per group; type a delta m/z to turn matching edges red
+
+    5. **Propagate annotations** (30 min) - NAP re-ranks candidate structures from annotated neighbors within a
+    component; MolNetEnhancer gives each family a chemical class
+
+    6. **Figure in Cytoscape** (30-60 min) - Import GraphML and library table; size by summed peak intensity; pies from
+    group columns; edge width by cosine; fill by class; structures from SMILES
+
+
+    **Decision Points**:
+
+    - Classical or feature-based networking?
+
+    - Cosine, matched peaks and TopK settings
+
+    - Show singletons or hide them?
+
+    - Which families to show in the figure?
+
+
+    **Information Needs**:
+
+    - Component list with size, group abundance and library hits, sortable
+
+    - Edges matching a given mass difference
+
+    - Structure images for annotated nodes
+
+    - Building parameters shown with the network
+
+
+    **Pain Points**:
+
+    - Browser viewer shows one component at a time
+
+    - Cytoscape search is slow on large molecular networks
+
+    - Reruns reshape families and random per-family layouts make comparison arduous
+
+    - Classical networking splits one compound into many nodes (13 duplicates for EDTA)
+
+    - Many nodes left as singletons
+
+
+    **Data Flow**:
+
+    - Input: GNPS GraphML, library hit table, feature table with group columns
+
+    - Transformations: Component listing and packing, mass-difference edge highlight, group pies, structure glyphs,
+    class coloring
+
+    - Output: Molecular family figures, annotated feature table, shared job link
+success_criteria:
+    - metric: All families at once
+      target: Every component and singleton can be shown and ranked in one view
+    - metric: Mass difference search
+      target: Edges matching a typed delta m/z highlight in one step
+    - metric: Parameters visible
+      target: Job parameters accompany the network
+sources:
+    - title: GNPS networking documentation
+      url: https://ccms-ucsd.github.io/GNPSDocumentation/networking/
+      summary: Defaults, TopK, component cap
+    - title: GNPS in-browser views
+      url: https://ccms-ucsd.github.io/GNPSDocumentation/networkingviews
+      summary: Spectral families, pies, delta m/z highlight
+    - title: FBMN in Cytoscape
+      url: https://ccms-ucsd.github.io/GNPSDocumentation/featurebasedmolecularnetworking-cytoscape/
+      summary: Column names and styling
+    - title: NAP
+      url: https://ccms-ucsd.github.io/GNPSDocumentation/nap/
+      summary: Annotation propagation limited to the connected component
+    - title: MolNetEnhancer
+      url: https://ccms-ucsd.github.io/GNPSDocumentation/molnetenhancer/
+      summary: Chemical class per family
+    - title: Feature-based molecular networking
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC7885687
+      summary: Duplicate nodes in classical networking
+    - title: GNPS2 FAQ
+      url: https://wang-bioinformatics-lab.github.io/GNPS2_Documentation/faq/
+      summary: Full network with singletons view
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

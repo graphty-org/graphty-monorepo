@@ -1,0 +1,152 @@
+id: W190
+name: Finding Overloaded People and Change Agents from a Multiplex Survey
+category: analysis
+validated: false
+personas:
+    - people-analytics-ona-lead
+    - ona-consultant
+    - hr-business-partner
+requires_capabilities:
+    - filtering
+    - centrality-degree
+    - centrality-betweenness
+    - degree-analysis
+    - metric-histograms
+    - neighborhood-expansion
+    - ego-network
+    - layout-hierarchical
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - node-selection
+    - selection-statistics
+    - details-on-demand
+    - computed-attributes
+    - export-image
+    - data-export
+    - missing-tie-states
+    - multiplex-relations
+    - boundary-measures
+    - privacy-aggregation
+    - reach-set-selection
+    - formal-informal-alignment
+suggested_components:
+    - filter-panel
+    - filter-chip
+    - algorithm-panel
+    - ranked-node-table
+    - histogram
+    - computed-attributes-panel
+    - layout-panel
+    - visual-encoding-panel
+    - legend-panel
+    - graph-canvas
+    - node-details-panel
+    - ego-network-dialog
+    - data-table-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: survey network with one directed edge set per relationship question (information, advice, energy, access) plus HR attributes and reporting lines
+    node_count: 150-2000
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: From a survey with several relationship questions, find the leaders and experts who carry too much of
+    the collaboration load, and pick the smallest set of influential people who can carry a change program to most of
+    the organization.
+
+
+    **Mental Model**: "Different questions, different networks." The advice network shows who is depended on; the
+    access question shows who is a bottleneck; the energy network shows who moves people. Overload and influence are
+    read on different edge sets of the same people.
+
+
+    **Task Phases**:
+
+    1. **Keep relationship types separate** (15 min) - Load each question as its own edge type; filter and style by
+    type; never mix advice, trust and energy into one undifferentiated network
+
+    2. **Measure overload** (1 hour) - For each leader count how many name them as an important information source
+    and the share who say greater access would help; flag anyone above 25 percent; overlay counts on the org chart
+    with span of control; check concentration (for example 5 percent of leaders holding 26 percent of ties)
+
+    3. **Rank change agents** (1 hour) - Rank by in-degree on energy or influence questions; then find the smallest set
+    whose one- or two-step reach covers most of the network (for example two steps from the top ten reaching all 250
+    employees)
+
+    4. **Validate** (days) - Combine with interviews and observation; check several metrics rather than one
+
+    5. **Hand over** (hours) - Lists of overloaded people with suggested deputies and change-agent candidates, shown to
+    HR and consenting leaders under the agreed transparency rules
+
+
+    **Decision Points**:
+
+    - Which relationship question defines overload and which defines influence?
+
+    - What access-share threshold flags a bottleneck?
+
+    - How many steps of reach, and what coverage share, define a sufficient change-agent set?
+
+    - Is a high count a hub to relieve or a role that is supposed to be central?
+
+
+    **Information Needs**:
+
+    - In-degree per person per relationship type, with counts of respondents behind each
+
+    - Share of a person's nominators who want more access to them
+
+    - Concentration of ties among the top few percent
+
+    - Reach within one and two steps of a candidate set, as a share of the network
+
+    - Span of control from the formal hierarchy beside informal in-degree
+
+
+    **Pain Points**:
+
+    - Tools that merge all questions into one edge set on import
+
+    - No way to compute the smallest covering set; practitioners eyeball the top-k list
+
+    - Overlaying informal counts on the org chart is done by hand in slides
+
+    - Over-reliance on one metric without validation
+
+
+    **Data Flow**:
+
+    - Input: Multiplex survey network with numeric strength codes, HR attributes, reporting lines
+
+    - Transformations: Per-type in-degree, access-share ratio, concentration, k-step reach of candidate sets
+
+    - Output: Overload list with access percentages, org chart annotated with counts, change-agent set with coverage
+success_criteria:
+    - metric: Overload identification
+      target: Every leader above the access threshold is listed with nomination count and access share
+    - metric: Change-agent coverage
+      target: User can state the coverage within two steps of the chosen set
+sources:
+    - title: Activate Networks - The network approach to change initiatives (telecom case)
+      url: https://www.slideshare.net/slideshow/the-network-approach-to-change-initiatives/26073709
+      summary: 41-105 nominations per director, 15-36 percent wanting more access, org chart overlay with span of control, 5 percent holding 26 percent of ties
+    - title: Cross, Davenport and Gray - Collaborate smarter, not harder (MIT Sloan Management Review)
+      url: https://sloanreview.mit.edu/article/collaborate-smarter-not-harder
+      summary: Overload flagged when more than a quarter of contacts want more access; hidden integrators
+    - title: Carta - The shadow organizational chart
+      url: https://carta.com/sg/en/blog/the-shadow-organizational-chart/
+      summary: Top four influencers held 171 nominations; two steps from the top ten reached all 250 employees
+    - title: Innovisor - Why you should not map networks during workshops
+      url: https://www.innovisor.com/2025/12/02/why-you-should-not-map-networks-during-workshops/
+      summary: Seek the smallest group influencing 90 percent
+    - title: Krackhardt and Hanson - Informal networks, the company behind the chart
+      url: https://heller.brandeis.edu/executive-education/maine-2023-2024/readingsession6/informal-networks.pdf
+      summary: Advice, trust and communication networks answer different questions
+    - title: Kumu documentation - SNA and network mapping
+      url: https://docs.kumu.io/disciplines/sna-network-mapping
+      summary: Connection types as filters
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

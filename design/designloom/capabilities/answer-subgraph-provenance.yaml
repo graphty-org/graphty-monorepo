@@ -1,0 +1,14 @@
+id: answer-subgraph-provenance
+name: Model or LLM Answer Subgraph with Provenance
+category: analysis
+description: Load and show the subgraph a model prediction or an LLM answer used, with per-element provenance and
+    retrieval or importance scores.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W262
+    - W263
+implemented_by_components: []
+requirements: []
+sources: []

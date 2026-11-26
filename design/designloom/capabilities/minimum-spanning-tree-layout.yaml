@@ -1,0 +1,14 @@
+id: minimum-spanning-tree-layout
+name: Minimum Spanning Tree over Profiles
+category: visualization
+description: A minimum spanning tree layout over allele profile or distance data, with identical profiles collapsed into
+    one node sized by the number of members, nodes divided into sectors by a metadata field, distances labeled on
+    branches, and a readable rendering well above twenty thousand nodes.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W70
+implemented_by_components: []
+requirements: []
+sources: []

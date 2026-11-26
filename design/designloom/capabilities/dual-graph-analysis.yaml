@@ -1,0 +1,13 @@
+id: dual-graph-analysis
+name: Dual Graph and Angular Analysis
+category: analysis
+description: Build a dual graph where street segments are polyline nodes and edges are weighted by turn angle, with stub
+    removal and unlink/link editing where lines cross without connecting.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W229
+implemented_by_components: []
+requirements: []
+sources: []

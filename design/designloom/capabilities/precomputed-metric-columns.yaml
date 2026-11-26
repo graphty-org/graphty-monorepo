@@ -1,0 +1,14 @@
+id: precomputed-metric-columns
+name: Precomputed Metric Columns
+category: analysis
+description: Treat an imported numeric node column as a metric with the same color, size, ranking and legend treatment
+    as a built-in algorithm.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W289
+    - W290
+implemented_by_components: []
+requirements: []
+sources: []

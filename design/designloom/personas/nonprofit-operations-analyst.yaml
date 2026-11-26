@@ -1,0 +1,73 @@
+id: nonprofit-operations-analyst
+name: Nonprofit Operations Analyst
+role: Operations and Data Analyst at a Small Nonprofit ("the accidental techie")
+quote: The development director wants to know which board members can open doors to these 30 prospects. I have three spreadsheets that don't agree on anyone's name.
+bio: >-
+    Grace Lin is the one person at a small regional nonprofit who "does the data". She is fluent in Excel and the
+    donor CRM (Salesforce Nonprofit Success Pack, where Relationships are reciprocal pairs between contacts and
+    Affiliations link contacts to organizations), but she has no graph training and often cannot install software on
+    her work laptop. She is asked for a one-slide picture of which board members connect to which funders, for a
+    list of the 20 to 40 prospects the board might reach, and once a year for the coalition's partner network survey
+    results. Her inputs are CRM exports, a board network compiled from LinkedIn at 15 to 20 minutes per board member,
+    a grants table, and survey exports. Her nodes are real people and organizations with CRM identifiers and her edges
+    are facts, so she asks lookups and paths ("who knows this prospect, in two steps?"), not loops. Donor names are
+    sensitive, and the whole picture goes stale because people change jobs, so she redoes it quarterly or before a
+    major campaign. This persona absorbs the graphty studio persona "Grace"
+    (design/ui/studio/personas/nonprofit-operations-analyst.md).
+characteristics:
+    expertise: novice
+    time_pressure: high
+    graph_literacy: none
+    domain_knowledge: moderate
+motivations:
+    - Answer "which prospects can this board member open doors to?" in one click
+    - Produce a one-slide board and funder picture for leadership
+    - Hand a clean list back to the CRM and the development team
+    - Report the coalition's network survey results to the funder
+    - Redo it all next quarter without starting over
+behaviors:
+    - Starts from spreadsheets and CRM exports, often edge lists without Source/Target headers
+    - Cleans name variants by hand because CRM, LinkedIn and grant data share no identifier
+    - Checks node and edge counts against the spreadsheet after every import
+    - Overlays a prospect list to find shared employers, alma maters and board seats
+    - Looks at bipartite views (board member to organization, funder to grantee) and their projections
+    - Copies a ranked list back into Excel and notes the connector's name on the prospect record
+    - Refreshes quarterly and expects re-import to update rather than duplicate
+frustrations:
+    - "We don't have the skills to analyze, slice and dice, and make sense of our data"
+    - Desktop tools such as NodeXL that are hard to share compared with web tools
+    - Stale data because people change jobs
+    - Donor names are sensitive and cannot go to an unknown cloud service
+    - Import dialogs that assume graph vocabulary and silently mis-map columns
+    - Duplicate people after re-importing an updated export
+context:
+    frequency: as-needed
+    devices:
+        - laptop
+    voluntary: false
+workflows:
+    - W201
+    - W205
+    - W206
+sources:
+    - title: DonorDock - Board-powered major gifts relationship mapping workflow
+      url: https://www.donordock.com/articles/board-powered-major-gifts-relationship-mapping-workflow
+      summary: LinkedIn compilation at 15-20 minutes per board member, 20-40 prospects, shared employers and alma maters, note connector on the prospect record
+    - title: GoodUnited - Relationship mapping for nonprofits
+      url: https://www.goodunited.io/blog/relationship-mapping-nonprofits
+      summary: Refresh quarterly or before a major campaign; people change jobs
+    - title: Salesforce Trailhead - NPSP relationships
+      url: https://trailhead.salesforce.com/content/learn/modules/constituent-data-management-with-nonprofit-success-pack/connect-contacts-using-relationships
+      summary: Reciprocal contact Relationships and contact-to-organization Affiliations (search summary)
+    - title: Chronicle of Philanthropy - Nonprofits find new donors with databases that track connections
+      url: https://www.philanthropy.com/article/nonprofits-find-new-donors-with-databases-that-track-connections/
+      summary: Fundraiser found NodeXL harder to share than web-based databases (search summary)
+    - title: Candid - Landscapes and funding flows
+      url: https://candid.org/blogs/candid-landscapes-funding-flows/
+      summary: Funder-grantee constellation views (search summary)
+    - title: Graphty studio persona - nonprofit operations analyst
+      url: design/ui/studio/personas/nonprofit-operations-analyst.md
+      summary: The simulated-study persona this record absorbs
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

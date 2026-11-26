@@ -1,0 +1,21 @@
+id: record-projection
+name: Record-to-network projection with counting methods
+category: analysis
+description: Keep the record-level bipartite or hypergraph model (paper-author, paper-reference, family-CPC,
+    family-assignee, grant-paper) and derive co-authorship, co-occurrence, direct citation, bibliographic coupling and
+    co-citation networks as views, with full, fractional and binary counting and a maximum-authors-per-record cap.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W50
+    - W51
+    - W52
+    - W53
+    - W54
+    - W57
+    - W59
+    - W60
+implemented_by_components: []
+requirements: []
+sources: []

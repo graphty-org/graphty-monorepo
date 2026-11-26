@@ -1,0 +1,14 @@
+id: paired-edge-matrices
+name: Paired Edge Matrices
+category: analysis
+description: Keep two aligned values per edge (weight and tract length or delay) from two matrices, with subset edits
+    (set, scale, remove between selected and unselected nodes) applied consistently.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W155
+    - W158
+implemented_by_components: []
+requirements: []
+sources: []

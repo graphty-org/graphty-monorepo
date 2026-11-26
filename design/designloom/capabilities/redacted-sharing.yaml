@@ -1,0 +1,13 @@
+id: redacted-sharing
+name: Redacted and Read-Only Sharing
+category: export
+description: Save copies with items or properties removed per audience or classification level, and share read-only views.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W103
+    - W106
+implemented_by_components: []
+requirements: []
+sources: []

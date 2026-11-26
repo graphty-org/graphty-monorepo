@@ -1,0 +1,69 @@
+id: network-medicine-vr-researcher
+name: Network Medicine VR Researcher
+role: Computational Biologist in a Network-Medicine Lab
+quote: I have 15 candidate genes and a whole interactome. In VR I can walk around the disease module and show the clinician why one candidate fits.
+bio: >-
+    Dr. Lukas Hofer is a computational biologist with a physics PhD in a network-medicine lab attached to a rare-disease
+    clinic, modeled on the Menche lab at CeMM and MedUni Vienna. He works in Python and NetworkX, computes disease
+    modules and their significance against random draws, and collaborates with clinician-scientists who bring sequenced
+    patients. Upstream filtering and pedigree comparison leave him with a short list of candidate genes, which he maps
+    onto the HIPPIE human interactome (16,376 proteins and 309,355 interactions) together with a few hundred curated
+    seed genes and binary annotation features from GO, DisGeNET, OMIM, HPO, pathways and tissues. He precomputes
+    force-directed, random-walk and t-SNE "functional landscape" layouts and explores them in VRNetzer or its
+    successor DataDiVR on a VR-ready Windows PC with a tethered Quest or an HTC Vive. A lab engineer maintains the
+    setup. He also reviews patient-versus-control comparisons with neuroscience collaborators who use synchronized 3D
+    views. Results leave the headset through a web module where collaborators review and annotate them.
+characteristics:
+    expertise: expert
+    time_pressure: medium
+    graph_literacy: advanced
+    domain_knowledge: expert
+motivations:
+    - Rank candidate genes by closeness to a disease module and pick one to validate
+    - Explain to clinicians, in a shared view, why one candidate fits the patient's phenotype
+    - Work at the scale of the whole interactome rather than a small extracted subnetwork
+    - Switch between layouts that mean different things (topology, function, embedding) on the same proteins
+    - Carry findings out of VR into a page collaborators can annotate and cite
+behaviors:
+    - Maps candidate and seed gene lists onto the interactome and notes which ones do not map (2 of 15, 29 of 276)
+    - Precomputes layouts in Python and loads them as fixed positions rather than running a layout in the headset
+    - Uses two-handed grab to move, rotate and scale the whole network and points to select
+    - Searches with a hand-held panel and stylus using up to four AND/OR clauses and saves node sets
+    - Computes the seed module's largest connected component with a z-score and runs random walk with restart from it
+    - Uses animated layout switches and a link fade that shows random subsets of edges to cut clutter
+    - Exports screenshots and videos rendered by the engine for talks
+frustrations:
+    - Hardware and setup -- a Windows-only executable, a GPU PC costing about 1,300 to 6,300 euros, a Python backend
+    - Fitting and practice phases of about 45 minutes before a session is productive
+    - Results must be carried out of VR into a separate web page by hand
+    - Sensitive patient variant data on a public server by default
+    - Session trace recording exists only as a prototype, so a VR finding is hard to reproduce
+context:
+    frequency: as-needed
+    devices:
+        - vr-headset
+        - desktop
+    voluntary: true
+workflows:
+    - W412
+    - W414
+    - W417
+sources:
+    - title: Pirch et al. 2021 - The VRNetzer platform enables interactive network analysis in Virtual Reality
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8065164
+      summary: HIPPIE interactome, candidate and seed mapping, precomputed layouts, in-VR analytics, web module hand-off, hardware costs
+    - title: Networks become virtual reality (authors' blog)
+      url: https://communities.springernature.com/posts/networks-become-virtual-reality
+      summary: Rare-disease case from 15 candidates to DOCK2
+    - title: DataDiVR WebApp README
+      url: https://github.com/menchelab/DataDiVR_WebApp/blob/main/README.md
+      summary: Upload, texture-encoded layouts, host and join sessions, WebGL preview
+    - title: Feyer et al. 2023 - multilayer network exploration in VR
+      url: https://arxiv.org/pdf/2307.10674
+      summary: Fitting and practice phase overheads common in VR studies
+    - title: Keiriz et al. 2018 - NeuroCave
+      url: https://ar5iv.arxiv.org/html/1706.10297
+      summary: Synchronized side-by-side 3D views for group comparison
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,57 +1,88 @@
 id: ml-engineer-recsys
 name: ML Engineer - Recommendation Systems
 role: Machine Learning Engineer / Recommendation Systems Specialist
-quote: The user-item graph is the foundation - everything else is feature engineering on top of network structure.
-bio: Chris is an ML engineer who specializes in recommendation systems at a mid-sized e-commerce company. After years of
-    building collaborative filtering models, he discovered that treating recommendations as a graph problem - finding
-    paths between users and items - dramatically improved prediction quality. He now builds graph neural networks and uses
-    link prediction algorithms to recommend products, combining traditional ML features with graph embeddings derived from
-    the user-item interaction network.
+quote: I don't need to see the whole user-item graph. I need to see one user's history next to what we recommended and why.
+bio: >-
+    Chris is an ML engineer on a recommendation team (e-commerce, content, ads or a data catalog). He writes PyTorch and
+    PyTorch Geometric, trains LightGCN or GraphSAGE-style models on a user-item bipartite or heterogeneous graph,
+    evaluates with recall@K and NDCG printed each epoch, and ships embeddings or scores into a ranking pipeline. His
+    graphs range from MovieLens small (610 users, 9,742 movies, 100,836 ratings) to production graphs of hundreds of
+    thousands to billions of nodes. Building, training, evaluating and deploying the recommender all happen in code; he
+    never builds a recommender in a viewer. He opens a graph view for four things only: to spot-check one user's
+    recommendations against that user's history and neighborhood, to understand why a specific bad recommendation was
+    made, to compare item or user embeddings against known categories or communities, and to show stakeholders the model
+    is sensible. Because there is no ground truth beyond the graph itself, that qualitative review -- picking seed users,
+    reading their neighborhoods, star-rating questionable items and exporting the ratings as CSV -- is the one step of
+    his work that happens in a visual tool.
 characteristics:
     expertise: expert
     time_pressure: medium
     graph_literacy: advanced
     domain_knowledge: advanced
 motivations:
-    - Improve recommendation quality metrics (precision, recall, NDCG)
-    - Leverage network structure that traditional ML models miss
-    - Build explainable recommendations by showing connection paths
-    - Scale graph-based recommendations to millions of users and items
-    - Combine graph features with content and behavioral features
+    - Judge before launch whether a model's recommendations are sensible for real users, not just better on recall@K
+    - Find popularity artifacts, leakage (already-consumed items recommended) and filtering bugs
+    - Understand why a distant but feature-similar item was recommended
+    - Check that learned embeddings separate item categories and communities
+    - Show stakeholders a convincing example of the model working
 behaviors:
-    - Constructs bipartite user-item graphs from interaction logs
-    - Computes graph embeddings (Node2Vec, GraphSAGE) as ML features
-    - Uses link prediction algorithms to score user-item pairs
-    - Projects bipartite graphs to user-user or item-item similarity networks
-    - Evaluates recommendation quality using offline metrics and A/B tests
-    - Analyzes cold-start users by examining their local graph neighborhood
-    - Exports graph features for use in downstream ML pipelines
-goals:
-    - Build graph-based recommendation models that outperform baselines
-    - Generate user and item embeddings from interaction graphs
-    - Explain recommendations through network paths
-    - Handle cold-start problems using graph neighborhood information
-    - Scale to production-level user-item graphs
+    - Trains and scores in code (PyG LightGCN, or Neo4j GDS FastRP plus kNN with random_seed=42) and loads only the scored output into a viewer
+    - Picks seed users deliberately -- heavy, cold-start, complaint users and a sample stratified by predicted probability -- because aggregates hide outliers
+    - Inspects one seed at a time - history, top-N items with probabilities, item attributes, and the path or shared neighbors linking history to each recommendation
+    - Brushes probability histograms by item type instead of drawing the full graph
+    - Star-rates questionable recommendations and exports the ratings as CSV back into training or filtering code
+    - Extracts one user's neighborhood before rendering because notebook viewers sample above about 10,000 nodes
+    - Checks that train and evaluation splits respect time so the model is not trained on future edges
 frustrations:
-    - Graph neural network libraries have steep learning curves
-    - Difficulty integrating graph features with existing ML pipelines
-    - Visualization tools can't handle graphs with millions of edges
-    - Hard to debug why specific recommendations are made
-    - Real-time inference on large graphs is computationally expensive
+    - Whole-graph views are useless at his scale; the input graph is too big to examine and did not help validity assessments
+    - Physical hop distance alone misleads, because the model also uses node features
+    - PyG's visualize_graph does not draw heterogeneous explanations (still an open roadmap item)
+    - Time leakage - training on future edges unless time filtering is meticulous
+    - Graph view, embedding view and table view live in separate tools
+    - Exports that lose the mapping from integer tensor indices back to user and item ids
 context:
-    frequency: daily
+    frequency: weekly
     devices:
         - desktop
         - laptop
     voluntary: true
 workflows:
     - W16
+    - W267
+    - W269
+    - W270
+    - W272
 sources:
+    - title: "RekomGNN: Visualizing, Contextualizing and Evaluating Graph Neural Networks Recommendations"
+      url: https://arxiv.org/html/2310.11562
+      summary: Tableau team of 4 SEs and 4 MLEs; 211,515-node catalog graph; seed-user inspection, probability histograms, star ratings exported as CSV; input graph too large to examine
+    - title: PyG - Loading graphs from CSV
+      url: https://pytorch-geometric.readthedocs.io/en/2.6.0/notes/load_csv.html
+      summary: MovieLens small bipartite graph (100,836 ratings) and the id-to-index mapping
+    - title: PyG LightGCN example
+      url: https://github.com/pyg-team/pytorch_geometric/blob/master/examples/lightgcn.py
+      summary: Recommendation by logits.topk(k) with Precision@20 and Recall@20 printed each epoch, all in code
+    - title: Neo4j GDS client - FastRP and kNN tutorial
+      url: https://neo4j.com/docs/graph-data-science-client/current/tutorials/fastrp-and-knn/
+      summary: Embedding and similarity computed in Python with seeds, checked with Cypher, no viewer
+    - title: neo4j-viz GDS integration
+      url: https://neo4j.com/docs/python-graph-visualization/current/integration/gds/
+      summary: from_gds renders a projection in a notebook, sampling by random walk above max_node_count (default 10,000)
+    - title: PinSage (Graph Convolutional Neural Networks for Web-Scale Recommender Systems)
+      url: https://arxiv.org/abs/1806.01973
+      summary: Pinterest graph of 3 billion nodes and 18 billion edges
+    - title: LiGNN (LinkedIn)
+      url: https://arxiv.org/abs/2402.11139
+      summary: Graph neural networks at LinkedIn scale, up to a hundred billion nodes
+    - title: PyG issue 9112 - explain roadmap
+      url: https://www.github.com/pyg-team/pytorch_geometric/issues/9112
+      summary: visualize_graph for HeteroExplanation is still an open roadmap item
+    - title: NVIDIA - How distributed training works
+      url: https://docs.nvidia.com/sdgm/how-distributed-training-works
+      summary: Unless time filtering is meticulous, training uses future edges
     - title: "Graph Learning based Recommender Systems: A Review"
       url: https://arxiv.org/abs/2105.06339
-      summary:
-          Comprehensive review of graph learning approaches for recommendation systems including GCNs and knowledge graph
-          methods
-    - title: What is Collaborative Filtering? - GraphAware
-      url: https://graphaware.com/glossary/collaborative-filtering/
-      summary: Explains how collaborative filtering works in graph-based recommendation systems
+      summary: Review of graph learning approaches for recommendation including GCNs and knowledge graph methods
+version: 1.1.0
+created_at: 2026-01-16T16:42:38.607Z
+updated_at: 2026-11-25T00:00:00.000Z

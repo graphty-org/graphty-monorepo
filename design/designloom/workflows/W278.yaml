@@ -1,0 +1,156 @@
+id: W278
+name: Install to an Embedded, Data-Bound, Styled, Interactive Graph (React)
+category: onboarding
+validated: false
+personas:
+    - graph-product-frontend-engineer
+    - plugin-author-frontend-developer
+requires_capabilities:
+    - graph-rendering
+    - data-import
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - layout-force-directed
+    - node-selection
+    - details-on-demand
+    - search
+    - legend-display
+    - zoom-pan
+    - framework-neutral-embedding
+    - stable-id-data-binding
+    - layout-lifecycle-events
+    - ui-widget-extension-points
+suggested_components:
+    - graph-canvas
+    - search-input
+    - node-details-panel
+    - legend-panel
+    - zoom-controls
+    - layout-panel
+    - toolbar
+starting_state:
+    data_type: application records from a REST, GraphQL or graph-database backend (JSON rows with ids, types and properties)
+    node_count: 50-500 visible per view
+    edge_density: sparse
+    user_expertise: expert developer, novice in graphs
+goal: >-
+    **Intent**: Put a graph view inside a React product: install a library, bind the product's data to it, style it by
+    the product's meaning, and wire clicks to the rest of the page. The graph is one screen among authentication,
+    dashboards and exports, and the product chrome around it is usually more code than the graph.
+
+
+    **Mental Model**: "A component with props and events." Data goes in as plain arrays, styles are rules, a click is an
+    event the app handles, and the component cleans itself up on unmount.
+
+
+    **Task Phases**:
+
+    1. **Install** (minutes to weeks) - `npm install` an open-source library and its React wrapper (pinning the peer
+    library), or for a commercial toolkit a sales contact, a downloaded tarball and a license file in the source tree
+
+    2. **Give it a box** (10 min) - A container with an explicit width and height; in Next.js load it with
+    `next/dynamic` and `ssr: false` or WebGL code crashes on `window`
+
+    3. **Map data to the library's model** (hours to days) - Decide which backend fields become ids, labels and style
+    inputs; Cytoscape.js wants `{data: {id, source, target}}`, sigma a graphology Graph, ReGraph an items object keyed by
+    id, yFiles node and edge sources; ids must be stable across fetches or expand-merge duplicates nodes
+
+    4. **Positions** (hours) - Run a named layout, assign x and y and run ForceAtlas2 in a worker, or let the toolkit
+    lay out and report positions back
+
+    5. **Style** (hours) - Stylesheet with data mappings, reducers and shader programs, or per-item props; type to color,
+    score to size, icons and badges
+
+    6. **Events** (hours) - Tap and hover handlers through a ref with manual removal on unmount, or hook-managed
+    listeners; selection pushed into the app's store
+
+    7. **Product chrome** (days) - Search box, properties panel bound to the selection, zoom controls, legend, layout
+    switcher
+
+    8. **Lifecycle** (hours) - One instance kept in a ref, incoming elements diffed, layout re-run only for new
+    elements, renderer destroyed on unmount
+
+
+    **Decision Points**:
+
+    - Open-source library or commercial toolkit (license, price, support)?
+
+    - Which backend field is the stable id?
+
+    - Precompute positions on the server or lay out in the browser?
+
+    - Hold selection and styling state in the app's store or in the library?
+
+
+    **Information Needs**:
+
+    - A first working example of about 15 lines from install to a clickable graph
+
+    - The exact shape of node and edge input, and which fields are reserved
+
+    - Typed event names and payloads, and whether listeners are released on unmount
+
+    - Whether an update merges by id or rebuilds the graph
+
+
+    **Pain Points**:
+
+    - Updating the React wrapper's elements stacks new nodes on top of each other unless the layout is re-run
+
+    - Listener cleanup on unmount is undocumented in the wrapper
+
+    - WebGL libraries crash Next.js server rendering with "window is not defined"
+
+    - Function-valued styles are slow; the fast path is not the obvious one
+
+    - Commercial toolkits need tarball installs and license files before the first line of code
+
+
+    **Data Flow**:
+
+    - Input: Backend JSON rows (entities and relationships with ids, types, properties)
+
+    - Transformations: Field-to-id, label and style mapping; layout; event wiring to app state
+
+    - Output: A mounted, styled, interactive graph component and the product screen around it
+success_criteria:
+    - metric: Install to clickable, styled graph
+      target: Under one hour, in about 15 lines of author code
+    - metric: Update correctness
+      target: Re-binding data with existing ids adds no duplicates and moves no existing node
+    - metric: Clean unmount
+      target: No listeners, workers or GPU resources left after the component is removed
+sources:
+    - title: react-cytoscapejs
+      url: https://github.com/plotly/react-cytoscapejs
+      summary: Elements, stylesheet and layout props and a cy ref callback; peer cytoscape pinned
+    - title: Cytoscape.js documentation
+      url: https://js.cytoscape.org/
+      summary: Element JSON, stylesheet with mapData, layouts registered with cytoscape.use, performance notes on function styles
+    - title: sigma.js quickstart
+      url: https://www.sigmajs.org/get-started/quickstart/
+      summary: Container must have a defined width and height; graphology Graph with x, y, size, color
+    - title: react-sigma setup
+      url: https://sim51.github.io/react-sigma/docs/start-setup
+      summary: useRegisterEvents manages listener lifecycle
+    - title: ReGraph getting started
+      url: https://developers.cambridge-intelligence.com/docs/regraph/getting-started
+      summary: Tarball install; items object keyed by id; onClick and onChange with state held by the app
+    - title: yFiles GraphBuilder
+      url: https://docs.yworks.com/yfiles-html/dguide/graph_builder/
+      summary: Business data bound through createNodesSource and createEdgesSource
+    - title: React hook pattern for Cytoscape.js layouts (gist)
+      url: https://gist.github.com/mgaebler/32d904e1a93678c2816f9cc0ad00bfaf
+      summary: Keep one instance in a ref, diff elements, re-run layout only for new elements
+    - title: Lightrun - react-cytoscapejs nodes stack on setState
+      url: https://lightrun.com/answers/plotly-react-cytoscapejs-question-setting-elements-property-via-setstate-causes-graph-nodes-to-stack-on-top-of-each-other
+      summary: Elements update stacks nodes unless layout re-runs
+    - title: reagraph issue 172
+      url: https://www.github.com/reaviz/reagraph/issues/172
+      summary: Next.js server rendering crash
+    - title: Cambridge Intelligence - EclecticIQ case study
+      url: https://cambridge-intelligence.com/eclecticiq-case-study/
+      summary: About five months from evaluation to customer beta
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

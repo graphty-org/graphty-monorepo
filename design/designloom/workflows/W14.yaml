@@ -9,12 +9,19 @@ requires_capabilities:
     - sample-datasets
     - data-import
     - data-preview
+    - data-validation
     - graph-rendering
     - layout-force-directed
     - zoom-pan
     - basic-statistics
     - community-detection
+    - centrality-degree
+    - visual-encoding-nodes
+    - legend-display
     - tooltip-display
+    - export-image
+    - undo-redo
+    - metric-explanations
 suggested_components:
     - file-drop-zone
     - sample-data-dialog
@@ -25,8 +32,12 @@ suggested_components:
     - statistics-panel
     - tooltip
     - keyboard-shortcut
+    - data-preview-table
+    - column-mapper
+    - legend-panel
+    - image-export-dialog
 starting_state:
-    data_type: user's first graph file
+    data_type: user's first graph file or a hand-built spreadsheet (a from-to table, often typed by hand)
     node_count: unknown
     edge_density: unknown
     user_expertise: novice
@@ -43,15 +54,24 @@ goal: >-
 
     1. **Arrival** - See clear call-to-action (not empty canvas), understand what's possible
 
-    2. **Data Loading** - Choose method (file, URL, paste, sample), see preview, confirm load
+    2. **Data Loading** - Choose method (file, URL, paste, sample), see preview of how columns become nodes, edges and
+    attributes, confirm load; a raw from-to spreadsheet is accepted, not only graph files
 
-    3. **First Visualization** - See graph rendered, understand basic stats (node/edge counts)
+    3. **Import Check** - See node and edge counts beside the source's row counts, with skipped rows, duplicates and
+    unmatched ids listed
 
-    4. **Guided Exploration** - Prompted to try key features (zoom, select, layout)
+    4. **First Visualization** - See graph rendered after a layout (the raw first picture is "kind of a mess"),
+    understand basic stats (node/edge counts)
 
-    5. **First Analysis** - Run a simple analysis (e.g., community detection) with guidance
+    5. **Guided Exploration** - Prompted to try key features (zoom, select, layout); every step can be undone
 
-    6. **Next Steps** - Understand what else is possible, how to learn more
+    6. **First Analysis** - Answer "who is central?" and "what groups are there?": size by a centrality and color by
+    community, each with a plain-language note on what it measures and what it cannot tell
+
+    7. **Read It Correctly** - A short note that drawn distance is not similarity, size is only one measure, and
+    communities can change between runs unless seeded
+
+    8. **Next Steps** - Export or share the picture, understand what else is possible, how to learn more
 
 
     **Decision Points**:
@@ -71,7 +91,9 @@ goal: >-
 
     - Preview of data before committing to load
 
-    - Basic statistics after loading
+    - Basic statistics after loading, compared with the source's counts
+
+    - Plain-language explanation of each measure applied
 
     - Explanations of what each feature does
 
@@ -90,6 +112,12 @@ goal: >-
 
     - Feel stupid asking "basic" questions
 
+    - No undo: after a crash or wrong click, novices "had to start over"
+
+    - First question is not yet a network question and needs reshaping
+
+    - Metrics shown as a wall of numbers recall math anxiety
+
 
     **Data Flow**:
 
@@ -107,6 +135,10 @@ success_criteria:
       target: User feels capable of exploring further
     - metric: Activation
       target: User runs at least one analysis
+    - metric: Import check
+      target: User can state whether node and edge counts match the source
+    - metric: Valid reading
+      target: User can state one valid and one invalid conclusion about the picture
 sources:
     - title: Graphty Progressive Disclosure Design
       url: https://graphty.app/docs/
@@ -114,6 +146,21 @@ sources:
     - title: Nielsen Norman Group Progressive Disclosure
       url: https://www.nngroup.com/articles/progressive-disclosure/
       summary: UX pattern for reducing complexity for new users
-version: 1.0.0
+    - title: Hansen et al. - Do You Know the Way to SNA?
+      url: https://www.cs.umd.edu/users/ben/papers/DerekL.2012Do.pdf
+      summary: Novice analysts need help reshaping questions and tables; messy first picture; metric anxiety; no undo forced restarts
+    - title: Bonsignore et al. - First Steps to NetViz Nirvana
+      url: https://www.cs.umd.edu/~ben/papers/Bonsignore2009First.pdf
+      summary: Novices asked to find a social role and a sub-group; Excel skill the primary barrier
+    - title: Zoss et al. 2018 - Network visualization literacy
+      url: https://cns.iu.edu/docs/publications/2018-NetSci-Zoss.pdf
+      summary: Outline which conclusions are and are not valid; distance read as similarity
+    - title: Programming Historian - Exploring and Analyzing Network Data with Python
+      url: https://programminghistorian.org/en/lessons/exploring-and-analyzing-network-data-with-python
+      summary: Count check against the source file after import
+    - title: Gephi FAQ
+      url: http://gephi.org/faq/
+      summary: No undo in Gephi; beginners sent to Gephi Lite in the browser
+version: 1.1.0
 created_at: 2026-01-16T16:22:44.421Z
-updated_at: 2026-01-16T16:22:44.421Z
+updated_at: 2026-11-25T00:00:00.000Z

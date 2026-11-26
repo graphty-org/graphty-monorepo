@@ -1,0 +1,13 @@
+id: diversity-metrics
+name: Diversity over a classification
+category: analysis
+description: Compute Rao-Stirling diversity (variety, balance, disparity) and network coherence of a unit's records over
+    a category classification with a distance matrix.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+algorithms: []
+used_by_workflows:
+    - W57
+implemented_by_components: []
+requirements: []
+sources: []

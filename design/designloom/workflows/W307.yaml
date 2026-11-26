@@ -1,0 +1,154 @@
+id: W307
+name: Per-Window Metrics and Animation from an Event Log
+category: analysis
+validated: false
+personas:
+    - temporal-network-researcher
+requires_capabilities:
+    - data-import
+    - data-validation
+    - temporal-analysis
+    - temporal-navigation
+    - degree-analysis
+    - filtering
+    - basic-statistics
+    - centrality-degree
+    - centrality-betweenness
+    - clustering-coefficient
+    - layout-force-directed
+    - animated-transitions
+    - statistics-panel
+    - analysis-history
+    - data-export
+    - export-image
+    - network-collection-small-multiples
+    - time-respecting-paths
+    - temporal-data-model-import
+    - event-window-aggregation
+    - per-window-metrics
+    - stable-temporal-layout
+    - playback-video-export
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - temporal-controls
+    - filter-panel
+    - algorithm-panel
+    - statistics-panel
+    - metric-card
+    - graph-canvas
+    - analysis-history-panel
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: timestamped interaction events (forum replies, chats, messages) with actor roles
+    node_count: 100-1000 actors
+    edge_density: sparse, thousands to tens of thousands of events
+    user_expertise: advanced
+goal: >-
+    **Intent**: Turn an interaction log into a dynamic network, compute metrics in sliding windows to describe how the
+    network changed, find who could reach whom given event order, and produce an animation and static small multiples
+    for a paper. Today this is a day to a week of R scripting (networkDynamic, tsna, ndtv) rerun on every parameter
+    change.
+
+
+    **Mental Model**: "A sliding lens." The same population is watched through a window of fixed width that moves step
+    by step; each position of the lens gives one network and one row of metrics.
+
+
+    **Task Phases**:
+
+    1. **Clean events** (30 min) - Drop self-loops, map actors to ids, convert time to a numeric unit (days)
+
+    2. **Assign durations** (15 min) - Give each point event an onset and terminus by a stated rule (fixed decay, or post
+    to last reply), with censoring for events that run past the end of observation
+
+    3. **Build and subset** (10 min) - Construct the dynamic network; keep active actors (degree above 20 in one
+    tutorial) because about 450 nodes is unreadable
+
+    4. **Look** (15 min) - Extract one network per week as small multiples; optionally a 3D stack of slices or a
+    timeline of spells
+
+    5. **Metrics per window** (20 min) - Density, reciprocity, centralization and centralities in, for example, 7-day
+    windows stepped daily; plot as time series and export a tidy table
+
+    6. **Reachability** (10 min) - Earliest-arrival tree from a facilitator; forward reachable set sizes
+
+    7. **Animate** (20 min) - Positions chained from the previous slice; render an HTML player or video
+
+    8. **Tune slicing** (the key judgment, repeated) - Instantaneous slices show mostly isolates; short aggregation
+    reveals triads and groups; overlapping windows soften change; high-turnover data needs week-long windows
+
+
+    **Decision Points**:
+
+    - How long does a point event last?
+
+    - Window length, step and overlap
+
+    - Which metrics to track per window (beyond counts and density)
+
+    - Activity threshold for drawing versus for computing
+
+    - Animation, small multiples, or both for the paper
+
+
+    **Information Needs**:
+
+    - Event counts per window and share of isolates per window
+
+    - Metric time series for several window lengths side by side
+
+    - Earliest-arrival times and hop counts from a chosen actor
+
+    - The parameter set behind every figure (window, step, aggregation, duration rule)
+
+
+    **Pain Points**:
+
+    - Every parameter change means rerunning scripts and regenerating figures
+
+    - GUI tools offer counts and density per window but not centralities
+
+    - Edge attributes are not aggregated across a window by default; the latest value wins
+
+    - Animations cannot go in a paper; filmstrips are built by hand
+
+    - Results depend on the time of measurement and the window length
+
+
+    **Data Flow**:
+
+    - Input: Event log (actor, actor, time, attributes), actor attribute table
+
+    - Transformations: Event cleaning, duration assignment, window binning with aggregation, per-window algorithm
+    runs, earliest-arrival search, chained layout
+
+    - Output: Tidy CSV of metrics per window, small-multiple figure, animation, reachability table, parameter record
+success_criteria:
+    - metric: Parameter iteration speed
+      target: Changing window length or step updates metrics and views in under a minute, no scripting
+    - metric: Metric coverage
+      target: Any built-in algorithm can be run per window and exported as one tidy table
+    - metric: Paper-ready output
+      target: Small multiples and animation exported with window dates and the parameter record
+sources:
+    - title: Saqr 2023 - Temporal network analysis with R (arXiv 2307.12339)
+      url: https://arxiv.org/abs/2307.12339
+      summary: MOOC forum workflow; event cleaning, duration assignment, degree above 20 subset, tsna metrics and tPath
+    - title: ndtv vignette (CRAN)
+      url: https://cran.r-project.org/web/packages/ndtv/vignettes/ndtv.pdf
+      summary: network.extract, filmstrip, timePrism, slice.par with aggregate.dur and rule latest, slice tuning observations
+    - title: ndtv compute.animation reference
+      url: https://search.r-project.org/CRAN/refmans/ndtv/html/compute.animation.html
+      summary: Each slice laid out from the previous slice's coordinates
+    - title: tsna vignette (CRAN)
+      url: https://cran.r-project.org/web/packages/tsna/vignettes/tsna_vignette.html
+      summary: tSnaStats with time.interval and aggregate.dur; tPath and tReach
+    - title: Raphtory - view algorithms
+      url: https://raphtory.readthedocs.io/en/master/user-guide/algorithms/4_view-algorithms/
+      summary: Rolling and expanding windows with PageRank per window in Python
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

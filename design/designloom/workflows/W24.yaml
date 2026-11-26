@@ -5,6 +5,8 @@ validated: false
 personas:
     - genomics-cytoscape-user
     - bioinformatics-researcher
+    - network-biology-core-bioinformatician
+    - single-cell-computational-biologist
 requires_capabilities:
     - data-import
     - basic-statistics
@@ -20,6 +22,7 @@ requires_capabilities:
     - data-export
     - export-image
     - analysis-history
+    - network-collection-small-multiples
 suggested_components:
     - data-import-dialog
     - network-list-panel
@@ -78,6 +81,11 @@ goal: >-
 
     - Report condition-specific edges or condition-specific communities?
 
+    - Merge with edge provenance kept (AP-MS edges versus STRING edges) or as a plain union?
+
+    - For networks on the same node set (CellChat conditions, CellOracle clusters), lock positions and share scales so
+    edges compare directly?
+
 
     **Information Needs**:
 
@@ -91,6 +99,10 @@ goal: >-
 
     - Which network is currently active and which it was derived from
 
+    - Per-edge difference between conditions on a diverging scale (increased red, decreased blue, as CellChat draws it)
+
+    - Nodes absent from one network marked as absent, not zero
+
 
     **Pain Points**:
 
@@ -103,6 +115,8 @@ goal: >-
     - Keeping node positions identical across the two views by hand
 
     - Explaining rewiring without an edge-membership legend
+
+    - Comparisons of 20 or more networks over one node set are done one score plot at a time
 
 
     **Data Flow**:
@@ -139,6 +153,12 @@ sources:
     - title: A protocol for WGCNA with module preservation for tumor and normal transcriptomic data
       url: https://pmc.ncbi.nlm.nih.gov/articles/PMC12457846/
       summary: Tumor and normal co-expression networks built separately, module preservation compared, both exported to Cytoscape
-version: 1.0.0
+    - title: CellChat netVisual_diffInteraction
+      url: https://rdrr.io/github/sqjin/CellChat/man/netVisual_diffInteraction.html
+      summary: Difference network, red increased and blue decreased
+    - title: CellOracle paper
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC9946838
+      summary: 24 and 38 per-cell-type GRNs compared
+version: 1.1.0
 created_at: 2026-09-08T02:34:20.000Z
-updated_at: 2026-11-18T07:06:16.000Z
+updated_at: 2026-11-25T00:00:00.000Z

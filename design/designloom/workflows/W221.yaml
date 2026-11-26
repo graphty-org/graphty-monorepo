@@ -1,0 +1,137 @@
+id: W221
+name: Cross-Sector Dependency and Cascading Impact Analysis
+category: analysis
+validated: false
+personas:
+    - infrastructure-resilience-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - neighborhood-expansion
+    - path-highlighting
+    - removal-impact-analysis
+    - temporal-navigation
+    - animated-transitions
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - filtering
+    - details-on-demand
+    - report-generation
+    - export-image
+    - multilayer-networks
+    - geographic-layout
+    - spatial-selection
+    - dependency-propagation
+    - cascade-simulation
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - graph-canvas
+    - impact-analysis-dialog
+    - temporal-controls
+    - filter-panel
+    - visual-encoding-panel
+    - legend-panel
+    - node-details-panel
+    - report-generator-dialog
+    - image-export-dialog
+starting_state:
+    data_type: typed facility and provider nodes across sectors with time-annotated dependency edges (time to severe impact, backup duration, percent function)
+    node_count: 100-5000
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: If a substation, fuel terminal, water plant or fiber hub is lost, find which hospitals, water plants,
+    shelters and 911 centers fail, and after how many hours, so the emergency operations center can act and planners can
+    fund backups.
+
+
+    **Mental Model**: "A clock starts at every facility when its provider goes down." Each dependency has its own fuse
+    (backup duration, time to severe impact); the cascade plays out over time.
+
+
+    **Task Phases**:
+
+    1. **Lay the foundation** - Identify critical infrastructure and its dependencies (resilience planning framework step 2)
+
+    2. **Collect facility dependencies** - Dependency surveys per facility, starting from pre-populated inputs and
+    outputs for the facility type
+
+    3. **Characterize each dependency** - For power, water, communications, fuel and transport: provider, backup, backup
+    duration, time to severe impact, percent of operations kept without backup; type (physical, cyber, geographic, logical)
+
+    4. **Build and view** - Facilities and providers with service territories as typed nodes; upstream and downstream
+    dependencies on a map; multiple providers on one display
+
+    5. **Simulate a loss** - Compromise a facility and step through cascading impacts in 12-hour increments
+
+    6. **Report** - Group impacts by FEMA Community Lifeline; assess risk and fund actions
+
+
+    **Decision Points**:
+
+    - Which facilities and providers to include for this plan or event?
+
+    - Which owner-reported backup durations to trust?
+
+    - Which backup or redundancy investments shorten the cascade most?
+
+
+    **Information Needs**:
+
+    - Upstream providers and downstream dependents of any facility
+
+    - Time at which each dependent facility reaches severe impact
+
+    - Lifeline category of every affected facility
+
+    - Percent function kept per facility over time
+
+
+    **Pain Points**:
+
+    - Each sector models itself in isolation
+
+    - Dependency data is collected one facility at a time
+
+    - Cascade timing rests on owner-reported backup duration
+
+    - Data is restricted to Gateway users, limiting sharing
+
+
+    **Data Flow**:
+
+    - Input: Facility dependency survey records, provider territories, infrastructure GIS layers, lifeline categories
+
+    - Transformations: Typed cross-sector graph build, time-stepped downstream cascade with per-edge time buffers,
+    lifeline grouping
+
+    - Output: Cascade timeline, map of failing facilities by time step, lifeline briefing, prioritized investment list
+success_criteria:
+    - metric: Cascade timing
+      target: Every affected facility shows when it fails
+    - metric: Lifeline briefing
+      target: Impacts grouped by lifeline in one exportable view
+    - metric: Cross-sector coverage
+      target: Power, water, communications, fuel and transport dependencies in one graph
+sources:
+    - title: CISA Fact Sheet - CISA Gateway Dependency and Cascading Impacts (2024)
+      url: https://www.cisa.gov/sites/default/files/2024-09/CISA%20Fact%20Sheet%20-%20CISA%20Gateway%20-%20Dependency%20and%20Cascading%20Impacts.20SEP2024%20508%20compliant.pdf
+      summary: MapView upstream and downstream dependencies; simulated compromise over 12-hour increments
+    - title: CISA Fact Sheet - Gateway Dependency Tool (2021)
+      url: https://www.cisa.gov/sites/default/files/publications/CISA%20Fact%20Sheet%20-%20Gateway%20Dependency%20Tool-508c_final.5NOV2021.pdf
+      summary: Dependency Survey and Dependency Profile Editor
+    - title: CISA Infrastructure Dependency Primer
+      url: https://www.cisa.gov/resources-tools/programs/resilience-planning-program/infrastructure-dependency-primer/learn
+      summary: Dependency types and time-to-impact characteristics
+    - title: CISA Infrastructure Resilience Planning Framework fact sheet
+      url: https://www.cisa.gov/sites/default/files/2023-06/IRPFFactSheet_%20June23_508c.pdf
+      summary: Planning steps for state and local governments
+    - title: FEMA Community Lifelines
+      url: https://www.fema.gov/emergency-managers/practitioners/lifelines
+      summary: Eight lifelines for incident briefings
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

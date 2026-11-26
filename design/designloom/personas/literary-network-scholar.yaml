@@ -1,0 +1,69 @@
+id: literary-network-scholar
+name: Literary Network Scholar and DH Instructor
+role: Professor of English Teaching Undergraduate Digital Humanities Methods
+quote: I want my students to open a network in the browser in five minutes and then explain it, not just report the numbers.
+bio: >-
+    Prof. Aisha Okafor studies early modern drama and print and teaches an undergraduate digital humanities methods
+    course. Her research networks are character co-occurrence networks drawn from whole corpora of plays through DraCor
+    and its R client rdracor (German, Shakespeare or French drama), and book-trade networks built from imprints, where
+    authors, printers, publishers and booksellers are linked by the works they shared. In class she uses Palladio,
+    Gephi Lite or Gephi, and Kumu for quick student maps. Her research questions compare dozens of plays at once (are
+    comedies denser than tragedies?) and then return to the scenes behind a striking tie. Her teaching problem is that
+    students lose the session to installs and, once they have a picture, simply report the numbers.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: intermediate
+    domain_knowledge: expert
+motivations:
+    - Compare whole genres or periods across many play networks at once, then pick outliers to reread
+    - Choose and defend the rule that makes two characters connected (co-presence, speaking to, co-reference)
+    - Give students a browser tool that works in minutes with sample data, with explanations of what the metrics mean
+    - Return from a strong tie to the scenes and lines that produce it
+behaviors:
+    - Pulls play networks and metadata for a whole corpus with rdracor and exports GEXF or GraphML
+    - Tabulates density, diameter, clustering and character degree and betweenness by genre or decade
+    - Builds two-mode imprint data (person to work) and projects it to collaborator pairs weighted by shared works
+    - Removes a central character and rereads the network, following Moretti's Hamlet exercise
+    - Teaches with Palladio and Gephi Lite because nothing needs installing
+frustrations:
+    - Students fight Gephi installs ("Cannot find Java 1.8 or higher")
+    - Students report numbers without interpreting them; metrics are difficult to interpret at best (Trilcke)
+    - No side-by-side view of dozens of play networks with shared scales
+    - No link from an edge back to the scenes and lines behind it
+context:
+    frequency: weekly
+    devices:
+        - laptop
+    voluntary: true
+workflows:
+    - W174
+    - W175
+    - W176
+    - W181
+    - W182
+sources:
+    - title: rdracor README
+      url: https://archive.linux.duke.edu/cran/web/packages/rdracor/readme/README.html
+      summary: Corpus listing, co-occurrence and relation networks, per-play metrics, text access
+    - title: rdracor get_net_cooccur_edges
+      url: https://rdrr.io/cran/rdracor/man/get_net_cooccur_edges.html
+      summary: Co-occurrence edge weight is the number of shared scenes
+    - title: Duke London Literary Network
+      url: https://sites.duke.edu/earlymodernlondon/london-literary-network/
+      summary: Imprint network of authors, printers, publishers and booksellers with a hand-made ID scheme
+    - title: Endicott course - Salem trials student network
+      url: https://alice.endicott.edu/assignment_groups/63
+      summary: Data collection was time-consuming and students used Gephi only minimally
+    - title: CUNY DH intro - Gephi Java error
+      url: https://dhintro18.commons.gc.cuny.edu/2018/10/31/gephi-java-error
+      summary: Student blocked by "Cannot find Java 1.8 or higher"
+    - title: Trilcke - Social Network Analysis as a method of literary studies
+      url: https://www.uni-potsdam.de/fileadmin01/projects/lit-19-jhd/Dokumente/Trilcke_-_Social_Network_Analysis_als_Methode_einer_textempirischen_Literaturwissenschaft.pdf
+      summary: Critique that network metrics for literary texts are hard to interpret
+    - title: Moretti - Network Theory, Plot Analysis (New Left Review)
+      url: https://newleftreview.org/issues/ii68/articles/franco-moretti-network-theory-plot-analysis
+      summary: Character networks of Hamlet and removing Horatio to reread the play
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

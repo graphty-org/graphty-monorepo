@@ -1,0 +1,165 @@
+id: W406
+name: Hand-Built Conceptual Network in a QDA Package
+category: analysis
+validated: false
+personas:
+    - qualitative-code-network-researcher
+requires_capabilities:
+    - annotation
+    - node-selection
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-hierarchical
+    - layout-radial
+    - filtering
+    - search
+    - details-on-demand
+    - view-bookmarks
+    - export-image
+    - data-export
+    - local-only-processing
+    - provenance-tracking
+    - graph-authoring
+    - relation-type-vocabulary
+suggested_components:
+    - graph-canvas
+    - toolbar
+    - context-menu
+    - annotation-toolbar
+    - node-details-panel
+    - data-table-panel
+    - visual-encoding-panel
+    - legend-panel
+    - layout-panel
+    - filter-panel
+    - search-panel
+    - session-save-dialog
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: a coded QDA project (codes, quotations, memos, documents); the network itself is drawn by the analyst
+    node_count: 10-60 nodes of mixed type
+    edge_density: sparse, typed and directed
+    user_expertise: novice to intermediate
+goal: >-
+    **Intent**: Write the emerging theory as a network: place categories, codes, quotations and memos by hand and link
+    them with named, directed relations such as "is cause of", "is part of" or "contradicts", each link explained in a
+    comment and backed by quotations. The network becomes the model figure in the paper. This is authoring, not
+    computing.
+
+
+    **Mental Model**: "A whiteboard whose sticky notes are wired to my data." Every node is an item in the project and
+    every link is a claim the analyst must be able to justify from the quotations.
+
+
+    **Task Phases**:
+
+    1. **Create a network** (1 min) - Name it; often one per category or code group
+
+    2. **Add nodes** (10 min) - Drag codes, quotations, memos, documents or groups into the editor; one item may
+    appear in several networks
+
+    3. **Link nodes** (20+ min) - Drag from one node onto another and pick a relation from the list: symmetric ("is
+    associated with", "contradicts") or asymmetric ("is part of", "is cause of", "is a", "is property of");
+    quotation-to-quotation links such as "explains" or "supports"
+
+    4. **Define relations** (10 min) - Each relation has a name, short and symbolic labels, line width and color, a
+    property (symmetric, asymmetric, transitive in older versions) and a preferred layout direction; editing it
+    restyles all links that use it
+
+    5. **Edit links** (ongoing) - Write a comment on why the nodes are linked, reverse direction, change relation,
+    unlink
+
+    6. **Review all links** (15 min) - A link manager lists every code-code link and quotation hyperlink, filterable by
+    relation and comment
+
+    7. **Mind the code tree** - Hierarchical links drawn in a network change the code hierarchy across the project
+
+    8. **Arrange** (15 min) - Start from a circular, hierarchical or left-right layout, then place by hand; align and
+    distribute
+
+    9. **Export** (5 min) - PNG, JPG, PDF or print; the project travels as QDPX, losing relation types and complex maps
+
+
+    **Decision Points**:
+
+    - Which relation applies, and is it symmetric, asymmetric or transitive?
+
+    - Should a new relation type be added to the vocabulary, or an existing one reused?
+
+    - Does this link have enough quotations behind it to stay in the model?
+
+    - One network for the whole theory, or one per category?
+
+
+    **Information Needs**:
+
+    - The quotations and memos behind any node or link
+
+    - The full list of links by relation type with their comments and authors
+
+    - Which networks a code already appears in
+
+    - The relation vocabulary and how each type is drawn
+
+
+    **Pain Points**:
+
+    - Drawn links are not always written back to the project, or rewrite the code tree when they are
+
+    - Concept-map items in some packages are not linked to the data at all
+
+    - Web versions have no network editor
+
+    - Relation types and complex maps are lost in QDPX exchange, so the theory is locked in one package
+
+    - The drawn theory and the computed co-occurrence never meet in one view
+
+
+    **Data Flow**:
+
+    - Input: QDA project items (codes, quotations, memos, documents), a relation vocabulary
+
+    - Transformations: Manual node placement, typed directed linking, relation styling propagated to links,
+    optional automatic layout as a starting point
+
+    - Output: Model figure, list of typed links with comments and evidence, saved network for later revision
+success_criteria:
+    - metric: Evidence per link
+      target: Every link opens its quotations and comment in one click
+    - metric: Relation vocabulary
+      target: Changing a relation's style or direction updates every link of that type
+    - metric: Persistence
+      target: Hand placement and links survive closing and reopening the project
+sources:
+    - title: ATLAS.ti help, How to create networks
+      url: https://atlastihelp.helpscoutdocs.com/article/727-how-to-create-networks-in-atlas-ti
+      summary: Create network, add entities, link, Link Manager, layouts, export; not in ATLAS.ti Web
+    - title: ATLAS.ti manual (v22 Mac), About Relations
+      url: https://doc.atlasti.com/ManualMac.v22/Networks/NetworksAboutRelations.html
+      summary: Preset relations, symmetric and asymmetric properties, user-defined relation styling that propagates to all links
+    - title: ATLAS.ti manual (v9 Windows), About Relations
+      url: https://doc.atlasti.com/ManualWin.v9/Networks/NetworksAboutRelations.html
+      summary: Transitive property; transitive relations enable semantic retrieval
+    - title: ATLAS.ti manual, About Nodes and Links
+      url: https://manuals.atlasti.com/Mac/en/manual/Networks/NetworksAboutNodesAndLinks.html
+      summary: First- and second-class links, quotation hyperlinks, groups cannot be linked, hierarchical links change the code tree
+    - title: ATLAS.ti manual, Linking Nodes
+      url: https://manuals.atlasti.com/Mac/en/manual/Networks/NetworksLinkingNodes.html
+      summary: Drag to link, Create Relation, link comments, reverse, Link Manager
+    - title: MAXQDA help, Objects in MAXMaps
+      url: https://www.maxqda.com/help/maxmaps/objects-in-maxmaps
+      summary: Maps of codes, memos, documents and segments; links made in a map are not repeated in the project
+    - title: MAXQDA help, Code-Subcodes-Segments Model
+      url: https://www.maxqda.com/help-mx22/maxmaps/the-code-subcode-segments-model
+      summary: Template map with a code, its subcodes and coded segments as nodes
+    - title: NVivo help, Concept maps
+      url: https://help-nv.qsrinternational.com/14/win/Content/vizualizations/concept-maps.htm
+      summary: Shapes and project items with labelled connectors; project items not linked to data
+    - title: MAXQDA help, REFI-QDA export and import
+      url: https://www.maxqda.com/help-mx24/reports/export-and-import-refi-qda-projects
+      summary: QDPX excludes complex concept maps
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

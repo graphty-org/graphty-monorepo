@@ -1,0 +1,180 @@
+id: W50
+name: VOSviewer Bibliometric Review from Web of Science
+category: analysis
+validated: false
+personas:
+    - bibliometric-review-author
+    - research-impact-librarian
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - filtering
+    - community-detection
+    - layout-force-directed
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - search
+    - details-on-demand
+    - analysis-history
+    - export-image
+    - data-export
+    - analysis-provenance
+    - bibliographic-record-import
+    - record-projection
+    - threshold-preview
+    - co-occurrence-weighting
+    - embeddable-map-export
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - data-preview-table
+    - filter-panel
+    - range-slider
+    - data-table-panel
+    - community-panel
+    - layout-panel
+    - visual-encoding-panel
+    - gradient-editor
+    - legend-panel
+    - graph-canvas
+    - analysis-history-panel
+    - image-export-dialog
+    - data-export-dialog
+    - share-dialog
+starting_state:
+    data_type: Web of Science plain-text or tab-delimited exports with full records and cited references, in 500- to 1,000-record batch files
+    node_count: 2,000-12,000 records producing maps of 50-1,000 items
+    edge_density: medium
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Turn a topic search in Web of Science into the standard figure set of a "bibliometric analysis of X"
+    review: country, institution and author co-authorship, co-cited references, keyword co-occurrence and a keyword
+    overlay by year, with a methods paragraph that lists every parameter. This is the dominant workflow in the field;
+    VOSviewer's software paper has about 28,600 citations and abstracts naming VOSviewer rose from 49 in 2015 to 11,729
+    in 2025.
+
+
+    **Mental Model**: "One corpus, many lenses." The records are fixed; each map is a different projection of the same
+    papers (who wrote with whom, what is cited together, which words appear together), and each projection has its own
+    counting method and thresholds that a reviewer will ask about.
+
+
+    **Task Phases**:
+
+    1. **Define the search** (days to 2 weeks) - Topic query with document type, language and year filters; two
+    researchers screen titles and abstracts (47,458 to 11,547 records in the STAR example); record query and retrieval
+    date
+
+    2. **Export** (1-3 hours) - Export > Plain Text or Tab-delimited, records 1 to 500 at a time, "Full Record and Cited
+    References"; 3,635 records needed 8 files
+
+    3. **Load** (5 min) - Read all batch files as one corpus; duplicates across batches removed; sources cannot be mixed
+
+    4. **Choose map type, unit and counting** (repeated for 4-6 maps) - Co-authorship (authors, organizations,
+    countries), co-occurrence (all, author or indexed keywords), citation, bibliographic coupling or co-citation;
+    full or fractional counting; ignore documents with more than 25 authors
+
+    5. **Set thresholds** (iterated, 10-30 min per map) - A step shows how many items meet each minimum (for example 3
+    citations per cited reference, 3-10 keyword occurrences); start strict, loosen; untick irrelevant items; export the
+    item list as a starting thesaurus
+
+    6. **Generate and tune** (30 min per map) - Association-strength normalization, similarity layout (attraction 2,
+    repulsion 1), clustering resolution (1 to 1.2 turned three clusters into four), minimum cluster size, merge small
+    clusters, random seed
+
+    7. **Read the views** (1-2 hours) - Network view (only the 1,000 strongest links drawn), overlay view colored by
+    average publication year or normalized citations (Viridis), density view; name clusters from their largest terms;
+    check names with a domain expert
+
+    8. **Export** (30 min) - Screenshot at 200% with transparent background; map and network files, JSON, GML or Pajek;
+    an interactive share link with embed code
+
+    9. **Write up** (2-3 days) - Annual output chart, top-10 tables, the maps, and a methods paragraph listing database,
+    query, dates, software version, map type, counting, thresholds, normalization, resolution and minimum cluster size
+
+
+    **Decision Points**:
+
+    - Which map types does this review need, and which unit of analysis for each?
+
+    - Full or fractional counting, and what maximum number of authors per document?
+
+    - Which threshold leaves a readable map (a few hundred items) without losing important items?
+
+    - Which clustering resolution gives clusters a domain expert can name?
+
+    - Network, overlay or density view for each figure?
+
+
+    **Information Needs**:
+
+    - Number of records loaded, duplicates removed and records missing cited references
+
+    - For each candidate threshold, how many items meet it (a live count as the minimum changes)
+
+    - Item table with occurrences, total link strength, cluster, average year and average citations
+
+    - Cluster list with sizes and top items, to name themes
+
+    - Every parameter of the current map as a list that can be pasted into a methods section
+
+
+    **Pain Points**:
+
+    - The export loop of 500 records at a time
+
+    - The wizard is repeated from scratch for each map type and each threshold change
+
+    - Results can be inconsistent between runs when the seed is not recorded
+
+    - Only 1,000 links drawn by default, so the picture differs from the data without saying so
+
+    - Parameters are scattered across wizard pages and not exported, so methods sections omit them
+
+    - A second tool is needed for bursts and timelines
+
+
+    **Data Flow**:
+
+    - Input: Batch export files with authors, affiliations, sources, keywords, years, citation counts and cited
+    references
+
+    - Transformations: Batch merge and deduplication, projection to the chosen unit (co-authorship, co-occurrence,
+    coupling, co-citation), full or fractional counting, threshold filtering, association-strength normalization,
+    seeded layout and clustering, overlay scoring by average year or citations
+
+    - Output: Four to six static map figures, item and cluster tables, a shareable interactive map, a parameter list for
+    the methods section
+success_criteria:
+    - metric: Time from batch files to the first map
+      target: Under 10 minutes
+    - metric: Reproducibility
+      target: Same files, parameters and seed give the same map, and the full parameter list exports as text
+    - metric: Map types from one load
+      target: All standard map types built from one loaded corpus without re-importing
+    - metric: Figure readiness
+      target: High-resolution export with transparent background and legend, no external cropping needed
+sources:
+    - title: Notre Dame library - VOSviewer demo
+      url: https://libguides.library.nd.edu/vos-viewer/demo
+      summary: 500-record batch export with Full Record and Cited References, minimum 3 citations per cited reference, max 25 authors, screenshot at 200%
+    - title: UIC library - VOSviewer guide
+      url: https://researchguides.uic.edu/bibliometrics/vosviewer
+      summary: Unticking items and exporting the selected items as a starting thesaurus
+    - title: Leiden Gorlaeus library - Creating an overview of topics
+      url: https://gorlaeus-library.github.io/VOSviewer/howto-topics.html
+      summary: 3,635 records in 8 files; resolution change from 1 to 1.2; reading the overlay as emerging topics
+    - title: VOSviewer Manual 1.6.20
+      url: https://www.vosviewer.com/documentation/Manual_VOSviewer_1.6.20.pdf
+      summary: Map types, counting, association strength, layout and clustering parameters, 1,000 strongest lines, no cross-source combining
+    - title: Protocol for bibliometric analysis in biomedicine with CiteSpace and VOSviewer (STAR Protocols)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11408372/
+      summary: Search and screening numbers, figure set, 2-3 days per phase, run-to-run inconsistency
+    - title: BIBLIO reporting guideline for bibliometric reviews
+      url: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10722750/
+      summary: Asks for database, query, dates, software and parameter reporting
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

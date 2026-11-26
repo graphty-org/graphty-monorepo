@@ -71,12 +71,15 @@ export interface Line {
     readonly combine?: CombineMode;
     /** The lines of a `{ template }` binding: text built from several values. */
     readonly template?: readonly string[];
+    /** The whole `{ template }` binding: its lines, its number format and its values. */
+    readonly templateBinding?: TemplateWrite;
 }
 
-/** Text built from several values: a `{ template }` binding's lines. */
-export interface TemplateWrite {
-    readonly template: readonly string[];
-}
+/** Text built from several values: a `{ template }` binding (its lines, and its format and values if any). */
+export type TemplateWrite = Extract<Binding, { template: readonly string[] }>;
+
+/** What a line writes: a literal, a binding to data, or a formatted string. */
+export type LineWrite = LiteralWrite | { readonly binding: DataBinding } | TemplateWrite;
 
 /** A literal value to write, and how it meets what lies beneath (a number only). */
 export interface LiteralWrite {
@@ -123,7 +126,7 @@ export function lineOf(layers: readonly Layer[], channel: EncodeKey): Line | und
                 return { layer, binding: bound };
             }
             if ("template" in bound) {
-                return { layer, template: bound.template };
+                return { layer, template: bound.template, templateBinding: bound };
             }
             return bound.combine === undefined || bound.combine === "replace"
                 ? { layer, value: bound.value }
@@ -334,7 +337,7 @@ export async function writeLine(
     ids: readonly LayerId[],
     target: Target,
     channel: EncodeKey,
-    write: LiteralWrite | { readonly binding: DataBinding } | TemplateWrite,
+    write: LineWrite,
     fresh: NewLayer | undefined,
     also?: Readonly<Partial<Record<Channel, ChannelValue>>>,
     alsoReplaces = false,
@@ -392,16 +395,12 @@ export async function writeLine(
  * @param combined - whether the literal combines with what lies beneath.
  * @returns the encode, or undefined for a plain literal.
  */
-function encodeOf(
-    write: LiteralWrite | { readonly binding: DataBinding } | TemplateWrite,
-    channel: EncodeKey,
-    combined: boolean,
-): Layer["encode"] {
+function encodeOf(write: LineWrite, channel: EncodeKey, combined: boolean): Layer["encode"] {
     if ("binding" in write) {
         return { [channel]: write.binding };
     }
     if ("template" in write) {
-        return { [channel]: { template: write.template } };
+        return { [channel]: write };
     }
     if (!combined) {
         return undefined;
@@ -558,7 +557,7 @@ export function carriedOpacity(ctx: Pick<RowContext, "many" | "layers">, channel
 export function writeIn(
     ctx: Pick<RowContext, "many" | "session" | "row" | "side" | "fresh">,
     channel: EncodeKey,
-    write: LiteralWrite | { readonly binding: DataBinding },
+    write: LineWrite,
     also?: Readonly<Partial<Record<Channel, ChannelValue>>>,
     alsoReplaces = false,
     after?: HistoryStepId,

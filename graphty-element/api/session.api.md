@@ -345,6 +345,7 @@ export type Binding = {
 } | {
     template: readonly string[];
     format?: BindingNumberFormat;
+    values?: Readonly<Record<string, TemplateValue>>;
 } | {
     by: Path;
     combine?: CombineMode;

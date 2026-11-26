@@ -20,6 +20,7 @@ import {
     type LiteralWrite,
     rowLayers,
     type Target,
+    type TemplateWrite,
     without,
 } from "./row";
 import { type KindControl, RowStyle } from "./StylePanel";
@@ -31,6 +32,7 @@ import { channelPhrase, type EncodeKey } from "./words";
 type Write =
     | LiteralWrite
     | { readonly binding: DataBinding }
+    | TemplateWrite
     | { readonly each: LayerSequence; readonly combine?: DataBinding["combine"] };
 
 /** What the last write did, and the rows it left unset, so "Also set those" can write them. */
@@ -58,8 +60,11 @@ interface LastWrite extends BulkReceipt {
 function patchOf(
     layer: Layer,
     channel: EncodeKey,
-    write: LiteralWrite | { readonly binding: DataBinding },
+    write: LiteralWrite | { readonly binding: DataBinding } | TemplateWrite,
 ): Pick<Layer, "set" | "encode"> {
+    if ("template" in write) {
+        return { set: without(layer.set, channel), encode: { ...layer.encode, [channel]: write } };
+    }
     if ("value" in write && (write.combine === undefined || write.combine === "replace")) {
         return { set: { ...layer.set, [channel]: write.value }, encode: without(layer.encode, channel) };
     }
@@ -172,7 +177,12 @@ function manyOf(
     // Copies of one binding differ only in each layer's own table: they count as one value.
     const key = (line: Line): string => {
         const { map: _map, ...binding } = line.binding ?? { by: "" };
-        return JSON.stringify([line.value, line.binding === undefined ? null : binding, line.combine]);
+        return JSON.stringify([
+            line.value,
+            line.binding === undefined ? null : binding,
+            line.combine,
+            line.templateBinding ?? null,
+        ]);
     };
     // The write rule: the rows that already set it, unless none does.
     const targetsOf = (channel: EncodeKey): FoundRow[] => {

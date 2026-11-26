@@ -159,6 +159,7 @@ describe("Style panel v2's chart from data", () => {
         await userEvent.click(within(await waitFor(calculate)).getByRole("combobox", { name: "Group by" }));
         const fields = await screen.findByRole("listbox", { name: "Group by" });
         await userEvent.click(within(fields).getByRole("option", { name: /^when\b/ }));
+        await userEvent.click(within(await waitFor(calculate)).getByRole("button", { name: "Done" }));
         const graphOf = (): { groupBy?: { by?: string; period?: string }; measure?: string } =>
             (written(session, layer, "node.chartData") as { entries: { graph?: object }[] }).entries[0].graph ?? {};
         await waitFor(() => {
@@ -167,6 +168,8 @@ describe("Style panel v2's chart from data", () => {
         });
         const merged = session.styles.explain({ node: "a" }).merged as Record<string, unknown>;
         assert.strictEqual(merged["node.chartValues"], "3 5", "January 3, February 5");
+        // Once written, the entry's own Graph value opens its Calculate, which writes each change.
+        await userEvent.click(await screen.findByRole("button", { name: /^Graph value/ }));
         await userEvent.click(within(await waitFor(calculate)).getByRole("combobox", { name: "Period" }));
         await userEvent.click(await screen.findByRole("option", { name: "Year" }));
         await waitFor(() => {

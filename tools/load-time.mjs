@@ -103,7 +103,7 @@ export async function approvedEntries(entries, fetchComment) {
  * @param id - the comment id
  * @returns the comment
  */
-async function fetchIssueComment(id) {
+export async function fetchIssueComment(id) {
     const token = process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN;
     if (!token) throw new Error("GH_TOKEN or GITHUB_TOKEN is needed to check the accepted slowdowns' approvals");
     const res = await fetch(`https://api.github.com/repos/graphty-org/graphty-monorepo/issues/comments/${id}`, {

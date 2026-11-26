@@ -1,8 +1,11 @@
 // How long a reader waits after each kind of input: hovering, clicking, dragging, turning the camera, keys and touch on
 // graphty-element, and the graphty app's own controls around it. See INTERACTION-LATENCY.md.
 //
-//   node interaction-latency.mjs element <results.jsonl> [--sizes 1k,10k,50k,100k] [--paths objects,batched]
-//                                        [--dims 3d,2d] [--modes plain,styled] [--dpr2-sizes 50k,100k]
+//   node interaction-latency.mjs tier <quick|full> <results.jsonl> [--page Q1,E3] [--reps 3]
+//                                        the suite's pages (INPUT-CATALOG.md, sections 3.3 and 3.4); tracked by
+//                                        tools/interaction-latency.mjs, which runs this and keeps the history
+//   node interaction-latency.mjs element <results.jsonl> [--sizes 100,1k,10k,50k,100k] [--paths objects,batched]
+//                                        [--dims 3d,2d] [--modes plain,default,styled,heavy] [--dpr2-sizes 50k,100k]
 //                                        [--reps 5] [--only <regex>]
 //   node interaction-latency.mjs app <results.jsonl> [--dist <graphty dist>] [--features ,cosmograph,file-styles]
 //                                    [--graphs lesmis,yed-live,gen-1k,gen-10k,staff-50k,gen-100k]
@@ -43,11 +46,11 @@ const CAP_MS = Number(process.env.LAT_CAP_MS ?? 30000);
 const SMOKE = process.env.LAT_SMOKE === "1";
 const PERCEIVED_MS = 300;
 const K = (n) => (n >= 1000 ? `${n / 1000}k` : String(n));
-const SIZES = { 200: 200, "1k": 1000, "10k": 10000, "50k": 50000, "100k": 100000 };
+const SIZES = { 100: 100, 200: 200, "1k": 1000, "10k": 10000, "50k": 50000, "100k": 100000 };
 
 // ------------------------------------------------------------------ the probe, in every page
 
-/* global document, requestAnimationFrame, addEventListener, removeEventListener, B -- the probe and the bench page run in the browser */
+/* global document, requestAnimationFrame, addEventListener, removeEventListener, devicePixelRatio, innerWidth, innerHeight, B -- the probe and the bench page run in the browser */
 const PROBE = () => {
     const raf = () => new Promise((r) => requestAnimationFrame(r));
     const el = () => document.querySelector("graphty-element");
@@ -123,9 +126,14 @@ const PROBE = () => {
         // Watches for the first `type` input event; from then, each frame, for `cond` (an expression over el, the
         // element; s, this measurement; p, the params) to hold and, with `pix`, for the pixels there to change.
         // With `settle`, then waits for waitForStableFrame (a layout or a glide finishing) as settledMs.
-        arm({ type, cond, params, event, capMs, pix, settle }) {
+        // With `startNow` (a change no input event carries: a pixel ratio change), the clock starts at arming.
+        arm({ type, cond, params, event, capMs, pix, settle, startNow }) {
             const s = { tInput: null, tState: null, tPix: null, tEvent: null, frames: 0, cam0: cam() };
             const base = pix ? grab(pix) : null;
+            if (startNow) {
+                s.tInput = performance.now();
+                s.wallInput = performance.timeOrigin + s.tInput;
+            }
             const onInput = (e) => {
                 if (s.tInput === null) {
                     s.tInput = e.timeStamp;
@@ -143,6 +151,14 @@ const PROBE = () => {
             // eslint-disable-next-line sonarjs/code-eval -- the runner's own expressions, in its own page
             const test = new Function("el", "s", "p", `return (${cond});`);
             const wait = { painted: null, after: 0, asked: false, noState: 0 };
+            // A result that already holds before the input means the case's setup failed, not a fast input.
+            if (cond !== "true")
+                try {
+                    // eslint-disable-next-line sonarjs/code-eval -- the runner's own expressions, in its own page
+                    s.preTrue = !!test(el(), { ...s }, params ?? {});
+                } catch {
+                    s.preTrue = false;
+                }
             // One frame after the input: true when the result is drawn, or never will be.
             const over = () => {
                 // The frame after the pixels changed is the one that presents them.
@@ -199,6 +215,7 @@ const PROBE = () => {
                     frames: s.frames,
                     sawInput: s.tInput !== null,
                     timeout: !!s.timeout,
+                    ...(s.preTrue ? { preTrue: true } : {}),
                 };
             })();
             armed = s;
@@ -312,10 +329,16 @@ const PROBE = () => {
  * @returns {Promise<object>} The measurement.
  */
 async function timed(page, spec, act) {
-    await page.evaluate((a) => globalThis.__lat.arm(a), { capMs: CAP_MS, ...spec });
+    // While a layout moves every node, every pixel changes every frame: such a phase ends on state alone.
+    const s = STATE_ONLY.has(page) ? { ...spec, pix: undefined } : spec;
+    await page.evaluate((a) => globalThis.__lat.arm(a), { capMs: CAP_MS, ...s });
     await act();
     return page.evaluate(() => globalThis.__lat.result());
 }
+const STATE_ONLY = new WeakSet();
+// A drag's moves after the first, which only crosses the drag threshold; a first move that timed out is kept, so a
+// drag that never moves anything is recorded as a timeout, not as no samples.
+const afterFirst = (out) => (out.length === 1 && out[0].timeout ? out : out.slice(1));
 const until = (page, cond, params, frames) =>
     page.evaluate(([c, p, f]) => globalThis.__lat.until(c, p, f), [cond, params ?? {}, frames ?? 600]);
 const camStill = (page) => page.evaluate(() => globalThis.__lat.camStill());
@@ -413,12 +436,15 @@ function nodeTargets(page, k, seed = 11) {
             };
             const out = [];
             const seen = new Set();
+            let picks = 0;
             for (let t = 0; out.length < k && t < 20000; t++) {
                 const id = ids[Math.floor(rnd() * ids.length)];
                 const at = el.nodeScreenPosition(id);
                 if (!at?.visible) continue;
                 if (at.x < 0.15 * r.width || at.x > 0.85 * r.width || at.y < 0.15 * r.height || at.y > 0.85 * r.height)
                     continue;
+                // ponytail: 400 picks at most; a pick costs tens of ms on a software renderer with the heavy look
+                if (++picks > 400) break;
                 const hit = el.elementAt({ x: at.x, y: at.y });
                 if (hit?.kind !== "node" || seen.has(String(hit.id))) continue;
                 const top = document.elementFromPoint(r.left + at.x, r.top + at.y);
@@ -464,21 +490,34 @@ function edgeTarget(page, skip = 0) {
     return page.evaluate((skip) => {
         const el = document.querySelector("graphty-element");
         const r = el.getBoundingClientRect();
+        const inside = (p) => p.x >= 20 && p.y >= 20 && p.x <= r.width - 20 && p.y <= r.height - 20;
+        // ponytail: 400 picks at most; a dense 100k drawing rarely leaves an edge's middle clear, and a pick costs
+        // tens of ms on a software renderer
+        const budget = { picks: 400 };
+        // A point the element picks as edge e and nothing of the page covers: the straight middle, then points
+        // off it to either side, since a curved edge bows away from its chord.
+        const pointOn = (e, a, b) => {
+            const len = Math.hypot(b.x - a.x, b.y - a.y);
+            const nx = -(b.y - a.y) / len,
+                ny = (b.x - a.x) / len;
+            for (const off of [0, 10, -10, 20, -20, 35, -35]) {
+                const mid = { x: (a.x + b.x) / 2 + nx * off, y: (a.y + b.y) / 2 + ny * off };
+                if (!inside(mid) || budget.picks-- <= 0) continue;
+                const hit = el.elementAt(mid);
+                const top = document.elementFromPoint(r.left + mid.x, r.top + mid.y);
+                if (hit?.kind === "edge" && String(hit.id) === String(e.id) && (top === el || el.contains(top)))
+                    return mid;
+            }
+            return null;
+        };
         let n = 0,
-            found = 0,
-            tried = 0;
+            found = 0;
         for (const e of el.session.data.edges()) {
-            if (++n > 200000) break;
+            if (++n > 200000 || budget.picks <= 0) break;
             const [a, b] = [el.nodeScreenPosition(e.source), el.nodeScreenPosition(e.target)];
             if (!a?.visible || !b?.visible || Math.hypot(a.x - b.x, a.y - b.y) < a.radius + b.radius + 40) continue;
-            const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-            if (mid.x < 20 || mid.y < 20 || mid.x > r.width - 20 || mid.y > r.height - 20) continue;
-            // ponytail: the first 3,000 candidates only; a dense 100k drawing rarely leaves an edge's middle clear
-            if (++tried > 3000) break;
-            const hit = el.elementAt(mid);
-            const top = document.elementFromPoint(r.left + mid.x, r.top + mid.y);
-            if (hit?.kind === "edge" && String(hit.id) === String(e.id) && (top === el || el.contains(top)))
-                if (found++ >= skip) return { id: String(e.id), x: r.left + mid.x, y: r.top + mid.y };
+            const mid = pointOn(e, a, b);
+            if (mid && found++ >= skip) return { id: String(e.id), x: r.left + mid.x, y: r.top + mid.y };
         }
         return null;
     }, skip);
@@ -664,6 +703,51 @@ function bursts(hzs) {
                 },
             },
             {
+                id: `burst-hover-sweep-${hz}hz`,
+                name: `Sweep the pointer across the drawing onto a node, ${hz} moves a second (hovered node)`,
+                async run(page, ctx, rep) {
+                    const t = ctx.nodes[rep % 2];
+                    const from = { x: t.x - 300 * (t.x > ctx.center.x ? 1 : -1), y: t.y - 60 };
+                    return burst(page, {
+                        type: "pointermove",
+                        track: "String(el.session.selection.hovered)",
+                        hz,
+                        count: 30,
+                        before: async () => {
+                            await page.mouse.move(from.x, from.y);
+                            await frames(page, 3);
+                        },
+                        // 29 moves to a point 60 px short of the node, then the last one onto it: the hovered node
+                        // changes after the last input, which is what the burst times.
+                        send: (i) => {
+                            const dx = t.x - from.x,
+                                dy = t.y - from.y;
+                            const len = Math.hypot(dx, dy);
+                            const f = i < 29 ? ((i + 1) / 29) * ((len - 60) / len) : 1;
+                            return page.mouse.move(from.x + dx * f, from.y + dy * f);
+                        },
+                    });
+                },
+            },
+            {
+                id: `burst-trackpad-scroll-${hz}hz`,
+                name: `Trackpad two-finger scroll: small wheel deltas, ${hz} a second`,
+                async run(page, ctx, rep) {
+                    const dir = (rep + (hz === 120 ? 1 : 0)) % 2 ? 1 : -1;
+                    return burst(page, {
+                        type: "wheel",
+                        track: CAM,
+                        hz,
+                        count: 30,
+                        before: async () => {
+                            await page.mouse.move(ctx.center.x, ctx.center.y);
+                            await camStill(page);
+                        },
+                        send: (i) => page.mouse.wheel(0, dir * (2 + (i % 3))),
+                    });
+                },
+            },
+            {
                 id: `burst-pinch-wheel-${hz}hz`,
                 name: `Trackpad pinch (Ctrl+wheel), ${hz} events a second`,
                 async run(page, ctx, rep) {
@@ -689,6 +773,83 @@ function bursts(hzs) {
     }
     return out;
 }
+
+const elementRect = (page) =>
+    page.evaluate(() => {
+        const r = document.querySelector("graphty-element").getBoundingClientRect();
+        return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height };
+    });
+// The node is drawn within `tol` px of p.x, p.y (element pixels).
+const NEAR = (tol) =>
+    `(() => { const a = el.nodeScreenPosition(p.id); return !!a && Math.hypot(a.x - p.x, a.y - p.y) <= ${tol}; })()`;
+// Settled: the camera state is the same as on the frame before (s keeps the last one).
+const CAM_HELD =
+    "(() => { const c = JSON.stringify(el.getCameraState()); const held = c === s.lastCam; s.lastCam = c; return held; })()";
+
+/** A node drag measured move by move, to the frame whose pixels under the pointer show the node. */
+async function dragNode(page, t, moves) {
+    const rect = await elementRect(page);
+    const dir = t.x < rect.left + rect.width / 2 ? 1 : -1;
+    const r = await measuredDrag(page, t, 10 * dir, 0, moves, {
+        cond: NEAR(2),
+        params: (x, y) => ({ id: t.id, x: x - rect.left, y: y - rect.top }),
+        pix: (x, y) => ({ x, y, w: 30, h: 30 }),
+    });
+    return afterFirst(r);
+}
+
+/** The highest-degree node of `k` pickable ones (degree counted over the element's edges). */
+async function hubTarget(page, k = 40) {
+    const ts = await nodeTargets(page, k, 77);
+    if (!ts.length) return null;
+    const deg = await page.evaluate(
+        (ids) => {
+            const want = new Set(ids);
+            const d = Object.fromEntries(ids.map((i) => [i, 0]));
+            for (const e of document.querySelector("graphty-element").session.data.edges()) {
+                if (want.has(String(e.source))) d[String(e.source)]++;
+                if (want.has(String(e.target))) d[String(e.target)]++;
+            }
+            return d;
+        },
+        ts.map((t) => t.id),
+    );
+    return ts.reduce((a, b) => (deg[b.id] > deg[a.id] ? b : a));
+}
+
+/** Sets graphty-element's behavior option `key` (a public property), merged into what is there. */
+const setBehavior = (page, key, value) =>
+    page.evaluate(
+        ([k, v]) => {
+            const el = document.querySelector("graphty-element");
+            el.layoutBehavior = { ...el.layoutBehavior, [k]: { ...el.layoutBehavior?.[k], ...v } };
+        },
+        [key, value],
+    );
+
+// Pen input: CDP mouse events with pointerType "pen" (Playwright has no pen).
+const pen = (cdp, type, p, buttons = 0) =>
+    cdp.send("Input.dispatchMouseEvent", {
+        type,
+        x: p.x,
+        y: p.y,
+        button: type === "mouseMoved" && !buttons ? "none" : "left",
+        buttons,
+        clickCount: type === "mouseMoved" ? 0 : 1,
+        pointerType: "pen",
+    });
+
+// A held key's auto-repeat, which Playwright cannot send: CDP key events with autoRepeat.
+const KEYS = { ArrowLeft: 37, ArrowRight: 39 };
+const cdpKey = (cdp, type, key, autoRepeat = false) =>
+    cdp.send("Input.dispatchKeyEvent", {
+        type,
+        key,
+        code: key,
+        windowsVirtualKeyCode: KEYS[key],
+        nativeVirtualKeyCode: KEYS[key],
+        autoRepeat,
+    });
 
 const ELEMENT = [
     {
@@ -879,19 +1040,7 @@ const ELEMENT = [
         async run(page, ctx, rep) {
             const t = (await nodeTargets(page, 1, 500 + rep))[0];
             if (!t) return { skip: "no node to drag" };
-            const rect = await page.evaluate(() => {
-                const r = document.querySelector("graphty-element").getBoundingClientRect();
-                return { left: r.left, top: r.top };
-            });
-            const near =
-                "(() => { const a = el.nodeScreenPosition(p.id); return a && Math.hypot(a.x - p.x, a.y - p.y) <= 2; })()";
-            const dir = t.x < 600 ? 1 : -1;
-            const r = await measuredDrag(page, t, 10 * dir, 0, this.moves, {
-                cond: near,
-                params: (x, y) => ({ id: t.id, x: x - rect.left, y: y - rect.top }),
-                pix: (x, y) => ({ x, y, w: 30, h: 30 }),
-            });
-            return r.slice(1); // the first move crosses the drag threshold
+            return dragNode(page, t, this.moves);
         },
     },
     {
@@ -1088,6 +1237,536 @@ const ELEMENT = [
     },
 ];
 
+// The rest of the catalog's canvas inputs (INPUT-CATALOG.md, section 2).
+const ELEMENT_MORE = [
+    {
+        id: "hover-neighbor",
+        name: "Move the pointer straight from one node onto another",
+        async run(page, ctx, rep) {
+            const [a, b] = rep % 2 ? [ctx.nodes[1], ctx.nodes[0]] : ctx.nodes;
+            await hoverUntimed(page, a);
+            await frames(page, 3);
+            return timed(
+                page,
+                {
+                    type: "pointermove",
+                    cond: "String(el.session.selection.hovered) === p.id",
+                    params: { id: b.id },
+                    pix: at(b, 40, 40),
+                },
+                () => page.mouse.move(b.x, b.y),
+            );
+        },
+    },
+    {
+        id: "pointer-leaves-element",
+        name: "Move the pointer from a node out of the element",
+        async run(page, ctx, rep) {
+            const t = ctx.nodes[rep % 2];
+            if (!ctx.outside) return { skip: "no point outside the element in the viewport" };
+            await hoverUntimed(page, t);
+            await frames(page, 3);
+            return timed(
+                page,
+                { type: "pointermove", cond: "el.session.selection.hovered === null", pix: at(t, 40, 40) },
+                () => page.mouse.move(ctx.outside.x, ctx.outside.y),
+            );
+        },
+    },
+    {
+        id: "pen-hover",
+        name: "Pen hover onto a node",
+        async run(page, ctx, rep, cdp) {
+            const t = ctx.nodes[rep % 2];
+            await pen(cdp, "mouseMoved", ctx.empty);
+            await until(page, "el.session.selection.hovered === null");
+            await frames(page, 2);
+            return timed(
+                page,
+                {
+                    type: "pointermove",
+                    cond: "String(el.session.selection.hovered) === p.id",
+                    params: { id: t.id },
+                    pix: at(t, 40, 40),
+                },
+                () => pen(cdp, "mouseMoved", t),
+            );
+        },
+    },
+    {
+        id: "pen-tap-select",
+        name: "Pen tap on a node selects it",
+        async run(page, ctx, rep, cdp) {
+            const t = ctx.nodes[rep % 2];
+            await clickEmptyUntimed(page, ctx);
+            await pen(cdp, "mouseMoved", t);
+            await frames(page, 3);
+            return timed(
+                page,
+                { type: "pointerdown", cond: SEL_IS, params: { id: t.id }, pix: at(t, 40, 40) },
+                async () => {
+                    await pen(cdp, "mousePressed", t, 1);
+                    await pen(cdp, "mouseReleased", t);
+                },
+            );
+        },
+    },
+    {
+        id: "pen-drag-node",
+        name: "Pen drag a node (per move)",
+        moves: 8,
+        async run(page, ctx, rep, cdp) {
+            const t = (await nodeTargets(page, 1, 1700 + rep))[0];
+            if (!t) return { skip: "no node to drag" };
+            const rect = await elementRect(page);
+            const dir = t.x < rect.left + rect.width / 2 ? 1 : -1;
+            await pen(cdp, "mouseMoved", t);
+            await frames(page, 2);
+            await pen(cdp, "mousePressed", t, 1);
+            const out = [];
+            let x = t.x;
+            for (let i = 0; i < this.moves; i++) {
+                await camStill(page);
+                x += 10 * dir;
+                const p = { x, y: t.y };
+                out.push(
+                    await timed(
+                        page,
+                        {
+                            type: "pointermove",
+                            cond: NEAR(2),
+                            params: { id: t.id, x: x - rect.left, y: t.y - rect.top },
+                            pix: { x, y: t.y, w: 30, h: 30 },
+                        },
+                        () => pen(cdp, "mouseMoved", p, 1),
+                    ),
+                );
+                if (out.at(-1).timeout) break;
+            }
+            await pen(cdp, "mouseReleased", { x, y: t.y });
+            await camStill(page);
+            return afterFirst(out);
+        },
+    },
+    ...[
+        ["shift-click-add-edge", "Shift", "Shift-click a second edge to add it", true],
+        ["ctrl-click-toggle-edge", "Control", "Ctrl-click a selected edge to take it out", false],
+    ].map(([id, key, name, adds]) => ({
+        id,
+        name,
+        async run(page, ctx) {
+            const [a, b] = ctx.edges;
+            if (!b) return { skip: "fewer than two edges whose middles are clear of nodes" };
+            await clickEmptyUntimed(page, ctx);
+            // A frame or more between moving and pressing: on the batched path the pick under the pointer is read
+            // back a frame later, and a press before it picks what was there before.
+            await page.mouse.move(a.x, a.y);
+            await frames(page, 3);
+            await clickHere(page);
+            await until(page, "el.session.selection.edges.map(String).includes(p.id)", { id: a.id });
+            if (!adds) {
+                await page.keyboard.down("Shift");
+                await page.mouse.move(b.x, b.y);
+                await frames(page, 3);
+                await clickHere(page);
+                await page.keyboard.up("Shift");
+                await until(page, "el.session.selection.edges.map(String).includes(p.id)", { id: b.id });
+            }
+            await page.mouse.move(b.x, b.y);
+            await frames(page, 3);
+            await page.keyboard.down(key);
+            const has = "el.session.selection.edges.map(String).includes(p.b)";
+            const r = await timed(
+                page,
+                {
+                    type: "pointerdown",
+                    cond: adds ? has : `!${has}`,
+                    params: { b: b.id },
+                    pix: at(b, 30, 30),
+                },
+                () => clickHere(page),
+            );
+            await page.keyboard.up(key);
+            return r;
+        },
+    })),
+    ...[
+        ["right-click-edge", "edge"],
+        ["right-click-empty", "empty"],
+    ].map(([id, what]) => ({
+        id,
+        name: `Right-click ${what === "edge" ? "an edge" : "empty canvas"} (the host's contextmenu event; selection kept)`,
+        async run(page, ctx) {
+            const p = what === "edge" ? ctx.edges[0] : ctx.empty;
+            if (!p) return { skip: "no edge whose middle is clear of nodes" };
+            await page.mouse.move(p.x, p.y);
+            await frames(page, 3);
+            return timed(page, { type: "pointerdown", cond: "s.tEvent !== null", event: "contextmenu" }, async () => {
+                await page.mouse.down({ button: "right" });
+                await page.mouse.up({ button: "right" });
+            });
+        },
+    })),
+    {
+        id: "drag-hub-node",
+        name: "Drag the highest-degree node in view (per pointer move)",
+        moves: 10,
+        async run(page) {
+            const t = await hubTarget(page);
+            if (!t) return { skip: "no node to drag" };
+            return dragNode(page, t, this.moves);
+        },
+    },
+    {
+        id: "undo-while-dragging",
+        name: "Ctrl+Z while still holding a dragged node (drawn back where the drag began)",
+        async run(page, ctx, rep) {
+            const t = (await nodeTargets(page, 1, 2100 + rep))[0];
+            if (!t) return { skip: "no node to drag" };
+            const rect = await elementRect(page);
+            await page.mouse.move(t.x, t.y);
+            await frames(page, 2);
+            await page.mouse.down();
+            for (let i = 1; i <= 5; i++) {
+                await page.mouse.move(t.x + 8 * i, t.y);
+                await frames(page, 1);
+            }
+            await until(page, NEAR(3), { id: t.id, x: t.x + 40 - rect.left, y: t.y - rect.top }, 120);
+            const r = await timed(
+                page,
+                {
+                    type: "keydown",
+                    cond: NEAR(3),
+                    params: { id: t.id, x: t.x - rect.left, y: t.y - rect.top },
+                    pix: at(t, 30, 30),
+                },
+                () => page.keyboard.press("Control+z"),
+            );
+            await page.mouse.up();
+            await camStill(page);
+            return r;
+        },
+    },
+    ...[
+        ["undo-node-move", "Control+z", "Ctrl+Z after moving a node (drawn back where it was)"],
+        ["redo-node-move", "Control+Shift+z", "Shift+Ctrl+Z after undoing a node move (drawn moved again)"],
+    ].map(([id, key, name]) => ({
+        id,
+        name,
+        async run(page, ctx, rep) {
+            const t = (await nodeTargets(page, 1, 2300 + rep))[0];
+            if (!t) return { skip: "no node to drag" };
+            const rect = await elementRect(page);
+            await page.mouse.move(t.x, t.y);
+            await frames(page, 2);
+            await page.mouse.down();
+            for (let i = 1; i <= 5; i++) {
+                await page.mouse.move(t.x + 8 * i, t.y);
+                await frames(page, 1);
+            }
+            await page.mouse.up();
+            const moved = { id: t.id, x: t.x + 40 - rect.left, y: t.y - rect.top };
+            const home = { id: t.id, x: t.x - rect.left, y: t.y - rect.top };
+            if (!(await until(page, NEAR(3), moved, 600)))
+                return { skip: "the dragged node did not follow the pointer" };
+            await camStill(page);
+            if (id === "redo-node-move") {
+                await page.keyboard.press("Control+z");
+                if (!(await until(page, NEAR(3), home, 600))) return { skip: "Ctrl+Z did not undo the node move" };
+            }
+            const want = id === "redo-node-move" ? moved : home;
+            return timed(
+                page,
+                {
+                    type: "keydown",
+                    cond: NEAR(3),
+                    params: want,
+                    pix: { x: rect.left + want.x, y: rect.top + want.y, w: 30, h: 30 },
+                },
+                () => page.keyboard.press(key),
+            );
+        },
+    })),
+    {
+        id: "region-outline-move",
+        name: "Shift-drag a rectangle: the outline follows the pointer (per move; DOM)",
+        moves: 6,
+        async run(page, ctx) {
+            await setBehavior(page, "selection", { region: "rectangle" });
+            await clickEmptyUntimed(page, ctx);
+            const OUTLINE =
+                "[...(el.shadowRoot ? [el.shadowRoot, el] : [el])].map((r) => r.querySelector('polygon[stroke-dasharray]')).find(Boolean)?.getAttribute('points') ?? ''";
+            await page.keyboard.down("Shift");
+            await page.mouse.move(ctx.empty.x, ctx.empty.y);
+            await page.mouse.down();
+            const out = [];
+            let { x, y } = ctx.empty;
+            const dx = (ctx.center.x - x) / 8,
+                dy = (ctx.center.y - y) / 8;
+            for (let i = 0; i < this.moves + 1; i++) {
+                const before = await page.evaluate(
+                    `(() => { const el = document.querySelector("graphty-element"); return ${OUTLINE}; })()`,
+                );
+                x += dx;
+                y += dy;
+                out.push(
+                    await timed(
+                        page,
+                        { type: "pointermove", cond: `(${OUTLINE}) !== p.before`, params: { before } },
+                        () => page.mouse.move(x, y),
+                    ),
+                );
+            }
+            await page.keyboard.press("Escape");
+            await page.mouse.up();
+            await page.keyboard.up("Shift");
+            await clickEmptyUntimed(page, ctx);
+            return afterFirst(out);
+        },
+    },
+    {
+        id: "lasso-select",
+        name: "Shift-drag a lasso around nodes, release to select (element option)",
+        async run(page, ctx) {
+            await setBehavior(page, "selection", { region: "lasso" });
+            await clickEmptyUntimed(page, ctx);
+            const c = ctx.center;
+            const rad = 120;
+            await page.keyboard.down("Shift");
+            await page.mouse.move(c.x + rad, c.y);
+            await page.mouse.down();
+            for (let i = 1; i <= 16; i++) {
+                const a = (i / 16) * 2 * Math.PI;
+                await page.mouse.move(c.x + rad * Math.cos(a), c.y + rad * Math.sin(a));
+                await frames(page, 1);
+            }
+            const r = await timed(
+                page,
+                { type: "pointerup", cond: "el.session.selection.nodes.length > 0", pix: "all" },
+                () => page.mouse.up(),
+            );
+            await page.keyboard.up("Shift");
+            await setBehavior(page, "selection", { region: "rectangle" });
+            await clickEmptyUntimed(page, ctx);
+            return r;
+        },
+    },
+    {
+        id: "drag-pan-middle",
+        name: "Middle-drag pan in 3D (per pointer move)",
+        dims: ["3d"],
+        moves: 10,
+        run: (page, ctx, rep) => measuredDrag(page, ctx.empty, 0, rep % 2 ? -8 : 8, 10, { button: "middle" }),
+    },
+    {
+        id: "focus-tab",
+        name: "Tab into the canvas (focus on the element)",
+        async run(page, ctx) {
+            if (!ctx.outside) return { skip: "no point outside the element" };
+            await page.mouse.click(ctx.outside.x, ctx.outside.y);
+            await page.evaluate(() => document.activeElement?.blur?.());
+            await frames(page, 2);
+            const r = await timed(page, { type: "keydown", cond: "el.matches(':focus-within')" }, () =>
+                page.keyboard.press("Tab"),
+            );
+            if (r.timeout) return { skip: "Tab from the page start does not reach the element on this page" };
+            return r;
+        },
+    },
+    {
+        id: "key-camera-roll",
+        name: "Roll key on the focused canvas (A / D in 3D, Q / E in 2D)",
+        async run(page, ctx, rep) {
+            await clickEmptyUntimed(page, ctx);
+            await camStill(page);
+            const key = { "3d": ["a", "d"], "2d": ["q", "e"] }[ctx.dim][rep % 2];
+            const r = await timed(page, { type: "keydown", cond: CAM_MOVED, pix: "all" }, () =>
+                page.keyboard.down(key),
+            );
+            await page.keyboard.up(key);
+            await camStill(page);
+            return r;
+        },
+    },
+    {
+        id: "hold-camera-key-30hz",
+        name: "Hold an arrow key (auto-repeat at 30 a second; lag after the last repeat; dropped frames)",
+        async run(page, ctx, rep, cdp) {
+            const key = rep % 2 ? "ArrowRight" : "ArrowLeft";
+            await clickEmptyUntimed(page, ctx);
+            await camStill(page);
+            const r = await burst(page, {
+                type: "keydown",
+                track: CAM,
+                hz: 30,
+                count: 30,
+                send: (i) => cdpKey(cdp, "keyDown", key, i > 0),
+                after: () => cdpKey(cdp, "keyUp", key),
+            });
+            await camStill(page);
+            return r;
+        },
+    },
+    {
+        id: "release-camera-key",
+        name: "Let go of a held arrow key (camera holds still)",
+        async run(page, ctx, rep, cdp) {
+            const key = rep % 2 ? "ArrowRight" : "ArrowLeft";
+            await clickEmptyUntimed(page, ctx);
+            await camStill(page);
+            for (let i = 0; i < 15; i++) {
+                await cdpKey(cdp, "keyDown", key, i > 0);
+                await frames(page, 2);
+            }
+            const r = await timed(page, { type: "keyup", cond: CAM_HELD }, () => cdpKey(cdp, "keyUp", key));
+            await camStill(page);
+            return r;
+        },
+    },
+    {
+        id: "tour-stop-on-press",
+        name: "Press the canvas during a camera tour (the camera stops)",
+        async run(page, ctx) {
+            await page.evaluate(() => {
+                const el = document.querySelector("graphty-element");
+                globalThis.__tour = el
+                    .playTour({
+                        stops: [
+                            { view: "topView", duration: 4000, hold: 0 },
+                            { view: "fitToGraph", duration: 4000, hold: 0 },
+                        ],
+                    })
+                    .catch((e) => ({ reason: String(e?.message ?? e) }));
+            });
+            const c0 = await camOf(page);
+            await until(page, "JSON.stringify(el.getCameraState()) !== p.c0", { c0 }, 120);
+            await page.mouse.move(ctx.empty.x, ctx.empty.y);
+            const r = await timed(page, { type: "pointerdown", cond: CAM_HELD }, () => clickHere(page));
+            await page.evaluate(() => globalThis.__tour);
+            await ctx.refit?.();
+            return r;
+        },
+    },
+    {
+        id: "auto-rotate-stop",
+        name: "Press the canvas while auto-rotate is on (the turning stops)",
+        dims: ["3d"],
+        async run(page, ctx) {
+            await setBehavior(page, "camera", { autoRotate: 1, autoRotateResume: "never" });
+            const c0 = await camOf(page);
+            await until(page, "JSON.stringify(el.getCameraState()) !== p.c0", { c0 }, 120);
+            await page.mouse.move(ctx.empty.x, ctx.empty.y);
+            const r = await timed(page, { type: "pointerdown", cond: CAM_HELD }, () => clickHere(page));
+            await setBehavior(page, "camera", { autoRotate: 0, autoRotateResume: 0 });
+            await camStill(page);
+            return r;
+        },
+    },
+    {
+        id: "minimap-drag",
+        name: "Drag in the minimap (per move; element option)",
+        moves: 6,
+        async run(page, ctx, rep) {
+            const box = await minimapBox(page);
+            if (!box) return { skip: "no minimap drawn" };
+            const from = { x: box.x + box.w / 2, y: box.y + box.h / 2 };
+            return afterFirst(await measuredDrag(page, from, rep % 2 ? -4 : 4, 2, this.moves + 1));
+        },
+    },
+    {
+        id: "minimap-key",
+        name: "Arrow key on the focused minimap (element option)",
+        async run(page, ctx, rep) {
+            const box = await minimapBox(page);
+            if (!box) return { skip: "no minimap drawn" };
+            const ok = await page.evaluate(() => {
+                const m = document.querySelector("graphty-element").shadowRoot.querySelector("[part~=minimap]");
+                m.focus();
+                return document.querySelector("graphty-element").shadowRoot.activeElement === m;
+            });
+            if (!ok) return { skip: "the minimap does not take focus" };
+            await camStill(page);
+            const key = rep % 2 ? "ArrowRight" : "ArrowLeft";
+            const r = await timed(page, { type: "keydown", cond: CAM_MOVED, pix: "all" }, () =>
+                page.keyboard.down(key),
+            );
+            await page.keyboard.up(key);
+            await camStill(page);
+            return r;
+        },
+    },
+    {
+        id: "pixel-ratio-change",
+        name: "The pixel ratio changes (browser zoom or another screen): backing size matches and redrawn",
+        async run(page, ctx, rep, cdp) {
+            const vp = page.viewportSize();
+            const now = await page.evaluate(() => devicePixelRatio);
+            const to = now >= 2 ? 1 : 2;
+            // The element follows the screen's pixel ratio only with pixel-ratio="device" (its default is 1).
+            const had = await page.evaluate(() => {
+                const el = document.querySelector("graphty-element");
+                const a = el.getAttribute("pixel-ratio");
+                el.setAttribute("pixel-ratio", "device");
+                return a;
+            });
+            await frames(page, 10);
+            const r = await timed(
+                page,
+                {
+                    type: "none",
+                    startNow: true,
+                    cond: "(() => { const c = [...(el.shadowRoot?.querySelectorAll('canvas') ?? []), ...el.querySelectorAll('canvas')].sort((a, b) => b.width * b.height - a.width * a.height)[0]; return devicePixelRatio === p.to && Math.abs(c.width - Math.round(c.getBoundingClientRect().width * p.to)) <= 2; })()",
+                    params: { to },
+                },
+                () =>
+                    cdp.send("Emulation.setDeviceMetricsOverride", {
+                        width: vp.width,
+                        height: vp.height,
+                        deviceScaleFactor: to,
+                        mobile: false,
+                    }),
+            );
+            const seen = r.timeout
+                ? await page.evaluate(() => {
+                      const el = document.querySelector("graphty-element");
+                      const c = [
+                          ...(el.shadowRoot?.querySelectorAll("canvas") ?? []),
+                          ...el.querySelectorAll("canvas"),
+                      ].sort((a, b) => b.width * b.height - a.width * a.height)[0];
+                      return `devicePixelRatio ${devicePixelRatio}, canvas ${c.width} px wide for a ${c.getBoundingClientRect().width} px box`;
+                  })
+                : null;
+            await cdp.send("Emulation.clearDeviceMetricsOverride");
+            await until(page, "devicePixelRatio === p.dpr", { dpr: now });
+            await page.evaluate((a) => {
+                const el = document.querySelector("graphty-element");
+                if (a === null) el.removeAttribute("pixel-ratio");
+                else el.setAttribute("pixel-ratio", a);
+            }, had);
+            await frames(page, 10);
+            ctx.dirty = true;
+            if (seen) throw new Error(`the canvas did not follow the new pixel ratio ${to}: ${seen}`);
+            return r;
+        },
+    },
+];
+
+/** The minimap's box in page pixels, switching the element's minimap option on; null when none is drawn. */
+function minimapBox(page) {
+    return page.evaluate(async () => {
+        const el = document.querySelector("graphty-element");
+        el.minimap = true;
+        for (let i = 0; i < 30 && !el.shadowRoot.querySelector("[part~=minimap]"); i++)
+            await new Promise((r) => requestAnimationFrame(r));
+        const m = el.shadowRoot.querySelector("[part~=minimap]");
+        if (!m) return null;
+        const r = m.getBoundingClientRect();
+        return r.width < 10 ? null : { x: r.left, y: r.top, w: r.width, h: r.height };
+    });
+}
+
+ELEMENT.push(...ELEMENT_MORE);
+
 // The first of each, timed once before anything warms the page up.
 const COLD_ELEMENT = ["hover-node", "click-select-node", "right-click-node"];
 
@@ -1199,7 +1878,7 @@ const TOUCH = [
             }
             await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
             await camStill(page);
-            return out.slice(1);
+            return afterFirst(out);
         },
     },
     {
@@ -1223,7 +1902,90 @@ const TOUCH = [
             }
             await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
             await camStill(page);
-            return out.slice(1);
+            return afterFirst(out);
+        },
+    },
+    {
+        id: "touch-tap-empty",
+        name: "Tap empty canvas to clear the selection",
+        async run(page, ctx, rep, cdp) {
+            const t = ctx.nodes[rep % 2];
+            const tp = (p) => [{ x: p.x, y: p.y, id: 0, radiusX: 1, radiusY: 1, force: 1 }];
+            await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: tp(t) });
+            await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+            await until(page, SEL_IS, { id: t.id });
+            await frames(page, 5);
+            return timed(
+                page,
+                { type: "pointerdown", cond: "el.session.selection.nodes.length === 0", pix: at(t, 40, 40) },
+                async () => {
+                    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: tp(ctx.empty) });
+                    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+                },
+            );
+        },
+    },
+    {
+        id: "touch-drag-node",
+        name: "One-finger drag on a node (per move)",
+        moves: 8,
+        async run(page, ctx, rep, cdp) {
+            const t = (await nodeTargets(page, 1, 1900 + rep))[0];
+            if (!t) return { skip: "no node to drag" };
+            const rect = await elementRect(page);
+            const dir = t.x < rect.left + rect.width / 2 ? 1 : -1;
+            const tp = (x, y) => [{ x, y, id: 0, radiusX: 1, radiusY: 1, force: 1 }];
+            await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: tp(t.x, t.y) });
+            const out = [];
+            let x = t.x;
+            for (let i = 0; i < this.moves; i++) {
+                await camStill(page);
+                x += 10 * dir;
+                out.push(
+                    await timed(
+                        page,
+                        {
+                            type: "pointermove",
+                            cond: NEAR(2),
+                            params: { id: t.id, x: x - rect.left, y: t.y - rect.top },
+                            pix: { x, y: t.y, w: 30, h: 30 },
+                        },
+                        () => cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: tp(x, t.y) }),
+                    ),
+                );
+                if (out.at(-1).timeout) break;
+            }
+            await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+            await camStill(page);
+            return afterFirst(out);
+        },
+    },
+    {
+        id: "touch-twist",
+        name: "Two-finger twist (per move)",
+        moves: 6,
+        async run(page, ctx, rep, cdp) {
+            const c = ctx.center;
+            const fingers = (a) => [
+                { x: c.x - 80 * Math.cos(a), y: c.y - 80 * Math.sin(a), id: 0, radiusX: 1, radiusY: 1, force: 1 },
+                { x: c.x + 80 * Math.cos(a), y: c.y + 80 * Math.sin(a), id: 1, radiusX: 1, radiusY: 1, force: 1 },
+            ];
+            const out = [];
+            let a = 0;
+            await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: fingers(a) });
+            for (let i = 0; i < this.moves; i++) {
+                await camStill(page);
+                a += (rep % 2 ? -1 : 1) * 0.12;
+                out.push(
+                    await timed(page, { type: "touchmove", cond: CAM_MOVED, pix: "all" }, () =>
+                        cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: fingers(a) }),
+                    ),
+                );
+                if (out.at(-1).timeout) break;
+            }
+            await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+            await camStill(page);
+            return afterFirst(out);
         },
     },
     {
@@ -1366,7 +2128,7 @@ const RUNNING = [
                 );
             }
             await page.mouse.up();
-            return out.slice(1);
+            return afterFirst(out);
         },
     },
 ];
@@ -1427,7 +2189,9 @@ async function oneRep(page, ctx, inter, rep, cdp, g) {
         if (ctx.prep) await ctx.prep(page, ctx);
         const t0 = Date.now();
         const r = await inter.run(page, ctx, rep, cdp);
-        if (r?.skip) g.skip = r.skip;
+        if ([r].flat().some((x) => x?.preTrue))
+            g.errors.push("the result held before the input: the case's setup did not leave the state it needs");
+        else if (r?.skip) g.skip = r.skip;
         else {
             g.samples.push(r);
             g.reps++;
@@ -1488,14 +2252,59 @@ const wanted = (list, spec) =>
 
 // ------------------------------------------------------------------ element pages
 
+/** The heavy look's style layers beyond labels, arrowheads and curves (INPUT-CATALOG.md, section 3.1). */
+async function heavyLook(page) {
+    await addTooltips(page);
+    await page.evaluate(async () => {
+        const el = document.querySelector("graphty-element");
+        await el.session.styles.add({
+            name: "latency color by number",
+            target: "node",
+            selector: { match: "everything" },
+            encode: { "node.color": { by: "data.id", scale: "linear", palette: "viridis" } },
+        });
+        await el.session.styles.add({
+            name: "latency size by degree",
+            target: "node",
+            selector: { match: "has", path: "graphty.degree" },
+            encode: {
+                "node.size": {
+                    by: "graphty.degree",
+                    stops: [
+                        { at: 0, value: 1 },
+                        { at: 5, value: 2 },
+                        { at: 50, value: 4 },
+                    ],
+                },
+            },
+        });
+        await el.waitForPainted();
+    });
+}
+
+// Camera, wheel, key and touch-free inputs again while a force layout runs (state only: every pixel moves).
+const RUNNING_IDS = [
+    "pointer-leaves-node",
+    "click-empty-deselect",
+    "drag-orbit-3d",
+    "drag-pan",
+    "wheel-zoom",
+    "key-camera-turn-or-pan",
+    "key-camera-zoom",
+    "pinch-ctrl-wheel",
+];
+const runningVariants = () => variant(ELEMENT, RUNNING_IDS, "running-layout", "force layout running; state only");
+
 async function elementPage(spec, out) {
     const build = process.env.BENCH_BUILD ?? join(HERE, "builds", process.env.BENCH_LABEL ?? "interaction-latency");
     const server = process.env.BENCH_URL ? null : await serve(build);
     const url = process.env.BENCH_URL ?? `http://127.0.0.1:${server.address().port}/`;
     const dpr = spec.dpr ?? 1;
+    const t0Page = Date.now();
     const b = await launch({ width: 1280, height: 1000 }, dpr);
     const base = {
         surface: "graphty-element",
+        tierPage: spec.page,
         path: spec.path,
         dim: spec.dim,
         mode: spec.mode ?? "plain",
@@ -1515,23 +2324,28 @@ async function elementPage(spec, out) {
         checkRenderer(info.webgl);
         const gen = await page.evaluate(([n]) => B.gen(n, 2 * n), [spec.n]);
         base.edges = gen.m;
-        const styled = base.mode === "styled";
+        const look = base.mode;
+        // plain: no style layers. default: graphty-element's default layers (Everything, Selected, Hovered,
+        // Pinned). styled: default plus labels and arrowheads. heavy: styled plus curved edges, tooltips, color
+        // bound to a number column and size bound to degree (INPUT-CATALOG.md, section 3.1).
+        const labelled = look === "styled" || look === "heavy";
         await page.evaluate((o) => B.setup("graphty", o), {
             mode: "plain",
             accel: "on",
             dpr,
             renderPath: spec.path,
             dim: spec.dim,
-            labels: styled,
-            arrows: styled,
+            labels: labelled,
+            arrows: labelled,
+            curves: look === "heavy" && spec.dim !== "2d",
         });
-        // The styled look adds graphty-element's own default style layers (Everything, Selected, Hovered).
-        if (styled)
+        if (look !== "plain")
             await page.evaluate(() =>
                 document.querySelector("graphty-element").session.config.set({ startingRows: true }),
             );
         const load = await page.evaluate(() => B.load());
         if (load.error) throw new Error("load failed: " + load.error);
+        if (look === "heavy") await heavyLook(page);
         await page.evaluate(() => B.adapter.settle());
         await page.evaluate(() => document.querySelector("graphty-element").waitForPainted());
         base.renderPathDrawn = await page.evaluate(() => document.querySelector("graphty-element").renderPath);
@@ -1542,6 +2356,7 @@ async function elementPage(spec, out) {
             await page.evaluate(() => document.querySelector("graphty-element").zoomToFit());
             await camStill(page);
         };
+        const cdp = await b.ctx.newCDPSession(page);
         await roundRobin(
             page,
             ctx,
@@ -1549,18 +2364,19 @@ async function elementPage(spec, out) {
             1,
             base,
             out,
+            cdp,
         );
-        await roundRobin(page, ctx, wanted(ELEMENT, spec), spec.reps, base, out);
+        await roundRobin(page, ctx, wanted(ELEMENT, spec), spec.reps, base, out, cdp);
         await newPhase(ctx);
-        await roundRobin(page, ctx, wanted(bursts([60, 120]), spec), spec.reps, base, out);
-        const cdp = await b.ctx.newCDPSession(page);
+        await roundRobin(page, ctx, wanted(bursts([60, 120]), spec), spec.reps, base, out, cdp);
         await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
         await page.mouse.move(ctx.empty.x, ctx.empty.y);
         await newPhase(ctx);
         await roundRobin(page, ctx, wanted(TOUCH, spec), spec.reps, base, out, cdp);
         await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: false });
         if (wanted(TIPS, spec).length) {
-            await addTooltips(page);
+            // The heavy look has its tooltips already.
+            if (look !== "heavy") await addTooltips(page);
             await newPhase(ctx);
             await roundRobin(page, ctx, wanted(TIPS, spec), spec.reps, base, out);
         }
@@ -1568,11 +2384,13 @@ async function elementPage(spec, out) {
             ctx.dirty = true;
             await roundRobin(page, ctx, wanted(LAYOUTS, spec), spec.reps, base, out);
         }
-        if (wanted(RUNNING, spec).length) {
+        const running = spec.running === false ? [] : wanted([...RUNNING, ...runningVariants()], spec);
+        if (running.length) {
             await page.evaluate(() => document.querySelector("graphty-element").setLayout("ngraph"));
             await frames(page, 30);
             ctx.moving = true;
-            await roundRobin(page, ctx, wanted(RUNNING, spec), spec.reps, base, out);
+            STATE_ONLY.add(page);
+            await roundRobin(page, ctx, running, spec.reps, base, out, cdp);
         }
     } catch (e) {
         appendFileSync(
@@ -1581,6 +2399,7 @@ async function elementPage(spec, out) {
         );
         console.log("failure", e?.message);
     } finally {
+        appendFileSync(out, JSON.stringify({ ...base, wall: true, wallMs: Date.now() - t0Page }) + "\n");
         await b.close();
         server?.close();
     }
@@ -1597,7 +2416,18 @@ async function pageContext(page, spec) {
         const r = document.querySelector("graphty-element").getBoundingClientRect();
         return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
     });
-    return { nodes, empty, edges, center, cam, dim: spec.dim, n: spec.n };
+    // A point in the viewport outside the element, when there is one (the bench page leaves a margin).
+    const outside = await page.evaluate(() => {
+        const r = document.querySelector("graphty-element").getBoundingClientRect();
+        const pts = [
+            { x: r.right + 20, y: r.top + 20 },
+            { x: r.left + 20, y: r.bottom + 20 },
+            { x: r.left - 20, y: r.top + 20 },
+            { x: r.left + 20, y: r.top - 20 },
+        ];
+        return pts.find((p) => p.x > 0 && p.y > 0 && p.x < innerWidth && p.y < innerHeight) ?? null;
+    });
+    return { nodes, empty, edges, center, cam, outside, dim: spec.dim, n: spec.n };
 }
 
 // ------------------------------------------------------------------ the graphty app
@@ -2151,6 +2981,557 @@ const APP = [
     })),
 ];
 
+// ------------------------------------------------------------------ the rest of the app's inputs (catalog 2.9 to 2.15)
+
+const SHOWN = (sel) =>
+    `[...document.querySelectorAll(${JSON.stringify(sel)})].some((d) => d.getClientRects().length > 0)`;
+const MENU_SHOWN =
+    "[...document.querySelectorAll('[role=menu]')].some((m) => m.offsetParent !== null && m.querySelector('[role^=menuitem]'))";
+const DIALOG_SHOWN = SHOWN("[role=dialog]");
+// The Analyze popover (its dropdown, not the toolbar button of the same name) with its content drawn.
+const ANALYZE_SHOWN =
+    "[...document.querySelectorAll('[aria-label=\"Analyze\"]')].some((d) => d.getClientRects().length > 0 && !!d.querySelector('input, [role=option]'))";
+const FOCUSED = "(document.activeElement?.getAttribute('aria-label') ?? '') + '|' + (document.activeElement?.id ?? '')";
+const nodeColor = (page, id) =>
+    page.evaluate(`(() => { const el = document.querySelector("graphty-element"); return ${COLOR_OF(id)}; })()`);
+
+/** Escape until no dialog or menu is left open (untimed). */
+async function dismiss(page) {
+    for (let i = 0; i < 3; i++) {
+        if (!(await page.evaluate(`${DIALOG_SHOWN} || ${MENU_SHOWN}`))) return;
+        await page.keyboard.press("Escape");
+        await frames(page, 3);
+    }
+}
+
+/** A key on the focused canvas until a DOM condition holds, then closed again. */
+const appKey = (id, name, key, cond, opts = {}) => ({
+    id,
+    name,
+    async run(page, ctx, rep) {
+        await clickEmptyUntimed(page, ctx);
+        if (opts.select) await selectUntimed(page, ctx.nodes[rep % 2]);
+        const before = await page.evaluate(`(() => ${opts.before ?? "null"})()`);
+        const r = await timed(page, { type: "keydown", cond, params: { before } }, () => page.keyboard.press(key));
+        if (r.timeout && opts.skipOnTimeout) return { skip: opts.skipOnTimeout };
+        await dismiss(page);
+        if (opts.after) await opts.after(page);
+        await clickEmptyUntimed(page, ctx);
+        return r;
+    },
+});
+
+/** Opens quick actions and types `words` (untimed); the palette is left open. */
+async function quickActions(page, ctx, words) {
+    await clickEmptyUntimed(page, ctx);
+    await page.keyboard.press("Control+k");
+    await until(page, DIALOG_SHOWN + " || " + SHOWN("[role=listbox]"));
+    await page.keyboard.type(words);
+    await frames(page, 5);
+}
+
+const PALETTE_OPTIONS = `[...document.querySelectorAll('[role=listbox] [role=option]')].filter((o) => o.getClientRects().length).map((o) => o.textContent).join('|')`;
+
+const APP_MORE = [
+    ...[
+        ["app-right-click-edge-menu", "edge"],
+        ["app-right-click-empty-menu", "empty"],
+    ].map(([id, what]) => ({
+        id,
+        name: `Right-click ${what === "edge" ? "an edge" : "empty canvas"} until its canvas menu shows (DOM)`,
+        async run(page, ctx) {
+            const p = what === "edge" ? ctx.edges[0] : ctx.empty;
+            if (!p) return { skip: "no edge whose middle is clear of nodes" };
+            await clickEmptyUntimed(page, ctx);
+            await page.mouse.move(p.x, p.y);
+            await frames(page, 3);
+            const r = await timed(page, { type: "pointerdown", cond: MENU_SHOWN }, () =>
+                page.mouse.click(p.x, p.y, { button: "right" }),
+            );
+            await dismiss(page);
+            return r;
+        },
+    })),
+    appKey(
+        "app-shift-f10-menu",
+        "Shift+F10 on the focused canvas opens the canvas menu (DOM)",
+        "Shift+F10",
+        MENU_SHOWN,
+        {
+            select: true,
+        },
+    ),
+    {
+        id: "app-menu-clear-selection",
+        name: "Canvas menu > Clear selection (the Selected look drawn gone)",
+        async run(page, ctx, rep) {
+            const t = ctx.nodes[rep % 2];
+            await clickEmptyUntimed(page, ctx);
+            await selectUntimed(page, t);
+            await stable(page);
+            const u = await whereIs(page, t.id);
+            await page.mouse.click(ctx.empty.x, ctx.empty.y, { button: "right" });
+            const item = page.getByRole("menuitem", { name: /^Clear selection/ });
+            await item.waitFor();
+            const r = await clickTimed(page, item, {
+                cond: "el.session.selection.nodes.length === 0",
+                pix: at(u, 40, 40),
+            });
+            await dismiss(page);
+            return r;
+        },
+    },
+    {
+        id: "app-menu-fit",
+        name: "Canvas menu > Fit (first moved frame; settled)",
+        async run(page, ctx) {
+            await clickEmptyUntimed(page, ctx);
+            await page.mouse.move(ctx.center.x, ctx.center.y);
+            await page.mouse.wheel(0, -360);
+            await stable(page);
+            await camStill(page);
+            const empty = await emptyPoint(page);
+            if (!empty) return { skip: "no empty point after zooming in" };
+            await page.mouse.click(empty.x, empty.y, { button: "right" });
+            const item = page.getByRole("menuitem", { name: /^Fit$|^Fit\b(?! selection)/ }).first();
+            await item.waitFor();
+            const r = await clickTimed(page, item, { cond: CAM_MOVED, pix: "all", settle: true });
+            ctx.dirty = true;
+            return r;
+        },
+    },
+    {
+        id: "app-fit-selection",
+        name: "F fits the selection (first moved frame; settled)",
+        async run(page, ctx, rep) {
+            await clickEmptyUntimed(page, ctx);
+            await selectUntimed(page, ctx.nodes[rep % 2]);
+            await stable(page);
+            await camStill(page);
+            await page.mouse.move(ctx.center.x, ctx.center.y);
+            await page.mouse.wheel(0, 480);
+            await camStill(page);
+            const r = await timed(page, { type: "keydown", cond: CAM_MOVED, pix: "all", settle: true }, () =>
+                page.keyboard.press("f"),
+            );
+            ctx.dirty = true;
+            return r;
+        },
+    },
+    {
+        id: "app-auto-rotate",
+        name: "9 starts auto-rotate (first turned frame)",
+        dims: ["3d"],
+        async run(page, ctx) {
+            await clickEmptyUntimed(page, ctx);
+            await camStill(page);
+            const r = await timed(page, { type: "keydown", cond: CAM_MOVED, pix: "all" }, () =>
+                page.keyboard.press("9"),
+            );
+            await page.keyboard.press("9");
+            await camStill(page);
+            ctx.dirty = true;
+            return r;
+        },
+    },
+    appKey(
+        "app-legend-key",
+        "L shows or hides the legend (DOM)",
+        "l",
+        `${SHOWN('section[aria-label="Legend"]')} !== p.before`,
+        { before: SHOWN('section[aria-label="Legend"]') },
+    ),
+    {
+        id: "app-quick-actions-type",
+        name: "Type one character in quick actions (the list filtered; DOM)",
+        async run(page, ctx) {
+            await quickActions(page, ctx, "");
+            const before = await page.evaluate(PALETTE_OPTIONS);
+            const r = await timed(
+                page,
+                { type: "keydown", cond: `${PALETTE_OPTIONS} !== p.before`, params: { before } },
+                () => page.keyboard.press("z"),
+            );
+            await dismiss(page);
+            return r;
+        },
+    },
+    {
+        id: "app-quick-actions-zoom",
+        name: "Quick actions: type Zoom in (or out), press Enter (first moved frame)",
+        async run(page, ctx, rep) {
+            await quickActions(page, ctx, rep % 2 ? "Zoom out" : "Zoom in");
+            if (!(await page.evaluate(PALETTE_OPTIONS)).includes("Zoom")) {
+                await dismiss(page);
+                return { skip: "quick actions has no Zoom command" };
+            }
+            await camStill(page);
+            const r = await timed(page, { type: "keydown", cond: CAM_MOVED, pix: "all" }, () =>
+                page.keyboard.press("Enter"),
+            );
+            await dismiss(page);
+            await camStill(page);
+            ctx.dirty = true;
+            return r;
+        },
+    },
+    appKey("app-find-focus", "/ focuses Find (DOM focus)", "/", `${FOCUSED} !== p.before`, { before: FOCUSED }),
+    {
+        id: "app-find-enter",
+        name: "Enter on a Find result selects its node",
+        async run(page, ctx) {
+            await clickEmptyUntimed(page, ctx);
+            await page.keyboard.press("/");
+            const box = page.getByRole("combobox", { name: "Find" });
+            await box.waitFor();
+            await box.fill(ctx.findChar);
+            await until(page, "!!document.querySelector('[aria-label=\"Find results\"] [role=option]')");
+            const r = await timed(
+                page,
+                { type: "keydown", cond: "el.session.selection.nodes.length > 0", pix: "all" },
+                () => page.keyboard.press("Enter"),
+            );
+            await box.fill("").catch(() => {});
+            await dismiss(page);
+            await page.keyboard.press("Escape");
+            ctx.dirty = true;
+            return r;
+        },
+    },
+    {
+        id: "app-redo",
+        name: "Shift+Ctrl+Z redoes an undone color change",
+        async run(page, ctx) {
+            await everythingStyle(page);
+            const field = page.getByRole("textbox", { name: /^Node color/ });
+            await field.click();
+            await field.fill("purple");
+            await page.keyboard.press("Enter");
+            await stable(page);
+            const changed = await nodeColor(page, ctx.nodes[0].id);
+            await undoUntimed(page, ctx);
+            const t = await whereIs(page, ctx.nodes[0].id);
+            await frames(page, 3);
+            const r = await timed(
+                page,
+                {
+                    type: "keydown",
+                    cond: `${COLOR_OF(ctx.nodes[0].id)} === p.changed`,
+                    params: { changed },
+                    pix: at(t, 8, 8),
+                },
+                () => page.keyboard.press("Control+Shift+z"),
+            );
+            await stable(page);
+            await undoUntimed(page, ctx);
+            return r;
+        },
+    },
+    {
+        id: "app-undo-node-move",
+        name: "Ctrl+Z after moving a node (drawn back where it was)",
+        async run(page, ctx, rep) {
+            const t = (await nodeTargets(page, 1, 2500 + rep))[0];
+            if (!t) return { skip: "no node to drag" };
+            const rect = await elementRect(page);
+            await clickEmptyUntimed(page, ctx);
+            await page.mouse.move(t.x, t.y);
+            await frames(page, 2);
+            await page.mouse.down();
+            for (let i = 1; i <= 5; i++) {
+                await page.mouse.move(t.x + 8 * i, t.y);
+                await frames(page, 1);
+            }
+            await page.mouse.up();
+            await stable(page);
+            await camStill(page);
+            await clickEmptyUntimed(page, ctx);
+            const u = await whereIs(page, t.id);
+            const home = { id: t.id, x: u.x - 40 - rect.left, y: u.y - rect.top };
+            const r = await timed(
+                page,
+                { type: "keydown", cond: NEAR(3), params: home, pix: { x: u.x - 40, y: u.y, w: 30, h: 30 } },
+                () => page.keyboard.press("Control+z"),
+            );
+            ctx.dirty = true;
+            return r;
+        },
+    },
+    appKey("app-f6-next-panel", "F6 moves focus to the next panel (DOM focus)", "F6", `${FOCUSED} !== p.before`, {
+        before: FOCUSED,
+    }),
+    appKey("app-shortcuts-dialog", "? opens the keyboard shortcuts dialog (DOM)", "Shift+Slash", DIALOG_SHOWN),
+    appKey("app-settings-dialog", "Ctrl+, opens the settings dialog (DOM)", "Control+Comma", DIALOG_SHOWN),
+    appKey("app-export-dialog", "Ctrl+E opens the export dialog (DOM)", "Control+e", DIALOG_SHOWN),
+    appKey("app-save-as-dialog", "Shift+Ctrl+S opens Save as (DOM)", "Control+Shift+s", DIALOG_SHOWN),
+    appKey("app-analyze-key", "Shift+A opens Analyze (DOM)", "Shift+A", ANALYZE_SHOWN),
+    appKey("app-path-key", "P opens Path between for the selected node (DOM)", "p", ANALYZE_SHOWN, { select: true }),
+    appKey(
+        "app-assistant-key",
+        "Ctrl+I opens the assistant (DOM)",
+        "Control+i",
+        `${SHOWN('[aria-label="Assistant place"], [aria-label="Assistant"]')}`,
+        { skipOnTimeout: "the assistant place is hidden in this build" },
+    ),
+    {
+        id: "app-camera-preset",
+        name: "Camera menu > Top (first moved frame; glide settled)",
+        async run(page, ctx) {
+            await clickEmptyUntimed(page, ctx);
+            await camStill(page);
+            await page.getByRole("button", { name: /^Camera\b/ }).click();
+            const item = page.getByRole("menuitem", { name: /^Top\b/ });
+            await item.waitFor();
+            const r = await clickTimed(page, item, { cond: CAM_MOVED, pix: "all", settle: "camera" });
+            await ctx.refit();
+            ctx.dirty = true;
+            return r;
+        },
+    },
+    ...[
+        ["app-main-menu", /^Main menu$/],
+        ["app-camera-menu", /^Camera\b/],
+        ["app-mode-menu", /^Mode, /],
+    ].map(([id, name]) => ({
+        id,
+        name: `Open the ${id.slice(4, -5)} menu (DOM)`,
+        async run(page, ctx) {
+            await clickEmptyUntimed(page, ctx);
+            const r = await clickTimed(page, page.getByRole("button", { name }).first(), { cond: MENU_SHOWN });
+            await dismiss(page);
+            return r;
+        },
+    })),
+    ...["Views", "Notes"].map((place) => ({
+        id: `app-rail-${place.toLowerCase()}`,
+        name: `Click the ${place} place in the rail (DOM)`,
+        async run(page) {
+            const btn = page.getByRole("toolbar", { name: "Places" }).getByRole("button", { name: place, exact: true });
+            if (!(await btn.count())) return { skip: `no ${place} place in the rail` };
+            const r = await clickTimed(page, btn, {
+                cond: `!!document.querySelector('[aria-label="${place} place"]')?.getClientRects().length`,
+            });
+            await page
+                .getByRole("toolbar", { name: "Places" })
+                .getByRole("button", { name: "Graph", exact: true })
+                .click();
+            await stable(page);
+            return r;
+        },
+    })),
+    {
+        id: "app-layer-row-click",
+        name: "Click the Everything layer row (the row selected; DOM)",
+        async run(page, ctx) {
+            await clickEmptyUntimed(page, ctx);
+            await page.keyboard.press("Escape");
+            const row = page.getByRole("treeitem", { name: /^Everything,/ });
+            const SELECTED = `document.querySelector('[role=treeitem][aria-selected=true]')?.textContent?.startsWith('Everything') === true`;
+            if (await page.evaluate(SELECTED)) {
+                await page.getByRole("treeitem").nth(1).click();
+                await frames(page, 3);
+            }
+            const r = await clickTimed(page, row, { cond: SELECTED });
+            await page.keyboard.press("Escape");
+            return r;
+        },
+    },
+    {
+        id: "app-inspector-values-tab",
+        name: "Click the Inspector's Values tab (tab content shown; DOM)",
+        async run(page, ctx, rep) {
+            await clickEmptyUntimed(page, ctx);
+            await selectUntimed(page, ctx.nodes[rep % 2]);
+            const tabs = page.getByRole("complementary", { name: "Inspector" });
+            const style = tabs.getByRole("tab", { name: "Style", exact: true });
+            if (await style.count()) await style.click();
+            const values = tabs.getByRole("tab", { name: "Values", exact: true });
+            if (!(await values.count())) return { skip: "the Inspector has no Values tab here" };
+            const r = await clickTimed(page, values, {
+                cond: `[...document.querySelectorAll('[aria-label="Inspector"] [role=tab][aria-selected=true]')].some((t) => t.textContent.trim().startsWith('Values')) && [...document.querySelectorAll('[aria-label="Inspector"] [role=tabpanel]')].some((t) => t.getClientRects().length > 0 && t.textContent.trim() !== '')`,
+            });
+            await page.keyboard.press("Escape");
+            return r;
+        },
+    },
+    {
+        id: "app-style-node-size",
+        name: "Type a node size in the Style tab and press Enter (the node drawn at the new size)",
+        async run(page, ctx, rep) {
+            await everythingStyle(page);
+            const field = page.getByRole("spinbutton", { name: /^Node size/ }).first();
+            if (!(await field.count())) return { skip: "no Node size field" };
+            await field.click();
+            await field.fill(rep % 2 ? "3" : "2");
+            const t = await whereIs(page, ctx.nodes[0].id);
+            const SIZE = `JSON.stringify(el.session.styles.explain({ node: p.id }).merged['node.size'] ?? null)`;
+            const before = await page.evaluate(
+                `(() => { const el = document.querySelector("graphty-element"); const p = ${JSON.stringify({ id: ctx.nodes[0].id })}; return ${SIZE}; })()`,
+            );
+            await frames(page, 3);
+            const r = await timed(
+                page,
+                {
+                    type: "keydown",
+                    cond: `${SIZE} !== p.before`,
+                    params: { id: ctx.nodes[0].id, before },
+                    pix: at(t, 40, 40),
+                },
+                () => page.keyboard.press("Enter"),
+            );
+            await stable(page);
+            await undoUntimed(page, ctx);
+            return r;
+        },
+    },
+    {
+        id: "app-resize-window",
+        name: "Resize the window (the canvas drawn at its new size)",
+        async run(page, ctx, rep) {
+            const vp = page.viewportSize();
+            const to = { width: vp.width + (rep % 2 ? 120 : -120), height: vp.height };
+            const wide = await page.evaluate(
+                () => document.querySelector("graphty-element").getBoundingClientRect().width,
+            );
+            const r = await timed(
+                page,
+                {
+                    type: "resize",
+                    cond: "(() => { const c = [...(el.shadowRoot?.querySelectorAll('canvas') ?? []), ...el.querySelectorAll('canvas')].sort((a, b) => b.width * b.height - a.width * a.height)[0]; const w = c.getBoundingClientRect().width; return Math.abs(w - p.wide) > 1 && Math.abs(c.width - Math.round(w * devicePixelRatio)) <= 2; })()",
+                    params: { wide },
+                    pix: "all",
+                },
+                () => page.setViewportSize(to),
+            );
+            await page.setViewportSize(vp);
+            await stable(page);
+            ctx.dirty = true;
+            return r;
+        },
+    },
+];
+
+// Canvas inputs again with a panel open (INPUT-CATALOG.md, condition A).
+const PANEL_IDS = [
+    "hover-node",
+    "app-click-select-node",
+    "app-escape-deselect",
+    "wheel-zoom",
+    "drag-orbit-3d",
+    "drag-pan",
+];
+
+const APP_LATE_MORE = [
+    {
+        id: "app-run-pagerank",
+        name: "Analyze > PageRank > Run (its layer listed and drawn)",
+        async run(page, ctx) {
+            await clickEmptyUntimed(page, ctx);
+            await page.getByRole("button", { name: "Analyze", exact: true }).click();
+            const opt = page.getByRole("option", { name: /^PageRank\b/ }).first();
+            if (!(await opt.count())) {
+                await dismiss(page);
+                return { skip: "no PageRank in Analyze" };
+            }
+            await opt.click();
+            const before = await page.evaluate(TREE_COUNT);
+            const r = await clickTimed(page, page.getByRole("button", { name: /^Run PageRank/ }), {
+                cond: `${TREE_COUNT} > p.before`,
+                params: { before },
+                pix: "all",
+            });
+            await undoUntimed(page, ctx);
+            return r;
+        },
+    },
+    {
+        id: "app-timeline-play",
+        name: "Timeline Play (first changed readout and frame)",
+        async run(page, ctx) {
+            if (!ctx.hasYear) return { skip: "the graph has no year column" };
+            const dock = page.getByRole("region", { name: "Timeline" });
+            if (!(await dock.count())) return { skip: "no timeline open" };
+            const READ = "document.querySelector('[data-testid=\"time-readout\"]')?.textContent ?? ''";
+            const before = await page.evaluate(READ);
+            const r = await clickTimed(page, dock.getByRole("button", { name: "Play", exact: true }), {
+                cond: `(${READ}) !== p.before`,
+                params: { before },
+                pix: "all",
+            });
+            const pause = dock.getByRole("button", { name: "Pause", exact: true });
+            if (await pause.count()) await pause.click();
+            return r;
+        },
+    },
+    {
+        id: "app-timeline-key",
+        name: "T hides or shows the timeline (dock shown or gone; DOM)",
+        async run(page, ctx) {
+            if (!ctx.hasYear) return { skip: "the graph has no year column" };
+            const DOCK = SHOWN('section[aria-label="Timeline"]');
+            await clickEmptyUntimed(page, ctx);
+            const before = await page.evaluate(DOCK);
+            const r = await timed(page, { type: "keydown", cond: `${DOCK} !== p.before`, params: { before } }, () =>
+                page.keyboard.press("t"),
+            );
+            if (before) await page.keyboard.press("t");
+            await until(page, `${DOCK} === p.before`, { before });
+            await stable(page);
+            ctx.dirty = true;
+            return r;
+        },
+    },
+];
+
+APP.push(...APP_MORE);
+
+const APP_TOUCH = [
+    {
+        id: "app-long-press-menu",
+        name: "Touch-and-hold a node until the canvas menu shows (DOM; the 500 ms hold excluded)",
+        async run(page, ctx, rep, cdp) {
+            const t = ctx.nodes[rep % 2];
+            const tp = [{ x: t.x, y: t.y, id: 0, radiusX: 1, radiusY: 1, force: 1 }];
+            await clickEmptyUntimed(page, ctx);
+            const r = await timed(page, { type: "pointerdown", cond: MENU_SHOWN, capMs: 5000 }, () =>
+                cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: tp }),
+            );
+            await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+            await dismiss(page);
+            // compact-mantine's press gesture calls a press held still for 500 ms a hold (HOLD_MS).
+            const less = (v) => (typeof v === "number" ? +(v - 500).toFixed(1) : v);
+            return { ...r, ms: less(r.ms), stateMs: less(r.stateMs) };
+        },
+    },
+];
+
+const TABLE_SCROLL = {
+    id: "app-table-scroll-60hz",
+    name: "Scroll the table, 60 wheel ticks a second (lag after the last tick; dropped frames)",
+    async run(page, ctx, rep) {
+        const grid = await page.evaluate(() => {
+            // The grid can be taller than the page (its rows scroll inside the dock): aim at the dock's middle,
+            // clipped to the viewport, or the wheel lands outside the page and reaches nothing.
+            const sec = document.querySelector('section[aria-label="Table"]');
+            if (!sec?.querySelector("[role=grid]")) return null;
+            const r = sec.getBoundingClientRect();
+            const top = Math.max(r.top, 0),
+                bottom = Math.min(r.bottom, innerHeight);
+            return { x: r.left + r.width / 2, y: top + (bottom - top) * 0.6 };
+        });
+        if (!grid) return { skip: "no table grid" };
+        const dir = rep % 2 ? -1 : 1;
+        return burst(page, {
+            type: "wheel",
+            track: `[...(document.querySelector('section[aria-label="Table"] [role=grid]')?.querySelectorAll('[role=row]') ?? [])].slice(1, 3).map((r) => r.textContent).join('|')`,
+            hz: 60,
+            count: 20,
+            before: () => page.mouse.move(grid.x, grid.y),
+            send: () => page.mouse.wheel(0, dir * 60),
+        });
+    },
+};
+
 // The first of each after the graph opens, before any warm-up.
 const COLD_APP = [
     {
@@ -2449,15 +3830,69 @@ const APP_LATE = [
     },
 ];
 
+/** Canvas inputs with the table open (the canvas shorter, the table re-marking rows), then its scroll. */
+async function tablePhase(page, ctx, sp, reps, base, out) {
+    const tableOpen = wanted([...variant(APP, PANEL_IDS, "table-open", "table open"), TABLE_SCROLL], sp);
+    if (tableOpen.length) {
+        await clickEmptyUntimed(page, ctx);
+        if (!(await page.evaluate(`!!${TABLE}`))) await page.keyboard.press("Shift+T");
+        await until(page, `!!${TABLE}?.querySelector('[role=gridcell]')`);
+        await stable(page);
+        ctx.dirty = true;
+        await roundRobin(page, ctx, tableOpen, reps, base, out);
+        await page.keyboard.press("Shift+T");
+        await until(page, `!${TABLE}`);
+        await stable(page);
+        ctx.dirty = true;
+    }
+}
+
+/** The cases that change the graph or the app for good, in order, with the timeline-open phase among them. */
+async function latePhase(page, ctx, sp, reps, base, out) {
+    for (const inter of [...wanted(APP_LATE, sp), { timelinePhase: true }, ...wanted(APP_LATE_MORE, sp)]) {
+        if (inter.timelinePhase) {
+            // Canvas inputs with the timeline open, when a timeline step above opened it.
+            const open = await page.evaluate(SHOWN('section[aria-label="Timeline"]'));
+            const list = wanted(variant(APP, PANEL_IDS, "timeline-open", "timeline open"), sp);
+            if (open && list.length) {
+                await newPhase(ctx);
+                await roundRobin(page, ctx, list, reps, base, out);
+            }
+            continue;
+        }
+        try {
+            if (inter.setup) await inter.setup(page);
+        } catch (e) {
+            appendFileSync(
+                out,
+                JSON.stringify(
+                    row(base, inter, [], 0, {
+                        errors: [
+                            String(e?.message ?? e)
+                                .split("\n")[0]
+                                .slice(0, 200),
+                        ],
+                    }),
+                ) + "\n",
+            );
+            continue;
+        }
+        await newPhase(ctx);
+        await roundRobin(page, ctx, [inter], reps, base, out);
+    }
+}
+
 async function appPage(spec, out) {
     const dist = resolve(spec.dist);
     const server = await serve(dist);
     const query = spec.features ? "?features=" + spec.features : "";
     const origin = `http://127.0.0.1:${server.address().port}/${query}`;
+    const t0Page = Date.now();
     const b = await launch({ width: 1440, height: 900 });
     const g = GRAPHS[spec.graph];
     const base = {
         surface: "graphty app",
+        tierPage: spec.page,
         graph: g.label,
         features: spec.features || "default",
         smoke: SMOKE || undefined,
@@ -2553,7 +3988,7 @@ async function appPage(spec, out) {
         await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
         await page.mouse.move(ctx.empty.x, ctx.empty.y);
         await newPhase(ctx);
-        await roundRobin(page, ctx, wanted(TOUCH, sp), spec.reps, base, out, cdp);
+        await roundRobin(page, ctx, wanted([...TOUCH, ...APP_TOUCH], sp), spec.reps, base, out, cdp);
         await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: false });
         ctx.dirty = true;
         // The Inspector's Style tab open while selecting and hovering.
@@ -2578,27 +4013,8 @@ async function appPage(spec, out) {
             await roundRobin(page, ctx, focusOff, spec.reps, base, out);
             await setFocusSelected(page, true);
         }
-        for (const inter of wanted(APP_LATE, sp)) {
-            try {
-                if (inter.setup) await inter.setup(page);
-            } catch (e) {
-                appendFileSync(
-                    out,
-                    JSON.stringify(
-                        row(base, inter, [], 0, {
-                            errors: [
-                                String(e?.message ?? e)
-                                    .split("\n")[0]
-                                    .slice(0, 200),
-                            ],
-                        }),
-                    ) + "\n",
-                );
-                continue;
-            }
-            await newPhase(ctx);
-            await roundRobin(page, ctx, [inter], spec.reps, base, out);
-        }
+        await tablePhase(page, ctx, sp, spec.reps, base, out);
+        await latePhase(page, ctx, sp, spec.reps, base, out);
     } catch (e) {
         appendFileSync(
             out,
@@ -2606,6 +4022,7 @@ async function appPage(spec, out) {
         );
         console.log("failure", e?.message);
     } finally {
+        appendFileSync(out, JSON.stringify({ ...base, wall: true, wallMs: Date.now() - t0Page }) + "\n");
         await b.close();
         server.close();
     }
@@ -2621,7 +4038,8 @@ function report(file) {
         .filter(Boolean)
         .map((l) => JSON.parse(l));
     const fails = rows.filter((r) => r.failure);
-    const cells = rows.filter((r) => !r.failure);
+    const walls = rows.filter((r) => r.wall);
+    const cells = rows.filter((r) => !r.failure && !r.wall);
     const fmt = (x) => (x === null || x === undefined ? "-" : String(Math.round(x)));
     const where = (r) =>
         r.surface === "graphty app"
@@ -2674,36 +4092,126 @@ function report(file) {
         );
         for (const r of glide) out.push(`| ${where(r)} | ${fmt(r.median_ms)} | ${fmt(r.settled_median_ms)} |`);
     }
+    if (walls.length) {
+        out.push(
+            "",
+            "## Page wall time (the GPU lock is held this long per page)",
+            "",
+            "| page | where | minutes |",
+            "|---|---|---|",
+        );
+        for (const w of walls) out.push(`| ${w.tierPage ?? ""} | ${where(w)} | ${(w.wallMs / 60000).toFixed(1)} |`);
+        out.push(`| total | | ${(walls.reduce((a, w) => a + w.wallMs, 0) / 60000).toFixed(1)} |`);
+    }
     console.log(out.join("\n"));
+    const over150 = input.filter((r) => r.p95_ms > 150);
+    console.log(`\n${over150.length} of ${input.length} input cells have a drawn p95 above 150 ms.`);
     const slow = input.filter((r) => r.p95_ms > PERCEIVED_MS);
     console.log(
         `\n${slow.length} of ${input.length} input cells have a drawn p95 above ${PERCEIVED_MS} ms (glide and bursts not counted).`,
     );
 }
 
+// ------------------------------------------------------------------ tiers (INPUT-CATALOG.md, sections 3.3 and 3.4)
+
+const ids = (list) => `^(${list.join("|")})(-cold)?$`;
+const QUICK_ELEMENT = [
+    "hover-node",
+    "pointer-leaves-node",
+    "hover-edge",
+    "click-select-node",
+    "click-empty-deselect",
+    "drag-node",
+    "drop-node",
+    "drag-orbit-3d",
+    "drag-pan",
+    "wheel-zoom",
+    "key-camera-turn-or-pan",
+    "touch-tap-select",
+    "burst-drag-node-60hz",
+    "burst-orbit-60hz",
+];
+const QUICK_APP = [
+    ...QUICK_ELEMENT,
+    "app-click-inspector",
+    "app-escape-deselect",
+    "app-select-all",
+    "app-restyle-color",
+    "app-table-open",
+    "app-layer-visibility",
+];
+const elSpec = (page, n, path, mode, dim, { dpr = 1, running = false, only } = {}) => ({
+    kind: "element",
+    page,
+    n,
+    path,
+    mode,
+    dim,
+    dpr,
+    running,
+    ...(only ? { only } : {}),
+});
+const appSpec = (page, graph, features, dim, only) => ({
+    kind: "app",
+    page,
+    graph,
+    features,
+    dim,
+    ...(only ? { only } : {}),
+});
+/** Every page of a tier: its name (as INPUT-CATALOG.md's tables), its conditions and the inputs it runs. */
+const TIERS = {
+    quick: [
+        elSpec("Q1", 10000, "objects", "default", "3d", { only: ids(QUICK_ELEMENT) }),
+        elSpec("Q2", 10000, "batched", "default", "3d", { only: ids(QUICK_ELEMENT) }),
+        elSpec("Q3", 100000, "batched", "default", "3d", { only: ids(QUICK_ELEMENT) }),
+        appSpec("Q4", "gen-10k", "", "3d", ids(QUICK_APP)),
+    ],
+    full: [
+        elSpec("E1", 100, "objects", "default", "3d"),
+        elSpec("E3", 10000, "objects", "default", "3d", { running: true }),
+        elSpec("E4", 100000, "objects", "default", "3d", { only: ids(QUICK_ELEMENT) }),
+        elSpec("E5", 10000, "batched", "default", "3d", { running: true }),
+        elSpec("E6", 100000, "batched", "default", "3d", { running: true }),
+        elSpec("E7", 50000, "batched", "default", "3d"),
+        elSpec("E8", 10000, "objects", "default", "2d"),
+        elSpec("E9", 100000, "batched", "default", "2d"),
+        elSpec("E10", 10000, "objects", "plain", "3d"),
+        elSpec("E11", 10000, "objects", "heavy", "3d"),
+        elSpec("E12", 100000, "batched", "heavy", "3d"),
+        elSpec("E14", 100000, "batched", "heavy", "3d", { dpr: 2 }),
+        elSpec("E15", 1000, "objects", "default", "3d", { only: ids(QUICK_ELEMENT) }),
+        appSpec("A1", "gen-10k", "", "3d"),
+        appSpec("A2", "gen-100k", "", "3d"),
+        appSpec("A3", "lesmis", "file-styles", "3d"),
+        appSpec("A4", "gen-10k", "", "2d"),
+    ],
+};
+
 // ------------------------------------------------------------------ main
 
 const [cmd, file, ...rest] = process.argv.slice(2);
 const { values: o } = parseArgs({
-    args: rest,
+    args: cmd === "tier" ? rest.slice(1) : rest,
     options: {
         sizes: { type: "string", default: "1k,10k,50k,100k" },
         paths: { type: "string", default: "objects,batched" },
         dims: { type: "string", default: "3d,2d" },
         modes: { type: "string", default: "plain,styled" },
         "dpr2-sizes": { type: "string", default: "50k,100k" },
-        reps: { type: "string", default: "5" },
+        reps: { type: "string" },
         only: { type: "string" },
         dist: { type: "string", default: join(REPO, "graphty/dist") },
         features: { type: "string", default: ",cosmograph,file-styles" },
         graphs: { type: "string", default: "lesmis,yed-live,gen-1k,gen-10k,staff-50k,gen-100k" },
         "app-dims": { type: "string", default: "3d,2d" },
         spec: { type: "string" },
+        page: { type: "string" },
     },
 });
 if (!file) throw new Error("usage: see the top of interaction-latency.mjs");
-const out = resolve(file);
-mkdirSync(dirname(out), { recursive: true });
+let out = resolve(file);
+if (cmd !== "tier") mkdirSync(dirname(out), { recursive: true });
 
 if (cmd === "report") report(out);
 else if (cmd === "page") {
@@ -2718,10 +4226,18 @@ else if (cmd === "page") {
     ).unref();
     if (spec.kind === "app") await appPage(spec, out);
     else await elementPage(spec, out);
-} else if (cmd === "element" || cmd === "app") {
+} else if (cmd === "element" || cmd === "app" || cmd === "tier") {
     const specs = [];
-    const reps = Number(o.reps);
-    if (cmd === "element") {
+    const reps = Number(o.reps ?? 5);
+    if (cmd === "tier") {
+        // `tier <quick|full> <results.jsonl>`: the file is the second word here.
+        const [name, file2] = [file, rest[0]];
+        if (!TIERS[name]) throw new Error(`unknown tier ${name}: quick or full`);
+        for (const p of TIERS[name])
+            if (!o.page || o.page.split(",").includes(p.page))
+                specs.push({ ...p, reps: Number(o.reps ?? 3), dist: o.dist, tier: name, only: o.only ?? p.only });
+        out = resolve(file2 ?? "");
+    } else if (cmd === "element") {
         const dpr2 = new Set(o["dpr2-sizes"].split(",").filter(Boolean));
         for (const s of o.sizes.split(","))
             for (const dpr of dpr2.has(s) ? [1, 2] : [1])
@@ -2734,6 +4250,7 @@ else if (cmd === "page") {
             for (const features of o.features.split(","))
                 for (const dim of o["app-dims"].split(","))
                     specs.push({ kind: "app", graph, features, dim, dist: o.dist, reps, only: o.only });
+    mkdirSync(dirname(out), { recursive: true });
     const wrap = (process.env.LAT_WRAP ?? "").split(" ").filter(Boolean);
     for (const spec of specs) {
         const argv = [fileURLToPath(import.meta.url), "page", out, "--spec", JSON.stringify(spec)];

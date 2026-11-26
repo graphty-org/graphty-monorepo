@@ -446,6 +446,16 @@ describe("a join card's choices (source-steps)", () => {
                 ["overwrite"],
             );
         });
+        await pickWay(modal, "Rows per node", "List all");
+        await newest(session, (step) => step.act?.repeated === "list", "the card's merges list every row");
+        const rules = draftOf(session)
+            .steps()
+            .flatMap((step) => step.valuesDiffer.filter((each) => each.params.column === "name"));
+        assert.deepStrictEqual(
+            rules.map((each) => each.params.rule),
+            ["overwrite"],
+            "another option keeps the second merge's rule",
+        );
     });
 
     it("Enter on an open list, a switch or the Before radio commits nothing", async () => {

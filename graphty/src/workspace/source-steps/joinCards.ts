@@ -1105,7 +1105,10 @@ export function writeOutcome(
     join: SourceJoinTag,
 ): readonly SourceStepRow[] {
     const step = steps.at(0) ?? null;
-    const acts = outcome.acts.map((act) => withJoin(actWith(act, { outcome, result, on, step }), join));
+    // Each act keeps what its own step chose that no option names: its own columns' ways.
+    const acts = outcome.acts.map((act, at) =>
+        withJoin(actWith(act, { outcome, result, on, step: steps.at(at) ?? step }), join),
+    );
     const [only] = acts;
     if (step !== null && steps.length === 1 && acts.length === 1) {
         const before = draft.steps().length;
@@ -1113,6 +1116,20 @@ export function writeOutcome(
         // A staged source the act adds, or no longer needs, comes just before its step.
         const steps = draft.steps();
         return steps.slice(step.index + steps.length - before).slice(0, 1);
+    }
+    if (steps.length > 1 && steps.length === acts.length) {
+        // Each act in its own step's place, so each keeps its rules for the values that differ; the last first,
+        // so each earlier place still holds.
+        draft.batch(() => {
+            steps.forEach((_each, at) => {
+                const back = steps.length - 1 - at;
+                draft.replaceStep(steps[back].index, acts[back]);
+            });
+        });
+        return draft
+            .steps()
+            .filter((row) => isJoin(row) && row.join?.id === join.id)
+            .slice(-acts.length);
     }
     draft.batch(() => {
         removeSteps(draft, steps);

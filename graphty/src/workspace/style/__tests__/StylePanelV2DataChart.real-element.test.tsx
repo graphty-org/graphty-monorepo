@@ -137,4 +137,42 @@ describe("Style panel v2's chart from data", () => {
             assert.strictEqual(spec.scale?.normalize, "rank");
         });
     });
+
+    it("sums an amount over edges by month from Calculate, and its Period picks a year", async () => {
+        const { session, id: layer } = await openProject();
+        await session.data.addEdges([
+            { source: "a", target: "b", amount: 3, when: "2026-01-10T00:00:00Z" },
+            { source: "a", target: "c", amount: 5, when: "2026-02-03T00:00:00Z" },
+        ]);
+        await session.styles.settled();
+        const tab = await openStyle("Key people");
+        await addChart(tab);
+        const list = await screen.findByRole("listbox", { name: "Node chart data" });
+        await userEvent.click(within(list).getByRole("option", { name: "Calculate..." }));
+        const calculate = (): HTMLElement => {
+            const found = document.querySelector<HTMLElement>('[data-beside-pop="Calculate"]');
+            assert.isNotNull(found, "Calculate is open");
+            return found;
+        };
+        await userEvent.click(within(await waitFor(calculate)).getByRole("combobox", { name: "Measure" }));
+        await userEvent.click(await screen.findByRole("option", { name: "Sum" }));
+        await userEvent.click(within(await waitFor(calculate)).getByRole("combobox", { name: "Group by" }));
+        const fields = await screen.findByRole("listbox", { name: "Group by" });
+        await userEvent.click(within(fields).getByRole("option", { name: /^when\b/ }));
+        const graphOf = (): { groupBy?: { by?: string; period?: string }; measure?: string } =>
+            (written(session, layer, "node.chartData") as { entries: { graph?: object }[] }).entries[0].graph ?? {};
+        await waitFor(() => {
+            assert.strictEqual(graphOf().measure, "sum");
+            assert.deepInclude(graphOf().groupBy, { by: "time", period: "month" }, "a time column groups by month");
+        });
+        const merged = session.styles.explain({ node: "a" }).merged as Record<string, unknown>;
+        assert.strictEqual(merged["node.chartValues"], "3 5", "January 3, February 5");
+        await userEvent.click(within(await waitFor(calculate)).getByRole("combobox", { name: "Period" }));
+        await userEvent.click(await screen.findByRole("option", { name: "Year" }));
+        await waitFor(() => {
+            assert.strictEqual(graphOf().groupBy?.period, "year");
+        });
+        const yearly = session.styles.explain({ node: "a" }).merged as Record<string, unknown>;
+        assert.strictEqual(yearly["node.chartValues"], "8", "both in 2026");
+    });
 });

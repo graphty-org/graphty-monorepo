@@ -63,6 +63,12 @@ const KEY_COLORS: ReadonlySet<string> = new Set([MERGED_COLOR, NEW_COLOR, REMOVE
 
 /** No elements picked. */
 const NO_REFS: Picked["refs"] = [];
+/** No open card: no steps to focus. */
+const NO_STEPS: JoinCardView["steps"] = [];
+/** The ring on what the open card merges, wider than the merged ring (1.4), so it reads apart framed whole. */
+const FOCUS_RING = 2.6;
+/** A new node's size on screen in the preview: a node of size 1 covers 1/50 of the canvas's height. */
+const NEW_SIZE = 1;
 
 /**
  * Whether a key press lands in a field text is typed into: a list's own box, which only picks, is not one.
@@ -152,7 +158,7 @@ function useFrameNew(draft: SourceDraft): void {
  * rows picked in the table alone at full strength.
  * @param session - the element's session
  * @param draft - the open draft
- * @param cards - the cards
+ * @param joins - the cards, and the open one, whose step's merges are ringed apart
  * @param colorOf - a card's color, by its place
  * @param colors - whether each card has a color
  * @param marked - the rows picked
@@ -161,12 +167,15 @@ function useFrameNew(draft: SourceDraft): void {
 function useCardColors(
     session: GraphSession,
     draft: SourceDraft,
-    cards: readonly JoinCardView[],
+    joins: Pick<JoinCards, "cards" | "openCard">,
     colorOf: (at: number) => string,
     colors: boolean,
     marked: Picked["refs"],
     version: unknown,
 ): void {
+    const open = joins.openCard?.steps ?? NO_STEPS;
+    const { cards } = joins;
+    const openKey = open.map((step) => step.index).join();
     useEffect(() => {
         // Styled draws the reader's own look; what the join changes is marked in both.
         const all = draft.steps();
@@ -177,14 +186,17 @@ function useCardColors(
             merged: MERGED_COLOR,
             new: NEW_COLOR,
             removed: REMOVED_COLOR,
+            // What the open card merges reads apart from what earlier cards merged; new nodes stay in sight framed whole.
+            focus: { steps: stepsOf(all, open), ring: FOCUS_RING },
+            newSize: NEW_SIZE,
             ...(colors ? { steps } : {}),
             ...(marked.length > 0 ? { mark: { refs: marked } } : {}),
         });
         return () => {
             shown.end();
         };
-        // The view reads the draft when shown: it is shown again after every draft change.
-    }, [draft, colors, version, marked, session]); // eslint-disable-line react-hooks/exhaustive-deps -- cards and colors are read from the draft, which `version` follows
+        // The view reads the draft when shown: it is shown again after every draft change, and when another card opens.
+    }, [draft, colors, version, marked, session, openKey]);
 }
 
 /**
@@ -507,7 +519,7 @@ function WorkspaceBody({
     const list = JSON.stringify(shows);
     const picked = pickedRows?.list === list ? pickedRows : null;
     const marked = picked?.refs ?? NO_REFS;
-    useCardColors(session, draft, joins.cards, colorOf, colors, marked, version);
+    useCardColors(session, draft, joins, colorOf, colors, marked, version);
     useFrameNew(draft);
 
     const { marks, sources } = draft.preview();

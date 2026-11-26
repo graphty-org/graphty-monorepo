@@ -234,4 +234,48 @@ describe("source-steps drafts: the join workspace's reads", () => {
         d.dispose();
         session.dispose();
     });
+
+    it("showDraft rings the focused steps' merged nodes at the focus ring, with or without step colors", async () => {
+        const { session, d, hr } = await opened();
+        const flags = await d.stage(csv("flags.csv", "badge,flag\nB1,yes"), { key: "badge", type: "flag" });
+        d.merge({ from: { source: hr, field: "badge" }, into: { space: "person" } });
+        const first = d.steps().length - 1;
+        d.merge({ from: { source: flags, field: "badge" }, into: { space: "person" } });
+        const second = d.steps().length - 1;
+        await d.display(true);
+        const look = (id: string): Readonly<Record<string, unknown>> => session.styles.explain({ node: id }).merged;
+        const color = (id: string): unknown => (look(id)["node.haloColor"] as { hex?: string } | undefined)?.hex;
+        // Styled: no step colors, so every merged node has the merged ring; the open card's are wider.
+        const plain = session.styles.showDraft({
+            merged: "#009E73",
+            new: "#D55E00",
+            focus: { steps: [second], ring: 2.6 },
+        });
+        await session.styles.settled();
+        assert.strictEqual(look("B1")["node.haloScale"], 2.6, "B1, which the focused step merges, gets the focus ring");
+        assert.strictEqual(color("B1"), "#009e73", "in the merged color, with no step colors");
+        assert.notStrictEqual(look("B2")["node.haloScale"], 2.6, "B2, merged only by the earlier step, does not");
+        assert.strictEqual(look("B2")["node.haloOpacity"], 1, "and keeps its ring");
+        plain.end();
+        const colored = session.styles.showDraft({
+            merged: "#009E73",
+            new: "#D55E00",
+            steps: [
+                { step: first, color: "#999933" },
+                { step: second, color: "#1192E8" },
+            ],
+            focus: { steps: [second], ring: 2.6 },
+        });
+        await session.styles.settled();
+        assert.strictEqual(look("B1")["node.haloScale"], 2.6, "with step colors too");
+        assert.strictEqual(color("B1"), "#1192e8", "in the focused step's color");
+        colored.end();
+        session.styles.showDraft({ merged: "#009E73", new: "#D55E00" }).end();
+        const none = session.styles.showDraft({ merged: "#009E73", new: "#D55E00" });
+        await session.styles.settled();
+        assert.notStrictEqual(look("B1")["node.haloScale"], 2.6, "with no focus, no focus ring");
+        none.end();
+        d.dispose();
+        session.dispose();
+    });
 });

@@ -715,11 +715,11 @@ export function switchesOf(all: readonly (SourceMatchCounts | null)[]): MatchSwi
             const extra = counts === null ? null : read(counts);
             return extra === null ? total : (total ?? 0) + extra;
         }, null);
-    return {
-        moreWithCase: sum((counts) => more(counts.moreRowsWithIgnoreCase, counts.moreNodesWithIgnoreCase)),
-        moreWithSpaces: sum((counts) => more(counts.moreRowsWithIgnoreSpaces, counts.moreNodesWithIgnoreSpaces)),
-        together: (sum((counts) => more(counts.moreRowsWithBoth, counts.moreNodesWithBoth)) ?? 0) > 0,
-    };
+    const moreWithCase = sum((counts) => more(counts.moreRowsWithIgnoreCase, counts.moreNodesWithIgnoreCase));
+    const moreWithSpaces = sum((counts) => more(counts.moreRowsWithIgnoreSpaces, counts.moreNodesWithIgnoreSpaces));
+    const both = sum((counts) => more(counts.moreRowsWithBoth, counts.moreNodesWithBoth)) ?? 0;
+    // Rows neither matches alone: more than the two add apart (an overlap between them can only hide some).
+    return { moreWithCase, moreWithSpaces, together: both > (moreWithCase ?? 0) + (moreWithSpaces ?? 0) };
 }
 
 /**

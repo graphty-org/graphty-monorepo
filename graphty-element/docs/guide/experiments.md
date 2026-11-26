@@ -386,7 +386,11 @@ are while After is drawn: only what the draft adds is laid out, and the commit d
 `session.styles.showDraft({ merged, new })` draws the join preview in the
 two colors you pass: a ring on each node the commit would merge, each edge it would fold a row into
 in that color, a dashed border on each node it would add, and each edge it would add dashed; with a
-`removed` color, what it would remove is dashed and dimmed while Before shows. It suspends the style layers while it is drawn (they
+`removed` color, what it would remove is dashed and dimmed while Before shows. `newSize` draws each
+node it would add at that size on screen (`node.size` in `node.sizeSpace: "screen"`), so it stays in
+sight on a graph framed whole, and `focus: { steps, ring }` rings the merged nodes of those steps (by
+their place in `draft.steps()`) at `ring` times their size over every other ring, so what one step
+merges reads apart from what earlier steps did. Both are off unless passed. It suspends the style layers while it is drawn (they
 stay listed, and it is no undo step), is never saved, and its `end()` takes it off.
 `preview.marks` counts what it marks, in all and as `nodes: { merged, new, untouched, removed }` and
 `edges: { merged, new, removed }`. `draft.spaces()` lists the id spaces as the draft builds them, each

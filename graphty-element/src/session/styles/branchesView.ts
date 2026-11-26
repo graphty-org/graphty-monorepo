@@ -351,7 +351,8 @@ function untouchedLook(color: string): LayerSpec["set"] {
  * The layers a draft view (`styles.showDraft`) draws, bottom first: the rest faint when asked, a
  * ring on each node the commit would merge and each edge it would fold a row into in that color, a
  * dashed border on each node it would add, and each edge it would add drawn dashed, read from `graphty.draft`; a dotted border on the untouched nodes;
- * each listed step's in its own color over those, a node two listed steps merge ringed wider; what it would remove dashed and dimmed; the marked elements at full strength; the ghosts
+ * each listed step's in its own color over those, a node two listed steps merge ringed wider; the focused steps' merged
+ * nodes ringed at the focus ring; what it would remove dashed and dimmed; the marked elements at full strength; the ghosts
  * drawn faint as under a branches view.
  * @param view - The colors.
  * @param stack - The stack as project state holds it now.
@@ -399,7 +400,15 @@ export function draftLayers(
             : idLayers("Untouched", ids({ untouched: true }), untouchedLook(view.untouched))),
         { name: "Merged", target: "node", selector: marked("merged"), set: mergedLook(view.merged) },
         { name: "Merged", target: "edge", selector: marked("merged"), set: mergedEdgeLook(view.merged) },
-        { name: "New", target: "node", selector: marked("new"), set: newNodeLook(view.new) },
+        {
+            name: "New",
+            target: "node",
+            selector: marked("new"),
+            set: {
+                ...newNodeLook(view.new),
+                ...(view.newSize === undefined ? {} : { "node.size": view.newSize, "node.sizeSpace": "screen" }),
+            },
+        },
         { name: "New", target: "edge", selector: marked("new"), set: newEdgeLook(view.new) },
     ];
     for (const { step, color } of view.steps ?? []) {
@@ -422,6 +431,13 @@ export function draftLayers(
             "node.haloScale": MERGED_AGAIN_SCALE,
         }),
     );
+    // The focused steps' merged nodes over every other ring, so they read apart from what other steps merged.
+    const { focus } = view;
+    for (const step of focus?.steps ?? []) {
+        const color = view.steps?.find((each) => each.step === step)?.color ?? view.merged;
+        const ring = { ...mergedLook(color), "node.haloScale": focus?.ring ?? MERGED_AGAIN_SCALE };
+        specs.push(...idLayers("Focus", ids({ step, buckets: STEP_MARKS.merged }), ring));
+    }
     if (view.removed !== undefined) {
         specs.push(...removedLayers(view.removed));
     }

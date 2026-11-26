@@ -576,6 +576,23 @@ export interface DraftView {
         /** The step's color, any CSS color. */
         readonly color: string;
     }[];
+    /**
+     * Steps whose merged nodes get a ring of their own, drawn over every other ring: the step's color
+     * from `steps`, else `merged`, at `ring` times the node's size. What the reader is deciding about
+     * then reads apart from what other steps merged. Absent, no step's ring differs.
+     */
+    readonly focus?: {
+        /** The steps, by their place in `draft.steps()`. */
+        readonly steps: readonly number[];
+        /** The ring's scale, a multiple of the node's size, above 0 (the merged ring is 1.4). */
+        readonly ring: number;
+    };
+    /**
+     * The size on screen each node the commit would add is drawn at, as `node.size` with
+     * `node.sizeSpace: "screen"` (a node of size s covers s / 50 of the view's height), so it stays in
+     * sight on a graph framed whole. Absent, a new node keeps its own size.
+     */
+    readonly newSize?: number;
 }
 
 /**

@@ -410,6 +410,27 @@ describe("source-steps drafts: drawing a draft", () => {
             true,
             "a merged one is not",
         );
+        assert.notStrictEqual(
+            session.styles.explain({ node: "A-9" }).merged["node.sizeSpace"],
+            "screen",
+            "with no new size, a new node keeps its own size",
+        );
+        const sized = session.styles.showDraft({ merged: "#7048E8", new: "#E8590C", newSize: 1 });
+        await session.styles.settled();
+        assert.deepStrictEqual(
+            [
+                session.styles.explain({ node: "A-9" }).merged["node.size"],
+                session.styles.explain({ node: "A-9" }).merged["node.sizeSpace"],
+            ],
+            [1, "screen"],
+            "with a new size, a new node is drawn at that size on screen, seen at any zoom",
+        );
+        assert.notStrictEqual(
+            session.styles.explain({ node: "A-1" }).merged["node.sizeSpace"],
+            "screen",
+            "a merged node keeps its size",
+        );
+        sized.end();
         assert.isFalse(session.styles.showingBranches, "not a branches view");
         assert.strictEqual(session.styles.list(), layers, "the layer list is unchanged");
         assert.strictEqual(session.history.steps.length, steps, "no undo step");

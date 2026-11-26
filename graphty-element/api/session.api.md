@@ -1148,6 +1148,10 @@ export interface DraftTable {
 
 // @beta
 export interface DraftView {
+    readonly focus?: {
+        readonly steps: readonly number[];
+        readonly ring: number;
+    };
     readonly mark?: {
         readonly step: number;
     } | {
@@ -1155,6 +1159,7 @@ export interface DraftView {
     };
     readonly merged: string;
     readonly new: string;
+    readonly newSize?: number;
     readonly removed?: string;
     readonly rest?: "faint" | "plain";
     readonly steps?: readonly {

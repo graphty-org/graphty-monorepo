@@ -523,6 +523,63 @@ describe("the join workspace (source-steps)", () => {
         assert.deepStrictEqual([value("Source 1"), value("Source 2")], ["entries", "people"]);
     });
 
+    it("the preview keeps new nodes in sight framed whole, in Card colors and Styled", async () => {
+        const { session, modal } = await opened(false, { name: "doors.csv", text: "door,name\nD1,North\nD2,South" });
+        await matchBadge(modal);
+        await matchDoors(modal);
+        await joinAs(modal, EDGE);
+        await newest(session, (row) => row.act?.to !== undefined, "an edge per entry");
+        const look = (id: string): Readonly<Record<string, unknown>> => session.styles.explain({ node: id }).merged;
+        for (const styled of [false, true]) {
+            if (styled) {
+                await userEvent.click(within(modal).getByText("Styled", { exact: true }));
+            }
+            await waitFor(() => {
+                assert.strictEqual(session.styles.shownDraft?.steps === undefined, styled);
+            });
+            await session.styles.settled();
+            assert.deepStrictEqual(
+                [look("D1")["node.sizeSpace"], look("D1")["node.size"]],
+                ["screen", 1],
+                `a new door keeps a size on screen (${styled ? "Styled" : "Card colors"})`,
+            );
+            assert.notStrictEqual(look("B1")["node.sizeSpace"], "screen", "a person keeps its own size");
+        }
+    });
+
+    it("a second card's merged nodes ring wider than an earlier card's, in Card colors and Styled", async () => {
+        const { session, modal } = await opened(false, { name: "flags.csv", text: "badge,flag\nB1,yes" });
+        await matchBadge(modal);
+        await joinAs(modal, FIELDS);
+        await newest(session, (row) => row.act !== null, "the entries' fields on people");
+        await userEvent.click(within(modal).getByRole("button", { name: "Join" }));
+        await pickSources(modal, "flags", "people");
+        await pickFields(modal, "badge", "badge");
+        await joinAs(modal, "Fields of flags on people");
+        await waitFor(() => {
+            assert.strictEqual(
+                session.data
+                    .currentDraft()
+                    ?.steps()
+                    .filter((row) => row.act !== null).length,
+                2,
+            );
+        });
+        const scale = (id: string): unknown => session.styles.explain({ node: id }).merged["node.haloScale"];
+        for (const styled of [false, true]) {
+            if (styled) {
+                await userEvent.click(within(modal).getByText("Styled", { exact: true }));
+            }
+            await waitFor(() => {
+                assert.strictEqual(session.styles.shownDraft?.steps === undefined, styled);
+            });
+            await session.styles.settled();
+            const name = styled ? "Styled" : "Card colors";
+            assert.isAbove(Number(scale("B1")), Number(scale("B2")), `B1, the open card's, rings wider (${name})`);
+            assert.isAbove(Number(scale("B2")), 0, `B2, the first card's, keeps its ring (${name})`);
+        }
+    });
+
     it("draws two cards for two joins from one source", async () => {
         const { session, modal } = await opened(false, { name: "doors.csv", text: "door,name\nD1,North\nD2,South" });
         await connect(modal, session);

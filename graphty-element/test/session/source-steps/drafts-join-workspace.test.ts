@@ -205,4 +205,33 @@ describe("source-steps drafts: the join workspace's reads", () => {
         d.dispose();
         session.dispose();
     });
+
+    it("showDraft rings a node a later listed step merges again wider, in either step's color", async () => {
+        const { session, d, hr } = await opened();
+        const flags = await d.stage(csv("flags.csv", "badge,flag\nB1,yes"), { key: "badge", type: "flag" });
+        d.merge({ from: { source: hr, field: "badge" }, into: { space: "person" } });
+        const first = d.steps().length - 1;
+        d.merge({ from: { source: flags, field: "badge" }, into: { space: "person" } });
+        const second = d.steps().length - 1;
+        await d.display(true);
+        const scale = (id: string): number => Number(session.styles.explain({ node: id }).merged["node.haloScale"]);
+        for (const colors of [
+            ["#999933", "#1192E8"],
+            ["#999933", "#999933"],
+        ]) {
+            const shown = session.styles.showDraft({
+                merged: "#009E73",
+                new: "#D55E00",
+                steps: [
+                    { step: first, color: colors[0] },
+                    { step: second, color: colors[1] },
+                ],
+            });
+            await session.styles.settled();
+            assert.isAbove(scale("B1"), scale("B2"), `B1, merged by both steps, stands out (${colors.join(" ")})`);
+            shown.end();
+        }
+        d.dispose();
+        session.dispose();
+    });
 });

@@ -854,6 +854,7 @@ export type Channel =
     | "node.planar"
     | "node.zIndex"
     | "node.drawOrder"
+    | "node.onTop"
     | "node.borderColor"
     | "node.borderWidth"
     | "node.borderScreenWidth"

@@ -34,6 +34,7 @@ import {
     ringVertexData,
     setLabelBox,
 } from "./NodeShapeGeometry";
+import { ON_TOP_RENDERING_GROUP } from "./RichTextLabel";
 import {
     borderRing,
     convexHull,
@@ -186,6 +187,11 @@ function nearestDrawing(ring: Mesh, view: Matrix, ahead: number, at: Vector3): T
  * @param is2D - Whether the graph is drawn in 2D.
  */
 function placeByZIndex(mesh: Mesh, shape: NodeStyleConfig["shape"], is2D: boolean): void {
+    // `node.onTop`: drawn after the graph with the depth cleared, so no edge or other node covers it in any view.
+    if (shape?.onTop === true) {
+        mesh.renderingGroupId = ON_TOP_RENDERING_GROUP;
+    }
+
     const zIndex = shape?.zIndex ?? 0;
     if (zIndex >= 0) {
         if (is2D) {

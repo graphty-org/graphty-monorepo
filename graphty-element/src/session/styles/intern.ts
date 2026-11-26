@@ -98,6 +98,8 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.zIndex": "mesh",
     // Baked into the source mesh's vertices in 2D the same way (NodeMesh.placeByZIndex).
     "node.drawOrder": "mesh",
+    // Its own source mesh, in the on-top rendering group (NodeMesh.placeByZIndex).
+    "node.onTop": "mesh",
     "node.borderColor": "mesh",
     "node.borderWidth": "mesh",
     "node.borderScreenWidth": "mesh",

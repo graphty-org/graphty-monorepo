@@ -200,7 +200,8 @@ Every hit target counts. Budgets: an empty layer at most 8; the default Everythi
 ## 4. Sections and things
 
 **Fit to label** (`node.labelFit*`) is a sub-group of Size's settings, since it sizes the shape and overrules
-Size (`x-size-labelfit`). In the "+" lists below, `|` is a divider between tiers.
+Size (`x-size-labelfit`). Its two picture lines (`labelFitImage`, `labelFitImagePadding`) are Size's group "Fit
+image", so Fit to label stays within six lines with its padding's sides apart. In the "+" lists below, `|` is a divider between tiers.
 
 ### 4.1 Node tab
 
@@ -603,6 +604,11 @@ thing's groups when it has more than one, and each opens a new pop-over.
   Clamp outliers as above. A color by groups: source, palette, the group table, More values than colors | No
   value, and its one value under them. It is 312 wide in v2, so a pair's halves read
   whole. A bound value's dialog is the same dialog.
+- **Location counts as one row (team decision, 2026-11-25; not an owner statement).** A label's Location draws
+  Outside / Inside / Auto stacked beside its cell grid, and the pop-over counts the pair as one row, since the grid
+  is that tall on its own. Laid side by side the words are cut ("Outsid") beside the grid. Read strictly, the
+  owner's "6 components from top to bottom" counts the three stacked buttons as three, which makes a label's
+  pop-over 7 rows tall (8 with its Text / Glyph tabs) once a place is written; that reading waits for the owner.
 - **Free text and pictures.** An unset text field holds the words drawn there ("+" for a badge's suffix) as its
   value, or "None" where none are drawn; left so, nothing is written. A picture (a label's image, a node image's
   Fallback, an arrow's Image) is compact-mantine's `ImagePicker` (R16), reading "None" with no picture. A
@@ -743,7 +749,7 @@ follows.
 | Label: Glyph                           | char R14                          | Size, Color | Main: font R13, weight R5b                                                                                                                                                                                                                      |
 | Tooltip, External label                | text source R12                   | Size, Color | 7.3                                                                                                                                                                                                                                             |
 | Record                                 | fields R15r                       | -           | Main: Fields R15 (`shapeTexts`: point, text R12). Table: the label table editor R15, cell picture R7, padding R5, font R13                                                                                                                      |
-| Size                                   | size R5                           | -           | Main: Unit R8f, sizeMode R8f, width \| height, keep ratio R7, depth R5, relativeExtents, planar R7. Fit to label: labelFit R8, padding X \| Y, labelFitSquare R7, labelFitQuantum R5, labelFitImage R7, labelFitImagePadding R5                 |
+| Size                                   | size R5                           | -           | Main: Unit R8f, sizeMode R8f, width \| height, keep ratio R7, depth R5, relativeExtents, planar R7. Fit to label: labelFit R8, padding X \| Y, labelFitSquare R7, labelFitQuantum R5. Fit image: labelFitImage R7, labelFitImagePadding R5      |
 | Shape: Basic shape                     | shape R10                         | -           | No pop-over. Set lines only: shapeRotation R5, cornerRadius R5, exactCornerRadius R7, cornerFraction R5, shapePoints R15, shapeStretchPoints R7, shapeParts R15, inner lines R15, inner line width R5, inner line backing color R1 and width R5 |
 | Shape: Model                           | shape R10, naming the model       | -           | Main: Fallback shape R10, modelTint R9, modelFit R8f, modelCenter R8. Orient: modelSourceUp R9, modelTurn R5, modelDoubleSided R8f. Animation: modelAnimation R9, speed \| offset                                                               |
 | Shape: replace shader                  | shape R10, naming the shader      | -           | Main: ShaderParamRows R16; reach, minSize R5                                                                                                                                                                                                    |

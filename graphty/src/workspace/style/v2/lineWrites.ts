@@ -189,11 +189,15 @@ export function readsAsPercent(descriptor: ChannelDescriptor): boolean {
 }
 
 /**
- * Whether a number line is a range drawn as a slider: a percent, which has a fixed least and greatest value.
+ * Whether a number line is a range drawn as a slider: a number with a fixed least and greatest value (a percent, a
+ * taper from 0 to 4, a weight from 1 to 1000), never an angle, which has its picker (owner's input rules).
  * @param descriptor - its channel, or a label style field described as one.
  * @param percent - reads as a percent, when not its channel's say.
  * @returns whether it is.
  */
 export function rangeOf(descriptor: ChannelDescriptor, percent?: boolean): boolean {
-    return (percent ?? readsAsPercent(descriptor)) && descriptor.min !== undefined && descriptor.max !== undefined;
+    if (descriptor.min === undefined || descriptor.max === undefined || descriptor.angle === true) {
+        return false;
+    }
+    return (percent ?? readsAsPercent(descriptor)) || descriptor.accepts === "number";
 }

@@ -118,7 +118,6 @@ function DataPicker({
     const [draft, setDraft] = useState<readonly DataEntry[] | null>(null);
     const entries = draft ?? spec?.entries ?? [];
     const record = channel === "node.recordData";
-    const first = entries.at(0);
     return (
         <DataFieldPicker
             multiple
@@ -126,7 +125,7 @@ function DataPicker({
             label={`${title} data`}
             fields={fieldsFor(ctx.session, channel, entries)}
             values={entries.map((entry, at) => entryId(entry, at))}
-            shown={first === undefined ? FIXED : entryName(ctx.session, first)}
+            shown={shownEntries(ctx, entries)}
             actions={[
                 { id: "fixed", label: FIXED },
                 ...(record ? [{ id: "text", label: "Text", keepsOpen: true }] : []),
@@ -168,6 +167,21 @@ function DataPicker({
             }}
         />
     );
+}
+
+/**
+ * What the row's picker reads: "Fixed" with no entries, its one entry's name, else how many entries it holds, so a
+ * pie of two fields never reads as its first alone.
+ * @param ctx - the row.
+ * @param entries - the entries.
+ * @returns the words.
+ */
+function shownEntries(ctx: RowContext, entries: readonly DataEntry[]): string {
+    const first = entries.at(0);
+    if (first === undefined) {
+        return FIXED;
+    }
+    return entries.length === 1 ? entryName(ctx.session, first) : `${String(entries.length)} entries`;
 }
 
 /** Which pop-over an Entry pop-over has open beside it. */

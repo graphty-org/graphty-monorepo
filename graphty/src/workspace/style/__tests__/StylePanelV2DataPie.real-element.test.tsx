@@ -179,6 +179,15 @@ describe("Style panel v2's data entries", () => {
             assert.deepEqual(written(session, layer, "node.chartData"), { entries: [{ field: "data.degreeish" }] });
         });
         assert.strictEqual(written(session, layer, "node.chartKind"), "bar", "the kind stays its own channel");
+        // Two entries: the row's control says how many it holds, never its first alone.
+        await pick("Node chart data", ["animals"]);
+        await waitFor(() => {
+            assert.lengthOf((written(session, layer, "node.chartData") as { entries: unknown[] }).entries, 2);
+            assert.strictEqual(
+                screen.getByRole<HTMLInputElement>("combobox", { name: "Node chart data" }).value,
+                "2 entries",
+            );
+        });
     });
 
     it("counts each node's neighbors by a column from Calculate (owner's pie case 2)", async () => {

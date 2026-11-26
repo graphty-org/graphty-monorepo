@@ -156,14 +156,20 @@ export function NumberLine({
             />
         </div>
     );
-    // A percent has a fixed range: a slider (owner's input rules: a range of inputs is a slider), its number
-    // field beside it, so its value is read and typed.
+    // A fixed range (a percent, a taper from 0 to 4): a slider (owner's input rules: a range of inputs is a slider),
+    // its number field beside it, so its value is read and typed.
     if (!slider || !rangeOf(descriptor, percent)) {
         return field;
     }
     return (
         <Group gap={4} wrap="nowrap" className="ws-percent">
-            <PercentSlider label={name} value={value} min={min ?? 0} max={max ?? 1} onMove={onMove} onWrite={onWrite} />
+            <RangeSlider
+                label={name}
+                value={value}
+                {...sliderRange(descriptor, scale)}
+                onMove={onMove}
+                onWrite={onWrite}
+            />
             <div style={{ flex: `0 0 ${plain ? "44px" : "64px"}`, minWidth: 0 }}>{field}</div>
         </Group>
     );
@@ -221,22 +227,48 @@ function wideLine(line: LineSpec, descriptor: ChannelDescriptor, split: boolean)
 }
 
 /**
- * A percent as compact-mantine's Slider, the arrow keys stepping 1%. It writes once a drag or a key ends, one undo
- * step each.
+ * A fixed range's slider settings: its ends, its step, and what it shows while nothing is set (a percent its
+ * greatest value, as an opacity draws unset; any other range its default, else its least value).
+ * @param descriptor - its channel.
+ * @param scale - 100 for a percent, else 1.
+ * @returns the slider's range.
+ */
+function sliderRange(
+    descriptor: ChannelDescriptor,
+    scale: number,
+): { min: number; max: number; scale: number; step: number; fallback: number } {
+    const min = descriptor.min ?? 0;
+    const max = descriptor.max ?? 1;
+    if (scale === 100) {
+        return { min, max, scale, step: 0.01, fallback: max };
+    }
+    const step = descriptor.step ?? (max - min > 10 ? 1 : 0.1);
+    return { min, max, scale, step, fallback: typeof descriptor.default === "number" ? descriptor.default : min };
+}
+
+/**
+ * A fixed range as compact-mantine's Slider: a percent stepping 1%, any other range its own step. It writes once a
+ * drag or a key ends, one undo step each.
  * @param props - Component props
  * @param props.label - its accessible name
- * @param props.value - the value shown (set, or drawn), a fraction
- * @param props.min - its least fraction
- * @param props.max - its greatest fraction
+ * @param props.value - the value shown (set, or drawn)
+ * @param props.min - its least value
+ * @param props.max - its greatest value
+ * @param props.scale - 100 for a percent (a fraction shown in percent), else 1
+ * @param props.step - one step, in the value's own units
+ * @param props.fallback - the value shown while nothing is set
  * @param props.onMove - hears each value a drag passes over, and null when a drag ends writing nothing
- * @param props.onWrite - writes a fraction
+ * @param props.onWrite - writes a value
  * @returns The slider
  */
-function PercentSlider({
+function RangeSlider({
     label,
     value,
     min,
     max,
+    scale,
+    step,
+    fallback,
     onMove,
     onWrite,
 }: Readonly<{
@@ -244,10 +276,15 @@ function PercentSlider({
     value: unknown;
     min: number;
     max: number;
+    scale: number;
+    step: number;
+    fallback: number;
     onMove?: (value: number | null) => void;
     onWrite: (value: number) => void;
 }>): React.JSX.Element {
-    const given = typeof value === "number" ? Math.round(value * 100) : max * 100;
+    // Shown in the slider's own units (percent for a percent), rounded to its step.
+    const units = (fraction: number): number => Number((Math.round(fraction / step) * step * scale).toFixed(4));
+    const given = units(typeof value === "number" ? value : fallback);
     // The thumb follows a drag before it is written. The value the drag began at decides whether it wrote anything:
     // `value` may follow the drag itself (a list's shares preview it).
     const [moving, setMoving] = React.useState<number | null>(null);
@@ -257,24 +294,24 @@ function PercentSlider({
         <Slider
             size="xs"
             style={{ flex: 1, minWidth: 0 }}
-            min={min * 100}
-            max={max * 100}
-            step={1}
+            min={min * scale}
+            max={max * scale}
+            step={step * scale}
             value={shown}
             label={null}
             thumbLabel={label}
-            thumbProps={{ "aria-valuetext": `${String(shown)}%` }}
+            thumbProps={{ "aria-valuetext": scale === 100 ? `${String(shown)}%` : String(shown) }}
             onChange={(next) => {
                 began.current ??= given;
                 setMoving(next);
-                onMove?.(next / 100);
+                onMove?.(next / scale);
             }}
             onChangeEnd={(next) => {
                 const from = began.current ?? given;
                 began.current = null;
                 setMoving(null);
                 if (next !== from) {
-                    onWrite(next / 100);
+                    onWrite(next / scale);
                 } else {
                     onMove?.(null);
                 }

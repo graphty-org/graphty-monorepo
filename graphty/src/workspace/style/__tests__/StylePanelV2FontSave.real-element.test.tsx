@@ -46,9 +46,9 @@ describe("an uploaded font is saved inside the project file", () => {
         assert.isDefined(fonts, "the saved file has a fonts list");
         const entry = fonts.find((font) => font.family === family);
         assert.isDefined(entry, `the saved file names ${family}`);
-        assert.isString(entry.data);
+        const data = entry.data ?? "";
         // Base64 of the file: four characters for every three bytes.
-        assert.isAtLeast(entry.data.length, Math.floor((bytes.byteLength * 4) / 3));
+        assert.isAtLeast(data.length, Math.floor((bytes.byteLength * 4) / 3));
     });
 });
 

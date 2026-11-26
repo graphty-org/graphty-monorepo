@@ -6,14 +6,7 @@
  * Labels; and Shaders as today. Every line is a control, showing what the element does while the graph does not set it.
  */
 
-import {
-    CompactColorInput,
-    ControlGroup,
-    ControlSection,
-    LabelsProvider,
-    PanelField,
-    Popout,
-} from "@graphty/compact-mantine";
+import { CompactColorInput, ControlGroup, ControlSection, LabelsProvider, Popout } from "@graphty/compact-mantine";
 import { styleFamily } from "@graphty/graphty-element/catalog";
 import {
     DEFAULT_BACKGROUND_COLOR,
@@ -356,14 +349,16 @@ export function GraphSettingsV2(): React.JSX.Element | null {
                                 line(
                                     "lighting",
                                     "Lighting",
-                                    "R9",
-                                    <PanelField
+                                    "R8",
+                                    // Four choices: grouped buttons, not a drop-down (owner's input rules).
+                                    <SegmentsLine
                                         label="Lighting"
-                                        kind="select"
-                                        width="fill"
-                                        data={LIGHTING_VALUES.map((value) => ({ value, label: LIGHTING_WORDS[value] }))}
+                                        options={LIGHTING_VALUES.map((value) => ({
+                                            value,
+                                            name: LIGHTING_WORDS[value],
+                                        }))}
                                         value={lighting}
-                                        onChange={(picked) => {
+                                        onPick={(picked) => {
                                             const next = LIGHTING_VALUES.find((value) => value === picked);
                                             if (next !== undefined) {
                                                 store.set({ lighting: next });

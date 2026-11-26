@@ -29,6 +29,7 @@ import { cardPalette } from "./selection/cardPalette";
 import { readAuthor, readPreference, TIMELINE_STYLE } from "./settings/preferences";
 import { SettingsDialog } from "./settings/SettingsDialog";
 import { DraftOpenDialog } from "./source-steps/DraftOpenDialog";
+import { JoinWorkspaceHost } from "./source-steps/JoinWorkspace";
 import { openAgain, useDropToOpen } from "./start/open";
 import { SamplesDialog } from "./start/SamplesDialog";
 import { StartScreen } from "./start/StartScreen";
@@ -200,8 +201,8 @@ export function Workspace({
         const focusLater = focusOpenedGraphLater(opening.focus);
         defaults
             .then(() => opening.load(session, host))
-            // Each load starts the project's history itself (open.ts passes the element's
-            // `history: "start"`; a project file or kept work does so on opening).
+            // Each load sets the project's history itself (open.ts: a sample's is one undo step, a
+            // file's passes the element's `history: "start"`; a project file or kept work starts it on opening).
             .then(() => {
                 bootSignal({ line: "project opened" });
                 // A project opens with the row that paints every element selected (owner,
@@ -475,6 +476,7 @@ export function Workspace({
             </div>
             <ProjectDialogs />
             <DraftOpenDialog />
+            <JoinWorkspaceHost />
             {/* The one status line, outside the start screen, the frame and every surface the Data
                 page hides, so it is on the page, empty, before anything is written to it and a
                 message is spoken once, politely, as it happens. Each write puts in a new text node,

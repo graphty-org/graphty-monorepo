@@ -97,6 +97,7 @@ function standIn(facts: StandInFacts = {}): {
             }),
             edge: (id: string) => (id === "e1" ? { id, source: "a", target: "b" } : undefined),
             source: () => undefined,
+            lastImport: () => null,
             attributes: () => Object.entries(facts.columns ?? {}).map(([path, plainName]) => ({ path, plainName })),
             readableValues: () =>
                 Object.entries(facts.columns ?? {}).map(([path, plainName]) => ({

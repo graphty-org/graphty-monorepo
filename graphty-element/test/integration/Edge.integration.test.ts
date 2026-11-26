@@ -6,7 +6,7 @@
  */
 
 import { AbstractMesh, NullEngine, Scene, Vector3 } from "@babylonjs/core";
-import { afterEach, assert, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import type { EdgeStyleConfig } from "../../src/config";
 import type { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
@@ -27,7 +27,7 @@ function isDisposed(mesh: AbstractMesh | PatternedLineMesh | ArrowCap): boolean 
 
     return false;
 }
-import { Edge } from "../../src/Edge";
+import { Edge, edgeInternals } from "../../src/Edge";
 import { DataManager, dataManagerInternals } from "../../src/managers/DataManager";
 import { EventManager } from "../../src/managers/EventManager";
 import { DefaultGraphContext } from "../../src/managers/GraphContext";
@@ -250,6 +250,26 @@ describe("Edge Integration", () => {
             assert.equal(edge.srcId, "src");
             assert.equal(edge.dstId, "dst");
             assert.equal(edge.id, "0", "Edge.id is the element-assigned counter, printed");
+        });
+
+        test("placing an edge whose ends both have a Node looks up no end by id", () => {
+            const context = contextWith(scene, meshCache, styles, {
+                src: new Vector3(0, 0, 0),
+                dst: new Vector3(5, 0, 0),
+            });
+            const edge = new Edge(context, "src", "dst", 0, defaultPaint, asData({}));
+            const rowOf = vi.spyOn(dataManagerInternals, "rowOf");
+
+            const [a, b] = [new Vector3(0, 0, 0), new Vector3(5, 0, 0)];
+            const ends = [edgeInternals.bareEnd(edge, "source", a, b), edgeInternals.bareEnd(edge, "target", b, a)];
+
+            // the end checks added for rows with no `Node` asked the id map up to four times an end, every frame
+            assert.strictEqual(rowOf.mock.calls.length, 0);
+            assert.deepEqual(
+                ends.map((p) => p.asArray()),
+                [a.asArray(), b.asArray()],
+            );
+            rowOf.mockRestore();
         });
 
         test("creates edge with arrowHead when configured", () => {

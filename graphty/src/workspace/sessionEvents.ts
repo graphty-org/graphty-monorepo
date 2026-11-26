@@ -100,6 +100,7 @@ export function useSessionEvents(
     events: readonly (keyof SessionEventMap)[],
     notStyles = false,
 ): number {
+    // on reload: fresh: derived: a redraw counter for graphty-element's events
     const [version, setVersion] = useState(0);
     useEffect(() => {
         if (session === null) {

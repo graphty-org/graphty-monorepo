@@ -10,6 +10,7 @@
  */
 
 import { GraphtyError } from "../../../errors/GraphtyError";
+import type { JoinReduce } from "../../types";
 import { checkClash, mapped, type MappingPatch, refuseBoth, rowsCopies } from "./acts";
 
 export type { MappingPatch } from "./acts";
@@ -60,6 +61,9 @@ export interface AskedOverlap extends OverlapQuestion {
     readonly ends: readonly ("sourceSpace" | "targetSpace")[];
 }
 
+/** How several rows naming one key settle: a row winning, `"both"`, or a reduction. */
+type Repeated = JoinReduce | "both";
+
 /** What `editStep` may change on one step. A `null` or `false` takes the choice off. */
 export interface StepPatch {
     /** One rule for every column, or rules for some columns that keep the step's other rules. */
@@ -68,8 +72,11 @@ export interface StepPatch {
     readonly except?: RowFilter | null;
     readonly ignoreCase?: boolean;
     readonly ignoreSpaces?: boolean;
-    /** How two rows naming one key settle; `"both"` only on a `join.edges` step. */
-    readonly repeated?: "first" | "last" | "both" | null;
+    /**
+     * How two rows naming one key settle; `"both"` only on a `join.edges` step, a reduction other
+     * than `"first"` or `"last"` only on a `join.merge` step (its `aggregate` `"*"`).
+     */
+    readonly repeated?: Repeated | null;
     /** Keep the step but build nothing from it. */
     readonly off?: boolean;
     /** A merge's node 2 that names no node 1: kept as its own node, or dropped. */
@@ -380,6 +387,49 @@ export function built(state: DraftState): DraftState {
 }
 
 /**
+ * Whether a `repeated` value picks a row rather than reducing the rows.
+ * @param repeated - The value.
+ * @returns True for `"first"`, `"last"` and `"both"`.
+ */
+function rowWins(repeated: Repeated): repeated is "first" | "last" | "both" {
+    return repeated === "first" || repeated === "last" || repeated === "both";
+}
+
+/**
+ * A merge step's `repeated` patch as the step holds it: a row winning takes `aggregate` off, a
+ * reduction is `aggregate` `"*"`; columns the patch's own `aggregate` names win.
+ * @param repeated - The patch's `repeated`.
+ * @param aggregate - The patch's `aggregate`.
+ * @returns The step's `repeated` and `aggregate`.
+ */
+function mergeRepeats(
+    repeated: Repeated | null,
+    aggregate: Aggregate | null | undefined,
+): { repeated: Repeated | null; aggregate: Aggregate | null } {
+    if (repeated === null || rowWins(repeated)) {
+        return { repeated, aggregate: aggregate ?? null };
+    }
+    return { repeated: null, aggregate: { "*": repeated, ...aggregate } };
+}
+
+/**
+ * Refuse a `repeated` a step cannot take: any on a `join.add`, `"both"` off a `join.edges`, a
+ * reduction off a `join.merge`.
+ * @param op - The step's kind.
+ * @param repeated - The `repeated` asked for.
+ * @throws A `GraphtyError` with `E_BAD_COMMAND`, reason `repeated` or `repeated-both`.
+ */
+function refuseRepeated(op: Step["op"], repeated: Repeated): void {
+    if (op === "join.add") {
+        throw refused("E_BAD_COMMAND", "A join.add step takes no repeated choice.", { reason: "repeated", op });
+    }
+    refuseBoth(op, repeated);
+    if (!rowWins(repeated) && op !== "join.merge") {
+        throw refused("E_BAD_COMMAND", `A ${op} step takes no repeated reduction.`, { reason: "repeated", op });
+    }
+}
+
+/**
  * Change one step's choices (3.3, 3.10): its clash rules, the rows it leaves out, how it matches
  * text and repeated rows, and whether it is off.
  * @param value - The value.
@@ -398,13 +448,7 @@ export function stepEdit(value: SourceSteps, copies: Copies, index: number, patc
     }
     const { repeated } = patch;
     if (repeated !== undefined && repeated !== null) {
-        if (step.op === "join.add") {
-            throw refused("E_BAD_COMMAND", "A join.add step takes no repeated choice.", {
-                reason: "repeated",
-                op: step.op,
-            });
-        }
-        refuseBoth(step.op, repeated);
+        refuseRepeated(step.op, repeated);
     }
     if (patch.unmatchedFrom !== undefined && step.op !== "join.merge") {
         throw refused("E_BAD_COMMAND", `A ${step.op} step takes no unmatchedFrom choice.`, {
@@ -429,6 +473,8 @@ export function stepEdit(value: SourceSteps, copies: Copies, index: number, patc
         off: patch.off,
         unmatchedFrom: patch.unmatchedFrom,
         aggregate: patch.aggregate,
+        // A merge's `repeated` settles its several rows in one spelling (#10056), as `merge` takes it.
+        ...(step.op === "join.merge" && repeated !== undefined ? mergeRepeats(repeated, patch.aggregate) : {}),
     };
     const given = Object.entries(patched).filter(([, v]) => v !== undefined);
     // A null or false takes the choice off; anything else sets it.

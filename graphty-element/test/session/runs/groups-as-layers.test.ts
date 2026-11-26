@@ -327,6 +327,49 @@ describe("a partition's groups as layers", () => {
         assert.lengthOf(back.children, 4);
     });
 
+    it("reports a vanished group on its layer after a re-run, and leaves a layer the reader locked as it was", async () => {
+        const s = await session();
+        await s.runs.start("louvain", {}, { as: "louvain", style: { groups: "layers" } });
+        await s.styles.settled();
+        const [folder] = s.styles.tree().filter((row) => row.kind === "folder");
+        // The layers of e, f and g's group (1) and of h and i's (2); the first locked by the reader.
+        const efg = folder.children.find((row) => row.name === "1")?.id ?? "";
+        const hi = folder.children.find((row) => row.name === "2")?.id ?? "";
+        await s.styles.lockRow(efg, true);
+
+        // Every node in one group: groups 1, 2 and 3 are gone.
+        membership = Object.fromEntries(Object.keys(FIRST).map((id) => [id, 0]));
+        await s.runs.start("louvain", {}, { as: "louvain", seed: 7 });
+        await s.styles.settled();
+
+        assert.strictEqual(s.runs.get("louvain")?.result?.node("e")?.group, 0, "the re-run's values landed");
+        assert.deepEqual(
+            s.styles.get(hi)?.unmatched?.map((code) => [code.code, code.params.value]),
+            [["group.gone", 2]],
+            "the unlocked layer says its group is gone",
+        );
+        assert.isUndefined(s.styles.get(efg)?.unmatched, "the locked layer is left as it was");
+    });
+
+    it("drops the name of a group that matches no group of the re-run, and keeps the name of the one it merged into", async () => {
+        const s = await session();
+        await s.runs.start(
+            "louvain",
+            {},
+            { as: "louvain", style: { groups: "layers", groupName: ({ rank }) => `Group ${String(rank)}` } },
+        );
+        await s.styles.settled();
+        assert.strictEqual(s.data.valueLabels("results.louvain.group").size, 4, "one name per group");
+
+        // Every node in one group: the largest group (a to d, 0) keeps its name, the rest match none.
+        membership = Object.fromEntries(Object.keys(FIRST).map((id) => [id, 0]));
+        await s.runs.start("louvain", {}, { as: "louvain", seed: 7 });
+        await s.styles.settled();
+
+        const labels = s.data.valueLabels("results.louvain.group");
+        assert.deepEqual([...labels.entries()], [["0", "Group 1"]]);
+    });
+
     it("takes the folder away with the run", async () => {
         const s = await session();
         await s.runs.start("louvain", {}, { as: "louvain", style: { groups: "layers" } });
@@ -338,6 +381,27 @@ describe("a partition's groups as layers", () => {
         assert.lengthOf(
             s.styles.tree().filter((row) => row.kind === "folder"),
             0,
+        );
+    });
+    it("paints a removed run started again under its id as the new start asks, not as a folder of groups", async () => {
+        const s = await session();
+        await s.runs.start("louvain", {}, { as: "louvain", style: { groups: "layers" } });
+        await s.styles.settled();
+        s.runs.remove("louvain");
+        await s.styles.settled();
+
+        await s.runs.start("louvain", {}, { as: "louvain" });
+        await s.styles.settled();
+
+        assert.lengthOf(
+            s.styles.tree().filter((row) => row.kind === "folder"),
+            0,
+            "no folder of groups",
+        );
+        assert.lengthOf(
+            s.styles.list().filter((layer) => layer.source.by === "run" && layer.source.runId === "louvain"),
+            1,
+            "one layer, as a start without the option paints",
         );
     });
 });

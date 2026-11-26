@@ -7,7 +7,10 @@ const all = readFileSync(process.argv[2], "utf8")
     .trim()
     .split("\n")
     .map((l) => JSON.parse(l));
-const rows = all.filter((r) => !r.void);
+// Layout quality rows (the `quality` flag) have their own section at the end and stay out of every other table.
+const isQuality = (r) => (r.flags ?? []).includes("quality");
+const rows = all.filter((r) => !r.void && !isQuality(r));
+const qualityRows = all.filter((r) => !r.void && isQuality(r) && r.quality);
 const S = [10000, 100000],
     M = [100000, 1000000],
     L = [1000000, 1000000];
@@ -89,10 +92,11 @@ const table = (title, cols) => {
 };
 const first = all[0];
 console.log(`# cosmos.gl and graphty-element, build ${first.info?.build?.label}\n`);
-const shas = [...new Set(rows.filter((r) => r.sha).map((r) => r.sha))],
-    rend = [...new Set(rows.filter((r) => r.renderer).map((r) => r.renderer))];
+const head = rows.length ? rows : qualityRows; // the rows the header describes
+const shas = [...new Set(head.filter((r) => r.sha).map((r) => r.sha))],
+    rend = [...new Set(head.filter((r) => r.renderer).map((r) => r.renderer))];
 console.log(
-    `- Commit: ${shas.join(", ")} (working tree ${rows.some((r) => r.dirty) ? "DIRTY" : "clean"})\n- Source: ${[...new Set(rows.map((r) => r.source))].join(", ")}\n- Render path: ${[...new Set(rows.filter((r) => r.lib === "graphty").map((r) => r.renderPath ?? "default"))].join(", ")}\n- WebGL renderer: ${rend.join(" | ")}\n- Browser: ${first.info?.ua.match(/HeadlessChrome\/[\d.]+/)?.[0]}\n- Rows: ${all.length} (${all.length - rows.length} void), ${rows[0].at} to ${rows.at(-1).at}\n- Load average when a run began: ${nice(Math.min(...rows.map((r) => r.loadavgBefore ?? 99)))}-${nice(Math.max(...rows.map((r) => r.loadavgBefore ?? 0)))}\n`,
+    `- Commit: ${shas.join(", ")} (working tree ${head.some((r) => r.dirty) ? "DIRTY" : "clean"})\n- Source: ${[...new Set(head.map((r) => r.source))].join(", ")}\n- Render path: ${[...new Set(head.filter((r) => r.lib === "graphty").map((r) => r.renderPath ?? "default"))].join(", ")}\n- WebGL renderer: ${rend.join(" | ")}\n- Browser: ${first.info?.ua.match(/HeadlessChrome\/[\d.]+/)?.[0]}\n- Rows: ${all.length} (${all.filter((r) => r.void).length} void), ${head[0].at} to ${head.at(-1).at}\n- Load average when a run began: ${nice(Math.min(...head.map((r) => r.loadavgBefore ?? 99)))}-${nice(Math.max(...head.map((r) => r.loadavgBefore ?? 0)))}\n`,
 );
 console.log(
     "A cell is the median across runs of each run's median, then the medians of each run's 95th and 99th percentiles after slashes where the row has them, then the range of the run medians and how many runs reached that stage.\n\n## Results at device pixel ratio 1",
@@ -213,4 +217,56 @@ for (const [size, key, cfgs] of [
                 .join(" | ")} |`,
         );
     });
+}
+
+// Layout quality: per library, render path and size, the median across runs of each measure at the start, at each
+// mark (seconds of layout, or steps for a stepped run) and at the end of the run.
+if (qualityRows.length) {
+    console.log(
+        "\n## Layout quality\n\nPlanted partition graphs, 100 communities. Stress and edge spread: lower is better; neighborhood, silhouette and purity: higher is better (quality.js). A cell is the median across runs.\n\n| Library | Nodes + edges requested | At | Stress | Edge spread | Neighborhood | Silhouette | Purity | Runs |\n|---|---|---|---|---|---|---|---|---|",
+    );
+    const keyOf = (r) =>
+        [
+            r.lib === "cosmos" ? "cosmos.gl" : `graphty-element ${r.renderPath ?? "default"}`,
+            r.software ? "(SwiftShader)" : "",
+            (r.qualityCapS ?? 60) === 60 ? "" : `(${r.qualityCapS} s run)`,
+        ]
+            .filter(Boolean)
+            .join(" ")
+            .trim();
+    const byKey = new Map();
+    for (const r of qualityRows) {
+        const k = `${keyOf(r)}|${r.n.toLocaleString("en-US")} + ${r.m.toLocaleString("en-US")}`;
+        byKey.set(k, [...(byKey.get(k) ?? []), r]);
+    }
+    const fields = ["stress", "edgeSpread", "neighborhood", "silhouette", "purity"];
+    const line = (lib, n, at, snaps) => {
+        const cells = fields.map((f) => {
+            const v = snaps.map((x) => x?.[f]).filter((x) => typeof x === "number");
+            return v.length ? med(v).toFixed(3) : "-";
+        });
+        console.log(`| ${lib} | ${n} | ${at} | ${cells.join(" | ")} | ${snaps.length} |`);
+    };
+    for (const [k, rs] of byKey) {
+        const [lib, n] = k.split("|");
+        line(
+            lib,
+            n,
+            "start",
+            rs.map((r) => r.quality.start),
+        );
+        // Marks are matched by name, so runs with different marks (BENCH_QUALITY_MARKS_S) pool where they share one.
+        const label = (x) => (x.atStep ? `step ${x.atStep}` : `${x.atMs / 1000} s`);
+        const marks = [...new Set(rs.flatMap((r) => r.quality.snaps.slice(0, -1).map((x) => label(x))))];
+        for (const at of marks)
+            line(lib, n, at, rs.map((r) => r.quality.snaps.slice(0, -1).find((x) => label(x) === at)).filter(Boolean));
+        const ends = rs.map((r) => r.quality.snaps.at(-1));
+        const settled = rs.filter((r) => r.quality.settledMs !== null).length;
+        line(
+            lib,
+            n,
+            `end (${settled} of ${rs.length} settled; ${nice(med(rs.map((r) => r.quality.endMs)) / 1000)} s)`,
+            ends,
+        );
+    }
 }

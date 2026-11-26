@@ -12,6 +12,7 @@ import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { createGraphSession, type GraphSession } from "../../../session";
 import type { FormatDescriptor } from "../../../src/catalog/types";
 import { type BaseDataSourceConfig, DataSource, type DataSourceChunk } from "../../../src/data/DataSource";
+import type { LoadReport } from "../../../src/data/report";
 import { dispatcherOf } from "../../../src/session/GraphSession";
 import { edgeSpaceOf } from "../../../src/session/scope/ScopeApi";
 import { readInstant } from "../../../src/session/time/parse";
@@ -51,13 +52,15 @@ afterEach(() => {
  * A session holding some nodes, each a second after the last.
  * @param count - How many nodes.
  * @param row - What each node carries; by default `t`, seconds since {@link T0}.
+ * @param features - The features it switches on; by default the page's.
  * @returns The session.
  */
 async function nodesSession(
     count: number,
     row: (at: number) => Record<string, unknown> = (at) => ({ t: T0 + at, u: at }),
+    features?: string[],
 ): Promise<GraphSession> {
-    const session = createGraphSession();
+    const session = createGraphSession(features === undefined ? {} : { features });
     sessions.push(session);
     await session.data.addNodes(Array.from({ length: count }, (_, at) => ({ id: `n${String(at)}`, ...row(at) })));
     return session;
@@ -780,12 +783,13 @@ async function heldLoad(
         { nodes: [{ id: "first", t: T0 + 98 }], edges: [] },
         { nodes: [{ id: "second", t: T0 + 99 }], edges: [] },
     ],
+    styles: "file" | "none" = "none",
 ): Promise<{ load: Promise<unknown>; open: () => void }> {
     HeldChunks.chunks = chunks;
     const reached = new Promise<void>((resolve) => (HeldChunks.reached = resolve));
     let open = (): void => undefined;
     HeldChunks.gate = new Promise<void>((resolve) => (open = resolve));
-    const load = session.data.import({ type: HeldChunks.type, config: {} }, { mode: "merge" });
+    const load = session.data.import({ type: HeldChunks.type, config: {} }, { mode: "merge", styles });
     await reached;
 
     return { load, open };
@@ -828,23 +832,29 @@ describe("a streaming load", () => {
         await load;
     });
 
-    it("a setField during it waits, and reads the column once", async () => {
-        const session = await nodesSession(10);
-        const { load, open } = await heldLoad(session);
-        const { parsed: before } = timeIndexCounters;
+    it.each(["none", "file"] as const)(
+        "a setField during it waits, and reads the column once (styles %s)",
+        async (styles) => {
+            const session = await nodesSession(10, undefined, styles === "file" ? ["file-styles"] : undefined);
+            const { load, open } = await heldLoad(session, undefined, styles);
+            const { parsed: before } = timeIndexCounters;
 
-        const set = session.time.setField(SECONDS);
-        await letPromisesRun();
-        assert.strictEqual(timeIndexCounters.parsed, before);
-        assert.isNull(session.time.field);
+            const set = session.time.setField(SECONDS);
+            await letPromisesRun();
+            assert.strictEqual(timeIndexCounters.parsed, before);
+            assert.isNull(session.time.field);
 
-        open();
-        await load;
-        const { nodes } = await set;
+            open();
+            await load;
+            const { nodes } = await set;
 
-        assert.strictEqual(nodes?.timed, 12);
-        assert.strictEqual(timeIndexCounters.parsed - before, 12);
-    });
+            assert.strictEqual(nodes?.timed, 12);
+            assert.strictEqual(timeIndexCounters.parsed - before, 12);
+            // Drawing the file's styles writes the load's report as a graph value: no second read (issue #9951).
+            const report = dispatcherOf(session).graph.slice.values.get("importReport") as LoadReport | undefined;
+            assert.strictEqual(report?.styles !== undefined, styles === "file");
+        },
+    );
 
     it("keeps a node's time when its record lands after an index read its row as untimed", async () => {
         const session = await nodesSession(10);

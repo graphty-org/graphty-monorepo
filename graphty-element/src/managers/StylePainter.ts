@@ -53,6 +53,11 @@ export interface NodePaint {
      * may still pick the row, and then builds it a `Node` for the label.
      */
     readonly labelled?: boolean;
+    /**
+     * Set when a layer states where this node's label sits (`node.labelLocation`, or a location in
+     * `node.labelStyle`): label avoidance leaves such a label where it was put.
+     */
+    readonly labelPlaced?: true;
 }
 
 /**
@@ -753,10 +758,13 @@ function nodePaintOf(
         key.push(`g${hex}`);
     }
 
+    const labelStyle = resolved["node.labelStyle"] as { location?: unknown } | undefined;
+    const placed = resolved["node.labelLocation"] !== undefined || labelStyle?.location !== undefined;
     return {
         meshKey: key.join(""),
         style: resolveRelativeExtents(fillDefaults(bag, darkLabel(bag, dark) ? NODE_BASE_DARK : NODE_BASE)),
         color: filled ? null : color,
+        ...(placed ? { labelPlaced: true as const } : {}),
     };
 }
 
@@ -1723,6 +1731,15 @@ export class StylePainter {
      */
     isNodePending(index: number): boolean {
         return this.pendingNodes.has(index);
+    }
+
+    /**
+     * Whether one edge is waiting to be drawn.
+     * @param index - Its dense index.
+     * @returns True when its paint has not been applied yet.
+     */
+    isEdgePending(index: number): boolean {
+        return this.pendingEdges.has(index);
     }
 
     /**

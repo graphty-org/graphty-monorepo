@@ -5,6 +5,7 @@ import React, { useState } from "react";
 import { modelName, useModelPicture } from "../canvas/models";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { closedBy } from "./closedBy";
 import { roveTiles, tileStop } from "./tileRoving";
 import { CUSTOM_MODEL } from "./words";
 
@@ -169,18 +170,9 @@ export function ModelsPopover({
         tileProps(id, stop, chosen, autofocus, setFocused);
 
     return (
-        <Popout
-            opened={opened}
-            onOpenChange={(next) => {
-                if (!next) {
-                    onClose();
-                }
-            }}
-        >
+        <Popout opened={opened} onOpenChange={closedBy(onClose)}>
             <Popout.Panel
                 width={WIDTH}
-                placement="left"
-                alignment="start"
                 anchorY={anchor}
                 header={{ variant: "title", title: "Models" }}
                 closeLabel="Close Models"

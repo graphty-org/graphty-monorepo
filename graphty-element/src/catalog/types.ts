@@ -26,6 +26,7 @@ import type { GraphtyErrorCode } from "../errors/codes";
 import type { EstimateRefusalCode } from "../session/cost/estimate";
 import type { CodedFact } from "../session/shared";
 import type { ChannelDescriptor } from "../session/styles/channels";
+import type { StyleRowId } from "../session/styles/tree";
 import type { TransitionDescriptor } from "../transitions/registry";
 import type { ChannelValueDescriptor } from "./channelValues";
 import type { LabelLookDescriptor } from "./label-looks";
@@ -259,10 +260,6 @@ export const DEPRECATED_LAYOUT_IDS = ["force-2d"] as const satisfies readonly (t
 /**
  * The built-in file formats.
  *
- * "sif" and "cx2" are deprecated: no data source reads them (see `UNSERVED_FORMAT_IDS`, and issues
- * #306 and #307). A load that names either fails with that reason. Both are removed at the next
- * major release unless a reader lands first.
- *
  * "graphty" is the project file (Graphty JSON): written by `exportGraph("graphty")` and read by
  * `session.project.open`, never by `session.data.import`.
  */
@@ -304,9 +301,6 @@ export const PROJECT_FILE = Object.freeze({
 
 /**
  * A format id: a built-in name, or a plugin's.
- *
- * The built-in name "sif" is deprecated and unserved (issue #306); it is removed at the next major
- * release unless a reader lands first.
  */
 export type FormatId = (typeof KNOWN_FORMAT_IDS)[number] | (string & {});
 
@@ -762,7 +756,7 @@ export interface OptionUnsupported {
 /**
  * Every property a layer can paint.
  *
- * The label channels `labelColor`, `labelSize`, `labelLetterSize`, `labelFont`, `labelWeight`, `labelItalic`, `labelWrapWidth`, `labelWrapTrailingSpace`, `labelWrapSkipEndSpace`, `labelWrapEllipsis`, `labelWrapAnywhere`, `labelWrapSpaceCount`, `labelMaxLines`, `labelMaxLinesEllipsis`, `labelMinScreenSize`, `labelOnTop`, `labelRotation`, `labelBackground`, `labelOutline`, `labelOutlineWidth`, `labelBorder`, `labelBorderWidth`, `labelOpacity`, `labelBackgroundOpacity`, `labelOutlineOpacity`, `labelBorderOpacity`, `labelPadding`, `labelCornerRadius`, `labelLineHeight`, `labelLineBox`, `labelBorderAlign`, `labelBorderStyle`, `labelBackgroundShape`, `labelImage`, `labelImageWidth`, `labelImageHeight`, `labelImageOffsetX`, `labelImageOffsetY`, `labelOffsetX`, `labelOffsetY`, `labelShiftX`, `labelShiftY`, `labelShiftOf` and `labelGapOf` are
+ * The label channels `labelColor`, `labelSize`, `labelLetterSize`, `labelFont`, `labelWeight`, `labelItalic`, `labelWrapWidth`, `labelWrapTrailingSpace`, `labelWrapSkipEndSpace`, `labelWrapUnkerned`, `labelWrapEllipsis`, `labelWrapAnywhere`, `labelWrapSpaceCount`, `labelMaxLines`, `labelMaxLinesEllipsis`, `labelMinScreenSize`, `labelOnTop`, `labelRotation`, `labelBackground`, `labelOutline`, `labelOutlineWidth`, `labelBorder`, `labelBorderWidth`, `labelOpacity`, `labelBackgroundOpacity`, `labelOutlineOpacity`, `labelBorderOpacity`, `labelPadding`, `labelCornerRadius`, `labelLineHeight`, `labelLineBox`, `labelBorderAlign`, `labelBorderStyle`, `labelBackgroundShape`, `labelImage`, `labelImageWidth`, `labelImageHeight`, `labelImageOffsetX`, `labelImageOffsetY`, `labelOffsetX`, `labelOffsetY`, `labelShiftX`, `labelShiftY`, `labelShiftOf` and `labelGapOf` are
  * single fields of the label style, so they can be bound to a column (`encode`) where the whole
  * `labelStyle` can only be set. They land in the same label style the `labelStyle` channel
  * writes, field by field, the higher layer winning each field.
@@ -788,6 +782,7 @@ export type Channel =
     | "node.labelWrapWidth"
     | "node.labelWrapTrailingSpace"
     | "node.labelWrapSkipEndSpace"
+    | "node.labelWrapUnkerned"
     | "node.labelWrapEllipsis"
     | "node.labelWrapAnywhere"
     | "node.labelWrapSpaceCount"
@@ -1111,6 +1106,8 @@ export type Channel =
     | "edge.animationSpeed"
     | "edge.label"
     | "edge.labelStyle"
+    | "edge.tooltip"
+    | "edge.tooltipStyle"
     | "edge.labelColor"
     | "edge.labelSize"
     | "edge.labelLetterSize"
@@ -1123,6 +1120,9 @@ export type Channel =
     | "node.tooltipBackground"
     | "edge.visible"
     | "edge.labelBackground"
+    | "edge.tooltipSize"
+    | "edge.tooltipColor"
+    | "edge.tooltipBackground"
     | "edge.arrowHeadTextBackground"
     | "edge.arrowTailTextBackground"
     | "node.shaders"
@@ -1133,6 +1133,7 @@ export type Channel =
     | "edge.labelWrapWidth"
     | "edge.labelWrapTrailingSpace"
     | "edge.labelWrapSkipEndSpace"
+    | "edge.labelWrapUnkerned"
     | "edge.labelWrapEllipsis"
     | "edge.labelWrapAnywhere"
     | "edge.labelWrapSpaceCount"
@@ -1333,9 +1334,9 @@ export interface BindingStop {
  * built from several values.
  *
  * The `template` form is accepted only by the text channels (`node.label`, `edge.label`,
- * `node.tooltip`). Each string is one line. `{path}` reads a value with the same path dialect as
+ * `node.tooltip`, `edge.tooltip`). Each string is one line. `{path}` reads a value with the same path dialect as
  * `by`; `{path|count}` is the number of distinct values of that path over the graph's nodes (its
- * edges, for `edge.label`); `{path|rank}` is this element's value's 1-based place among those values, sorted. A line with
+ * edges, for `edge.label` and `edge.tooltip`); `{path|rank}` is this element's value's 1-based place among those values, sorted. A line with
  * any value missing is left out, and every substituted value is escaped so data cannot inject
  * label markup. The consumer writes every word: the element adds none.
  */
@@ -1740,6 +1741,15 @@ export interface StyleDocument {
     /** The layers, bottom first. */
     layers: readonly LayerSpec[];
     /**
+     * The id each layer had in the session that wrote it, by its place in `layers`. Applying the
+     * document gives a layer this id again when no layer in the session already has it, and mints a
+     * new one from the layer's name otherwise, so an application that holds a layer by id (the
+     * reader's pick, an open editor) still finds it after the work is opened again. Absent, or a
+     * place left empty, mints every id from the name.
+     * @since 3.40.0
+     */
+    ids?: readonly (LayerId | undefined)[];
+    /**
      * Every palette a layer names, built-ins included, as the writing build painted it. A layer's
      * palette name resolves here before the reader's own catalog, so a file opens with the same
      * colors on a build that no longer ships a palette, or ships it changed. A document written
@@ -1790,6 +1800,12 @@ export type StyleDocumentRow = (
     | {
           /** The folder's name. */
           folder: string;
+          /**
+           * The folder's id in the session that wrote it: applying the document keeps it when it is
+           * free, as {@link StyleDocument.ids} keeps a layer's.
+           * @since 3.40.0
+           */
+          id?: StyleRowId;
           /** The folder's rows, bottom first. */
           children: readonly StyleDocumentRow[];
       }

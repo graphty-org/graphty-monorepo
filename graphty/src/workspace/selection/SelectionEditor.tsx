@@ -25,7 +25,6 @@ import {
 } from "@graphty/compact-mantine";
 import {
     type GraphSession,
-    isGraphtyError,
     type RuleTree,
     type ScopeEdit,
     type StepReading,
@@ -61,6 +60,8 @@ import {
     removeStep,
     type Verb,
 } from "./model";
+import { holdOpenWorkspace } from "./openWorkspace";
+import { cameraRefused, usePreviewCanvas } from "./previewCanvas";
 import { RowMore, type SelectionMenuItem } from "./SelectionMenu";
 import { StepPane } from "./StepPane";
 import { StyleOpenLine } from "./StyleOpenLine";
@@ -183,17 +184,6 @@ function afterPaint(work: () => void): void {
 }
 
 /**
- * Leave the camera where it is when the element refuses a move: the drawing mode changed (2D and
- * 3D, or a headset) since the move was asked for. Anything else is a real failure.
- * @param error - Why the move was rejected.
- */
-function cameraRefused(error: unknown): void {
-    if (!isGraphtyError(error) || error.code !== "E_UNSUPPORTED") {
-        throw error;
-    }
-}
-
-/**
  * The selection editor: the read-only outline in its host's sidebar, and while it is open, the
  * one workspace over the canvas column that edits it (spec 3.0).
  * @param props - Component props
@@ -244,13 +234,11 @@ export function SelectionEditor({
     restoredFrom,
 }: SelectionEditorProps): React.JSX.Element {
     const { store, element } = useWorkspace();
-    // The one workspace is this editor's while the store names it (spec 3.0). An opening draws the
-    // workspace's header ("Drawing") in the frame of its click or key, and names it in the store, which
-    // the panels around it follow, after that frame is painted.
+    // The one workspace is this editor's while the store names it (spec 3.0). An opening names it in
+    // the store at once, in the frame of its click or key, so a reload at any moment after it brings
+    // the workspace back (issue #10017); its header says "Drawing" until its first frame is drawn.
     const named = useWorkspaceState((state) => state.selectionWorkspace?.owner === owner);
-    // on reload: fresh: in flight: an opening under way
-    const [opening, setOpening] = useState(false);
-    const open = named || opening;
+    const open = named;
     // An empty selection (All, no condition) opens as one empty card that holds nothing, "0 of N"
     // (the approved prototype); nothing is written until a card has a value, and a workspace left
     // with no value keeps All.
@@ -458,19 +446,7 @@ export function SelectionEditor({
                 `[data-row="${TITLE}"]`,
             ];
         }
-        if (named) {
-            store.set({ selectionWorkspace: { owner, host } });
-            return;
-        }
-        setOpening(true);
-        afterPaint(() => {
-            flushSync(() => {
-                setOpening(false);
-                if (mounted.current) {
-                    store.set({ selectionWorkspace: { owner, host } });
-                }
-            });
-        });
+        store.set({ selectionWorkspace: { owner, host } });
     };
     /**
      * Closes the workspace: Done keeps every edit; Cancel restores the selection as it was when it
@@ -649,20 +625,13 @@ export function SelectionEditor({
         wasOpen.current = open;
     }, [open]);
     // Leaving the place unmounts the editor: the workspace closes with it, as Done. Decided a
-    // microtask later: StrictMode's development-only rerun mounts the editor again first, and a
-    // workspace a reload kept stays open (issue #9655).
+    // microtask later, and only when no editor under the same key has mounted by then: StrictMode's
+    // development-only rerun and a hot swap's remount leave it open (issues #9655, #9982).
     useEffect(
-        () => () => {
-            queueMicrotask(() => {
-                if (mounted.current) {
-                    return;
-                }
+        () =>
+            holdOpenWorkspace(store, owner, () => {
                 endVisit("done");
-                if (store.get().selectionWorkspace?.owner === owner) {
-                    store.set({ selectionWorkspace: null });
-                }
-            });
-        },
+            }),
         [store, owner],
     );
 
@@ -1538,61 +1507,7 @@ export function SelectionEditor({
     // and above the strip, never under them. On open it frames the graph when more than a quarter
     // of what was drawn now lies outside the cell, and on close the camera goes back where it was.
     const placed = wsPlace !== null && warm;
-    useLayoutEffect(() => {
-        const cell = wsBox.current?.querySelector<HTMLElement>(".sel-ws-preview");
-        const canvas = frame?.querySelector<HTMLElement>(".ws-canvas");
-        if (!open || !placed || cell === null || cell === undefined || canvas === null || canvas === undefined) {
-            return undefined;
-        }
-        const camera = element?.getCameraState();
-        // Opened while the element is still framing a load: that camera is not where it would have
-        // ended, so the drawing is framed again on close rather than put back mid-way.
-        const framing = element?.framing === true;
-        // The graph is framed in the preview cell once the element has taken the cell's size.
-        const fit = (): void => {
-            void element?.waitForPainted().then(() => {
-                element.zoomToFit();
-            });
-        };
-        // The drawing lies fixed over the modal's preview cell, wherever the canvas column is.
-        const placeCanvas = (): void => {
-            const inner = cell.getBoundingClientRect();
-            canvas.style.setProperty("--sel-preview-top", `${String(inner.top)}px`);
-            canvas.style.setProperty("--sel-preview-left", `${String(inner.left)}px`);
-            canvas.style.setProperty("--sel-preview-width", `${String(inner.width)}px`);
-            canvas.style.setProperty("--sel-preview-height", `${String(inner.height)}px`);
-        };
-        placeCanvas();
-        canvas.dataset.selPreview = "";
-        // Placed on the next frame: resizing the canvas inside the observer's own delivery would
-        // loop the page's resize observers (graphty-element's follows the canvas).
-        const observer = new ResizeObserver(() => {
-            requestAnimationFrame(placeCanvas);
-        });
-        observer.observe(cell);
-        observer.observe(canvas);
-        // The element resizes its canvas on its own observer; the framing reads the new size after it.
-        let frameId = requestAnimationFrame(() => {
-            frameId = requestAnimationFrame(fit);
-        });
-        return () => {
-            cancelAnimationFrame(frameId);
-            observer.disconnect();
-            delete canvas.dataset.selPreview;
-            for (const each of ["top", "left", "width", "height"]) {
-                canvas.style.removeProperty(`--sel-preview-${each}`);
-            }
-            if (framing) {
-                requestAnimationFrame(() => {
-                    requestAnimationFrame(fit);
-                });
-            } else if (camera !== undefined) {
-                // Switched to 2D or 3D, or into a headset, while open: the old camera no longer fits.
-                void element?.setCameraState(camera).catch(cameraRefused);
-            }
-        };
-        // The canvas is placed once per opening; its observer follows the cell from there.
-    }, [open, placed, frame, element]);
+    usePreviewCanvas(open && placed, wsBox, frame);
 
     // While it is the preview, the drawing is named for it, as its F6 stop follows the workspace's.
     useEffect(() => {

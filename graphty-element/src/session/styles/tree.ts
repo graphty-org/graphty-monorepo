@@ -523,7 +523,7 @@ export function documentRows(rows: Rows, placeOf: (id: LayerId) => number): read
         list.map((row) =>
             row.kind === "layer"
                 ? { layer: placeOf(row.id), ...flagsOf(row) }
-                : { folder: row.name ?? "", ...flagsOf(row), children: write(row.children ?? []) },
+                : { folder: row.name ?? "", id: row.id, ...flagsOf(row), children: write(row.children ?? []) },
         );
 
     return write(rows);
@@ -533,13 +533,13 @@ export function documentRows(rows: Rows, placeOf: (id: LayerId) => number): read
  * Rows read back from a document.
  * @param written - The document's rows.
  * @param layerAt - The id of the layer at a place in the document, or undefined when there is none.
- * @param mintFolder - A new folder id.
+ * @param mintFolder - A folder id: the saved one when it is free, else a new one.
  * @returns The rows, or null when a row names a layer the document does not hold or names one twice.
  */
 export function readDocumentRows(
     written: readonly StyleDocumentRow[],
     layerAt: (index: number) => LayerId | undefined,
-    mintFolder: (name: string) => StyleRowId,
+    mintFolder: (name: string, saved?: string) => StyleRowId,
 ): Rows | null {
     const used = new Set<number>();
     const read = (list: readonly StyleDocumentRow[]): RowNode[] | null => {
@@ -562,7 +562,7 @@ export function readDocumentRows(
 
                 out.push(
                     Object.freeze({
-                        id: mintFolder(row.folder),
+                        id: mintFolder(row.folder, row.id),
                         kind: "folder",
                         name: row.folder,
                         ...flags,

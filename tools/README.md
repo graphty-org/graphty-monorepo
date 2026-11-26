@@ -351,6 +351,26 @@ closes or its entry expires (14 days at most).
   quarantined. Never re-run hoping for a pass when a non-quarantined test failed: fix it.
 - `GRAPHTY_TEST_QUARANTINE=0` switches it off, for debugging only.
 
+## Load-time check
+
+The full run's Performance Benchmarks job times the graphty app's landing page and `<graphty-element>`'s load for the
+candidate and for what nightly.graphty.app serves, alternately on the same runner (`tools/load-time.mjs`, issue
+#9876). A row fails only when the candidate's median and minimum are both over x1.2 and 33 ms slower than nightly's,
+so a slower runner never fails it. `benchmarks/results/load-time.json` keeps the history per CPU model, for trends
+only.
+
+- **A red row is a slowdown since nightly.** Find the change and fix it. Never raise the threshold.
+- **Only the owner accepts a slowdown**, in `benchmarks/load-time-accepted.json` (an owner-only file; agents never
+  edit it), one entry per row: `{ "row": "app/graph settled", "commit": "<sha>", "ratio": 1.3, "reason": "..." }`,
+  the commit being the change or its merge. The row then passes, marked `accepted` with the reason, while the candidate contains the commit and
+  nightly does not, and only within x1.2 of nightly x the ratio. Once nightly holds the commit the entry stops
+  applying and can be deleted. This replaces re-pinning the results file.
+- **An entry counts only with the owner's proof**: its required `approval` field is the URL of a comment on an issue or
+  pull request of this repository (`.../issues/N#issuecomment-ID` or `.../pull/N#issuecomment-ID`) written by
+  `apowers313` and naming the row. The check reads the comment from the GitHub API on every run; an entry without one,
+  or whose comment is by someone else or does not name the row, is ignored with a message, and an API error fails the
+  check. Agents post as graphty-agent, so they cannot approve their own slowdown, and the owner never merges for it.
+
 ## Storybook
 
 - Storybook auto-reloads on changes (no manual rebuild needed)

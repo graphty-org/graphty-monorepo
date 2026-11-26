@@ -10,6 +10,7 @@ import { onSiteConfig, siteConfig } from "../../siteConfig";
  * @returns The chip, or nothing
  */
 export function SiteChip(): React.JSX.Element | null {
+    // on reload: fresh: read: the site, read from the page's config
     const site = useSyncExternalStore(onSiteConfig, () => siteConfig().site);
     if (site !== "canary" && site !== "nightly") {
         return null;

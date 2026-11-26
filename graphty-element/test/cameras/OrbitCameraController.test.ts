@@ -2,11 +2,13 @@ import { MeshBuilder, NullEngine, Scene, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import {
+    centeringWork,
     type FramingSpot,
     OrbitCameraController,
     type OrbitConfig,
     turningFitDistance,
 } from "../../src/cameras/OrbitCameraController";
+import { assertScalesLinearly } from "../helpers/cost";
 
 /**
  * Mock canvas element for NullEngine testing.
@@ -388,6 +390,69 @@ describe("OrbitCameraController", () => {
                 assert.strictEqual(controller.cameraDistance, distance);
                 assert.deepEqual(controller.pivot.position.asArray(), pivot.asArray(), `at ${String(shorter)} px`);
             }
+        });
+
+        describe("centering a fit of many nodes (issue #9420)", () => {
+            /**
+             * Spots scattered through a ball of radius 50 by a seeded generator, with the box around them.
+             * @param count - How many spots.
+             * @returns The spots and the box.
+             */
+            function ball(count: number): { spots: FramingSpot[]; min: Vector3; max: Vector3 } {
+                let seed = 9420;
+                const random = (): number => {
+                    seed = (seed * 1_103_515_245 + 12_345) % 2_147_483_648;
+                    return seed / 2_147_483_648;
+                };
+                const spots: FramingSpot[] = [];
+                const min = new Vector3(Infinity, Infinity, Infinity);
+                const max = new Vector3(-Infinity, -Infinity, -Infinity);
+                while (spots.length < count) {
+                    const pos = new Vector3(random() * 100 - 50, random() * 100 - 50, random() * 100 - 50);
+                    if (pos.length() <= 50) {
+                        spots.push({ pos, half: 0.5 });
+                        min.minimizeInPlace(pos.subtractFromFloats(0.5, 0.5, 0.5));
+                        max.maximizeInPlace(pos.add(new Vector3(0.5, 0.5, 0.5)));
+                    }
+                }
+
+                return { spots, min, max };
+            }
+
+            test("weighs about as many corners whatever the node count, not all of them every halving", async () => {
+                await assertScalesLinearly(
+                    (count) => {
+                        const { spots, min, max } = ball(count);
+                        centeringWork.corners = 0;
+                        controller.zoomToBoundingBox(min, max, spots);
+                        return centeringWork.corners;
+                    },
+                    { sizes: [2_000, 8_000], growth: "constant", counter: "corners weighed while centering" },
+                );
+            });
+
+            test("works out the corners of the outermost nodes only, not all eight of every node", () => {
+                const count = 8_000;
+                const { spots, min, max } = ball(count);
+                centeringWork.outlined = 0;
+                controller.zoomToBoundingBox(min, max, spots);
+                // two axes, eight corners a node: all of them was 128,000; about 1,800 are left
+                assert.isAbove(centeringWork.outlined, 0);
+                assert.isBelow(centeringWork.outlined, (count * 8 * 2) / 20);
+            });
+
+            test("nodes well inside the others change the fit not at all", () => {
+                const { spots, min, max } = ball(500);
+                controller.zoomToBoundingBox(min, max, spots);
+                const pivot = controller.pivot.position.asArray();
+                const distance = controller.cameraDistance;
+
+                const inner = ball(2_000).spots.map(({ pos, half }) => ({ pos: pos.scale(0.2), half }));
+                controller.zoomToBoundingBox(min, max, [...spots, ...inner]);
+
+                assert.strictEqual(controller.cameraDistance, distance);
+                assert.deepEqual(controller.pivot.position.asArray(), pivot);
+            });
         });
 
         test("should adjust camera distance based on bounding box size", () => {

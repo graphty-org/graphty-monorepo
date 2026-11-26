@@ -26,6 +26,12 @@ const KINDS = ["request", "in flight", "notice", "read", "derived", "pointer"];
  */
 const MAX_COMPONENT_GAPS = 5;
 
+/**
+ * The most files, and the most names, screen-state-baseline.json may excuse: it may only shrink.
+ * Adding a name to it is how new undeclared state would get past the rule (issue #9973). Only lower them.
+ */
+const MAX_BASELINE = { files: 114, names: 428 };
+
 const tester = new RuleTester({
     languageOptions: { parser: tseslint.parser, parserOptions: { ecmaFeatures: { jsx: true } } },
 });
@@ -162,6 +168,17 @@ describe("screen-state-declared", () => {
             }
         ).files;
         assert.deepStrictEqual(refused, []);
+        const excused = {
+            files: Object.keys(baseline).length,
+            names: Object.values(baseline).reduce((total, names) => total + names.length, 0),
+        };
+        assert.isAtMost(
+            excused.files,
+            MAX_BASELINE.files,
+            "a file was added to the baseline: declare its state instead",
+        );
+        assert.isAtMost(excused.names, MAX_BASELINE.names, "a name was added to the baseline: declare it instead");
+        assert.deepStrictEqual(excused, MAX_BASELINE, "the baseline shrank: lower MAX_BASELINE to match");
         // Each heard name takes one of its file's baseline names; what is left over either way is wrong.
         const over: string[] = [];
         const stale: string[] = [];

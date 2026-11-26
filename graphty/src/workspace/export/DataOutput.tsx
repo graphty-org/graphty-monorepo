@@ -104,6 +104,7 @@ function LossList({ rows }: Readonly<{ rows: readonly LossRow[] }>): React.JSX.E
  * @returns the line and, when open, the rows.
  */
 function LossSummary({ lead, rows }: Readonly<{ lead?: string; rows: readonly LossRow[] }>): React.JSX.Element {
+    // on reload: fresh: pointer: the loss rows opened for a look
     const [open, setOpen] = useState(false);
     const line = lossSummary(rows);
     return (
@@ -459,6 +460,7 @@ export function DataOutput({
 }: Readonly<DataOutputProps>): React.JSX.Element {
     const { element, session } = useWorkspace();
     const project = useWorkspaceState((state) => state.project?.name ?? "untitled");
+    // on reload: fresh: derived: rebuilt from the chosen format and the graph
     const [preview, setPreview] = useState<{
         lines: string;
         /** What the format holds differently from the graph: shown as a warning. */
@@ -466,9 +468,12 @@ export function DataOutput({
         /** What the format never holds (the element's `expected` losses): shown as a quiet note. */
         notes: readonly LossRow[];
     } | null>(null);
+    // on reload: fresh: notice: why the last preview or save failed
     const [failure, setFailure] = useState<Failure | null>(null);
+    // on reload: fresh: in flight: a save under way
     const [busy, setBusy] = useState(false);
     /** The style losses of the export the reader asked to save, until they save anyway or choose again. */
+    // on reload: fresh: in flight: a save waiting on the reader to save anyway or choose again
     const [styleLosses, setStyleLosses] = useState<readonly ExportLoss[] | null>(null);
     const formatField = useRef<HTMLInputElement>(null);
 

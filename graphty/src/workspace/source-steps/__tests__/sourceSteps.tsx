@@ -4,6 +4,7 @@
  */
 
 import type { GraphSession } from "@graphty/graphty-element/session";
+import { StrictMode } from "react";
 import { assert } from "vitest";
 import { userEvent } from "vitest/browser";
 
@@ -27,11 +28,20 @@ export function drop(name: string, text: string): void {
 
 /**
  * An empty project on the Data place, once the element is up.
+ * @param strict - mount under StrictMode, as main.tsx does in development.
  * @returns the store and the session.
  */
-export async function emptyProject(): Promise<{ store: WorkspaceStore; session: GraphSession }> {
+export async function emptyProject(strict = false): Promise<{ store: WorkspaceStore; session: GraphSession }> {
     const store = createWorkspaceStore({ project: { name: "Doors", id: 1 }, place: "data" });
-    render(<Workspace store={store} />);
+    render(
+        strict ? (
+            <StrictMode>
+                <Workspace store={store} />
+            </StrictMode>
+        ) : (
+            <Workspace store={store} />
+        ),
+    );
     let session: GraphSession | undefined;
     await waitFor(() => {
         session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(

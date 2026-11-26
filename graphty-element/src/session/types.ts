@@ -2846,7 +2846,7 @@ export interface SessionDataApi {
      * values, and what it added arrives. A source that has not changed dispatches nothing and
      * reports zeros. Expansions of the load are not fetched again. Experimental.
      *
-     * With the `save-files-v2` experiment, it also takes the id of a source a version 2 open held
+     * It also takes the id of a source a version 2 open held
      * (`W_SOURCE_UNAVAILABLE`: its copy changed, it needed permission, or it was not found): the
      * call is the permission, so it fetches the source from where the open would have, reads its
      * new bytes with its saved roles, and builds it into the graph with the reader's edits on it
@@ -2982,7 +2982,8 @@ export interface SessionDataApi {
      */
     generate(name: string, params?: GeneratorParams, options?: ImportOptions): Promise<void>;
     /**
-     * Download one of `catalog.datasets()` by name and load it, as one undoable step.
+     * Download one of `catalog.datasets()` by name and load it, as one undoable step. Its source in
+     * `sources()` is named by the dataset's catalog `title` (`"Zachary's karate club"`).
      *
      * The element names no download host of its own: `baseUrl` says where graph-samples' dataset
      * files are published. graph-samples exports the address of its own copy:
@@ -3662,7 +3663,8 @@ export interface LoadedSource extends DataSourceDescriptor {
     /**
      * True when this session holds what the load was read from, so
      * {@link SessionDataApi.reloadSource} can read it again; absent otherwise (a project opened
-     * from a file, a network source, a generated graph).
+     * from a file, a network source, a generated graph). The reader's own work restored by
+     * autosave keeps it: autosave keeps what each such load was read from beside the work.
      * @since 3.30.0
      */
     readonly reloadable?: true;
@@ -4304,10 +4306,20 @@ export interface ImportOptions {
     /**
      * `"recommended"` also chooses a layout for what was loaded, from its shape and its
      * coordinates, in the same step; `"placed"` (since 3.40.0) draws it where its data placed it
-     * (the `fixed` layout) when every node arrived with a position, and otherwise leaves the
-     * layout as it is; `"keep"` (the default) leaves the layout as it is.
+     * (the `fixed` layout) when every node arrived with a position, else with the layout the data
+     * asks for (a DOT file's Graphviz program, when it can run; with `styles: "file"`, the force
+     * layout keeping the gap the file's program keeps between nodes, as an OGDF file's), and
+     * otherwise leaves the layout as it is; `"keep"` (the default) leaves the layout as it is.
      */
     readonly layout?: "recommended" | "placed" | "keep";
+    /**
+     * `"data"` also pins, in the same step, every node the file marks fixed -- a Graphviz node
+     * written `pos="x,y!"` or `pin=true`, a Cytoscape.js node with `"locked": true`, any column
+     * graph-io gives the `fixed` role -- so a layout keeps those nodes where the file put them and
+     * lays out the rest. `"keep"` (the default) pins nothing. Undoing the load undoes the pins.
+     * @since 3.40.0
+     */
+    readonly pins?: "data" | "keep";
     /**
      * `"step"` (the default) records the load as one undoable step. `"start"` makes the loaded
      * graph where the history starts, as opening a new project does: the load is never undone or
@@ -4841,6 +4853,46 @@ export interface SourceDraftPreview {
      * @returns How many cells the filter keeps, and the page.
      */
     cells(query: SourceDraftCellsQuery): SourceDraftCells;
+    /**
+     * How many elements of the side drawn now the draft marks: nodes and edges the commit adds
+     * (`new`), nodes it merges another into (`merged`), and nodes of a space a step joins into that
+     * no row of the step reached (`untouched`, each counted once and never also merged or new).
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    readonly marks: SourceDraftMarkCounts;
+    /**
+     * The session ids of draft elements, on the side drawn now: what `element.zoomToNodes` frames
+     * and `selection` selects. An element not drawn on that side is left out.
+     * @param query - A step's count, as `elements` takes it, or element references.
+     * @returns The node ids and edge ids.
+     * @beta
+     */
+    ids(query: SourceDraftElementsQuery | { readonly refs: readonly SourceElementRef[] }): SourceDraftIds;
+}
+
+/**
+ * How many elements a draft marks, as `preview.marks` counts them.
+ * @experimental source-steps
+ */
+export interface SourceDraftMarkCounts {
+    /** Nodes the commit merges another node into. */
+    readonly merged: number;
+    /** Nodes and edges the commit adds. */
+    readonly new: number;
+    /** Nodes of a space a step joins into that no row of the step reached. */
+    readonly untouched: number;
+}
+
+/**
+ * The session ids of some draft elements, as `preview.ids` returns them.
+ * @experimental source-steps
+ */
+export interface SourceDraftIds {
+    /** The nodes. */
+    readonly nodes: readonly NodeId[];
+    /** The edges. */
+    readonly edges: readonly EdgeId[];
 }
 
 /**
@@ -5071,12 +5123,28 @@ export interface SourceStepAct {
     readonly ignoreCase: boolean;
     /** Values that differ only in spaces match. */
     readonly ignoreSpaces: boolean;
-    /** Which row a key the source repeats keeps; null when `aggregate` settles it or nothing was set. */
-    readonly repeated: "first" | "last" | "both" | null;
+    /**
+     * Several rows naming one key, as `merge` and `connect` take it: which row wins (`"first"`,
+     * `"last"`, `"both"` for an edge step) or, for a merge whose `aggregate` is one rule for every
+     * column (`{ "*": rule }`, other than `"first"` or `"last"`), that rule; null when nothing was set
+     * or `aggregate` names columns.
+     */
+    readonly repeated: JoinReduce | "both" | null;
     /** The columns reduced over a repeated key's rows; null for none. */
     readonly aggregate: Readonly<Record<string, JoinReduce>> | null;
     /** Merge: what becomes of source 2's rows that meet no node 1. */
     readonly unmatchedFrom?: "keep" | "drop";
+    /** Make an edge: what becomes of a row whose field names no node, as `connect` takes it. */
+    readonly unmatched?: "skip" | "add";
+    /** Make an edge: one edge per pair of ends, as `connect` takes it. */
+    readonly perPair?: boolean;
+    /** Make an edge with each row an edge between two named nodes: the other end, as `connect` takes it. */
+    readonly to?: {
+        /** The column naming it. */
+        readonly field: string;
+        /** The space its nodes live in. */
+        readonly into: { readonly space: SourceSpaceName };
+    };
 }
 
 /**
@@ -5305,6 +5373,19 @@ export interface SourceMatchPair {
 }
 
 /**
+ * One join `draft.suggestMatches` proposes.
+ * @experimental source-steps
+ */
+export interface SourceMatchSuggestion {
+    /** Merge the source's rows into the nodes they match, or connect them by edges. */
+    readonly result: "merge" | "connect";
+    /** The fields to match. */
+    readonly matches: readonly SourceMatchPair[];
+    /** Whether most of the field's values meet. */
+    readonly confident: boolean;
+}
+
+/**
  * How the keys of `data.matchCounts` compare. Both default to false.
  * @experimental source-steps
  */
@@ -5313,6 +5394,11 @@ export interface SourceMatchOptions {
     readonly ignoreCase?: boolean;
     /** Compare keys ignoring spaces. */
     readonly ignoreSpaces?: boolean;
+    /**
+     * Count against the graph as the steps before this place build it, so a step's own match is
+     * counted without its own result (such as the nodes its merge kept); absent counts every step.
+     */
+    readonly before?: number;
 }
 
 /**
@@ -5430,8 +5516,19 @@ export interface SourceMergeOptions {
     readonly unmatchedFrom?: "keep" | "drop";
     /** How a cell both sides fill is settled, for every column or per column (`"*"` for the rest). */
     readonly clash?: SourceClashRule | Readonly<Record<string, SourceClashRule>>;
-    /** Two rows naming one node: `"first"` (default) or `"last"` wins. */
-    readonly repeated?: "first" | "last";
+    /**
+     * Several rows naming one node: `"first"` (default) or `"last"` row wins; any other reduction
+     * (`"list"`, `"count"`, `"sum"`, ...) reduces every column but the one matched on over those
+     * rows, the same as `aggregate: { "*": rule }`. `steps()` reads it back in this one spelling
+     * ({@link SourceStepAct.repeated}), so an application passes back what it read.
+     */
+    readonly repeated?: JoinReduce;
+    /**
+     * Per column, how the rows naming one node reduce into one value, as `draft.editStep` takes it;
+     * `"*"` sets every column but the one matched on, such as `{ "*": "list" }`. A column it names
+     * wins over a reduction given as `repeated`.
+     */
+    readonly aggregate?: Readonly<Record<string, JoinReduce>>;
     /** Rows that stay their own nodes. */
     readonly except?: SourceRowFilter;
     /** Match keys ignoring case. */
@@ -5458,6 +5555,33 @@ export interface SourceConnectOptions {
     readonly ignoreCase?: boolean;
     /** Match keys ignoring spaces, so `" B1"` meets `B1`. */
     readonly ignoreSpaces?: boolean;
+    /** One edge per pair of ends, however many rows name the pair; default false, one per row. */
+    readonly perPair?: boolean;
+    /**
+     * A row whose field names no node: `"skip"` (default) makes no edge, `"add"` makes the node it
+     * names and the edge to it.
+     */
+    readonly unmatched?: "skip" | "add";
+    /**
+     * The other end. Given, each row becomes an edge between the node `from.field` names and the
+     * node `to.field` names, and the row makes no node of its own:
+     *
+     * ```ts
+     * draft.connect({
+     *     from: { source: entries, field: "person_id" },
+     *     into: { space: "person" },
+     *     to: { field: "building_id", into: { source: buildings } },
+     * });
+     * ```
+     *
+     * `to.into` names its nodes by their key; a staged source it names is added first.
+     */
+    readonly to?: {
+        /** The column of each row naming the other end's node. */
+        readonly field: string;
+        /** Where the other end's nodes are: a source or a node kind. */
+        readonly into: SourceJoinInto;
+    };
 }
 
 /**
@@ -5500,6 +5624,14 @@ export interface SourceMoveColumnsOptions {
 }
 
 /**
+ * A join act as `draft.replaceStep` takes it.
+ * @experimental source-steps
+ */
+export type SourceJoinAct =
+    | { readonly act: "merge"; readonly options: SourceMergeOptions }
+    | { readonly act: "connect"; readonly options: SourceConnectOptions };
+
+/**
  * `draft.editStep`: the choices of one step a draft may change. `null` or `false` takes a choice off.
  * @experimental source-steps
  */
@@ -5515,8 +5647,13 @@ export interface SourceStepPatch {
     readonly ignoreCase?: boolean;
     /** Match keys ignoring spaces. */
     readonly ignoreSpaces?: boolean;
-    /** Two rows naming one key: `"first"`, `"last"`, or `"both"` (an edge step only); `null` for the default. */
-    readonly repeated?: "first" | "last" | "both" | null;
+    /**
+     * Two rows naming one key: `"first"`, `"last"`, or `"both"` (an edge step only); `null` for the
+     * default. A merge step also takes any other reduction (`"list"`, `"count"`, ...) for every
+     * column, as `merge` does, and on a merge `repeated` replaces the step's `aggregate` unless the
+     * patch gives one, so a value read back from `steps()` is passed back as it is.
+     */
+    readonly repeated?: JoinReduce | "both" | null;
     /** Keep the step but build nothing from it. */
     readonly off?: boolean;
     /**
@@ -5968,6 +6105,19 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
      */
     moveStep(index: number, to: number): void;
     /**
+     * Make a join act again in one step's place, as one act: a changed field, result or option
+     * keeps the step's place, its rows left out and its clash rules (unless the act names its own).
+     *
+     * ```ts
+     * draft.replaceStep(2, { act: "connect", options: { from: { source: entries, field: "badge" }, into: { space: "person" } } });
+     * ```
+     * @param index - The step's place, as {@link SourceDraft.steps} lists it.
+     * @param act - The act, as `merge` or `connect` takes its options.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` (`details.reason` `"no-step"`) for no such place,
+     *   or whatever the act itself refuses.
+     */
+    replaceStep(index: number, act: SourceJoinAct): void;
+    /**
      * Take out one source and every step that reads it.
      * @param source - The source.
      * @throws A `GraphtyError` with `E_BAD_COMMAND`, `details.reason` `"not-in-steps"`, for a
@@ -5992,6 +6142,24 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
      * @returns False when there was none.
      */
     undo(): boolean;
+    /**
+     * Make several acts as one: `undo()` takes them all back at once. A refusal inside takes back
+     * the acts made before it and is thrown again, so the draft is as it was.
+     * @param acts - Makes the acts on this draft.
+     * @returns What `acts` returns.
+     * @beta
+     */
+    batch<T>(acts: () => T): T;
+    /**
+     * The joins a source most likely makes onto the draft's graph, best first: each of its node
+     * columns against the keys of each id space other than its own, ranked by how many of its
+     * values meet. A column that is the source's key proposes `"merge"`, any other `"connect"`.
+     * What an app shows as a guess; nothing is applied.
+     * @param source - The source.
+     * @returns The suggestions; empty when no value meets.
+     * @beta
+     */
+    suggestMatches(source: SourceKey): readonly SourceMatchSuggestion[];
     /**
      * Every step of the draft, with its counts in the draft's build.
      * @returns The steps.
@@ -6802,7 +6970,7 @@ export interface HoverDrawn {
      * The radius hover picks the node within: the radius it is drawn at, but never under 0.71
      * device pixels (half a pixel's diagonal), so a node drawn smaller than a pixel can still be
      * pointed at. Where nothing else is drawn near it, hover also finds such a node a little
-     * farther out, up to 1.5 device pixels from its center.
+     * farther out, up to 1.5 device pixels from its center, and a hover found there reports 1.5.
      */
     readonly radius: number;
 }
@@ -8955,11 +9123,8 @@ export interface GraphSession {
     /** Saving the whole session to one project file and opening one again. */
     readonly project: ProjectApi;
     /**
-     * A session's analysis and style layers as one recipe file, applied to other data. Needs the
-     * `save-files-v2` experiment.
+     * A session's analysis and style layers as one recipe file, applied to other data.
      * @since 3.40.0
-     * @experimental save-files-v2
-     * @beta
      */
     readonly recipes: RecipesApi;
     /**

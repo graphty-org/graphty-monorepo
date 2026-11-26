@@ -78,10 +78,17 @@ export interface BaseDataSourceConfig {
     /**
      * `"recommended"` chooses a layout for what was loaded, once it is loaded: the `fixed` layout,
      * which draws each node where the file put it, when every node arrived with a position, and a
-     * computed one otherwise. `"placed"` chooses the `fixed` layout in the same case and otherwise
-     * leaves the layout as it is. `"keep"` (the default) leaves the layout as it is.
+     * computed one otherwise. `"placed"` chooses the `fixed` layout in the same case, else the layout
+     * the file asks for (a DOT file's Graphviz program), and otherwise leaves the layout as it is.
+     * `"keep"` (the default) leaves the layout as it is.
      */
     layout?: "recommended" | "placed" | "keep";
+    /**
+     * `"data"` also pins every node the file marks fixed (a Graphviz `pos="x,y!"` or `pin=true`, a
+     * Cytoscape.js `"locked": true`), so a layout keeps them where the file put them and lays out
+     * the rest. `"keep"` (the default) pins nothing.
+     */
+    pins?: "data" | "keep";
 }
 
 /**
@@ -138,6 +145,7 @@ const ELEMENT_OWNED_OPTIONS: ReadonlySet<string> = new Set([
     "styles",
     "styleOptions",
     "layout",
+    "pins",
 ]);
 
 /**

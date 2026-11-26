@@ -2579,22 +2579,42 @@ jobs:
               working-directory: graphty-element
               run: $GITHUB_WORKSPACE/tools/before-deadline.sh pnpm exec vitest run --project=bench
 
-            # The built app's landing page timed in Chromium (graphty/bench/load-time.bench.test.ts): usable, its graph's
-            # first frame and first settled frame, medians of 15 first visits. The element's own connect-to-settled
-            # rows were written by the bench project above (test/load/load-time.bench.test.ts). Issue #8018.
-            - name: Run the graphty app load-time benchmark
+            # The reference build of the paired load-time check below: what nightly.graphty.app serves. The app is the
+            # site root of the site-<sha> prerelease graphty-nightly's deployed.json names (graphty/dist, byte for
+            # byte), the element bundle is from npm at the graphty-element version that release's channel.json lists.
+            - name: Fetch nightly's build, the load-time reference
               if: ${{ !cancelled() }}
-              working-directory: graphty
-              run: $GITHUB_WORKSPACE/tools/before-deadline.sh pnpm exec vitest run --project=bench
+              timeout-minutes: 5
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  ref="$RUNNER_TEMP/load-time-ref"
+                  mkdir -p "$ref/app" "$ref/npm"
+                  tag=$(curl -fsS --retry 3 https://raw.githubusercontent.com/graphty-org/graphty-nightly/main/deployed.json | jq -er .tag)
+                  gh release download "$tag" -R "$GITHUB_REPOSITORY" -p site.tar.zst -p channel.json -D "$ref"
+                  zstd -dc "$ref/site.tar.zst" | tar -x -C "$ref/app" --exclude=./docs --exclude=./storybook
+                  version=$(jq -er '.versions["graphty-element"]' "$ref/channel.json")
+                  (cd "$ref/npm" && npm pack "@graphty/graphty-element@$version" --silent | xargs tar -xzf)
+                  test -f "$ref/app/index.html" && test -f "$ref/npm/package/dist/graphty.bundle.js"
+                  echo "load-time reference: $tag, graphty-element $version"
+                  # the owner's accepted slowdowns are judged by commit ancestry: fetch the commits (no trees)
+                  if [ "$(jq length benchmarks/load-time-accepted.json)" != 0 ]; then
+                      git fetch --quiet --no-tags --filter=tree:0 --unshallow origin
+                  fi
 
-            # Fails the job when a median and its minimum both regressed past tools/load-time.mjs's margin against the
-            # baseline of this runner's CPU model (benchmarks/results/load-time.json); a CPU model with no baseline
-            # prints every row as new.
-            - name: Compare the load times with the baseline
+            # The load times, paired (tools/load-time.mjs, issue #9876): the built app's landing page
+            # (graphty/bench/load-time.bench.test.ts: usable, its graph's first frame and first settled frame) and
+            # <graphty-element> connected to settled (graphty-element/test/load/load-time.bench.test.ts), each timed for
+            # the candidate and for nightly's build on this runner in 4 alternating (ABBA) rounds of 15 first visits.
+            # Fails the job when the candidate's median and minimum both exceed the reference's by x1.2 and 33 ms;
+            # runner speed moves both sides alike. A slowdown the owner accepted in benchmarks/load-time-accepted.json
+            # (with his approval comment, read with GH_TOKEN) passes while nightly lacks its commit. The history file's per-CPU comparison is printed for trends only.
+            - name: Compare the load times with nightly's, paired
               id: load-time
               if: ${{ !cancelled() }}
-              timeout-minutes: 2
-              run: node tools/load-time.mjs
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: $GITHUB_WORKSPACE/tools/before-deadline.sh node tools/load-time.mjs --pair-app "$RUNNER_TEMP/load-time-ref/app" --pair-element "$RUNNER_TEMP/load-time-ref/npm/package/dist/graphty.bundle.js" --reference-commit "$(jq -r .commit "$RUNNER_TEMP/load-time-ref/channel.json")"
 
             - name: Post the load times to the health dashboard
               if: ${{ !cancelled() }}

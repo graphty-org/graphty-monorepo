@@ -156,8 +156,6 @@ function SettingsPopout({
             </Popout.Trigger>
             <Popout.Panel
                 width={POPOUT_WIDTH}
-                placement="left"
-                alignment="start"
                 header={{ variant: "title", title: `${name} settings` }}
                 closeLabel={`Close ${name} settings`}
             >
@@ -232,8 +230,6 @@ function GroupByLine({
                         </Popout.Trigger>
                         <Popout.Panel
                             width={POPOUT_WIDTH}
-                            placement="left"
-                            alignment="start"
                             header={{ variant: "title", title: GROUP_BY_WORDS.title }}
                             closeLabel={`Close ${GROUP_BY_WORDS.title}`}
                         >

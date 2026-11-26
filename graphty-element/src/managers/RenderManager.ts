@@ -153,16 +153,19 @@ export interface RendererStatus {
     /**
      * Whether anything is drawn. False when the browser gave the page no working WebGL context:
      * the graph's data, its session and autosave still work, and the canvas stays empty. The log
-     * records it as `E_NO_WEBGL`. Also false once a shader cannot be built for WebGPU, which can lose
-     * every frame it is part of; that is reported as a `graph-error` with `E_SHADER_REFUSED`.
+     * records it as `E_NO_WEBGL`. Also false once a shader cannot be built, under WebGPU or WebGL,
+     * which can lose every frame it is part of; that is reported as a `graph-error` with
+     * `E_SHADER_REFUSED`.
      * @since 3.29.0
      */
     readonly drawing: boolean;
     /**
-     * Where an accelerated layout runs, decided when the renderer opens and never changed by a run:
-     * `"shared"` on the WebGPU device the graph is drawn with, `"separate"` on a device of its own (under
-     * WebGL, and on a software adapter, which never shares), null when no accelerator is offered
-     * (acceleration is off, or `@graphty/graphty-element/webgpu` was not imported before the renderer opened).
+     * Where an accelerated layout runs: `"shared"` on the WebGPU device the graph is drawn with, so a loss of
+     * that device reaches the layout too, `"separate"` on a device of its own (under WebGL, on a software
+     * adapter, which never shares, and for an accelerator attached before the renderer was on its way). Once an
+     * accelerator is attached this names the device it was built on; before then, the one the renderer offers
+     * it. Null when no accelerator is offered or attached (acceleration is off, or
+     * `@graphty/graphty-element/webgpu` was not imported before the renderer opened).
      * @since 3.47.0
      */
     readonly layoutDevice: LayoutDevice | null;
@@ -2318,8 +2321,37 @@ export class RenderManager implements Manager {
             material.markAsDirty(Material.AllDirtyFlag);
         }
 
+        this.freezeAfterNextFrame(thawed);
+        this.requestFrame();
+    }
+
+    /**
+     * Light a batch with the scene's lights again, after a light joined or left the scene. A batch
+     * draws with a frozen material, and a frozen material keeps the shader it compiled and the
+     * lights it counted, so a consumer's own light would never reach the nodes a batch draws. The
+     * objects path's node materials are left as they are.
+     */
+    relightBatches(): void {
+        const thawed: Material[] = [];
+        for (const material of this.scene.materials) {
+            if (material.isFrozen && material.getBindedMeshes().some((mesh) => isRowBatch(mesh))) {
+                material.unfreeze();
+                material.markAsDirty(Material.LightDirtyFlag);
+                thawed.push(material);
+            }
+        }
+
+        this.freezeAfterNextFrame(thawed);
+        this.requestFrame();
+    }
+
+    /**
+     * Freeze thawed materials again once a frame has compiled their new shaders.
+     * @param thawed - The materials.
+     */
+    private freezeAfterNextFrame(thawed: Material[]): void {
         if (thawed.length > 0) {
-            scene.onAfterRenderObservable.addOnce(() => {
+            this.scene.onAfterRenderObservable.addOnce(() => {
                 // Frozen without `freeze()`: it also marks every mesh drawn with the material as not
                 // ready, and a mesh in a frozen active-mesh list (see UpdateManager's
                 // settleActiveMeshFreeze) never checks again, so it is skipped every frame until
@@ -2329,8 +2361,6 @@ export class RenderManager implements Manager {
                 }
             });
         }
-
-        this.requestFrame();
     }
 
     /** The background last applied, so a change of color scheme can draw it again. */

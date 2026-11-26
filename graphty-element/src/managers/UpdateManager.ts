@@ -3338,6 +3338,10 @@ export class UpdateManager implements Manager {
             "an edge's end is drawn at its node's bounding radius until the move rests",
             () => this.byRadius.size > 0,
         );
+        // On the objects path a walk of every edge leaves the edge count and the node positions to the next two
+        // passes, each of which can walk every edge again: a wait that ended between them charged the next edit for
+        // a walk of every edge (issue #10163).
+        work.watch("edges", "an edge pass still owes a walk of the edges", () => this.edgeWalkOwed());
         work.watch("view", "a filter or a selection has not been drawn yet", () => this.viewMasksPending());
         work.watch("view", "the camera is still moving to the selection", () => this.followingSelection);
         work.watch(
@@ -4523,6 +4527,12 @@ export class UpdateManager implements Manager {
     /** The edge set (`DataManager.edgeVersion`) the last walk saw, for the same reason. */
     private lastWalkedEdgeVersion = -1;
 
+    /**
+     * Set by a walk of every edge on the objects path, which leaves the node positions unnoted, until a pass
+     * compares them ({@link nodesMoved}): that pass can walk every edge again.
+     */
+    private positionsUnnoted = false;
+
     /** Where each node's mesh sat at the last edge walk, as x, y, z per node index. */
     private lastNodePositions = new Float64Array(0);
 
@@ -4934,6 +4944,7 @@ export class UpdateManager implements Manager {
                 this.walkedEverything(edgeCount, edgeVersion);
             } else {
                 this.lastWalkedEdgeCount = -1;
+                this.positionsUnnoted = true;
             }
 
             return true;
@@ -4961,6 +4972,7 @@ export class UpdateManager implements Manager {
             } else {
                 this.lastWalkedEdgeCount = edgeCount;
                 this.lastWalkedEdgeVersion = edgeVersion;
+                this.positionsUnnoted = true;
             }
 
             this.sceneChanged = true;
@@ -4975,6 +4987,21 @@ export class UpdateManager implements Manager {
         }
 
         return moved;
+    }
+
+    /**
+     * Whether the next edge pass is owed a walk of every edge, or of the pairs an edit changed: a walk forced and
+     * not run, an edge set or count the last walk did not see, or node positions a walk of every edge left unnoted
+     * (issue #10163). Asked without walking anything, as one entry of {@link UpdateManager.pending}.
+     * @returns True until the passes that owe those walks have run.
+     */
+    private edgeWalkOwed(): boolean {
+        return (
+            this.edgeWalkForced ||
+            this.positionsUnnoted ||
+            (this.layoutManager.layoutEngine?.edgeCount ?? 0) !== this.lastWalkedEdgeCount ||
+            this.dataManager.edgeVersion !== this.lastWalkedEdgeVersion
+        );
     }
 
     /**
@@ -5083,6 +5110,7 @@ export class UpdateManager implements Manager {
      *     every edge is cheaper than finding theirs; false when none did.
      */
     private nodesMoved(): boolean | readonly Node[] {
+        this.positionsUnnoted = false;
         const moved: Node[] = [];
         let unseen = false;
         let nodeCount = 0;

@@ -178,7 +178,12 @@ describe("steps and reader edits in the join workspace (source-steps)", () => {
             assert.isAtMost(row.scrollWidth, row.clientWidth, "never cut");
         }
         await selectJoin(modal, "entries + doors");
-        await within(modal).findByRole("button", { name: "5 new edges" });
+        // Committed and left as it is, it adds nothing the graph lacks, as the key says.
+        const counts = (): string => modal.querySelector("[data-join-editor] .jw-counts")?.textContent ?? "";
+        await waitFor(() => {
+            assert.include(counts(), "matched", "its counts are drawn");
+        });
+        assert.notInclude(counts(), "new edge");
     });
 
     it("lists a pick under Reader edits (R) in the workspace, and its Delete takes it back on Done", async () => {

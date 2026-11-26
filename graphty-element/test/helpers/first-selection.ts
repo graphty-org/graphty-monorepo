@@ -7,6 +7,7 @@ import { assert } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
+import { DataManager } from "../../src/managers/DataManager";
 import { click, hover, type Point } from "./real-input";
 
 /** A grid mounted and framed on the node a test clicks. */
@@ -83,21 +84,51 @@ function compiledShaders(element: Graphty): number {
 }
 
 /**
+ * Count the reads of `DataManager.nodesByIndex` while work runs: the table it answers is rebuilt from every `Node`
+ * on the first read after the node set changes.
+ * @param work - The work.
+ * @returns How many times it was read.
+ */
+async function countRowTableReads(work: () => Promise<void>): Promise<number> {
+    const descriptor = Object.getOwnPropertyDescriptor(DataManager.prototype, "nodesByIndex");
+    const read = descriptor?.get;
+    assert.isDefined(read, "DataManager.nodesByIndex is a getter");
+    let reads = 0;
+    Object.defineProperty(DataManager.prototype, "nodesByIndex", {
+        ...descriptor,
+        get(this: DataManager) {
+            reads++;
+            return read.call(this) as unknown;
+        },
+    });
+    try {
+        await work();
+    } finally {
+        Object.defineProperty(DataManager.prototype, "nodesByIndex", descriptor ?? {});
+    }
+
+    return reads;
+}
+
+/**
  * Click the framed node, wait for the selection to be drawn, and clear it again.
  * @param grid - The framed grid.
- * @returns How long the click took to a finished frame, and the shaders it compiled.
+ * @returns How long the click took to a finished frame, the shaders it compiled and the reads of the whole row
+ *     table it made.
  */
-export async function selectByClick(grid: FramedGrid): Promise<{ ms: number; shaders: number }> {
+export async function selectByClick(grid: FramedGrid): Promise<{ ms: number; shaders: number; rowTableReads: number }> {
     const { element, id, at } = grid;
     const before = compiledShaders(element);
     const start = performance.now();
-    await click(element, at);
-    await operationQueueOf(element.graph).waitForCompletion();
-    await element.waitForStableFrame();
+    const rowTableReads = await countRowTableReads(async () => {
+        await click(element, at);
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+    });
     const ms = Math.round(performance.now() - start);
     const shaders = compiledShaders(element) - before;
     assert.deepEqual(element.session.selection.nodes, [id], "the click selected the node");
     element.session.selection.clear();
     await drawn(element);
-    return { ms, shaders };
+    return { ms, shaders, rowTableReads };
 }

@@ -1377,9 +1377,10 @@ export class UpdateManager implements Manager {
                 apply(node);
             }
         } else {
-            const { nodesByIndex } = this.dataManager;
+            // Row by row, not through `nodesByIndex`: that table is rebuilt from every `Node` on its first read after
+            // a load, and the first selection on a 99,000-node graph read it for one row, 200 ms (issue #10124).
             for (const row of rows) {
-                apply(nodesByIndex[row]);
+                apply(dataManagerInternals.builtNodeAtRow(this.dataManager, row));
             }
         }
 

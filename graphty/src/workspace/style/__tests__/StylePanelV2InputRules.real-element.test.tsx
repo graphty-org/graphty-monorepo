@@ -167,8 +167,21 @@ const KNOWN_ONE_LINE_GROUP: readonly string[] = [];
 /** Rows and pop-overs with a grouped button or a tab that opens a menu, list, picker or pop-over. */
 const KNOWN_GROUP_OPENS: readonly string[] = [];
 
-/** Things with a value edited by two different controls across the row and its pop-overs. */
-const KNOWN_TWO_PATHS: readonly string[] = [];
+/**
+ * Things with a value edited by two different controls across the row and its pop-overs. A label's weight waits on
+ * the owner, since three of his rules meet there: Bold is a text editor's toggle (2026-11-23), every style
+ * graphty-element has is editable (2026-11-24: so Thin to Black is the Letters group's Weight line), and one path to
+ * any control (2026-11-25).
+ */
+const KNOWN_TWO_PATHS: readonly string[] = [
+    "edge.endCaption",
+    "edge.label",
+    "edge.tooltip",
+    "edge.xlabel",
+    "node.label",
+    "node.tooltip",
+    "node.xlabel",
+];
 
 /**
  * Groups one line tall as a thing starts, which grow in another state, so stay groups (owner, 2026-11-24: a group of

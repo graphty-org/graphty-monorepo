@@ -67,7 +67,7 @@ async function openFrom(name: string): Promise<HTMLElement> {
 describe("Style panel v2's record from data", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
 
-    it("picks fields in order, reads each on its line, and draws the first entry's glyph", async () => {
+    it("picks fields in order, reads each on its line, and draws the first entry's glyph on its line", async () => {
         const { session, layer } = await withGenes();
         const tab = await openStyle("Key people");
         await recordOf(tab, ["gene", "degree", "logFC"]);
@@ -84,14 +84,12 @@ describe("Style panel v2's record from data", () => {
                 ["gene", "degree", "logFC"],
             );
         });
-        const picker = screen.getByRole("combobox", { name: "Node record data" });
-        const row = picker.closest<HTMLElement>(".ws-row");
-        assert.isNotNull(row);
-        assert.strictEqual(
-            row.querySelector("[data-field-type]")?.getAttribute("data-field-type"),
-            "string",
-            "a text column first draws the text glyph, not #",
-        );
+        // The row's picker only adds entries (one path to any control); the first entry's own line draws its
+        // column's glyph: a text column the text glyph, not #.
+        const [first] = screen.getAllByRole("combobox", { name: "Field" });
+        const line = first.closest<HTMLElement>(".ws-row");
+        assert.isNotNull(line);
+        assert.strictEqual(line.querySelector("[data-field-type]")?.getAttribute("data-field-type"), "string");
     });
 
     it('opens an entry from its "...", keeps it open on a tab pick, and signs a value from Format', async () => {

@@ -6567,11 +6567,15 @@ export class Graph implements GraphContext {
      */
     private handleBackgroundClick(event: ClickModifiers): void {
         const { pointerX: x, pointerY: y } = this.scene;
-        if (this.handledOnCloseLabel(x, y)) {
+        // Each pick walks every mesh on the "objects" path: only a scene with a close button looks for one.
+        if (hasCloseLabels(this.scene) && this.handledOnCloseLabel(x, y)) {
             return;
         }
 
-        if (pickNodeId(this.scene, x, y) !== undefined) {
+        // The press already picked here; released at the same point, its answer stands.
+        const { pressed } = nodePointerRosterOf(this.scene);
+        const node = pressed !== null && pressed.x === x && pressed.y === y ? pressed.id : pickNodeId(this.scene, x, y);
+        if (node !== undefined) {
             return;
         }
 

@@ -53,6 +53,22 @@ describe("a node gesture under the real mouse", () => {
         assert.isBelow(apart(where(element, "b"), start), 0.5, "the node stayed about where it was");
     });
 
+    it("a plain click starts no drag: no drag event, no history step, no layout reheated", async () => {
+        const element = await mounted("3d");
+        const steps = element.session.history.steps.length;
+        const dragged: string[] = [];
+        element.addEventListener("graphty-node-drag-start", () => dragged.push("start"));
+        element.addEventListener("graphty-node-drag-end", () => dragged.push("end"));
+
+        await click(element, at(element, "b"));
+        await applied(element);
+
+        assert.strictEqual(element.getSelectedNode()?.id, "b", "the click selected the node");
+        // Before, every press opened a drag: a gesture, layout.running and a thaw of every frozen mesh.
+        assert.deepEqual(dragged, [], "a click is not a drag");
+        assert.strictEqual(element.session.history.steps.length, steps, "and records nothing to undo");
+    });
+
     it("a right-click on a node already in the selection keeps the whole selection", async () => {
         const element = await mounted("3d");
         await click(element, at(element, "a"));

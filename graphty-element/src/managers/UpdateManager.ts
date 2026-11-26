@@ -3,6 +3,7 @@ import { Camera } from "@babylonjs/core/Cameras/camera.js";
 import { Frustum } from "@babylonjs/core/Maths/math.frustum.js";
 import { Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import type { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
 import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import type { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
 import type { Scene } from "@babylonjs/core/scene.js";
@@ -961,6 +962,7 @@ export class UpdateManager implements Manager {
         };
         this.meshAddedWatcher = scene.onNewMeshAddedObservable.add(pictureChanged);
         this.meshRemovedWatcher = scene.onMeshRemovedObservable.add(pictureChanged);
+        this.watchHandDrawnFrames(scene);
         this.lendShaderRepaint();
     }
 
@@ -983,6 +985,7 @@ export class UpdateManager implements Manager {
         scene.getEngine().onResizeObservable.remove(this.resizeWatcher);
         scene.onNewMeshAddedObservable.remove(this.meshAddedWatcher);
         scene.onMeshRemovedObservable.remove(this.meshRemovedWatcher);
+        scene.onBeforeRenderObservable.remove(this.watchingHeld);
     }
 
     /**
@@ -4561,6 +4564,9 @@ export class UpdateManager implements Manager {
     /** Counts freeze requests and changes, so a freeze Babylon runs late knows it was withdrawn. */
     private freezeRequest = 0;
 
+    /** The source meshes whose instances' matrices a landed freeze froze; see `freezeInstanceSources`. */
+    private readonly frozenSources = new Set<Mesh>();
+
     /** The camera's view and projection stamps at the last frame, or null before the first. */
     private lastCameraState: readonly number[] | null = null;
 
@@ -5590,25 +5596,43 @@ export class UpdateManager implements Manager {
     holdsMesh(node: Node): void {
         this.heldMeshes.set(node, true);
         this.sceneChanged = true;
-        // Before every render, a frame of the loop's or one drawn by hand: the loop's own pass does
-        // not run for a frame drawn by hand, and a consumer's change asks for no frame.
-        this.watchingHeld ??= this.graphContext.getScene().onBeforeRenderObservable.add(() => {
-            if (this.heldMeshesToggled()) {
+    }
+
+    /**
+     * Before every render, a frame of the loop's or one drawn by hand: the loop's own pass does not
+     * run for a frame drawn by hand, and a consumer's change asks for no frame. So a read mesh shown,
+     * hidden or moved, or a camera moved while the list is frozen, thaws it here. A frozen list
+     * recomputes no world matrix (`skipEvaluateActiveMeshes`), so a camera turned and drawn by hand
+     * drew every billboard, an outline's ring among them, at the old camera's angle.
+     *
+     * ADDED ONCE, WITH THE SCENE, never on the way. The render loop reads a new newest before-render
+     * observer as somebody waiting for a frame (`RenderManager.newestFrameObservers`), so one added
+     * at the first freeze drew a frame on a graph that had come to rest, and changed the count of
+     * frame callbacks a graph holds once it settles.
+     * @param scene - The scene to watch.
+     */
+    private watchHandDrawnFrames(scene: Scene): void {
+        this.watchingHeld = scene.onBeforeRenderObservable.add(() => {
+            if (this.heldMeshesChanged() || (this.activeMeshesFrozen && this.cameraMoved())) {
                 this.sceneChanged = true;
                 this.thawActiveMeshes();
             }
         });
     }
 
-    /** What watches the read meshes, once a mesh has been read ({@link UpdateManager.holdsMesh}). */
+    /** What watches frames drawn by hand ({@link UpdateManager.watchHandDrawnFrames}). */
     private watchingHeld: Nullable<Observer<Scene>> = null;
 
     /**
-     * Whether a read mesh was shown or hidden since the last frame, and forget the nodes gone.
+     * Whether a read mesh was shown, hidden, moved, scaled or turned since the last frame, and
+     * forget the nodes gone. A frozen scene neither recomputes a listed mesh's world matrix nor
+     * uploads its instance's matrix (`settleActiveMeshFreeze`), so a consumer scaling the mesh it
+     * read would not be drawn until something else thawed the scene. Whether its position,
+     * scaling or rotation changed is Babylon's own dirty flags, a few reads per read mesh.
      * @returns True when one was.
      */
-    private heldMeshesToggled(): boolean {
-        let toggled = false;
+    private heldMeshesChanged(): boolean {
+        let changed = false;
         for (const [node, shown] of this.heldMeshes) {
             if (node.isDisposed()) {
                 this.heldMeshes.delete(node);
@@ -5619,11 +5643,13 @@ export class UpdateManager implements Manager {
             const now = mesh !== null && mesh.isVisible && mesh.isEnabled();
             if (now !== shown) {
                 this.heldMeshes.set(node, now);
-                toggled = true;
+                changed = true;
+            } else if (mesh !== null && !mesh._isSynchronized()) {
+                changed = true;
             }
         }
 
-        return toggled;
+        return changed;
     }
 
     /**
@@ -5640,6 +5666,34 @@ export class UpdateManager implements Manager {
         if (this.activeMeshesFrozen) {
             this.graphContext.getScene().unfreezeActiveMeshes();
             this.activeMeshesFrozen = false;
+        }
+
+        for (const source of this.frozenSources) {
+            source._unFreeze();
+        }
+
+        this.frozenSources.clear();
+    }
+
+    /**
+     * Freeze the matrices of every drawn instance along with the list, once a freeze has landed.
+     *
+     * Babylon's freeze freezes only the meshes in the list, and the list holds a node's INSTANCE, not
+     * the source mesh it is drawn from; the source keeps the matrices of its instances, so unfrozen, it
+     * read and uploaded every instance's world matrix on every frame of a still graph: at 99,000 nodes
+     * about 20 ms of a 48 ms frame (issue #10116). Everything that would change one of those matrices
+     * thaws the list (`settleActiveMeshFreeze`), and the thaw unfreezes these sources with it.
+     * @param scene - The scene.
+     */
+    private freezeInstanceSources(scene: Scene): void {
+        const active = scene.getActiveMeshes();
+        for (let i = 0; i < active.length; i++) {
+            const mesh = active.data[i];
+            const source = mesh.isAnInstance ? (mesh as InstancedMesh).sourceMesh : undefined;
+            if (source !== undefined && !this.frozenSources.has(source)) {
+                this.frozenSources.add(source);
+                source._freeze();
+            }
         }
     }
 
@@ -5759,11 +5813,17 @@ export class UpdateManager implements Manager {
             // id -- into the list the withdrawn walk just filled -- so the frozen frames after it
             // drew instances twice (test/browser/frozen-frame-draws-each-instance-once.test.ts).
             // A new render id gives the next walk a list of its own.
+            //
+            // AND NO WORLD MATRIX IS RECOMPUTED WHILE FROZEN (`skipEvaluateActiveMeshes`). Babylon otherwise still
+            // recomputes every listed mesh's world matrix each frame, about 15 ms a frame at 99,000 nodes, for a list
+            // that is only frozen while nothing moves: whatever moves thaws it first (issue #10116).
             const request = ++this.freezeRequest;
-            scene.freezeActiveMeshes(false, () => {
+            scene.freezeActiveMeshes(true, () => {
                 if (request !== this.freezeRequest) {
                     scene.unfreezeActiveMeshes();
                     scene.incrementRenderId();
+                } else {
+                    this.freezeInstanceSources(scene);
                 }
             });
         }

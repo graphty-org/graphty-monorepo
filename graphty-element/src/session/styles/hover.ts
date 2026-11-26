@@ -72,3 +72,72 @@ export function createHoverSource(
         return cached.hover;
     };
 }
+
+/**
+ * Collect the rows a `{ match: "hover" }` layer can paint differently when one node gains or loses
+ * the pointer: the node, its neighbors and the edges that touch it, as {@link hoverNeighborhood}
+ * marks them. O(degree).
+ * @param graph - The snapshot.
+ * @param node - The node's dense index.
+ * @param rows - The node and edge rows collected so far, added to.
+ * @param rows.node - Node rows.
+ * @param rows.edge - Edge rows.
+ */
+function collectHoverRows(
+    graph: GraphSnapshot,
+    node: number,
+    rows: { readonly node: Set<number>; readonly edge: Set<number> },
+): void {
+    rows.node.add(node);
+    const adjacencies: AdjacencyView[] = graph.directed ? [graph, graph.reverse()] : [graph];
+    for (const { rowPtr, colIdx, arcToEdge } of adjacencies) {
+        for (let arc = rowPtr[node]; arc < rowPtr[node + 1]; arc++) {
+            rows.node.add(colIdx[arc]);
+            rows.edge.add(arcToEdge[arc]);
+        }
+    }
+}
+
+/** The nodes the hover layers follow, by row: the hovered one, and the hovered else a lone selected one. */
+export interface HoverFollowed {
+    readonly hovered?: number;
+    readonly focus?: number;
+}
+
+/**
+ * The rows the `{ match: "hover" }` layers can paint differently after the followed nodes moved:
+ * the old and new node's neighborhoods, for each layer whose followed node moved.
+ * @param graph - The snapshot both readings are by.
+ * @param selectors - The hover layers' selectors.
+ * @param before - What they were last repainted from.
+ * @param now - What they follow now.
+ * @returns The rows, or null when every element must be repainted (an inverted layer turned on or off).
+ */
+export function hoverRowsToRepaint(
+    graph: GraphSnapshot,
+    selectors: readonly { readonly invert?: boolean; readonly orSelected?: boolean }[],
+    before: HoverFollowed,
+    now: HoverFollowed,
+): { node: number[]; edge: number[] } | null {
+    const rows = { node: new Set<number>(), edge: new Set<number>() };
+    for (const selector of selectors) {
+        const followed = selector.orSelected === true ? "focus" : "hovered";
+        const was = before[followed];
+        const is = now[followed];
+        if (was === is) {
+            continue;
+        }
+
+        if (selector.invert === true && (was === undefined || is === undefined)) {
+            return null;
+        }
+
+        for (const at of [was, is]) {
+            if (at !== undefined) {
+                collectHoverRows(graph, at, rows);
+            }
+        }
+    }
+
+    return { node: [...rows.node], edge: [...rows.edge] };
+}

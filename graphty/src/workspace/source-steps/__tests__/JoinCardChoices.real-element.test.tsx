@@ -164,12 +164,12 @@ describe("a join card's choices (source-steps)", () => {
         await joinAs(modal, NODE);
         await newest(session, (step) => step.act?.act === "connect", "a node linked to its person");
         assert.notInclude(offered(modal), "Existing edge", "only an edge meets another");
-        assert.notInclude(offered(modal), "Many rows");
+        assert.notInclude(offered(modal), "Rows per node");
         await advanced(modal);
         assert.isNotNull(within(modal).queryByRole("combobox", { name: "Direction" }));
         await joinAs(modal, FIELDS);
         await newest(session, (step) => step.act?.act === "merge", "fields on their person");
-        assert.include(offered(modal), "Many rows");
+        assert.include(offered(modal), "Rows per node");
         assert.isNull(within(modal).queryByRole("combobox", { name: "Direction" }));
         await addMatch(modal, 2, ["entries", "door"], ["doors", "door"]);
         assert.include(waysToJoin(modal), EDGE);
@@ -205,7 +205,7 @@ describe("a join card's choices (source-steps)", () => {
 
     it("New nodes splits one source's tags into nodes, carrying a column, with nothing staged", async () => {
         const { session, modal } = await opened();
-        await pickSources(modal, "people", "New nodes");
+        await pickSources(modal, "people", "As new nodes");
         await pickFields(modal, "tags", null);
         await joinAs(modal, "Node per tags, linked to people");
         await newest(session, (step) => step.extract?.column === "tags", "a node per value");
@@ -226,7 +226,7 @@ describe("a join card's choices (source-steps)", () => {
 
     it("New nodes of another field are that field's own, not the first one's kind", async () => {
         const { session, modal } = await opened();
-        await pickSources(modal, "people", "New nodes");
+        await pickSources(modal, "people", "As new nodes");
         await pickFields(modal, "dept", null);
         await joinAs(modal, "Node per dept, linked to people");
         const first = await newest(session, (step) => step.extract?.column === "dept", "departments");
@@ -258,7 +258,7 @@ describe("a join card's choices (source-steps)", () => {
     it("an edge's other end can be new nodes, while a badge naming no one still makes none", async () => {
         const { session, modal } = await opened(["entries.csv", ENTRIES]);
         await match(modal, "entries");
-        await addMatch(modal, 2, ["entries", "door"], ["New nodes", null]);
+        await addMatch(modal, 2, ["entries", "door"], ["As new nodes", null]);
         assert.include(waysToJoin(modal), "Node per entries row, linked to people and new door nodes");
         await joinAs(modal, "Edge per entries row, people to new door nodes");
         await newest(session, (step) => step.act?.to?.unmatched === "add", "doors made of the column");
@@ -318,11 +318,11 @@ describe("a join card's choices (source-steps)", () => {
         await joinAs(modal, "Edge between people sharing dept");
         const linked = await newest(session, (step) => step.link !== null, "linked");
         assert.strictEqual(linked.buckets?.newEdges, 3, "B1, B2 and B4 are Ops");
-        await typeIn(modal, "Hub cap", "2");
+        await typeIn(modal, "Max nodes per value", "2");
         const capped = await newest(session, (step) => step.link?.maxShared === 2, "capped");
         assert.strictEqual(capped.buckets?.newEdges, 0, "three hold Ops");
         await within(modal).findByText("1 value over the cap");
-        await typeIn(modal, "Hub cap", "5");
+        await typeIn(modal, "Max nodes per value", "5");
         await typeIn(modal, "Minimum shared", "2");
         const least = await newest(session, (step) => step.link?.minShared === 2, "a minimum");
         assert.strictEqual(least.buckets?.pairsBelowMin, 3);
@@ -347,7 +347,7 @@ describe("a join card's choices (source-steps)", () => {
         const { session, modal } = await opened(["watch.csv", "value,risk\nv2,high"], ["devices.csv", DEVICES]);
         await match(modal, "devices");
         await joinAs(modal, "Fields of devices on people");
-        await pickWay(modal, "Many rows", "List");
+        await pickWay(modal, "Rows per node", "List all");
         await newest(session, (step) => step.act?.aggregate?.["*"] === "list", "a list of devices");
         await userEvent.click(within(modal).getByRole("button", { name: "Join" }));
         await waitFor(() => {
@@ -419,9 +419,9 @@ describe("a join card's choices (source-steps)", () => {
             assert.strictEqual(ruleOf(), "min");
         });
         await advanced(modal);
-        await choose(modal, "Many rows floor", "Max");
+        await choose(modal, "Rows per node floor", "Max");
         await newest(session, (step) => step.act?.aggregate?.floor === "max", "the column's own");
-        await pickWay(modal, "Many rows", "Count");
+        await pickWay(modal, "Rows per node", "Count");
         const counted = await newest(session, (step) => step.act?.aggregate?.["*"] === "count", "every other column");
         assert.strictEqual(counted.act?.aggregate?.floor, "max", "floor keeps its own");
         assert.strictEqual(ruleOf(), "min", "and its rule");
@@ -445,6 +445,8 @@ describe("a join card's choices (source-steps)", () => {
         await userEvent.keyboard("{Enter}");
         keeps("Ignore case");
         const side = within(modal).getByRole("radiogroup", { name: "Before / After" });
+        assert.isNotNull(within(side).getByRole("radio", { name: "After" }), "its key is no part of its name");
+        assert.include(side.textContent ?? "", "B", "and is shown beside it");
         within(side).getByRole("radio", { name: "Before" }).focus();
         await userEvent.keyboard("{Enter}");
         keeps("the Before radio");

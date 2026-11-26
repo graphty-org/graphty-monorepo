@@ -263,7 +263,7 @@ describe("the join workspace's keys (source-steps)", () => {
             return names;
         };
         assert.deepStrictEqual(await read("Source 1"), ["doors", "entries", "people"]);
-        assert.deepStrictEqual(await read("Source 2"), ["doors", "entries", "people", "New nodes"]);
+        assert.deepStrictEqual(await read("Source 2"), ["doors", "entries", "people", "As new nodes"]);
     });
 
     it("the other end is matched by any field of its nodes, with its own live count", async () => {
@@ -318,6 +318,7 @@ describe("a join card's matches and table (source-steps)", () => {
         await newest(session, (row) => row.act !== null, "joined");
         assert.strictEqual(within(modal).getByLabelText("Match count 1").textContent, "2 of 3 match, 1 empty");
         assert.strictEqual(within(modal).getByLabelText("Match count 2").textContent, "2 of 3 match");
+        assert.isNotNull(within(modal).getByText("Every match ignores"), "the switches set every match of the card");
         await userEvent.click(within(modal).getByRole("switch", { name: "Ignore case" }));
         await userEvent.click(within(modal).getByRole("switch", { name: "Ignore spaces" }));
         await waitFor(() => {
@@ -438,9 +439,9 @@ describe("a join card's matches and table (source-steps)", () => {
         });
     });
 
-    it("a reopened card reads its sources, fields and way to join back, its earlier loaded source first", async () => {
+    it("a reopened card reads its sources, fields and way to join back, in the order the reader picked them", async () => {
         const { session, modal } = await opened(["entries.csv", ENTRIES]);
-        // Picked the other way round: the list and a reopened card keep the order loaded.
+        // Picked the other way round from the order loaded: the list and a reopened card keep the reader's order.
         await pickSources(modal, "entries", "people");
         await pickFields(modal, "badge", "badge");
         await joinAs(modal, NODE);
@@ -452,17 +453,17 @@ describe("a join card's matches and table (source-steps)", () => {
         );
         await done(modal);
         const again = await joinPlus();
-        assert.deepStrictEqual(joinLines(again), ["people + entries", "New join"]);
-        await selectJoin(again, "people + entries");
+        assert.deepStrictEqual(joinLines(again), ["entries + people", "New join"]);
+        await selectJoin(again, "entries + people");
         const read = ["Source 1", "Source 2", "Field 1", "Field 2"].map(
             (name) => within(again).getByRole<HTMLInputElement>("combobox", { name }).value,
         );
-        assert.deepStrictEqual(read, ["people", "entries", "badge", "badge"]);
+        assert.deepStrictEqual(read, ["entries", "people", "badge", "badge"]);
         await within(again).findByRole("radio", { checked: true, name: NODE });
         await userEvent.click(within(within(again).getByRole("radiogroup", { name: "No match" })).getByText("Skip"));
         await newest(session, (row) => row.act?.unlinked === "drop", "its options are changed in place");
         assert.include(again.textContent ?? "", "nodes removed 1", "E3 badges no one");
-        assert.deepStrictEqual(joinLines(again), ["people + entries", "New join"], "still one card");
+        assert.deepStrictEqual(joinLines(again), ["entries + people", "New join"], "still one card");
         await done(again);
         assert.isUndefined(session.data.node("E3"));
     });
@@ -494,7 +495,7 @@ describe("a join card's matches and table (source-steps)", () => {
     it("edges with their ends unpicked are neither added nor done", async () => {
         const { session, modal } = await opened(["entries.csv", ENTRIES]);
         await choose(modal, "Source 1", "entries");
-        await userEvent.click(within(modal).getByRole("button", { name: "Expand Read entries as" }));
+        await userEvent.click(within(modal).getByRole("button", { name: "Expand entries rows" }));
         await userEvent.click(await within(modal).findByText("Edges"));
         await waitFor(() => {
             assert.isTrue(within(modal).getByRole("button", { name: "Add as is" }).hasAttribute("disabled"));

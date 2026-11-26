@@ -120,7 +120,10 @@ export function JoinHead({
                         label: (
                             <Group gap={4} wrap="nowrap" component="span">
                                 {`${PREVIEW_WORDS.after} `}
-                                <KeyWords combo={SIDE_KEY} />
+                                {/* Its key is shown, and said by the control's aria-keyshortcuts: never part of its name. */}
+                                <span aria-hidden>
+                                    <KeyWords combo={SIDE_KEY} />
+                                </span>
                             </Group>
                         ),
                     },

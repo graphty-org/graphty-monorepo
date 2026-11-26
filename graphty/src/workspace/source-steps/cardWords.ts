@@ -125,23 +125,22 @@ export function sideChoices(session: GraphSession, draft: SourceDraft): SideChoi
 }
 
 /**
- * The sides some lines name, in the order loaded, each once.
- * @param session - the element's session
+ * The sides some lines name, in the order picked, each once.
  * @param lines - the lines
  * @returns them
  */
-function sidesOf(session: GraphSession, lines: readonly CardLine[]): readonly SourceJoinSide[] {
+function sidesOf(lines: readonly CardLine[]): readonly SourceJoinSide[] {
     const out: SourceJoinSide[] = [];
     for (const side of lines.flatMap(({ a, b }) => [a.side, b.side])) {
         if (side !== null && !out.some((each) => sameSide(each, side))) {
             out.push(side);
         }
     }
-    return out.sort((x, y) => loadOrder(session, x) - loadOrder(session, y));
+    return out;
 }
 
 /**
- * A card's line in the list: the sources it joins, in the order loaded; one source with itself by its
+ * A card's line in the list: the sources it joins, in the order picked; one source with itself by its
  * first field; a column made nodes beside its source.
  * @param session - the element's session
  * @param names - the sources' names
@@ -149,7 +148,7 @@ function sidesOf(session: GraphSession, lines: readonly CardLine[]): readonly So
  * @returns the words
  */
 function rowName(session: GraphSession, names: SourceNames, lines: readonly CardLine[]): string {
-    const sides = sidesOf(session, lines);
+    const sides = sidesOf(lines);
     if (sides.length === 0) {
         return WORKSPACE_WORDS.newJoin;
     }
@@ -197,7 +196,9 @@ export function rowNames(
 }
 
 /**
- * The lines a card is named by: its own, else its step's.
+ * The lines a card is named by: its own, in the order the reader picked them, else its step's, the
+ * earlier loaded source first, as the card reopens on them.
+ * @param session - the element's session
  * @param steps - the steps it is one of
  * @param card - the card
  * @param card.lines - its lines
@@ -205,10 +206,18 @@ export function rowNames(
  * @returns the lines
  */
 export function namingLines(
+    session: GraphSession,
     steps: readonly SourceStepRow[],
     card: { readonly lines: readonly CardLine[] | null; readonly step: SourceStepRow | null },
 ): readonly CardLine[] {
-    return card.lines ?? (card.step === null ? [] : linesNaming(steps, card.step));
+    if (card.lines !== null) {
+        return card.lines;
+    }
+    const place = ({ side }: CardEnd): number => (side === null ? Infinity : loadOrder(session, side));
+    const read = card.step === null ? [] : linesNaming(steps, card.step);
+    return read
+        .map((line) => (place(line.b) < place(line.a) ? { a: line.b, b: line.a } : line))
+        .sort((x, y) => place(x.a) - place(y.a));
 }
 
 const or = (words: readonly string[]): string => words.join(" or ");

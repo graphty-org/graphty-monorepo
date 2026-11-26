@@ -329,7 +329,7 @@ export const JoinWorkspaceNewNodes: Story = {
     play: async (context) => {
         const session = await staged(context, "shifts.csv", TAGGED);
         const modal = await openJoin(context);
-        await match(modal, ["shifts", "tags"], ["New nodes", null]);
+        await match(modal, ["shifts", "tags"], ["As new nodes", null]);
         await joinAs(modal, "Node per tags, linked to shifts");
         const split = await within(modal).findByRole("combobox", { name: "Split on" });
         await userEvent.type(split, ";{Enter}");
@@ -350,7 +350,7 @@ export const JoinWorkspaceSharedValue: Story = {
         const modal = await openJoin(context);
         await match(modal, ["shifts", "shift"], ["shifts", "shift"]);
         await joinAs(modal, "Edge between shifts sharing shift");
-        await within(modal).findByRole("combobox", { name: "Hub cap" });
+        await within(modal).findByRole("combobox", { name: "Max nodes per value" });
         await session.styles.settled();
     },
 };

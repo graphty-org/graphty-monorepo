@@ -84,8 +84,8 @@ async function workspace(): Promise<HTMLElement> {
  */
 async function readAs(modal: HTMLElement, name: string): Promise<HTMLElement> {
     await choose(modal, "Source 1", name);
-    const settings = await within(modal).findByRole("group", { name: `Read ${name} as` });
-    await userEvent.click(within(settings).getByRole("button", { name: `Expand Read ${name} as` }));
+    const settings = await within(modal).findByRole("group", { name: `${name} rows` });
+    await userEvent.click(within(settings).getByRole("button", { name: `Expand ${name} rows` }));
     return settings;
 }
 
@@ -127,6 +127,20 @@ describe("a second source arrives staged (source-steps)", () => {
         const list = screen.getByRole("list", { name: "Data sources" });
         assert.isNotNull(within(list).getByRole("listitem", { name: "buildings.csv" }));
         assert.lengthOf(session.data.staged(), 0);
+    });
+
+    it("a waiting source counts rows, open and closed, never nodes", async () => {
+        await withPeopleDropped();
+        const entry = await stage("buildings.csv", BUILDINGS);
+        assert.strictEqual(within(entry).getByLabelText("Rows").textContent, "2");
+        const toggle = entry.querySelector<HTMLElement>("[aria-expanded]");
+        if (toggle !== null) {
+            await userEvent.click(toggle);
+        }
+        await waitFor(() => {
+            const summary = entry.querySelector("[data-testid=control-section-summary]");
+            assert.strictEqual(summary?.textContent, "2 rows");
+        });
     });
 
     it("asks Same person? for visitors.csv where it is added and holds Done until it is answered", async () => {
@@ -204,7 +218,7 @@ describe("a second source arrives staged (source-steps)", () => {
 
         // A New nodes card of the same source leaves the question where it can be answered.
         await userEvent.keyboard("{Shift>}J{/Shift}");
-        await pickSources(modal, "visitors", "New nodes");
+        await pickSources(modal, "visitors", "As new nodes");
         await pickFields(modal, "name", null);
         await joinAs(modal, "Node per name, linked to visitors");
         await waitFor(() => {

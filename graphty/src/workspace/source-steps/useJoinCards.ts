@@ -21,18 +21,22 @@ import {
     type Ignoring,
     ignoringOf,
     type JoinCardView,
+    keyOfSteps,
     linesOfStep,
     matchOf,
     newCard,
     offeredOutcomes,
     type OpenCard,
+    outcomeKey,
     outcomesOf,
     type ReaderCard,
+    remember,
+    rememberedOf,
+    removeSteps,
     resultOf,
     sameMatches,
     sameOutcome,
     sigOf,
-    stepCardId,
     type Suggestion,
     wholeLines,
     writeOutcome,
@@ -79,12 +83,18 @@ export interface JoinCards {
 }
 
 /**
- * What the draft's join steps match and make.
+ * What the draft's join cards match and make.
  * @param draft - the open draft
+ * @param mine - the reader's cards
+ * @param kept - the cards written in this session
  * @returns them
  */
-function sigsNow(draft: SourceDraft): ReadonlySet<string> {
-    return new Set(cardsOf(draft, []).flatMap(({ step }) => (step === null ? [] : [sigOf(step)])));
+function keysNow(
+    draft: SourceDraft,
+    mine: readonly ReaderCard[],
+    kept: ReturnType<typeof rememberedOf>,
+): ReadonlySet<string> {
+    return new Set(cardsOf(draft, mine, kept).flatMap(({ steps }) => (steps.length === 0 ? [] : [keyOfSteps(steps)])));
 }
 
 /**
@@ -101,7 +111,7 @@ function afterMove(
     live: ReadonlySet<string>,
 ): readonly ReaderCard[] {
     return mine.map(({ deleted, ...card }) => {
-        const back = [...card.written.map(({ sig }) => sig), ...card.split].some((sig) => live.has(sig));
+        const back = card.written.some(({ sigs }) => live.has(JSON.stringify(sigs)));
         if (back) {
             return card;
         }
@@ -111,26 +121,18 @@ function afterMove(
 }
 
 /**
- * The reader's cards after one was removed: a written one waits behind its step, which an undo of the
- * removal brings back, and so does the card several steps were split from once the last is gone.
+ * The reader's cards after one was removed: a written one waits behind its steps, which an undo of the
+ * removal brings back.
  * @param mine - the reader's cards
  * @param id - the removed card
- * @param sig - what its step matched and made, or null for a card with none
- * @param left - what the steps left match and make
+ * @param written - whether it had steps
  * @returns the reader's cards
  */
-function afterRemoval(
-    mine: readonly ReaderCard[],
-    id: string,
-    sig: string | null,
-    left: ReadonlySet<string>,
-): readonly ReaderCard[] {
-    if (sig === null) {
+function afterRemoval(mine: readonly ReaderCard[], id: string, written: boolean): readonly ReaderCard[] {
+    if (!written) {
         return mine.filter((each) => each.id !== id);
     }
-    const gone = ({ id: own, split }: ReaderCard): boolean =>
-        own === id || (split.includes(sig) && !split.some((other) => left.has(other)));
-    return mine.map((each) => (gone(each) ? { ...each, deleted: true } : each));
+    return mine.map((each) => (each.id === id ? { ...each, deleted: true } : each));
 }
 
 /**
@@ -157,7 +159,8 @@ export function useJoinCards(
     // on reload: fresh: in flight: the refusal each card last met, drawn on it
     const [errors, setErrors] = useState<JoinCards["errors"]>({});
 
-    const cards = cardsOf(draft, mine);
+    const kept = rememberedOf(session);
+    const cards = cardsOf(draft, mine, kept);
     const asked = new Set(draft.preview().questions.map((question) => question.params.source));
     const addSteps = ownAdds(session, draft, asked);
     const openAdd = addSteps.find((step) => addCardId(step.index) === open);
@@ -170,10 +173,13 @@ export function useJoinCards(
     }, [session, draft, version, selected?.id, selected?.lines]);
     const openCard: OpenCard | undefined =
         selected === undefined || openLines === null ? undefined : { ...selected, lines: openLines };
+    const picked = kept.findLast(
+        (each) => openCard !== undefined && JSON.stringify(each.sigs) === keyOfSteps(openCard.steps),
+    )?.outcome;
     const outcomes = useMemo(
-        () => (openCard === undefined ? [] : outcomesOf(draft, openCard.lines, openCard, openCard.step)),
+        () => (openCard === undefined ? [] : outcomesOf(draft, openCard.lines, openCard, openCard.steps, picked)),
         // eslint-disable-next-line react-hooks/exhaustive-deps -- as above
-        [draft, version, openLines, openCard?.ignoreCase, openCard?.ignoreSpaces, openCard?.step?.index],
+        [draft, version, openLines, openCard?.ignoreCase, openCard?.ignoreSpaces, openCard?.step?.index, picked],
     );
     const suggestions = useMemo(
         () => (openLines === null ? [] : suggestionsOf(draft, openLines)),
@@ -200,17 +206,16 @@ export function useJoinCards(
     const mineOf = (card: OpenCard): ReaderCard => {
         const own = mine.find((each) => each.id === card.id) ?? {
             ...newCard(freshId()),
-            written: card.step === null ? [] : [{ sig: sigOf(card.step), lines: card.lines }],
+            written: card.steps.length === 0 ? [] : [{ sigs: card.steps.map((row) => sigOf(row)), lines: card.lines }],
             at: card.step?.index ?? null,
         };
         return { ...own, lines: card.lines, ...ignoringOf(card) };
     };
-    const save = (next: ReaderCard, more: (each: ReaderCard) => ReaderCard = (each) => each): void => {
+    const save = (next: ReaderCard): void => {
         setMine((now) =>
-            (now.some((each) => each.id === next.id)
+            now.some((each) => each.id === next.id)
                 ? now.map((each) => (each.id === next.id ? next : each))
-                : [...now, next]
-            ).map((each) => more(each)),
+                : [...now, next],
         );
         setOpen(next.id);
     };
@@ -224,24 +229,15 @@ export function useJoinCards(
         calm(card.id);
         calm(next.id);
         try {
-            const rows = writeOutcome(draft, card.step, outcome, result, next);
+            const rows = writeOutcome(draft, card.steps, outcome, result, next);
             // An outcome of some of the lines leaves the others out.
             const whole = wholeLines(next.lines);
             const lines = next.lines.filter(
                 (line) => matchOf(line) === null || outcome.uses.includes(whole.indexOf(line)),
             );
             const sigs = rows.map((row) => sigOf(row));
-            const was = card.step === null ? null : sigOf(card.step);
-            const inherits = (each: ReaderCard): ReaderCard =>
-                was !== null && each.split.includes(was) ? { ...each, split: [...each.split, ...sigs] } : each;
-            const [row, ...others] = rows;
-            if (others.length === 0) {
-                const written = [...next.written, { sig: sigs[0], lines }];
-                save({ ...next, lines, at: row.index, written }, inherits);
-                return;
-            }
-            save({ ...next, lines, at: null, split: [...next.split, ...sigs] }, inherits);
-            setOpen(stepCardId(row.index));
+            remember(session, { sigs, lines, outcome: outcomeKey(outcome) });
+            save({ ...next, lines, at: rows.at(0)?.index ?? null, written: [...next.written, { sigs, lines }] });
         } catch (error) {
             // What was picked stays on the card, beside why it was refused.
             save(next);
@@ -252,9 +248,11 @@ export function useJoinCards(
         card.step === null || current === undefined
             ? { ...DEFAULT_RESULT, ...card.chosen }
             : resultOf(card.step, current);
-    const takeBack = (card: OpenCard, step: SourceStepRow, next: ReaderCard): void => {
+    const takeBack = (card: OpenCard, next: ReaderCard): void => {
         try {
-            draft.removeStep(step.index, { adds: "remove" });
+            draft.batch(() => {
+                removeSteps(draft, card.steps);
+            });
             save({ ...next, at: null });
         } catch (error) {
             refuse(card.id)(error);
@@ -275,7 +273,7 @@ export function useJoinCards(
                       (each) => each.uses.length === wholeLines(lines).length && sameOutcome(each, current),
                   );
         if (again === undefined) {
-            takeBack(card, card.step, next);
+            takeBack(card, next);
         } else {
             write(card, again, resultNow(card), { lines });
         }
@@ -295,32 +293,34 @@ export function useJoinCards(
     };
     const remove = (id: string): void => {
         const card = cards.find((each) => each.id === id);
-        const index = card?.step?.index ?? addSteps.find((step) => addCardId(step.index) === id)?.index;
-        const sig = card?.step === null || card?.step === undefined ? null : sigOf(card.step);
-        if (index !== undefined) {
-            try {
-                // A join's card takes back the sources its join added too, and an added one the joins that
-                // name its nodes.
-                draft.removeStep(index, { adds: "remove" });
-            } catch (error) {
-                refuse(id)(error);
-                return;
+        const added = addSteps.find((step) => addCardId(step.index) === id);
+        const steps = card?.steps ?? (added === undefined ? [] : [added]);
+        try {
+            // A join's card takes back the sources its join added too, and an added one the joins that
+            // name its nodes.
+            if (steps.length > 0) {
+                draft.batch(() => {
+                    removeSteps(draft, steps);
+                });
             }
+        } catch (error) {
+            refuse(id)(error);
+            return;
         }
-        const next = afterRemoval(mine, id, sig, sigsNow(draft));
+        const next = afterRemoval(mine, id, (card?.steps.length ?? 0) > 0);
         setMine(next);
-        const rest = cardsOf(draft, next);
+        const rest = cardsOf(draft, next, kept);
         const at = cards.findIndex((each) => each.id === id);
         select(rest[Math.min(Math.max(at, 0), rest.length - 1)]?.id ?? null);
     };
     const move = (make: () => boolean): void => {
-        const before = cardsOf(draft, mine);
+        const before = cardsOf(draft, mine, kept);
         if (!make()) {
             return;
         }
-        const next = afterMove(mine, before, sigsNow(draft));
+        const next = afterMove(mine, before, keysNow(draft, mine, kept));
         setMine(next);
-        const after = cardsOf(draft, next);
+        const after = cardsOf(draft, next, kept);
         if (openAdd === undefined && !after.some((card) => card.id === open)) {
             const reborn = after.find((card) => !before.some((other) => other.id === card.id));
             setOpen((reborn ?? after.at(-1))?.id ?? null);

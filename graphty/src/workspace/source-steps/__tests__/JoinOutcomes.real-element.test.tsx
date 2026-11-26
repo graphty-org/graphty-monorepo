@@ -104,8 +104,10 @@ interface Case {
     readonly ways: readonly string[];
     /** The way picked. */
     readonly pick: string;
-    /** The card's line in the list, or the lines of the joins it became. */
+    /** The card's line in the list, its sources in the order picked: one card, whatever steps it writes. */
     readonly lines: readonly string[];
+    /** The steps it writes, when more than one. */
+    readonly steps?: number;
     /** The nodes and edges with it drawn. */
     readonly makes: readonly [number, number];
 }
@@ -181,7 +183,7 @@ const CASES: readonly Case[] = [
         ],
         ways: ["Fields of entries on people", "Node per entries row, linked to people"],
         pick: "Node per entries row, linked to people",
-        lines: ["people + entries"],
+        lines: ["entries + people"],
         makes: [7, 3],
     },
     {
@@ -196,7 +198,7 @@ const CASES: readonly Case[] = [
         ],
         ways: ["Fields of supplierother on supplierlist", "Node per supplierother row, linked to supplierlist"],
         pick: "Fields of supplierother on supplierlist",
-        lines: ["supplierlist + supplierother"],
+        lines: ["supplierother + supplierlist"],
         makes: [2, 0],
     },
     {
@@ -215,7 +217,7 @@ const CASES: readonly Case[] = [
         ],
         ways: ["Edge per entries row, people to buildings", "Node per entries row, linked to people and buildings"],
         pick: "Edge per entries row, people to buildings",
-        lines: ["people + buildings + entries"],
+        lines: ["people + entries + buildings"],
         makes: [5, 3],
     },
     {
@@ -234,7 +236,7 @@ const CASES: readonly Case[] = [
         ],
         ways: ["Edge per entries row, people to buildings", "Node per entries row, linked to people and buildings"],
         pick: "Node per entries row, linked to people and buildings",
-        lines: ["people + buildings + entries"],
+        lines: ["people + entries + buildings"],
         makes: [9, 7],
     },
     {
@@ -256,7 +258,7 @@ const CASES: readonly Case[] = [
             "Node per transfers row, linked to accounts by from and to",
         ],
         pick: "Edge per transfers row, accounts to accounts, from -> to",
-        lines: ["accounts + transfers"],
+        lines: ["transfers + accounts"],
         makes: [3, 2],
     },
     {
@@ -278,7 +280,7 @@ const CASES: readonly Case[] = [
             "Node per transfers row, linked to accounts by from and to",
         ],
         pick: "Node per transfers row, linked to accounts by from and to",
-        lines: ["accounts + transfers"],
+        lines: ["transfers + accounts"],
         makes: [5, 4],
     },
     {
@@ -301,7 +303,8 @@ const CASES: readonly Case[] = [
             "Fields of watch on identifiers, matching phone or device",
         ],
         pick: "Fields of watch on identifiers, matching phone or device",
-        lines: ["identifiers + watch, phone", "identifiers + watch, device"],
+        lines: ["identifiers + watch"],
+        steps: 2,
         makes: [4, 0],
     },
     {
@@ -324,7 +327,8 @@ const CASES: readonly Case[] = [
             "Fields of map and expression on network",
         ],
         pick: "Fields of map and expression on network",
-        lines: ["network + map", "network + expression"],
+        lines: ["network + map + expression"],
+        steps: 2,
         makes: [2, 0],
     },
     {
@@ -421,7 +425,7 @@ const CASES: readonly Case[] = [
         matches: [
             [
                 ["people", "tags"],
-                ["New nodes", null],
+                ["As new nodes", null],
             ],
         ],
         ways: ["Node per tags, linked to people"],
@@ -440,7 +444,7 @@ const CASES: readonly Case[] = [
             ],
             [
                 ["entries", "building"],
-                ["New nodes", null],
+                ["As new nodes", null],
             ],
         ],
         ways: [
@@ -462,7 +466,7 @@ const CASES: readonly Case[] = [
             ],
             [
                 ["entries", "building"],
-                ["New nodes", null],
+                ["As new nodes", null],
             ],
         ],
         ways: [
@@ -476,7 +480,7 @@ const CASES: readonly Case[] = [
 ];
 
 describe("a join card's ways to join (source-steps)", () => {
-    it.each(CASES)("$name", async ({ loaded = [], waiting = [], matches, ways, pick, lines, makes }) => {
+    it.each(CASES)("$name", async ({ loaded = [], waiting = [], matches, ways, pick, lines, steps = 1, makes }) => {
         const { session, modal } = await opened(loaded, waiting);
         const [[one, two], ...more] = matches;
         await pickSources(modal, one[0], two[0]);
@@ -488,7 +492,7 @@ describe("a join card's ways to join (source-steps)", () => {
         assert.lengthOf(joinsOf(session), 0, "nothing is applied before one is picked");
         await joinAs(modal, pick);
         await waitFor(() => {
-            assert.lengthOf(joinsOf(session), lines.length);
+            assert.lengthOf(joinsOf(session), steps);
         });
         assert.deepStrictEqual(after(session), makes);
         assert.deepStrictEqual(joinLines(modal), lines);
@@ -501,7 +505,7 @@ describe("a join card's ways to join (source-steps)", () => {
         assert.isNull(within(modal).queryByRole("radio", { checked: true, name: pick }));
         await joinAs(modal, pick);
         await waitFor(() => {
-            assert.lengthOf(joinsOf(session), lines.length);
+            assert.lengthOf(joinsOf(session), steps);
         });
         await done(modal);
         const counts = session.data.statistics({ scope: "all" });
@@ -517,6 +521,15 @@ describe("a join card's ways to join (source-steps)", () => {
             const boxes = [...again.querySelectorAll<HTMLInputElement>(".jw-line input")];
             const shown = boxes.filter((box) => box.type !== "hidden").map((box) => box.value);
             assert.notInclude(shown, "", "every source and field is read back");
+            const source = (at: number, end: 1 | 2): string =>
+                within(again).getByRole<HTMLInputElement>("combobox", {
+                    name: at === 0 ? `Source ${String(end)}` : `Match ${String(at + 1)} source ${String(end)}`,
+                }).value;
+            assert.deepStrictEqual(
+                matches.flatMap((_, at) => [source(at, 1), source(at, 2)]),
+                matches.flatMap(([one, two]) => [one[0], two[0]]),
+                "its sources in the order picked",
+            );
             if (makes[1] > 0) {
                 // An option set on it leaves what it makes, and which way its edges run, as they were.
                 const edges = (): string[] =>
@@ -539,6 +552,22 @@ describe("a join card's ways to join (source-steps)", () => {
         }
     });
 
+    it("the card counts the nodes it matched, which the header's nodes merged need not be", async () => {
+        const { session, modal } = await opened([], ["people", "entries"]);
+        await pickSources(modal, "people", "entries");
+        await pickFields(modal, "person_id", "person");
+        await joinAs(modal, "Fields of people on entries");
+        await newest(session, (step) => step.act?.act === "merge", "people's fields on the entries");
+        const counts = await waitFor(() => {
+            const found = modal.querySelector(".jw-counts");
+            assert.isNotNull(found);
+            return found?.textContent ?? "";
+        });
+        assert.include(counts, "nodes matched", "both wait: the entries are new nodes, which the rows matched");
+        assert.notInclude(counts, "merged");
+        assert.isNotNull(within(modal).getByLabelText("nodes merged 0"), "none of the graph's nodes is merged");
+    });
+
     it("a set of matches no one join reads lists what each makes by itself, and picking one leaves the others out", async () => {
         const { session, modal } = await opened(["staff", "people"], ["entries"]);
         await pickSources(modal, "people", "entries");
@@ -557,7 +586,9 @@ describe("a join card's ways to join (source-steps)", () => {
         await pickSources(modal, "accounts", "identifiers");
         await pickFields(modal, "account", "account_id");
         await joinAs(modal, "Fields of identifiers on accounts");
-        await userEvent.click(within(within(modal).getByRole("radiogroup", { name: "Many rows" })).getByText("List"));
+        await userEvent.click(
+            within(within(modal).getByRole("radiogroup", { name: "Rows per node" })).getByText("List all"),
+        );
         await newest(session, (step) => step.act?.aggregate?.["*"] === "list", "every phone");
         await userEvent.click(within(modal).getByRole("button", { name: "Join" }));
         await pickSources(modal, "accounts", "watch");

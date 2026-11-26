@@ -22,6 +22,7 @@ import { formatNumber } from "../inspector/words";
 /** The fixed labels. */
 export const STAGED_WORDS = {
     file: "File",
+    rows: "Rows",
     rowsAre: "Rows are",
     key: "Key",
     space: "Space",
@@ -112,7 +113,7 @@ export const WORKSPACE_WORDS = {
     waiting: "Waiting",
     inGraph: "In graph",
     nodeTypes: "Node types",
-    newNodes: "New nodes",
+    newNodes: "As new nodes",
     match: "Match",
     matchCount: "Match count",
     matching: "matching",
@@ -128,8 +129,8 @@ export const WORKSPACE_WORDS = {
     show: "Rows shown",
     tables: "Tables",
     merge: "Merge",
-    manyRows: "Many rows",
-    manyRowsByField: "Many rows by field",
+    manyRows: "Rows per node",
+    manyRowsByField: "Rows per node, by field",
     clash: "Both have",
     noMatch: "No match",
     missing: "Missing end",
@@ -139,12 +140,12 @@ export const WORKSPACE_WORDS = {
     skip: "Skip",
     first: "First",
     last: "Last",
-    list: "List",
+    list: "List all",
     count: "Count",
     edges: "Edges",
     perRow: "Per row",
     perPair: "Per pair",
-    untouched: "nodes untouched",
+    untouched: "nodes with no match",
     nodesMerged: "nodes merged",
     nodesNew: "nodes new",
     edgesNew: "edges new",
@@ -178,15 +179,15 @@ export const WORKSPACE_WORDS = {
     includeAll: "Include all",
     addAsIs: "Add as is",
     added: "added",
-    readAs: (name: string) => `Read ${name} as`,
+    readAs: (name: string) => `${name} rows`,
     newType: "New type",
     splitOn: "Split on",
     carry: "Move fields",
     none: "None",
     existing: "Existing edge",
-    hubCap: "Hub cap",
+    hubCap: "Max nodes per value",
     minShared: "Minimum shared",
-    ignore: "Ignore",
+    ignore: "Every match ignores",
 } as const;
 
 /** A profile's kind, as the reader reads it. */
@@ -215,7 +216,7 @@ export function cellWords(value: SourceCellValue): string {
  * @returns such as "+1", or null while on.
  */
 export function moreWords(more: number | null): string | null {
-    return more === null ? null : `+${formatNumber(more)}`;
+    return more === null ? null : `(${formatNumber(more)} more)`;
 }
 
 /** The Join card's Preview and the Before / After chip. */
@@ -275,11 +276,11 @@ const LINK_BUCKETS: readonly BucketWords[] = [
 /** A step's counts a card lists, in order, by what the step makes. */
 export const BUCKET_WORDS: Readonly<Record<"merge" | "edge" | "links" | "nodeLinks", readonly BucketWords[]>> = {
     merge: [
-        { id: "merged", one: "node merged", many: "nodes merged" },
+        { id: "merged", one: "node matched", many: "nodes matched" },
         { id: "keptNew", one: "new node", many: "new nodes" },
-        { id: "untouched", one: "node untouched", many: "nodes untouched" },
+        { id: "untouched", one: "node with no match", many: "nodes with no match" },
         { id: "emptyKey", one: "empty row", many: "empty rows" },
-        { id: "repeated2", one: "repeated key", many: "repeated keys" },
+        { id: "repeated2", one: "value in several rows", many: "values in several rows" },
         { id: "fanOut", one: "matches several", many: "match several" },
         { id: "typeDiffers", one: "type differs", many: "types differ" },
         { id: "namedOnly", one: "named only", many: "named only" },
@@ -291,7 +292,7 @@ export const BUCKET_WORDS: Readonly<Record<"merge" | "edge" | "links" | "nodeLin
         { id: "newNodes", one: "new node", many: "new nodes" },
         { id: "newEdges", one: "new edge", many: "new edges" },
         { id: "mergedEdges", one: "edge merged", many: "edges merged" },
-        { id: "repeated2", one: "repeated key", many: "repeated keys" },
+        { id: "repeated2", one: "value in several rows", many: "values in several rows" },
         { id: "fanOut", one: "matches several", many: "match several" },
         { id: "parallelPairs", one: "parallel edge", many: "parallel edges" },
         { id: "selfLoops", one: "self-loop", many: "self-loops" },

@@ -18,7 +18,7 @@ import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { commitWorkspace } from "./actions";
 import { nameOf, namingLines, rowNames, sideChoices, type SourceNames, sourceNames, spaceName } from "./cardWords";
 import { JoinCardBody, RemoveButton } from "./JoinCard";
-import { isHalf, type JoinCardView, type OpenCard } from "./joinCards";
+import { cardsOf, isHalf, type JoinCardView, type OpenCard, rememberedOf, removeSteps } from "./joinCards";
 import { JoinHead, JoinKey } from "./JoinHead";
 import { JoinList, type JoinListRow } from "./JoinList";
 import { JoinPane, type Picked, type RowsView, type TableShows } from "./JoinPane";
@@ -173,7 +173,7 @@ function useCardColors(
         }
         const all = draft.steps();
         const steps = cards.flatMap((card, at) =>
-            stepsOf(all, card.step).map((step) => ({ step, color: colorOf(at) })),
+            stepsOf(all, card.steps).map((step) => ({ step, color: colorOf(at) })),
         );
         const shown = session.styles.showDraft({
             merged: MERGED_COLOR,
@@ -401,7 +401,7 @@ function listRows(
     const named = rowNames(
         session,
         names,
-        joins.cards.map((card) => namingLines(steps, card)),
+        joins.cards.map((card) => namingLines(session, steps, card)),
     );
     const rows = [
         ...joins.addSteps.map((step) => ({
@@ -746,10 +746,16 @@ function JoinWorkspace({
             const out = opening
                 .preview()
                 .steps.find((step) => step.committed !== null && step.committed === how.without);
-            if (out !== undefined) {
-                opening.removeStep(out.index, { adds: "remove" });
+            const group = cardsOf(opening, [], rememberedOf(session)).find((card) =>
+                card.steps.some((step) => step.index === out?.index),
+            );
+            if (group !== undefined) {
+                // The join's card goes whole: every step it wrote.
+                opening.batch(() => {
+                    removeSteps(opening, group.steps);
+                });
             }
-            setOpened({ draft: opening, first: firstCards(opening, how, adopted !== null) });
+            setOpened({ draft: opening, first: firstCards(session, opening, how, adopted !== null) });
             // The draft holds it from here: a reload opens the workspace on the draft as it is.
             store.set({ joinWorkspace: {} });
         } catch (error) {

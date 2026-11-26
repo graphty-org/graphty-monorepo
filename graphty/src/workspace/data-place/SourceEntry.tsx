@@ -1,6 +1,6 @@
-import { ContextMenu, ControlSection, Popout, PopoutManager } from "@graphty/compact-mantine";
+import { ContextMenu, ControlSection, FieldRow, Popout, PopoutManager } from "@graphty/compact-mantine";
 import type { LoadedSource } from "@graphty/graphty-element/session";
-import { ActionIcon, Badge, Button, Menu, Tooltip } from "@mantine/core";
+import { ActionIcon, Badge, Button, Menu, Text, Tooltip } from "@mantine/core";
 import React, { useState } from "react";
 
 import type { SourceRowCommand } from "../commands/registry";
@@ -402,7 +402,8 @@ export function StagedEntry({
     );
     const name = sourceName(source);
     const { tables } = session.data.sourceTable(source.key).summary();
-    const rows = (table: "nodes" | "edges"): number => tables.find((each) => each.table === table)?.rows ?? 0;
+    // One row is read as a node, an edge or both: each table holds every row it reads.
+    const rows = Math.max(0, ...tables.map((each) => each.rows));
     return (
         <EntryFrame
             name={name}
@@ -413,7 +414,7 @@ export function StagedEntry({
             <ControlSection
                 label={name}
                 headingLevel={3}
-                summary={stagedCountWords(rows("nodes"), rows("edges"))}
+                summary={stagedCountWords(rows)}
                 opened={opened}
                 onOpenChange={onOpenChange}
                 actions={
@@ -422,6 +423,14 @@ export function StagedEntry({
                     </span>
                 }
             >
+                <FieldRow>
+                    <Text size="xs" truncate>
+                        {STAGED_WORDS.rows}
+                    </Text>
+                    <Text size="xs" aria-label={STAGED_WORDS.rows}>
+                        {formatNumber(rows)}
+                    </Text>
+                </FieldRow>
                 <StagedRows
                     session={session}
                     reader={session.data}

@@ -26,6 +26,7 @@ import {
     NO_END,
     type OpenCard,
     type ReaderCard,
+    rememberedOf,
     sameMatches,
     sameSide,
     sideOfSpace,
@@ -69,20 +70,19 @@ export function ownAdds(session: GraphSession, draft: SourceDraft, asked: Readon
 }
 
 /**
- * The places of a card's step and of the adds its join made for itself, which come just before it.
+ * The places of a card's steps and of the adds its join made for itself, which come just before each.
  * @param all - the draft's steps
- * @param step - the card's step, if it has one
+ * @param steps - the card's steps
  * @returns the places
  */
-export function stepsOf(all: readonly SourceStepRow[], step: SourceStepRow | null): readonly number[] {
-    if (step === null) {
-        return [];
-    }
-    const places = [step.index];
-    for (let at = step.index - 1; at >= 0 && all[at].op === "join.add" && all[at].joined === true; at--) {
-        places.unshift(at);
-    }
-    return places;
+export function stepsOf(all: readonly SourceStepRow[], steps: readonly SourceStepRow[]): readonly number[] {
+    return steps.flatMap((step) => {
+        const places = [step.index];
+        for (let at = step.index - 1; at >= 0 && all[at].op === "join.add" && all[at].joined === true; at--) {
+            places.unshift(at);
+        }
+        return places;
+    });
 }
 
 /**
@@ -104,17 +104,19 @@ function firstLines(draft: SourceDraft, how: JoinWorkspaceOpen): readonly CardLi
 /**
  * What the workspace opens on: the card it was opened for, the last card of a draft it picks up, or a
  * new one.
+ * @param session - the element's session
  * @param draft - the open draft
  * @param how - how it opened
  * @param adopted - whether the draft was open already
  * @returns the reader's cards, and the selected one
  */
 export function firstCards(
+    session: GraphSession,
     draft: SourceDraft,
     how: JoinWorkspaceOpen,
     adopted: boolean,
 ): { readonly mine: readonly ReaderCard[]; readonly open: string | null } {
-    const made = cardsOf(draft, []);
+    const made = cardsOf(draft, [], rememberedOf(session));
     const held = draft.preview().steps.find((step) => step.committed === how.step);
     if (how.step !== undefined && held !== undefined) {
         return { mine: [], open: stepCardId(held.index) };

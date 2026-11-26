@@ -127,8 +127,8 @@ describe("the founding example through the app (source-steps)", () => {
         assert.strictEqual(session.data.nodes().length, 2, "a staged source draws nothing");
         let modal = await joinPlus();
         await choose(modal, "Source 1", "people");
-        let settings = await within(modal).findByRole("group", { name: "Read people as" });
-        await userEvent.click(within(settings).getByRole("button", { name: "Expand Read people as" }));
+        let settings = await within(modal).findByRole("group", { name: "people rows" });
+        await userEvent.click(within(settings).getByRole("button", { name: "Expand people rows" }));
         await typeInto(settings, "Type", "person");
         await waitFor(() => {
             const key = session.data.staged()[0]?.key ?? "";
@@ -224,8 +224,8 @@ describe("the founding example through the app (source-steps)", () => {
         await stage("visitors.csv", VISITORS);
         modal = await joinPlus();
         await choose(modal, "Source 1", "visitors");
-        settings = await within(modal).findByRole("group", { name: "Read visitors as" });
-        await userEvent.click(within(settings).getByRole("button", { name: "Expand Read visitors as" }));
+        settings = await within(modal).findByRole("group", { name: "visitors rows" });
+        await userEvent.click(within(settings).getByRole("button", { name: "Expand visitors rows" }));
         await typeInto(settings, "Type", "person");
         await waitFor(() => {
             const key = session.data.staged()[0]?.key ?? "";

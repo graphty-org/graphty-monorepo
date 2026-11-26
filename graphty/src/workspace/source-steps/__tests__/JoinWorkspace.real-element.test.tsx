@@ -196,9 +196,9 @@ describe("the join workspace (source-steps)", () => {
         await waitFor(() => {
             assert.strictEqual(merge()?.act?.repeated ?? "first", "first");
         });
-        const many = await within(modal).findByRole("radiogroup", { name: "Many rows" });
+        const many = await within(modal).findByRole("radiogroup", { name: "Rows per node" });
         for (const [label, repeated] of [
-            ["List", "list"],
+            ["List all", "list"],
             ["Last", "last"],
             ["Count", "count"],
         ] as const) {
@@ -206,10 +206,9 @@ describe("the join workspace (source-steps)", () => {
             await waitFor(() => {
                 assert.strictEqual(merge()?.act?.repeated, repeated, `${label} is the element's ${repeated}`);
                 assert.isTrue(
-                    within(within(modal).getByRole("radiogroup", { name: "Many rows" })).getByRole<HTMLInputElement>(
-                        "radio",
-                        { name: label },
-                    ).checked,
+                    within(
+                        within(modal).getByRole("radiogroup", { name: "Rows per node" }),
+                    ).getByRole<HTMLInputElement>("radio", { name: label }).checked,
                     `the step reads back on ${label}`,
                 );
             });
@@ -402,14 +401,14 @@ describe("the join workspace (source-steps)", () => {
             "doors",
             "the source keeps its name after the step adds it",
         );
-        assert.deepStrictEqual(joinLines(modal), ["people + doors + entries"], "in the order loaded");
+        assert.deepStrictEqual(joinLines(modal), ["people + entries + doors"], "in the order picked");
         assert.notInclude(modal.textContent ?? "", "source:", "no space id is shown");
     });
 
     it("a refused write is drawn on its card, not behind the modal", async () => {
         const { store, modal } = await opened();
         await pickSources(modal, "people", "entries");
-        await userEvent.click(within(modal).getByRole("button", { name: "Expand Read entries as" }));
+        await userEvent.click(within(modal).getByRole("button", { name: "Expand entries rows" }));
         // A reserved space.
         await userEvent.fill(within(modal).getByRole("combobox", { name: "Space" }), "graph:x");
         await userEvent.keyboard("{Enter}");
@@ -420,7 +419,7 @@ describe("the join workspace (source-steps)", () => {
     it("never offers rows as nodes in the space they would connect to", async () => {
         const { modal } = await opened();
         await pickSources(modal, "people", "entries");
-        await userEvent.click(within(modal).getByRole("button", { name: "Expand Read entries as" }));
+        await userEvent.click(within(modal).getByRole("button", { name: "Expand entries rows" }));
         await userEvent.fill(within(modal).getByRole("combobox", { name: "Space" }), "person");
         await userEvent.keyboard("{Enter}");
         await pickFields(modal, "badge", "badge");
@@ -430,7 +429,7 @@ describe("the join workspace (source-steps)", () => {
     it("door entries read as edges connect a person to the door each names, one edge per entry", async () => {
         const { session, modal } = await opened(false, { name: "doors.csv", text: "door,name\nD1,North\nD2,South" });
         await pickSources(modal, "people", "entries");
-        await userEvent.click(within(modal).getByRole("button", { name: "Expand Read entries as" }));
+        await userEvent.click(within(modal).getByRole("button", { name: "Expand entries rows" }));
         const rows = within(modal).getByRole("radiogroup", { name: "Rows are" });
         await userEvent.click(within(rows).getByText("Edges"));
         await choose(modal, "From", "badge");
@@ -454,7 +453,9 @@ describe("the join workspace (source-steps)", () => {
             assert.isTrue(merged().some((row) => row.op === "join.merge"));
         });
         assert.strictEqual(merged().at(-1)?.act?.unmatchedFrom, "drop", "Skip to start with");
-        await userEvent.click(within(within(modal).getByRole("radiogroup", { name: "Many rows" })).getByText("Last"));
+        await userEvent.click(
+            within(within(modal).getByRole("radiogroup", { name: "Rows per node" })).getByText("Last"),
+        );
         await waitFor(() => {
             assert.strictEqual(merged().at(-1)?.act?.repeated, "last");
         });
@@ -504,6 +505,22 @@ describe("the join workspace (source-steps)", () => {
             assert.isTrue(edges(), "Undo brings the step back");
         });
         assert.deepStrictEqual(joinLines(modal), ["people + entries"]);
+    });
+
+    it("a reopened card keeps its sources in the order picked, not the order loaded", async () => {
+        const { session, modal } = await opened();
+        await pickSources(modal, "entries", "people");
+        await pickFields(modal, "badge", "badge");
+        await joinAs(modal, FIELDS);
+        await newest(session, (row) => row.act?.act === "merge", "written");
+        assert.deepStrictEqual(joinLines(modal), ["entries + people"]);
+        await done(modal);
+        const again = await openJoins();
+        assert.deepStrictEqual(joinLines(again), ["entries + people", "New join"]);
+        await selectJoin(again, "entries + people");
+        await within(again).findByRole("radio", { checked: true, name: FIELDS });
+        const value = (name: string): string => within(again).getByRole<HTMLInputElement>("combobox", { name }).value;
+        assert.deepStrictEqual([value("Source 1"), value("Source 2")], ["entries", "people"]);
     });
 
     it("draws two cards for two joins from one source", async () => {

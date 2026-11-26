@@ -202,7 +202,10 @@ export function joinLines(modal: HTMLElement): string[] {
     const list = within(modal).queryByRole("grid", { name: "Joins" });
     return list === null
         ? []
-        : [...list.querySelectorAll("[data-id]")].map((row) => row.querySelector(".cm-page-name")?.textContent ?? "");
+        : [...list.querySelectorAll("[data-id]")].map(
+              (row) =>
+                  `${row.querySelector(".cm-page-name")?.textContent ?? ""}${row.querySelector("[data-rest]")?.textContent ?? ""}`,
+          );
 }
 
 /**

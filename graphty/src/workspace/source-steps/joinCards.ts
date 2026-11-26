@@ -104,23 +104,65 @@ export interface ReaderCard extends Ignoring {
     /** The options the reader set, which the step it next writes takes. */
     readonly chosen: Partial<CardResult>;
     /**
-     * The steps it wrote, by what they match: while one of them is in the draft the card is that step's,
-     * with the lines as the reader had them; once undo takes them back the card is drawn again.
+     * The steps it wrote, by what they match: while they are in the draft the card is theirs, with the
+     * lines as the reader had them; once undo takes them back the card is drawn again.
      */
-    readonly written: readonly { readonly sig: string; readonly lines: readonly CardLine[] }[];
-    /** The place of the step it last wrote. */
+    readonly written: readonly Written[];
+    /** The place of the first step it last wrote. */
     readonly at: number | null;
-    /** The several steps it became, each drawn as a card of its own. */
-    readonly split: readonly string[];
     /** The reader removed its step: it is drawn again only once an undo brings the step back. */
     readonly deleted?: true;
+}
+
+/** What a card wrote: what its steps match and make, in step order, and its lines as the reader had them. */
+export interface Written {
+    readonly sigs: readonly string[];
+    readonly lines: readonly CardLine[];
+}
+
+/** A card as it was last written in this session, which a card reopened on its steps reads back. */
+export interface Remembered extends Written {
+    /** The way to join picked, by `outcomeKey`. */
+    readonly outcome: string;
+}
+
+/**
+ * The cards written in each session. A way to join of several acts writes several steps, and the
+ * element reads a step back as one join of its own: the steps a card wrote are kept together here, and
+ * the order its sources were picked in, which no step holds.
+ * Temporary, for a graphty-element gap: `draft.steps()` and `joinOutcomes({ step })` cannot say which
+ * steps one way to join wrote, nor the order its ends were picked in, so a project reopened from a file
+ * reads such a card back as one card per step, in load order. Once the element reads back the steps one
+ * outcome wrote as one join, this goes.
+ */
+const REMEMBERED = new WeakMap<GraphSession, Remembered[]>();
+
+/**
+ * The cards written in a session, oldest first.
+ * @param session - The element's session.
+ * @returns Them.
+ */
+export function rememberedOf(session: GraphSession): readonly Remembered[] {
+    return REMEMBERED.get(session) ?? [];
+}
+
+/**
+ * Keeps a card as written.
+ * @param session - The element's session.
+ * @param card - The card.
+ */
+export function remember(session: GraphSession, card: Remembered): void {
+    const key = JSON.stringify(card.sigs);
+    REMEMBERED.set(session, [...rememberedOf(session).filter((each) => JSON.stringify(each.sigs) !== key), card]);
 }
 
 /** One card as the workspace draws it. */
 export interface JoinCardView extends Ignoring {
     readonly id: string;
-    /** The draft step it is, or null for a card with no outcome picked. */
+    /** The first draft step it is, or null for a card with no outcome picked. */
     readonly step: SourceStepRow | null;
+    /** Every step it is, in order: one, or several for a way to join of several acts. */
+    readonly steps: readonly SourceStepRow[];
     /** Its lines; null for a step not opened in this workspace yet. */
     readonly lines: readonly CardLine[] | null;
     readonly chosen: Partial<CardResult>;
@@ -142,7 +184,7 @@ export interface Suggestion {
  * @returns The card.
  */
 export function newCard(id: string, lines: readonly CardLine[] = [BLANK_LINE]): ReaderCard {
-    return { id, lines, ignoreCase: false, ignoreSpaces: false, chosen: {}, written: [], at: null, split: [] };
+    return { id, lines, ignoreCase: false, ignoreSpaces: false, chosen: {}, written: [], at: null };
 }
 
 /**
@@ -181,54 +223,104 @@ export function sigOf(row: SourceStepRow): string {
 }
 
 /**
+ * What a card's steps match and make, as one key.
+ * @param steps - The steps.
+ * @returns The key.
+ */
+export function keyOfSteps(steps: readonly SourceStepRow[]): string {
+    return JSON.stringify(steps.map((row) => sigOf(row)));
+}
+
+/**
+ * The join steps as cards draw them: one step each, but the steps one card wrote together stay one.
+ * @param rows - The join steps, in order.
+ * @param together - What the steps of each card written together match and make.
+ * @returns The steps of each card, in order.
+ */
+export function stepGroups(
+    rows: readonly SourceStepRow[],
+    together: readonly (readonly string[])[],
+): readonly (readonly SourceStepRow[])[] {
+    const used = new Set<number>();
+    return rows.flatMap((row) => {
+        if (used.has(row.index)) {
+            return [];
+        }
+        const free = rows.filter((each) => !used.has(each.index));
+        const find = (sig: string): SourceStepRow[] => free.filter((each) => sigOf(each) === sig).slice(0, 1);
+        const sig = sigOf(row);
+        const kept = together.find(
+            (sigs) => sigs.length > 1 && sigs[0] === sig && sigs.every((each) => find(each).length === 1),
+        );
+        const group = kept === undefined ? [row] : kept.flatMap((each) => find(each));
+        for (const each of group) {
+            used.add(each.index);
+        }
+        return [group];
+    });
+}
+
+/**
  * The cards of a draft's join steps, in step order, then the cards with no step.
  * @param draft - The open draft.
  * @param mine - The reader's cards.
+ * @param kept - The cards written in this session.
  * @returns The cards.
  */
-export function cardsOf(draft: SourceDraft, mine: readonly ReaderCard[]): JoinCardView[] {
+export function cardsOf(
+    draft: SourceDraft,
+    mine: readonly ReaderCard[],
+    kept: readonly Remembered[] = [],
+): JoinCardView[] {
     const rows = draft.steps().filter((row) => isJoin(row));
-    const sigs = new Map(rows.map((row) => [row.index, sigOf(row)]));
+    const groups = stepGroups(rows, [
+        ...mine.flatMap((card) => card.written.map((each) => each.sigs)),
+        ...kept.map((each) => each.sigs),
+    ]);
+    const keys = new Map(groups.map((group) => [group[0].index, keyOfSteps(group)]));
+    const wrote = (card: ReaderCard, key: string | undefined): Written | undefined =>
+        card.written.findLast((each) => JSON.stringify(each.sigs) === key);
     const taken = new Map<number, ReaderCard>();
     for (const card of mine) {
-        const own = rows.filter(
-            (row) =>
-                card.deleted !== true &&
-                !taken.has(row.index) &&
-                card.written.some((each) => each.sig === sigs.get(row.index)),
+        const own = groups.filter(
+            ([row]) => card.deleted !== true && !taken.has(row.index) && wrote(card, keys.get(row.index)) !== undefined,
         );
-        const row = own.find((each) => each.index === card.at) ?? own.at(-1);
-        if (row !== undefined) {
-            taken.set(row.index, card);
+        const group = own.find(([each]) => each.index === card.at) ?? own.at(-1);
+        if (group !== undefined) {
+            taken.set(group[0].index, card);
         }
     }
-    const steps = rows.map((row): JoinCardView => {
+    const steps = groups.map((group): JoinCardView => {
+        const [row] = group;
+        const key = keys.get(row.index);
         const card = taken.get(row.index);
         const on = {
             ignoreCase: (row.act ?? row.link)?.ignoreCase === true,
             ignoreSpaces: (row.act ?? row.link)?.ignoreSpaces === true,
         };
         if (card === undefined) {
-            return { id: stepCardId(row.index), step: row, lines: null, chosen: {}, ...on };
+            // Reopened: as the reader last wrote it, else as its step reads back.
+            const lines = kept.findLast((each) => JSON.stringify(each.sigs) === key)?.lines ?? null;
+            return { id: stepCardId(row.index), step: row, steps: group, lines, chosen: {}, ...on };
         }
-        const was = card.written.findLast((each) => each.sig === sigs.get(row.index))?.lines ?? card.lines;
+        const was = wrote(card, key)?.lines ?? card.lines;
         const lines = sameMatches(card.lines, was) ? card.lines : was;
-        return { id: card.id, step: row, lines, chosen: card.chosen, ...on };
+        return { id: card.id, step: row, steps: group, lines, chosen: card.chosen, ...on };
     });
     const drawn = new Set([...taken.values()].map((card) => card.id));
-    const live = new Set(sigs.values());
+    const live = new Set(keys.values());
     const rest = mine.filter(
         (card) =>
             card.deleted !== true &&
             !drawn.has(card.id) &&
-            !card.written.some((each) => live.has(each.sig)) &&
-            !card.split.some((sig) => live.has(sig)),
+            !card.written.some((each) => live.has(JSON.stringify(each.sigs))),
     );
     return [
         ...steps,
         ...rest.map(({ id, lines, chosen, ignoreCase, ignoreSpaces }) => ({
             id,
             step: null,
+            steps: [],
             lines,
             chosen,
             ignoreCase,
@@ -455,16 +547,25 @@ export function offeredOutcomes(
  * @param draft - The open draft.
  * @param lines - Its lines.
  * @param on - How it compares values.
- * @param step - The step it is, if it is one.
+ * @param steps - The steps it is.
+ * @param picked - For a card of several steps, the way it was written, by `outcomeKey`.
  * @returns The outcomes.
  */
 export function outcomesOf(
     draft: SourceDraft,
     lines: readonly CardLine[],
     on: Ignoring,
-    step: SourceStepRow | null,
+    steps: readonly SourceStepRow[],
+    picked?: string,
 ): readonly SourceJoinOutcome[] {
+    const step = steps.at(0) ?? null;
     const found = offeredOutcomes(draft, lines, on, step);
+    if (steps.length > 1) {
+        // The element reads one step back as its own join: a card of several is on the way it was written.
+        return found.map(({ current: _current, ...each }) =>
+            outcomeKey(each) === picked ? { ...each, current: true as const } : each,
+        );
+    }
     return step === null || found.some((each) => each.current === true)
         ? found
         : [...found, ...draft.joinOutcomes({ step: step.index }).outcomes.filter((each) => each.current === true)];
@@ -926,10 +1027,21 @@ function make(draft: SourceDraft, act: SourceJoinAct): void {
 }
 
 /**
- * Write an outcome into the draft as one undo entry: a new card's acts at the end, a step card's act in
- * its step's place.
+ * Take steps out of the draft, the last first, so each earlier place still holds.
  * @param draft - The open draft.
- * @param step - The step the card is, or null.
+ * @param steps - The steps, in order.
+ */
+export function removeSteps(draft: SourceDraft, steps: readonly SourceStepRow[]): void {
+    for (const each of steps.toReversed()) {
+        draft.removeStep(each.index, { adds: "remove" });
+    }
+}
+
+/**
+ * Write an outcome into the draft as one undo entry: a new card's acts at the end, a one-step card's act
+ * in its step's place.
+ * @param draft - The open draft.
+ * @param steps - The steps the card is.
  * @param outcome - The outcome.
  * @param result - The card's options.
  * @param on - How it compares values.
@@ -937,14 +1049,15 @@ function make(draft: SourceDraft, act: SourceJoinAct): void {
  */
 export function writeOutcome(
     draft: SourceDraft,
-    step: SourceStepRow | null,
+    steps: readonly SourceStepRow[],
     outcome: SourceJoinOutcome,
     result: CardResult,
     on: Ignoring,
 ): readonly SourceStepRow[] {
+    const step = steps.at(0) ?? null;
     const acts = outcome.acts.map((act) => actWith(act, { outcome, result, on, step }));
     const [only] = acts;
-    if (step !== null && acts.length === 1) {
+    if (step !== null && steps.length === 1 && acts.length === 1) {
         const before = draft.steps().length;
         draft.replaceStep(step.index, only);
         // A staged source the act adds, or no longer needs, comes just before its step.
@@ -952,9 +1065,7 @@ export function writeOutcome(
         return steps.slice(step.index + steps.length - before).slice(0, 1);
     }
     draft.batch(() => {
-        if (step !== null) {
-            draft.removeStep(step.index, { adds: "remove" });
-        }
+        removeSteps(draft, steps);
         for (const act of acts) {
             make(draft, act);
         }

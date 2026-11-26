@@ -32,10 +32,10 @@ import {
 
 /** The per-column ways a merge step reduces a column's rows when one node takes several. */
 const REDUCE_CHOICES: readonly { readonly value: JoinReduce; readonly label: string }[] = [
-    { value: "first", label: "First" },
-    { value: "last", label: "Last" },
-    { value: "list", label: "List" },
-    { value: "count", label: "Count" },
+    { value: "first", label: WORKSPACE_WORDS.first },
+    { value: "last", label: WORKSPACE_WORDS.last },
+    { value: "list", label: WORKSPACE_WORDS.list },
+    { value: "count", label: WORKSPACE_WORDS.count },
     { value: "sum", label: "Sum" },
     { value: "min", label: "Min" },
     { value: "max", label: "Max" },

@@ -53,7 +53,7 @@ export function DraftEffects({
     const lines = rowNames(
         session,
         names,
-        joins.map((step) => namingLines(committed, { lines: null, step })),
+        joins.map((step) => namingLines(session, committed, { lines: null, step })),
     );
     const named = ({ index, source }: { readonly index: number; readonly source: string }): string =>
         lines[joins.findIndex((step) => step.index === index)] ?? nameOf(names, source);

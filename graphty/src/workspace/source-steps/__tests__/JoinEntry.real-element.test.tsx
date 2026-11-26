@@ -16,7 +16,17 @@ import { page, userEvent } from "vitest/browser";
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import type { WorkspaceStore } from "../../state/store";
-import { done, drop, emptyProject, joinLines } from "./sourceSteps";
+import {
+    addMatch,
+    done,
+    drop,
+    emptyProject,
+    joinAs,
+    joinLines,
+    openJoins,
+    pickFields,
+    pickSources,
+} from "./sourceSteps";
 
 withFeatures(["source-steps"]);
 
@@ -117,6 +127,39 @@ describe("the doors into the join workspace (source-steps)", () => {
         await userEvent.click(await screen.findByRole("menuitem", { name: "Open" }));
         modal = await screen.findByRole("dialog", { name: "Join" });
         await within(modal).findByRole("radio", { name: "Node per entries row, linked to people", checked: true });
+    });
+
+    it("a card of three sources is one line, its first two named and +1, its whole name on hover and to a reader", async () => {
+        const { session } = await foundingProject();
+        drop("doors.csv", "door,name\nD1,North\nD2,South");
+        await screen.findByRole("listitem", { name: "doors.csv" });
+        const modal = await openJoins();
+        await pickSources(modal, "people", "entries");
+        await pickFields(modal, "badge", "badge");
+        await addMatch(modal, 2, ["entries", "door"], ["doors", "door"]);
+        const fields = "Fields of entries and doors on people";
+        await joinAs(modal, fields);
+        await waitFor(() => {
+            assert.isAbove(
+                session.data
+                    .currentDraft()
+                    ?.steps()
+                    .filter((row) => row.act !== null).length ?? 0,
+                1,
+            );
+        });
+        assert.deepStrictEqual(joinLines(modal), ["people + entries + doors"], "one card, several steps");
+        await done(modal);
+        const place = await screen.findByRole("region", { name: "Data place" });
+        const grid = await within(place).findByRole("grid", { name: "Joins" });
+        assert.deepStrictEqual(joinLines(place), ["people + entries + doors"], "one line, in the order picked");
+        assert.strictEqual(grid.querySelector(".cm-page-name")?.textContent, "people + entries");
+        assert.include(grid.textContent ?? "", "+1");
+        const cell = within(grid).getByRole("gridcell", { name: "people + entries + doors" });
+        await userEvent.click(cell);
+        const again = await screen.findByRole("dialog", { name: "Join" });
+        assert.deepStrictEqual(joinLines(again), ["people + entries + doors"], "it reopens as that one card");
+        await within(again).findByRole("radio", { name: fields, checked: true });
     });
 
     it("its menu's Remove opens the workspace with the join taken out, and Done takes it out in one step", async () => {

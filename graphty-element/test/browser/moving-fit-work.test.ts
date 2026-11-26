@@ -68,13 +68,12 @@ async function workWhileMoving(element: Graphty, fits: number): Promise<number[]
     const { graph } = element;
     const layout = graph.getLayoutManager();
     const work: number[] = [];
-    let first = true;
+    takeWork();
     await new Promise<void>((resolve) => {
         const off = graph.on("zoom-to-fit-complete", () => {
-            // The first fit of a new layout is asked for; the settling one comes at rest.
+            // Every fit while the layout moves, the first one the new layout asks for included.
             const counted = takeWork();
-            if (first || layout.layoutEngine?.isSettled !== false || !layout.running) {
-                first = false;
+            if (layout.layoutEngine?.isSettled !== false || !layout.running) {
                 return;
             }
 
@@ -94,10 +93,18 @@ for (const path of ["objects", "batched"] as const) {
         it("does the same work at four times the nodes", async () => {
             await assertScalesLinearly(
                 async (count) => {
-                    const work = await workWhileMoving(await mounted(path, count), 3);
+                    const element = await mounted(path, count);
+                    const work = await workWhileMoving(element, 3);
+                    // The counters are shared: a graph left running would add its fits to the next size's.
+                    element.remove();
                     return Math.max(...work);
                 },
-                { sizes: [150, 600], growth: "constant", counter: "nodes and corners walked by one moving fit" },
+                {
+                    sizes: [150, 600],
+                    growth: "constant",
+                    maxRatio: 1.25,
+                    counter: "nodes and corners walked by one moving fit",
+                },
             );
         });
     });

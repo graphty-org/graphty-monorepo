@@ -5998,9 +5998,9 @@ export class UpdateManager implements Manager {
         if (sphere !== null && active instanceof OrbitCameraController) {
             this.frameGlobe(active, box, sphere, frame?.surface === "globe" && frame.world);
         } else {
-            // A layout still moving is framed again on a later frame; only a fit asked for, or the one it settles
-            // on, centers over every node (issue #10154).
-            const moving = this.layoutManager.running && !isSettled && !this.forceZoomToFit && !this.explicitZoomToFit;
+            // A layout still moving is framed again on a later frame, the element's own first fit of it included;
+            // only a consumer's zoomToFit(), or the fit it settles on, centers over every node (issue #10154).
+            const moving = this.layoutManager.running && !isSettled && this.needsZoomToFit && !this.explicitZoomToFit;
             framed = this.frameBox(box, frame, moving);
         }
 

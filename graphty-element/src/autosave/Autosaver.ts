@@ -43,6 +43,7 @@ import {
     inputsOf,
     type PartTag,
     PartTooLarge,
+    preparedOf,
     reassemble,
     sourceDraftOf,
     stashOf,
@@ -617,6 +618,15 @@ export class Autosaver {
             };
             drafts.changed.add(changed);
             this.#stops.push(() => drafts.changed.delete(changed));
+        }
+        // And the draft data.prepare handed back, which a page shows a join screen for (issue #9846).
+        const prepared = (session.data as Partial<Pick<SessionData, "preparedChanged">>).preparedChanged;
+        if (prepared !== undefined) {
+            const changed = (): void => {
+                this.#mark(["drafts"], false, false);
+            };
+            prepared.add(changed);
+            this.#stops.push(() => prepared.delete(changed));
         }
         // So is an open draft of the sources and steps.
         this.#stops.push(
@@ -1610,6 +1620,7 @@ export class Autosaver {
         let drafts: SavedFilterDraft[];
         let sourceDraft: SavedSourceDraft | null;
         let inputs: ReturnType<typeof inputsOf>;
+        let prepared: ReturnType<typeof preparedOf>;
         let sizes: Map<string, number>;
         try {
             // A whole entry, so the write watchdog's allowance rather than the listing's.
@@ -1625,6 +1636,7 @@ export class Autosaver {
                 drafts = draftsOf(entry.parts);
                 sourceDraft = sourceDraftOf(entry.parts);
                 inputs = inputsOf(entry.parts);
+                prepared = preparedOf(entry.parts);
                 sizes = sizesAfter(new Map(), entry.parts);
             } catch {
                 return giveUp({ code: "E_BAD_DOCUMENT", params: { id: meta.id } });
@@ -1736,6 +1748,12 @@ export class Autosaver {
             !(await (sourceDraftHooks(this.#session.data)
                 ?.reopen(sourceDraft)
                 .catch(() => false) ?? false));
+        // The draft prepared before the reload, read again for the page to reopen its screen (issue #9846).
+        if (prepared !== null) {
+            await (this.#session.data as Partial<Pick<SessionData, "reopenPrepared">>)
+                .reopenPrepared?.(prepared)
+                .catch(() => undefined);
+        }
         if (dropped.length > 0 || sourceDropped) {
             report = {
                 ...report,

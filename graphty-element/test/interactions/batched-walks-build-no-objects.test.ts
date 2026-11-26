@@ -117,23 +117,46 @@ describe.each(["batched", "objects"] as const)("internal walks on %s", (path) =>
         }
     });
 
-    it("a scoped layout built over an empty graph holds the rest once nodes arrive, building no Node on batched", async () => {
-        const el = await element(path);
-        // A carried scope over an empty graph is kept, its members owed until nodes arrive.
-        await el.graph.setLayoutScope({ nodes: MEMBERS });
-        await el.graph.setLayout("ngraph", { seed: 7 });
-        await el.session.data.addNodes(NODES);
-        await operationQueueOf(el.graph).waitForCompletion();
-        await el.waitForStableFrame();
+    it.for([
+        ["ngraph", "before"],
+        ["d3", "before"],
+        ["ngraph", "after"],
+        ["d3", "after"],
+    ] as const)(
+        "a scoped %s layout built %s the nodes arrive holds the rest where they are, building no Node on batched",
+        async ([layout, when]) => {
+            const el = await element(path);
+            if (when === "before") {
+                // A carried scope over an empty graph is kept, its members owed until nodes arrive.
+                await el.graph.setLayoutScope({ nodes: MEMBERS });
+                await el.graph.setLayout(layout, { seed: 7 });
+                await el.session.data.addNodes(NODES);
+            } else {
+                // Drawn first where the data places them, then scoped.
+                await el.graph.setLayout("fixed", { dim: 3 });
+                await el.session.data.addNodes(NODES);
+                await el.waitForSettled();
+                await el.graph.setLayout(layout, { seed: 7 }, { scope: { nodes: MEMBERS } });
+            }
+            await operationQueueOf(el.graph).waitForCompletion();
+            await el.waitForStableFrame();
 
-        const engine = el.graph.getLayoutManager().layoutEngine;
-        assert.isDefined(engine);
-        const mask = engine.holdMask;
-        assert.isNotNull(mask, "the layout holds the nodes outside its scope");
-        const held = NODES.filter((_, row) => maskTest(mask, row)).length;
-        assert.strictEqual(held, COUNT - MEMBERS.length, "every node outside the scope is held");
-        if (path === "batched") {
-            assert.strictEqual(built(el).nodes, 0, "taking the members built no Node");
-        }
-    });
+            const engine = el.graph.getLayoutManager().layoutEngine;
+            assert.isDefined(engine);
+            const mask = engine.holdMask;
+            assert.isNotNull(mask, "the layout holds the nodes outside its scope");
+            const held = NODES.filter((_, row) => maskTest(mask, row)).length;
+            assert.strictEqual(held, COUNT - MEMBERS.length, "every node outside the scope is held");
+            const { positions } = el.graph.getDataManager();
+            const at = { x: 0, y: 0, z: 0 };
+            const moved = NODES.filter(({ id, position }) => {
+                positions.read(id, at);
+                return !MEMBERS.includes(id) && (at.x !== position.x || at.y !== position.y || at.z !== position.z);
+            }).map(({ id }) => id);
+            assert.deepStrictEqual(moved, [], "every held node stays where its data placed it");
+            if (path === "batched") {
+                assert.strictEqual(built(el).nodes, 0, "holding the rest built no Node");
+            }
+        },
+    );
 });

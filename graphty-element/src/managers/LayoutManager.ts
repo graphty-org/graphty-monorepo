@@ -2963,12 +2963,16 @@ export class LayoutManager implements Manager {
 
         this.holdRowsOnPlane(engine, members);
         engine.setHoldMask(...this.holdMaskOf(members));
+        // A simulation's held rows with no `Node` are placed by row, once the mask says which they are.
+        if (engine instanceof D3GraphEngine || engine instanceof NGraphEngine) {
+            engine.placeHeldRows();
+        }
     }
 
     /**
      * Under a 2D static engine, put each held row stored with no `Node` (renderPath "batched") on the plane in the
      * array and have the engine take it by row, as {@link putOnPlane} does: getting its `Node` would build one for
-     * every held row (issue #10052). A simulation's row bodies are held where they are by its hold mask.
+     * every held row (issue #10052). A simulation places its held rows itself (`placeHeldRows`).
      * @param engine - The engine about to become current.
      * @param members - The members it lays out.
      */

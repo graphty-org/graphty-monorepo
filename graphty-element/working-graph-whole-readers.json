@@ -197,7 +197,7 @@
         },
         {
             "file": "src/layout/D3GraphLayoutEngine.ts",
-            "function": "D3GraphEngine.loadArrangement",
+            "function": "D3GraphEngine.loadRows",
             "case": "not agreed",
             "reason": "Maps the bodies it holds to the element's rows to read their positions."
         },
@@ -215,7 +215,7 @@
         },
         {
             "file": "src/layout/NGraphLayoutEngine.ts",
-            "function": "NGraphEngine.loadArrangement",
+            "function": "NGraphEngine.loadRows",
             "case": "not agreed",
             "reason": "Maps the bodies it holds to the element's rows to read their positions."
         },

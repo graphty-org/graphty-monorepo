@@ -904,13 +904,33 @@ export class D3GraphEngine extends LayoutEngine {
         this.refresh();
         super.loadArrangement();
         // and each row's body with no `Node`, which a `Node` built later takes where it is
+        this.loadRows(() => true);
+    }
+
+    /**
+     * Move each held row body with no `Node` (renderPath "batched") to where the element's array has it and fix it
+     * there, as a scoped layout places a held `Node` before it holds it (`LayoutManager.applyHold`).
+     * @internal
+     */
+    placeHeldRows(): void {
+        this.loadRows((row) => this.isHeld(row), fixAt);
+    }
+
+    /**
+     * Move the row bodies with no `Node` to where the element's array has them.
+     * @param take - Which rows to move.
+     * @param then - What else to do with each body moved.
+     */
+    private loadRows(take: (row: number) => boolean, then?: (body: D3Node) => void): void {
         const snapshot = this.rowBodies.size > 0 && this.rowSource ? wholeGraph(this.rowSource) : undefined;
         const at = { x: 0, y: 0, z: 0 };
         for (const [id, body] of snapshot === undefined ? [] : this.rowBodies) {
-            if (this.readRowPosition(snapshot?.ids.indexOf(id) ?? INVALID_INDEX, at, this.rowSource?.positions)) {
+            const row = snapshot?.ids.indexOf(id) ?? INVALID_INDEX;
+            if (row !== INVALID_INDEX && take(row) && this.readRowPosition(row, at, this.rowSource?.positions)) {
                 body.x = at.x;
                 body.y = at.y;
                 body.z = this.dim === 2 ? 0 : at.z;
+                then?.(body as D3Node);
                 this.reheat = true;
             }
         }

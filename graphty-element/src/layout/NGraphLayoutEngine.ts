@@ -1157,10 +1157,28 @@ export class NGraphEngine extends LayoutEngine {
      */
     override loadArrangement(): void {
         super.loadArrangement();
+        this.loadRows(() => true);
+    }
+
+    /**
+     * Move each held row body with no `Node` (renderPath "batched") to where the element's array has it, as a scoped
+     * layout places a held `Node` before it holds it (`LayoutManager.applyHold`).
+     * @internal
+     */
+    placeHeldRows(): void {
+        this.loadRows((row) => this.isHeld(row));
+    }
+
+    /**
+     * Move the row bodies with no `Node` to where the element's array has them.
+     * @param take - Which rows to move.
+     */
+    private loadRows(take: (row: number) => boolean): void {
         const snapshot = this.rowNodes.size > 0 && this.rowSource ? wholeGraph(this.rowSource) : undefined;
         const at = { x: 0, y: 0, z: 0 };
         for (const id of snapshot === undefined ? [] : this.rowNodes.keys()) {
-            if (this.readRowPosition(snapshot?.ids.indexOf(id) ?? INVALID_INDEX, at, this.rowSource?.positions)) {
+            const row = snapshot?.ids.indexOf(id) ?? INVALID_INDEX;
+            if (row !== INVALID_INDEX && take(row) && this.readRowPosition(row, at, this.rowSource?.positions)) {
                 const pos = this.ngraphLayout.getNodePosition(id);
                 pos.x = at.x;
                 pos.y = at.y;

@@ -2013,12 +2013,7 @@ export class UpdateManager implements Manager {
     private repaintPulledOffEnds(painter: StylePainter | undefined): void {
         const table = this.graphContext.getRowTable?.() ?? null;
         const lines = this.graphContext.getEdgeRowLines?.() ?? null;
-        if (
-            painter === undefined ||
-            table === null ||
-            lines === null ||
-            (table.roundWrites === this.roundWritesSeen && this.endRows.size === 0)
-        ) {
+        if (painter === undefined || table === null || lines === null || !this.pulledEndsUnchecked()) {
             return;
         }
 
@@ -2048,6 +2043,23 @@ export class UpdateManager implements Manager {
             this.forceEdgeWalk();
             this.meshesAdded();
         }
+    }
+
+    /**
+     * Whether a row's outline turned, or a style hid or showed a node, since {@link UpdateManager.repaintPulledOffEnds}
+     * last checked the pulled edges' ends. A node's paint turns its row (seen through, round) in the middle of a pass,
+     * after that pass checked, so the edges on it are queued only by the next pass: until then the picture is not
+     * final, or a wait that ends between the two passes reads a line still drawn to a translucent node's center.
+     * @returns True while a check is owed; never when there are no pulled edges or no painter to queue them.
+     */
+    private pulledEndsUnchecked(): boolean {
+        const table = this.graphContext.getRowTable?.() ?? null;
+        return (
+            table !== null &&
+            this.graphContext.getStylePainter?.() !== undefined &&
+            (this.graphContext.getEdgeRowLines?.() ?? null) !== null &&
+            (table.roundWrites !== this.roundWritesSeen || this.endRows.size > 0)
+        );
     }
 
     /** Whether the layout's map arced edges when the row lines were last checked ({@link repaintRowLinesForMap}). */
@@ -3294,6 +3306,11 @@ export class UpdateManager implements Manager {
             "sizing",
             "an edge has not been trimmed to its nodes at the new scale yet",
             () => this.retrimPending,
+        );
+        // A node's outline turned (seen through, round) or its style hid it, and the edges drawn to it are not checked
+        // yet: the next pass paints them again (`repaintPulledOffEnds`).
+        work.watch("style", "an edge drawn to a node whose outline changed has not been checked yet", () =>
+            this.pulledEndsUnchecked(),
         );
         work.watch(
             "sizing",

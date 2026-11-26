@@ -2440,7 +2440,9 @@ class Builder {
         space: string,
     ): BuiltNode | undefined {
         const at = s.read[which];
-        const column = (s.viaEnd ?? "target") === which ? s.nodeColumn : s.otherColumn;
+        // Through a source's rows (`via`), the column is the one its value is found in there.
+        const viaColumn = s.via === undefined ? undefined : s.mapping?.columns[0];
+        const column = (s.viaEnd ?? "target") === which ? (s.nodeColumn ?? viaColumn) : s.otherColumn;
         if (at === undefined || column === undefined || this.unmatchedEnd(s, which) !== "add") {
             return undefined;
         }
@@ -2815,13 +2817,17 @@ class Builder {
         }
         const unit: DrillUnit = { ...here, key: text(v) };
         const ids = look(v);
+        const before = this.placedIn(s.source, i);
         if (ids.length > 1) {
             keys.push([text(v), s.fanOut === "each" ? { ...unit, element: ids[0] } : unit]);
-            this.mergeFannedRow(at, ids, unit, r, i);
+            if (s.fanOut === "each" && before !== undefined && this.keptRows.has(before)) {
+                this.mergeFannedAgain(at, before, ids, unit);
+            } else {
+                this.mergeFannedRow(at, ids, unit, r, i);
+            }
             return;
         }
         const met = made.has(ids[0] ?? "") ? undefined : this.nodes.get(ids[0] ?? "");
-        const before = this.placedIn(s.source, i);
         if (before !== undefined && before !== met && (met === undefined || this.keptRows.has(before))) {
             keys.push([text(v), { ...unit, element: (met ?? before).id }]);
             this.mergeAgain(at, before, met, unit);
@@ -2852,6 +2858,20 @@ class Builder {
         const rows = before.touch.filter((t) => t.source === s.source && t.table === "edges");
         this.fold(met, before, { src: s.source, si, row: unit.row ?? 0, step: s, st }, rows);
         this.countMergedRow(at, met, { ...unit, element: met.id });
+    }
+
+    // An edge row an earlier match kept as a node of its own, now naming several node 1s under `fanOut: each`:
+    // that node folds whole into each of them, as `mergeAgain` folds it into one.
+    private mergeFannedAgain(at: MergeAt, before: BuiltNode, ids: readonly string[], unit: DrillUnit): void {
+        const { s, si, st, fanned } = at;
+        fanned.set(unit.key ?? "", fanned.get(unit.key ?? "") ?? unit);
+        const mets = ids.flatMap((id) => this.nodes.get(id) ?? []);
+        this.unmake(before);
+        const rows = before.touch.filter((t) => t.source === s.source && t.table === "edges");
+        this.foldInto(mets, before, { src: s.source, si, row: unit.row ?? 0, step: s, st }, rows);
+        for (const met of mets) {
+            this.countMergedRow(at, met, { ...unit, element: met.id });
+        }
     }
 
     // The node an earlier match put an edge row in.

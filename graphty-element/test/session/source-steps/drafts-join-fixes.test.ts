@@ -135,6 +135,39 @@ describe("source-steps drafts: a value several nodes hold", () => {
     });
 });
 
+describe("source-steps drafts: two merges of one list's rows read as edges", () => {
+    it("a value the second merge folds into several nodes is no node the first one kept", async () => {
+        const session = on();
+        await session.data.import(csv("accounts.csv", "account,phone,device", "A1,555,d1", "A2,555,d2", "A3,777,d3"), {
+            key: "account",
+            type: "account",
+        });
+        const w = await session.data.stage(csv("watch.csv", "value,kind,risk", "555,phone,high", "d9,device,low"));
+        const d = session.data.draft();
+        d.setMapping(w, { rows: "edges", edges: { source: "kind", target: "risk" } });
+        for (const field of ["device", "phone"]) {
+            d.merge({
+                from: { source: w, field: "value" },
+                into: { space: "account", field },
+                fanOut: "each",
+                unmatchedFrom: "keep",
+            });
+        }
+        await d.commit();
+        assert.deepStrictEqual(
+            session.data.nodes().map((n) => [n.id, n.risk]),
+            [
+                ["A1", "high"],
+                ["A2", "high"],
+                ["A3", undefined],
+                ["d9", "low"],
+            ],
+            "555 folds into both accounts that hold it; d9, which neither matches, is kept",
+        );
+        session.dispose();
+    });
+});
+
 describe("source-steps drafts: rows that become edges", () => {
     it("bring their columns, under add and one per pair alike", async () => {
         const session = on();

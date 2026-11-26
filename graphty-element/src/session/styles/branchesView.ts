@@ -251,12 +251,23 @@ function mergedLook(color: string): LayerSpec["set"] {
 }
 
 /**
+ * A draft mark's border width in screen pixels: a border in node units is a pixel wide on a graph framed whole, and
+ * a new node then looks like every other.
+ */
+const MARK_SCREEN_WIDTH = 3;
+
+/**
  * What a new node gets in a color: a dashed border.
  * @param color - The color.
  * @returns The channels.
  */
 function newNodeLook(color: string): LayerSpec["set"] {
-    return { "node.borderColor": color, "node.borderStyle": "dashed", "node.borderWidth": 0.1 };
+    return {
+        "node.borderColor": color,
+        "node.borderStyle": "dashed",
+        "node.borderWidth": 0.1,
+        "node.borderScreenWidth": MARK_SCREEN_WIDTH,
+    };
 }
 
 /**
@@ -296,7 +307,12 @@ function removedLayers(color: string): LayerSpec[] {
  * @returns The channels.
  */
 function untouchedLook(color: string): LayerSpec["set"] {
-    return { "node.borderColor": color, "node.borderStyle": "dotted", "node.borderWidth": 0.1 };
+    return {
+        "node.borderColor": color,
+        "node.borderStyle": "dotted",
+        "node.borderWidth": 0.1,
+        "node.borderScreenWidth": MARK_SCREEN_WIDTH,
+    };
 }
 
 /**
@@ -364,7 +380,7 @@ export function draftLayers(
             ...idLayers(
                 "New",
                 ids({ step, buckets: STEP_MARKS.new }),
-                { "node.borderColor": color, "node.borderWidth": 0.1 },
+                { "node.borderColor": color, "node.borderWidth": 0.1, "node.borderScreenWidth": MARK_SCREEN_WIDTH },
                 { "edge.color": color },
             ),
         );

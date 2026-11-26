@@ -25,6 +25,8 @@ const FILES = {
     network: csv("network.csv", "id,score", "N1,1", "N2,2"),
     map: csv("map.csv", "protein,symbol", "N1,TP53", "N2,EGFR"),
     expression: csv("expression.csv", "symbol,tpm", "TP53,5", "EGFR,7"),
+    samples: csv("samples.csv", "symbol,tpm", "TP53,5", "TP53,6", "EGFR,7"),
+    proteins: csv("proteins.csv", "protein,symbol", "N1,TP53", "N2,EGFR", "N3,EGFR"),
     suppliersA: csv("suppliers_a.csv", "id,duns,city", "1,x,Rome", "2,y,Oslo"),
     suppliersB: csv("suppliers_b.csv", "id,duns,city", "7,x,Bonn", "8,z,Nice"),
     contacts: csv("contacts.csv", "contact,phone,device", "C1,p1,d1", "C2,p9,d3"),
@@ -38,6 +40,8 @@ const KEYS: Partial<Record<keyof typeof FILES, string>> = {
     watch: "value",
     transfers: "tx",
     network: "id",
+    proteins: "protein",
+    samples: "symbol",
     expression: "symbol",
     suppliersA: "id",
     suppliersB: "id",
@@ -393,6 +397,17 @@ describe("source-steps drafts: what matches can make", () => {
         o.draft.undo();
         merge("keep");
         assert.include(listed(o, ["watch.value = contacts.device"]), "fold watch -> contacts");
+        o.session.dispose();
+    });
+
+    it("never folds the graph's nodes into a waiting source whose field repeats", async () => {
+        const o = await opened(["proteins"], ["samples", "expression"]);
+        assert.notInclude(
+            listed(o, ["proteins.symbol = samples.symbol"]),
+            "fold proteins -> samples",
+            "TP53 is on two rows",
+        );
+        assert.include(listed(o, ["proteins.symbol = expression.symbol"]), "fold proteins -> expression", "each once");
         o.session.dispose();
     });
 

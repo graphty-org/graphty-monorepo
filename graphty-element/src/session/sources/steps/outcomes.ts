@@ -360,7 +360,9 @@ function fieldsOf(ctx: Ctx, line: Cross): JoinOutcome[] {
             return fits(ctx, way) ? [outcome([rows.data], [into.data], { code: "fields", acts, uses })] : [];
         }
         // whole columns here, never only what matches: a fold takes the graph's own nodes in
-        const one = !indexOf(value, copies, into, o).nodesRepeat;
+        // and a waiting side's field names each value once: two of its rows on one key would be one node of both
+        const target = indexOf(value, copies, into, o);
+        const one = !target.nodesRepeat && (into.data.ownNodes || !target.rowsRepeat);
         const held = into.data.ownNodes || indexOf(value, copies, rows, o).rowsRepeat;
         return one && held ? [outcome([rows.data], [into.data], { code: "fold", acts, uses })] : [];
     });

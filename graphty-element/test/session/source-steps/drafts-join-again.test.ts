@@ -431,6 +431,29 @@ describe("source-steps drafts: ends matched by a column", () => {
         assert.strictEqual(session.data.node("B9")?.badge, "B9");
         session.dispose();
     });
+
+    it("make a node of a value no node holds at node 1's end too, under unmatched: add", async () => {
+        const session = on();
+        await session.data.import(csv("p.csv", "id,badge", "P1,B1"), { key: "id", type: "person" });
+        const people = session.data.sources()[0]?.key ?? "";
+        const rooms = await session.data.stage(csv("r.csv", "room", "R1"), { key: "room", type: "room" });
+        await session.data.add(rooms);
+        const e = await session.data.stage(csv("e.csv", "eid,badge,room", "e1,B1,R1", "e2,B9,R1", "e3,B9,R7"), {
+            key: "eid",
+        });
+        const d = session.data.draft();
+        d.connect({
+            from: { source: e, field: "badge" },
+            into: { source: people, field: "badge" },
+            to: { field: "room", into: { space: "room" } },
+            unmatched: "add",
+            fanOut: "each",
+        });
+        assert.deepInclude(d.steps().at(-1)?.buckets, { newNodes: 2, newEdges: 3 }, "B9 and R7 are made, once each");
+        await d.commit();
+        assert.strictEqual(session.data.node("B9")?.badge, "B9");
+        session.dispose();
+    });
 });
 
 describe("source-steps drafts: rows left out one by one", () => {

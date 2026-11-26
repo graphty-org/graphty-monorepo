@@ -386,6 +386,11 @@ describe("source-steps drafts: drawing a draft", () => {
         };
         assert.deepStrictEqual(look("A-1"), { halo: 1, border: "none" }, "a merged account is ringed");
         assert.deepStrictEqual(look("A-9"), { halo: 0, border: "dashed" }, "a new account is dashed, not ringed");
+        assert.isAtLeast(
+            Number(session.styles.explain({ node: "A-9" }).merged["node.borderScreenWidth"]),
+            2,
+            "its dashed border is drawn wide enough to see on a graph framed whole",
+        );
         assert.isFalse(session.styles.showingBranches, "not a branches view");
         assert.strictEqual(session.styles.list(), layers, "the layer list is unchanged");
         assert.strictEqual(session.history.steps.length, steps, "no undo step");

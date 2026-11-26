@@ -22,15 +22,16 @@ const KINDS = ["request", "in flight", "notice", "read", "derived", "pointer"];
 
 /**
  * The most `// on reload: gap #N` declarations graphty/src may hold: state the reader made that a
- * reload drops, each tracked by its issue. Only lower it.
+ * reload drops, each tracked by its issue. Only lower it, but for a name moved out of
+ * screen-state-baseline.json into a gap, which MAX_BASELINE lowers by as much.
  */
-const MAX_COMPONENT_GAPS = 5;
+const MAX_COMPONENT_GAPS = 12;
 
 /**
  * The most files, and the most names, screen-state-baseline.json may excuse: it may only shrink.
  * Adding a name to it is how new undeclared state would get past the rule (issue #9973). Only lower them.
  */
-const MAX_BASELINE = { files: 114, names: 428 };
+const MAX_BASELINE = { files: 112, names: 416 };
 
 const tester = new RuleTester({
     languageOptions: { parser: tseslint.parser, parserOptions: { ecmaFeatures: { jsx: true } } },

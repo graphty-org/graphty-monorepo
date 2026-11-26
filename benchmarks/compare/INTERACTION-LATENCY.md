@@ -120,8 +120,12 @@ is how the app turns it on.
 
 Both tiers run 3 repetitions of each input on each page. `node benchmarks/compare/interaction-latency.mjs check`
 fails when a tier names an input no page of its kind runs. Every page records its own wall time, printed when the
-run is recorded; the newest measured totals are in `benchmarks/results/interaction-latency-history.jsonl` and in
-the run's log.
+run is recorded, so a run that grows shows which page grew.
+
+Neither tier has been timed on the NVIDIA card yet, so there is no baseline in the history and no measured length
+for a GPU run: the first `run quick` and `run full` record both. A smoke pass (SwiftShader, small graphs, one
+repetition) of the full tier takes about 50 minutes for the element pages and 50 for the app pages, run side by
+side; a timed run has three repetitions, real sizes and one page at a time under the lock, so expect several hours.
 
 The quick tier is for any change to graphty-element's input, picking, selection, styles or render loop, or to the
 app's canvas, Inspector and table; the full tier runs nightly on this machine, or on demand.

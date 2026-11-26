@@ -14,8 +14,11 @@ import { CommitText, PopLine, Segments } from "./dataLines";
 /** A format's parts the lines change, each optional so a line can take one off. */
 type Format = { -readonly [K in keyof DataFormat]: DataFormat[K] };
 
+/** Where a Format pop-over sits: a data thing's entry, or a value in a formatted string ("template"). */
+type FormatHost = DataChannel | "template";
+
 /** What a missing value can do, per thing, with its words. */
-const MISSING: Readonly<Record<DataChannel, readonly (readonly [string, string])[]>> = {
+const MISSING: Readonly<Record<FormatHost, readonly (readonly [string, string])[]>> = {
     "node.pieData": [
         ["skip", "Leave out"],
         ["gray", "Gray"],
@@ -33,14 +36,21 @@ const MISSING: Readonly<Record<DataChannel, readonly (readonly [string, string])
         ["drop", "Drop row"],
         ["text", "Text"],
     ],
+    // A formatted string's value: leave its line out, leave out the value alone, or write words for it.
+    template: [
+        ["drop", "Hide line"],
+        ["skip", "Skip"],
+        ["text", "Text"],
+    ],
 };
 
 /** Each thing's missing choice when the entry sets none. */
-const MISSING_DEFAULT: Readonly<Record<DataChannel, string>> = {
+const MISSING_DEFAULT: Readonly<Record<FormatHost, string>> = {
     "node.pieData": "skip",
     "node.stripeData": "skip",
     "node.chartData": "gap",
     "node.recordData": "drop",
+    template: "drop",
 };
 
 /**
@@ -82,7 +92,7 @@ function MissingLine({
     channel,
     entry,
     put,
-}: Readonly<{ channel: DataChannel; entry: DataEntry; put: (next: DataEntry) => void }>): React.JSX.Element {
+}: Readonly<{ channel: FormatHost; entry: DataEntry; put: (next: DataEntry) => void }>): React.JSX.Element {
     const { missing } = entry;
     const missingNow = typeof missing === "object" ? "text" : (missing ?? MISSING_DEFAULT[channel]);
     return (
@@ -116,7 +126,7 @@ function MissingLine({
 /**
  * The Format pop-over's lines: see the file header.
  * @param props - Component props
- * @param props.channel - the data channel
+ * @param props.channel - the data channel, or "template" for a formatted string's value
  * @param props.entry - the entry
  * @param props.numeric - whether its value is a number (a text value shows no strip and no number lines)
  * @param props.put - writes the entry
@@ -128,7 +138,7 @@ export function FormatLines({
     numeric,
     put,
 }: Readonly<{
-    channel: DataChannel;
+    channel: FormatHost;
     entry: DataEntry;
     numeric: boolean;
     put: (next: DataEntry) => void;

@@ -19,7 +19,7 @@ import { useWorkspace } from "../../state/WorkspaceContext";
 import { FORMATTED_STRING, SourcePicker } from "../LabelSection";
 import { shownChannel } from "../offered";
 import type { RowContext } from "../PropertyRow";
-import { type DataBinding, type Line, lineIn, propose, textBinding, writeIn, writeLine } from "../row";
+import { type DataBinding, type Line, lineIn, propose, type TemplateWrite, textBinding, writeIn } from "../row";
 import { ValueField } from "../ValueField";
 import { failureWords } from "../words";
 import { FormattedText } from "./FormattedText";
@@ -53,7 +53,8 @@ import { ValueButton } from "./ValueButton";
  * @param props.words - where the words come from now, if anywhere
  * @param props.also - where the label sits, said after its source when another label reads the same one
  * @param props.onWrite - writes picked or typed words
- * @param props.onLines - writes a formatted string's lines; left out, the list has no Formatted string
+ * @param props.entry - a further label's id, when the row edits one
+ * @param props.onTemplate - writes a formatted string; left out, the list has no Formatted string
  * @returns The control
  */
 function TextSource({
@@ -64,7 +65,8 @@ function TextSource({
     words,
     also,
     onWrite,
-    onLines,
+    entry,
+    onTemplate,
 }: Readonly<{
     ctx: RowContext;
     kind: TextThing;
@@ -73,7 +75,8 @@ function TextSource({
     words: Line | undefined;
     also: string;
     onWrite: (write: { readonly value: string } | { readonly binding: DataBinding }) => Promise<unknown>;
-    onLines?: (lines: readonly string[]) => Promise<unknown>;
+    entry: string | undefined;
+    onTemplate?: (binding: TemplateWrite) => Promise<unknown>;
 }>): React.JSX.Element {
     const { store } = useWorkspace();
     const [open, setOpen] = useState(opensAtOnce);
@@ -104,7 +107,7 @@ function TextSource({
             />
         );
     }
-    const template = words?.template;
+    const template = words?.templateBinding;
     const picker = (
         <SourcePicker
             target={ctx.side}
@@ -116,13 +119,13 @@ function TextSource({
             fixedInForce={typed}
             formattedInForce={template !== undefined}
             onFormatted={
-                onLines === undefined
+                onTemplate === undefined
                     ? undefined
                     : () => {
                           setOpen(false);
                           // A new formatted string starts from what the label draws now: its value, else its words.
                           if (template === undefined) {
-                              onLines([startLine(words, source)]).catch(fail);
+                              onTemplate({ template: [startLine(words, source)] }).catch(fail);
                           }
                           requestAnimationFrame(() => {
                               setFormatting(true);
@@ -155,7 +158,7 @@ function TextSource({
             />
         </SourcePicker>
     );
-    if (onLines === undefined) {
+    if (onTemplate === undefined) {
         return picker;
     }
     return (
@@ -165,11 +168,12 @@ function TextSource({
                 ctx={ctx}
                 channel={kind.words}
                 title={title}
-                lines={template ?? []}
+                binding={template}
+                entry={entry}
                 opened={formatting}
                 onOpenChange={setFormatting}
-                onLines={(lines) => {
-                    onLines(lines).catch(fail);
+                onWrite={(next) => {
+                    onTemplate(next).catch(fail);
                 }}
             />
         </div>
@@ -193,8 +197,8 @@ function startLine(words: Line | undefined, source: string): string {
 const FORMATTED_CHANNELS: ReadonlySet<Channel> = new Set(["node.label", "edge.label", "node.tooltip"]);
 
 /**
- * What writes a formatted string's lines, where the label can hold one: the main label, edge label or tooltip of
- * one row (a further label's words are its entry's text).
+ * What writes a formatted string, where the label can hold one: the main label, edge label or tooltip, or a further
+ * label's words (its text address), of one row or of several edited together.
  * @param ctx - the row.
  * @param kind - the text thing.
  * @param entry - the further label's id, if it is one.
@@ -204,11 +208,14 @@ function formattedWriter(
     ctx: RowContext,
     kind: TextThing,
     entry: string | undefined,
-): ((lines: readonly string[]) => Promise<unknown>) | undefined {
-    if (entry !== undefined || ctx.many !== undefined || !FORMATTED_CHANNELS.has(kind.words)) {
+): ((binding: TemplateWrite) => Promise<unknown>) | undefined {
+    if (!FORMATTED_CHANNELS.has(kind.words) || (entry !== undefined && ctx.many !== undefined)) {
         return undefined;
     }
-    return (lines) => writeLine(ctx.session, ctx.row, ctx.side, kind.words, { template: lines }, ctx.fresh);
+    if (entry !== undefined) {
+        return (binding) => writeEntry(ctx, entry, { binding });
+    }
+    return (binding) => writeIn(ctx, kind.words, binding);
 }
 
 /** What a label source reads while it has none: the label draws no words. */
@@ -428,7 +435,8 @@ export function LabelRow({
                     words={words}
                     also={sharedWhere(ctx, kind, entry)}
                     onWrite={writeWords}
-                    onLines={formattedWriter(ctx, kind, entry)}
+                    entry={entry}
+                    onTemplate={formattedWriter(ctx, kind, entry)}
                 />
             }
             modifier={settings}

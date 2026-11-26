@@ -43,6 +43,7 @@ import {
     startForOrNone,
     startingValue,
     type Target,
+    type TemplateWrite,
     writeIn,
 } from "./row";
 import { ScrubSlots } from "./scrubSlots";
@@ -134,7 +135,7 @@ export interface ManyRows {
     /** Writes one value or binding to every row; `after` merges it into that undo step. */
     readonly write: (
         channel: EncodeKey,
-        write: LiteralWrite | { readonly binding: DataBinding },
+        write: LiteralWrite | { readonly binding: DataBinding } | TemplateWrite,
         after?: HistoryStepId,
     ) => Promise<unknown>;
     /** Takes the channels off every row, one undo step. */

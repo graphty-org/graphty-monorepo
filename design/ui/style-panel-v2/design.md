@@ -618,11 +618,15 @@ thing's groups when it has more than one, and each opens a new pop-over.
   Fallback, an arrow's Image) is compact-mantine's `ImagePicker` (R16), reading "None" with no picture. A
   label's Icon is a character drawn beside its words (graphty-element's `icon`), not a file, so it stays text.
 - **Formatted string (owner, 2026-11-24).** A node label's, edge label's or tooltip's source list offers
-  "Formatted string" after "Fixed text". It writes graphty-element's `{ template }` binding, starting from what the
-  label draws now (its value as `{path}`, or its typed words), and opens the "<label> text" pop-out beside the panel:
-  **Preview** (the words graphty-element draws for the selected node or edge, else the first that draws any),
-  **Text** (one line per line of the label, each value as `{path}`, written on leaving the field) and **Insert
-  value** (the value list: data columns and algorithm results, put at the caret).
+  "Formatted string" after "Fixed text", and so does a further label's of one row. It writes graphty-element's
+  `{ template }` binding, starting from what the label draws now (its value, or its typed words), and opens the
+  "<label> text" pop-out beside the panel: **Preview** (the words graphty-element draws for one node or edge: the
+  selected one, else the first that draws any; "<" and ">" step through them, wrapping, and selecting a node on
+  the Graph moves it there), **Text** (the template with each value by its name, never `{path}`, opening its parts
+  list beside: each line with its Bold line, its words and its values, each with its minus, and Add words and New
+  line at the foot) and **Insert value** (the value list: data columns and algorithm results, put at the end of the
+  last line). A value opens its **Format** pop-over (the data entries' own) with its number, percent, money or date
+  format and **If missing**: Hide line (the default), Skip (only this value) or Text. Each change is one undo step.
 - **Data entries, one path each (owner, 2026-11-25).** A Pie's, Chart's or Record's entries picker only adds: it
   lists the columns not yet in the list. Which field an entry reads is its own line's Field picker; its minus removes it.
 - **Drop-downs of fewer than six (2026-11-24).** Fewer than six exclusive options are grouped buttons wherever

@@ -5998,7 +5998,10 @@ export class UpdateManager implements Manager {
         if (sphere !== null && active instanceof OrbitCameraController) {
             this.frameGlobe(active, box, sphere, frame?.surface === "globe" && frame.world);
         } else {
-            framed = this.frameBox(box, frame);
+            // A layout still moving is framed again on a later frame; only a fit asked for, or the one it settles
+            // on, centers over every node (issue #10154).
+            const moving = this.layoutManager.running && !isSettled && !this.forceZoomToFit && !this.explicitZoomToFit;
+            framed = this.frameBox(box, frame, moving);
         }
 
         this.hasZoomedToFit = true;
@@ -6067,9 +6070,10 @@ export class UpdateManager implements Manager {
      * on labels placed for the camera it framed, so its answer depends on the graph alone.
      * @param box - The box measured this frame.
      * @param frame - The map the layout draws on, or null.
+     * @param moving - Whether the layout is moving and will be framed again on a later frame.
      * @returns The box the camera was last framed on.
      */
-    private frameBox(box: FramingBox, frame: LocationMapFrame | null): FramingBox {
+    private frameBox(box: FramingBox, frame: LocationMapFrame | null, moving = false): FramingBox {
         const scene = this.graphContext.getScene();
         const fits = screenFitFrames.callbacksOf(scene);
         const declutter: unknown = (scene.metadata as GraphSceneMetadata | null)?.labelDeclutter;
@@ -6078,7 +6082,7 @@ export class UpdateManager implements Manager {
         // a lower cap for placement alone if a large graph ever oscillates.
         for (let round = 0; ; round++) {
             const { min, max } = frame === null ? current : this.frameMap(current, frame);
-            this.camera.zoomToBoundingBox(min, max, current.spots);
+            this.camera.zoomToBoundingBox(min, max, current.spots, moving);
             for (const fit of fits) {
                 fit();
             }

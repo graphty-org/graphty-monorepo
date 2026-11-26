@@ -1476,7 +1476,7 @@ const config = defineConfig({
             {
                 // Hover, click and edges in motion in WebKit's WebGL2 (the iPad path), on both render paths: batched
                 // picking reads a pixel back from an ID render target, and WebKit's readPixels formats, integer
-                // targets and antialias resolve differ from Chromium's. A subset of two Chromium files, by test name
+                // targets and antialias resolve differ from Chromium's. A subset of three Chromium files, by test name
                 // (package.json test:interactions-webkit): pick-parity's nodes and edges at rest with selection, and
                 // edges-follow's ngraph and glide cases.
                 // The mouse comes from Playwright (dispatchMouseEvent), as WebKit has no DevTools protocol. Full run
@@ -1498,6 +1498,7 @@ const config = defineConfig({
                     include: [
                         "test/interactions/pick-parity.test.ts",
                         "test/browser/edges-follow-running-layout.test.ts",
+                        "test/browser/edges-follow-through-a-transition.test.ts",
                     ],
                     fileParallelism: false,
                     browser: {

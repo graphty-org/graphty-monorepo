@@ -3,7 +3,7 @@ name: Cybersecurity Attack-Path Findings and Exposure Tracking
 category: reporting
 validated: false
 personas:
-    - dana-okafor
+    - penetration-tester
     - marcus-lindqvist
     - aiko-tanaka
     - luis-ferreira

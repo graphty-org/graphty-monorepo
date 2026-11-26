@@ -254,7 +254,7 @@ Sources: Microsoft Learn [S6][S7][S8][S61]; workgroup-mapping paper [S31]; new-h
 2. **Define what counts as an interaction.** Viva's "reciprocal interaction" in a 4-week window is: a 1:1 meeting or
    unscheduled call; an action and a response through chats with 8 or fewer participants or emails with 18 or fewer
    participants; or both attending a meeting within the meeting threshold [S8]. The legacy meeting exclusion dropped
-   single-attendee, 8-hour-plus, 250-plus-attendee and cancelled meetings [S47]. Microsoft's workgroup mapping drew an edge when two people exchanged at least 4 emails in a month
+   single-attendee, 8-hour-plus, 250-plus-attendee and canceled meetings [S47]. Microsoft's workgroup mapping drew an edge when two people exchanged at least 4 emails in a month
    with at least 1 in each direction [S31]. The new-hire study weighted reciprocal edges by the geometric mean of the
    two directed counts, sqrt(w(i->j) * w(j->i)) [S32]. Other studies used 5 to 10 reciprocated emails a year [S46]. Worklytics' rule is to filter automated traffic, separate internal
    from external participants, and keep edge rules stable across periods [S12]. The practitioner chooses the window

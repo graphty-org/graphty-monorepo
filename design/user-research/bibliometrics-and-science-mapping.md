@@ -87,7 +87,7 @@ and options" overwhelm "all but expert users" [SMU-CITESPACE]. Librarians increa
   and OpenAlex for data; VOSviewer and Gephi for network maps; Tableau or Shiny for dashboards [UNC-JOB]
   [WATERLOO-JOB] [SCIVAL-COLLAB].
 - Data: a department's publications for 5-10 years (hundreds to a few thousand records), matched to a roster with
-  ORCID and Scopus Author IDs; external collaborator institutions; funding acknowledgements.
+  ORCID and Scopus Author IDs; external collaborator institutions; funding acknowledgments.
 - Goals: answer a dean's question ("who do we collaborate with?") with visualizations "for non-technical
   audiences" and documented methods [UNC-JOB].
 - Frustrations: name homonyms create false bridges, worst for common Chinese and Korean surnames

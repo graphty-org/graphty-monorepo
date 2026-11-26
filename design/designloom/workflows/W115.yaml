@@ -4,7 +4,7 @@ category: exploration
 validated: false
 scope: out-of-scope
 personas:
-    - priya-raman
+    - malware-analyst
 requires_capabilities:
     - data-import
     - layout-hierarchical

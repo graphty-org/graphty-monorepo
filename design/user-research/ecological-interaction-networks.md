@@ -211,7 +211,7 @@ Sources: SpiecEasi vignette (https://bioconductor.statistik.tu-dortmund.de/packa
 
 ### Workflow 9: Retrieving published networks and predicting missing interactions
 
-1. **Retrieve.** Web of Life (https://www.web-of-life.es/; CSV and JSON downloads; an API with `get_networks.php`); Mangal via `rmangal` (`search_datasets()` and six other searches; networks convertible to igraph; taxonomy links to GBIF, ITIS, Catalogue of Life: https://cloud.r-project.org/web/packages/rmangal/index.html); IWDB text and Excel files; GloBI pairwise records via `rglobi`; 78 multilayer data sets in `emln`.
+1. **Retrieve.** Web of Life (https://www.web-of-life.es/; CSV and JSON downloads; an API with `get_networks.php`); Mangal via `rmangal` (`search_datasets()` and six other searches; networks convertible to igraph; taxonomy links to GBIF, ITIS, "Catalogue of Life": https://cloud.r-project.org/web/packages/rmangal/index.html); IWDB text and Excel files; GloBI pairwise records via `rglobi`; 78 multilayer data sets in `emln`.
 2. **Assemble a metaweb.** Strydom et al. combined 51 host-parasite networks sampled across space (Hadfield et al.) into one metaweb, noting that many absent pairs are probably false negatives.
 3. **Derive species features** from co-occurrence (probabilistic PCA), traits or phylogeny.
 4. **Train a predictor** (a deep neural network in the proof of concept).

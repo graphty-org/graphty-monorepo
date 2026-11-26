@@ -86,7 +86,7 @@ Boundary: this persona is about mechanism of action and drug overlay in licensed
 - **Tools today.** QIAGEN IPA; Clarivate MetaCore (about ten network-building algorithms: https://clarivate.com/products/metacore/); Elsevier Pathway Studio (Sub-Network Enrichment Analysis: https://pmc.ncbi.nlm.nih.gov/articles/PMC8221786).
 - **Data.** A table of gene IDs with fold change and p-value; the vendor's proprietary curated knowledge base. IPA's knowledge base holds "14+ million findings", each with type, direction, effect (increases or decreases), cell or tissue context and a source PMID (NIH CCR IPA slides, 2026).
 - **Goals.** A list of upstream regulators predicted to be activated or inhibited; a causal network linking them to her genes; a figure for a paper or a program review, showing her genes, predicted regulators and known drugs.
-- **Frustrations.** The knowledge base is closed and licensed; Northwestern's library cancelled MetaCore and notes "no single free option" matches MetaCore or IPA (https://libguides.galter.northwestern.edu/gene-enrichment-and-pathway-analysis). Reproducing a result needs the same license and knowledge-base version. IPA caps input at 8,000 analysis-ready molecules (Workflow 4).
+- **Frustrations.** The knowledge base is closed and licensed; Northwestern's library canceled MetaCore and notes "no single free option" matches MetaCore or IPA (https://libguides.galter.northwestern.edu/gene-enrichment-and-pathway-analysis). Reproducing a result needs the same license and knowledge-base version. IPA caps input at 8,000 analysis-ready molecules (Workflow 4).
 - **Graph shape.** Directed and signed, with node states (predicted activated or inhibited, observed up or down) from her data.
 
 ### Persona C: Dr. Arjun Rao -- biomedical knowledge graph ML scientist (id: biomedical-kg-ml-scientist)
@@ -178,7 +178,7 @@ Sources: Menche 2015, DIAMOnD (https://pmc.ncbi.nlm.nih.gov/articles/PMC4390154/
 3. **Validate** by GO and pathway enrichment or against 1,000 mock modules.
 4. **Look at it.** Seeds and added proteins are drawn with different shapes; published module figures have 20 to 200 nodes (NeDRex use cases: 23 to 87 genes).
 5. **Overlay drugs.** NeDRex ranks drugs near the module by TrustRank or closeness to the seeds (235 drugs for an 87-gene IBD module). Drugst.One does this in the browser from a gene list.
-6. **Score druggability and safety** in the Open Targets prioritisation grid (a table, not a network view).
+6. **Score druggability and safety** in the Open Targets prioritization grid (a table, not a network view).
 7. **Decide.** NeDRex warns that empirical p-values "cannot replace the expert user".
 8. **Hand off** a ranked target list, a module figure and the parameters (seed list, alpha, iterations, interactome version).
 

@@ -115,7 +115,7 @@ Sources: Master Labcourse 2024 (hackmd); dcsoto 2024 blog; PopART manual outline
 1. **Sequences.** Edit Sanger reads in BioEdit or Sequencher (reverse-complement, merge, trim), check with BLAST, align (MUSCLE in MEGA or ClustalW). Save FASTA. Hours to days.
 2. **Haplotypes in DnaSP.** File > Open Data File (filter "All files"); Data > Format, mtDNA, haploid; Overview > Polymorphism Data for haplotype count, S, Hd and Pi; Data > Define Sequence Sets to assign populations. Export a NEXUS "with the sequences clustered into populations" and Arlequin `.arp` files; check no group is named "Additional_Seqs" (ungrouped samples).
 3. **Traits block by hand.** Append `BEGIN TRAITS; Dimensions NTRAITS=5; Format labels=yes missing=? separator=Comma; TraitLabels CO LP MD RN U; Matrix` then rows like `C007 1,0,0,0,0`, then `; end;`. "Individual names and order must match the start of the NEXUS file." PopART also reads delimited trait and geotag tables (manual snippet).
-4. **Load.** NEX toolbar button; if greyed out, set "Files of type" to "All Files(*)".
+4. **Load.** NEX toolbar button; if grayed out, set "Files of type" to "All Files(*)".
 5. **Algorithm (Network menu).** MSN with epsilon (0 common), TCS, median-joining, tight span walker, integer neighbor-joining. Users choose by habit, reviewer expectations and whether they want reticulations shown.
 6. **Read.** Circle area is haplotype frequency; slices are populations; hatch marks count mutations; small black dots are inferred unsampled haplotypes. Statistics > Identical Sequences lists merged samples; gap or ambiguous sites are masked, merging haplotypes (PMC6490880).
 7. **Style.** Palette, colors, vertex sizes, fonts; drag nodes by hand to remove overlaps.
@@ -177,7 +177,7 @@ Sources: Taming the BEAST "Introduction to BEAST2"; BEAST FigTree workshop; Spre
 Sources: Lanfear concordance-factor page; PhyParts_PieCharts; Dendroscope 3; phytools `cophylo`; TreeDist; SplitsTree App; phangorn Networx.
 
 1. **Concordance factors.** "Estimate a concatenated tree; estimate the single-locus trees; and then calculate the gCF and sCF values using the concatenated tree as a reference tree" in IQ-TREE. Output `concord.cf.tree` labels each branch "bootstrap / gCF / sCF"; `concord.cf.stat` has one row per branch, which users plot in R (gCF against sCF).
-2. **PhyParts pies.** Run PhyParts over all gene trees against the species tree; pies per branch: concordant (blue), top alternative (green), other conflict (red), uninformative (grey), counts above and below.
+2. **PhyParts pies.** Run PhyParts over all gene trees against the species tree; pies per branch: concordant (blue), top alternative (green), other conflict (red), uninformative (gray), counts above and below.
 3. **Overlay.** DensiTree overlays hundreds of gene trees or bootstrap trees on the same taxa; consensus trees summarize them.
 4. **Tanglegram.** Two trees in Dendroscope (crossing minimization, unequal taxon sets) or `phytools::cophylo`; eMPRess for host-parasite reconciliation.
 5. **Distances.** `TreeDist::TreeDistance` (generalized Robinson-Foulds) and `MapTrees()` for tree space.

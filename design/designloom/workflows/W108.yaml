@@ -3,7 +3,7 @@ name: Active Directory Attack Path Analysis in BloodHound
 category: analysis
 validated: false
 personas:
-    - dana-okafor
+    - penetration-tester
     - marcus-lindqvist
 requires_capabilities:
     - data-import

@@ -205,7 +205,7 @@ Dating: Workflows 1-3 rest on 2015-era lessons (Palladio's last release was 2015
 Sources: Duering (Programming Historian); nodegoat lesson; Endicott and Duke course projects.
 
 1. **Define the tie.** Duering: "any action which directly contributed to the survival of persecuted persons in
-   hiding." Grandjean: picking one relationship is "a deliberate modelling choice."
+   hiding." Grandjean: picking one relationship is "a deliberate modeling choice."
 2. **Decide who becomes a node**: helpers and suppressors; in literature, whether a character must speak, be present,
    or merely be mentioned.
 3. **Coding scheme**: Giver, Recipient, Form of Help, intensity, Duration, Date ("in six-month steps"); a person table;

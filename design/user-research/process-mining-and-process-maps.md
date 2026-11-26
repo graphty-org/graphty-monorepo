@@ -460,7 +460,7 @@ Every major commercial tool ships this as the step after a bottleneck or deviati
   pick a target metric (case duration, rework); the tool builds a decision tree over all case-level attributes,
   choosing splits that minimize weighted variance (Gini impurity for a categorical target). Its example shows why
   one-attribute "Case Duration Influence" misleads: supplier city Graz looks 15 hours slow overall but is 36 hours slow
-  only for aluminium and faster than average for other materials.
+  only for aluminum and faster than average for other materials.
 - **Celonis** KPI driver analysis is the last step of a standard Exploration: select suspected attributes or all, and an
   algorithm ranks attribute values by their impact on whether cases meet a KPI target
   (search summary of [Celonis docs](https://docs.celonis.com/en/kpi-driver-analysis.html), sign-in).

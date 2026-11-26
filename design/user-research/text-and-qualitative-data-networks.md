@@ -272,8 +272,8 @@ This is the theory-building use of a graph: nodes are placed and linked by the a
 link mode, add free objects; links made in a map "are not repeated in the project" [MAXMAPS-OBJECTS]. Model templates
 generate starting maps, among them the Code Co-Occurrence Model (5.3) and the Code-Subcodes-Segments Model, which puts
 one code at the center, subcodes around it and up to N coded segments as their own nodes, chosen by priority or size,
-labelled by their text or comment [MAXMAPS-CSS]. NVivo concept maps: shapes for concepts plus project items, connectors
-dragged between them and labelled with F2; project items "are not linked to your data" [NVIVO-CONCEPT].
+labeled by their text or comment [MAXMAPS-CSS]. NVivo concept maps: shapes for concepts plus project items, connectors
+dragged between them and labeled with F2; project items "are not linked to your data" [NVIVO-CONCEPT].
 
 **What this needs from a graph tool**: hand placement, typed directed edges from an editable vocabulary, mixed node
 types (code, quotation, memo, document), edges with comments, and opening the quotations behind any node or link.

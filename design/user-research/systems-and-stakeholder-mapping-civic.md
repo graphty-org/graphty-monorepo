@@ -1,7 +1,7 @@
 # Systems Mappers and Civic Power-Mappers: Foundations, NGOs, Evaluators and Organizers
 
 Foundation program and evaluation staff, NGO and UN teams, monitoring and evaluation officers, evaluation consultants,
-government policy labs, extension educators, participatory modellers, community organizers and corporate stakeholder
+government policy labs, extension educators, participatory modelers, community organizers and corporate stakeholder
 engagement teams draw networks to reason about social change. Their graphs come in five shapes:
 
 1. **Theory of change (outcomes pathway).** The most common causal diagram in nonprofits, philanthropy and development:
@@ -46,7 +46,7 @@ VisuaLyzer (Net-Map), PARTNER and Polinode (network surveys), Graph Commons, Lit
   resource governance (IFPRI origin).
 - Government policy labs: UK Policy Lab and UCL (net zero clusters, Kumu), Ministry of Justice Digital (Miro), Defra
   Policy Design Lab (36 colleagues, 150 evidence cards, 8 "system stories").
-- Participatory modellers: CECAN Participatory Systems Mapping (PRSM), system dynamics group model building, public
+- Participatory modelers: CECAN Participatory Systems Mapping (PRSM), system dynamics group model building, public
   health complexity researchers (TRUUD, 123 interviews), and fuzzy cognitive mapping teams in environmental management
   (Mental Modeler was designed for stakeholder-based environmental decision-making) and global health (25 practices in nine countries).
 - Organizers and activist researchers: community power analysis (Commons Library guides), LittleSis "Map the Power"
@@ -145,7 +145,7 @@ interviews: 45-133 variables per theme map (TRUUD).
 **Frustrations.** Coding takes "an average of 3 days" per transcript (Valcourt et al., cited by Newberry and Carhart);
 remote sessions are tiring (MoJ); large maps are "visually overwhelming" (Defra).
 
-### 2.4 Dr. Lena Ortiz -- participatory fuzzy cognitive mapping modeller (id: fcm-participatory-modeller)
+### 2.4 Dr. Lena Ortiz -- participatory fuzzy cognitive mapping modeler (id: fcm-participatory-modeler)
 
 **Role.** Environmental management or global health researcher who collects causal maps from many stakeholder groups
 (community members, resource managers, clinicians), merges them and runs scenarios with the community.
@@ -427,7 +427,7 @@ Causal Map app.
 3. **Record causal relationships**, each linked to its passage (Kim and Andersen's "data source reference table", or
    NVivo relationships).
 4. **Draw** microstructures in Vensim and merge per interview or theme "over three iterations between a primary and
-   secondary modeller" (TRUUD).
+   secondary modeler" (TRUUD).
 5. **Semi-automated variant.** Text search for causal expressions; 284 hits gave 145 real ones (49% false positives).
 6. **Report** variables, microstructures and loops per map (TRUUD: 55-133 variables, 0-8 loops); validate in group
    model building workshops. The Causal Map app codes each claim in a narrative as a link and analyzes the claims
@@ -592,7 +592,7 @@ Kumu-specific conventions (its keyboard shortcuts, its pipe-separated sheet layo
 | Size envelope: authoring 10-200 nodes; actor maps to about 3,000; merged FCM studies of dozens of maps; read-only power databases far larger                                 | Must-have                         | Yes for rendering; authoring and many-map scale are new.                                  |
 
 **New personas this research adds:** systems-change-strategist, mel-theory-of-change-officer,
-participatory-systems-mapping-facilitator, fcm-participatory-modeller, civic-power-researcher,
+participatory-systems-mapping-facilitator, fcm-participatory-modeler, civic-power-researcher,
 nonprofit-operations-analyst.
 
 **New workflows this research adds:** theory of change by backwards mapping; hand-authored causal loop systems map;

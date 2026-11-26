@@ -185,7 +185,7 @@ The existing record is well grounded. Additional evidence:
   per real-world entity.
 - **Tools today.** Splink's cluster studio, an HTML dashboard sampling clusters `by_cluster_size`
   (https://moj-analytical-services.github.io/splink/charts/cluster_studio_dashboard.html). Splink's graph metrics:
-  node degree and centrality, `is_bridge` per edge, cluster size, density and centralisation; low density "could
+  node degree and centrality, `is_bridge` per edge, cluster size, density and centralization; low density "could
   indicate links being missed", bridges "can be signalers of false positives", and
   `sampling_method="lowest_density_clusters_by_size"` pulls low-density clusters for review
   (https://moj-analytical-services.github.io/splink/topic_guides/evaluation/clusters/graph_metrics.html).
@@ -461,7 +461,7 @@ Sources: Splink tutorial, cluster studio and graph metrics pages, splink_graph g
 1. **Predict pairs** with `linker.inference.predict()`; each pair carries a match weight and probability.
 2. **Cluster at a threshold** with `cluster_pairwise_predictions_at_threshold(df_predictions,
 threshold_match_probability=0.5)` (connected components).
-3. **Compute graph metrics** per node, edge and cluster: size, density, centralisation, `is_bridge`, degree.
+3. **Compute graph metrics** per node, edge and cluster: size, density, centralization, `is_bridge`, degree.
 4. **Rank clusters for review.** Largest clusters (over-merging), lowest density for their size (missed links,
    `lowest_density_clusters_by_size`), clusters with bridges or high edge betweenness.
 5. **Inspect one cluster.** Records as nodes, pairs as edges labeled with match probability, the record fields side
@@ -595,15 +595,15 @@ extract and show a small piece of a huge graph, or one graph of a collection, wi
 The tables this population hands to a viewer are increasingly columnar files, not CSV. What writes them, and in what
 layout:
 
-| Writer                   | What it writes                                                                                     | Source                                                                                    |
-| ------------------------ | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| pandas, polars           | Any DataFrame to Parquet (`to_parquet`, `write_parquet`)                                           | https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.to_parquet.html             |
-| DuckDB                   | Any query result: `COPY (SELECT ...) TO 'edges.parquet' (FORMAT parquet)`                          | https://duckdb.org/docs/2.0/data/parquet/overview.html                                    |
-| Spark GraphFrames        | A vertex DataFrame with an `id` column and an edge DataFrame with `src` and `dst`; results are DataFrames, saved as Parquet in a lakehouse | https://graphframes.io/04-user-guide/01-creating-graphframes.html |
-| cuGraph                  | Builds from a cuDF edge DataFrame with named source and destination columns, renumbering ids internally | https://docs.nvidia.com/cugraph/latest/api_docs/api/cugraph/cugraph.Graph.from_cudf_edgelist/ |
-| Microsoft GraphRAG       | Parquet by default; `entities` (`id`, `title`, `type`, `degree`, ...) and `relationships` (`id`, `source`, `target`, `weight`, ...) | https://microsoft.github.io/graphrag/index/outputs/ |
-| Neo4j APOC               | `apoc.export.parquet.data(nodes, rels, 'file.parquet')` writes nodes and relationships; `apoc.load.parquet` and `apoc.import.parquet` read them | https://neo4j.com/apoc/2026/export/parquet/ |
-| FlyWire Codex releases   | Neuron and connection tables as Feather; Feather V2 "is exactly represented as the Arrow IPC file format on disk" | https://zenodo.org/records/10676866, https://arrow.apache.org/docs/python/feather.html |
+| Writer                 | What it writes                                                                                                                                  | Source                                                                                        |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| pandas, polars         | Any DataFrame to Parquet (`to_parquet`, `write_parquet`)                                                                                        | https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.to_parquet.html                 |
+| DuckDB                 | Any query result: `COPY (SELECT ...) TO 'edges.parquet' (FORMAT parquet)`                                                                       | https://duckdb.org/docs/2.0/data/parquet/overview.html                                        |
+| Spark GraphFrames      | A vertex DataFrame with an `id` column and an edge DataFrame with `src` and `dst`; results are DataFrames, saved as Parquet in a lakehouse      | https://graphframes.io/04-user-guide/01-creating-graphframes.html                             |
+| cuGraph                | Builds from a cuDF edge DataFrame with named source and destination columns, renumbering ids internally                                         | https://docs.nvidia.com/cugraph/latest/api_docs/api/cugraph/cugraph.Graph.from_cudf_edgelist/ |
+| Microsoft GraphRAG     | Parquet by default; `entities` (`id`, `title`, `type`, `degree`, ...) and `relationships` (`id`, `source`, `target`, `weight`, ...)             | https://microsoft.github.io/graphrag/index/outputs/                                           |
+| Neo4j APOC             | `apoc.export.parquet.data(nodes, rels, 'file.parquet')` writes nodes and relationships; `apoc.load.parquet` and `apoc.import.parquet` read them | https://neo4j.com/apoc/2026/export/parquet/                                                   |
+| FlyWire Codex releases | Neuron and connection tables as Feather; Feather V2 "is exactly represented as the Arrow IPC file format on disk"                               | https://zenodo.org/records/10676866, https://arrow.apache.org/docs/python/feather.html        |
 
 There is no shared graph layout inside these files: each writer names its own id, source and target columns, and
 nodes and edges are usually two tables (APOC's single-file export is the exception seen). A reader therefore needs
@@ -659,25 +659,25 @@ hand-off.
 
 ## 9. Tools landscape and pain points
 
-| Tool                          | Loved for                                                                     | Fails on                                                           | Evidence                                                |
-| ----------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------- |
-| NetworkX + matplotlib         | Ubiquity, dict-returning API                                                  | Hairballs, static, slow at scale                                   | Persona 3.1                                             |
-| igraph (Python, R)            | Speed, ggraph and visNetwork                                                  | Different defaults; no GEXF writer in python-igraph                | https://mapequation.org/infomap-python-docs/export.html |
-| pyvis, Plotly                 | Few lines to interactive HTML                                                 | pyvis physics, about 1,000-node ceiling; Plotly has no edge hover  | Persona 3.1                                             |
-| ipysigma (sigma.js)           | WebGL in the cell, metrics to visual variables                                | Heavy graphs make the machine loud (its FAQ)                       | https://pypi.org/project/ipysigma/                      |
-| yFiles Graphs for Jupyter     | Layout quality, selection back to Python, VS Code and Colab                   | Commercial engine                                                  | yWorks page                                             |
-| neo4j-viz                     | One call from a GDS projection, sampling cap                                  | Tied to Neo4j                                                      | neo4j-viz docs                                          |
-| PyGraphistry                  | GPU server rendering: `graphistry.edges(df, "src", "dst").plot()`             | Uploads data to a server                                           | https://pypi.org/project/graphistry/0.34.14             |
-| Gephi                         | ForceAtlas2, publication figures                                              | Leaves the notebook; attribute types lost                          | Persona 3.1                                             |
-| PyG `visualize_graph`         | Built in, edge opacity from mask                                              | Static, no heterogeneous support                                   | Persona 3.2                                             |
-| TensorBoard                   | Projector colors embeddings by metadata; Graphs dashboard expands name scopes | Projector has no link to the data graph; Graphs is TensorFlow-only | TensorFlow docs                                         |
-| Netron                        | Opens nearly every model format                                               | Layout chokes above about 5,000 operators                          | Persona 3.7                                             |
-| Model Explorer                | Per-layer lazy layout, WebGL, regex search, two-model diff, numeric overlays  | Needs an adapter per framework                                     | Workflow 5.11                                           |
-| circuit-tracer, Neuronpedia   | Influence pruning, pinning, supernodes, steering                              | Bound to transcoders and hosted models                             | Workflow 5.12                                           |
-| GNNLens, CorGIE, RekomGNN     | Purpose-built linked views                                                    | Research prototypes                                                | papers                                                  |
-| Cosmograph                    | GPU drawing in the browser; reads CSV, Parquet, Arrow and JSON; anywidget notebook widget | Vendor scale claim only (Section 6.1)                    | Cosmograph README                                       |
-| Spark GraphFrames, nx-cugraph | Warehouse-scale or GPU algorithms with familiar APIs                          | Results are tables; cuGraph needs an NVIDIA GPU                    | Persona 3.1, Workflow 5.1                               |
-| RDKit, Splink cluster studio  | Chemistry-aware 2D drawing; per-cluster review sampled by size or density     | One molecule or one cluster at a time                              | Personas 3.5, 3.6                                       |
+| Tool                          | Loved for                                                                                 | Fails on                                                           | Evidence                                                |
+| ----------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------- |
+| NetworkX + matplotlib         | Ubiquity, dict-returning API                                                              | Hairballs, static, slow at scale                                   | Persona 3.1                                             |
+| igraph (Python, R)            | Speed, ggraph and visNetwork                                                              | Different defaults; no GEXF writer in python-igraph                | https://mapequation.org/infomap-python-docs/export.html |
+| pyvis, Plotly                 | Few lines to interactive HTML                                                             | pyvis physics, about 1,000-node ceiling; Plotly has no edge hover  | Persona 3.1                                             |
+| ipysigma (sigma.js)           | WebGL in the cell, metrics to visual variables                                            | Heavy graphs make the machine loud (its FAQ)                       | https://pypi.org/project/ipysigma/                      |
+| yFiles Graphs for Jupyter     | Layout quality, selection back to Python, VS Code and Colab                               | Commercial engine                                                  | yWorks page                                             |
+| neo4j-viz                     | One call from a GDS projection, sampling cap                                              | Tied to Neo4j                                                      | neo4j-viz docs                                          |
+| PyGraphistry                  | GPU server rendering: `graphistry.edges(df, "src", "dst").plot()`                         | Uploads data to a server                                           | https://pypi.org/project/graphistry/0.34.14             |
+| Gephi                         | ForceAtlas2, publication figures                                                          | Leaves the notebook; attribute types lost                          | Persona 3.1                                             |
+| PyG `visualize_graph`         | Built in, edge opacity from mask                                                          | Static, no heterogeneous support                                   | Persona 3.2                                             |
+| TensorBoard                   | Projector colors embeddings by metadata; Graphs dashboard expands name scopes             | Projector has no link to the data graph; Graphs is TensorFlow-only | TensorFlow docs                                         |
+| Netron                        | Opens nearly every model format                                                           | Layout chokes above about 5,000 operators                          | Persona 3.7                                             |
+| Model Explorer                | Per-layer lazy layout, WebGL, regex search, two-model diff, numeric overlays              | Needs an adapter per framework                                     | Workflow 5.11                                           |
+| circuit-tracer, Neuronpedia   | Influence pruning, pinning, supernodes, steering                                          | Bound to transcoders and hosted models                             | Workflow 5.12                                           |
+| GNNLens, CorGIE, RekomGNN     | Purpose-built linked views                                                                | Research prototypes                                                | papers                                                  |
+| Cosmograph                    | GPU drawing in the browser; reads CSV, Parquet, Arrow and JSON; anywidget notebook widget | Vendor scale claim only (Section 6.1)                              | Cosmograph README                                       |
+| Spark GraphFrames, nx-cugraph | Warehouse-scale or GPU algorithms with familiar APIs                                      | Results are tables; cuGraph needs an NVIDIA GPU                    | Persona 3.1, Workflow 5.1                               |
+| RDKit, Splink cluster studio  | Chemistry-aware 2D drawing; per-cluster review sampled by size or density                 | One molecule or one cluster at a time                              | Personas 3.5, 3.6                                       |
 
 Cross-cutting pain points: (1) whole-graph pictures are useless at their scale; (2) model outputs (masks,
 predictions, embeddings, splits) are not first-class in general graph viewers; (3) graph view, embedding view and table
@@ -705,29 +705,29 @@ outside notebook grids and single-purpose dashboards; (7) edge time is a column,
 
 Coverage is checked against the capabilities in design/designloom/capabilities.
 
-| Requirement                                                                                                                           | Priority | Covered today?                                            |
-| ------------------------------------------------------------------------------------------------------------------------------------- | -------- | --------------------------------------------------------- |
+| Requirement                                                                                                                           | Priority | Covered today?                                                                                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------- |
 | Load an edge DataFrame or parquet edge list plus a node table, keeping original ids beside integer indices                            | Must     | No: data-import reads CSV, JSON, GraphML, GEXF and GML; graphrag-output-import reads only GraphRAG tables (6.1, 5.13) |
-| Take Parquet, Arrow or Feather edge and node tables, as files or as Arrow bytes from a notebook widget, with typed columns kept     | Must     | No (6.1, 5.13)                                            |
-| k-hop neighborhood around one or many seeds, hop distance as a visual channel, a node cap with documented sampling                    | Must     | Partly (ego-network, neighborhood-expansion)              |
-| Attach per-node and per-edge arrays (prediction, label, probability, mask, split) and map them to color, size, opacity                | Must     | Partly (visual-encoding; model outputs not modeled)       |
-| Edge opacity or width from an importance mask, with an on-screen threshold or top-k control                                           | Must     | No                                                        |
-| Typed bipartite and heterogeneous graphs                                                                                              | Must     | No explicit capability                                    |
-| Seeded layout so a figure is reproducible from code                                                                                   | Must     | Element option; no workflow requires it                   |
-| Notebook widget (Jupyter, VS Code, Colab, Databricks) returning selection to Python                                                   | Must     | No                                                        |
-| Algorithm plugin: graph in, per-node map out, one-call registration, usable as style input, documented defaults for NetworkX parity   | Must     | Untested hypothesis (5.6)                                 |
-| Many small graphs as one document: per-graph labels and splits; browse, sort, small multiples; open one; compare with nearest graphs  | Must     | No                                                        |
-| Attribution overlay on one small graph with caller-supplied layout (2D molecule coordinates)                                          | Must     | Partly                                                    |
-| Node and edge tables with precomputed metric columns in; computed metrics out as a table                                              | Must     | Partly (data-import, data-export)                         |
-| Filter and encode edges by time; mark edges later than a chosen prediction time                                                       | Must     | Partly (temporal-analysis, temporal-navigation)           |
-| Neighbor counts split by a node label (known fraud versus legitimate)                                                                 | Should   | No                                                        |
-| Rank and sample components or clusters by size, density or bridges, then open one                                                     | Should   | Partly (component-analysis)                               |
-| Linked sortable table of the same nodes                                                                                               | Should   | Partly (data-preview)                                     |
-| Layout from supplied coordinates (UMAP of embeddings), linked to the graph view                                                       | Should   | No                                                        |
-| Compare two attributes on one graph (prediction vs label); highlight a path among candidates                                          | Should   | Partly (comparison-view, path-highlighting)               |
-| Export to Python with vector attributes intact; annotate items and export annotations as CSV                                          | Should   | Partly (data-export, annotation)                          |
-| Nested groups that expand and collapse, laid out only when opened, with numeric overlays summarized on collapsed groups (Section 9.1) | Should   | Partly (layout-hierarchical; no lazy compound groups)     |
-| Diff two graphs through a node mapping, marking added and removed nodes; prune to the smallest set reaching a cumulative weight       | Could    | Partly (comparison-view)                                  |
+| Take Parquet, Arrow or Feather edge and node tables, as files or as Arrow bytes from a notebook widget, with typed columns kept       | Must     | No (6.1, 5.13)                                                                                                        |
+| k-hop neighborhood around one or many seeds, hop distance as a visual channel, a node cap with documented sampling                    | Must     | Partly (ego-network, neighborhood-expansion)                                                                          |
+| Attach per-node and per-edge arrays (prediction, label, probability, mask, split) and map them to color, size, opacity                | Must     | Partly (visual-encoding; model outputs not modeled)                                                                   |
+| Edge opacity or width from an importance mask, with an on-screen threshold or top-k control                                           | Must     | No                                                                                                                    |
+| Typed bipartite and heterogeneous graphs                                                                                              | Must     | No explicit capability                                                                                                |
+| Seeded layout so a figure is reproducible from code                                                                                   | Must     | Element option; no workflow requires it                                                                               |
+| Notebook widget (Jupyter, VS Code, Colab, Databricks) returning selection to Python                                                   | Must     | No                                                                                                                    |
+| Algorithm plugin: graph in, per-node map out, one-call registration, usable as style input, documented defaults for NetworkX parity   | Must     | Untested hypothesis (5.6)                                                                                             |
+| Many small graphs as one document: per-graph labels and splits; browse, sort, small multiples; open one; compare with nearest graphs  | Must     | No                                                                                                                    |
+| Attribution overlay on one small graph with caller-supplied layout (2D molecule coordinates)                                          | Must     | Partly                                                                                                                |
+| Node and edge tables with precomputed metric columns in; computed metrics out as a table                                              | Must     | Partly (data-import, data-export)                                                                                     |
+| Filter and encode edges by time; mark edges later than a chosen prediction time                                                       | Must     | Partly (temporal-analysis, temporal-navigation)                                                                       |
+| Neighbor counts split by a node label (known fraud versus legitimate)                                                                 | Should   | No                                                                                                                    |
+| Rank and sample components or clusters by size, density or bridges, then open one                                                     | Should   | Partly (component-analysis)                                                                                           |
+| Linked sortable table of the same nodes                                                                                               | Should   | Partly (data-preview)                                                                                                 |
+| Layout from supplied coordinates (UMAP of embeddings), linked to the graph view                                                       | Should   | No                                                                                                                    |
+| Compare two attributes on one graph (prediction vs label); highlight a path among candidates                                          | Should   | Partly (comparison-view, path-highlighting)                                                                           |
+| Export to Python with vector attributes intact; annotate items and export annotations as CSV                                          | Should   | Partly (data-export, annotation)                                                                                      |
+| Nested groups that expand and collapse, laid out only when opened, with numeric overlays summarized on collapsed groups (Section 9.1) | Should   | Partly (layout-hierarchical; no lazy compound groups)                                                                 |
+| Diff two graphs through a node mapping, marking added and removed nodes; prune to the smallest set reaching a cumulative weight       | Could    | Partly (comparison-view)                                                                                              |
 
 Missing from the existing Designloom workflows: 5.3, 5.4, 5.8, 5.9 and 5.10. Workflow 5.13 is Designloom workflow W1120.
 

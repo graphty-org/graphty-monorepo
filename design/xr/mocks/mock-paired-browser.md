@@ -556,7 +556,7 @@ illustrative; the mock shows whatever the real run returns.
 ### Journey 4: rank hub genes and defend the choice (this mock's proof journey)
 
 From the functionality inventory (a studio working file, not committed) (journey 4) and `design/designloom/workflows/W23.yaml`; persona
-**Dr. Lakshmi Raman**, the genomics postdoc (`design/designloom/personas/genomics-cytoscape-user.yaml`):
+**Dr. Priya Raman**, the genomics postdoc (`design/designloom/personas/genomics-cytoscape-user.yaml`):
 a strong biologist and R user, not a graph theorist, who needs a top-10 hub list and a figure she
 can defend to a reviewer. She wears a **Samsung Galaxy XR**, hands only, seated, headset only. Her
 data: a DNA damage response network from STRING as an edge file (412 proteins, 3,170 interactions,

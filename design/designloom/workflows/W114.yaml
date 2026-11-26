@@ -4,7 +4,7 @@ category: analysis
 validated: false
 personas:
     - marcus-lindqvist
-    - dana-okafor
+    - penetration-tester
 requires_capabilities:
     - data-import
     - shortest-path

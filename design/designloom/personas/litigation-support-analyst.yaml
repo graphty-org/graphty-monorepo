@@ -1,9 +1,12 @@
 id: litigation-support-analyst
 name: Litigation-Support Analyst
+roster_persona: litigation-support-analyst
+tier: B
+scope: in-scope
 role: Senior eDiscovery Analyst at a review vendor; Relativity Certified Administrator
 quote: If one alias is merged into the wrong person, every count on that graph is wrong and it ends up on a privilege log.
 bio: >-
-    Dana is a senior eDiscovery analyst at a vendor that serves large law firms, with six years of processing and
+    Rachel is a senior eDiscovery analyst at a vendor that serves large law firms, with six years of processing and
     analytics behind her. Matters arrive as 20 to 150 custodians' mailbox PSTs plus Teams and Slack exports that she
     converts to Relativity Short Message Format, hundreds of thousands to millions of documents in all. Before a case
     team ever opens a people graph she runs structured analytics: email threading so reviewers see a correct thread

@@ -1,0 +1,19 @@
+id: ortholog-annotation-transfer
+name: "Ortholog-based annotation transfer"
+category: analysis
+description: "Join an ortholog table (crop gene to Arabidopsis or rice gene) onto nodes, carry the ortholog's symbol and GO terms as separate labeled columns, report the share of nodes with an ortholog, run enrichment on plant gene sets with that coverage stated, and optionally bring in an interaction layer from the reference species mapped back to the crop genes."
+status: planned
+notes: "Research trace: systems-biology-omics-networks.md section 10, requirement 47 (Must)."
+algorithms: []
+used_by_workflows:
+    - W1126
+implemented_by_components: []
+requirements:
+    - "Must: Ortholog-based annotation for the crop variant: join an ortholog table (gene to Arabidopsis or rice gene),
+      carry the ortholog's symbol and GO terms onto each node as a separate, labeled column, report how many nodes got
+      an ortholog, and run enrichment on plant gene sets with that coverage stated (5.17)"
+sources:
+    - title: Systems Biologists and Bench Scientists Working With Molecular Interaction Networks (section 10,
+        requirement 47)
+      url: design/user-research/systems-biology-omics-networks.md
+      summary: Must in the research.

@@ -1,0 +1,18 @@
+id: sequence-edit-distance-network
+name: "Sequence edit-distance network"
+category: analysis
+description: "Build a network from a column of short sequences (for example CDR3 amino acid strings) by joining pairs within a Hamming or Levenshtein distance of 1 or 2, per sample or pooled, without computing an all-pairs matrix (compare only sequences of equal or near-equal length), and store the distance type and cutoff with the network. distance-threshold-network covers aligned FASTA and distance matrices, not unaligned strings at repertoire scale (10^5-10^6 sequences)."
+status: planned
+notes: "Research trace: systems-biology-omics-networks.md section 10, requirement 45 (Should)."
+algorithms: []
+used_by_workflows:
+    - W1060
+implemented_by_components: []
+requirements:
+    - "Should: Build an edit-distance network from a sequence column (Hamming or Levenshtein, threshold 1 or 2), per
+      sample or pooled, without an all-pairs matrix"
+sources:
+    - title: Systems Biologists and Bench Scientists Working With Molecular Interaction Networks (section 10,
+        requirement 45)
+      url: design/user-research/systems-biology-omics-networks.md
+      summary: Should in the research.

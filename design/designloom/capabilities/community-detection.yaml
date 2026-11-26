@@ -1,30 +1,51 @@
 id: community-detection
 name: Community Detection
 category: analysis
-description: Identify densely connected groups (communities) within the network. Assign each node to a community and
-    calculate modularity to measure the quality of the partition. Communities often correspond to functional groups,
-    teams, or topical clusters.
-status: implemented
-notes: "Ships: graphty-element/src/algorithms/LouvainAlgorithm.ts, LeidenAlgorithm.ts and LabelPropagationAlgorithm.ts."
+description: Identify densely connected groups (communities) within the network and assign each node to one. Leiden is
+    the default method because Louvain can return badly connected or disconnected communities; modularity is reported
+    as a descriptive value only, since it has a resolution limit and many near-equal optima. Every run is seeded and
+    records its method, quality function, resolution and seed so a partition can be reproduced. The method list
+    covers what each population actually runs - MCL for systems biologists (the STRING and clusterMaker2 tutorials),
+    Clauset-Newman-Moore for NodeXL users, Infomap, Walktrap and fast-greedy for igraph users, and hierarchical
+    clustering cut into modules for WGCNA users - not only modularity methods. Seeded dense-region finding (MCODE),
+    which leaves nodes unassigned, is the separate dense-region-detection capability.
+status: in-progress
+notes: "Ships in graphty-element/src/algorithms: LouvainAlgorithm.ts (louvain; Resolution 1, Max Iterations 100,
+    Tolerance), LeidenAlgorithm.ts (leiden; Resolution 1, Random Seed, Max Iterations, Threshold; modularity quality
+    only, so the Constant Potts Model is planned), LabelPropagationAlgorithm.ts (label-propagation; Max Iterations,
+    Random Seed), MarkovClusteringAlgorithm.ts (markov-clustering, MCL; Inflation 2 in 1.1 to 10, Expansion 2, Max
+    Iterations 100, Self Loops on), HierarchicalClusteringAlgorithm.ts (hierarchical-clustering; Clusters 2, Linkage
+    single; cuts to a fixed cluster count, no height or Dynamic Tree Cut yet), SpectralClusteringAlgorithm.ts
+    (spectral-clustering; Clusters 2, Laplacian normalized, Random Seed) and GirvanNewmanAlgorithm.ts (girvan-newman;
+    Max Communities, Min Community Size). Planned: Constant Potts Model quality for Leiden, Infomap, Walktrap,
+    fast-greedy (Clauset-Newman-Moore), Wakita-Tsurumi, and dendrogram cutting by height or Dynamic Tree Cut. MCL's
+    Inflation is the value Cytoscape and stringApp call granularity; the element's label does not say so yet."
 algorithms:
-    - Louvain algorithm
+    - Leiden algorithm (shipped; modularity quality)
+    - Louvain algorithm (shipped)
     - Modularity optimization
-    - Label propagation
+    - Constant Potts Model (planned, as a Leiden quality function)
+    - Label propagation (shipped)
+    - Markov clustering, MCL (shipped; inflation, also called granularity)
+    - Agglomerative hierarchical clustering (shipped with a fixed cluster count; height cut and Dynamic Tree Cut planned)
+    - Spectral clustering (shipped)
+    - Girvan-Newman edge betweenness (shipped)
+    - Infomap (planned)
+    - Walktrap (planned)
+    - Fast-greedy modularity, Clauset-Newman-Moore (planned)
+    - Wakita-Tsurumi (planned)
 used_by_workflows:
+    - W3114
     - W03
     - W04
-    - W06
-    - W08
     - W09
     - W10
-    - W12
     - W14
     - W19
     - W21
     - W22
     - W24
     - W107
-    - W128
     - W129
     - W142
     - W153
@@ -68,7 +89,6 @@ used_by_workflows:
     - W270
     - W274
     - W28
-    - W285
     - W297
     - W306
     - W309
@@ -84,7 +104,6 @@ used_by_workflows:
     - W334
     - W335
     - W337
-    - W354
     - W36
     - W363
     - W364
@@ -110,9 +129,6 @@ used_by_workflows:
     - W430
     - W433
     - W435
-    - W439
-    - W442
-    - W444
     - W46
     - W47
     - W48
@@ -134,28 +150,89 @@ used_by_workflows:
     - W91
     - W93
     - W94
+    - W1060
+    - W1138
+    - W1139
+    - W2037
+    - W2072
+    - W2096
+    - W2097
+    - W2098
+    - W3080
 implemented_by_components:
     - algorithm-card
     - algorithm-panel
     - community-panel
 requirements:
-    - Implement Louvain algorithm as primary community detection method
-    - Implement Label Propagation as alternative fast method for very large graphs
-    - Calculate modularity score with 4 decimal places (range -0.5 to 1.0)
-    - Provide resolution parameter adjustable from 0.1 to 5.0 (default 1.0)
-    - Lower resolution values produce fewer, larger communities; higher values produce more, smaller communities
-    - Return community assignment as integer ID for each node (starting from 0)
-    - Report total number of communities detected
-    - Report size of each community (node count) sorted by size descending
-    - Report size of largest and smallest communities
-    - Support hierarchical community detection returning dendrogram structure
-    - Store community assignment as node attribute named 'community'
-    - Complete Louvain calculation within 10 seconds for graphs under 100,000 nodes
-    - Complete Label Propagation within 5 seconds for graphs under 100,000 nodes
-    - Display progress indicator for calculations exceeding 3 seconds
-    - Report 'Single community' when all nodes belong to one community (modularity near 0)
-    - Handle disconnected components by detecting communities within each separately
+    - "Must: Leiden is the default community detection method; the quality function (modularity or Constant Potts Model) is an explicit, recorded choice"
+    - "Must: Keep Louvain available, labeled as the method for reproducing older work (Gephi's Modularity is Louvain)"
+    - "Must: Keep Label Propagation available; it is stochastic (random update order, random tie breaks), so it takes and records a seed like the others. Leiden is also faster than Louvain, so large graphs do not force a non-Leiden default"
+    - "Must: Every run takes a seed and records the seed it used, also when none was passed; the result carries method, quality function, resolution, seed and iteration count"
+    - 'Library parity: Calculate the modularity score Q as a descriptive value only; never use it as a threshold for "real communities" (no fixed Q cut-off), and allow comparing it with Q on degree-preserving randomizations (null-model-ensembles)'
+    - "Must: Provide a resolution parameter whose range depends on the quality function - modularity's gamma around 1, CPM's resolution on the scale of edge density; a CPM default of 1 on an unweighted graph returns near-singletons and must never be the silent default"
+    - "Must: Lower resolution values produce fewer, larger communities; higher values produce more, smaller communities; a resolution of 1 is not special, so sweeping it is supported (resolution-sweep)"
+    - "Must: Read edge weights as strengths, as declared in weight-semantics (the opposite of path methods); for signed or correlation networks require dropping or separately handling negative weights"
+    - "Must: Support repeated runs with partition agreement (NMI, adjusted Rand, variation of information), per-node co-assignment and a consensus partition (partition-stability, consensus-partition); offer stochastic block model inference as the inferential option (sbm-inference)"
+    - "Library parity: Return community assignment as integer ID for each node (starting from 0)"
+    - "Library parity: Report total number of communities detected"
+    - "Library parity: Report size of each community (node count) sorted by size descending"
+    - "Library parity: Report size of largest and smallest communities"
+    - "Library parity: Return Louvain or Leiden aggregation levels as levels of one run, not as a statistically supported hierarchy; a supported hierarchy comes from the nested stochastic block model"
+    - "Library parity: Store community assignment as node attribute named 'community'"
+    - "Must: Return a code when all nodes fall in one community"
+    - "Library parity: Handle disconnected components by detecting communities within each separately; Leiden guarantees each community is connected"
+    - "Must: Offer the methods each population names, with the parameter vocabulary it already uses, so a tutorial can be followed literally - MCL inflation, which Cytoscape and stringApp call granularity (clusterMaker2 suggests 2.0, about 1.8 to 2.5; the Jensen Lab diseases tutorial sets 5; a student tutorial uses 4), with expansion and an edge-weight pruning threshold as advanced options"
+    - "Must: Offer Infomap with a number of trials (igraph default 10) that uses edge direction when the graph is directed and accepts positive edge weights only; refuse, with a code, a graph that has zero or negative weights rather than dropping them silently"
+    - "Library parity: Offer Walktrap with a random-walk length in steps (igraph default 4) and positive weights only"
+    - "Library parity: Offer fast-greedy modularity agglomeration (Clauset-Newman-Moore, NodeXL's default Group by Cluster method, and clusterMaker2's Fast Greedy, which has no adjustable parameters); also Wakita-Tsurumi, NodeXL's option for large graphs"
+    - "Must: Cut a hierarchical clustering by a fixed count, by a height, or by Dynamic Tree Cut with deepSplit 0 to 4 and a minimum module size (the WGCNA tutorial uses minimum module size 30, then merges modules whose eigengenes differ by less than a cut height of 0.25)"
+    - "Must: Every method returns one community id per node; a method that leaves nodes unassigned (MCODE) belongs to dense-region-detection"
 sources:
-    - title: Graph Analysis Textbook - Chapter 5
-      url: https://graphty.app/docs/
-      summary: Community Detection and Clustering including Louvain algorithm
+    - title: Traag, Waltman and van Eck 2019, From Louvain to Leiden - guaranteeing well-connected communities
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6435756/
+      summary: Louvain gave up to 25% badly connected and 16% disconnected communities; Leiden guarantees connected ones and is faster
+    - title: Blondel et al. 2008, Fast unfolding of communities in large networks (Louvain)
+      url: https://doi.org/10.1088/1742-5468/2008/10/P10008
+      summary: The Louvain method, kept for reproducing older work
+    - title: Fortunato and Barthelemy 2007, Resolution limit in community detection
+      url: https://arxiv.org/abs/physics/0607100
+      summary: Modularity may merge modules with about sqrt(2L) internal links or fewer
+    - title: Good, de Montjoye and Clauset 2010, Performance of modularity maximization in practical contexts
+      url: https://arxiv.org/abs/0910.0165
+      summary: Exponentially many near-optimal partitions; interpret modularity cautiously
+    - title: Betzel 2020, Community detection in network neuroscience
+      url: https://ar5iv.labs.arxiv.org/html/2011.06723
+      summary: 100 Louvain runs give several distinct solutions; resolution sweeps and consensus clustering
+    - title: igraph cluster_leiden
+      url: https://r.igraph.org/reference/cluster_leiden.html
+      summary: Clusters guaranteed connected; CPM resolution scale; set.seed for reproducibility
+    - title: Raghavan, Albert and Kumara 2007, Near linear time algorithm to detect community structures
+      url: https://arxiv.org/abs/0709.2938
+      summary: Label propagation, stochastic update order and tie breaking
+    - title: Peixoto 2023, Descriptive vs. inferential community detection in networks
+      url: https://arxiv.org/abs/2112.00183v7
+      summary: Modularity-style methods are descriptive; the nested SBM gives a supported hierarchy
+    - title: Gephi Modularity source
+      url: https://github.com/gephi/gephi/blob/master/modules/StatisticsPlugin/src/main/java/org/gephi/statistics/plugin/Modularity.java
+      summary: Gephi Modularity is Louvain with resolution 1.0 and weights used
+    - title: clusterMaker2 documentation
+      url: https://rbvi.ucsf.edu/cytoscape/clusterMaker2
+      summary: Network methods include MCL, MCODE, Leiden, Infomap, Fast Greedy, Label Propagation and Multilevel; MCL granularity (inflation) about 2.0, sensible 1.8 to 2.5; Fast Greedy has no adjustable parameters
+    - title: Jensen Lab stringApp disease networks tutorial
+      url: https://jensenlab.org/training/stringapp/diseases
+      summary: Cluster network (MCL) button in the STRING Results panel, granularity (inflation) set to 5
+    - title: igraph cluster_walktrap
+      url: https://r.igraph.org/reference/cluster_walktrap.html
+      summary: Random walk length steps defaults to 4; weights must be positive
+    - title: igraph cluster_infomap
+      url: https://r.igraph.org/reference/cluster_infomap.html
+      summary: nb.trials defaults to 10; edge directions are taken into account
+    - title: Pew Research Center 2014, How we analyzed Twitter social media networks
+      url: https://legacy.pewresearch.org/wp-content/uploads/sites/9/2014/02/How-we-analyzed-Twitter-social-media-networks.pdf
+      summary: NodeXL offers Clauset-Newman-Moore, Wakita-Tsurumi and Newman-Girvan clustering
+    - title: WGCNA tutorial, automatic network construction (FemaleLiver-02)
+      url: https://edo98811.github.io/WGCNA_official_documentation/FemaleLiver-02-networkConstr-auto.pdf
+      summary: blockwiseModules with power 6, minModuleSize 30 and mergeCutHeight 0.25
+    - title: dynamicTreeCut reference manual (CRAN)
+      url: https://cran.r-project.org/web/packages/dynamicTreeCut/dynamicTreeCut.pdf
+      summary: cutreeDynamic hybrid method takes deepSplit 0 to 4, higher values split clusters more readily, and a minimum cluster size

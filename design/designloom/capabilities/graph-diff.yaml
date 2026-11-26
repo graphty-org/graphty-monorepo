@@ -5,7 +5,7 @@ description: "Compare two versions of a graph with matched node ids (before/afte
     versus baseline path): added and removed nodes and edges, and per-node metric differences usable for color and
     sort."
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: dependency-and-impact-analysis-engineers.md section 10, requirement R24 (Should)."
 algorithms: []
 used_by_workflows:
     - W108
@@ -20,12 +20,22 @@ used_by_workflows:
     - W79
     - W83
     - W86
+    - W1013
+    - W323
+    - W320
+    - W81
+    - W1132
+    - W1159
+    - W2006
+    - W3079
 implemented_by_components: []
 requirements:
-    - Compare two versions of a graph (two collections, two binaries) and show matched, changed, removed and new nodes,
-      edges and paths.
-    - Compare two versions of a hierarchy or graph and highlight added, removed and moved nodes, including nodes that
-      gained or lost a parent.
-    - Compare two graphs matched by node id or a supplied mapping, marking added, removed and changed nodes and edges
-      with synchronized navigation.
-sources: []
+    - "Should: Diff two versions of a graph (before/after a PR, live versus baseline or staging)"
+    - "Must: Compare two versions of a graph (two collections, two binaries) and show matched, changed, removed and new nodes, edges and paths."
+    - "Must: Compare two versions of a hierarchy or graph and highlight added, removed and moved nodes, including nodes that gained or lost a parent."
+    - "Should: Compare two graphs matched by node id or a supplied mapping, marking added, removed and changed nodes and edges with synchronized navigation."
+sources:
+    - title: "Engineers Who Analyze Dependencies: IT Services, Networks, Software and Data Lineage (section 10,
+          requirement R24)"
+      url: design/user-research/dependency-and-impact-analysis-engineers.md
+      summary: "Should in the research. Covered by Designloom when researched: Partly"

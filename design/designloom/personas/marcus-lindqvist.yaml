@@ -1,5 +1,8 @@
 id: marcus-lindqvist
 name: Marcus Lindqvist
+roster_persona: attack-path-analyst
+tier: B
+scope: in-scope
 role: Identity Security Engineer / Attack Path Management Owner
 quote: I do not need every misconfiguration. I need the three choke points that cut most of the paths into Tier Zero, proof that removing them breaks nothing, and a chart for the CISO showing exposure went down.
 bio: >-
@@ -47,6 +50,8 @@ workflows:
     - W108
     - W109
     - W114
+    - W320
+    - W323
 sources:
     - title: SpecterOps - Attack path management pillar 2, empirical impact assessment
       url: https://specterops.io/blog/2022/01/27/3-foundational-pillars-for-attack-path-management-pillar-2-empirical-impact-assessment/

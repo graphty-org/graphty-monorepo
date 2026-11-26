@@ -4,12 +4,17 @@ category: data
 description: Import Microsoft GraphRAG Parquet output across v1 (create_final_*), v2 and v3 table names and columns,
     keeping entities, relationships, the supplied community hierarchy, community reports and text units.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: knowledge-graph-engineers-and-graphrag.md section 10, table row 7 (Must)."
 algorithms: []
 used_by_workflows:
     - W129
     - W130
     - W141
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Import GraphRAG output from Parquet, handling v1 (create_final_*), v2 and v3 table names and columns,
+      keeping its community hierarchy"
+sources:
+    - title: Knowledge Graph Engineers, Ontologists and GraphRAG Developers (section 10, table row 7)
+      url: design/user-research/knowledge-graph-engineers-and-graphrag.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

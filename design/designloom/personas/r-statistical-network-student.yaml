@@ -1,9 +1,12 @@
 id: r-statistical-network-student
 name: R Statistical Network Student
+roster_persona: survey-network-researcher
+tier: B
+scope: in-scope
 role: PhD Student in a Statistical Network Analysis Seminar
 quote: My model lives in R. I want a tool to explore the network and draw the fitted effect, not to replace statnet.
 bio: >-
-    Tomas is a PhD student in sociology, communication, public health or statistics, taking a semester seminar (Ohio
+    Matthias is a PhD student in sociology, communication, public health or statistics, taking a semester seminar (Ohio
     State COMM 7710, Minnesota Sociology 8412, UW STAT 567) or a GESIS-style week-long course. He works in R and RStudio
     with igraph and statnet's network, sna and ergm packages, plots with ggraph or plot.network, and keeps literate
     homework on GitHub. His data are an edge list plus an attribute table from his own survey or a replication dataset,

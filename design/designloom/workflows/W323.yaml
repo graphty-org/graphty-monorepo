@@ -3,20 +3,35 @@ name: Recurring Deliverables Regenerated from Refreshed Data
 category: reporting
 validated: false
 personas:
+    - marcus-lindqvist
+    - workplace-collaboration-analyst
+    - research-impact-librarian
+    - supply-chain-analyst
+    - aml-investigator
     - graph-deliverable-recipient
 requires_capabilities:
     - data-import
+    - import-report
+    - data-validation
     - saved-filters
     - view-bookmarks
     - style-presets
     - legend-display
+    - fixed-node-positions
+    - stable-id-data-binding
+    - entity-resolution-review
+    - graph-diff
+    - small-count-suppression
     - comparison-view
+    - temporal-analysis
     - analysis-history
     - export-image
     - data-export
     - report-generation
     - analysis-provenance
     - deliverable-templates
+    - comparison-coverage-gate
+    - period-change-table
 suggested_components:
     - data-import-dialog
     - filter-panel
@@ -36,27 +51,56 @@ starting_state:
 goal: >-
     **Intent**: Produce the same deliverable every period - an exposure trend, a monthly network dashboard, an
     institutional bibliometric report, a semiannual resiliency score, a continuing-activity review, a dependency view -
-    from refreshed data with the same view, filters, styling, legend and parameters, and show what changed.
+    from refreshed data with the same scope, filters, styling, legend, parameters and positions, and show what changed
+    only where the two periods can honestly be compared.
 
 
-    **Mental Model**: "Save the deliverable as a definition, not as pixels." The view, filters and tables are a recipe
-    that is run again against new data.
+    **Who**: The analyst who owns each recurring product builds it once and re-renders it each period: the attack-
+    path management owner, the collaboration-metadata analyst, the research-impact librarian, the supply chain risk
+    manager and the AML investigator. Leaders and reviewers read each period's version and compare it with the last
+    (W1018).
+
+
+    **Mental Model**: "Save the deliverable as a definition, not as pixels, and never compare two periods that were
+    not measured the same way." BloodHound Enterprise's Posture page is the model: fixed filter scope, a per-category
+    Count and Change table, trend graphs, and completeness figures that say whether a drop is real.
 
 
     **Task Phases**:
 
     1. **Build once** - View, filters, styling, legend, parameters block, tables
 
-    2. **Save as a definition** - Store the recipe, not the rendered image
+    2. **Save as a definition** - Store the query or import mapping, filters and scope, style, parameters, and the
+    positions or base map that must stay fixed; not the rendered image
 
-    3. **Re-render each period** - Load the new data, apply the same parameters, compare with the previous period
+    3. **Load the new period** - Import the refreshed extract and wait until import and analysis have finished
+    (BloodHound: "wait for ingest and analysis processing to complete before you compare counts or trends")
 
-    4. **Publish** - Export files, refresh the dashboard or update the embed
+    4. **Check coverage** - Completeness of the collection (BloodHound Group and Session Completeness: share of enabled
+    computers with a login in the past 14 days that were scanned), record counts against the previous period, data
+    date; below the agreed level, mark the period not comparable
+
+    5. **Match entities across periods** - By stable id; roll renamed and merged entities into their successors (ROR
+    keeps one id through a rename and links merged organizations as Predecessor and Successor); list new, departed and
+    suppressed items separately (a team below the minimum group size of five shows no data)
+
+    6. **Re-render with the same scope** - Same environment, zone, severity and date-range rules ("use the same filter
+    scope and similar date ranges across reviews"), same parameters; existing positions fixed, only new items placed
+
+    7. **Build the change table** - Per category: count at the end of the period, change from the start, items resolved
+    or retired and items newly appeared within the period; trend lines over all periods
+
+    8. **Publish** - Export the files, refresh the dashboard or update the embed, stating the period, data date,
+    coverage figures and that the scope matches the previous edition
 
 
     **Decision Points**:
 
     - Which parts of the deliverable are fixed and which follow the data?
+
+    - What coverage level makes a period comparable, and what does the deliverable say when it is not met?
+
+    - Is a missing entity gone, renamed, merged or hidden by a minimum group size?
 
     - What counts as a meaningful change between periods?
 
@@ -65,36 +109,52 @@ goal: >-
 
     **Information Needs**:
 
-    - Differences from the previous period (added, removed and changed nodes, edges and metrics)
+    - Coverage of each period (completeness percentage, record counts, data date) beside the comparison
 
-    - Confirmation that the same parameters were applied
+    - Per-category count, change, resolved and new items between the start and end of the range
 
-    - Data date of each regenerated deliverable
+    - Added, removed, renamed, merged and suppressed entities, listed separately
+
+    - Confirmation that the same scope, filters and parameters were applied
+
+    - Trend of the headline measure across all periods
 
 
     **Pain Points**:
 
-    - Graph tools save pictures, not re-runnable deliverables; no documented template that re-renders against new data
+    - Most graph tools save pictures or a query, not a deliverable with fixed positions and a period comparison;
+    NeoDash re-runs one Cypher query per report on a refresh rate but lays the graph out again, and the comparison lives
+    in vendor dashboards such as BloodHound Posture
+
+    - Saved views tied to database ids break when ids are reused (Neo4j Bloom scenes)
+
+    - Layouts drift between refreshes (Kumu maps fed from a Google Sheet cannot pin elements), so maps cannot be
+    compared by position
+
+    - A drop caused by incomplete collection or by small-group suppression reads as an improvement or a departure
 
     - Recurring work moves to notebooks, BI tools or vendor dashboards
-
-    - Layouts and styling drift between periods so comparison is unreliable
 
 
     **Data Flow**:
 
-    - Input: Saved deliverable definition plus a new data extract
+    - Input: Saved deliverable definition, the previous period's result, and a new data extract
 
-    - Transformations: Re-import, re-apply filters, style and parameters, period comparison
+    - Transformations: Re-import, coverage check, entity matching (ids, renames, merges), re-applied scope, style and
+    parameters with fixed positions, period comparison by category
 
-    - Output: Regenerated files, refreshed dashboard or embed, change summary
+    - Output: Regenerated files, refreshed dashboard or embed, change table with coverage figures, trend lines
 success_criteria:
     - metric: Regeneration effort
-      target: A new period's deliverable is produced without restyling or re-filtering by hand
-    - metric: Comparability
-      target: The deliverable shows what changed since the previous period
+      target: A new period's deliverable is produced without restyling, re-filtering or re-placing nodes by hand
+    - metric: Comparability gate
+      target: Every comparison shows both periods' coverage, and a period below the agreed coverage is marked not comparable
+    - metric: Entity continuity
+      target: Renamed and merged entities are matched, and new, departed and suppressed items are listed separately
+    - metric: Change table
+      target: Per category, the deliverable shows the end count, the change and the items resolved or added in the period
     - metric: Parameter stability
-      target: The regenerated deliverable states the same parameters and its data date
+      target: The regenerated deliverable states the same scope and parameters and its data date
 sources:
     - title: BloodHound Enterprise datasheet
       url: https://specterops.io/wp-content/uploads/sites/3/2025/07/BHE_Datasheet_1016-4_61bcf0.pdf
@@ -105,6 +165,30 @@ sources:
     - title: FinCEN SAR form specification (SARX)
       url: https://sdtmut.fincen.treas.gov/docs/SARX.pdf
       summary: SAR filing structure reused in continuing-activity reviews
-version: 1.0.0
+    - title: BloodHound - Posture page
+      url: https://bloodhound.specterops.io/analyze-data/bloodhound-gui/posture-page
+      summary: Exposure trends tracked across analysis runs for reporting
+    - title: BloodHound - Data Quality
+      url: https://bloodhound.specterops.io/collect-data/data-quality
+      summary: Wait for ingest and analysis before comparing counts or trends; completeness below 100 percent is normal
+    - title: NeoDash - Reports
+      url: https://neo4j.com/labs/neodash/2.2/user-guide/reports/
+      summary: Each report is filled by a single Cypher query; Graph is a report type; settings hold the refresh rate
+    - title: NeoDash - Graph report
+      url: https://neo4j.com/labs/neodash/2.4/user-guide/reports/graph/
+      summary: Auto-run query, force-directed layout, positions frozen only after a drag
+    - title: Neo4j Bloom - Scenes and sharing data
+      url: https://neo4j.com/docs/bloom-user-guide/current/bloom-tutorial/export-data/
+      summary: Scenes rely on node and relationship ids; reused ids can make saved scenes display incorrectly
+    - title: ROR - Handling organization status
+      url: https://ror.org/blog/2022-12-07-handling-org-status/
+      summary: Inactive status for split, merged or closed organizations, with Successor and Predecessor links
+    - title: VOSviewer - Map and network files
+      url: https://app.vosviewer.com/docs/file-types/map-and-network-file-type
+      summary: Map files carry x and y coordinates so an existing map is shown with fixed positions
+    - title: Kumu - Google Sheets import
+      url: https://docs.kumu.io/guides/import/google-sheets
+      summary: Data fetched on each page refresh; pinning elements does not work on sheet-connected maps
+version: 1.2.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

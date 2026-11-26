@@ -1,9 +1,12 @@
 id: network-psychometrics-methodologist
 name: Network Psychometrics Methodologist
+roster_persona: symptom-network-researcher
+tier: B
+scope: in-scope
 role: Faculty Methodologist, Package Author and Workshop Teacher
 quote: Half my job is telling people that the distance between two nodes in a spring layout means nothing and that an interval crossing zero is not a non-significant edge.
 bio: >-
-    Professor Ines Kramer develops network estimators and teaches one-day network psychometrics workshops of the kind
+    Professor Annika Kramer develops network estimators and teaches one-day network psychometrics workshops of the kind
     run at IMPS and in Amsterdam, Singapore, Leiden and Groningen: cross-sectional estimation in bootnet and JASP in
     the morning, longitudinal, multi-group and latent-variable models in psychonetrics in the afternoon. She works in
     psychonetrics (ggm, prune, modelsearch, panelgvar), BGGM and easybgm for Bayesian edge evidence, EGAnet for

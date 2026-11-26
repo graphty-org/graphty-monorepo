@@ -1,0 +1,19 @@
+id: attribute-band-filter
+name: "Two-ended band filter on a node attribute"
+category: interaction
+description: "Filter nodes by a floor and a ceiling on a numeric attribute at the same time, applied live, with the surviving node and edge counts shown. Genetic genealogy filters matches to a band (more than 90 and less than 400 centimorgans; 50 to 400; 65 to 1,300) because close relatives connect to every cluster and distant ones add random edges; today the band is fixed at download time, so changing it costs hours."
+status: planned
+notes: "Research trace: genetic-genealogy-dna-match-networks.md section 10, table row 3 (Must)."
+algorithms: []
+used_by_workflows:
+    - W2096
+    - W2097
+    - W2098
+implemented_by_components: []
+requirements:
+    - "Must: Band filter on a node attribute with both a floor and a ceiling, applied live, with the match count shown"
+sources:
+    - title: "Genetic Genealogists: DNA Shared-Match Networks and Clusters (section 10, table row 3)"
+      url: design/user-research/genetic-genealogy-dna-match-networks.md
+      summary: "Must in the research. Covered by Designloom when researched: Partial (filtering and interactive
+        thresholds exist; a two-ended band on a node attribute with a live count does not)"

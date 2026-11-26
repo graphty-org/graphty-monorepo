@@ -1,5 +1,8 @@
 id: ethnopharmacology-reviewer
 name: Ethnopharmacology Reviewer
+roster_persona: network-pharmacology-graduate-student
+tier: B
+scope: in-scope
 role: Peer Reviewer or Section Editor at an Ethnopharmacology Journal
 quote: Your methods say 162 intersection genes and your figure shows 130. Which threshold removed which nodes, and what is left if I drop every predicted edge?
 bio: >-

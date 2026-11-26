@@ -2,6 +2,7 @@ id: W199
 name: Fuzzy Cognitive Mapping Across Many Stakeholders
 category: analysis
 validated: false
+scope: deferred
 personas:
     - fcm-participatory-modeller
 requires_capabilities:
@@ -58,25 +59,25 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Field mapping** (per session 1-2 h, outside the tool) - Groups of five or fewer, or individuals; concepts, arrows,
+    1. **Field mapping** (outside the tool) - Groups of five or fewer, or individuals; concepts, arrows,
     weights on 1-5 or weak/medium/strong anchored on the strongest and weakest links
 
-    2. **Digitize as matrices** (15-30 min per map) - Enter or import each map as an adjacency matrix or edge list; rescale
+    2. **Digitize as matrices** - Enter or import each map as an adjacency matrix or edge list; rescale
     weights to 0-1 or -1 to 1; tag with group and source map
 
-    3. **Reconcile labels** (hours to days) - Map each participant label to a standard concept and category with a
+    3. **Reconcile labels** - Map each participant label to a standard concept and category with a
     correspondence table; merge nodes, keeping the original labels
 
-    4. **Merge** (30 min) - Average each relationship across maps (weighted or unweighted) per stakeholder group and
+    4. **Merge** - Average each relationship across maps (weighted or unweighted) per stakeholder group and
     overall; record disagreement (spread) per link; check saturation (about 12-15 maps per group)
 
-    5. **Analyze** (1-2 h) - Optional transitive closure giving positive, negative and net influence; degree, in-degree,
+    5. **Analyze** - Optional transitive closure giving positive, negative and net influence; degree, in-degree,
     out-degree and betweenness; concept types (drivers, receivers, ordinary)
 
-    6. **Compare** (1 h) - Group maps side by side and against one individual's map; links present in one group but not
+    6. **Compare** - Group maps side by side and against one individual's map; links present in one group but not
     another
 
-    7. **Run scenarios** (1 h) - Clamp chosen concepts between -1 and +1, iterate linear and sigmoid models to a fixed
+    7. **Run scenarios** - Clamp chosen concepts between -1 and +1, iterate linear and sigmoid models to a fixed
     point, show relative change per concept as a bar chart; trust factors ranked consistently under both
 
     8. **Return to stakeholders** - Simplified summary maps for community discussion and priority setting

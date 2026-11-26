@@ -1,5 +1,8 @@
 id: osint-investigator
 name: OSINT Investigator
+roster_persona: osint-investigator
+tier: A
+scope: in-scope
 role: Open-Source Researcher at an NGO Investigations Unit, Newsroom OSINT Desk or Corporate-Intelligence Firm
 quote: Same username is a weak signal. I need three independent pivots and a captured page for each before I put a name on this.
 bio: >-
@@ -52,6 +55,9 @@ workflows:
     - W92
     - W95
     - W96
+    - W1084
+    - W209
+    - W1090
 sources:
     - title: TryHackMe - Practical OSINT, how real investigations actually work
       url: https://tryhackme.com/resources/blog/practical-osint-how-real-investigations-actually-work

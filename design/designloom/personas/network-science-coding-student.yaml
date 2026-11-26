@@ -1,9 +1,12 @@
 id: network-science-coding-student
 name: Network Science Coding Student
+roster_persona: notebook-graph-data-scientist
+tier: B
+scope: in-scope
 role: Master's or Upper-Level Undergraduate in a Python Network Science Course
 quote: The notebook computes everything, but nx.draw gives me a hairball. I need to see the graph without leaving Colab.
 bio: >-
-    Priya is a master's or upper-level undergraduate student in computer science, physics or data science, or a
+    Sunita is a master's or upper-level undergraduate student in computer science, physics or data science, or a
     Coursera learner in Michigan's Applied Social Network Analysis in Python. Her assignments ship as Jupyter notebooks,
     often run in Google Colab, so desktop installs are not an option. She builds graphs with NetworkX from CSVs, computes
     density, components, diameter, clustering, centralities and greedy-modularity communities, and answers the problem

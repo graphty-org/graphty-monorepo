@@ -20,8 +20,6 @@ used_in_workflows:
     - W343
     - W345
     - W347
-    - W352
-    - W357
     - W370
     - W386
     - W411
@@ -31,6 +29,8 @@ used_in_workflows:
     - W44
     - W48
     - W62
+    - W1126
+    - W2098
 dependencies: []
 props:
     value: number | [number, number] - Current value(s)

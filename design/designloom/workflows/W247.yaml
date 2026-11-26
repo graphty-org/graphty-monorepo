@@ -5,6 +5,7 @@ validated: false
 personas:
     - genomics-cytoscape-user
     - network-biology-core-bioinformatician
+    - crop-coexpression-biologist
 requires_capabilities:
     - data-import
     - filtering
@@ -50,18 +51,18 @@ goal: >-
     1. **Input** (varies) - Samples by genes matrix, usually cut to the most variable genes (3,600 of over 23,000 probe
     sets in the original paper); blockwise for 50,000 genes
 
-    2. **Soft-threshold power** (10 min) - pickSoftThreshold; the lowest power where scale-free fit levels off near R^2
+    2. **Soft-threshold power** - pickSoftThreshold; the lowest power where scale-free fit levels off near R^2
     0.9 (6 in the tutorial)
 
-    3. **Adjacency and TOM** (10-60 min) - Absolute correlation raised to the power; topological overlap as similarity
+    3. **Adjacency and TOM** - Absolute correlation raised to the power; topological overlap as similarity
 
-    4. **Modules** (10 min) - blockwiseModules with minModuleSize 30 and mergeCutHeight 0.25; modules named by colors
+    4. **Modules** - blockwiseModules with minModuleSize 30 and mergeCutHeight 0.25; modules named by colors
     (18 in the paper)
 
-    5. **Relate to traits** (15 min) - Module eigengene against traits; module membership (kME); hubs have high kME and
+    5. **Relate to traits** - Module eigengene against traits; module membership (kME); hubs have high kME and
     intramodular connectivity
 
-    6. **Export one module** (15 min) - TOM restricted to the top 30 hubs, exportNetworkToCytoscape with a threshold
+    6. **Export one module** - TOM restricted to the top 30 hubs, exportNetworkToCytoscape with a threshold
     (0.02); the tutorial redraws the same 30 genes at 0.10, 0.08, 0.06 and 0.03 and the user picks the readable one by
     eye
 

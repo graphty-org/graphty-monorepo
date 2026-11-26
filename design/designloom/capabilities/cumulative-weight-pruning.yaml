@@ -4,11 +4,16 @@ category: analysis
 description: Keep the smallest set of nodes and edges reaching a chosen share of total influence or weight, with the
     threshold adjustable on screen.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: code-first-data-scientists-and-graph-ml.md section 10, table row 21 (Could); a Could in the research, so it is built after every Must and Should."
 algorithms: []
 used_by_workflows:
     - W269
     - W277
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Could: Diff two graphs through a node mapping, marking added and removed nodes; prune to the smallest set
+      reaching a cumulative weight"
+sources:
+    - title: Code-First Data Scientists and Graph Machine Learning Engineers (section 10, table row 21)
+      url: design/user-research/code-first-data-scientists-and-graph-ml.md
+      summary: "Could in the research. Covered by Designloom when researched: Partly (comparison-view)"

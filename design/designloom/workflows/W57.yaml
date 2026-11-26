@@ -52,16 +52,16 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Get a base map** (minutes if available) - A category or journal map with fixed coordinates, such as the
+    1. **Get a base map** - A category or journal map with fixed coordinates, such as the
     227-category map built from 11,365 journals; for patents, an IPC class map built from USPTO citations
 
-    2. **Map the unit's records** (30 min to hours) - Assign each record to categories or journals and count them
+    2. **Map the unit's records** - Assign each record to categories or journals and count them
 
-    3. **Overlay** (10 min) - Keep positions fixed; size or color each category by the unit's count or share
+    3. **Overlay** - Keep positions fixed; size or color each category by the unit's count or share
 
-    4. **Compare** (30 min) - Several units side by side, or one unit across years, on identical coordinates
+    4. **Compare** - Several units side by side, or one unit across years, on identical coordinates
 
-    5. **Quantify** (10 min) - Rao-Stirling diversity over the classification, optionally network coherence
+    5. **Quantify** - Rao-Stirling diversity over the classification, optionally network coherence
 
 
     **Decision Points**:

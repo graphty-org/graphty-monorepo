@@ -5,6 +5,7 @@ validated: false
 personas:
     - it-change-impact-analyst
     - sre-incident-responder
+    - infrastructure-resilience-analyst
 requires_capabilities:
     - data-import
     - search
@@ -23,6 +24,7 @@ requires_capabilities:
     - report-generation
     - group-collapse
     - directed-closure
+    - path-highlighting
 suggested_components:
     - data-import-dialog
     - search-input

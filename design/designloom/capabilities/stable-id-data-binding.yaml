@@ -4,12 +4,22 @@ category: analysis
 description: "Re-binding data merges by stable id: no re-creation, no duplicates, existing positions kept, and
     incremental layout only for new nodes."
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: developers-embedding-and-extending-graph-visualization.md section 10, table row 3 (Must)."
 algorithms: []
 used_by_workflows:
+    - W283
     - W278
     - W281
     - W282
+    - W323
+    - W1138
+    - W1139
+    - W3096
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Data binding that merges by stable id on update (no re-creation, no duplicates, positions kept), plus
+      incremental layout for new nodes"
+sources:
+    - title: Developers Who Embed Graph Visualization in Products or Extend It With Plugins (section 10, table row 3)
+      url: design/user-research/developers-embedding-and-extending-graph-visualization.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

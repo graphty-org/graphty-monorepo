@@ -1,9 +1,12 @@
 id: pkm-developer-note-taker
 name: PKM Developer Note-Taker
+roster_persona: personal-knowledge-gardener
+tier: A
+scope: in-scope
 role: Backend Engineer keeping notes in Emacs org-roam (Foam in VS Code at work)
 quote: The graph should follow me around Emacs, and I should be able to query it from R.
 bio: >-
-    Raj is a backend engineer and part-time researcher who keeps 1,000 to 5,000 notes in Emacs org-roam: Org files and
+    Sanjay is a backend engineer and part-time researcher who keeps 1,000 to 5,000 notes in Emacs org-roam: Org files and
     headings with ID properties, indexed by `org-roam-db-autosync-mode` into a SQLite database (`org-roam.db`) whose
     `nodes` and `links` tables are his graph. He runs org-roam-ui in a browser window beside Emacs; it follows the node he
     has open and opens notes back in Emacs on double-click. At work he uses Foam in VS Code and its "Show Graph" command.
@@ -41,6 +44,7 @@ workflows:
     - W325
     - W333
     - W334
+    - W422
 sources:
     - title: Org-roam manual
       url: https://www.orgroam.com/manual.html

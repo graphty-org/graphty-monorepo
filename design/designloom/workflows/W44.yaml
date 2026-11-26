@@ -42,23 +42,23 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Choose the process** (2 min) - SI, SIS, SIR, SEIR, threshold or cascade, or an opinion model (NDlib ships 22
+    1. **Choose the process** - SI, SIS, SIR, SEIR, threshold or cascade, or an opinion model (NDlib ships 22
     epidemic and 14 opinion models; EoN over 100 methods)
 
-    2. **Set parameters** (2 min) - Transmission and recovery rates (EoN fast_SIR(G, tau, gamma)), thresholds, per-edge
+    2. **Set parameters** - Transmission and recovery rates (EoN fast_SIR(G, tau, gamma)), thresholds, per-edge
     or per-node weights
 
-    3. **Choose initial nodes** (1 min) - A random fraction, named nodes, or a strategy such as highest degree
+    3. **Choose initial nodes** - A random fraction, named nodes, or a strategy such as highest degree
 
-    4. **Run many realizations** (minutes) - With recorded random states
+    4. **Run many realizations** - With recorded random states
 
-    5. **Plot** (5 min) - Prevalence curves with spread across parameter settings; final size against transmission rate
+    5. **Plot** - Prevalence curves with spread across parameter settings; final size against transmission rate
     to locate the epidemic threshold, which depends on degree heterogeneity
 
-    6. **Compare against a null** (minutes) - Rerun on degree-preserving randomizations to see whether clustering or
+    6. **Compare against a null** - Rerun on degree-preserving randomizations to see whether clustering or
     communities, not degree alone, change the outcome
 
-    7. **Watch one run** (2 min) - Replay every node's status history on the graph
+    7. **Watch one run** - Replay every node's status history on the graph
 
 
     **Decision Points**:

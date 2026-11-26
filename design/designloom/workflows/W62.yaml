@@ -58,28 +58,28 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Prepare sequences** (30 min to hours) - Align, and remove sequences with long runs of ambiguous bases;
+    1. **Prepare sequences** - Align, and remove sequences with long runs of ambiguous bases;
     unclean input produces confident nonsense
 
-    2. **Compute distances** (minutes to an hour) - Pairwise distance with a generous maximum (for example 3% for
+    2. **Compute distances** - Pairwise distance with a generous maximum (for example 3% for
     HIV, since it may need revising upward for divergent sequences); cost grows with the square of the sequence
     count, and 185,849 sequences took about 32 minutes on 64 cores plus about 20 minutes to align
 
-    3. **Profile candidate thresholds** (seconds to minutes) - Add edges from shortest to longest and record network
+    3. **Profile candidate thresholds** - Add edges from shortest to longest and record network
     statistics at each distance: cluster count, largest cluster size, ratio of largest to second largest
 
-    4. **Score and shortlist** (10 min) - Prefer a threshold where the largest-to-second-largest ratio jumps and the
+    4. **Score and shortlist** - Prefer a threshold where the largest-to-second-largest ratio jumps and the
     cluster count has flattened; an automated scorer accepts a candidate outright when it scores at least 1.9 out of
     2 and is unique or tightly grouped, and otherwise asks a human to read the score plot
 
-    5. **Stress the choice** (30 min) - Stratify by subtype, check whether risk-group assortativity holds across
+    5. **Stress the choice** - Stratify by subtype, check whether risk-group assortativity holds across
     thresholds, and shorten the threshold for a rapid injection-drug-use outbreak
 
-    6. **Build at the chosen threshold** (minutes) - Set ambiguity handling, minimum sequence overlap (roughly 2
+    6. **Build at the chosen threshold** - Set ambiguity handling, minimum sequence overlap (roughly 2
     divided by the threshold), maximum ambiguity fraction, drug-resistance site masking, removal or reporting of
     spurious transitive triangle edges, and a contaminant check against a public reference database
 
-    7. **Record it** (5 min) - Keep the threshold, the flags and the scoring evidence beside the resulting network,
+    7. **Record it** - Keep the threshold, the flags and the scoring evidence beside the resulting network,
     because the number will be questioned
 
 

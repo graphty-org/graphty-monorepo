@@ -1,9 +1,12 @@
 id: single-cell-computational-biologist
 name: Single-Cell Computational Biologist
+roster_persona: genomics-cytoscape-user
+tier: A
+scope: in-scope
 role: Postdoctoral Researcher, Immunology or Tumor Microenvironment (Single-Cell and Multiome)
 quote: I have twenty cell types and two hundred signaling pathways. I need to see who talks to whom, which regulators drive each type, and what changes in disease -- not two hundred separate circle plots.
 bio: >-
-    Dr. Ana Ribeiro is an immunology postdoc working on the tumor microenvironment. Her data is 10x Genomics single-cell
+    Dr. Adriana Ribeiro is an immunology postdoc working on the tumor microenvironment. Her data is 10x Genomics single-cell
     RNA-seq, increasingly multiome (RNA plus chromatin accessibility) and spatial: 10,000 to 100,000 cells in 10 to 30
     cell types. She works in Seurat or Scanpy and makes three kinds of graph without always calling them graphs. First,
     the k-nearest-neighbor graph of cells that every clustering run builds, seen only as a UMAP scatter. Second,
@@ -25,13 +28,16 @@ motivations:
     - Make figures that reviewers in immunology recognize (circle, chord, hierarchy plots)
 behaviors:
     - Runs Scanpy or Seurat neighbors, Leiden at several resolutions and UMAP with tutorial defaults (k = 15)
+    - Integrates samples with scVI, scANVI, Seurat CCA or BBKNN and builds the neighbor graph on the integrated representation
     - Picks a clustering resolution by eye on the UMAP, sometimes checked with a clustering tree
+    - Names clusters from marker gene dot plots and rank_genes_groups, or by CellTypist or reference label transfer checked by hand
     - Runs CellChat and draws netVisual_circle and netVisual_aggregate per pathway, keeping edge.weight.max global
     - Compares two conditions with mergeCellChat and netVisual_diffInteraction (red increased, blue decreased)
     - Runs pySCENIC or SCENIC+ and looks at regulon activity as heat maps and UMAPs rather than networks
     - Builds per-cluster GRNs in CellOracle, filters to the top 2,000 edges and compares clusters by centrality scatter plots
 frustrations:
     - The number of clusters depends on a resolution chosen by eye
+    - Integration is chosen from UMAPs colored by batch, although best practices says they do not show its quality
     - Distances between clusters on a UMAP are not meaningful but are read anyway
     - Each pathway is a separate plot; there is no way to step through layers on one fixed drawing
     - Method and resource choice strongly changes communication predictions (LIANA)
@@ -50,6 +56,7 @@ workflows:
     - W248
     - W249
     - W254
+    - W1060
 sources:
     - title: Jin et al. 2021 - CellChat (Nature Communications)
       url: https://pmc.ncbi.nlm.nih.gov/articles/PMC7889871
@@ -72,6 +79,9 @@ sources:
     - title: Zappia and Oshlack 2018 - Clustering trees
       url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6057528
       summary: Stability of clusters across resolutions
-version: 1.0.0
+    - title: Single-cell best practices - integration
+      url: https://www.sc-best-practices.org/cellular-structure/integration/
+      summary: Neighbors on the integrated representation; UMAPs alone do not show integration quality
+version: 1.1.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

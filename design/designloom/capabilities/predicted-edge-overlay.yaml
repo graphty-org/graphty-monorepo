@@ -4,10 +4,16 @@ category: analysis
 description: Load scored predicted edges, draw them distinct from observed edges, and show the supporting paths for each
     prediction.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: knowledge-graph-engineers-and-graphrag.md section 10, table row 13 (Should)."
 algorithms: []
 used_by_workflows:
     - W140
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Should: Predicted-edge overlay: load scored predicted edges, draw them distinct from observed edges, show
+      supporting paths per prediction"
+sources:
+    - title: Knowledge Graph Engineers, Ontologists and GraphRAG Developers (section 10, table row 13)
+      url: design/user-research/knowledge-graph-engineers-and-graphrag.md
+      summary: "Should in the research. Covered by Designloom when researched: Partly:
+        link prediction exists"

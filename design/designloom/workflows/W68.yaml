@@ -28,6 +28,9 @@ requires_capabilities:
     - tree-import-and-axes
     - entity-resolution-review
     - linked-views-selection
+    - phylogenetic-tree-layout
+    - large-graph-rendering
+    - progressive-loading
 suggested_components:
     - file-drop-zone
     - data-import-dialog
@@ -64,21 +67,21 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Prepare the metadata table** (30 min) - One row per isolate with a unique identifier that exactly matches
+    1. **Prepare the metadata table** - One row per isolate with a unique identifier that exactly matches
     the tree's leaf labels, optional latitude and longitude in decimal degrees, optional year, month and day fields,
     and optional columns that carry their own color, shape (circle, square, triangle, star) or automatic coloring
 
-    2. **Add the tree** (seconds) - A Newick file whose leaf labels match the identifier column exactly
+    2. **Add the tree** - A Newick file whose leaf labels match the identifier column exactly
 
-    3. **Create the project** (minutes) - By dropping the files in, by pointing at files in cloud storage which are
+    3. **Create the project** - By dropping the files in, by pointing at files in cloud storage which are
     re-read on every open, or programmatically from a pipeline; the result gets a permanent short URL
 
-    4. **Explore the linked views** (minutes to hours, by the investigator) - Map, tree, timeline and table linked by
+    4. **Explore the linked views** (by the investigator) - Map, tree, timeline and table linked by
     selection; modifier-click to add to a selection; lasso selection on the map or the tree; a search box that
     queries one column or all of them; a timeline interval that filters by date; right-click an internal node to
     redraw that subtree, with a history panel to step back
 
-    5. **Share it** (minutes) - Send the URL; set the project private, public, or public and listed; use URL
+    5. **Share it** - Send the URL; set the project private, public, or public and listed; use URL
     parameters to set the opening view such as tree type, labels and node size
 
     6. **Decide whether the data may be shared at all** (before step 3) - The service stores project data in its own

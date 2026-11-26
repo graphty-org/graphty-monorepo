@@ -25,13 +25,14 @@ used_in_workflows:
     - W402
     - W418
     - W437
-    - W446
     - W47
     - W58
     - W63
     - W69
     - W70
     - W75
+    - W1060
+    - W1159
 dependencies:
     - progress-bar
     - button

@@ -1,0 +1,18 @@
+id: incident-group-attribution
+name: "Incidents attributed to groups by side and confidence"
+category: data
+description: "Attach incident records (homicides, shootings) to groups and people as victim side or suspect side, with an involvement class (confirmed, likely, unknown, not) and context codes; count incidents per group and per conflict edge so the conflicts that carry violence stand out."
+status: planned
+notes: "Research trace: law-enforcement-and-intelligence-analysts.md section 10, requirement 28 (Must)."
+algorithms: []
+used_by_workflows:
+    - W2006
+implemented_by_components: []
+requirements:
+    - "Must: Incidents attached to groups and people as victim side or suspect side with a confirmed, likely, unknown or
+      not class, counted per group and per conflict edge"
+sources:
+    - title: Law enforcement crime and intelligence analysts, and defense and national intelligence analysts (section
+        10, requirement 28)
+      url: design/user-research/law-enforcement-and-intelligence-analysts.md
+      summary: "Must in the research. Covered by Designloom when researched: Gap"

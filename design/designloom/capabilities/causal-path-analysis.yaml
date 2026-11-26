@@ -5,11 +5,17 @@ description: Use d-separation to classify paths as causal or biasing and as open
     minimal adjustment sets (total or direct effect, forced covariates, latents excluded), instruments, implied
     independencies and the Markov equivalence class.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: causal-diagrams-and-bayesian-networks.md section 10, requirement 5 (Must)."
 algorithms: []
 used_by_workflows:
     - W423
     - W424
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Causal path analysis: classify paths causal or biasing and open or closed given a conditioning set; color
+      them; ancestor classes"
+sources:
+    - title: "Causal Diagram Users: DAGs, Bayesian Networks, Causal Discovery, Time-Series Causal Graphs and SEM Path
+        Diagrams (section 10, requirement 5)"
+      url: design/user-research/causal-diagrams-and-bayesian-networks.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

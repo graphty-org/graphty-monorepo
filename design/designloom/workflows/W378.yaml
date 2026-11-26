@@ -49,18 +49,18 @@ goal: >-
 
     1. **Learn a structure** (in R) - pc.stable, hill-climbing or a hybrid
 
-    2. **Bootstrap** (minutes) - 200 to 10,000 replicates; strength and direction per possible arc
+    2. **Bootstrap** - 200 to 10,000 replicates; strength and direction per possible arc
 
-    3. **Filter and average** (5 min) - Keep arcs with strength above 0.85 and direction above 0.5; averaged network
+    3. **Filter and average** - Keep arcs with strength above 0.85 and direction above 0.5; averaged network
 
-    4. **Weight** (5 min) - BIC change if each arc is removed
+    4. **Weight** - BIC change if each arc is removed
 
-    5. **Load** (3 min) - Arc table with strength, direction and BIC columns
+    5. **Load** - Arc table with strength, direction and BIC columns
 
-    6. **Draw** (10 min) - Circle or top-down layout; thickness and saturation by one chosen value (strength, direction
+    6. **Draw** - Circle or top-down layout; thickness and saturation by one chosen value (strength, direction
     or BIC); arrowhead emphasis by direction probability; a two-headed or faded-head style when direction is near 0.5
 
-    7. **Read** (10 min) - Find nodes at the top of the DAG (possible drivers, for example physiological reactivity to
+    7. **Read** - Find nodes at the top of the DAG (possible drivers, for example physiological reactivity to
     reminders in a 17-symptom PTSD study) and follow paths downward
 
 

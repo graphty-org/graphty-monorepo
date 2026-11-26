@@ -1,10 +1,13 @@
 id: taxonomist
 name: Taxonomist
+roster_persona: knowledge-engineer
+tier: B
+scope: in-scope
 role: Taxonomist / Vocabulary Manager (SKOS thesauri)
 quote: A concept with two parents shows up twice in my tree and the related links vanish. I need to see the whole shape
     before I publish.
 bio: >-
-    Grace Holloway maintains a multilingual SKOS thesaurus of several thousand concepts for a publisher's content
+    Margaret Holloway maintains a multilingual SKOS thesaurus of several thousand concepts for a publisher's content
     tagging, in PoolParty (VocBench is the open-source alternative). She works in a tree editor: adds narrower concepts,
     drags concepts to move or merge them, adds a second broader concept where the domain needs a polyhierarchy, writes
     preferred and alternative labels in each language, and links related concepts and mappings to other schemes. She

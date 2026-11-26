@@ -4,12 +4,16 @@ category: analysis
 description: Run-to-run partition comparison by NMI, adjusted Rand and variation of information, plus per-node
     co-assignment strength; also scores partitions against known or planted labels.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: network-scientists-and-analysis-method-validity.md section 9, requirement R3 (Must)."
 algorithms: []
 used_by_workflows:
     - W04
     - W38
     - W48
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Multi-run stability: partition variation (NMI, adjusted Rand, VI) and per-node co-assignment"
+sources:
+    - title: Network Scientists and the Validity of Core Analysis Methods (section 9, requirement R3)
+      url: design/user-research/network-scientists-and-analysis-method-validity.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

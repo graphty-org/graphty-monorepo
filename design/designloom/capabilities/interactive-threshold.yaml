@@ -4,7 +4,7 @@ category: analysis
 description: Slide a correlation or weight threshold with live edge, component and module counts and the chosen value
     recorded with exports.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: ecological-interaction-networks.md section 10, table row 18 (Should)."
 algorithms: []
 used_by_workflows:
     - W170
@@ -15,10 +15,20 @@ used_by_workflows:
     - W265
     - W396
     - W402
+    - W1054
+    - W1060
+    - W252
+    - W1126
+    - W1138
+    - W2098
+    - W3103
 implemented_by_components: []
 requirements:
-    - A threshold control on an edge weight (importance, similarity, relative risk, ROR) that sparsifies the shown
-      subgraph live and reports edges kept, edge density and component count.
-    - An edge-attribute threshold slider that recomputes connected components or communities and recolors clusters as it
-      moves, at 10^5 nodes and millions of edges.
-sources: []
+    - "Should: Interactive correlation threshold with live edge, component and module counts"
+    - "Must: A threshold control on an edge weight (importance, similarity, relative risk, ROR) that sparsifies the shown subgraph live and reports edges kept, edge density and component count."
+    - "Must: An edge-attribute threshold slider that recomputes connected components or communities and recolors clusters as it moves, at 10^5 nodes and millions of edges."
+sources:
+    - title: "Ecologists Working with Networks: Species Interactions, Animal Social and Contact Networks, Ecosystem
+          Flows and Landscape Connectivity (section 10, table row 18)"
+      url: design/user-research/ecological-interaction-networks.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

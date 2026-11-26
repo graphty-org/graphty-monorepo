@@ -8,6 +8,10 @@ notes: "Ships: graphty/src/workspace/export/ExportDialog.tsx and CameraImageOutp
 implements_capabilities:
     - export-image
 used_in_workflows:
+    - W3057
+    - W3056
+    - W3054
+    - W3006
     - W15
     - W20
     - W21
@@ -135,7 +139,6 @@ used_in_workflows:
     - W260
     - W261
     - W263
-    - W264
     - W265
     - W266
     - W269
@@ -167,18 +170,14 @@ used_in_workflows:
     - W330
     - W335
     - W337
-    - W338
+    - W430
     - W34
     - W340
     - W344
     - W345
     - W346
     - W35
-    - W350
-    - W354
-    - W355
-    - W356
-    - W358
+    - W348
     - W36
     - W360
     - W364
@@ -237,19 +236,12 @@ used_in_workflows:
     - W428
     - W429
     - W43
-    - W430
     - W431
     - W432
     - W433
     - W435
     - W437
-    - W439
-    - W440
-    - W441
-    - W442
-    - W443
-    - W444
-    - W446
+    - W434
     - W49
     - W50
     - W51
@@ -280,6 +272,34 @@ used_in_workflows:
     - W96
     - W98
     - W99
+    - W1006
+    - W1013
+    - W1042
+    - W1054
+    - W1060
+    - W1090
+    - W1096
+    - W1126
+    - W1132
+    - W1138
+    - W1139
+    - W1156
+    - W1157
+    - W1158
+    - W1159
+    - W2000
+    - W2006
+    - W2030
+    - W2036
+    - W2037
+    - W2038
+    - W2066
+    - W2072
+    - W2096
+    - W2097
+    - W3066
+    - W3102
+    - W3103
 dependencies:
     - select
     - slider

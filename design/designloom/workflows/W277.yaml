@@ -2,6 +2,7 @@ id: W277
 name: Explore, Prune and Annotate an Attribution Graph (Adjacent, Deferred)
 category: analysis
 validated: false
+scope: deferred
 personas:
     - model-graph-and-interpretability-users
 requires_capabilities:
@@ -52,20 +53,20 @@ goal: >-
     1. **Generate** (in code) - circuit-tracer runs attribution, prunes and writes JSON; `--server` starts a local
     viewer; `--max_feature_nodes` caps feature nodes
 
-    2. **Prune by influence** (5 min) - node_threshold (default 0.8) and edge_threshold (default 0.98) keep the smallest
+    2. **Prune by influence** - node_threshold (default 0.8) and edge_threshold (default 0.98) keep the smallest
     sets reaching that cumulative influence; one prompt gave 236 nodes at 0.95, 137 at 0.90, 55 at 0.80, 27 at 0.70
 
-    3. **Trace** (30 min) - Start at an output logit, hover and click nodes to read what each feature responds to, follow
+    3. **Trace** - Start at an output logit, hover and click nodes to read what each feature responds to, follow
     the strongest edges back toward the input tokens
 
-    4. **Pin and label** (20 min) - Ctrl or Cmd-click pins a node into a subgraph pane; Edit annotates it
+    4. **Pin and label** - Ctrl or Cmd-click pins a node into a subgraph pane; Edit annotates it
 
-    5. **Group** (30 min) - Hold G and click features to merge them into a labeled supernode ("600+" features to "30-50"
+    5. **Group** - Hold G and click features to merge them into a labeled supernode ("600+" features to "30-50"
     supernodes in one preprint)
 
-    6. **Test** (15 min) - On Neuronpedia, pin a node and Steer to change its value and watch the output
+    6. **Test** - On Neuronpedia, pin a node and Steer to change its value and watch the output
 
-    7. **Share** (2 min) - Saved state includes pinned node ids; upload needs the model hosted on Neuronpedia
+    7. **Share** - Saved state includes pinned node ids; upload needs the model hosted on Neuronpedia
 
 
     **Decision Points**:

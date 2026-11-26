@@ -1,9 +1,12 @@
 id: internal-investigations-counsel
 name: Internal-Investigations Counsel
+roster_persona: litigation-support-analyst
+tier: B
+scope: in-scope
 role: Forensic Investigator or Counsel on a Corporate Investigation (FCPA bribery, fraud, data theft)
 quote: The auditor gave me one paragraph. I need every email about it, everyone else who was in the conversation, and when it happened.
 bio: >-
-    Priya is a forensic investigator at a consultancy, or counsel running a corporate investigation into bribery under
+    Divya is a forensic investigator at a consultancy, or counsel running a corporate investigation into bribery under
     the Foreign Corrupt Practices Act, fraud or data theft. She starts from content, not people: an auditor's or
     whistleblower's description frames a concept search in Brainspace or RelativityOne, she flags suspicious emails and
     builds new concept searches from key blocks of their text. Only then does she open the people graph on the hits to

@@ -1,9 +1,12 @@
 id: esn-community-manager
 name: ESN Community Manager
+roster_persona: ona-practitioner
+tier: none
+scope: deferred
 role: Internal Communications and Enterprise Social Network Community Manager
 quote: Half my communities are one person posting announcements. I need to see which ones actually talk back.
 bio: >-
-    Tom Brennan runs the enterprise social network (Viva Engage, formerly Yammer) for a large employer. His data is
+    Conor Brennan runs the enterprise social network (Viva Engage, formerly Yammer) for a large employer. His data is
     activity, not surveys: posts, replies, reactions and mentions per community over a rolling window. He reads Viva
     Engage network and community analytics (available to network admins and corporate communicators, and only when at
     least half of users hold a qualifying license) and SWOOP Analytics reports that classify people as Engagers,

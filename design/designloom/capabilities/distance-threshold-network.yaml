@@ -7,7 +7,7 @@ description: Build a network in-tool from genetic distance inputs (aligned FASTA
     Includes a live distance histogram whose bars set the threshold, and live cluster count and size distribution as it
     moves.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: public-health-and-molecular-epidemiology.md section 10, table row 4 (Must)."
 algorithms: []
 used_by_workflows:
     - W61
@@ -15,6 +15,13 @@ used_by_workflows:
     - W63
     - W64
     - W70
+    - W1060
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Import of genetic distance inputs: full matrix CSV, PHYLIP matrix, long-form pairwise list, aligned FASTA
+      with TN93 or SNP distance computed in-tool"
+sources:
+    - title: Public Health Outbreak Investigators and Molecular Epidemiologists (section 10, table row 4)
+      url: design/user-research/public-health-and-molecular-epidemiology.md
+      summary: "Must in the research. Covered by Designloom when researched: partly
+        (generic import)"

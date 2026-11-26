@@ -4,7 +4,7 @@ category: data
 description: Load a saved SPARQL SELECT result (JSON or CSV, item columns mapped to nodes and edges) or a CONSTRUCT
     graph, or a Cypher result, as a graph without rewriting the query.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: knowledge-graph-engineers-and-graphrag.md section 10, table row 18 (Must)."
 algorithms: []
 used_by_workflows:
     - W138
@@ -16,9 +16,12 @@ used_by_workflows:
     - W183
 implemented_by_components: []
 requirements:
-    - "Turn a query result into a graph: Neo4j driver records, Gremlin paths, SPARQL bindings, BigQuery/Spanner TO_JSON
-      paths and elements, Oracle vertex and edge id columns, with labels, properties and integer handling kept and
-      provenance (source, query text, time run) stored on the graph."
-    - Import a SPARQL result table or a relational or SQLite query result, map id and label columns to source, target
-      and edge type, keep authority ids as node ids, and merge re-runs.
-sources: []
+    - "Must: Load saved SPARQL results (SELECT JSON/CSV with item columns, CONSTRUCT graphs) and Cypher results as a
+      graph"
+    - "Must: Turn a query result into a graph: Neo4j driver records, Gremlin paths, SPARQL bindings, BigQuery/Spanner TO_JSON paths and elements, Oracle vertex and edge id columns, with labels, properties and integer handling kept and provenance (source, query text, time run) stored on the graph."
+    - "Should: Import a SPARQL result table or a relational or SQLite query result, map id and label columns to source, target and edge type, keep authority ids as node ids, and merge re-runs."
+sources:
+    - title: Knowledge Graph Engineers, Ontologists and GraphRAG Developers (section 10, table row 18)
+      url: design/user-research/knowledge-graph-engineers-and-graphrag.md
+      summary: "Must in the research (the document says: must-have (raised: the Wikidata query-writing group is large)).
+          Covered by Designloom when researched: No"

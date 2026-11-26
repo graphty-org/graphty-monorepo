@@ -46,18 +46,18 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Plan the story** (30 min) - Pick the order: central dynamic first, then each loop or pathway; decide what each
+    1. **Plan the story** - Pick the order: central dynamic first, then each loop or pathway; decide what each
     audience needs
 
-    2. **Build steps** (1-2 h) - For each step save the camera, a focus or filter (one loop, one pathway, one cluster)
+    2. **Build steps** - For each step save the camera, a focus or filter (one loop, one pathway, one cluster)
     and a Markdown text panel; add text-only steps for context
 
-    3. **Rehearse** (30 min) - Step through with animated transitions; check readability on a projector
+    3. **Rehearse** - Step through with animated transitions; check readability on a projector
 
-    4. **Publish** (10 min) - Private, password or public link; an embed for a website that can autoplay steps; republish
+    4. **Publish** - Private, password or public link; an embed for a website that can autoplay steps; republish
     after edits
 
-    5. **Print** (15 min) - PNG of the current view for slides; poster-sized PDF or SVG with legend
+    5. **Print** - PNG of the current view for slides; poster-sized PDF or SVG with legend
 
 
     **Decision Points**:
@@ -100,7 +100,7 @@ goal: >-
     - Output: Presentation link, embed code, slide images, poster PDF or SVG
 success_criteria:
     - metric: Story build time
-      target: A 10-step loop-by-loop presentation built in under an hour
+      target: A 10-step loop-by-loop presentation built in under an hour (design goal; no source measures it)
     - metric: Reader comprehension
       target: A reader who did not build the map can name the central loop after the walk-through
     - metric: Freshness

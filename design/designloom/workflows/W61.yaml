@@ -34,6 +34,7 @@ requires_capabilities:
     - cluster-identity-across-runs
     - de-identified-display
     - session-round-trip
+    - geospatial-file-io
 suggested_components:
     - file-drop-zone
     - data-import-dialog
@@ -73,21 +74,21 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Export** (30 min) - Pull persons and sequences from the state surveillance system; sequences arrive from
+    1. **Export** - Pull persons and sequences from the state surveillance system; sequences arrive from
     routine clinical drug-resistance genotyping, with a median 34 days from sample to health department in 2023
 
-    2. **De-identify** (15 min) - Run the program-supplied de-identification step; identifiers never leave the health
+    2. **De-identify** - Run the program-supplied de-identification step; identifiers never leave the health
     department, and only the de-identified file goes anywhere else
 
-    3. **Build the networks** (minutes, unattended) - Align to a reference pol segment, compute pairwise TN93
+    3. **Build the networks** (unattended) - Align to a reference pol segment, compute pairwise TN93
     distances, build the network at both 0.5% and 1.5%, and run a data quality screen
 
-    4. **Read the flags** (20 min) - Look at automatically flagged priority clusters (at 0.5%, among people diagnosed
+    4. **Read the flags** - Look at automatically flagged priority clusters (at 0.5%, among people diagnosed
     in the past 3 years, 5 or more diagnoses in the previous 12 months, or 3 or more in a jurisdiction with fewer than
     200 diagnoses a year) and at locally defined clusters; the national median cluster size at detection was 7, range
     3 to 24
 
-    5. **Assemble the case** (2 to 4 hours) - Join partner services, sexually transmitted infection and care data onto
+    5. **Assemble the case** - Join partner services, sexually transmitted infection and care data onto
     the members; write the cluster case definition (diagnosis years, demographics, geography), a narrative and a line
     list
 
@@ -95,7 +96,7 @@ goal: >-
     such as more testing or a data change, potential for ongoing transmission, how well the network is understood
     given sequence completeness, and potential for poor outcomes
 
-    7. **Report and record** (1 hour) - File the cluster report form (initial, quarterly, annual, closeout) and record
+    7. **Report and record** - File the cluster report form (initial, quarterly, annual, closeout) and record
     cluster identifiers in the surveillance system without identifiers
 
 
@@ -157,7 +158,7 @@ goal: >-
     and cluster identifiers written back to the surveillance system
 success_criteria:
     - metric: Time from export to a prioritized cluster list
-      target: One working day, repeatable every month by one person
+      target: One working day, repeatable every month by one person (design goal; no source measures it)
     - metric: Cluster identity stability
       target: A cluster keeps its name across monthly runs, so growth counts are comparable
     - metric: Membership usability

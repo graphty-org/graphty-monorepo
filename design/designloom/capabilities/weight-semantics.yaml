@@ -4,7 +4,7 @@ category: analysis
 description: Each weight column marked strength or distance; each algorithm shows which it reads; recorded conversion
     (1/w, -log w, max-w) and optional Opsahl alpha.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: network-scientists-and-analysis-method-validity.md section 9, requirement R11 (Must)."
 algorithms: []
 used_by_workflows:
     - W05
@@ -12,8 +12,17 @@ used_by_workflows:
     - W236
     - W39
     - W40
+    - W03
+    - W17
+    - W41
+    - W1138
+    - W2037
 implemented_by_components: []
 requirements:
-    - Let the user state whether an edge weight is a strength or a distance, convert between them, and show which
-      interpretation each algorithm used.
-sources: []
+    - "Must: Explicit weight semantics: each weight column marked strength or distance; each algorithm shows which it
+      reads; recorded conversion (1/w, -log w, max-w)"
+    - "Must: Let the user state whether an edge weight is a strength or a distance, convert between them, and show which interpretation each algorithm used."
+sources:
+    - title: Network Scientists and the Validity of Core Analysis Methods (section 9, requirement R11)
+      url: design/user-research/network-scientists-and-analysis-method-validity.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

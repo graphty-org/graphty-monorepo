@@ -56,23 +56,23 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Assemble data** (10 min) - Load a resource-consumer link table with a node table (body mass, abundance) or a
+    1. **Assemble data** - Load a resource-consumer link table with a node table (body mass, abundance) or a
     square 0/1 matrix; reject links to unknown nodes and duplicates
 
-    2. **Compute trophic level** (2 min) - Prey-averaged, chain-averaged or fractional; tolerate cycles
+    2. **Compute trophic level** - Prey-averaged, chain-averaged or fractional; tolerate cycles
 
-    3. **Plot by level** (5 min) - Basal species at the bottom, level guide lines, staggered positions to reduce
+    3. **Plot by level** - Basal species at the bottom, level guide lines, staggered positions to reduce
     overlap, node size by body mass, link width by strength if known
 
-    4. **Handle large webs** (10 min) - For metawebs of hundreds of species, aggregate by group, use trophic level on
+    4. **Handle large webs** - For metawebs of hundreds of species, aggregate by group, use trophic level on
     one axis and a similarity embedding on the other, and induce local webs from the metaweb by site occurrence
 
     5. **Weighted flow webs** (optional) - Show flows as link width or as an animation of particles moving along links
 
-    6. **Analyze** (5 min) - Connectance, chain length, omnivory, generality, vulnerability, body size against
+    6. **Analyze** - Connectance, chain length, omnivory, generality, vulnerability, body size against
     trophic level
 
-    7. **Hand off** (5 min) - Trophic-level figure, property table, community CSVs
+    7. **Hand off** - Trophic-level figure, property table, community CSVs
 
 
     **Decision Points**:
@@ -123,7 +123,7 @@ success_criteria:
     - metric: Readability
       target: A 200-node web readable without manual node placement
     - metric: Time to figure
-      target: Under 20 minutes from CSVs to an exported trophic-level figure
+      target: Under 20 minutes from CSVs to an exported trophic-level figure (design goal; no source measures it)
 sources:
     - title: cheddar package vignette - Plots and stats
       url: https://packages.oit.ncsu.edu/cran/web/packages/cheddar/vignettes/PlotsAndStats.pdf

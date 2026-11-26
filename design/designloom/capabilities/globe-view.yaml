@@ -3,10 +3,16 @@ name: Globe view with great-circle arcs
 category: visualization
 description: A 3D globe as a first-class view for global air, shipping and migration networks with great-circle arcs.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: geographic-flow-and-mobility-networks.md section 10, requirement R23 (Must)."
 algorithms: []
 used_by_workflows:
     - W389
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Great-circle arcs on a 3D globe as a first-class view for global air, shipping and migration networks, not
+      only a projection option"
+sources:
+    - title: "Geographic Flow and Mobility Networks: Migration, Commuting, Mobility and Trade Flows on a Map (section
+        10, requirement R23)"
+      url: design/user-research/geographic-flow-and-mobility-networks.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

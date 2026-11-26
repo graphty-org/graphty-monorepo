@@ -5,7 +5,7 @@ description: Anonymize labels, suppress or merge groups below a minimum size, sh
     links, suppress chosen attributes, and report individuals as percentile bands (top 5 or top 15 percent) instead of
     exact ranks.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: organizational-network-analysis-people-analytics.md section 9, table row 7 (Must)."
 algorithms: []
 used_by_workflows:
     - W187
@@ -18,7 +18,10 @@ used_by_workflows:
     - W319
 implemented_by_components: []
 requirements:
-    - Export cluster- or group-level tables instead of a node-link diagram, with configurable small-cell suppression,
-      minimum group size and pseudonymized names; blocks accidental export of individual-level pictures for restricted
-      audiences.
-sources: []
+    - "Must: Privacy controls in the element: anonymize labels, hide individuals below a minimum group size, show only
+      aggregates, suppress specific attributes"
+    - "Must: Export cluster- or group-level tables instead of a node-link diagram, with configurable small-cell suppression, minimum group size and pseudonymized names; blocks accidental export of individual-level pictures for restricted audiences."
+sources:
+    - title: Organizational Network Analysis and People Analytics Practitioners (section 9, table row 7)
+      url: design/user-research/organizational-network-analysis-people-analytics.md
+      summary: "Must in the research. Covered by Designloom when researched: NOT covered"

@@ -51,28 +51,28 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Submit** (10 min) - Pfam or InterPro family, BLAST query, FASTA or accession list to EFI-EST with optional
+    1. **Submit** - Pfam or InterPro family, BLAST query, FASTA or accession list to EFI-EST with optional
     fragment, length and taxonomy filters
 
-    2. **Read the plots** (10 min) - Edges per alignment score, length histogram, alignment length and percent
+    2. **Read the plots** - Edges per alignment score, length histogram, alignment length and percent
     identity by score
 
-    3. **Pick a starting threshold** (5 min) - Isofunctional families often share over 40% identity; start lower near
+    3. **Pick a starting threshold** - Isofunctional families often share over 40% identity; start lower near
     35% (alignment score 50 in one example, 100 for a multidomain example); a download link arrives by email, active
     14 days
 
-    4. **Download** (10-60 min) - Full network (about 500 MB and greater; not generated above 10 million edges) or a
+    4. **Download** - Full network (about 500 MB and greater; not generated above 10 million edges) or a
     representative-node network collapsed by CD-HIT at 40-100% identity
 
-    5. **Threshold loop in Cytoscape** (1-3 hours) - Import XGMML; organic layout; filter out edges below a higher
+    5. **Threshold loop in Cytoscape** - Import XGMML; organic layout; filter out edges below a higher
     score; re-lay out; repeat until clusters with known SwissProt functions separate
 
-    6. **Color and analyze** (30 min) - Color SSN utility numbers and colors clusters and lists functions and FASTA
+    6. **Color and analyze** - Color SSN utility numbers and colors clusters and lists functions and FASTA
     per cluster; cluster analysis builds alignments, logos and HMMs
 
-    7. **Genome context** (30 min) - EFI-GNT returns genome neighborhood networks and diagrams per cluster
+    7. **Genome context** - EFI-GNT returns genome neighborhood networks and diagrams per cluster
 
-    8. **Viral variant** (30 min) - vConTACT2 c1.ntw as a network; import genome_by_genome_overview.csv keyed on the
+    8. **Viral variant** - vConTACT2 c1.ntw as a network; import genome_by_genome_overview.csv keyed on the
     Genome column
 
 

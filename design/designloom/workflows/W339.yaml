@@ -7,6 +7,7 @@ personas:
     - process-mining-auditor
     - clinical-pathway-analyst
     - process-mining-researcher
+    - process-mining-analyst
 requires_capabilities:
     - data-import
     - data-validation
@@ -16,6 +17,8 @@ requires_capabilities:
     - details-on-demand
     - data-export
     - event-log-import
+    - temporal-analysis
+    - process-map-derivation
 suggested_components:
     - file-drop-zone
     - data-import-dialog
@@ -43,25 +46,25 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Agree the activities** (30 min, with the process owner) - Sketch the 5 to 10 most important activities
+    1. **Agree the activities** (with the process owner) - Sketch the 5 to 10 most important activities
 
-    2. **Choose the case notion** (15 min) - Pick one or more columns that together identify a single execution (ticket,
+    2. **Choose the case notion** - Pick one or more columns that together identify a single execution (ticket,
     order, ED stay, patient); know that switching it (service id to customer id) changes the process shown
 
-    3. **Find the events** (hours to weeks, often IT) - Export audit-trail or history tables, or find milestone
+    3. **Find the events** (often IT) - Export audit-trail or history tables, or find milestone
     timestamps in business tables (a standard SAP purchase-to-pay job reads EBAN, EKKO, EKPO, EKET, EKBE and the change
     documents CDHDR and CDPOS); each source becomes an activity, unioned into one table with case key, activity,
     timestamp and an optional sorting column for ties; a timestamp column on a case row ("approved at") becomes its own
     activity
 
-    4. **Join and decide many-to-many links** (1 hour) - Follow a case through references (a PO number on an invoice);
+    4. **Join and decide many-to-many links** - Follow a case through references (a PO number on an invoice);
     where one order has several deliveries, decide how to flatten or keep several datasets (or move to an
     object-centric log, W347)
 
-    5. **Fix timestamps and choose the window** (1 hour) - Repair missing timestamps (MIMICEL set triage to arrival plus 1
+    5. **Fix timestamps and choose the window** - Repair missing timestamps (MIMICEL set triage to arrival plus 1
     second); extract at least 3 months; select by start date for fall-out analysis or end date for compliance
 
-    6. **Validate** (1-2 hours) - Trace 10 to 20 cases by hand in the source system's screens and compare with the log;
+    6. **Validate** - Trace 10 to 20 cases by hand in the source system's screens and compare with the log;
     then a validation session with the domain expert
 
 
@@ -141,6 +144,9 @@ sources:
     - title: MIMICEL - event log from MIMIC-IV-ED
       url: https://arxiv.org/html/2505.19389v1
       summary: Six tables joined with PostgreSQL; triage timestamp imputed as arrival plus 1 second
+    - title: BPI Challenge 2019 report (SAP purchase-to-pay)
+      url: https://ckmnet-website-blog.s3.amazonaws.com/CKM_BPI_Challenge2019_FINAL+(SUBMIT).pdf
+      summary: Timestamp ties make order impossible to determine; 25 percent NONE resources; time zone shift between file versions
 version: 1.0.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

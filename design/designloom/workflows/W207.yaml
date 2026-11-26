@@ -73,11 +73,11 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Design and collect** (10-30 min) - Write the query with ORed spelling variants ("haemophilia" OR
+    1. **Design and collect** - Write the query with ORed spelling variants ("haemophilia" OR
     "hemophilia"); collect with edges for follows, replies and mentions plus account data; re-collect because the API
     omits prolific posters at peak times. Historically up to 18,000 posts from the last 7-10 days per search
 
-    2. **Inspect the sheets** (5 min) - Edge sheet: one row per relationship event with post ID, date, language and
+    2. **Inspect the sheets** - Edge sheet: one row per relationship event with post ID, date, language and
     counts; account sheet: followers, following, bio, join date. Keep duplicate edges unmerged and keep self-loops for
     posts with no reply or mention (1,586 of 3,437 edges in Pew's example)
 
@@ -86,22 +86,22 @@ goal: >-
     default), lays out with Harel-Koren Fast Multiscale and Group-in-a-Box, and computes word counts, top items per group
     and time series
 
-    4. **Map attributes to visuals** (5 min) - Size by follower count, opacity inverse to followers so big profile
+    4. **Map attributes to visuals** - Size by follower count, opacity inverse to followers so big profile
     photos do not hide small ones, profile photo with screen name, edge width by weight
 
-    5. **Filter for the figure** (2 min) - Hide isolates and low-degree accounts to show the connected core, while
+    5. **Filter for the figure** - Hide isolates and low-degree accounts to show the connected core, while
     keeping them in the statistics
 
-    6. **Read overall metrics** (5 min) - Vertices, components, isolates, density, modularity (Pew's example: 2,814
+    6. **Read overall metrics** - Vertices, components, isolates, density, modularity (Pew's example: 2,814
     vertices, 1,370 components of which 1,120 isolates, density 0.00022, modularity 0.62)
 
-    7. **Name clusters** (15 min) - Read the per-group top URLs, domains, hashtags, words, word pairs and accounts;
+    7. **Name clusters** - Read the per-group top URLs, domains, hashtags, words, word pairs and accounts;
     label each group by its top hashtags and the domains it shares
 
-    8. **Classify and rank** (10 min) - Place the network in the six-type typology using isolate share, modularity,
+    8. **Classify and rank** - Place the network in the six-type typology using isolate share, modularity,
     density and centralization; note hybrids; list the top five accounts by betweenness
 
-    9. **Publish** (15 min) - Export a 4096 x 3072 px image, a report naming edge definitions, algorithms, metrics and
+    9. **Publish** - Export a 4096 x 3072 px image, a report naming edge definitions, algorithms, metrics and
     top items per group, and GEXF or GraphML for Gephi; compare a dozen networks side by side in a paper
 
 

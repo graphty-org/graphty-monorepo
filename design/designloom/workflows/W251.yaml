@@ -15,6 +15,15 @@ requires_capabilities:
     - export-image
     - data-export
     - identifier-mapping
+    - pair-statistics-to-edges
+    - triplet-sign-consistency
+    - typed-heterogeneous-graphs
+    - edge-evidence-review
+    - visual-encoding-edges
+    - details-on-demand
+    - saved-filters
+    - import-report
+    - precomputed-metric-columns
 suggested_components:
     - data-import-dialog
     - attribute-table-join-dialog
@@ -23,51 +32,75 @@ suggested_components:
     - legend-panel
     - graph-canvas
     - image-export-dialog
+    - data-export-dialog
+    - node-details-panel
 starting_state:
-    data_type: differential expression lists per RNA class plus lncRNA-miRNA and miRNA-mRNA target tables
+    data_type: >-
+        differential expression tables per RNA class, an expression matrix per class, target tables, and a tested
+        lncRNA-mRNA pair table (or the node and edge tables a ceRNA tool exports)
     node_count: about 100 (107 in a TCGA kidney example)
     edge_density: sparse (about 200 edges)
     user_expertise: intermediate
 goal: >-
-    **Intent**: Build a competing endogenous RNA (ceRNA) network linking differentially expressed long non-coding RNAs,
-    microRNAs and messenger RNAs through predicted or validated target relations.
+    **Intent**: Build a competing endogenous RNA (ceRNA) network of differentially expressed long non-coding RNAs
+    (lncRNAs), microRNAs (miRNAs) and messenger RNAs (mRNAs) in which every lncRNA-mRNA pair has passed statistical
+    tests that it competes for the same miRNAs, and draw it with the evidence kept on each edge.
 
 
-    **Mental Model**: "Sponges and targets." A lncRNA soaks up a miRNA that would otherwise repress an mRNA; the network
-    is three layers of molecules with target relations between neighboring layers.
+    **Mental Model**: "Sponges and targets, with receipts." A lncRNA soaks up a miRNA that would otherwise repress an
+    mRNA, so the lncRNA and the mRNA rise and fall together and each moves opposite to the shared miRNA. Database
+    target predictions only nominate pairs; a pair belongs in the network when its tests say the competition shows in
+    the expression data.
 
 
     **Task Phases**:
 
-    1. **DE per RNA class** (varies) - Differential expression for lncRNA, miRNA and mRNA (kidney example: 1,457, 54 and
-    2,307 at |log2FC| > 2, P < 0.01)
+    1. **DE per RNA class** - Differential expression for lncRNA, miRNA and mRNA (GDCRNATools default |fold change|
+    >= 2 and p < 0.01; kidney example: 1,457, 54 and 2,307 at |log2FC| > 2, P < 0.01)
 
-    2. **Targets** (20 min) - lncRNA-miRNA from miRcode or starBase; miRNA-mRNA from miRTarBase, miRDB and TargetScan
+    2. **Targets** - lncRNA-miRNA and miRNA-mRNA pairs from starBase (GDCRNATools default), or miRcode, miRTarBase,
+    miRDB and TargetScan
 
-    3. **Filter** (15 min) - Intersect with DE lists; better pipelines add negative-correlation or shared-miRNA tests;
-    some apply none
+    3. **Test each lncRNA-mRNA pair** - Hypergeometric test that they share more miRNAs than chance; one-sided
+    Pearson test that the lncRNA and mRNA are positively correlated; regulation similarity of the shared miRNAs'
+    correlations with each; optionally sensitivity partial correlation. SPONGE instead keeps only miRNA-gene links
+    with a negative regression coefficient (default -0.05) and filters pairs on multiple sensitivity correlation at an
+    adjusted p-value cutoff
 
-    4. **Draw** (20 min) - One shape per RNA class, red up and blue down; export
+    4. **Filter on several statistics at once** - GDCRNATools worked example: hypergeometric p < 0.01, correlation p
+    < 0.01 and regulation similarity not 0; check that signs agree across each lncRNA-miRNA-mRNA triplet (lncRNA-mRNA
+    positive, each with the miRNA negative, lncRNA and mRNA changed in the same direction)
+
+    5. **Import node and edge tables** - The tool's edge table (lncRNA or mRNA to each shared miRNA) as the network
+    and its node table (RNA class, symbol, interaction count) as node attributes; join fold change and direction per
+    node and the pair statistics onto the edges
+
+    6. **Draw and export** - One shape per RNA class with a legend, red up and blue down; export the figure and the
+    edge table with its statistics
 
 
     **Decision Points**:
 
-    - Predicted or experimentally supported targets?
+    - Predicted or experimentally supported targets, and from which databases?
 
-    - Apply a correlation or shared-miRNA test, or only the DE intersection?
+    - Which tests and cutoffs (hypergeometric, correlation, regulation similarity, sensitivity correlation, or
+    SPONGE's adjusted p-value), and are p-values corrected for multiple testing? GDCRNATools' hypergeometric p is not
 
-    - Which target databases to intersect?
+    - Drop pairs whose correlation signs contradict the ceRNA hypothesis, or keep and mark them?
 
 
     **Information Needs**:
 
-    - Node type per molecule with a legend
+    - RNA class per node with a legend
 
-    - Target evidence source per edge
+    - Up or down regulation and fold change per node
 
-    - Up or down regulation per node
+    - Per edge or pair: target source, shared miRNA count, hypergeometric p, correlation and its p, regulation
+    similarity, sensitivity correlation
 
-    - Counts per class after filtering
+    - Counts per class and pairs kept after each filter
+
+    - Triplets whose correlation signs disagree with the hypothesis
 
 
     **Pain Points**:
@@ -76,33 +109,58 @@ goal: >-
 
     - Target tables use miRBase ids that mismatch DE tables
 
-    - Pipelines without statistical tests produce unsupported networks
+    - Exported edge tables carry no statistics, so the evidence is lost unless the pair table is joined back by hand
+
+    - Many published networks (the kidney example among them) are built by DE intersection alone, with no test
+    that the pairs co-vary
+
+    - Stoichiometry work (Denzler et al. 2014) suggests a single ceRNA rarely moves miRNA activity, so a drawn edge
+    is only as credible as its statistics
 
 
     **Data Flow**:
 
-    - Input: DE tables per class; target tables (TSV)
+    - Input: DE tables per class; expression matrices; target tables; tested pair table or exported node and edge
+    tables (TSV)
 
-    - Transformations: Intersection, optional correlation filter, tripartite assembly, type-aware styling
+    - Transformations: Pair tests, multi-statistic filter, sign check across triplets, tripartite assembly with pair
+    statistics on edges, type-aware styling
 
-    - Output: ceRNA network figure; edge table with evidence
+    - Output: ceRNA network figure with legend; edge table with evidence and statistics
 success_criteria:
     - metric: Type-aware style
       target: Each RNA class gets a distinct shape and legend entry automatically
     - metric: Evidence recorded
-      target: Each edge names its target database
+      target: Each edge carries its target database and the test statistics of its pair
+    - metric: Statistical filter
+      target: User can filter on several statistics at once and state how many pairs each cutoff removed
+    - metric: Sign check
+      target: Triplets whose correlation signs contradict the ceRNA hypothesis are listed or marked
     - metric: Time to figure
-      target: Under 1 hour from tables
+      target: Under 1 hour from tables (design goal; no source measures it)
 sources:
     - title: starBase v2.0
       url: https://pmc.ncbi.nlm.nih.gov/articles/PMC3964941/
       summary: About 500,000 CLIP-supported pairs
     - title: GDCRNATools vignette
       url: https://free.nchc.org.tw/bioconductor/packages/3.9/bioc/vignettes/GDCRNATools/inst/doc/GDCRNATools.html
-      summary: ceRNA pipeline with statistical tests
+      summary: >-
+          Hypergeometric, Pearson and regulation-similarity tests; example keeps hyperPValue < 0.01, corPValue < 0.01,
+          regSim != 0; exports node and edge tables for Cytoscape
+    - title: GDCRNATools source code
+      url: https://github.com/Jialab-UCR/GDCRNATools/tree/master/R
+      summary: >-
+          DE report defaults fc=2, pval=0.01; one-sided positive lncRNA-mRNA correlation; exported edges hold only
+          fromNode, toNode and a symbol; nodes hold gene, symbol, type and interaction count
+    - title: SPONGE vignette
+      url: https://bioconductor.org/packages/release/bioc/vignettes/SPONGE/inst/doc/SPONGE.html
+      summary: Negative-coefficient miRNA filter (default -0.05), multiple sensitivity correlation, FDR cutoff
     - title: TCGA kidney ceRNA example
       url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8186793
-      summary: 107 nodes and 178 edges drawn in Cytoscape
-version: 1.0.0
+      summary: 107 nodes and 178 edges drawn in Cytoscape from DE intersection alone, no correlation test described
+    - title: Denzler et al. 2014, Assessing the ceRNA hypothesis
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4267251
+      summary: Repression released only above about 150,000 added target sites per cell
+version: 1.1.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

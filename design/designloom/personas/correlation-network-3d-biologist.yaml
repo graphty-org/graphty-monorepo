@@ -1,5 +1,8 @@
 id: correlation-network-3d-biologist
 name: Correlation Network 3D Biologist
+roster_persona: genomics-cytoscape-user
+tier: A
+scope: in-scope
 role: Senior Postdoc / Omics Core Bioinformatician
 quote: The threshold decides what the graph is. I need to watch the clusters pull apart in 3D, then give my coauthors one flat figure per module.
 bio: >-

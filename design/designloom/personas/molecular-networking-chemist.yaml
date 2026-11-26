@@ -1,9 +1,12 @@
 id: molecular-networking-chemist
 name: Molecular Networking Chemist
+roster_persona: molecular-networking-chemist
+tier: B
+scope: in-scope
 role: Natural Products Chemist / Untargeted Metabolomics Scientist
 quote: GNPS gave me three thousand spectra in four hundred little families. I need to find the families that differ between my groups and put names on the unknowns.
 bio: >-
-    Dr. Lena Okoro is a natural products chemist who runs untargeted liquid chromatography tandem mass spectrometry
+    Dr. Zainab Okoro is a natural products chemist who runs untargeted liquid chromatography tandem mass spectrometry
     (LC-MS/MS) on extracts, microbiome samples or environmental samples. She converts vendor files, detects features in
     MZmine or MS-DIAL, and submits jobs to GNPS or GNPS2 for classical or feature-based molecular networking. The result
     is a similarity graph: nodes are consensus spectra or features with precursor mass, retention time, per-group
@@ -35,7 +38,7 @@ frustrations:
     - Conventional networking leaves many nodes disconnected as singletons
     - Separate jobs have to be merged by hand in Cytoscape
 context:
-    frequency: weekly
+    frequency: monthly
     devices:
         - desktop
         - laptop
@@ -55,7 +58,10 @@ sources:
       summary: MZmine features, duplicate nodes in classical networking, more than 6,767 jobs in 2019
     - title: GNPS usage statistics (Aron et al. 2020 protocol)
       url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8705952
-      summary: Over 300,000 accesses a month; 87 percent of usage is molecular networking
+      summary: Over 300,000 accesses a month from more than 160 countries; 87 percent of usage is molecular networking
+    - title: Wang et al. 2016 - Sharing and community curation of mass spectrometry data with GNPS
+      url: https://openalex.org/works/doi:10.1038/nbt.3597
+      summary: Founding GNPS paper, cited 5,108 times (OpenAlex, 2026-11-25); the size proxy behind Tier B
     - title: specXplore (2024)
       url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11024886
       summary: Family composition changes with settings; random layouts make comparison arduous

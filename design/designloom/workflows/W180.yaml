@@ -47,22 +47,22 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Get text** (weeks) - OCR or transcription (AffilKG: six social registers 1892-1965, OCR corrected by hand;
+    1. **Get text** - OCR or transcription (AffilKG: six social registers 1892-1965, OCR corrected by hand;
     Norcia: a daily newspaper 1860-1870)
 
-    2. **Extract** (hours to days) - Classic NER (weak on early modern spelling) or LLM prompts with structured output;
+    2. **Extract** - Classic NER (weak on early modern spelling) or LLM prompts with structured output;
     "A City of Millions" produced 70,509 networks from about 30,000 texts in 58 languages, each tie typed and rated
 
-    3. **Resolve entities** (days) - Merge name variants; AffilKG hand-checked 150 entity comparisons per dataset
+    3. **Resolve entities** - Merge name variants; AffilKG hand-checked 150 entity comparisons per dataset
 
-    4. **Measure error on a sample** (days) - About 200 hand-annotated triplets per book; AffilKG edge F1 ranged from
+    4. **Measure error on a sample** - About 200 hand-annotated triplets per book; AffilKG edge F1 ranged from
     about 54 to 96 with "numerous errors by all LLMs on all texts"; a classical Chinese study reached F1 = 0.68 and
     reported hallucination
 
     5. **Review and correct** (ongoing) - Domain experts monitor extraction and disambiguation; each fact links to its
     newspaper page
 
-    6. **Build and analyze** (hours) - Filter by confidence, compute metrics, return to the passages behind surprising
+    6. **Build and analyze** - Filter by confidence, compute metrics, return to the passages behind surprising
     edges
 
 

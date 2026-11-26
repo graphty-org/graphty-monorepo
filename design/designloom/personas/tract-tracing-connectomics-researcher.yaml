@@ -1,9 +1,12 @@
 id: tract-tracing-connectomics-researcher
 name: Tract-Tracing Connectomics Researcher
+roster_persona: network-neuroscientist
+tier: B
+scope: in-scope
 role: Neuroanatomist or Modeler / Mesoscale Animal Connectomes
 quote: A blank cell in my matrix means nobody injected that area, not that there is no connection. Treat it as zero and every density you compute is wrong.
 bio: >-
-    Dr. Hana Sato works with tracer-injection connectomes of mouse and macaque cortex. In these datasets a region
+    Dr. Haruka Sato works with tracer-injection connectomes of mouse and macaque cortex. In these datasets a region
     becomes a row of the matrix only if a tracer was injected there, so the matrix is partially observed: the
     Markov et al. macaque dataset injected 29 of 91 cortical areas, giving a 29 x 91 directed matrix weighted by the
     fraction of labeled neurons, with 1,615 pathways and many one-way links; the Allen Mouse Brain Connectivity Atlas

@@ -1,5 +1,8 @@
 id: phylogenomics-comparative-biologist
 name: Phylogenomicist and Comparative Biologist
+roster_persona: phylogeographer-population-geneticist
+tier: A
+scope: in-scope
 role: Faculty Member in Phylogenomics and Comparative Biology
 quote: Two thousand gene trees and a species tree. I need to see, branch by branch, how many genes agree, how many disagree, and whether hybridization explains it.
 bio: >-

@@ -1,12 +1,14 @@
 id: hover-highlight
 name: Hover Highlighting
 category: interaction
-description: Highlight nodes and their connections when the cursor hovers over them. Show related elements (neighbors,
-    edges) prominently while dimming unrelated elements. Enable exploration without commitment.
-status: implemented
-notes: "Ships: the hovered calculated value (graphty-element/src/NodeBehavior.ts) and its Hovered style layer."
+description: Mark the node or edge under the pointer, with its incident edges and neighbors, as hovered so style layers
+    can emphasize them, and reveal its label or details, for exploration without commitment. Hover never carries
+    information that a tap or selection cannot also reach, since phones and published embeds have no hover.
+status: in-progress
+notes: "Partly ships: the hovered calculated value (graphty-element/src/NodeBehavior.ts) and its Hovered style layer. Planned: path highlight on hover, extending the highlight past direct neighbors, and ray hover with a tolerance in XR. Any requirement below that this note does not name as shipping counts as planned."
 algorithms: []
 used_by_workflows:
+    - W3024
     - W02
     - W05
     - W108
@@ -35,32 +37,46 @@ used_by_workflows:
     - W421
     - W422
     - W437
-    - W440
-    - W446
+    - W431
     - W63
     - W76
     - W82
     - W99
+    - W2038
 implemented_by_components:
     - graph-canvas
     - node-tooltip
 requirements:
-    - Highlight hovered node with increased border width (3px) and glow effect
-    - Highlight edges connected to hovered node with increased width (2x normal)
-    - Highlight neighbor nodes with increased opacity and subtle border
-    - Dim non-related nodes to 30% opacity while hover is active
-    - Dim non-related edges to 20% opacity while hover is active
-    - Display node label on hover even when global labels are hidden
-    - Respond to hover within 50ms (no perceptible delay)
-    - Clear highlight within 50ms when cursor leaves node
-    - "Provide option to extend highlight to 2-hop neighbors (default: 1-hop)"
-    - Show edge label on edge hover even when edge labels are hidden
-    - Display 'N neighbors' count badge near hovered node
-    - Support touch-and-hold as hover equivalent for touch devices (300ms hold)
-    - Do not trigger highlight when actively panning or zooming
-    - Maintain highlight during slow cursor movement across node
-    - Provide setting to disable hover highlighting for performance
+    - "Library parity: Expose hovered as a calculated value on the hovered node, its incident edges and its neighbors, so any style layer can emphasize them; hovering a port or node that highlights all its connections is how AWS and Azure dependency maps are read (dependency-and-impact-analysis), and headset users need hover to highlight incident edges (three-dimensional-and-immersive R6)"
+    - "Library parity: Leave dimming of unrelated nodes and edges, and how strongly, to the style layers the consumer chooses; no fixed opacity is built in"
+    - "Library parity: Show a node's label on hover even when labels are hidden; on-hover labels are a recommended alternative to color-coding many categories and a way to keep large graphs fast (Cambridge Intelligence; Cytoscape.js and yFiles performance guidance)"
+    - "Library parity: Support hover on edges as well as nodes, showing the edge's label or attributes; Plotly's lack of edge hover is a documented frustration (code-first-data-scientists)"
+    - "Library parity: Highlight a path on hover where the view is built around paths (WSJ network interactives)"
+    - "Must: Report the hovered node or edge id, with neighbor and per-pair counts as data, to the host so it can show totals or a preview pane (ediscovery R9 sent/received/total on hover; personal knowledge graphs R4)"
+    - "Library parity: Offer an option to extend the highlight beyond direct neighbors (default: direct neighbors only)"
+    - "Library parity: Never make hover the only way to reach information; phones and published embeds have no hover, so a tap or selection must give the same result (WSJ, via journalism.co.uk)"
+    - "Must: Support ray hover in XR headsets with a tolerance for small distant nodes (three-dimensional-and-immersive R6)"
+    - "Library parity: Respond without perceptible delay, and do not trigger while panning or zooming"
+    - "Library parity: Allow hover highlighting to be turned off; turning off pointer interaction is documented as the largest performance gain in 3d-force-graph"
 sources:
-    - title: Complete Graph Visualization Textbook - Chapter 6
-      url: https://graphty.app/docs/
-      summary: Hover Highlighting - transient exploration without commitment
+    - title: Yi, Kang, Stasko and Jacko 2007, The role of interaction in information visualization
+      url: https://doi.org/10.1109/TVCG.2007.70515
+      summary: Interaction taxonomy, including connect (highlighting related items)
+    - title: Dependency and impact analysis engineers (user research)
+      url: design/user-research/dependency-and-impact-analysis-engineers.md
+      summary: Hovering a port highlights all the connections that open that port
+    - title: Three-dimensional and immersive network analysis (user research)
+      url: design/user-research/three-dimensional-and-immersive-network-analysis.md
+      summary: R6 - headset ray selection with cone tolerance; hover highlights incident edges
+    - title: eDiscovery and legal communication analysis (user research)
+      url: design/user-research/ediscovery-and-legal-communication-analysis.md
+      summary: R9 - pair isolation with sent/received/total on hover
+    - title: Cambridge Intelligence on on-hover labels
+      url: https://cambridge-intelligence.com/?p=11611
+      summary: On-hover labels recommended over color-coding nearly 500 relationship categories
+    - title: How the Wall Street Journal approaches data interactives on mobile
+      url: https://www.journalism.co.uk/how-the-wall-street-journal-approaches-data-interactives-on-mobile/
+      summary: On a small screen you cannot rely on tooltips or hover
+    - title: Plotly network graphs
+      url: https://plotly.com/python/network-graphs/
+      summary: Plotly cannot hover an edge

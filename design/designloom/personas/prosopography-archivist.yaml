@@ -1,9 +1,12 @@
 id: prosopography-archivist
 name: Prosopography Archivist and Database Editor
+roster_persona: knowledge-engineer
+tier: B
+scope: in-scope
 role: Archivist and Editor of a Correspondence Catalog and Factoid Prosopography
 quote: A tie is a claim someone made from a source. If the tool throws away who claimed it and from which document, it has thrown away the evidence.
 bio: >-
-    Mira Vos is an archivist responsible for a correspondence catalog and a factoid prosopography, and she contributes
+    Femke Vos is an archivist responsible for a correspondence catalog and a factoid prosopography, and she contributes
     records to a union catalog and to Wikidata and FactGrid. Her unit of data is not an edge but a factoid, "a
     statement by a modern scholar of a thing a source says about a person", with its source, the date the assertion was
     made as well as the date of the event, a certainty grade, and conflicting claims kept side by side. She works in
@@ -42,6 +45,7 @@ workflows:
     - W179
     - W180
     - W182
+    - W318
 sources:
     - title: Factoid Prosopography - About (King's College London)
       url: https://www.kcl.ac.uk/factoid-prosopography/about

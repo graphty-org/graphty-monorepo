@@ -40,18 +40,18 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Generate graphs with known communities** (minutes) - LFR with n, degree exponent tau1 (2-3), community-size
+    1. **Generate graphs with known communities** - LFR with n, degree exponent tau1 (2-3), community-size
     exponent tau2 (1-2), size bounds and mixing mu; or a simpler planted-partition block model; record seeds
 
-    2. **Sweep mu** (minutes) - From 0 past 0.5, where communities stop being defined in the strong sense
+    2. **Sweep mu** - From 0 past 0.5, where communities stop being defined in the strong sense
 
-    3. **Run every method** (minutes to hours) - On each graph, with seeds
+    3. **Run every method** - On each graph, with seeds
 
-    4. **Score** (minutes) - Normalized mutual information (or adjusted Rand) against the planted labels
+    4. **Score** - Normalized mutual information (or adjusted Rand) against the planted labels
 
-    5. **Average over realizations** (minutes to hours) - 100 graphs per point in the original benchmark
+    5. **Average over realizations** - 100 graphs per point in the original benchmark
 
-    6. **Plot** (5 min) - NMI against mu, one curve per method, with error bars
+    6. **Plot** - NMI against mu, one curve per method, with error bars
 
 
     **Decision Points**:

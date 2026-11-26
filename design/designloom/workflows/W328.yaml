@@ -3,7 +3,7 @@ name: Logseq Journals First, Page Graph Second
 category: exploration
 validated: false
 personas:
-    - pkm-knowledge-worker
+    - personal-knowledge-gardener
 requires_capabilities:
     - data-import
     - ego-network
@@ -40,10 +40,10 @@ goal: >-
     2. **Read through linked references** (ongoing) - The referenced pages stay mostly empty; the user reads each page's
     linked references to see where it was mentioned
 
-    3. **Open the graph** (seconds) - The page graph (one page, often in the right sidebar) or the global graph, with
+    3. **Open the graph** - The page graph (one page, often in the right sidebar) or the global graph, with
     toggles for journals, orphans and built-in pages
 
-    4. **Hit the mismatch** (minutes) - The journal connects to Carla, John and Project XYZ, but those pages do not
+    4. **Hit the mismatch** - The journal connects to Carla, John and Project XYZ, but those pages do not
     connect to each other, and block references are not edges
 
     5. **Restructure** (ongoing) - The forum answer: move knowledge to the page it belongs to; showing indirect links

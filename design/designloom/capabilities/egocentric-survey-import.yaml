@@ -1,0 +1,19 @@
+id: egocentric-survey-import
+name: "Egocentric Survey Export Import"
+category: data
+description: "Read a Network Canvas export (a zip or folder of per-session ego, attributeList per node type and edgeList per edge type CSV files linked by networkCanvasEgoUUID, or one GraphML file per session) and egor three-file tables (egos, alters, alter-alter edges with ego id first; EgoWeb and openEddi variants) into one collection of ego networks keyed by ego id, with the ego table joined and alter-alter ties kept per edge type; combine interviews by UUID, never by the per-interview nodeID."
+status: planned
+notes: "Research trace: data-preparation-and-import.md section 9, requirement 27 (Should)."
+algorithms: []
+used_by_workflows:
+    - W300
+    - W1162
+implemented_by_components: []
+requirements:
+    - "Should: Egocentric export sets: read a Network Canvas CSV folder or zip (or its per-session GraphML files) and
+      egor three-file tables into one collection of ego networks keyed by ego UUID, ego table joined, alter-alter ties
+      per edge type"
+sources:
+    - title: Data Preparation, Import and First Assessment Across All Graph Users (section 9, requirement 27)
+      url: design/user-research/data-preparation-and-import.md
+      summary: "Should in the research. Covered by Designloom when researched: Planned: egocentric-survey-import"

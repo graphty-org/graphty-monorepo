@@ -1,9 +1,12 @@
 id: migration-flow-demographer
 name: Migration Flow Demographer
+roster_persona: migration-flow-demographer
+tier: B
+scope: in-scope
 role: Senior Demographer / State Demographic Center
 quote: Legislators want to know where people are moving from and to. I need the top origins, the net balance, and a map that does not draw a 30-person flow as confidently as a 30,000-person one.
 bio: >-
-    Dana is a senior demographer at a state demographic center with an MA in demography. She writes R (tidycensus,
+    Teresa is a senior demographer at a state demographic center with an MA in demography. She writes R (tidycensus,
     sf, tmap) and Excel and produces the state's annual migration brief. Her data is county-to-county flows for about
     3,200 counties from two federal releases: the American Community Survey (ACS) 5-year flows, which carry an estimate
     and a 90 percent margin of error per pair, and the IRS Statistics of Income migration files, which count returns,

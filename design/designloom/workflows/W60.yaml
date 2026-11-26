@@ -54,19 +54,19 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Find the funder ID** (5 min) - For example NSF is F4320306076 in OpenAlex
+    1. **Find the funder ID** - For example NSF is F4320306076 in OpenAlex
 
-    2. **Portfolio by field** (15 min) - Works filtered by awards.funder_id, grouped by primary topic field
+    2. **Portfolio by field** - Works filtered by awards.funder_id, grouped by primary topic field
 
-    3. **Shifts** (30 min) - Compare field shares for two periods, such as 2015-2017 and 2023-2025
+    3. **Shifts** - Compare field shares for two periods, such as 2015-2017 and 2023-2025
 
-    4. **Recipients** (30 min) - Group by institution; the graph form, a funder-institution-field network, is left to the
+    4. **Recipients** - Group by institution; the graph form, a funder-institution-field network, is left to the
     analyst
 
-    5. **Grant-text topic map** (hours) - Topic-model grant abstracts and lay grants out by similarity, as NIHMaps did
+    5. **Grant-text topic map** - Topic-model grant abstracts and lay grants out by similarity, as NIHMaps did
     with a 700-topic model of NIH awards
 
-    6. **Check linkage** (hours) - Compare grant-to-paper links from a second source before reporting
+    6. **Check linkage** - Compare grant-to-paper links from a second source before reporting
 
 
     **Decision Points**:
@@ -114,7 +114,7 @@ success_criteria:
     - metric: Linkage transparency
       target: Report states linkage coverage per source
     - metric: Time to first portfolio map
-      target: Under 1 hour from grant export
+      target: Under 1 hour from grant export (design goal; no source measures it)
 sources:
     - title: OpenAlex tutorial - funder portfolios
       url: https://help.openalex.org/tutorials/funder-portfolios/

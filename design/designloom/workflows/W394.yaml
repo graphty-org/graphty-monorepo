@@ -45,21 +45,21 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Run BEAST** (hours to days) - Tip dates or fossil calibrations; a location trait for phylogeography
+    1. **Run BEAST** - Tip dates or fossil calibrations; a location trait for phylogeography
 
-    2. **Convergence in Tracer** (15 min) - Import trace; burn-in at least 10% (up to 50%); ESS above 200, values below
+    2. **Convergence in Tracer** - Import trace; burn-in at least 10% (up to 50%); ESS above 200, values below
     100 shown red; run longer if many are red or yellow. Tracer checks parameters, not topologies
 
-    3. **Summarize in TreeAnnotator** (10 min) - Burn-in 10%; posterior limit 0 or 0.5; maximum clade credibility or
+    3. **Summarize in TreeAnnotator** - Burn-in 10%; posterior limit 0 or 0.5; maximum clade credibility or
     MAP(CCD0) target tree; mean, median or common-ancestor node heights
 
-    4. **Overlay in DensiTree** (15 min) - Load the .trees file directly; turn on consensus and central views; show
+    4. **Overlay in DensiTree** - Load the .trees file directly; turn on consensus and central views; show
     clade support; list every clade with its posterior
 
-    5. **Draw the dated tree in FigTree** (20 min) - Order nodes decreasing; node labels = posterior; node bars =
+    5. **Draw the dated tree in FigTree** - Order nodes decreasing; node labels = posterior; node bars =
     height_95%_HPD; reversed time axis, offset to the most recent sample date
 
-    6. **Spatial view** (30 min) - SpreaD3 animates BEAST output on a D3 map with Bayes-factor-supported rates or HPD
+    6. **Spatial view** - SpreaD3 animates BEAST output on a D3 map with Bayes-factor-supported rates or HPD
     contours; without BEAST, phytools phylo.to.map links tips to map points
 
     7. **Ancestral ranges** (optional) - BioGeoBEARS pies at nodes; unreadable with many states

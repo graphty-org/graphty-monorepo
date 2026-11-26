@@ -4,10 +4,16 @@ category: analysis
 description: Per-node imports, exports, respiration and storage drawn as arrows to and from outside the system, with a
     mass balance check.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: ecological-interaction-networks.md section 10, table row 14 (Should)."
 algorithms: []
 used_by_workflows:
     - W168
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Should: Self-loops, signed directed edges and per-node boundary flows (input, export, respiration)"
+sources:
+    - title: "Ecologists Working with Networks: Species Interactions, Animal Social and Contact Networks, Ecosystem
+        Flows and Landscape Connectivity (section 10, table row 14)"
+      url: design/user-research/ecological-interaction-networks.md
+      summary: "Should in the research (the document says: should-have (ecosystem and qualitative models)). Covered by
+        Designloom when researched: No"

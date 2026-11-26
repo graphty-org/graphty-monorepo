@@ -10,7 +10,6 @@ requires_capabilities:
     - centrality-degree
     - centrality-betweenness
     - centrality-pagerank
-    - centrality-eigenvector
     - community-detection
     - community-profiling
     - filtering
@@ -61,24 +60,24 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Define influence** (10 min) - Reach, engagement, brokerage between communities, or topical authority
+    1. **Define influence** - Reach, engagement, brokerage between communities, or topical authority
 
-    2. **Load the network** (10 min) - Import the vendor or NodeXL export with typed edges; join the creator metrics
+    2. **Load the network** - Import the vendor or NodeXL export with typed edges; join the creator metrics
     table (engagement rate, fake-follower score, rates, demographics)
 
-    3. **Compute metrics** (5 min) - In-degree or weighted engagement, betweenness, PageRank; community detection for
+    3. **Compute metrics** - In-degree or weighted engagement, betweenness, PageRank; community detection for
     audience membership
 
-    4. **Segment** (15 min) - Classify accounts as broadcasters, bridges or community hubs; separate news outlets and
+    4. **Segment** - Classify accounts as broadcasters, bridges or community hubs; separate news outlets and
     brands from creators
 
-    5. **Screen** (hours) - Remove accounts with high fake-follower scores or suspicious dense interaction; review
+    5. **Screen** - Remove accounts with high fake-follower scores or suspicious dense interaction; review
     content and brand fit by hand
 
-    6. **Check audience overlap** (15 min) - Pairwise overlap among shortlisted creators; low overlap for reach, high for
+    6. **Check audience overlap** - Pairwise overlap among shortlisted creators; low overlap for reach, high for
     repeated exposure
 
-    7. **Rank and export** (15 min) - Ranked list with type, community and metrics; network image for the deck
+    7. **Rank and export** - Ranked list with type, community and metrics; network image for the deck
 
 
     **Decision Points**:

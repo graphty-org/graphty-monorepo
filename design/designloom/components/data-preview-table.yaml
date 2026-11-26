@@ -9,6 +9,7 @@ implements_capabilities:
     - data-preview
     - data-validation
 used_in_workflows:
+    - W3054
     - W01
     - W18
     - W13
@@ -65,10 +66,7 @@ used_in_workflows:
     - W339
     - W340
     - W346
-    - W349
-    - W350
-    - W356
-    - W357
+    - W347
     - W367
     - W370
     - W373
@@ -86,9 +84,8 @@ used_in_workflows:
     - W425
     - W428
     - W435
-    - W439
-    - W442
-    - W444
+    - W430
+    - W433
     - W47
     - W50
     - W52
@@ -110,6 +107,12 @@ used_in_workflows:
     - W91
     - W96
     - W97
+    - W1054
+    - W1084
+    - W1162
+    - W2097
+    - W3048
+    - W3103
 dependencies:
     - badge
     - tooltip

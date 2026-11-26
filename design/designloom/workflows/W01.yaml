@@ -6,8 +6,6 @@ personas:
     - explorer-elena
     - analyst-alex
     - expert-emma
-    - fraud-analyst
-    - intelligence-analyst
     - bioinformatics-researcher
     - genomics-cytoscape-user
     - spreadsheet-first-network-builder
@@ -25,6 +23,7 @@ requires_capabilities:
     - metric-histograms
     - layout-force-directed
     - filtering
+    - degree-distribution-fit
 suggested_components:
     - data-import-dialog
     - data-preview-table
@@ -89,7 +88,8 @@ goal: >-
 
     - Connectivity status (single component or fragmented?)
 
-    - Degree distribution shape (normal, power-law, bimodal)
+    - Degree distribution shape on a log-log CCDF (heavy-tailed or not); a power law only as a fitted, tested claim
+    (W37), never read off the plot, and no hub cut-off at the mean plus three standard deviations
 
     - Attribute completeness percentages
 
@@ -137,9 +137,9 @@ success_criteria:
     - metric: Proceed/abandon decision confidence
       target: User can articulate why they're proceeding or not
 sources:
-    - title: Practical Graph Analysis Guide - Chapter 2
-      url: https://graphty.app/docs/
-      summary: "The First 15 Minutes: Quick Assessment workflow"
+    - title: Broido and Clauset 2019 - Scale-free networks are rare (Nature Communications)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6399239/
+      summary: Before computing statistics, turn each non-simple property (direction, weight, layers) into a simple graph by a stated transformation; degree tails fitted against alternatives, not assumed scale-free
     - title: Brown University Gephi LibGuide
       url: https://libguides.brown.edu/gephi
       summary: Network analysis workflow starting with data preparation and basic statistics

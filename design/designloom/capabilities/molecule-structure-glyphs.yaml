@@ -3,11 +3,17 @@ name: Molecule Structure Node Glyphs
 category: visualization
 description: Draw nodes as 2D chemical structures from SMILES, falling back to dots when zoomed out, with potency color scales.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: network-medicine-and-biomedical-knowledge-graphs.md section 10, requirement R17 (Could); a Could in the research, so it is built after every Must and Should."
 algorithms: []
 used_by_workflows:
-    - W264
     - W265
+    - W253
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Could: Molecule nodes (Workflows 9, 10): 2D structures from SMILES as node glyphs that fall back to dots when
+      zoomed out, potency color scales, a similarity threshold slider that reports edge density, scaffold hierarchy
+      layout, selected series out to a table"
+sources:
+    - title: Network Medicine, Drug Discovery and Biomedical Knowledge Graph Researchers (section 10, requirement R17)
+      url: design/user-research/network-medicine-and-biomedical-knowledge-graphs.md
+      summary: "Could in the research. Covered by Designloom when researched: No"

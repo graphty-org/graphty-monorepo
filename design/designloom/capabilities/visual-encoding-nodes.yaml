@@ -1,12 +1,20 @@
 id: visual-encoding-nodes
 name: Node Visual Encoding
 category: visualization
-description: Map node attributes to visual properties (color, size, shape, label) to encode information visually.
-    Support categorical encoding with color palettes and quantitative encoding with size or color gradients.
-status: implemented
-notes: "Ships: style layers on session.styles, edited in graphty/src/workspace/style/BindingPopover.tsx."
+description: Map node attributes and computed values to visual properties (color, size, shape, border, opacity,
+    label) through rule-based style layers saved with the view. The near-universal recipe across the research is size by
+    a ranking (degree, citations, shared cM) and color by a partition or category -- hue for categories, brightness for
+    continuous values (Venturini, Jacomy and Jensen) -- with labels shown above a size threshold and an automatic legend.
+    Published figures must survive grayscale printing and color-vision deficiency, so color is never the only cue, and
+    uniform sizing is the default unless a stated measure is encoded.
+status: in-progress
+notes: "Partly ships: style layers on session.styles, edited in graphty/src/workspace/style/BindingPopover.tsx. Planned: highlighting nodes whose community disagrees with their place in the layout, and a grayscale check for print. Any requirement below that this note does not name as shipping counts as planned."
 algorithms: []
 used_by_workflows:
+    - W3057
+    - W3056
+    - W3054
+    - W3006
     - W02
     - W03
     - W04
@@ -14,7 +22,6 @@ used_by_workflows:
     - W08
     - W10
     - W11
-    - W12
     - W15
     - W17
     - W20
@@ -151,7 +158,6 @@ used_by_workflows:
     - W261
     - W262
     - W263
-    - W264
     - W265
     - W266
     - W267
@@ -199,7 +205,7 @@ used_by_workflows:
     - W335
     - W336
     - W337
-    - W338
+    - W430
     - W34
     - W340
     - W342
@@ -208,13 +214,7 @@ used_by_workflows:
     - W346
     - W347
     - W35
-    - W350
-    - W352
-    - W354
-    - W355
-    - W356
-    - W357
-    - W358
+    - W348
     - W36
     - W360
     - W362
@@ -274,7 +274,6 @@ used_by_workflows:
     - W428
     - W429
     - W43
-    - W430
     - W431
     - W432
     - W433
@@ -282,16 +281,8 @@ used_by_workflows:
     - W435
     - W436
     - W437
-    - W439
     - W44
-    - W440
-    - W441
-    - W442
-    - W443
-    - W444
-    - W445
-    - W446
-    - W447
+    - W438
     - W49
     - W50
     - W51
@@ -338,6 +329,33 @@ used_by_workflows:
     - W93
     - W94
     - W95
+    - W1006
+    - W1012
+    - W1042
+    - W1054
+    - W1060
+    - W1084
+    - W1120
+    - W1126
+    - W1132
+    - W1138
+    - W1156
+    - W1157
+    - W1158
+    - W2000
+    - W2006
+    - W2036
+    - W2037
+    - W2038
+    - W2066
+    - W2072
+    - W2096
+    - W3048
+    - W3066
+    - W3078
+    - W3080
+    - W3102
+    - W3103
 implemented_by_components:
     - color-picker
     - legend-panel
@@ -345,24 +363,39 @@ implemented_by_components:
     - gradient-editor
     - node-chart-overlay
 requirements:
-    - Map categorical attribute to color palette with maximum 7 distinct colors
-    - Use ColorBrewer qualitative palette as default categorical color scheme
-    - Provide 3 alternative colorblind-safe palettes (deuteranopia, protanopia, tritanopia)
-    - Map quantitative attribute to node size using square-root scaling for perceptual accuracy
-    - "Provide node size range parameter: minimum 10px to maximum 80px (default 10-50px)"
-    - "Map categorical attribute to shape: circle (default), square, triangle-up, triangle-down, diamond, hexagon"
-    - Support maximum 6 distinct shapes for shape encoding
-    - Support combining color and size encodings simultaneously on same nodes
-    - Support combining color and shape encodings simultaneously on same nodes
-    - Display node label inside node when node radius exceeds 25px
-    - Display node label below node when node radius is under 25px
-    - Truncate labels longer than 15 characters with ellipsis in graph view
-    - Show full label on hover regardless of truncation
-    - "Provide label visibility options: all, selected-only, none, or above-threshold-size"
-    - Generate legend automatically when any encoding is applied
-    - Apply encoding changes to all nodes within 300ms
-    - Preserve encoding settings when switching between graphs in same session
+    - "Must: Map a categorical attribute or a partition (community, cluster, type) to color; the palette is a consumer option, and colorblind-safe palettes that avoid red-green pairs are offered"
+    - "Library parity: When a category has more values than a palette can keep distinguishable, offer grouping the rest or another channel (shape, label, on-hover detail) instead of cycling colors"
+    - "Library parity: Map a continuous attribute to a sequential or diverging color scale, by brightness or lightness rather than hue"
+    - "Must: Map a numeric attribute or any computed ranking to size, with a consumer-set range and a linear, square-root (area) or log scale"
+    - "Must: Default to uniform node size unless a stated measure is encoded"
+    - "Must: Map a categorical attribute to shape, and allow color, size, shape and border encodings on the same nodes"
+    - "Must: Keep color from being the only cue for a category or state (WCAG 1.4.1) and offer a grayscale check for print"
+    - "Must: Offer label visibility modes: all, selected only, none, and above a size or ranking threshold; also short labels with full text in the legend or on hover"
+    - "Must: Keep the labels a mode shows from overlapping each other or other nodes; placement, leader lines and the choice between moving labels only or nodes too belong to label-overlap-removal"
+    - "Must: Let rule-based color groups (by query or by attribute) be saved with the view"
+    - "Should: Highlight nodes whose computed community disagrees with where the layout places them, so a reader does not read a visual cluster as a computed one"
+    - "Must: Generate a legend from the live style for every encoding, stating the attribute and its endpoints"
+    - "Library parity: Apply encoding changes interactively on large graphs, with progress feedback for anything slower than about one second"
 sources:
-    - title: Complete Graph Visualization Textbook - Chapter 3
-      url: https://graphty.app/docs/
-      summary: Visual encoding principles and Cleveland-McGill hierarchy
+    - title: Munzner 2014, Visualization Analysis and Design
+      url: https://doi.org/10.1201/b17511
+      summary: Channels ranked by effectiveness; hue for categories, magnitude channels for ordered values
+    - title: Venturini, Jacomy and Jensen, What do we see when we look at networks
+      url: https://arxiv.org/abs/1905.02202
+      summary: Size by a ranking, hue for categories and brightness for continuous variables, label by size threshold;
+          visual clusters versus computed communities
+    - title: Marai et al., Ten simple rules to create biological network figures for communication
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6762067
+      summary: Avoid red-green, check grayscale, labels at caption size
+    - title: WCAG 2.2, Understanding 1.4.1 Use of Color
+      url: https://www.w3.org/WAI/WCAG22/Understanding/use-of-color.html
+      summary: Color must not be the only visual means of conveying information
+    - title: American Political Science Review, preparing your materials
+      url: https://www.cambridge.org/core/journals/american-political-science-review/information/author-instructions/preparing-your-materials
+      summary: Figures must be readable in grayscale
+    - title: qgraph manual
+      url: https://cran.r-project.org/web/packages/qgraph/qgraph.pdf
+      summary: Short node labels with a legend of full item text (nodeNames) and colors by group
+    - title: Nielsen Norman Group, Response times, the 3 important limits
+      url: https://www.nngroup.com/articles/response-times-3-important-limits/
+      summary: 1 second keeps the flow of thought; past that, show progress

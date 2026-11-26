@@ -1,10 +1,13 @@
 id: transport-network-planner
 name: Transport Network Planner
+roster_persona: infrastructure-resilience-analyst
+tier: B
+scope: in-scope
 role: Transportation Planner at a metropolitan planning organization
 quote: Betweenness on the street graph pretends every trip is equally likely. Show me who loses access to jobs when this
     bridge floods, measured in minutes.
 bio: >-
-    Lena is a transportation planner at a metropolitan planning organization. She builds street networks from
+    Renata is a transportation planner at a metropolitan planning organization. She builds street networks from
     OpenStreetMap with OSMnx, computes travel-time accessibility to jobs and clinics with r5r or Conveyal over H3
     hexagons, and works beside the regional travel demand model in PTV Visum, TransCAD or Emme. She ranks road links by
     the added vehicle-hours when each is removed and the traffic is reassigned, and she reruns accessibility with flooded
@@ -24,6 +27,9 @@ motivations:
 behaviors:
     - Builds a street graph from OSM, keeps the largest weakly connected component, simplifies and consolidates intersections
     - Imputes speeds and travel times on edges before any measure
+    - Downloads the network with a buffer wider than her largest distance threshold and reports results only for the
+      nodes inside the study area
+    - Computes local betweenness and closeness at several distance thresholds and compares the maps side by side
     - Computes travel-time-weighted node and edge betweenness as a chokepoint screen
     - Computes cumulative accessibility per hexagon with time cutoffs and maps it as choropleths
     - Removes links one at a time (or all flooded ones), reassigns traffic and ranks by added vehicle-hours
@@ -31,6 +37,7 @@ frustrations:
     - Plain betweenness assumes a flat origin-destination matrix
     - Link-removal studies need one reassignment per link, which is slow
     - Results end up as static maps, rarely interactive graphs
+    - Centrality near the edge of the study area is distorted unless the network is buffered and the buffer excluded
     - OSM identifiers change between extracts
 context:
     frequency: weekly
@@ -50,6 +57,12 @@ sources:
     - title: Network Robustness Index (USDOT)
       url: https://rosap.ntl.bts.gov/view/dot/28941/dot_28941_DS1.pdf
       summary: Link criticality by removal and reassignment, measured in added vehicle-hours
+    - title: Gil 2017, Street network analysis edge effects (Environment and Planning B)
+      url: https://research.chalmers.se/en/publication/?id=245772
+      summary: Each centrality measure reacts differently to an artificial study boundary
+    - title: Yamaoka, Kumakoshi and Yoshimura 2021, Local betweenness centrality analysis of 30 European cities
+      url: https://arxiv.org/pdf/2103.11437
+      summary: 5,000 m download buffer trimmed after computation; local betweenness at 300 to 5,000 m
     - title: Street betweenness with non-uniform demand (arXiv 2409.08016)
       url: https://arxiv.org/pdf/2409.08016
       summary: Plain betweenness assumes in general a flat origin-destination matrix

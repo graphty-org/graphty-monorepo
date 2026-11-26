@@ -1,14 +1,26 @@
 id: viewpoint-and-video-export
 name: Named viewpoints, multi-view and video export
 category: export
-description: Save named camera viewpoints, export a set of fixed views, a turntable or a fly-through video, a light
-    print theme, and flatten a 3D view to 2D for a figure.
+description: Save named camera viewpoints; export a canonical view set (named standard views, anatomical or along a
+    layout's principal axes, laid out as one panel at a set DPI and physical size), a turntable or a fly-through video;
+    a light print theme; and flatten a 3D view to 2D for a figure.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: three-dimensional-and-immersive-network-analysis.md section 10, requirement R10 (Must)."
 algorithms: []
 used_by_workflows:
     - W416
     - W417
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: 3D-to-deliverable: save named viewpoints; export a set of fixed views and a turntable or fly-through video;
+      light print theme; flatten to 2D"
+    - "Must: publication export of fixed multi-view grids (lateral, medial, dorsal) at a set DPI and physical size,
+      vector output and a rotating movie (network-neuroscience-connectomics.md, R15)"
+sources:
+    - title: Analysts Who Work With Networks in 3D and in Immersive VR or AR (section 10, requirement R10)
+      url: design/user-research/three-dimensional-and-immersive-network-analysis.md
+      summary: "Must in the research. Covered by Designloom when researched: Partly (bookmarks store camera; no
+        multi-view or video export)"
+    - title: Xia et al. 2013 - BrainNet Viewer
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC3701683/
+      summary: Single, medium and full view layouts in one figure at a chosen DPI; 12 second 30 FPS rotating AVI

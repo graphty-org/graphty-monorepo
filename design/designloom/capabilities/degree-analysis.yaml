@@ -1,17 +1,18 @@
 id: degree-analysis
 name: Degree Analysis
 category: analysis
-description: Analyze the degree distribution of a graph to understand connectivity patterns. Calculate degree for each
-    node, visualize the distribution, and identify if it follows expected patterns (normal, power-law, bimodal). Essential
-    for identifying hubs and assessing data quality.
+description: Compute each node's degree (in- and out-degree for directed graphs, strength for a chosen weight column)
+    and show the distribution, so users can rank hubs and catch import errors such as artifact hubs, doubled edges and
+    isolates. The distribution is described, not labeled -- heavy-tailed or not -- and any power-law claim comes only
+    from the Clauset-Shalizi-Newman fit in degree-distribution-fit, never from a p-value threshold here.
 status: in-progress
-notes: "Partly ships: degree and its histogram ship (graphty-element/src/algorithms/DegreeAlgorithm.ts, graphty/src/workspace/inspector/GraphValues.tsx); power-law fitting does not."
+notes: "Partly ships: degree and its histogram ship (graphty-element/src/algorithms/DegreeAlgorithm.ts, graphty/src/workspace/inspector/GraphValues.tsx); the CCDF view does not, and distribution fitting belongs to degree-distribution-fit."
 algorithms:
     - Degree calculation
-    - Power-law fitting
+    - Complementary cumulative degree distribution (CCDF)
 used_by_workflows:
+    - W3024
     - W01
-    - W12
     - W02
     - W06
     - W07
@@ -67,26 +68,44 @@ used_by_workflows:
     - W91
     - W94
     - W97
+    - W3048
+    - W3049
+    - W3050
 implemented_by_components:
     - histogram
     - statistics-panel
 requirements:
-    - Calculate degree for each node (total edge count)
-    - Calculate in-degree and out-degree separately for directed graphs
-    - Generate degree distribution histogram with automatic bin count (Sturges' formula)
-    - Support log-log scale toggle for power-law visualization
-    - "Calculate degree statistics: mean, median, mode, standard deviation, skewness"
-    - Identify degree outliers as nodes with degree > mean + 3*stddev
-    - Display count and list of outlier nodes (potential hubs)
-    - Fit power-law distribution using maximum likelihood estimation
-    - Report power-law exponent (alpha) with 2 decimal places when distribution fits
-    - Report p-value for power-law fit goodness-of-fit test
-    - Display 'Power-law detected (α=X.XX)' or 'Not power-law' based on p-value > 0.1 threshold
-    - Support filtering nodes by degree range (min-max slider)
-    - Highlight nodes matching current degree filter in graph view
-    - Complete analysis within 2 seconds for graphs under 100,000 nodes
-    - Export degree distribution data as CSV (degree value, count, cumulative)
+    - "Must: Calculate degree for each node, and record in the result whether a self-loop counts once or twice and whether parallel edges count separately"
+    - "Must: Calculate in-degree and out-degree separately for directed graphs"
+    - "Must: Calculate weighted degree (strength) as the sum of a chosen weight column, labeled as strength and kept separate from degree"
+    - "Should: Calculate degree per edge type for typed graphs"
+    - "Library parity: Show the distribution as a complementary cumulative distribution (CCDF) on log-log axes, which needs no bins; offer a histogram for small degree ranges"
+    - "Library parity: Report descriptive statistics: minimum, maximum, mean, median, standard deviation"
+    - "Should: Rank nodes by degree (or log degree) as the hub list; never flag outliers by mean plus k standard deviations, which on a heavy-tailed distribution flags the tail by construction; hub roles (within-module z, participation coefficient) belong to hub-role-analysis"
+    - 'Must: Never label a distribution "power-law" or "scale-free" here; fitting (k_min by Kolmogorov-Smirnov distance, discrete maximum-likelihood alpha, bootstrap p, likelihood-ratio tests against log-normal, exponential and power law with cutoff) belongs to degree-distribution-fit, which returns plausible, not plausible or alternative favored as a code with its numbers'
+    - "Must: Support filtering nodes by degree range (min-max slider)"
+    - "Library parity: Highlight nodes matching current degree filter in graph view"
+    - "Library parity: Show progress for long computations"
+    - "Library parity: Export degree distribution data as CSV (degree value, count, cumulative)"
 sources:
-    - title: Graph Analysis Textbook - Chapter 3
-      url: https://graphty.app/docs/
-      summary: Degree distribution analysis and scale-free network detection
+    - title: Clauset, Shalizi and Newman 2009, Power-law distributions in empirical data
+      url: https://doi.org/10.1137/070710111
+      summary: Plot CCDFs; fit the tail by KS-chosen k_min and discrete MLE; p >= 0.1 means only plausible; compare
+          against alternatives with likelihood-ratio tests
+    - title: Broido and Clauset 2019, Scale-free networks are rare
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6399239/
+      summary: Across 928 networks only 4% met the strongest evidence; a log-normal fit at least as well for 88%
+    - title: Network scientists and analysis method validity (workflow A, section 9.1 degree-analysis, correction to W12)
+      url: design/user-research/network-scientists-and-analysis-method-validity.md
+      summary: Delete the mean+3sd outlier rule and the "power-law detected" wording; state self-loop and parallel-edge
+          counting; report heavy-tailed by default
+    - title: Guimera and Amaral 2005, Functional cartography of complex metabolic networks
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC2175124
+      summary: Hub roles from within-module degree z-score and participation coefficient
+    - title: igraph degree()
+      url: https://r.igraph.org/reference/degree.html
+      summary: Loops are counted by default, so the self-loop convention must be stated
+    - title: Data preparation, import and first assessment (section 4.9)
+      url: design/user-research/data-preparation-and-import.md
+      summary: The degree list and a degree-range filter are first-look checks that expose artifact hubs and edges that
+          did not attach

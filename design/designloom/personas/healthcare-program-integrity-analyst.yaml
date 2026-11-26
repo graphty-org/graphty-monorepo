@@ -1,5 +1,8 @@
 id: healthcare-program-integrity-analyst
 name: Healthcare Program Integrity Analyst
+roster_persona: fraud-analyst
+tier: A
+scope: in-scope
 role: Program Integrity Analyst, health insurer SIU or Medicaid program-integrity contractor
 quote: Every referral network has hubs. I need the providers whose shared patients make no clinical sense.
 bio: >-

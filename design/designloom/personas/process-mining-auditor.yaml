@@ -1,9 +1,12 @@
 id: process-mining-auditor
 name: Process Mining Auditor
+roster_persona: process-mining-analyst
+tier: A
+scope: in-scope
 role: Internal Audit Data Analytics Lead / IT Auditor
 quote: The rare path is the finding. Do not simplify it away, and give me the exact filter chain behind every exhibit.
 bio: >-
-    Hannah leads data analytics in an internal audit department. Instead of sampling 25 invoices she tests the whole
+    Astrid leads data analytics in an internal audit department. Instead of sampling 25 invoices she tests the whole
     population: every purchase-to-pay and order-to-cash case in the audit period, with the user id on every event. She
     works in Disco for its Follower filter with a four-eyes option and its audit report export, in Celonis when the
     company has it, and occasionally ProM. Her questions are rule questions: were payments made without approval, was a
@@ -51,10 +54,6 @@ workflows:
     - W342
     - W343
     - W345
-    - W350
-    - W351
-    - W353
-    - W355
     - W359
 sources:
     - title: Celonis blog - Process mining and internal audit

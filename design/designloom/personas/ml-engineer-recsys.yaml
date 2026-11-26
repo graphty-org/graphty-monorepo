@@ -1,5 +1,8 @@
 id: ml-engineer-recsys
 name: ML Engineer - Recommendation Systems
+roster_persona: ml-engineer-recsys
+tier: B
+scope: in-scope
 role: Machine Learning Engineer / Recommendation Systems Specialist
 quote: I don't need to see the whole user-item graph. I need to see one user's history next to what we recommended and why.
 bio: >-
@@ -52,6 +55,7 @@ workflows:
     - W269
     - W270
     - W272
+    - W1120
 sources:
     - title: "RekomGNN: Visualizing, Contextualizing and Evaluating Graph Neural Networks Recommendations"
       url: https://arxiv.org/html/2310.11562

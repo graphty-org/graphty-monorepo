@@ -63,30 +63,30 @@ goal: >-
     1. **Define nodes and edges** (planning) - Individuals as nodes; associations, directed interactions or proximity
     as edges
 
-    2. **Collect and load** (10 min) - Group scans or photo-ID surveys, feeder detection streams (timestamp, tag,
+    2. **Collect and load** - Group scans or photo-ID surveys, feeder detection streams (timestamp, tag,
     location), proximity contacts or GPS tables (id, datetime, x, y), plus sex, age, rank and kinship
 
-    3. **Build groups** (10-60 min) - Group-by-individual matrix from sightings; infer flocking events from detection
+    3. **Build groups** - Group-by-individual matrix from sightings; infer flocking events from detection
     streams; group GPS points by a time window and a distance threshold (for example 50 m); merge proximity records
     between the same pair within one or two minutes
 
-    4. **Compute association indices** (2 min) - Simple ratio or half-weight index, subset by period, location or
+    4. **Compute association indices** - Simple ratio or half-weight index, subset by period, location or
     class
 
-    5. **Build null networks** (10-60 min) - Swap individuals between groups within day, location or class, shuffle
+    5. **Build null networks** - Swap individuals between groups within day, location or class, shuffle
     identities within time steps, shift whole trajectories, or permute node labels
 
-    6. **Compute node and network measures** (2 min) - Strength, eigenvector centrality, clustering, modularity
+    6. **Compute node and network measures** - Strength, eigenvector centrality, clustering, modularity
 
-    7. **Test hypotheses** (15 min) - Compare observed effects (for example sex difference in strength) against the
+    7. **Test hypotheses** - Compare observed effects (for example sex difference in strength) against the
     null distribution; matrix regression with kinship; lagged association rates
 
-    8. **Check power and accuracy** (15 min) - Subsample observations or bootstrap groups
+    8. **Check power and accuracy** - Subsample observations or bootstrap groups
 
-    9. **Draw** (10 min) - Nodes colored by sex or age class and sized by strength, edge width by association index,
+    9. **Draw** - Nodes colored by sex or age class and sized by strength, edge width by association index,
     one panel per season or time window
 
-    10. **Disease variant** (30 min) - Contact network from proximity loggers, then simulate transmission across it
+    10. **Disease variant** - Contact network from proximity loggers, then simulate transmission across it
 
 
     **Decision Points**:

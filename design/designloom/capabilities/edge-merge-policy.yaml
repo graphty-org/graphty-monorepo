@@ -5,7 +5,7 @@ description: "Explicit choice at import of directed, undirected or per-edge dire
     repeated source-target rows mean: keep as multi-edges, or merge with count, sum, average, min, max, first or last;
     never merge across layers silently."
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: data-preparation-and-import.md section 9, requirement 3 (Must)."
 algorithms: []
 used_by_workflows:
     - W18
@@ -13,5 +13,9 @@ used_by_workflows:
     - W293
     - W303
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Parallel-edge policy choice: keep as multi-edges, merge with count, sum, average, min, max, first, last"
+sources:
+    - title: Data Preparation, Import and First Assessment Across All Graph Users (section 9, requirement 3)
+      url: design/user-research/data-preparation-and-import.md
+      summary: "Must in the research. Covered by Designloom when researched: Gap"

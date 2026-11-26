@@ -5,6 +5,7 @@ validated: false
 personas:
     - osint-disinformation-investigator
 requires_capabilities:
+    - label-overlap-removal
     - data-import
     - data-validation
     - filtering
@@ -56,26 +57,26 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Collect** (hours to days) - 4CAT or Zeeschuimer browser capture; Telepathy for Telegram (needs an API id and
+    1. **Collect** - 4CAT or Zeeschuimer browser capture; Telepathy for Telegram (needs an API id and
     hash; its forward map gives Source, Target, Label, Source_ID, Username and Timestamp columns); snowball from seed
     channels because Telegram has no directory
 
-    2. **Build the graph** (15 min) - Directed, weighted, timestamped multigraph; channels as nodes, edges from source
+    2. **Build the graph** - Directed, weighted, timestamped multigraph; channels as nodes, edges from source
     to forwarding channel, weight = forward count, size = incoming forwards
 
-    3. **Remove query and seed nodes** (10 min) - Sort by frequency, select the top nodes (the query hashtags that
+    3. **Remove query and seed nodes** - Sort by frequency, select the top nodes (the query hashtags that
     connect to everything) and delete them; then a frequency range filter and a degree range filter
 
-    4. **Lay out and cluster** (15 min) - ForceAtlas2 (scaling up for sparser graphs, gravity up for denser, LinLog for
+    4. **Lay out and cluster** - ForceAtlas2 (scaling up for sparser graphs, gravity up for denser, LinLog for
     clearer clusters, prevent overlap last); modularity, then color by community (nine clusters in the DFRLab case)
 
-    5. **Read the clusters** (hours) - Name each from top hashtags, channel-name suffixes or language; find bridges and
+    5. **Read the clusters** - Name each from top hashtags, channel-name suffixes or language; find bridges and
     amplifiers; slice by time; report where labels do not match clusters; accept ambiguity
 
-    6. **Check coordination** (hours) - Co-sharing within a time window (see W93), then corroborate outside the graph:
+    6. **Check coordination** - Co-sharing within a time window (see W93), then corroborate outside the graph:
     creation dates, name histories, archived captures
 
-    7. **Publish** (days) - Full map plus annotated close-ups, charts, screenshots and archive links, with unconfirmed
+    7. **Publish** - Full map plus annotated close-ups, charts, screenshots and archive links, with unconfirmed
     claims flagged
 
 
@@ -126,7 +127,7 @@ goal: >-
     - Output: Annotated cluster map and close-ups, cluster membership table, timeline charts
 success_criteria:
     - metric: Edge list to cluster map
-      target: Under 30 minutes from a collected edge list to a colored, filtered cluster map
+      target: Under 30 minutes from a collected edge list to a colored, filtered cluster map (design goal; no source measures it)
     - metric: Cluster explanation
       target: User can name each cluster from its top members and attributes without leaving the tool
     - metric: Shareable interactive map

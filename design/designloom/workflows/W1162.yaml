@@ -1,0 +1,126 @@
+id: W1162
+name: Open a Specialist Interchange File and Check What Was Read
+category: onboarding
+validated: false
+personas:
+    - graph-data-wrangler
+requires_capabilities:
+    - data-import
+    - data-preview
+    - data-validation
+    - import-report
+    - biological-network-formats
+    - bibliographic-record-import
+    - security-format-import
+    - dependency-format-import
+    - rdf-import
+    - tree-import-and-axes
+    - event-log-import
+    - temporal-data-model-import
+    - plugin-file-reader-contract
+    - investigation-format-import
+    - columnar-table-import
+    - typed-file-set-import
+    - geospatial-file-io
+    - egocentric-survey-import
+    - multilayer-format-import
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - data-preview-table
+    - progress-bar
+starting_state:
+    data_type: a file in a domain interchange format (MITAB, KGML, SBOM, SharpHound zip, STIX bundle, Newick, RDF, XES, WoS export)
+    node_count: unknown
+    edge_density: unknown
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Open a file in the interchange format of one field, not a generic graph format, and confirm that the
+    reader kept what the field's tools keep: interaction types, evidence, coordinates, timestamps, branch support,
+    entity types. Graph-literate users in many fields have such a file and no CSV, and the research documents mark
+    reading it as a Must for several populations (dependency-and-impact-analysis-engineers.md R22,
+    supply-chain-and-physical-infrastructure-networks.md R19, process-mining-and-process-maps.md R1 and R12,
+    phylogenetics-and-haplotype-networks.md, cybersecurity-graph-work.md requirement 6,
+    investigative-journalism-and-osint.md R6).
+
+
+    **Mental Model**: "Open it the way the home tool opens it." The user judges the import by comparing it with what
+    Cytoscape, BloodHound, a process-mining tool or a tree viewer shows for the same file.
+
+
+    **Task Phases** (no source gives step timings):
+
+    1. **Drop the file** - The format is recognized from its extension or content, or the user is told which
+    reader would read it and whether it is built in, planned or available as a reader plugin
+
+    2. **Choose the format's options** - For example collapse MITAB multi-edges or keep them, read Newick inner labels
+    as names or as support values, treat RDF literals as attributes or nodes, map XES case and activity fields
+
+    3. **Preview** - A sample of nodes and edges with the format's own fields shown as typed attributes
+
+    4. **Load and read the report** - Rows or records read and skipped with reasons, nodes and edges created, fields
+    the reader did not keep
+
+    5. **Compare with the home tool** - Counts and a few known entities checked against the source tool or the file
+
+
+    **Decision Points**:
+
+    - Is this format read by Graphty, by a planned reader, or only by converting it first?
+
+    - Which of the format's options match what the source tool did?
+
+    - Are the dropped fields ones the question needs?
+
+
+    **Information Needs**:
+
+    - The list of formats read, by name and extension, and for an unrecognized file the reason and the nearest reader
+
+    - The format's own fields kept on nodes and edges, by name
+
+    - Counts after load next to the record counts in the file
+
+    - Fields and records the reader skipped, listed
+
+
+    **Pain Points**:
+
+    - The tool claims a handful of generic formats and the field's own format is not among them, so the user
+    converts by script and loses evidence columns on the way
+
+    - "Unsupported format" with no hint of what would read it
+
+    - A reader that silently drops the field-specific columns (interaction type, branch support, timestamps)
+
+
+    **Data Flow**:
+
+    - Input: One file, or a zip of related files, in a domain interchange format
+
+    - Transformations: Format detection, format-specific parsing with its options, typed attribute mapping
+
+    - Output: A loaded graph with the format's fields as attributes, and an import report
+success_criteria:
+    - metric: Format named
+      target: Every built-in reader's formats are listed, and an unrecognized file names the reader that would open it
+    - metric: Fields kept
+      target: The user can name which of the format's fields were kept and which were dropped
+    - metric: Counts match
+      target: Node and edge counts after load can be compared with the record counts in the file
+sources:
+    - title: Cytoscape User Manual - Supported Network File Formats
+      url: https://manual.cytoscape.org/en/3.10.3/Supported_Network_File_Formats.html
+      summary: SIF, GML, XGMML, GraphML, PSI-MI, BioPAX, SBML and other readers in the reference biology tool
+    - title: PSI-MITAB 2.6 format
+      url: https://psicquic.github.io/MITAB26Format.html
+      summary: Column layout of the molecular interaction tab format
+    - title: GraphRAG output tables
+      url: https://microsoft.github.io/graphrag/index/outputs/
+      summary: Parquet entity and relationship tables as an import source
+    - title: OASIS STIX visualizer
+      url: https://github.com/oasis-open/cti-stix-visualization
+      summary: STIX 2.1 bundles drawn as graphs
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

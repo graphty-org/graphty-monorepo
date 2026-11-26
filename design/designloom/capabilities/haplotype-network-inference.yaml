@@ -4,12 +4,17 @@ category: analysis
 description: Collapse aligned sequences into haplotypes and infer minimum spanning, TCS and median-joining networks,
     listing which samples merged into each haplotype and how gaps were treated.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: phylogenetics-and-haplotype-networks.md section 10, table row 18 (Should)."
 algorithms: []
 used_by_workflows:
     - W390
     - W391
     - W392
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Should: Haplotype network inference from an alignment (MSN, TCS, median-joining) with a merged-samples list"
+sources:
+    - title: "Evolutionary Biologists, Population Geneticists and Protein-Family Analysts: Trees, Haplotype Networks,
+        Population Graphs and Similarity Networks (section 10, table row 18)"
+      url: design/user-research/phylogenetics-and-haplotype-networks.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

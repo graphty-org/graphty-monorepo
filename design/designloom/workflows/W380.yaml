@@ -24,6 +24,7 @@ requires_capabilities:
     - flow-arithmetic
     - flow-clutter-control
     - flow-uncertainty
+    - geospatial-file-io
 suggested_components:
     - file-drop-zone
     - data-import-dialog
@@ -67,7 +68,7 @@ goal: >-
     (MOVEDIN, MOVEDOUT, MOVEDNET) with GEOID1, GEOID2, estimate, moe and both centroids; raw files are a fixed-width
     national text file plus one Excel sheet per state
 
-    3. **Clean release quirks** (an hour or more) - Remove IRS total rows (destination codes 96, 97, 98), separate the
+    3. **Clean release quirks** - Remove IRS total rows (destination codes 96, 97, 98), separate the
     non-migrant row where origin equals destination (564,311 returns for Hawaii alone), note flows under 20 returns
     folded into "Other Flows", handle ACS moves from abroad with no GEOID2, pad FIPS codes to five characters
 
@@ -126,7 +127,8 @@ goal: >-
     **Data Flow**:
 
     - Input: Long OD table (origin GEOID, destination GEOID, estimate, moe) or IRS inflow and outflow CSVs, plus a
-    county place table with centroids
+    county place table with centroids or the Census county boundary file (shapefile, geodatabase, KML or GeoPackage)
+    joined by GEOID
 
     - Transformations: Removal of total and abroad rows, self-flow separation, id padding, net and gross per pair and
     per county, rate per population, top-N or one-county filter
@@ -134,7 +136,7 @@ goal: >-
     - Output: Flow map and choropleth with legend, ranked origin and destination table, cleaned flow table
 success_criteria:
     - metric: Time from downloaded release to one county's inbound, outbound and net map
-      target: Under 20 minutes
+      target: Under 20 minutes (design goal; no source measures it)
     - metric: Import transparency
       target: User can state how many total, self-flow, abroad and unmatched rows were set aside
     - metric: Brief readiness
@@ -158,6 +160,9 @@ sources:
     - title: FlowMapper.org (Koylu et al.)
       url: https://arxiv.org/pdf/2110.03662
       summary: Threshold filtering for flow maps; fifty states form thousands of links
-version: 1.0.0
+    - title: US Census - Cartographic boundary files
+      url: https://www.census.gov/geographies/mapping-files/time-series/geo/cartographic-boundary.html
+      summary: Shapefile, geodatabase and KML since 2019; GeoPackage since 2024
+version: 1.1.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

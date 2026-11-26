@@ -1,14 +1,17 @@
 id: ediscovery-first-pass-reviewer
 name: eDiscovery First-Pass Reviewer
+roster_persona: litigation-support-analyst
+tier: B
+scope: in-scope
 role: Contract Attorney on a Staffed Document Review
 quote: Show me which emails in this thread I actually have to read, and let me code the whole branch at once.
 bio: >-
-    Jordan is a contract attorney on a staffed document review, working a batch queue in a review platform such as
-    Relativity and coding each document for responsiveness, privilege and confidentiality. Jordan never opens a graph
+    Casey is a contract attorney on a staffed document review, working a batch queue in a review platform such as
+    Relativity and coding each document for responsiveness, privilege and confidentiality. Casey never opens a graph
     tool, but sees a graph on every threaded email: the Email Thread Visualization pane in the document viewer, a
     left-to-right, time-ordered tree of the thread group with the open email outlined in orange. Black nodes are
     inclusive emails that must be read, white nodes are non-inclusive emails whose content appears elsewhere, stacked
-    icons are duplicate spares, and question marks are missing messages. Jordan turns on Highlight Field to color the
+    icons are duplicate spares, and question marks are missing messages. Casey turns on Highlight Field to color the
     tree by a coding field, looks for the red exclamation point that marks a coding conflict between duplicates or
     attachments, and shift-selects a branch to mass-edit it. Review is paid and measured by throughput, so anything that
     makes a thread faster to clear is welcome and anything that slows the queue is resented. Graph literacy is basic:

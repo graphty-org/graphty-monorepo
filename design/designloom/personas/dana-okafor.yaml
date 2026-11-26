@@ -1,5 +1,8 @@
 id: dana-okafor
 name: Dana Okafor
+roster_persona: attack-path-analyst
+tier: B
+scope: in-scope
 role: Internal Penetration Tester / Red Team Consultant
 quote: In a domain with twenty thousand users the path to Domain Admins is in there somewhere. I need it in minutes, I need to prove every hop, and I need one finding per path, not three hundred screenshots.
 bio: >-
@@ -49,6 +52,7 @@ context:
 workflows:
     - W108
     - W114
+    - W320
 sources:
     - title: NetSPI - ADPathfinder, OpenGraph attack path mapping in BloodHound CE
       url: https://www.netspi.com/blog/technical-blog/network-pentesting/adpathfinder-opengraph-attack-path-mapping-in-bloodhound-ce/

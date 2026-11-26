@@ -3,7 +3,7 @@ name: Bipartite ecological indices
 category: analysis
 description: Connectance, NODF and weighted NODF, H2', d', bipartite modularity and robustness for two-mode networks.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: ecological-interaction-networks.md section 10, table row 7 (Must)."
 algorithms: []
 used_by_workflows:
     - W163
@@ -11,5 +11,10 @@ used_by_workflows:
     - W165
     - W166
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Bipartite metrics: connectance, NODF, H2', d', bipartite modularity, robustness"
+sources:
+    - title: "Ecologists Working with Networks: Species Interactions, Animal Social and Contact Networks, Ecosystem
+        Flows and Landscape Connectivity (section 10, table row 7)"
+      url: design/user-research/ecological-interaction-networks.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

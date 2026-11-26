@@ -1,9 +1,12 @@
 id: computational-network-neuroscientist
 name: Computational Network Neuroscientist
+roster_persona: network-neuroscientist
+tier: B
+scope: in-scope
 role: Research Scientist or Junior PI / Network Neuroscience Methods
 quote: A dense 3D connectome is a hairball in a skull. I need the anatomical view and the topological view side by side, and the same colors in both.
 bio: >-
-    Dr. Maya Okafor develops network methods for brain data -- null models, consensus networks, community detection,
+    Dr. Ngozi Okafor develops network methods for brain data -- null models, consensus networks, community detection,
     multilayer dynamics -- and applies them to large open datasets such as the Human Connectome Project and UK
     Biobank. She works in Python and Jupyter: nilearn for connectivity matrices, atlas centroids and glass-brain
     plots, bctpy and netneurotools for metrics and consensus clustering, GenLouvain for multilayer modularity,
@@ -11,8 +14,9 @@ bio: >-
     surfaces, and MRtrix or QSIPrep when she needs structural connectomes. Her data spans hundreds to tens of
     thousands of subjects at several parcellation resolutions (Schaefer 100 to 1,000 regions, Glasser 360), with a
     fiber-length matrix alongside each structural weight matrix and sliding-window stacks for dynamics. She is fluent
-    in graph theory and statistics and writes every figure as reproducible code, but she has no tool that keeps
-    anatomy, topology and the matrix in step.
+    in graph theory and statistics and writes every figure as reproducible code. Web viewers such as NeuroCave and
+    NeuroMArVL link anatomical and topological views, but they load their own files and offer no scripting, so
+    nothing in her Python workflow keeps anatomy, topology and the matrix in step.
 characteristics:
     expertise: expert
     time_pressure: medium
@@ -34,7 +38,7 @@ behaviors:
     - Repeats analyses across atlases and thresholds as a robustness check
 frustrations:
     - Visual clutter of dense 3D node-link drawings
-    - No tool shows anatomical and topological layouts side by side or synchronizes two connectomes; colleagues open several program instances on several monitors
+    - Linked anatomical and topological views and synchronized two-connectome views exist only in separate web viewers (NeuroCave, NeuroMArVL) that take their own input files and have no scripting interface, so results from her notebooks must be exported to them by hand
     - Coordinates and background brain in different templates, with nothing that names the template to catch the mismatch
     - Figure libraries that cannot render GIfTI or CIFTI surfaces
     - Parcel names are not kept in CIFTI pconn files, so the matching dlabel file must travel with every matrix
@@ -52,6 +56,7 @@ workflows:
     - W158
     - W159
     - W162
+    - W322
 sources:
     - title: nilearn view_connectome reference
       url: https://nilearn.github.io/dev/modules/generated/nilearn.plotting.view_connectome.html
@@ -61,7 +66,13 @@ sources:
       summary: Named TemplateFlow templates, view grids and circles, spheres and parcels node styles; no GIfTI or CIFTI yet
     - title: NeuroCave paper (arXiv)
       url: https://arxiv.org/pdf/1706.10297
-      summary: Survey of connectome tools; visual clutter and no synchronized comparison of two connectomes
+      summary: Survey of connectome tools and visual clutter; NeuroCave itself opens two synchronized side-by-side views
+    - title: NeuroCave full text (Network Neuroscience 2018)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6145855/
+      summary: Default of two side-by-side views with synchronized node selection and edge display; web app loading per-subject matrices, topology files and an index file; no scripting interface described
+    - title: NeuroMArVL
+      url: https://immersive.erc.monash.edu/neuromarvl/
+      summary: Web viewer with anatomical and topological projections from uploaded coordinates, matrix and attributes files; no scripting interface described
     - title: Betzel et al. 2019, Distance-dependent consensus thresholds for group-representative structural brain networks
       url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6444521/
       summary: Uniform consensus loses long connections; binning by fiber length keeps them

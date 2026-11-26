@@ -1,9 +1,12 @@
 id: point-and-click-network-analyst
 name: Point-and-Click Network Analyst
+roster_persona: symptom-network-researcher
+tier: B
+scope: in-scope
 role: Applied Health Researcher or MSc Student Running Network Analysis in JASP
 quote: I need a network figure, a centrality plot and a stability plot for this paper by the end of the afternoon, and I do not write code.
 bio: >-
-    Daniel is a nursing researcher who publishes network analyses of symptom and wellbeing scales, like many applied
+    Isaac is a nursing researcher who publishes network analyses of symptom and wellbeing scales, like many applied
     health and public-health researchers did during COVID-19. He uses JASP because it is free and needs no code. His
     data are 8 to 30 scale items from 200 to 3,000 respondents in a CSV or SPSS file. In JASP's Network module he drags
     items into Variables, optionally a group into Split by, picks EBICglasso, ticks the centrality and bootstrap

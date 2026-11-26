@@ -53,25 +53,25 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Export records** (10 min) - Full records with cited references from Web of Science, or convert Scopus, Lens,
+    1. **Export records** - Full records with cited references from Web of Science, or convert Scopus, Lens,
     PubMed exports
 
-    2. **Set span and slice length** (2 min) - For example 2010-2024 with one year per slice
+    2. **Set span and slice length** - For example 2010-2024 with one year per slice
 
-    3. **Select nodes per slice** (2 min) - g-index with k = 25, or top N per slice (top 100 over 13 one-year slices in
+    3. **Select nodes per slice** - g-index with k = 25, or top N per slice (top 100 over 13 one-year slices in
     one published example)
 
-    4. **Build and merge** (5 min) - One network per slice, merged into one (655 references in that example)
+    4. **Build and merge** - One network per slice, merged into one (655 references in that example)
 
-    5. **Cluster and check quality** (5 min) - Modularity Q and silhouette; 0.7 or higher makes labeling
+    5. **Cluster and check quality** - Modularity Q and silhouette; 0.7 or higher makes labeling
     straightforward; label clusters from title terms
 
-    6. **Read time from encodings** (15 min) - Link color by slice of first co-occurrence, per-year rings on nodes,
+    6. **Read time from encodings** - Link color by slice of first co-occurrence, per-year rings on nodes,
     burst and high-betweenness markers
 
-    7. **Timeline view** (10 min) - One row per cluster, nodes placed at their year
+    7. **Timeline view** - One row per cluster, nodes placed at their year
 
-    8. **Bursts and report** (20 min) - Burst list with start, end and strength; export timeline figure, cluster table
+    8. **Bursts and report** - Burst list with start, end and strength; export timeline figure, cluster table
     and burst table with the slice parameters in the caption
 
 

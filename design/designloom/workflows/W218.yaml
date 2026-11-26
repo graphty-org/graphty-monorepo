@@ -2,6 +2,7 @@ id: W218
 name: Transmission Contingency Analysis (PSS/E ACCC)
 category: analysis
 validated: false
+scope: out-of-scope
 personas:
     - power-grid-planning-engineer
 requires_capabilities:

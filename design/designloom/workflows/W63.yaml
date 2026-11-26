@@ -48,6 +48,7 @@ requires_capabilities:
     - bipartite-layout
     - topology-warnings
     - expensive-run-cost-warning
+    - geospatial-file-io
 suggested_components:
     - file-drop-zone
     - data-import-dialog
@@ -91,40 +92,40 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Prepare inputs outside the tool** (30 min to hours) - Quality-control and align sequences; for large
+    1. **Prepare inputs outside the tool** - Quality-control and align sequences; for large
     genomes, compute thresholded distances in a separate utility and bring in an edge list; for a phylogeny, export
     the tree in divergence mode so branch lengths are mutation counts
 
-    2. **Load several files** (10 min) - A genetic input (FASTA, full distance matrix, PHYLIP matrix, long-form
+    2. **Load several files** - A genetic input (FASTA, full distance matrix, PHYLIP matrix, long-form
     pairwise list, Newick, or a clustering tool's result file), a contact edge list, a case node list, and places as
     a separate node type
 
-    3. **Confirm each file's role** (5 min, error-prone) - Automatic type guessing confuses node lists with link
+    3. **Confirm each file's role** (error-prone) - Automatic type guessing confuses node lists with link
     lists, so the source and target columns on an edge list and the identifier column on a node list are mapped by
     hand
 
-    4. **Set distance options** (5 min) - Reference-based pairwise alignment rather than a multiple alignment, a
+    4. **Set distance options** - Reference-based pairwise alignment rather than a multiple alignment, a
     distance measure, an ambiguity policy, and an initial link threshold
 
-    5. **Build** (1 to 10 min, sometimes fatal) - 5,000 HIV pol sequences take about 2.7 minutes and 1,000
+    5. **Build** (sometimes fatal) - 5,000 HIV pol sequences take about 2.7 minutes and 1,000
     SARS-CoV-2 genomes about 1.5 minutes, while 1,500 genomes froze a 16 GB machine
 
-    6. **Filter** (10 min) - Move the threshold with a histogram, set a minimum cluster size (a 1.5% threshold with 5
+    6. **Filter** - Move the threshold with a histogram, set a minimum cluster size (a 1.5% threshold with 5
     or more members hid 73.1% of sequences and kept 9.0% in one example), show or hide singletons, and optionally
     prune each node's weighted links to its nearest connected neighbor, applied to the molecular layer before
     epidemiologic links are added
 
-    7. **Style by meaning** (15 min) - Color nodes by cluster or an attribute, color links by their type so genetic
+    7. **Style by meaning** - Color nodes by cluster or an attribute, color links by their type so genetic
     and contact layers separate, set link width by distance, node size by degree, node shape by entity type, and
     group with polygons by an attribute; save the style for reuse
 
-    8. **Read it** (20 min to hours) - Find components where both layers agree, genetic links with no named contact,
+    8. **Read it** - Find components where both layers agree, genetic links with no named contact,
     and named contacts with no genetic support; check for topologies that mean a data error rather than biology
 
     9. **Switch views on the same selection** (ongoing) - Timeline playback over a date field, map or choropleth,
     exposure-period bars, epi curve, cross-tab, tree and table
 
-    10. **Save and export** (10 min) - A session file, per-cluster node and edge files, images, tables and geographic
+    10. **Save and export** - A session file, per-cluster node and edge files, images, tables and geographic
     output
 
 

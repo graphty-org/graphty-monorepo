@@ -56,23 +56,23 @@ goal: >-
     spells and dynamic attribute values; or one slice file per period; or a CSV with date columns. Point events such as
     replies get a chosen lifetime (Bruns used 1,800 seconds per @reply)
 
-    2. **Open and confirm time** (2 min) - Open the file, or select every slice file and merge them; confirm the import
+    2. **Open and confirm time** - Open the file, or select every slice file and merge them; confirm the import
     report says the graph is dynamic and shows the time range
 
-    3. **Convert date columns** (5 min) - Turn one or two date columns into an interval; a single date means the
+    3. **Convert date columns** - Turn one or two date columns into an interval; a single date means the
     element appears then and stays forever unless an end column is given
 
-    4. **Lay out over the whole span** (5-15 min) - Run a force-directed layout on the union of all time and freeze it,
+    4. **Lay out over the whole span** - Run a force-directed layout on the union of all time and freeze it,
     or keep it running during playback and accept lag
 
-    5. **Filter to a readable size** (3 min) - Keep active nodes (degree 10 or more took 5,485 nodes and 12,805 edges to
+    5. **Filter to a readable size** - Keep active nodes (degree 10 or more took 5,485 nodes and 12,805 edges to
     495 nodes) and combine that filter with the time-range filter
 
-    6. **Size the window and play** (10 min) - Set a window (one hour, 15 minutes) and step, play, pause, scrub back
+    6. **Size the window and play** - Set a window (one hour, 15 minutes) and step, play, pause, scrub back
 
-    7. **Per-window statistics (optional)** (5 min) - Nodes, edges, degree, clustering over time with a window and tick
+    7. **Per-window statistics (optional)** - Nodes, edges, degree, clustering over time with a window and tick
 
-    8. **Export** (15 min) - Screen-record playback, save stills of key moments, keep the GEXF
+    8. **Export** - Screen-record playback, save stills of key moments, keep the GEXF
 
 
     **Decision Points**:

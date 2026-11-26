@@ -4,11 +4,16 @@ category: visualization
 description: Keep participant-drawn positions and per-node annotations (ordinal influence height, goal codes, notes) as
     data that survive save and export.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: academic-social-network-research.md section 10, table row 28 (Could); a Could in the research, so it is built after every Must and Should."
 algorithms: []
 used_by_workflows:
     - W29
     - W35
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Could: Participant-drawn positions and per-node annotations (influence height, goal codes) kept as data"
+sources:
+    - title: Academic Social Network Researchers (section 10, table row 28)
+      url: design/user-research/academic-social-network-research.md
+      summary: "Could in the research. Covered by Designloom when researched: NOT
+        covered (graph-io keeps file positions; no annotation data model checked)"

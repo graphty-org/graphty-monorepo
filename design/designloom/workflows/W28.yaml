@@ -3,6 +3,7 @@ name: Two-Mode Affiliation Data -- Projection, Weighting and Bipartite Analysis
 category: analysis
 validated: false
 personas:
+    - political-networks-scholar
     - archival-affiliation-researcher
     - network-methods-grad-student
 requires_capabilities:
@@ -51,23 +52,23 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Store** (estimate: 10 min) - Actor-by-event incidence matrix, a UCINET node list, or a two-column edge list.
+    1. **Store** - Actor-by-event incidence matrix, a UCINET node list, or a two-column edge list.
     Pajek .net files declare the total vertex count and the size of the first mode. Classic example: Davis's Southern
     Women, 18 women by 14 events.
 
-    2. **Look at it as bipartite first** (estimate: 10 min) - Two-mode layout with the modes distinguished by shape or
+    2. **Look at it as bipartite first** - Two-mode layout with the modes distinguished by shape or
     color (NetDraw opens two-mode data directly); density is edges / (N x M).
 
-    3. **Project if the question is about one mode** (estimate: 5 min) - Cross-products or minimums (UCINET Data >
+    3. **Project if the question is about one mode** - Cross-products or minimums (UCINET Data >
     Affiliations); A times A-transpose with the diagonal zeroed; Pajek Net > Transform > 2-mode to 1-mode.
 
-    4. **Choose a weight** (estimate: 10 min) - Binary, sum (shared groups) or Newman (each shared group weighted by
+    4. **Choose a weight** - Binary, sum (shared groups) or Newman (each shared group weighted by
     1/(Np - 1)); or turn shared-group weights into distances (Fowler's connectedness score).
 
-    5. **Watch for artifacts** (estimate: 10 min) - Projection inflates clustering (one co-authorship network: two-mode
+    5. **Watch for artifacts** - Projection inflates clustering (one co-authorship network: two-mode
     coefficient 0.28 versus 0.36 one-mode) and structural-hole measures; compare two-mode and one-mode values.
 
-    6. **Or analyze bipartite directly** (estimate: 30 min) - Two-mode centrality and clustering, bipartite communities,
+    6. **Or analyze bipartite directly** - Two-mode centrality and clustering, bipartite communities,
     correspondence analysis, two-mode ERGM, bipartite backbones.
 
 

@@ -1,10 +1,13 @@
 id: utility-network-gis-analyst
 name: Utility Network GIS Analyst
+roster_persona: infrastructure-resilience-analyst
+tier: B
+scope: in-scope
 role: GIS Network Analyst at a water and electric utility
 quote: A 12-inch main just broke on Elm Street. Give me the valves to close, the customers who lose water, and a
     schematic the crew can read in the truck.
 bio: >-
-    Marcus maintains the utility's network model in ArcGIS Pro Utility Network (and ArcFM on the electric side) and
+    Bruno maintains the utility's network model in ArcGIS Pro Utility Network (and ArcFM on the electric side) and
     answers trace questions for operations, engineering and the capital plan. Water mains, valves, hydrants and meters,
     and electric conductors, transformers and switches are all features with connectivity rules and open or closed
     states. Daily he runs upstream, downstream, connected, subnetwork and isolation traces; an isolation trace returns

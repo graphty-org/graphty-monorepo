@@ -4,11 +4,16 @@ category: analysis
 description: Default-cascade and DebtRank-style propagation with a per-node threshold, reporting rounds, failed nodes
     and value lost, with time-stepped playback.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: supply-chain-and-physical-infrastructure-networks.md section 10, requirement R33 (Should)."
 algorithms: []
 used_by_workflows:
     - W221
     - W227
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Should: Default-cascade and DebtRank-style propagation with a per-node threshold, reporting rounds and value
+      lost"
+sources:
+    - title: Supply Chain Risk Analysts and Physical Infrastructure Network Engineers (section 10, requirement R33)
+      url: design/user-research/supply-chain-and-physical-infrastructure-networks.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

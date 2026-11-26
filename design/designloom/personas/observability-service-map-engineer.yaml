@@ -1,9 +1,12 @@
 id: observability-service-map-engineer
 name: Platform Engineer Embedding a Live Service Map
+roster_persona: graph-product-frontend-engineer
+tier: A
+scope: in-scope
 role: Internal Developer Platform / Observability Engineer Owning the Service Map Page
 quote: During an incident the map must not move. The numbers on it change every fifteen seconds; the boxes stay where on-call left them.
 bio: >-
-    Kwame Asante works on the internal developer platform team at a company running about 300 microservices on
+    Kojo Asante works on the internal developer platform team at a company running about 300 microservices on
     Kubernetes. He owns the "Service map" page in the observability console, and on-call engineers open it during
     incidents. Today the page is Grafana's Node Graph panel over Tempo service-graph metrics, with Kiali beside it for
     the Istio mesh. His graph is generated from telemetry, not drawn by a person: spans become request, error and latency

@@ -62,24 +62,24 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Seed** (30 min) - Assemble seed channels and group them by naming pattern ("Node of Time", "Surf Noise", "Info
+    1. **Seed** - Assemble seed channels and group them by naming pattern ("Node of Time", "Surf Noise", "Info
     Defense"); Telegram has no channel directory, so discovery is snowball sampling
 
-    2. **Collect** (hours) - Telegram API for messages the seeds forwarded (45,054); TGStat for messages others forwarded
+    2. **Collect** - Telegram API for messages the seeds forwarded (45,054); TGStat for messages others forwarded
     from them (12,593) plus creation dates, name histories and subscriber counts; fix a time window
 
-    3. **Build** (10 min) - Nodes are channels; directed edges from source to forwarding channel weighted by forward
+    3. **Build** - Nodes are channels; directed edges from source to forwarding channel weighted by forward
     count; node size by incoming forwards; GESIS Telegram Toolkit outputs this as GML
 
-    4. **Cluster** (5 min) - Modularity communities (nine clusters in DFRLab's case), colored by class
+    4. **Cluster** - Modularity communities (nine clusters in DFRLab's case), colored by class
 
-    5. **Label clusters** (30 min) - Use channel name suffixes ("_ger", "_ita", "SPAIN"), descriptions and post
+    5. **Label clusters** - Use channel name suffixes ("_ger", "_ita", "SPAIN"), descriptions and post
     language; report where labels and clusters disagree (one German channel fell outside the German cluster)
 
-    6. **Corroborate outside the graph** (hours) - Shared creation dates and name changes link networks; subscriber
+    6. **Corroborate outside the graph** - Shared creation dates and name changes link networks; subscriber
     charts flag inactive channels; archived captures; forwards traced from embassy channels; translation review
 
-    7. **Publish** (hours) - Full graph plus annotated close-ups, charts, screenshots, archive links, and explicit flags
+    7. **Publish** - Full graph plus annotated close-ups, charts, screenshots, archive links, and explicit flags
     on every unconfirmed claim
 
 

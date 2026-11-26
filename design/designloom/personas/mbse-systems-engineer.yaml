@@ -1,5 +1,8 @@
 id: mbse-systems-engineer
 name: MBSE Systems Engineer
+roster_persona: dependency-impact-engineer
+tier: A
+scope: in-scope
 role: Systems Engineer, model-based systems engineering (aerospace)
 quote: When this requirement changes I need every derived requirement, block and test it touches -- and I do not want to spend the afternoon re-aligning ports on the diagram.
 bio: >-

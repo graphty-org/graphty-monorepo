@@ -4,7 +4,7 @@ category: analysis
 description: First-class bipartite data with a two-mode layout, projection to one mode with binary, sum or Newman
     weights, two-mode degree and clustering, and a warning that projection inflates clustering.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: academic-social-network-research.md section 10, table row 9 (Must)."
 algorithms: []
 used_by_workflows:
     - W102
@@ -31,40 +31,37 @@ used_by_workflows:
     - W36
     - W434
     - W435
-    - W443
-    - W444
     - W47
     - W49
     - W66
     - W71
     - W75
+    - W1006
+    - W294
+    - W1138
+    - W2006
+    - W2072
+    - W3078
+    - W3080
 implemented_by_components: []
 requirements:
-    - Two-mode graphs kept as the source of truth with side labels; projection as a recorded step with shared-count or
-      Newman collaboration weighting.
-    - Project a two-mode graph (patients and providers, people and places, isolates and loci) onto one mode in-tool with
-      the shared-item count as the edge weight, and keep the projected graph linked to its two-mode source so a reader
-      can ask which shared items created an edge.
-    - Hold two-mode data (people to events, ads to phone numbers, people to group chats) and project it to one-mode
-      ties, including group chats as hyperedges rather than pairwise links.
-    - "Project a two-mode graph (users-identifiers, claims-parties, patients-providers) onto one node type under
-      explicit rules: which identifier types count, a minimum shared count, a degree cap that drops super-connected
-      identifiers, and edge weights by number of shared neighbors; each projected edge records which shared nodes
-      produced it."
-    - Show two-mode data (person to document, charter, imprint or category) and project it to a weighted one-mode
-      network, keeping the shared items behind each projected tie.
-    - Import person-by-event or person-by-skill data as a two-mode graph and project it to person-to-person ties with a
-      selectable weight (count, divided by event size, capped by participant count).
-    - Project two-mode person-organization or funder-grantee networks into one-mode interlock networks.
-    - Build account x feature graphs (hashtags, URLs, posts, followed accounts, outlets) and project them to one mode
-      with co-occurrence, Jaccard, cosine or TF-IDF weights, optionally only within a time window.
-    - Project a two-mode network onto either side with a matching rule (for example same company, same round, same date)
-      and a count weight.
-    - Import two-mode (bipartite) membership data and project it to a one-mode network with weights from shared
-      memberships.
-    - Project a two-mode network or a prescription-by-item incidence table to a weighted one-mode network (count,
-      support, confidence, mutual information) with the cut recorded and changeable, and degree labeled by layer.
-    - Turns a bipartite layer or an incidence table (for example prescriptions by herbs, or targets by pathways) into a
-      weighted one-mode network. The weight can be a count, support, confidence or mutual information. The cut is
-      recorded and can be changed later, and degree is labeled by layer.
-sources: []
+    - "Must: Two-mode first class: bipartite layout, projection with binary, sum and Newman weights, two-mode degree and
+      clustering, projection-inflation warning"
+    - "Must: Two-mode graphs kept as the source of truth with side labels; projection as a recorded step with shared-count or Newman collaboration weighting."
+    - "Must: Project a two-mode graph (patients and providers, people and places, isolates and loci) onto one mode in-tool with the shared-item count as the edge weight, and keep the projected graph linked to its two-mode source so a reader can ask which shared items created an edge."
+    - "Must: Hold two-mode data (people to events, ads to phone numbers, people to group chats) and project it to one-mode ties, including group chats as hyperedges rather than pairwise links."
+    - "Must: Project a two-mode graph (users-identifiers, claims-parties, patients-providers) onto one node type under explicit rules: which identifier types count, a minimum shared count, a degree cap that drops super-connected identifiers, and edge weights by number of shared neighbors; each projected edge records which shared nodes produced it."
+    - "Must: Show two-mode data (person to document, charter, imprint or category) and project it to a weighted one-mode network, keeping the shared items behind each projected tie."
+    - "Must: Import person-by-event or person-by-skill data as a two-mode graph and project it to person-to-person ties with a selectable weight (count, divided by event size, capped by participant count)."
+    - "Should: Project two-mode person-organization or funder-grantee networks into one-mode interlock networks."
+    - "Must: Build account x feature graphs (hashtags, URLs, posts, followed accounts, outlets) and project them to one mode with co-occurrence, Jaccard, cosine or TF-IDF weights, optionally only within a time window."
+    - "Should: Project a two-mode network onto either side with a matching rule (for example same company, same round, same date) and a count weight."
+    - "Must: Import two-mode (bipartite) membership data and project it to a one-mode network with weights from shared memberships."
+    - "Should: Project a two-mode network or a prescription-by-item incidence table to a weighted one-mode network (count, support, confidence, mutual information) with the cut recorded and changeable, and degree labeled by layer."
+    - "Should: Turns a bipartite layer or an incidence table (for example prescriptions by herbs, or targets by pathways) into a weighted one-mode network. The weight can be a count, support, confidence or mutual information. The cut is recorded and can be changed later, and degree is labeled by layer."
+    - "Must: Project a time-stamped developer-file graph from version-control history in both directions within a chosen time window -- onto files (co-change, weighted by shared revisions) and onto developers (shared files or co-edits) -- and keep each projected edge linked to the commits that produced it."
+sources:
+    - title: Academic Social Network Researchers (section 10, table row 9)
+      url: design/user-research/academic-social-network-research.md
+      summary: "Must in the research. Covered by Designloom when researched: partly (W16
+          only; graph-io reads two-mode Pajek)"

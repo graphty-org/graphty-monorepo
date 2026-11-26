@@ -1,9 +1,12 @@
 id: network-analysis-instructor
 name: Network Analysis Instructor
+roster_persona: network-analysis-instructor
+tier: B
+scope: in-scope
 role: Faculty Member, Lecturer or Digital-Scholarship Librarian Teaching Network Analysis
 quote: If installation eats the first lab and the handout's menus moved in the new release, I have lost the class.
 bio: >-
-    Dr. Ana Ruiz teaches a 14-week network analysis course or runs a 90-minute library workshop. She chooses the tool
+    Dr. Carmen Ruiz teaches a 14-week network analysis course or runs a 90-minute library workshop. She chooses the tool
     (Gephi, Polinode, UCINET, R with igraph or statnet, NetworkX, Kumu, Flourish, Cytoscape for biologists, VisuAlgo for
     algorithm lectures), picks a small sparse dataset, writes a handout with exact menu paths and version notes, posts
     install notes and data on Canvas or Brightspace, and keeps a fallback when a data source closes ("Access to Twitter

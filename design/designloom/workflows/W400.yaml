@@ -38,15 +38,15 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Estimate** (hours to days) - Gene trees, quartet concordance factors, SNaQ for h = 0, 1, 2 ... reticulations;
+    1. **Estimate** - Gene trees, quartet concordance factors, SNaQ for h = 0, 1, 2 ... reticulations;
     output extended Newick with gamma
 
-    2. **Plot** (10 min) - plot(net, showgamma=true) prints gamma under each hybrid edge; showedgenumber=true to pick a
+    2. **Plot** - plot(net, showgamma=true) prints gamma under each hybrid edge; showedgenumber=true to pick a
     root edge; major and minor hybrid edges in separate colors, minor ones as arrows; :majortree or :fulltree styles
 
-    3. **Reroot** (5 min) - Reroot on a chosen edge consistent with the hybrid directions
+    3. **Reroot** - Reroot on a chosen edge consistent with the hybrid directions
 
-    4. **Compare** (15 min) - Hardwired-cluster distance between networks; write for Dendroscope (di=true) which loses
+    4. **Compare** - Hardwired-cluster distance between networks; write for Dendroscope (di=true) which loses
     gamma
 
 

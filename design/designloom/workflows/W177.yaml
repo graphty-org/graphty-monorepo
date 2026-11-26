@@ -51,17 +51,17 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Load lists** (5 min) - Node and edge lists into a graph with attributes (Quakers: 119 nodes, 174 edges)
+    1. **Load lists** - Node and edge lists into a graph with attributes (Quakers: 119 nodes, 174 edges)
 
-    2. **Whole-network measures** (5 min) - Density, shortest paths, diameter of the largest component, transitivity
+    2. **Whole-network measures** - Density, shortest paths, diameter of the largest component, transitivity
 
-    3. **Node measures** (5 min) - Degree, betweenness (to find low-degree brokers), eigenvector
+    3. **Node measures** - Degree, betweenness (to find low-degree brokers), eigenvector
 
-    4. **Communities** (5 min) - Greedy modularity communities; rank people inside each community
+    4. **Communities** - Greedy modularity communities; rank people inside each community
 
-    5. **Robustness** (30 min) - Check stability before interpreting (de Valeriola, "Can historians trust centrality?")
+    5. **Robustness** - Check stability before interpreting (de Valeriola, "Can historians trust centrality?")
 
-    6. **Hand off** (5 min) - Write GEXF for Gephi, or in R aggregate letters to weighted routes (Sadler: 114 letters
+    6. **Hand off** - Write GEXF for Gephi, or in R aggregate letters to weighted routes (Sadler: 114 letters
     become 13 cities and 15 routes) and plot with igraph, ggraph or visNetwork
 
 

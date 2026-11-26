@@ -1,9 +1,12 @@
 id: process-mining-analyst
 name: Process Mining Analyst
+roster_persona: process-mining-analyst
+tier: A
+scope: in-scope
 role: Process Mining Analyst in a Center of Excellence (consultants, internal auditors and clinical pathway analysts as variants)
 quote: The slider hides the rare paths, and the rare paths are the findings. I need to know the numbers on this map still add up.
 bio: >-
-    Priya is a Celonis-certified analyst in a manufacturer's process excellence team who writes SQL and PQL, not
+    Pooja is a Celonis-certified analyst in a manufacturer's process excellence team who writes SQL and PQL, not
     Python. Her input is not a graph but an event log: one row per activity that happened to a case (a purchase order
     item, a ticket, a patient stay) at a time, usually by a resource. For SAP purchase-to-pay that is hundreds of
     thousands of cases and millions of events (the public BPI Challenge 2019 log has 251,734 cases, 1,595,923 events and
@@ -48,14 +51,14 @@ context:
     voluntary: false
 workflows:
     - W18
-    - W349
-    - W350
-    - W351
-    - W352
-    - W353
-    - W355
-    - W357
-    - W358
+    - W339
+    - W340
+    - W341
+    - W342
+    - W343
+    - W345
+    - W347
+    - W348
     - W359
     - W360
 sources:

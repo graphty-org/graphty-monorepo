@@ -46,18 +46,18 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Write SPARQL** (10 min) - In the query service editor; since May 2025 scholarly articles sit behind a separate
+    1. **Write SPARQL** - In the query service editor; since May 2025 scholarly articles sit behind a separate
     endpoint
 
-    2. **Shape the columns** (5 min) - Item columns become nodes; optional columns give a label, a Commons image, ?rgb
+    2. **Shape the columns** - Item columns become nodes; optional columns give a label, a Commons image, ?rgb
     color, a number for node size and ?edgeLabel
 
-    3. **Switch the view** (1 min) - Add #defaultView:Graph at the top, or choose Graph from the results menu; Map,
+    3. **Switch the view** - Add #defaultView:Graph at the top, or choose Graph from the results menu; Map,
     Timeline, Tree and Bubble chart are the other views
 
-    4. **Iterate** (10-30 min) - Change filters and LIMIT until the picture is readable
+    4. **Iterate** - Change filters and LIMIT until the picture is readable
 
-    5. **Share** (1 min) - Copy the bookmarkable URL, generate a short URL, or embed the view in an iframe
+    5. **Share** - Copy the bookmarkable URL, generate a short URL, or embed the view in an iframe
 
 
     **Decision Points**:
@@ -96,7 +96,7 @@ goal: >-
     - Output: A shareable view link, an embedded view, an exported image
 success_criteria:
     - metric: Load a saved result
-      target: A saved SELECT JSON or CSV becomes a graph in under 2 minutes without rewriting the query
+      target: A saved SELECT JSON or CSV becomes a graph in under 2 minutes without rewriting the query (design goal; no source measures it)
     - metric: Mapping control
       target: User chooses which columns are nodes and edges, beyond the row-star rule
     - metric: Sharing

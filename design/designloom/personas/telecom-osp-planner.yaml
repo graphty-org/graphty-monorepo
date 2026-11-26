@@ -1,10 +1,13 @@
 id: telecom-osp-planner
 name: Telecom Outside Plant Planner
+roster_persona: infrastructure-resilience-analyst
+tier: none
+scope: deferred
 role: Fiber Outside Plant (OSP) and Transport Planner at a regional carrier
 quote: The customer bought diverse circuits. Prove to me the primary and the backup never share a conduit, a pole line
     or a bridge crossing.
 bio: >-
-    Sam plans and documents the carrier's fiber outside plant: routes, conduits and poles; cables, buffer tubes and
+    Wade plans and documents the carrier's fiber outside plant: routes, conduits and poles; cables, buffer tubes and
     strands; splice closures and splice matrices; panels and ports; and the circuits mapped onto strands. The plant
     lives in IQGeo Network Manager Telecom (with Comsof Fiber for design), VETRO FiberMap or ArcFM Fiber Manager, plus
     KMZ files and an inventory system. He traces a circuit end to end down to individual strands and splices, finds free

@@ -1,5 +1,8 @@
 id: whole-brain-modeler
 name: Whole-Brain Modeler
+roster_persona: none
+tier: none
+scope: out-of-scope
 role: Computational Neuroscientist / Brain Network Simulation
 quote: My connectome is two matrices, weights and tract lengths. If I lesion a region I have to change both, and then hand the result to the simulator.
 bio: >-

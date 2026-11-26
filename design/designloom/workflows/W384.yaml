@@ -19,6 +19,7 @@ requires_capabilities:
     - export-image
     - geographic-layout
     - regionalization
+    - geospatial-file-io
 suggested_components:
     - data-import-dialog
     - column-mapper
@@ -34,6 +35,8 @@ suggested_components:
     - graph-canvas
     - data-export-dialog
     - image-export-dialog
+    - file-drop-zone
+    - attribute-table-join-dialog
 starting_state:
     data_type: residence-to-workplace commuting matrix between small areas or counties, with a large diagonal of same-area commuters
     node_count: 3000-35000
@@ -68,8 +71,9 @@ goal: >-
     4. **Validate** - Compare against official regions (a 3,042-pixel phone-call partition with modularity 0.60
     corresponds well to Government Office Regions); note that most mobility borders are not state borders
 
-    5. **Clean geometry and publish** - Make each region contiguous with no fragments; output a boundary file and a
-    lookup from zone to region; warn that small regions carry more sampling error
+    5. **Clean geometry and publish** - Make each region contiguous with no fragments; output a boundary file (the
+    official precedents ship shapefile, GeoPackage, KML and GeoJSON) and a lookup from zone to region; warn that small
+    regions carry more sampling error
 
 
     **Decision Points**:
@@ -111,8 +115,8 @@ goal: >-
 
     **Data Flow**:
 
-    - Input: Long or square commuting matrix (residence, workplace, workers) with places and their polygons or
-    centroids
+    - Input: Long or square commuting matrix (residence, workplace, workers) with a boundary file (shapefile,
+    GeoPackage or GeoJSON, often in a projected coordinate system) joined to places by zone code
 
     - Transformations: Optional distance pruning and symmetrization, self-loop handling, partitioning, contiguity
     cleaning, self-containment statistics
@@ -150,6 +154,9 @@ sources:
     - title: Thiemann et al. - The structure of borders in a small world
       url: https://pmc.ncbi.nlm.nih.gov/articles/PMC2987795
       summary: Most mobility borders are not state borders
-version: 1.0.0
+    - title: data.gov.uk - Travel to Work Areas (December 2001) Boundaries UK BGC
+      url: https://www.data.gov.uk/dataset/travel-to-work-areas-december-2001-boundaries-uk-bgc
+      summary: Published TTWA boundaries as GeoPackage, shapefile, file geodatabase, KML, GeoJSON and CSV
+version: 1.1.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

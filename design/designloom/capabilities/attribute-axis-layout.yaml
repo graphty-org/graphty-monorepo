@@ -4,10 +4,16 @@ category: visualization
 description: Place nodes by two attributes (for example year by citation count, momentum by connectivity), switchable at
     any time, with user-pinned positions kept.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: bibliometrics-and-science-mapping.md section 10, requirement 28a (Should)."
 algorithms: []
 used_by_workflows:
     - W55
+    - W2036
+    - W2038
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Should: Attribute-axis layout (x, y from year, citations, momentum), switchable, with pinned positions"
+sources:
+    - title: Bibliometrics and Science Mapping (section 10, requirement 28a)
+      url: design/user-research/bibliometrics-and-science-mapping.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

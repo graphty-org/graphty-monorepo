@@ -53,27 +53,27 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Filter genotypes** (30 min) - Remove samples or SNPs with call rates below 90%; keep per-sample missingness
+    1. **Filter genotypes** - Remove samples or SNPs with call rates below 90%; keep per-sample missingness
     below 10%
 
-    2. **Distance matrix** (10 min) - PLINK allele-sharing distance, cophenetic distance from a tree, or Hamming
+    2. **Distance matrix** - PLINK allele-sharing distance, cophenetic distance from a tree, or Hamming
     distance; NetStruct uses a frequency-weighted similarity that up-weights shared rare alleles
 
-    3. **Metadata** (10 min) - Table with ID, Colour and Group columns in matrix order
+    3. **Metadata** - Table with ID, Colour and Group columns in matrix order
 
-    4. **Build graphs over a range of k** (5 min) - netview(distMatrix, metaData, k = 10:60, cluster = TRUE, mst =
+    4. **Build graphs over a range of k** - netview(distMatrix, metaData, k = 10:60, cluster = TRUE, mst =
     FALSE); mst = TRUE adds minimum spanning tree edges so no individual is isolated
 
-    5. **Choose k** (15 min) - plotSelection plots communities per k; no objective rule; default k = 10, lower k for
+    5. **Choose k** - plotSelection plots communities per k; no objective rule; default k = 10, lower k for
     small samples
 
-    6. **Community detection** (10 min) - Walktrap, Infomap and Fast-Greedy; color by sampling group to compare;
+    6. **Community detection** - Walktrap (igraph default 4 steps), Infomap and Fast-Greedy; color by sampling group to compare;
     earlier versions drew networks in Cytoscape with node size by degree and edge width by relationship strength
 
-    7. **NetStruct variant** (30 min) - Prune edges below a rising threshold, re-run modularity community detection at
+    7. **NetStruct variant** - Prune edges below a rising threshold, re-run modularity community detection at
     each level for a hierarchy, test modularity by permutation, report each individual's strength of association
 
-    8. **Compare and export** (30 min) - Place communities beside ADMIXTURE bars and PCA; save GML or interactive D3
+    8. **Compare and export** - Place communities beside ADMIXTURE bars and PCA; save GML or interactive D3
     HTML
 
 

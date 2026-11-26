@@ -59,7 +59,7 @@ goal: >-
     2. **Baseline first** (in code) - The tabular model without graph features (Random Forest, XGBoost, logistic
     regression)
 
-    3. **Compute graph features** (10 min) - Weakly connected component size, PageRank, closeness, betweenness, degree,
+    3. **Compute graph features** - Weakly connected component size, PageRank, closeness, betweenness, degree,
     Louvain community, FastRP embeddings; at ING, personalized PageRank seeded by each account's average training label
     over about 89 million transactions; each returns a table
 
@@ -68,10 +68,10 @@ goal: >-
     5. **Measure lift** (in code) - P2P AUC 0.72 to 0.92 with component size the strongest feature; Ethereum accuracy
     77% to 91%; ING AUC 0.74 to 0.76 (the first two are vendor demos, only ING used a bank's real data)
 
-    6. **Inspect the top cases** (15 min) - Open the highest-scoring accounts, see their component or neighborhood with
+    6. **Inspect the top cases** - Open the highest-scoring accounts, see their component or neighborhood with
     known-fraud labels marked, and check whether the score is a ring or an artifact such as a shared default device
 
-    7. **Export** (2 min) - Node metric table back to the feature store; a picture of one ring to the case file
+    7. **Export** - Node metric table back to the feature store; a picture of one ring to the case file
 
 
     **Decision Points**:
@@ -115,7 +115,7 @@ success_criteria:
     - metric: Metric export
       target: One-click export of all computed metrics as a table keyed by the original ids
     - metric: Case check
-      target: User can judge ring versus artifact for a flagged account in under 5 minutes
+      target: User can judge ring versus artifact for a flagged account in under 5 minutes (design goal; no source measures it)
 sources:
     - title: Neo4j - Using GDS in Python to improve ML models
       url: https://neo4j.com/blog/developer/using-neo4j-graph-data-science-in-python-to-improve-machine-learning-models/

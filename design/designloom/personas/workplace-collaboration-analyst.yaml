@@ -1,9 +1,12 @@
 id: workplace-collaboration-analyst
 name: Workplace Collaboration Analyst
+roster_persona: ona-practitioner
+tier: B
+scope: in-scope
 role: People Data Scientist analyzing passive collaboration metadata (email, calendar, chat)
 quote: Before I argue about what the map means, I need to know which edge rule built it and that next month's run uses the same one.
 bio: >-
-    Dana Okafor is a data scientist in the people analytics team of a 40,000-person company on Microsoft 365. She holds
+    Imani Okafor is a data scientist in the people analytics team of a 40,000-person company on Microsoft 365. She holds
     the Viva Insights Analyst role and is fluent in R and Python. Her networks come from collaboration metadata rather
     than surveys: pseudonymized collaborator pairs with monthly tie scores from Viva person-to-person queries, group
     collaboration minutes from group-to-group and Change management queries, and HR attributes joined on a pseudonymous
@@ -48,6 +51,9 @@ workflows:
     - W188
     - W189
     - W191
+    - W316
+    - W323
+    - W293
 sources:
     - title: Microsoft Learn - Viva Insights person-to-person query
       url: https://learn.microsoft.com/en-us/viva/insights/advanced/analyst/cross-collaboration-p2p

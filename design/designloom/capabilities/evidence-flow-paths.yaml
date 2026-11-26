@@ -1,0 +1,17 @@
+id: evidence-flow-paths
+name: "Evidence flow paths for one estimate"
+category: analysis
+description: "For one chosen pair of nodes, show the paths through the graph that carry its evidence and each path's share, as a highlight on the network beside the contribution matrix. The NMA contribution matrix is derived from flows along paths (Papakonstantinou et al. 2018); the shares themselves come from the R or Stata model and are imported, while the graph view draws them."
+status: planned
+notes: "Research trace: network-meta-analysis-evidence-networks.md section 10, table row 11."
+algorithms: []
+used_by_workflows:
+    - W3056
+implemented_by_components: []
+requirements:
+    - "Should: Show an estimate's evidence flow: highlight the paths and their share for one chosen comparison"
+sources:
+    - title: "Network Meta-Analysis Authors: Treatment Evidence Networks (section 10, table row 11)"
+      url: design/user-research/network-meta-analysis-evidence-networks.md
+      summary: "Should in the research"
+

@@ -1,9 +1,12 @@
 id: literature-discovery-researcher
 name: Literature Discovery Researcher
+roster_persona: bibliometric-analyst
+tier: A
+scope: in-scope
 role: PhD Student or Systematic Reviewer Using Citation Graphs to Find Papers
 quote: I do not need a pretty map. I need to know I have not missed the paper my examiner will ask about, and to keep a list of what I read.
 bio: >-
-    Tomas Lindqvist is a second-year PhD student starting his thesis literature review. He begins from one to ten seed
+    Anders Lindqvist is a second-year PhD student starting his thesis literature review. He begins from one to ten seed
     papers and uses Connected Papers (5 free graphs a month), Litmaps (2 free maps, 100 articles each), ResearchRabbit
     and Inciteful to see what surrounds them, then exports a reading list as BibTeX or RIS into Zotero. His graphs hold
     a few dozen to a few hundred papers. He clicks a promising node to make it the next seed, reads the "prior works"

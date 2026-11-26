@@ -1,9 +1,12 @@
 id: kinship-participatory-anthropologist
 name: Kinship and Participatory Mapping Anthropologist
+roster_persona: survey-network-researcher
+tier: B
+scope: in-scope
 role: Anthropologist (Kinship Networks and Applied Participatory Mapping)
 quote: Genealogy software draws the family tree but cannot count marriage circuits, and network software forgets who is whose parent.
 bio: >-
-    Dr. Amara Osei is an anthropologist who works from fieldwork. Part of her work is kinship: genealogies collected in
+    Dr. Abena Osei is an anthropologist who works from fieldwork. Part of her work is kinship: genealogies collected in
     a village or from archives, with individuals as nodes, directed parent-child links and undirected marriage or union
     links. She analyzes them in Puck, a free Java program from the Paris TIP group, and uses the Kinsources archive of
     peer-reviewed kinship datasets, which range from 17 to about 50,000 individuals and are often incomplete. Her

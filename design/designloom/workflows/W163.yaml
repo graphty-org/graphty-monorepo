@@ -6,6 +6,7 @@ personas:
     - pollination-network-ecologist
     - ecological-network-synthesis-researcher
 requires_capabilities:
+    - label-overlap-removal
     - data-import
     - data-validation
     - data-preview
@@ -54,26 +55,26 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Load** (3 min) - Open a wide matrix with species names in the first row and column, or a long table with
+    1. **Load** - Open a wide matrix with species names in the first row and column, or a long table with
     one row per observation, and choose which columns hold the lower level, higher level, site and count
 
-    2. **Split by site** (2 min) - Produce one network per site or season, optionally padded to a shared species list
+    2. **Split by site** - Produce one network per site or season, optionally padded to a shared species list
     so all sites have the same rows and columns; drop species never seen at a site
 
-    3. **Clean names** (10 min) - Find spelling variants and morphospecies codes that should be one species and merge
+    3. **Clean names** - Find spelling variants and morphospecies codes that should be one species and merge
     them; decide whether to keep singleton interactions
 
-    4. **Draw the two-row web** (5 min) - Lower level as bars along the bottom, higher level along the top, bar width by
+    4. **Draw the two-row web** - Lower level as bars along the bottom, higher level along the top, bar width by
     total interactions, link width by count, ordered by totals or by an ordering that reduces link crossings;
     optionally add independent floral abundance to bar widths; italic species names without overlap
 
-    5. **Draw the matrix** (2 min) - Shaded adjacency matrix sorted by row and column totals, where nestedness shows
+    5. **Draw the matrix** - Shaded adjacency matrix sorted by row and column totals, where nestedness shows
     as a filled triangle
 
-    6. **Compute indices** (5 min) - Network level (connectance, linkage density, weighted nestedness, H2',
+    6. **Compute indices** - Network level (connectance, linkage density, weighted nestedness, H2',
     interaction evenness), group level and species level (degree, strength, d'), preferring quantitative versions
 
-    7. **Hand off** (5 min) - Vector figure, index table per site, and the matrices for Dryad or Web of Life
+    7. **Hand off** - Vector figure, index table per site, and the matrices for Dryad or Web of Life
 
 
     **Decision Points**:
@@ -126,7 +127,7 @@ goal: >-
     - Output: Two-row bipartite figures, sorted matrix plots, index table, cleaned matrices
 success_criteria:
     - metric: Time from field spreadsheet to a two-row figure per site
-      target: Under 30 minutes for 20 sites
+      target: Under 30 minutes for 20 sites (design goal; no source measures it)
     - metric: Label readability
       target: No overlapping species labels on a 60 by 150 web
     - metric: Cross-site consistency

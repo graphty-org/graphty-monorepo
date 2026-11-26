@@ -4,6 +4,7 @@ category: analysis
 validated: false
 personas:
     - coordination-detection-scientist
+    - osint-investigator
 requires_capabilities:
     - data-import
     - data-validation
@@ -67,35 +68,35 @@ goal: >-
 
     **Task Phases**:
 
-    1. **State the conjecture** (10 min) - Pick the suspicious behavior: co-repost, co-URL, co-hashtag, synchronized
+    1. **State the conjecture** - Pick the suspicious behavior: co-repost, co-URL, co-hashtag, synchronized
     posting in time bins, shared images, handle swaps, or semantic similarity of text
 
-    2. **Filter by support** (5 min) - Drop accounts below a minimum number of actions (5 to 10 depending on the trace;
+    2. **Filter by support** - Drop accounts below a minimum number of actions (5 to 10 depending on the trace;
     at least 10 reposts for co-repost); exclude self-reposts
 
-    3. **Build the two-mode graph** (10 min) - Accounts linked to features (posts, URLs, hashtags, 30-minute time bins,
+    3. **Build the two-mode graph** - Accounts linked to features (posts, URLs, hashtags, 30-minute time bins,
     image hashes, handles) with TF-IDF weights so a viral item counts less
 
-    4. **Project to accounts** (minutes to hours) - Edge weight is cosine similarity, Jaccard or co-occurrence count;
+    4. **Project to accounts** - Edge weight is cosine similarity, Jaccard or co-occurrence count;
     for co-action methods only count shared actions inside a time window in seconds (25 to 60 seconds in published
     work) with a minimum repetition count; sum weights across several criteria if combining
 
-    5. **Filter edges** (5 min) - Keep the top 0.5 percent of edges (co-repost, synchrony) or top 1 percent (images),
+    5. **Filter edges** - Keep the top 0.5 percent of edges (co-repost, synchrony) or top 1 percent (images),
     or normalized weight above 0.1, or k nearest neighbors with k = ln(number of accounts); watch how group membership
     changes as the cutoff moves
 
-    6. **Extract groups** (2 min) - Connected components of the filtered graph with singletons removed; Louvain to split
+    6. **Extract groups** - Connected components of the filtered graph with singletons removed; Louvain to split
     a giant component; k-core, k-clique or label propagation as alternatives
 
-    7. **Semantic variant** (hours) - Embed each post with a multilingual sentence model, average cosine similarity
+    7. **Semantic variant** - Embed each post with a multilingual sentence model, average cosine similarity
     between account pairs inside one-day sliding windows, keep edges at 0.95 or above, flag the top 0.5 percent by
     eigenvector centrality; record per edge which criterion and post pairs created it
 
-    8. **Validate** (hours) - Read exemplar content per group, measure precision at several thresholds, compare to random
+    8. **Validate** - Read exemplar content per group, measure precision at several thresholds, compare to random
     samples, check suspensions and takedown lists, use case evidence (price spikes for pump-and-dump); do not treat bot
     scores as proof
 
-    9. **Present** (1 hour) - Account networks sized by degree, components colored by group, exemplar posts, images or
+    9. **Present** - Account networks sized by degree, components colored by group, exemplar posts, images or
     hashtags beside each group, heatmaps of membership and content similarity; run content types separately and combine
 
 

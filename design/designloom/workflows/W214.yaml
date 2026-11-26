@@ -62,24 +62,24 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Assemble outlets** (days) - A story database (over two million election stories in Media Cloud) or a curated
+    1. **Assemble outlets** - A story database (over two million election stories in Media Cloud) or a curated
     crawl: define web entities, crawl their links to a depth limit, sort suggestions into IN, OUT, UNDECIDED and
     DISCOVERED with tags, in repeated rounds
 
-    2. **Aggregate to outlet nodes** (30 min) - Roll stories or pages up to their source or web entity, summing link
+    2. **Aggregate to outlet nodes** - Roll stories or pages up to their source or web entity, summing link
     counts
 
-    3. **Build edges** (30 min) - Hyperlinks between sources weighted by story-to-story link count, or audience
+    3. **Build edges** - Hyperlinks between sources weighted by story-to-story link count, or audience
     co-sharing (two sources linked when the same user shared stories from both on the same day), projected from a user x
     source two-mode network
 
-    4. **Size and filter** (15 min) - Size by inlinks from other sources or by social shares; lay out the giant
+    4. **Size and filter** - Size by inlinks from other sources or by social shares; lay out the giant
     component (about 40,000 sources) with ForceAtlas2, then hide all but the top 900 by inlinks
 
-    5. **Color by audience** (15 min) - A partisanship score per source from -1 to 1 (share of its stories shared by
+    5. **Color by audience** - A partisanship score per source from -1 to 1 (share of its stories shared by
     users aligned with one side), cut into five quintiles
 
-    6. **Compare views** (1 hour) - The same sources mapped by inlinks, Twitter shares and Facebook shares side by side,
+    6. **Compare views** - The same sources mapped by inlinks, Twitter shares and Facebook shares side by side,
     and across time periods
 
 

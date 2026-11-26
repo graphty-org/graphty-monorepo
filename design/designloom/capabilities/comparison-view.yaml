@@ -1,11 +1,17 @@
 id: comparison-view
 name: Comparison View
 category: visualization
-description: Compare two graph states or algorithm results side-by-side. Useful for temporal comparison (before/after),
-    algorithm comparison (Louvain vs Infomap), or scenario analysis (what-if).
+description: Compare two graph states or analysis results, side by side with a linked camera or overlaid on one shared
+    layout, with the differences encoded explicitly (only in the first, only in the second, in both). Users compare
+    time periods and survey waves, two versions of a graph, two connectomes or assembly graphs, two runs or settings of
+    one method (for example Leiden at two resolutions, or two seeded layouts), and as-is against what-if scenarios.
+    Gleicher et al. name the three designs this covers -- juxtaposition, superposition and explicit encoding of the
+    difference -- and for a longer series of states, small multiples are an alternative to animation.
 status: planned
 algorithms: []
 used_by_workflows:
+    - W3058
+    - W3006
     - W03
     - W11
     - W19
@@ -71,7 +77,7 @@ used_by_workflows:
     - W258
     - W259
     - W260
-    - W264
+    - W253
     - W268
     - W27
     - W270
@@ -103,11 +109,7 @@ used_by_workflows:
     - W346
     - W347
     - W348
-    - W353
-    - W355
-    - W356
-    - W357
-    - W358
+    - W343
     - W359
     - W360
     - W367
@@ -145,9 +147,6 @@ used_by_workflows:
     - W434
     - W438
     - W44
-    - W441
-    - W443
-    - W447
     - W45
     - W46
     - W48
@@ -161,28 +160,51 @@ used_by_workflows:
     - W75
     - W83
     - W86
+    - W1006
+    - W1012
+    - W1018
+    - W1042
+    - W1060
+    - W37
+    - W81
+    - W1138
+    - W1139
+    - W1159
+    - W2006
+    - W2066
+    - W3049
+    - W3050
 implemented_by_components:
     - comparison-view
     - network-list-panel
     - network-merge-dialog
 requirements:
-    - Display two graph views in vertical split-screen (50/50 by default)
-    - Display two graph views in horizontal split-screen as alternative option
-    - Allow adjustable split ratio from 30/70 to 70/30 via draggable divider
-    - Synchronize pan operations across both views by default
-    - Synchronize zoom operations across both views by default
-    - Provide toggle to enable independent navigation per view
-    - Highlight nodes present in only one view with distinct border color
-    - Highlight edges present in only one view with distinct line style (dashed)
-    - Highlight nodes with changed attributes using color intensity variation
-    - Display side-by-side metric comparison table for selected node
-    - Support loading different temporal snapshots into each view
-    - Support loading different algorithm results into each view
-    - Label each view with timestamp or algorithm name
-    - Provide 'Swap views' button to exchange left and right content
-    - Provide 'Sync positions' button to align node positions between views
-    - Maintain consistent visual encoding (colors, sizes) across both views
+    - "Library parity: Show two graph views side by side, split vertically or horizontally, with a draggable divider"
+    - "Should: Link the camera (pan, zoom, rotation) and the selection across both views by default, with a toggle for independent navigation (network-neuroscience-connectomics.md R14)"
+    - "Should: Offer an overlay mode that draws both states on one shared layout as colored layers, with per-edge differences (process-mining-and-process-maps.md R16)"
+    - "Should: Encode the difference explicitly with three classes -- only in the first, only in the second, in both -- for nodes and edges, as NetEvViz does, and mark matched items whose attributes changed; never rely on color alone to tell the classes apart"
+    - "Should: Match nodes across the two states by id, or through a user-supplied id mapping when ids differ (survey waves, versions, two tools' outputs), and report how many nodes on each side were unmatched"
+    - "Should: Report summary counts of new, removed and persistent edges and the Jaccard overlap, and rank nodes by a rewiring score (how much their neighborhood changed), as DyNet does (temporal-and-dynamic-networks.md T13)"
+    - "Must: Keep node positions the same in both views by default (one shared layout), so differences are not confused with layout motion; when two layouts are themselves the comparison, each is seeded and its seed is shown"
+    - "Should: Load any two states into the views -- temporal snapshots, survey waves, graph versions, filters, algorithm results or parameter settings, or a scenario against its baseline"
+    - "Must: Label each view with what it holds -- the time window, or the algorithm with its parameters and seed"
+    - "Should: Show a side-by-side table of the selected node's values, and of network-level measures, for both states"
+    - "Library parity: Swap the two views"
+    - "Must: Use the same encoding scales in both views (one color scale and one size scale fitted to both), and match community colors across the two partitions instead of reusing arbitrary label numbers"
+    - "Should: For a series of more than two states, offer small multiples as an alternative to animation (temporal-and-dynamic-networks.md T12)"
 sources:
-    - title: W19 Network Evolution Analysis
-      url: https://graphty.app/docs/
-      summary: Track changes - compare time periods
+    - title: Gleicher et al. 2011, Visual comparison for information visualization
+      url: https://doi.org/10.1177/1473871611416549
+      summary: Juxtaposition, superposition and explicit encoding as the three designs for visual comparison
+    - title: Khurana et al. 2011, NetEvViz (NodeXL extension)
+      url: https://www.cs.umd.edu/users/ben/papers/Khurana2011Visual.pdf
+      summary: Two-period edge diff colored only-first, only-second and both (temporal-and-dynamic-networks.md 5.6)
+    - title: DyNet, differential network analysis in Cytoscape
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5013899
+      summary: Condition-specific edges on a union reference network, nodes ranked by rewiring score
+    - title: Archambault, Purchase and Pinaud 2011, Animation, small multiples, and the effect of mental map preservation
+      url: https://pubmed.ncbi.nlm.nih.gov/20498503/
+      summary: Small multiples were faster than animation with no overall error difference
+    - title: NeuroCave survey
+      url: https://arxiv.org/pdf/1706.10297
+      summary: General tools need two instances on two monitors to compare connectomes; NeuroCave answers with two synchronized side-by-side views, but as a separate web app with no scripting interface (network-neuroscience-connectomics.md)

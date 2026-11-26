@@ -122,7 +122,7 @@ goal: >-
     - Output: Annotated figure with legend, shared privately or embedded
 success_criteria:
     - metric: Table to picture
-      target: A raw from-to table becomes a laid-out, colored network in under 10 minutes with no install
+      target: A raw from-to table becomes a laid-out, colored network in under 10 minutes with no install (design goal; no source measures it)
     - metric: Finding stated
       target: User can name one role, one subgroup or one shape feature in her data
     - metric: Valid reading

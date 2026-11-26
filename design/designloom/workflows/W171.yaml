@@ -54,20 +54,20 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Retrieve** (30 min) - Download networks from Web of Life, Mangal, the Interaction Web Database or GloBI with
+    1. **Retrieve** - Download networks from Web of Life, Mangal, the Interaction Web Database or GloBI with
     their metadata and taxonomy ids
 
-    2. **Harmonize names** (30-120 min) - Resolve synonyms and spelling differences against a taxonomy backbone
+    2. **Harmonize names** - Resolve synonyms and spelling differences against a taxonomy backbone
 
-    3. **Assemble a metaweb** (10 min) - Merge local webs, noting that many absent pairs are probably false negatives
+    3. **Assemble a metaweb** - Merge local webs, noting that many absent pairs are probably false negatives
 
     4. **Derive species features** (outside the tool) - From co-occurrence, traits or phylogeny
 
     5. **Train a predictor and produce link probabilities** (outside or inside the tool) - For every species pair
 
-    6. **Validate** (15 min) - ROC and precision-recall curves on held-out data; choose a threshold
+    6. **Validate** - ROC and precision-recall curves on held-out data; choose a threshold
 
-    7. **Display and downscale** (15 min) - Observed links in one style and predicted links in another, filter by
+    7. **Display and downscale** - Observed links in one style and predicted links in another, filter by
     probability; induce local webs from the metaweb by site occurrence
 
 

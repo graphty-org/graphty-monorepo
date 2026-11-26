@@ -44,21 +44,21 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Choose a source** (5 min) - A credible technical report; public-corpus flows must cite at least one
+    1. **Choose a source** - A credible technical report; public-corpus flows must cite at least one
 
-    2. **Set flow properties** (2 min) - Name, description, author, external references
+    2. **Set flow properties** - Name, description, author, external references
 
-    3. **Create actions in order** (30-90 min) - Each with a name, an ATT&CK technique ID and a description of what this
+    3. **Create actions in order** - Each with a name, an ATT&CK technique ID and a description of what this
     adversary did (not the technique's generic name); start at reconnaissance, resource development or initial access
     (or a condition saying it is unknown), join alternative entry vectors with an OR operator, end at impact; add
     assets, conditions and operators
 
-    4. **Set confidence** (10 min) - STIX 0-100 per object, shown as Speculation, Very Doubtful, Doubtful, Even Odds,
+    4. **Set confidence** - STIX 0-100 per object, shown as Speculation, Very Doubtful, Doubtful, Even Odds,
     Probable, Very Probable, Certainty
 
-    5. **Connect and validate** (10 min) - Drag arrows between anchors; a validation pane flags missing required fields
+    5. **Connect and validate** - Drag arrows between anchors; a validation pane flags missing required fields
 
-    6. **Save and export** (5 min) - Save the editable file (there is no autosave), PNG of all or a selection, publish
+    6. **Save and export** - Save the editable file (there is no autosave), PNG of all or a selection, publish
     as STIX JSON; the 2026 release adds drafting from a PDF or URL, technique suggestions, timeline and matrix views,
     and TLP banners on exports
 

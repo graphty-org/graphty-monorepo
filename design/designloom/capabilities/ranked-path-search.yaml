@@ -4,12 +4,18 @@ category: analysis
 description: Enumerate triangles and short paths between typed node sets and rank them by summed or combined edge weight
     (uncertainty, importance), with metapath grouping and a path list that selects into the drawing.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: network-medicine-and-biomedical-knowledge-graphs.md section 10, requirement R4 (Must)."
 algorithms: []
 used_by_workflows:
     - W258
     - W262
     - W263
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Rank triangles and paths between typed node sets by summed or combined edge weight, with a path list that
+      selects into the drawing"
+sources:
+    - title: Network Medicine, Drug Discovery and Biomedical Knowledge Graph Researchers (section 10, requirement R4)
+      url: design/user-research/network-medicine-and-biomedical-knowledge-graphs.md
+      summary: "Must in the research. Covered by Designloom when researched: No (all-paths-finding without ranking by
+        edge weight)"

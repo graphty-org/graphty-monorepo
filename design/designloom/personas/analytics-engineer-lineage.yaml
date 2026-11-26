@@ -1,9 +1,12 @@
 id: analytics-engineer-lineage
 name: Analytics Engineer (Lineage)
+roster_persona: dependency-impact-engineer
+tier: A
+scope: in-scope
 role: Analytics Engineer / Data Engineer
 quote: I'm renaming one column in a staging model. Which of our 1,500 models, which dashboards and which owners does that touch?
 bio: >-
-    Tomas maintains about 1,500 dbt models on Snowflake, arranged in staging, intermediate and mart layers, with
+    Ben maintains about 1,500 dbt models on Snowflake, arranged in staging, intermediate and mart layers, with
     Airflow and Spark jobs around them. His graph is lineage: dbt's `manifest.json` (parent_map, child_map, exposures),
     OpenLineage run events into Marquez, and DataHub for cross-tool lineage down to BI dashboards. Before merging a pull
     request he selects the downstream closure of the changed models (`dbt ls --select "my_model+"`), narrows it to the
@@ -41,7 +44,6 @@ context:
 workflows:
     - W79
     - W80
-    - W84
 sources:
     - title: dbt - Graph operators
       url: https://docs.getdbt.com/reference/node-selection/graph-operators

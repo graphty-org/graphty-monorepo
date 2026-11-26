@@ -1,5 +1,5 @@
 id: W253
-name: GNPS Molecular Networking, Job to Figure
+name: GNPS Molecular Networking, Job to Annotated Figure
 category: analysis
 validated: false
 personas:
@@ -20,6 +20,16 @@ requires_capabilities:
     - similarity-graph-construction
     - node-glyph-charts
     - component-browser
+    - edge-value-highlight
+    - item-link-out
+    - molecule-structure-glyphs
+    - cluster-identity-across-runs
+    - layout-force-directed
+    - data-validation
+    - neighborhood-expansion
+    - node-selection
+    - style-presets
+    - comparison-view
 suggested_components:
     - data-import-dialog
     - attribute-table-join-dialog
@@ -31,9 +41,16 @@ suggested_components:
     - node-details-panel
     - graph-canvas
     - image-export-dialog
+    - file-drop-zone
+    - data-table-panel
+    - gradient-editor
+    - network-list-panel
+    - session-save-dialog
 starting_state:
-    data_type: GNPS GraphML (consensus spectra or features as nodes, cosine edges with mass difference) plus library hits
-    node_count: thousands; components capped at 100 nodes plus singletons (per-job count not found)
+    data_type: GNPS GraphML (consensus spectra or features as nodes, cosine edges with mass difference) plus library hits,
+        or a .cys session; per-group intensities and SMILES
+    node_count: 500-55,000 features per job in many small components capped at 100 nodes, plus singletons; 5-100 nodes
+        per family drawn in a figure
     edge_density: sparse, many small components
     user_expertise: intermediate
 goal: >-
@@ -49,20 +66,39 @@ goal: >-
 
     1. **Convert** (varies) - Vendor files to mzML with ProteoWizard
 
-    2. **Detect features** (30-60 min) - Feature-based networking only: MZmine or MS-DIAL exports a feature table and an
+    2. **Detect features** - Feature-based networking only: MZmine or MS-DIAL exports a feature table and an
     MGF
 
-    3. **Submit** (10 min to hours) - Groups G1-G6; defaults precursor 2.0 Da, fragment 0.5 Da, cosine 0.7, 6 matched
+    3. **Submit** - Groups G1-G6; defaults precursor 2.0 Da, fragment 0.5 Da, cosine 0.7, 6 matched
     peaks, TopK 10 mutual, maximum component size 100
 
-    4. **Read in the browser** (30 min) - View Spectral Families lists components; open one at a time; library hits
+    4. **Read in the browser** - View Spectral Families lists components; open one at a time; library hits
     blue; pies per group; type a delta m/z to turn matching edges red
 
-    5. **Propagate annotations** (30 min) - NAP re-ranks candidate structures from annotated neighbors within a
+    5. **Propagate annotations** - NAP re-ranks candidate structures from annotated neighbors within a
     component; MolNetEnhancer gives each family a chemical class
 
-    6. **Figure in Cytoscape** (30-60 min) - Import GraphML and library table; size by summed peak intensity; pies from
-    group columns; edge width by cosine; fill by class; structures from SMILES
+    6. **Download for Cytoscape** - Zip with .graphml and library-match .csv, or a ready .cys session with a
+    preset style (GNPS2 builds one with molecular-family groups and the GNPS pie-chart style)
+
+    7. **Import and join tables** - Import the network, then join library hits keyed on the scan or feature ID
+
+    8. **Style** (every job) - Label by precursor mass or compound name; size by summed peak intensity; pies over
+    the group columns; fill by MolNetEnhancer class; edge width by cosine with min and max tuned by hand; or import a
+    saved style file
+
+    9. **Draw structures** - Set the SMILES attribute and paint structures on nodes (chemViz2)
+
+    10. **Filter and isolate families** - Column filters (ppm error, compound name, condition), repeated first
+    neighbors of a selection, new network from selection; the component index marks families (-1 for singletons); one
+    network had 810 sub-families
+
+    11. **Compare groups** - Per-condition subnetworks; Venn or Euler diagrams for group-unique features
+
+    12. **Handle size** - A 55,000-node network triggered Cytoscape's "This could take a long time" prompt, and the
+    user was told to browse families in GNPS instead
+
+    13. **Export** - PDF for the paper and the .cys session for collaborators; the whole analysis takes "4h-weeks"
 
 
     **Decision Points**:
@@ -75,6 +111,8 @@ goal: >-
 
     - Which families to show in the figure?
 
+    - Is an unannotated neighbor of a library hit a credible analog?
+
 
     **Information Needs**:
 
@@ -85,6 +123,10 @@ goal: >-
     - Structure images for annotated nodes
 
     - Building parameters shown with the network
+
+    - Per node: precursor m/z, retention time, intensity, per-group means, library match, SMILES, chemical class
+
+    - Which features are unique to one sample group
 
 
     **Pain Points**:
@@ -99,15 +141,19 @@ goal: >-
 
     - Many nodes left as singletons
 
+    - The style is rebuilt or re-imported for every job; structure images and pie charts are set up by hand
+
+    - Whole networks can be too large to open in Cytoscape
+
 
     **Data Flow**:
 
-    - Input: GNPS GraphML, library hit table, feature table with group columns
+    - Input: GNPS GraphML, library hit table, feature table with group columns, or a .cys session; metadata table
 
     - Transformations: Component listing and packing, mass-difference edge highlight, group pies, structure glyphs,
     class coloring
 
-    - Output: Molecular family figures, annotated feature table, shared job link
+    - Output: Molecular family figures (PDF), annotated feature table, session for collaborators, shared job link
 success_criteria:
     - metric: All families at once
       target: Every component and singleton can be shown and ranked in one view
@@ -115,6 +161,10 @@ success_criteria:
       target: Edges matching a typed delta m/z highlight in one step
     - metric: Parameters visible
       target: Job parameters accompany the network
+    - metric: Restyling cost
+      target: A saved molecular-network style reapplied to a new job in one action
+    - metric: Large network handling
+      target: A 55,000-node network opens and families can be browsed without a warning prompt
 sources:
     - title: GNPS networking documentation
       url: https://ccms-ucsd.github.io/GNPSDocumentation/networking/
@@ -137,6 +187,18 @@ sources:
     - title: GNPS2 FAQ
       url: https://wang-bioinformatics-lab.github.io/GNPS2_Documentation/faq/
       summary: Full network with singletons view
+    - title: Harris et al. - infection metabolomics chapter
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10040239
+      summary: Step-by-step Cytoscape styling, chemViz2 structures, family isolation, 810 sub-families, 4h-weeks
+    - title: Leao et al. 2021 - GNPS usage
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8705952
+      summary: Over 300,000 accesses a month from more than 160 countries
+    - title: Molecular networking bug reports thread
+      url: https://groups.google.com/g/molecular_networking_bug_reports/c/Gmz4qXuQGiI
+      summary: 55,000-node network too large for Cytoscape; user told to browse families in GNPS
+    - title: Carpentries genome mining - metabolomics lesson
+      url: https://carpentries-incubator.github.io/genome-mining/09-metabolomics/index.html
+      summary: Cytoscape search is very slow with large networks
 version: 1.0.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

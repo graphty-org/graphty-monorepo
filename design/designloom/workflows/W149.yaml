@@ -3,7 +3,7 @@ name: Asking a Graph Database in Plain Language with a Co-Pilot
 category: exploration
 validated: false
 personas:
-    - no-code-graph-investigator
+    - aml-investigator
     - graph-perspective-curator
 requires_capabilities:
     - search

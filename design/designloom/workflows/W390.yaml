@@ -49,31 +49,31 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Prepare sequences** (hours to days) - Edit Sanger reads (reverse-complement, merge, trim), check with BLAST,
+    1. **Prepare sequences** - Edit Sanger reads (reverse-complement, merge, trim), check with BLAST,
     align with MUSCLE or ClustalW, save FASTA
 
-    2. **Define haplotypes** (20 min) - In DnaSP open the file (filter "All files"), set mtDNA haploid, read haplotype
+    2. **Define haplotypes** - In DnaSP open the file (filter "All files"), set mtDNA haploid, read haplotype
     count, segregating sites, Hd and Pi; define sequence sets for populations; export NEXUS with sequences clustered
     into populations and Arlequin files; check no group is "Additional_Seqs"
 
-    3. **Write the traits block by hand** (20-60 min) - Append BEGIN TRAITS with one column per population and one row
+    3. **Write the traits block by hand** - Append BEGIN TRAITS with one column per population and one row
     per sample, names and order matching the alignment; or load a delimited trait and geotag table
 
-    4. **Load and choose a method** (5 min) - Open the NEXUS (set "Files of type" to All Files if greyed out); choose
+    4. **Load and choose a method** - Open the NEXUS (set "Files of type" to All Files if greyed out); choose
     minimum spanning network (epsilon 0), TCS, median-joining, tight span walker or integer neighbor-joining
 
-    5. **Read the network** (10 min) - Circle area is frequency, slices are populations, hatch marks count mutations,
+    5. **Read the network** - Circle area is frequency, slices are populations, hatch marks count mutations,
     black dots are inferred haplotypes; check Statistics > Identical Sequences for merged samples
 
-    6. **Style and untangle** (15-30 min) - Pick palette, vertex sizes and fonts; drag nodes by hand to stop pies
+    6. **Style and untangle** - Pick palette, vertex sizes and fonts; drag nodes by hand to stop pies
     overlapping
 
-    7. **Map view** (10 min) - With geotags, pies appear at sampling sites on a base map in the same colors
+    7. **Map view** - With geotags, pies appear at sampling sites on a base map in the same colors
 
-    8. **Statistics** (30 min) - Tajima's D, AMOVA and nucleotide diversity in PopART; Standard AMOVA and pairwise FST
+    8. **Statistics** - Tajima's D, AMOVA and nucleotide diversity in PopART; Standard AMOVA and pairwise FST
     in Arlequin from a Structure block, read against Wright's thresholds (below 0.05 low, above 0.25 very high)
 
-    9. **Export and assemble** (1-2 hours) - SVG or PNG; combine network, map, tree and statistics table in
+    9. **Export and assemble** - SVG or PNG; combine network, map, tree and statistics table in
     Illustrator or Inkscape
 
 

@@ -4,11 +4,16 @@ category: analysis
 description: Read pipe-delimited or JSON-array columns (for example KGX Biolink categories, multi-typed LLM entities) as
     sets, and filter by a category hierarchy where selecting a parent selects its descendants.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: knowledge-graph-engineers-and-graphrag.md section 10, table row 11 (Must)."
 algorithms: []
 used_by_workflows:
     - W130
     - W140
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Import multi-valued categorical columns (pipe-delimited KGX categories, JSON arrays) as sets, and filter by
+      a category hierarchy (selecting a parent selects descendants)"
+sources:
+    - title: Knowledge Graph Engineers, Ontologists and GraphRAG Developers (section 10, table row 11)
+      url: design/user-research/knowledge-graph-engineers-and-graphrag.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

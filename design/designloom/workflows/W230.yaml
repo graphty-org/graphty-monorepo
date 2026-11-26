@@ -26,6 +26,8 @@ requires_capabilities:
     - watch-list-proximity
     - quantity-reconciliation
     - tracing-package-export
+    - stage-constrained-trace
+    - cross-script-name-matching
 suggested_components:
     - file-drop-zone
     - data-import-dialog
@@ -157,9 +159,6 @@ sources:
     - title: Holland and Knight (2026)
       url: https://www.hklaw.com/en/insights/publications/2026/07/new-compliance-tools-cbp-issues-comprehensive-forced-labor-guidance
       summary: Forced Labor Portal submission; one supplier gap undermines the package
-    - title: EU Deforestation Regulation geolocation requirements
-      url: https://green-forum.ec.europa.eu/nature-and-biodiversity/deforestation-regulation-implementation/traceability-and-geolocation-commodities-subject-eudr_en
-      summary: EU variant where origin nodes are land plots as points or polygons
 version: 1.0.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

@@ -1,13 +1,24 @@
 id: data-import
 name: Data Import
 category: data
-description: Load graph data from various sources including local files, URLs, clipboard paste, and database
-    connections. Supports multiple formats (CSV edge lists, JSON, GraphML, GEXF, GML) with automatic format detection and
-    field mapping.
-status: implemented
-notes: "Ships: graph-io importers and graphty/src/workspace/data-page/DataPage.tsx."
+description: Load graph data from local files, URLs, clipboard paste and remote sources, with automatic format
+    detection, field mapping and the decisions users are forced to make at import (direction, duplicate edges,
+    unmatched endpoints, key types) made visible. It reads every format graph-io reads -- CSV and TSV (edge tables,
+    node tables, adjacency lists), XLSX and XLSM, JSON (node-link and D3, JGF, Cytoscape.js, Graphology, vis, OBO
+    Graphs, NetworkX adjacency_data and tree_data), GraphML, GEXF, GML, DOT, Pajek, SIF, XGMML, CX, CX2, OBO,
+    Cytoscape sessions and Neo4j CSV -- plus graph-io's sources (Cypher, Gremlin and SPARQL endpoints, NDEx, Zenodo,
+    figshare, GitHub, S3, REST, plain URLs). Other formats users bring belong to their own capabilities (matrix-import,
+    biological-network-formats, bibliographic-record-import, rdf-import, security-format-import, event-log-import and
+    others listed in data-preparation-and-import.md section 9.1); the import report, saved mappings, local-only
+    processing and the size check are shared capabilities (import-report, saved-import-mappings,
+    local-only-processing, progressive-loading).
+status: in-progress
+notes: "Partly ships: graph-io importers for the formats in graph-io/src (with BOM, UTF-16 and windows-1252 decoding in graph-io/src/common/input.ts) and graphty/src/workspace/data-page/DataPage.tsx. Planned: picking a node sheet and an edge sheet from one xlsx workbook, unmatched endpoint lists with create or drop, and the strength-or-distance question for a weight column. Any requirement below that this note does not name as shipping counts as planned."
 algorithms: []
 used_by_workflows:
+    - W3055
+    - W3054
+    - W3006
     - W01
     - W09
     - W13
@@ -157,7 +168,6 @@ used_by_workflows:
     - W261
     - W262
     - W263
-    - W264
     - W265
     - W266
     - W267
@@ -208,7 +218,7 @@ used_by_workflows:
     - W334
     - W335
     - W337
-    - W338
+    - W430
     - W339
     - W34
     - W340
@@ -218,14 +228,6 @@ used_by_workflows:
     - W346
     - W347
     - W348
-    - W349
-    - W350
-    - W352
-    - W354
-    - W355
-    - W356
-    - W357
-    - W358
     - W36
     - W361
     - W365
@@ -289,7 +291,6 @@ used_by_workflows:
     - W427
     - W428
     - W429
-    - W430
     - W431
     - W432
     - W433
@@ -297,14 +298,6 @@ used_by_workflows:
     - W435
     - W436
     - W438
-    - W439
-    - W440
-    - W441
-    - W442
-    - W443
-    - W444
-    - W445
-    - W447
     - W46
     - W47
     - W49
@@ -353,6 +346,42 @@ used_by_workflows:
     - W96
     - W97
     - W98
+    - W1006
+    - W117
+    - W1042
+    - W1054
+    - W1060
+    - W1084
+    - W1090
+    - W1096
+    - W1120
+    - W1126
+    - W1132
+    - W1138
+    - W1139
+    - W1156
+    - W1157
+    - W1158
+    - W1159
+    - W1162
+    - W2000
+    - W2006
+    - W2030
+    - W2036
+    - W2037
+    - W2066
+    - W2072
+    - W2096
+    - W2097
+    - W2098
+    - W2099
+    - W3048
+    - W3049
+    - W3050
+    - W3066
+    - W3096
+    - W3102
+    - W3103
 implemented_by_components:
     - file-drop-zone
     - column-mapper
@@ -360,31 +389,60 @@ implemented_by_components:
     - attribute-table-join-dialog
     - gene-set-import-dialog
 requirements:
-    - Support CSV edge list format with configurable delimiter (comma, tab, semicolon, pipe)
-    - Support JSON node-link format per D3.js specification
-    - Support GraphML 1.1 XML format with attribute preservation
-    - Support GEXF 1.3 XML format with dynamic attribute support
-    - Support GML format with nested attribute structures
-    - Auto-detect format from file extension (.csv, .json, .graphml, .gexf, .gml)
-    - Fall back to content inspection when extension is ambiguous or missing
-    - Handle files up to 100MB in browser without crashing
-    - Display progress bar updated at minimum every 500ms for files over 1MB
-    - Support streaming import for files over 50MB to avoid memory exhaustion
-    - Allow source/target column selection for CSV edge lists
-    - Allow node ID column selection for CSV node lists
-    - Support UTF-8, UTF-16, and ISO-8859-1 file encodings
-    - Auto-detect file encoding with 95% accuracy for common encodings
-    - Report parse errors with line number and column position
-    # Corrected 2026-10-19 by design/data/data-management-requirements.md (a too-large file gets a way through).
-    - For a file over the drawing limit, show its size and the limit before loading and pre-choose a way through
-      (the busiest nodes or the first rows), stating what was left out; never refuse it without one
-    - Report 'Unsupported format' error listing supported formats when format unrecognized
-    - Report 'Encoding error' with detected vs expected encoding on character decode failure
-    - Allow partial import to continue after non-fatal parse errors
-    - Support directed and undirected graph import with explicit toggle
-    - Support weighted edges via configurable weight column
-    - Preserve all source attributes as node/edge properties
+    - "Must: Support CSV and TSV edge tables, node tables and adjacency lists with any single-character delimiter"
+    - "Library parity: Support JSON node-link format per D3.js specification, and the other JSON graph dialects graph-io reads"
+    - "Must: Support GraphML 1.1 XML format with attribute preservation"
+    - "Must: Support GEXF 1.3 XML format with dynamic attribute support"
+    - "Must: Support GML format with nested attribute structures"
+    - "Must: Support DOT, Pajek, SIF, XGMML, CX, CX2, OBO, Cytoscape sessions (.cys) and Neo4j CSV"
+    - "Must: Read a node sheet and an edge sheet from one .xlsx workbook as one graph, after listing its sheets (data-preparation-and-import.md requirement 26, Must)"
+    - "Library parity: Auto-detect format from the extension of every format above, not only five"
+    - "Library parity: Fall back to content inspection when extension is ambiguous or missing"
+    - "Library parity: Show a looped indicator when a load is expected to take 2 seconds or more and a percent-done indicator (rows or bytes read) when it is expected to take 10 seconds or more; any update interval is a design goal, not evidence"
+    - "Library parity: Read files as a stream whatever their size, so there is no size threshold to choose; where a format cannot stream (a whole-document XML parse), say so in the size check"
+    - "Must: Allow source/target column selection for CSV edge lists"
+    - "Must: Allow node ID column selection for CSV node lists"
+    - "Must: Show the direction choice with its default named, and allow per-edge direction from a column (data-preparation-and-import.md requirement 2, Must)"
+    - "Must: Offer a parallel-edge policy -- keep as multi-edges, or merge with count, sum, average, min, max, first or last (requirement 3, Must)"
+    - "Must: Match edge endpoints against the node table, list the unmatched ids, and let the user create or drop them (requirement 4, Must)"
+    - "Must: Show the key type used for matching (text or number) and offer trim and case normalization (requirement 5, Must)"
+    - "Must: Never coerce identifiers such as SEPT2 to dates; show the inferred column types and let the user override them (requirement 11, Must; Ziemann et al. 2016)"
+    - "Library parity: Decode by a fixed rule -- byte order mark, then a declared encoding, then UTF-8 -- and read bytes that are not UTF-8 and declare nothing as windows-1252 with a warning; let the user override the encoding"
+    - "Library parity: Support UTF-8, UTF-16LE and UTF-16BE (by byte order mark) and windows-1252 (labels latin1 and iso-8859-1), plus any label the platform's decoder accepts"
+    - "Library parity: Report parse errors with line number and column position"
+    - "Must: Report the import's counts -- rows read and skipped with reasons, nodes, edges, endpoints created, duplicates merged, self-loops -- through import-report (requirement 1, Must)"
+    - "Library parity: For a file over the drawing limit, show its size and the limit before loading and pre-choose a way through (the busiest nodes or the first rows), stating what was left out; never refuse it without one"
+    - "Library parity: Return an unsupported-format error code listing every supported format when the format is unrecognized"
+    - "Library parity: Return an encoding error code with the detected and expected encoding on character decode failure"
+    - "Library parity: Allow partial import to continue after non-fatal parse errors"
+    - "Must: Support directed and undirected graph import with explicit toggle"
+    - "Must: Support weighted edges via a configurable weight column, and ask whether it is a strength or a distance (weight-semantics), since algorithms read the same column in opposite ways"
+    - "Must: Preserve all source attributes as node/edge properties"
 sources:
-    - title: Graph Data Formats - Textbook Chapter 2
-      url: https://graphty.app/docs/
-      summary: Standard file formats including edge list, GraphML, GEXF, JSON
+    - title: GraphML primer
+      url: http://graphml.graphdrawing.org/primer/graphml-primer.html
+      summary: GraphML structure and typed attribute keys
+    - title: GEXF file format
+      url: https://gexf.net/
+      summary: Gephi's exchange format with typed and dynamic attributes
+    - title: Gephi CSV format
+      url: http://docs.gephi.org/desktop/User_Manual/Import/CSV_Format/
+      summary: Node and edge tables, edge lists and adjacency lists as Gephi reads them
+    - title: Cytoscape supported network file formats
+      url: https://manual.cytoscape.org/en/3.10.3/Supported_Network_File_Formats.html
+      summary: The network formats Cytoscape imports
+    - title: Ziemann, Eren and El-Osta 2016, Gene name errors are widespread in the scientific literature
+      url: https://doi.org/10.1186/s13059-016-1044-7
+      summary: Spreadsheets silently convert gene symbols such as SEPT2 to dates
+    - title: Nielsen Norman Group, Progress indicators
+      url: https://www.nngroup.com/articles/progress-indicators/
+      summary: Looped indicator for 2-10 second actions, percent-done for 10 seconds or more
+    - title: Papa Parse documentation
+      url: https://www.papaparse.com/docs
+      summary: Streaming is necessary for large files that would otherwise crash the browser
+    - title: WHATWG Encoding Standard
+      url: https://encoding.spec.whatwg.org/
+      summary: latin1 and iso-8859-1 decode as windows-1252; UTF-16 is UTF-16LE and UTF-16BE; byte-order-mark sniffing
+    - title: ICU user guide, character set detection
+      url: https://unicode-org.github.io/icu/userguide/conversion/detection.html
+      summary: Encoding detection is "at best, an imprecise operation", so a fixed rule plus override replaces an accuracy target

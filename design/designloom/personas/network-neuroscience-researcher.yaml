@@ -1,9 +1,12 @@
 id: network-neuroscience-researcher
 name: Network Neuroscience Researcher
+roster_persona: network-neuroscientist
+tier: B
+scope: in-scope
 role: Postdoctoral Researcher, Cognitive or Clinical Neuroscience Lab
 quote: My graph is a thresholded correlation matrix. Change the threshold and half my group differences appear or vanish -- show me which results survive.
 bio: >-
-    Dr. Nadia Kovac is a postdoc in a cognitive or clinical neuroscience lab who builds brain graphs from functional MRI
+    Dr. Jana Kovac is a postdoc in a cognitive or clinical neuroscience lab who builds brain graphs from functional MRI
     or diffusion MRI. Each subject yields a weighted, signed correlation matrix over about 100 to 400 brain regions that
     is fully dense before thresholding; cohorts compare patients with controls, and time windows are sometimes stacked
     into a multilayer network. She uses the MATLAB Brain Connectivity Toolbox and GenLouvain (custom nulls, resolution,
@@ -54,6 +57,8 @@ workflows:
     - W42
     - W46
     - W49
+    - W414
+    - W322
 sources:
     - title: Community detection in network neuroscience (Betzel 2020 review)
       url: https://ar5iv.labs.arxiv.org/html/2011.06723

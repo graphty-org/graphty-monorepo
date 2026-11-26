@@ -49,19 +49,19 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Preprocess and model** (hours) - Preprocess diffusion and T1 images, estimate fiber orientations
+    1. **Preprocess and model** - Preprocess diffusion and T1 images, estimate fiber orientations
 
-    2. **Tissue segmentation and parcellation** (hours) - Five-tissue-type image for anatomically constrained
+    2. **Tissue segmentation and parcellation** - Five-tissue-type image for anatomically constrained
     tractography; FreeSurfer parcellation relabeled so node indices start at 1 and match matrix rows
 
-    3. **Track and weight** (hours) - Generate streamlines (for example 10 million) and per-streamline SIFT2 weights
+    3. **Track and weight** - Generate streamlines (for example 10 million) and per-streamline SIFT2 weights
 
-    4. **Build matrices** (minutes) - Symmetric, zero-diagonal weight matrix scaled by inverse node volume, plus a mean
+    4. **Build matrices** - Symmetric, zero-diagonal weight matrix scaled by inverse node volume, plus a mean
     edge-length matrix and a streamline-to-edge assignment file
 
-    5. **Inspect** (5 min) - Heatmap of the matrix, expecting two hemisphere blocks
+    5. **Inspect** - Heatmap of the matrix, expecting two hemisphere blocks
 
-    6. **Figure with real pathways** (20 min) - One exemplar streamline per edge drawn as a tube; nodes drawn as the
+    6. **Figure with real pathways** - One exemplar streamline per edge drawn as a tube; nodes drawn as the
     parcel meshes; extract specific connections of interest for inspection
 
 

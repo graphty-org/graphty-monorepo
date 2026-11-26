@@ -57,26 +57,26 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Assemble the interactome** (hours, once per project) - Merge physical interaction sources (IntAct, BioGRID,
+    1. **Assemble the interactome** (once per project) - Merge physical interaction sources (IntAct, BioGRID,
     HPRD, CORUM) into one undirected graph, keep the largest component (13,329 proteins and 141,150 interactions in
     Guney 2016; 17,706 and 351,444 in Zhou 2020); output a TSV edge list
 
-    2. **Collect disease genes** (1 hour) - From OMIM, GWAS (p < 5e-8) or DisGeNET, keeping diseases with at least 20
+    2. **Collect disease genes** - From OMIM, GWAS (p < 5e-8) or DisGeNET, keeping diseases with at least 20
     genes because modules under about 25 genes are not observable
 
-    3. **Collect drug targets** (1 hour) - From DrugBank, ChEMBL and BindingDB at 10 micromolar affinity or better
+    3. **Collect drug targets** - From DrugBank, ChEMBL and BindingDB at 10 micromolar affinity or better
 
-    4. **Map identifiers** (30 min) - Map every gene and target into the interactome's ID space (Entrez or UniProt) and
+    4. **Map identifiers** - Map every gene and target into the interactome's ID space (Entrez or UniProt) and
     drop what does not map
 
-    5. **Compute distances and the null model** (hours, scripted) - Closest-distance d_c (mean over targets of the
+    5. **Compute distances and the null model** (scripted) - Closest-distance d_c (mean over targets of the
     shortest path to the nearest disease protein); 1,000 random draws matched in size and degree (degree bins of at least
     100 nodes); z = (d - mean_rand) / sd_rand; significant at z <= -2 (Guney) or z < -1.5 with p < 0.05 (Zhou)
 
-    6. **Validate** (1 hour) - AUC against known indications; in a 918-drug screen the best of 12 pipelines reached only
+    6. **Validate** - AUC against known indications; in a 918-drug screen the best of 12 pipelines reached only
     about 0.63
 
-    7. **Hand off to a figure** (1-3 hours today, hand-coded) - Load the interactome, the disease gene set, the top
+    7. **Hand off to a figure** (hand-coded) - Load the interactome, the disease gene set, the top
     drug's targets and the z-score table; show only the module, the targets and the shortest paths between them;
     distinguish disease genes, targets and connector proteins by shape and color; hide or fade the rest of the
     interactome; export a figure and the node table with set membership
@@ -134,7 +134,7 @@ goal: >-
     - Output: Module-and-targets figure, node table with set membership and scores, parameter record
 success_criteria:
     - metric: Time from script output to a figure of one drug near the disease module
-      target: Under 15 minutes, with no plotting code
+      target: Under 15 minutes, with no plotting code (design goal; no source measures it)
     - metric: Mapping transparency
       target: User can state how many disease genes and targets mapped and which did not
     - metric: Reproducibility

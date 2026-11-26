@@ -1,0 +1,22 @@
+id: comparison-coverage-gate
+name: "Coverage check before period comparison"
+category: analysis
+description: "Before two periods of a recurring deliverable are compared, show each period's coverage (share of expected sources or hosts that reported, record counts against the previous period, data date) and mark the comparison not comparable when coverage falls below a level the author sets. Modeled on BloodHound Enterprise's Group and Session Completeness and its rule to wait for ingest and analysis before comparing counts or trends."
+status: planned
+notes: "Research trace: communicating-findings-and-deliverables.md section 10, requirement R24 (Must)."
+algorithms: []
+used_by_workflows:
+    - W323
+    - W320
+implemented_by_components: []
+requirements:
+    - "Must: Saved deliverable template (view, filters, style, legend, parameters, tables, fixed positions) that
+      re-renders against new data, exportable on demand or on a schedule, or embedded live; before comparing it checks
+      coverage, matches entities across periods (renames, merges, new, departed, suppressed), and adds a per-category
+      change table with resolved items"
+sources:
+    - title: "Communicating findings: the deliverables each population hands to someone else (section 10, requirement
+        R24)"
+      url: design/user-research/communicating-findings-and-deliverables.md
+      summary: "Must in the research (the document says: must for recurring deliverables). Covered by Designloom when
+        researched: Gap (report-generation planned, unspecified)"

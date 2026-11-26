@@ -427,7 +427,10 @@ This runs before 5.3 when the team holds pings rather than an OD table; its para
    `TrajectoryStopDetector.get_stop_points(min_duration, max_diameter)` (tutorials: 60 to 120 seconds, 100 m). Optionally cluster stays into places and infer home.
 4. **Generate trips.** One trip between consecutive stays (MeowMotion `processFlowGenration`).
 5. **Zone (a decision).** Assign trip ends to a zone system: H3 cells, or administrative zones from a shapefile
-   (MeowMotion: LSOAs, MSOAs, councils).
+   (MeowMotion: LSOAs, MSOAs, councils). MeowMotion reads the zone file with geopandas and requires polygons in
+   EPSG:4326 with columns `geo_code`, `name` and `geometry`; each trip end takes the code of the polygon it falls in, a
+   point-in-polygon join (geopandas `sjoin`, https://geopandas.org/en/stable/docs/reference/api/geopandas.sjoin.html).
+   The `geo_code` then becomes the node id of the OD network, and the same polygon file is what a map later draws.
 6. **Aggregate per window.** MeowMotion's `generateOD` writes one OD CSV per window -- AM peak 7-10, PM peak 4-7,
    all-day, and non-peak (all-day minus the peaks) -- with `origin_geo_code`, `destination_geo_code`, `trips`,
    `trips_weighted` (scaled to population using home locations) and `percentage`.
@@ -514,6 +517,56 @@ Properties that matter for a graph tool:
 - **Sensitivity.** Microdata never leaves the provider; published flows are suppressed, noised or thresholded; vendor
   data cannot be uploaded to third-party services.
 
+### 6.1 Zone geometry: file formats, joins and coordinate systems
+
+An OD table names places by code; their shapes and positions come from a separate boundary file, and that file is the
+second input to almost every map in this document.
+
+**Formats the populations exchange.**
+
+| Source or tool                                          | Formats                                                                                                                                                         |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| US Census cartographic boundary files (counties, tracts) | shapefile, file geodatabase and KML since 2019, GeoPackage since 2024; no GeoJSON (https://www.census.gov/geographies/mapping-files/time-series/geo/cartographic-boundary.html) |
+| Eurostat GISCO NUTS regions                             | GeoPackage, shapefile, TopoJSON, GeoJSON, vector tiles (PBF) and SVG, each in EPSG:3035, EPSG:4326 or EPSG:3857 (https://ec.europa.eu/eurostat/web/gisco/geodata/statistical-units/territorial-units-statistics) |
+| UK travel-to-work areas (ONS, via data.gov.uk)          | GeoPackage, shapefile, file geodatabase, KML, GeoJSON and CSV for the 2001 areas (https://www.data.gov.uk/dataset/travel-to-work-areas-december-2001-boundaries-uk-bgc); the 2011 areas at full, 20 m, 200 m and 500 m generalization plus ArcGIS feature services (https://www.data.gov.uk/dataset/travel-to-work-areas-december-2011-full-clipped-boundaries-in-united-kingdom4) |
+| UN OCHA administrative boundaries (humanitarian and outbreak work) | shapefile and geodatabase plus tables, joined to population data by P-code (https://humanitarian.atlassian.net/wiki/spaces/imtoolbox/pages/2557378679) |
+| Spain open mobility data (spanishoddata)                | zones returned as MULTIPOLYGON simple features in ETRS89 / UTM zone 30N, a projected system (https://ropenspain.github.io/spanishoddata/reference/spod_get_zones.html) |
+| kepler.gl / Foursquare Studio                           | CSV, GeoJSON, GeoArrow and kepler.gl JSON; a CSV column of WKT or GeoJSON strings becomes a polygon layer, `<name>_lat`/`<name>_lng` pairs become points, a column named `h3_id` or `hexagon_id` becomes an H3 layer (https://docs.kepler.gl/docs/user-guides/b-kepler-gl-workflow/a-add-data-to-the-map) |
+| SafeGraph-derived US flows (Kang et al.)               | CSV with `geoid_o`, `geoid_d` and both ends' `lat`/`lng` on every row (https://github.com/GeoDS/COVID19USFlows)                                              |
+| US Census centers of population                         | text files of population-weighted center latitude and longitude for states, counties, tracts and block groups (https://www.census.gov/geographies/reference-files/time-series/geo/centers-population.html) |
+
+Every official source above offers shapefile and three of the four offer GeoPackage; the web tools take GeoJSON (or
+WKT inside a CSV); KML appears as a secondary official format. No source was found of these populations exchanging FlatGeobuf or GeoParquet, so those stay out of
+the requirements below.
+
+**How zones are joined to nodes.** The sources show three ways:
+
+- **By zone id** -- the usual case. The flow table's origin and destination codes match an id column of the boundary
+  file (FIPS GEOID, MSOA code, P-code, `geo_code`). stplanr's `od2line()` takes "a spatial (polygon or point) object"
+  and matches the first two flow columns to the zones' first column by default
+  (https://docs.ropensci.org/stplanr/reference/od2line.html). Leading-zero loss in codes (section 6) breaks this join.
+- **By a representative point** -- once matched, a polygon must become a node position. The geometric centroid "can be
+  outside the feature borders" (QGIS Centroids,
+  https://docs.qgis.org/3.40/en/docs/user_manual/processing_algs/qgis/vectorgeometry.html), so analysts use a point on
+  the surface or a population-weighted center (the Census publishes these per tract and county, above); flowmap.blue
+  and kepler.gl accept only the point.
+- **By point in polygon** -- when trip ends or events arrive as coordinates (5.9), each is assigned the zone it falls
+  in. H3 is the gridded alternative: `polygonToCells` fills a boundary with cells and "containment is determined by
+  centroids of the cells", so a partition of polygons yields a partition of cells
+  (https://h3geo.org/docs/api/regions).
+
+**Coordinate reference systems.** GeoJSON is fixed to WGS84 longitude and latitude, in that order, and the old `crs`
+member is no longer used (RFC 7946 section 4, https://datatracker.ietf.org/doc/html/rfc7946). Official files are
+often projected: NUTS ships in EPSG:3035 (an equal-area system for Europe) as well as WGS84 and Web Mercator, and
+Spain's zones in UTM 30N; MeowMotion refuses anything but EPSG:4326. A tool must read the system declared by a
+shapefile's `.prj` or a GeoPackage's metadata, transform to its display projection, and on export write GeoJSON in
+WGS84 and other formats in the system the reader asks for.
+
+**What goes back out.** Functional regions are published as "a boundary file plus a lookup from zone to region"
+(5.5), and a flow map that is to be finished in QGIS or ArcGIS (5.4) has to arrive there as layers, not as an
+image. Out of scope for this population: power and water network formats (EPANET
+`.inp`, MATPOWER); no source in this document uses them, and their need belongs to the infrastructure research.
+
 ## 7. Analysis methods
 
 ### 7.1 Flow arithmetic
@@ -592,7 +645,8 @@ review of air transport networks distinguishes (https://arxiv.org/abs/1605.04872
   (the Census Flows Mapper served this role until its retirement on October 8, 2024). flowmap.blue is CC BY-NC 4.0, so
   commercial users must contact the authors (https://github.com/FlowmapBlue/flowmap.blue).
 - **Project files**: FlowMapper.org saves a JSON project with joins and classification so others can reopen it.
-- **Official geographies**: TTWAs, commuting zones, labor market areas published as boundary files plus lookups.
+- **Official geographies**: TTWAs, commuting zones, labor market areas published as boundary files plus lookups
+  (shapefile, GeoPackage, GeoJSON and KML; 6.1).
 - **Model inputs**: OMX matrices, metapopulation coupling matrices.
 - **Reproducibility**: R scripts and DuckDB pipelines are the norm among coders; interactive tools rarely record the
   filter and threshold behind a picture.
@@ -633,7 +687,7 @@ monorepo ships babylonjs-map and gazetteer, so the rendering base exists.
 | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------ |
 | R1  | Import a place table plus a flow table joined by id, recognizing lat/lon; report flows whose ids are missing from the place table                                                                                      | must     | No                                                                       |
 | R2  | Import OD in long form and as a square matrix (CSV, Excel, OMX), with several counts per pair                                                                                                                          | must     | No                                                                       |
-| R3  | Place positions from coordinates, polygons (centroid) or names (gazetteer geocoding), with a basemap and a choice of projection                                                                                        | must     | No                                                                       |
+| R3  | Place positions from coordinates, polygons (centroid, point on surface or a supplied population-weighted center) or names (gazetteer geocoding), with a basemap and a choice of projection                               | must     | No                                                                       |
 | R4  | Keep self-flows as data: show them as a place's internal total, and let users include or exclude them in statistics and community detection                                                                            | must     | No                                                                       |
 | R5  | Flow arithmetic as computed attributes: per pair net, gross, net ratio, two-way merge; per place in, out, internal, net, net rate                                                                                      | must     | Partly (computed-attributes exists; no flow-specific measures)           |
 | R6  | Clutter control: top-N flows, threshold, fade small flows, select a place to show only its flows, adaptive thickness scaled to the viewport                                                                            | must     | Partly (filtering is generic)                                            |
@@ -656,6 +710,9 @@ monorepo ships babylonjs-map and gazetteer, so the rendering base exists.
 | R23 | Great-circle arcs on a 3D globe as a first-class view for global air, shipping and migration networks, not only a projection option                                                                                    | must     | No                                                                       |
 | R24 | Flow clustering that respects flow connections (spatially constrained partitioning, density-based flow generalization), separate from the location clustering in R7                                                    | should   | No                                                                       |
 | R25 | Import aggregated OD tables only; deriving OD from trajectories (stays, trips, zoning, windows) stays in upstream tools such as scikit-mobility, and the zone system and time window travel with the table as metadata | must     | No                                                                       |
+| R26 | Import zone boundaries (point, line and polygon features with attributes) from GeoJSON, shapefile, GeoPackage and KML or KMZ, reading the declared coordinate system and reprojecting; join features to nodes by zone id and report unmatched ids on both sides; accept H3 cell ids as zone ids | must     | No (no capability names a geospatial format)                             |
+| R27 | Export nodes (as points or their zone polygons) and flows (as lines) with computed attributes to GeoJSON in WGS84, and a zone-to-region lookup with the region polygons for functional regions | must     | No                                                                       |
+| R28 | Assign coordinate-only records (trip ends, events) to the zone polygon or H3 cell that contains them, as an import option                                                                                              | could    | No (R25 keeps trajectory processing upstream; this covers small tables) |
 
 New personas proposed: `migration-flow-demographer`, `urban-mobility-analyst`, `mobility-epidemiologist`,
 `air-maritime-network-analyst`, plus the OD-matrix variant of the existing research persona `transport-network-planner`.

@@ -1,0 +1,18 @@
+id: ea-repository-import
+name: "Enterprise Architecture Repository Import"
+category: data
+description: "Import enterprise architecture exports as a typed graph: LeanIX or Ardoq Excel tables of items and relations (including relation columns and parent-child hierarchies), and the ArchiMate Model Exchange File Format XML (elements, relationships, properties, organizations), keeping each element and relationship type."
+status: planned
+notes: "Research trace: dependency-and-impact-analysis-engineers.md section 10, requirement R36 (Should)."
+algorithms: []
+used_by_workflows:
+    - W1132
+implemented_by_components: []
+requirements:
+    - "Should: Import enterprise architecture exports: LeanIX or Ardoq Excel tables of items and relations, and the
+      ArchiMate Model Exchange File Format"
+sources:
+    - title: "Engineers Who Analyze Dependencies: IT Services, Networks, Software and Data Lineage (section 10,
+        requirement R36)"
+      url: design/user-research/dependency-and-impact-analysis-engineers.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

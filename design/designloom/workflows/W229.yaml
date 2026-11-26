@@ -22,6 +22,7 @@ requires_capabilities:
     - geographic-layout
     - dual-graph-analysis
     - radius-limited-centrality
+    - geospatial-file-io
 suggested_components:
     - file-drop-zone
     - data-import-dialog

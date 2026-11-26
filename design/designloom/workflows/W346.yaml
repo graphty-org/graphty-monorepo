@@ -4,6 +4,7 @@ category: analysis
 validated: false
 personas:
     - clinical-pathway-analyst
+    - process-mining-researcher
 requires_capabilities:
     - data-import
     - data-validation
@@ -21,6 +22,10 @@ requires_capabilities:
     - process-map-derivation
     - conformance-overlay
     - token-replay-animation
+    - node-merging
+    - legend-display
+    - variant-analysis
+    - process-model-notation
 suggested_components:
     - data-import-dialog
     - attribute-table-join-dialog
@@ -32,6 +37,10 @@ suggested_components:
     - comparison-view
     - node-details-panel
     - image-export-dialog
+    - node-merge-dialog
+    - range-slider
+    - visual-encoding-panel
+    - legend-panel
 starting_state:
     data_type: EHR or registry extract in several tables (patients, admissions, triage, diagnoses, vitals, labs, medications)
     node_count: 6-40 abstracted activities (MIMICEL 6 activities over 425,028 ED stays)
@@ -49,20 +58,20 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Extract** (days) - Join EHR tables through patient identifiers and timestamps (six CSV tables for 4,479 patients
+    1. **Extract** - Join EHR tables through patient identifiers and timestamps (six CSV tables for 4,479 patients
     in one COVID-19 study)
 
-    2. **Map codes to activities** (hours) - Build a consolidated activity label set (ER admission, triage, ward and ICU
+    2. **Map codes to activities** - Build a consolidated activity label set (ER admission, triage, ward and ICU
     transfer, vitals, labs, medication) from SNOMED CT, ICD-10 and raw record types
 
-    3. **Choose the case notion** (15 min) - Event, episode, ED stay or patient; document it
+    3. **Choose the case notion** - Event, episode, ED stay or patient; document it
 
-    4. **Repair timestamps** (hours) - Impute missing or hour-less timestamps from the nearest clinically reliable one
+    4. **Repair timestamps** - Impute missing or hour-less timestamps from the nearest clinically reliable one
     only when that restores plausibility; keep and flag identical timestamps; remember late registration
 
-    5. **Map** (30 min) - Frequency on nodes, performance on edges; animate in relative mode for clinicians
+    5. **Map** - Frequency on nodes, performance on edges; animate in relative mode for clinicians
 
-    6. **Compare with the guideline** (hours) - Write guideline rules (monitoring before discharge, valid ordering) as
+    6. **Compare with the guideline** - Write guideline rules (monitoring before discharge, valid ordering) as
     constraints and check the log; compare before and after a protocol change
 
     7. **Protect data** (throughout) - Credentialed data stays on the hospital network

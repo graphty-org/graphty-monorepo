@@ -1,9 +1,12 @@
 id: fcm-participatory-modeller
 name: FCM Participatory Modeller
+roster_persona: systems-mapping-facilitator
+tier: none
+scope: deferred
 role: Environmental Management or Global Health Researcher (Fuzzy Cognitive Mapping)
 quote: I have 60 maps from fishers, managers and clinicians, each with its own words for the same thing. I need them merged per group, compared, and turned into a what-if the community can argue about.
 bio: >-
-    Dr. Lena Ortiz is an environmental management (or global health) researcher who uses fuzzy cognitive mapping to
+    Dr. Valentina Ortiz is an environmental management (or global health) researcher who uses fuzzy cognitive mapping to
     capture how different stakeholder groups think a system works. In the field she runs small-group or individual
     sessions with paper and cards: participants name 10 to 20 concepts, draw arrows, and weight each link on a 1-5
     scale or as weak, medium or strong. Back at the office she digitizes each map as an adjacency matrix in Mental

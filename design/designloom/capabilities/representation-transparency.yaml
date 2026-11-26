@@ -4,7 +4,7 @@ category: export
 description: Shows and records the parallel-edge merge rule, direction handling, self-loops, isolates, projection and
     its weighting; keeps the two-mode or group data alongside any projection.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: network-scientists-and-analysis-method-validity.md section 9, requirement R18 (Must)."
 algorithms: []
 used_by_workflows:
     - W03
@@ -12,5 +12,10 @@ used_by_workflows:
     - W47
     - W49
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Representation transparency: parallel-edge merge rule, projection and its weighting, in- or out-degree,
+      self-loops; the two-mode graph kept alongside any projection"
+sources:
+    - title: Network Scientists and the Validity of Core Analysis Methods (section 9, requirement R18)
+      url: design/user-research/network-scientists-and-analysis-method-validity.md
+      summary: "Must in the research. Covered by Designloom when researched: Partly (data-validation)"

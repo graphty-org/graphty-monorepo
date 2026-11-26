@@ -55,17 +55,17 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Receive the victim report** (1 min) - The sending bank names the payment into the first-hop account
+    1. **Receive the victim report** - The sending bank names the payment into the first-hop account
 
-    2. **Seed the graph with the payment** (1 min) - Start from the transaction, not the account; show its amount and time
+    2. **Seed the graph with the payment** - Start from the transaction, not the account; show its amount and time
 
-    3. **Expand forward hop by hop** (minutes, repeated) - Show only outgoing payments after the seed's time, capped at the
+    3. **Expand forward hop by hop** (repeated) - Show only outgoing payments after the seed's time, capped at the
     amount received, inside the bank and to named receiving banks; add new payments as they arrive
 
-    4. **Decide per hop** (1-2 min each) - Hold, freeze, or notify the next bank; mark each node with its decision and
+    4. **Decide per hop** - Hold, freeze, or notify the next bank; mark each node with its decision and
     time
 
-    5. **Repatriate and report** (30 min) - Return what is held, file the SAR, record the receiving-bank contribution
+    5. **Repatriate and report** - Return what is held, file the SAR, record the receiving-bank contribution
 
 
     **Decision Points**:

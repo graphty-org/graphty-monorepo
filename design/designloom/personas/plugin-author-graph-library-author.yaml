@@ -1,5 +1,8 @@
 id: plugin-author-graph-library-author
 name: Graph Library Author Porting a Plugin
+roster_persona: plugin-author-graph-library-author
+tier: B
+scope: in-scope
 role: Open-Source Graph Library Author Porting a Layout or Algorithm at Scale
 quote: I've written this ForceAtlas variant for graphology. Show me the hot loop, the memory layout, and how to stay off the main thread.
 bio: >-

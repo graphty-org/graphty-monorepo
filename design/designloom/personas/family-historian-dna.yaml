@@ -1,5 +1,8 @@
 id: family-historian-dna
 name: Family Historian and DNA Hobbyist
+roster_persona: family-historian-dna
+tier: B
+scope: in-scope
 role: Retired Teacher and Genealogical Society Volunteer (no coding)
 quote: I want the whole family on one poster, cousins who married cousins and all, and I want my DNA matches sorted into my four grandparents.
 bio: >-
@@ -10,8 +13,10 @@ bio: >-
     2,700 DNA matches with shared centimorgans (cM) and "in common with" lists. She uses Gramps graph reports (which
     run Graphviz), sometimes ged2dot, yEd and Inkscape, and for DNA the Leeds spreadsheet method, AutoClusters and
     occasionally Gephi following Family Locket's blog tutorials. Family historians are the largest group of people who
-    could use a relationship graph (Ancestry reports about 3.8 million subscribers), but most only ever see standard
-    pedigree and descendant charts. She does not code and will not edit a .gv file twice.
+    could use a relationship graph (Ancestry reports about 3.8 million subscribers), and shared-match clustering ships
+    inside MyHeritage and GEDmatch, but most only ever see standard pedigree and descendant charts. For her the graph
+    is one chart beside her family-tree software, not a replacement for it. She does not code and will not edit a .gv
+    file twice.
 characteristics:
     expertise: novice
     time_pressure: low
@@ -44,6 +49,7 @@ context:
 workflows:
     - W185
     - W186
+    - W2099
 sources:
     - title: Gramps Discourse - Printable visualization of the complete family tree
       url: https://gramps.discourse.group/t/printable-visualization-of-the-complete-family-tree/2260
@@ -66,6 +72,12 @@ sources:
     - title: DNA Explained - The Leeds Method
       url: https://dna-explained.com/2018/09/26/the-leeds-method/
       summary: Spreadsheet coloring of matches into grandparent lines
-version: 1.0.0
+    - title: MyHeritage - Introducing AutoClusters for DNA matches (2019)
+      url: https://magazine.myheritage.com/myheritage-news/introducing-autoclusters-for-dna-matches/
+      summary: Shared-match clustering as a premium feature, built with Genetic Affairs
+    - title: GEDmatch partners with Genetic Affairs (2021)
+      url: https://verogen.com/gedmatch-partners-with-genetic-affairs-to-offer-new-tools-for-users/
+      summary: Autocluster offered to Tier 1 subscribers of a site with 1.1 million users
+version: 1.2.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

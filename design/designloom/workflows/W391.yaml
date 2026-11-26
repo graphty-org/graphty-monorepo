@@ -39,21 +39,21 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Read and collapse** (2 min) - read.dna("aln.fas", format = "fasta"); h <- haplotype(x); d <- dist.dna(h, "N")
+    1. **Read and collapse** - read.dna("aln.fas", format = "fasta"); h <- haplotype(x); d <- dist.dna(h, "N")
 
-    2. **Choose a method** (2 min) - haploNet(h) for TCS, mst(d), msn(d), rmst(d) or mjn(x, epsilon = 0)
+    2. **Choose a method** - haploNet(h) for TCS, mst(d), msn(d), rmst(d) or mjn(x, epsilon = 0)
 
-    3. **Frequencies** (2 min) - sz <- summary(h); R <- haploFreq(x, fac = region, haplo = h)
+    3. **Frequencies** - sz <- summary(h); R <- haploFreq(x, fac = region, haplo = h)
 
-    4. **Plot** (5 min) - plot(nt, size = sz, pie = R, legend = ...); threshold controls which alternative links are
+    4. **Plot** - plot(nt, size = sz, pie = R, legend = ...); threshold controls which alternative links are
     drawn dashed; layout is equal-angle then energy minimization
 
-    5. **Annotate mutations** (5 min) - mutations() and show.mutation label links with the mutated sites
+    5. **Annotate mutations** - mutations() and show.mutation label links with the mutated sites
 
-    6. **Fix overlaps** (15-60 min) - replot() lets the user drag nodes and returns coordinates to reuse; or use
+    6. **Fix overlaps** - replot() lets the user drag nodes and returns coordinates to reuse; or use
     square-root sizes, link lengths equal to the sum of symbol sizes, and no labels
 
-    7. **Export** (5 min) - PDF, often finished in Illustrator
+    7. **Export** - PDF, often finished in Illustrator
 
 
     **Decision Points**:

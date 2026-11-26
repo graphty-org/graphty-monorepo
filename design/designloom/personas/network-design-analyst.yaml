@@ -1,9 +1,12 @@
 id: network-design-analyst
 name: Supply Chain Network Design Analyst
+roster_persona: supply-chain-analyst
+tier: B
+scope: in-scope
 role: Supply Chain Network Design Analyst at a consumer goods manufacturer
 quote: First I prove the model reproduces last year's costs. Only then do I ask what happens if we close the Memphis DC.
 bio: >-
-    Kevin models the company's distribution network -- plants, distribution centers, customers and the lanes between
+    Brian models the company's distribution network -- plants, distribution centers, customers and the lanes between
     them -- in a network design tool such as Coupa Supply Chain Modeler (formerly LLamasoft), Optilogic Cosmic Frog or
     anyLogistix. He fills tables of locations, products, demand, lanes and rates, facility costs and capacities, and
     sourcing rules from last year's shipments using SQL and Python. He builds a baseline that reproduces last year's

@@ -1,0 +1,86 @@
+id: network-toxicology-researcher
+name: Network Toxicology Researcher
+roster_persona: network-pharmacology-graduate-student
+tier: B
+scope: in-scope
+role: Public Health, Food Safety or Environmental Medicine Researcher
+quote: The chemical is in the packaging and the disease is in the news. I need the targets it hits, the genes that move in the disease, the six hubs where those two lists meet, and a docking figure.
+bio: >-
+    Xiaoyu studies a chemical the public is already worried about -- a plasticizer in food packaging, a bisphenol, a
+    pesticide residue, a perfluorinated compound in water -- and asks through which human proteins it could cause a
+    disease. The pipeline is the herbal network pharmacology recipe with a pollutant where the formula was: the
+    structure and SMILES string from PubChem, predicted toxicity endpoints from ProTox or ADMETlab, targets from the
+    Comparative Toxicogenomics Database queried by CAS number and from SwissTargetPrediction, SuperPred, STITCH or
+    ChEMBL, gene symbols normalized in UniProt, disease genes from GeneCards, OMIM and TTD or from differential
+    expression in TCGA or GEO, the two lists intersected in Venny or the R venn package, a STRING network of the
+    overlap at 0.7 or above 0.9, hubs from cytoHubba's degree, closeness and betweenness top-10 lists intersected,
+    GO and KEGG in clusterProfiler, AutoDock Vina against the hubs, Gromacs molecular dynamics, and RT-qPCR in one
+    cell line. Published examples narrow 124 chemical-associated genes to 76 differentially expressed and 6 hubs, or
+    1,053 predicted targets and 3,420 disease genes to 324 shared. The literature grew from 12 PubMed records in 2023
+    to 54 in 2024, 497 in 2025 and 1,021 in the first eleven months of 2026, 1,448 of 1,503 with a China affiliation;
+    348 of those records come from Chinese-medicine institutions, the same labs that publish the herbal studies, which
+    is why this is a variant of the network pharmacology graduate student rather than of the omics interpreter. The
+    recipe is taught as a published video protocol. Machine learning (LASSO, random forest, SHAP) increasingly
+    replaces the degree rule, and 447 of the records report in vitro confirmation, a higher share than the herbal
+    literature.
+characteristics:
+    expertise: intermediate
+    time_pressure: high
+    graph_literacy: novice
+    domain_knowledge: advanced
+motivations:
+    - Publish a mechanism for a chemical already in the news, with the figure set reviewers expect
+    - Narrow hundreds of predicted targets to five or ten hubs one cell-line experiment can confirm
+    - Keep every count consistent between the methods paragraph, the figures and the tables
+    - Answer a reviewer who asks whether the result survives another cutoff
+behaviors:
+    - Takes one chemical, or a congener family as several root nodes, from PubChem with its CAS number and SMILES string
+    - Runs ProTox or ADMETlab for toxicity endpoints and carries them as attributes of the root node
+    - Merges targets from a curated chemical-gene source and two or three prediction servers, which disagree by an order of magnitude for the same chemical
+    - Takes disease genes either from GeneCards above a relevance score or from differential expression in TCGA or GEO
+    - Intersects the two lists in Venny or the R venn package and builds the STRING network of the overlap
+    - Screens hubs by intersecting cytoHubba's degree, closeness and betweenness top-10 lists, or by a machine-learning model over the expression matrix
+    - Docks the hubs in AutoDock Vina and runs Gromacs molecular dynamics far more often than the herbal studies do
+    - Confirms the hubs by RT-qPCR in one cell line at a single concentration and time
+frustrations:
+    - The chemical has four keys (CAS number, PubChem compound id, SMILES, congener name) while the rest of the pipeline joins on gene symbols, so the root node is the one node nothing matches on
+    - The multi-source target merge records no source, so which server contributed a node is lost at the step that creates the evidence class
+    - Hub ranks move with the confidence cutoff: a published re-analysis found the top hub at 0.70 overtaken by another gene at 0.85 and 0.90
+    - Enrichment is tested against the whole protein-coding genome rather than the genes the sources could have returned, which inflates the overlap
+    - Re-running at a second threshold means redoing every join, count and figure by hand
+    - A target source cannot always be re-queried a few months later, and the release used was never recorded
+context:
+    frequency: occasional
+    devices:
+        - laptop
+        - desktop
+    voluntary: false
+workflows:
+    - W1054
+    - W431
+    - W438
+sources:
+    - title: PubMed counts for "network toxicology" (E-utilities, run 2026-11-25)
+      url: https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi
+      summary: 1,503 records; 12 in 2023, 54 in 2024, 497 in 2025, 1,021 to 25 November 2026; 1,448 with a China affiliation and 348 from Chinese-medicine institutions; 1,178 naming molecular docking, 450 machine learning, 447 in vitro work; ToxCast or Tox21 in only 2
+    - title: Dioctyl terephthalate and chronic spontaneous urticaria (Ecotoxicology and Environmental Safety 2025)
+      url: https://pubmed.ncbi.nlm.nih.gov/39923559/
+      summary: Authors at Chengdu University of Traditional Chinese Medicine; PubChem, SwissTargetPrediction and SuperPred, UniProt, STRING and Cytoscape, 38 targets to six core, GO and KEGG, AutoDock, Gromacs
+    - title: Polychlorinated biphenyls and breast cancer (Frontiers in Pharmacology 2025)
+      url: https://www.frontiersin.org/articles/10.3389/fphar.2025.1604993/full
+      summary: Comparative Toxicogenomics Database by CAS number; TCGA-BRCA differential expression; 124 targets to 76 to six hubs at STRING 0.7 by intersected cytoHubba lists; MCF-7 RT-qPCR
+    - title: 4-Nonylphenol and breast cancer (PLoS One 2025)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC12419657/
+      summary: SwissTargetPrediction 14, STITCH 8 and ChEMBL 1,031 targets for one chemical; 3,420 disease genes; 324 intersected; docking threshold -6.0 kcal/mol stated but results reported at -4.8 and -5.1
+    - title: Robustness re-analysis of a network toxicology result (Clinical, Cosmetic and Investigational Dermatology 2026)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC13604017/
+      summary: No gene survived all four robustness checks; hub rank unstable across STRING cutoffs; enrichment 2.49-fold against the genome but 1.29-fold against the genes the sources could return; the target source could not be re-queried
+    - title: Benzo[a]pyrene and rheumatoid arthritis video protocol (JoVE, 26 May 2026)
+      url: https://www.jove.com/v/70636
+      summary: STRING version 12, Cytoscape 3.10.1, cytoHubba degree algorithm and the R venn package taught as a protocol
+    - title: Comparative Toxicogenomics Database, 2025 update (Nucleic Acids Research)
+      url: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC11701581/
+      summary: 3.8 million curated interactions over 17,700 chemicals and 55,400 genes, and 214,000 exposures, within over 94 million connections
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

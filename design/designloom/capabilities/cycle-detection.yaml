@@ -4,11 +4,17 @@ category: analysis
 description: Find strongly connected components, show each as one collapsible super-component, mark back-edges against a
     layer order, and show the weight of each edge in a cycle.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: dependency-and-impact-analysis-engineers.md section 10, requirement R15 (Must)."
 algorithms: []
 used_by_workflows:
     - W84
     - W85
+    - W1156
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Strongly connected components shown and collapsible as one unit; back-edges marked"
+sources:
+    - title: "Engineers Who Analyze Dependencies: IT Services, Networks, Software and Data Lineage (section 10,
+        requirement R15)"
+      url: design/user-research/dependency-and-impact-analysis-engineers.md
+      summary: "Must in the research. Covered by Designloom when researched: Partly"

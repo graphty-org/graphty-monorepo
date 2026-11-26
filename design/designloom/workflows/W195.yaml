@@ -2,6 +2,7 @@ id: W195
 name: Enterprise Social Network Community Analysis
 category: analysis
 validated: false
+scope: deferred
 personas:
     - esn-community-manager
 requires_capabilities:

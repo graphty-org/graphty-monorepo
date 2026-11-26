@@ -1,14 +1,17 @@
 id: org-design-consultant
 name: Org Design Consultant
+roster_persona: ona-practitioner
+tier: B
+scope: in-scope
 role: Organization Design Consultant or HR Planning Analyst running spans-and-layers and restructuring scenarios
 quote: Show me every manager with fewer than four direct reports, then let me move those teams and watch headcount and cost update.
 bio: >-
-    Sam Whitfield works in an HR transformation practice, or as an internal HR planning analyst, and runs
+    Avery Whitfield works in an HR transformation practice, or as an internal HR planning analyst, and runs
     spans-and-layers diagnostics and restructuring scenarios for cost programs. The data is the formal reporting
     hierarchy from the HRIS -- position id, parent position id, incumbent, grade, cost, location -- often for a whole
-    enterprise of tens of thousands of positions, with one scenario copy per design option. Sam uses Orgvue, Visier
+    enterprise of tens of thousands of positions, with one scenario copy per design option. Avery uses Orgvue, Visier
     Organization Design or Workday Adaptive Planning Org Design and Scenario Modeling, plus Excel and PowerPoint for the
-    business case. Sam is strong in Excel and not a network analyst; the graph is a tree, and the questions are about
+    business case. Avery is strong in Excel and not a network analyst; the graph is a tree, and the questions are about
     span of control, number of layers, headcount and cost under a proposed structure. The vendor documentation
     reviewed shows no informal-network data in these tools, so ONA results and hierarchy redesign live in different
     places.

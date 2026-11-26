@@ -1,9 +1,12 @@
 id: ieeg-epilepsy-network-researcher
 name: Intracranial EEG Epilepsy Network Researcher
+roster_persona: network-neuroscientist
+tier: B
+scope: in-scope
 role: Epileptologist or Biomedical Engineer / Surgical Epilepsy Center
 quote: Every patient has a different set of contacts in a different brain. I need to see which ones drive the network and whether they fall inside what the surgeon removed.
 bio: >-
-    Dr. Rosa Iglesias works in a surgical epilepsy center, analyzing stereo-EEG (depth electrodes) and ECoG (grids
+    Dr. Claudia Iglesias works in a surgical epilepsy center, analyzing stereo-EEG (depth electrodes) and ECoG (grids
     and strips) recorded before surgery from patients whose seizures do not respond to drugs. Each patient has 100 or
     more contacts placed for clinical reasons, localized by fusing a post-implant CT with the patient's own MRI; nodes
     are those contacts in patient-native coordinates, not atlas regions, so no two patients share a node set. She

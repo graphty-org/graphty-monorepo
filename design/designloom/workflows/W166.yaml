@@ -46,22 +46,22 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Choose the level that goes extinct** (1 min) - Higher level (for example pollinators), lower level, or both
+    1. **Choose the level that goes extinct** - Higher level (for example pollinators), lower level, or both
 
-    2. **Choose the removal order** (1 min) - Least abundant first, most connected first, random, or a supplied
+    2. **Choose the removal order** - Least abundant first, most connected first, random, or a supplied
     sequence
 
-    3. **Set replicates** (1 min) - Number of random sequences to average
+    3. **Set replicates** - Number of random sequences to average
 
-    4. **Run and plot the curve** (2 min) - Share of the other level surviving against species removed
+    4. **Run and plot the curve** - Share of the other level surviving against species removed
 
-    5. **Summarize** (1 min) - Robustness as the area under the curve (1 means the other level survives almost to the
+    5. **Summarize** - Robustness as the area under the curve (1 means the other level survives almost to the
     end, 0 means it collapses at once); the older extinction slope only for comparison
 
-    6. **Watch it interactively** (optional, 5 min) - Click a species to remove it and see which partners lose all
+    6. **Watch it interactively** (optional) - Click a species to remove it and see which partners lose all
     their links; replay the removal sequence step by step
 
-    7. **Compare** (10 min) - Robustness across sites or treatments, often against null webs
+    7. **Compare** - Robustness across sites or treatments, often against null webs
 
 
     **Decision Points**:
@@ -101,7 +101,7 @@ goal: >-
     - Output: Extinction curves, robustness table, optional replay of the removal sequence
 success_criteria:
     - metric: Interactive insight
-      target: Removing a species highlights every partner that loses all links within one second
+      target: Removing a species highlights every partner that loses all links within one second (design goal; no source measures it)
     - metric: Comparability
       target: Robustness for all sites shown in one table with the removal order named
 sources:

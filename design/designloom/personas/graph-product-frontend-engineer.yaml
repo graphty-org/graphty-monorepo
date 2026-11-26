@@ -1,5 +1,8 @@
 id: graph-product-frontend-engineer
 name: Product Engineer Embedding an Investigation Graph
+roster_persona: graph-product-frontend-engineer
+tier: A
+scope: in-scope
 role: Senior Front-End Engineer on a Threat Intelligence, Fraud or Graph-Database Product
 quote: The graph is one screen of our product. It has to expand on double-click without freezing, pass the customer's security review, and still be there when I upgrade.
 bio: >-

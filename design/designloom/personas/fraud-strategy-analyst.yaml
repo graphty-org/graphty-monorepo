@@ -1,9 +1,12 @@
 id: fraud-strategy-analyst
 name: Fraud Strategy Analyst
+roster_persona: fraud-analyst
+tier: A
+scope: in-scope
 role: Fraud Strategy and Detection Analyst, digital bank or payments firm
 quote: One shared device links two accounts; one shared Wi-Fi hotspot links ten thousand. I need rings an investigator can explain, and a rule that keeps finding them.
 bio: >-
-    Marcus Lee works on the fraud-strategy team of a digital bank. He does not work single alerts; he works the whole
+    Victor Lee works on the fraud-strategy team of a digital bank. He does not work single alerts; he works the whole
     customer base in weekly batches. His data is a two-mode graph: users on one side and the identifiers they use on the
     other (cards, devices, IP addresses, phones, emails), plus peer-to-peer transfers and chargeback labels. In Neo4j Graph
     Data Science and notebooks he inspects identifier degree, caps the super-connected ones that would merge innocent people,
@@ -45,6 +48,7 @@ context:
     voluntary: true
 workflows:
     - W119
+    - W294
 sources:
     - title: Exploring fraud detection with Neo4j and Graph Data Science, part 2
       url: https://neo4j.com/blog/developer/exploring-fraud-detection-neo4j-graph-data-science-part-2/

@@ -1,0 +1,23 @@
+id: input-output-exposure
+name: "Direct and indirect exposure through the Leontief inverse"
+category: analysis
+description: "Compute each node's direct and total (indirect) exposure to a shock on a dense weighted input-output or trade matrix, including self-loops, and write the result as node attributes for encoding and ranking (Bank of England 2025 toolkit; Cerina et al. 2015)."
+status: planned
+notes: "Research trace: supply-chain-and-physical-infrastructure-networks.md section 5.12 (input-output and trade network exposure). No numbered requirement row backs it, so its requirements are Could and come after every Must and Should."
+algorithms: []
+used_by_workflows:
+    - W226
+implemented_by_components: []
+requirements:
+    - "Could: Compute each node's direct and total (direct plus indirect) exposure to a shock on a dense weighted input-output or trade matrix, keeping self-loops (a sector's purchases from itself)"
+    - "Could: Write the exposures as node attributes for encoding, ranking and filtering, with the matrix year and the shock recorded"
+sources:
+    - title: "Cerina et al., World Input-Output Network (PLOS ONE 2015)"
+      url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC4519177/"
+      summary: "The world input-output table read as a weighted directed network"
+    - title: "Bank of England 2025, regional supply chain exposure toolkit"
+      url: "https://www.bankofengland.co.uk/-/media/boe/files/working-paper/2025/assessing-risk-a-toolkit-for-measuring-regional-supply-chain-exposure-to-global-shocks.pdf"
+      summary: "Direct and indirect exposure of regions to global shocks from input-output tables"
+    - title: "Supply chain and infrastructure research, section 5.12"
+      url: "design/user-research/supply-chain-and-physical-infrastructure-networks.md"
+      summary: "Input-output and trade network exposure workflow; no numbered requirement"

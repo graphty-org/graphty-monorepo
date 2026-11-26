@@ -48,19 +48,19 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Connect data** (5 min) - Open the tool in a browser or as a Neo4j Desktop graph app and connect to Neo4j, or
+    1. **Connect data** - Open the tool in a browser or as a Neo4j Desktop graph app and connect to Neo4j, or
     drag a CSV into a workspace where each row becomes a node
 
-    2. **Shape the graph** (10 min) - Extract new nodes from an existing label's properties (only for the selection when
+    2. **Shape the graph** - Extract new nodes from an existing label's properties (only for the selection when
     one exists); set property tags and colors per type
 
-    3. **Lay out in 3D** (5 min) - Run the force layout; switch to a parametric view that maps a property to an axis,
+    3. **Lay out in 3D** - Run the force layout; switch to a parametric view that maps a property to an axis,
     distribute nodes along an axis by binning a property, or sort them on a line
 
-    4. **Place on a map and a timeline** (15 min) - Geospatial views and timeline filtering, named as the main value for
+    4. **Place on a map and a timeline** - Geospatial views and timeline filtering, named as the main value for
     desktop users
 
-    5. **Inspect** (15 min) - An enhanced property table with aggregations of neighbor values; images on nodes
+    5. **Inspect** - An enhanced property table with aggregations of neighbor values; images on nodes
 
     6. **Present** (varies) - Data-driven presentation to a supervisor or prosecutor; export and case-file steps are
     not documented
@@ -103,7 +103,7 @@ goal: >-
     - Output: Presentation views and images
 success_criteria:
     - metric: Time from CSV to a typed graph
-      target: Under 15 minutes without writing code
+      target: Under 15 minutes without writing code (design goal; no source measures it)
     - metric: Ring identification
       target: User can show the ring's shared identifiers, places and dates in one view
 sources:

@@ -75,25 +75,25 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Build the contact graph** (hours, during interviews) - Person to person, and person to place (shelter, bar,
+    1. **Build the contact graph** (during interviews) - Person to person, and person to place (shelter, bar,
     residence, gathering). One syphilis analysis linked partners whose critical periods overlapped, using 3, 6 or 12
     months by stage, and produced 2,428 nodes, 2,046 links and 457 components, with 78% of components holding just 2
     or 3 people
 
-    2. **Compute positional measures** (minutes) - Degree, reach and betweenness for people; betweenness for places,
+    2. **Compute positional measures** - Degree, reach and betweenness for people; betweenness for places,
     which is how bars in one tuberculosis investigation turned out to join patients with few direct contacts;
     eigenvector centrality where a diffusion argument is being made
 
-    3. **Find the groups** (minutes) - Community detection by modularity, which in one university outbreak analysis
+    3. **Find the groups** - Community detection by modularity, which in one university outbreak analysis
     was done by swapping community labels between neighboring nodes and keeping swaps that improved connectivity
 
-    4. **Overlay genomics to separate lineages** (hours) - Sequence data can split one apparent outbreak into two
+    4. **Overlay genomics to separate lineages** - Sequence data can split one apparent outbreak into two
     concurrent ones, which changes who is worth visiting
 
-    5. **Rank and hand off** (1 hour) - Produce a list of people and places with their measures, their component, and
+    5. **Rank and hand off** - Produce a list of people and places with their measures, their component, and
     what is already known about each one's test and interview status
 
-    6. **State the caveats with the list** (15 min) - Network-prioritized contacts had an odds ratio of 7.8 (95% CI
+    6. **State the caveats with the list** - Network-prioritized contacts had an odds ratio of 7.8 (95% CI
     1.6 to 36.6) for latent tuberculosis in one Oklahoma investigation; a San Francisco model suggested that alerting
     about 1.5% of nodes could halve modeled prevalence; and in a Kampala study only 35% of infected people had a
     known exposure inside the index case's social network

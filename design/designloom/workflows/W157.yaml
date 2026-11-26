@@ -2,6 +2,7 @@ id: W157
 name: Querying a Versioned Mouse Cortex Connectome
 category: exploration
 validated: false
+scope: deferred
 personas:
     - cellular-connectomics-neuroscientist
 requires_capabilities:
@@ -46,18 +47,18 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Connect and pin a version** (2 min) - Open the public datastack and set a materialization version; each is a
+    1. **Connect and pin a version** - Open the public datastack and set a materialization version; each is a
     timestamped snapshot with an expiry date
 
-    2. **List tables** (2 min) - Synapse tables, cell-type tables and functional co-registration tables
+    2. **List tables** - Synapse tables, cell-type tables and functional co-registration tables
 
-    3. **Query synapses** (minutes) - Filter by pre and post IDs without downloading the whole table (hundreds of
+    3. **Query synapses** - Filter by pre and post IDs without downloading the whole table (hundreds of
     millions of rows), removing autapses
 
-    4. **Aggregate to a graph** (5 min) - Count synapses per pre/post pair for a weighted edge list, or pivot by pre and
+    4. **Aggregate to a graph** - Count synapses per pre/post pair for a weighted edge list, or pivot by pre and
     post cell type for a cell-type matrix
 
-    5. **Join node attributes** (5 min) - Cell type, soma position, proofreading status and functional properties of
+    5. **Join node attributes** - Cell type, soma position, proofreading status and functional properties of
     co-registered cells
 
     6. **Handle ID churn** (varies) - Check whether IDs are still current at a timestamp, map old IDs to their

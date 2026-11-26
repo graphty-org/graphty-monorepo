@@ -58,22 +58,22 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Load the scored output** (5 min) - Interaction edges, item catalog and the model's recommendations (user, item,
+    1. **Load the scored output** - Interaction edges, item catalog and the model's recommendations (user, item,
     probability, rank, optional explainer edges), mapping tensor indices back to user and item ids
 
-    2. **See the distribution** (5 min) - Probability histograms brushed by item type and popularity; aggregate views
+    2. **See the distribution** - Probability histograms brushed by item type and popularity; aggregate views
     only, never a drawing of the whole graph
 
-    3. **Sample seed users** (5 min) - Heavy, cold-start and complaint users and a sample stratified by predicted
+    3. **Sample seed users** - Heavy, cold-start and complaint users and a sample stratified by predicted
     probability, because aggregation can obscure trends and outliers
 
-    4. **Inspect each seed** (5 min each) - History, top-N items with probability, item attributes, and the shortest path,
+    4. **Inspect each seed** - History, top-N items with probability, item attributes, and the shortest path,
     shared neighbors or explainer edges between history and each recommendation (see W267 for the per-seed steps)
 
-    5. **Rate** (1 min each) - Star-rate questionable recommendations with a note (popularity artifact, already consumed,
+    5. **Rate** - Star-rate questionable recommendations with a note (popularity artifact, already consumed,
     distant but feature-similar)
 
-    6. **Export** (2 min) - Ratings and notes as CSV with original ids, into training or filtering code
+    6. **Export** - Ratings and notes as CSV with original ids, into training or filtering code
 
 
     **Decision Points**:
@@ -125,7 +125,7 @@ goal: >-
     here: scores come from the model under review.
 success_criteria:
     - metric: Time from opening a seed user to a recorded judgment (hypothesis)
-      target: Under 5 minutes per user
+      target: Under 5 minutes per user (design goal; no source measures it)
     - metric: Ratings export
       target: Exported ratings carry the original user and item ids
     - metric: Stratified coverage

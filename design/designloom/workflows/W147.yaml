@@ -4,7 +4,7 @@ category: exploration
 validated: false
 personas:
     - graph-database-developer
-    - no-code-graph-investigator
+    - aml-investigator
     - warehouse-graph-analyst
 requires_capabilities:
     - progressive-loading

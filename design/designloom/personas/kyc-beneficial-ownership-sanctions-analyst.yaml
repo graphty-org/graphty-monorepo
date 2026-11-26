@@ -1,9 +1,12 @@
 id: kyc-beneficial-ownership-sanctions-analyst
 name: KYC, Beneficial Ownership and Sanctions Analyst
+roster_persona: aml-investigator
+tier: A
+scope: in-scope
 role: Corporate KYC / Enhanced Due Diligence and Sanctions Analyst, international bank
 quote: Two questions, two different rules. Who owns 25 percent or more after you multiply down the chain, and do blocked people own 50 percent or more once you add them up?
 bio: >-
-    Elena Novak onboards and reviews corporate customers for an international bank. For each complex customer she has to
+    Zofia Novak onboards and reviews corporate customers for an international bank. For each complex customer she has to
     unpick the ownership and control chain, often through nominees, trusts and several jurisdictions, from declarations and
     from Orbis or Dun and Bradstreet reports, the UK Companies House register of people with significant control (PSC),
     OpenCorporates and Open Ownership data, and Sayari at larger banks. She builds owner-to-owned edges carrying a share or a

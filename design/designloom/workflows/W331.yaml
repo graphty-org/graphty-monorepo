@@ -43,18 +43,18 @@ goal: >-
     1. **Annotate in Zotero** (per paper) - Better BibTeX citekey; color-coded highlights (important, follow-up,
     disagreement, critique, question); tag groups 0 to 4
 
-    2. **Import** (seconds per paper) - "Zotero: Create Literature Note"; a template creates Cite, Synthesis, Link,
+    2. **Import** - "Zotero: Create Literature Note"; a template creates Cite, Synthesis, Link,
     Abstract, Annotations and Metadata sections
 
-    3. **Synthesize** (10-30 min per paper) - Write inside persist blocks; re-import pulls new annotations and overwrites
+    3. **Synthesize** - Write inside persist blocks; re-import pulls new annotations and overwrites
     everything else
 
-    4. **Link** (minutes) - "Related" field as [[@citekey]]; [[keyword]] links; literature notes feed permanent notes
+    4. **Link** - "Related" field as [[@citekey]]; [[keyword]] links; literature notes feed permanent notes
     gathered into chapter Maps of Content through an up-MOC property
 
-    5. **Overview** (minutes) - A Dataview table of papers; the graph, if used, shows papers sharing keywords
+    5. **Overview** - A Dataview table of papers; the graph, if used, shows papers sharing keywords
 
-    6. **Citation graph (separate)** (minutes) - A plugin builds citations from cite links, reference lists matched by
+    6. **Citation graph (separate)** - A plugin builds citations from cite links, reference lists matched by
     DOI or author-year-title, and OpenAlex; outside works are ghost nodes; Chronological and Layers layouts
 
 

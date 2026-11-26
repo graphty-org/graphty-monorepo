@@ -47,18 +47,18 @@ goal: >-
     1. **Sample** (in code) - `NeighborLoader(data, num_neighbors=[25, 10], batch_size=128, input_nodes=train_mask)`;
     the first batch_size nodes are seeds and n_id maps back to global ids; each seed reaches at most 1 + 25 + 250 nodes
 
-    2. **Draw one batch** (5 min) - Seeds versus sampled neighbors, hop number as rings or color, split membership per
+    2. **Draw one batch** - Seeds versus sampled neighbors, hop number as rings or color, split membership per
     edge, global ids on hover
 
-    3. **Look for leaked targets** (5 min) - For link prediction, mark any validation or test target edge that appears in
+    3. **Look for leaked targets** - For link prediction, mark any validation or test target edge that appears in
     the message-passing edges; RandomLinkSplit keeps them out of training message passing, but PyG does not exclude
     target edges from mini-batch graphs during training
 
-    4. **Temporal check** (5 min) - Color or filter each edge by its time relative to the seed's prediction time and look
+    4. **Temporal check** - Color or filter each edge by its time relative to the seed's prediction time and look
     for any edge after it; NeighborLoader with time_attr and input_time keeps only earlier or equal neighbors, but a
     split built without it trains on future edges
 
-    5. **Decide** (2 min) - Fix the split or the sampler; record the finding in the experiment log
+    5. **Decide** - Fix the split or the sampler; record the finding in the experiment log
 
 
     **Temporal graph learners variant**: Temporal Graph Benchmark splits chronologically 70/15/15 and ranks each true
@@ -106,7 +106,7 @@ success_criteria:
     - metric: Leak detection
       target: Any target or future edge in a batch is visibly marked without custom plotting code
     - metric: Time to audit one batch
-      target: Under 10 minutes
+      target: Under 10 minutes (design goal; no source measures it)
 sources:
     - title: PyG NeighborLoader tutorial
       url: https://pytorch-geometric.readthedocs.io/en/2.6.0/tutorial/neighbor_loader.html

@@ -1,0 +1,28 @@
+id: small-graph-code-import
+name: "Small-graph code import and export (graph6, sparse6, digraph6, plantri planar code)"
+category: data
+description: "Read graph6, sparse6 (including incremental ';' lines) and digraph6 files and pasted strings, with or without their >>graph6<< style headers, one graph per line into a collection of separate graphs; read plantri planar code (binary, >>planar_code<< header) keeping each vertex's clockwise neighbor order as the stored embedding; report the number of graphs read and every line that failed to parse; write the chosen graph back out as graph6 for search and citation. Separate from data-import because the file is a collection (NetworkX read_graph6 and Sage from_graph6 return lists of graphs) and planar code carries a rotation system no table format has, following the precedent of gfa-sequence-graph-import and biological-network-formats."
+status: planned
+notes: "Research trace: students-educators-and-first-time-users.md section 9, requirement 30 (Must)."
+algorithms: []
+used_by_workflows:
+    - W2030
+implemented_by_components: []
+requirements:
+    - "Must: Read graph6, sparse6 (including incremental ';' lines) and digraph6 files and pasted strings, with or without their >>graph6<< style headers, one graph per line, into a collection of separate graphs"
+    - "Must: Read plantri planar code (binary, >>planar_code<< header) and keep each vertex's clockwise neighbor order as the stored embedding"
+    - "Must: Report the number of graphs read and every line that failed to parse, with its line number"
+    - "Should: Write the chosen graph back out as graph6 for search and citation"
+sources:
+    - title: "Graph formats (McKay)"
+      url: "https://users.cecs.anu.edu.au/~bdm/data/formats.txt"
+      summary: "Definitions of graph6, sparse6 and digraph6"
+    - title: "plantri guide"
+      url: "https://users.cecs.anu.edu.au/~bdm/plantri/plantri-guide.txt"
+      summary: "Planar code and its embedding"
+    - title: "SageMath graph_list reference"
+      url: "https://doc.sagemath.org/html/en/reference/graphs/sage/graphs/graph_list.html"
+      summary: "Sage reads a graph6 file as a list of graphs"
+    - title: "Students, educators and first-time users, section 9, requirement 30"
+      url: "design/user-research/students-educators-and-first-time-users.md"
+      summary: "graph6, sparse6, digraph6 and plantri planar code import, Must"

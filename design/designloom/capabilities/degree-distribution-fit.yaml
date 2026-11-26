@@ -5,10 +5,17 @@ description: "Clauset-Shalizi-Newman protocol: CCDF on log-log axes, k_min by KS
     alpha, bootstrap p, likelihood-ratio tests against log-normal, exponential and cutoff; worded plausible / not
     plausible / alternative favored. Corrects the power-law wording in degree-analysis."
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: network-scientists-and-analysis-method-validity.md section 9, requirement R8 (Must)."
 algorithms: []
 used_by_workflows:
     - W37
+    - W01
+    - W03
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Degree-distribution fit by the Clauset-Shalizi-Newman protocol, worded \"plausible / not plausible /
+      alternative favored\""
+sources:
+    - title: Network Scientists and the Validity of Core Analysis Methods (section 9, requirement R8)
+      url: design/user-research/network-scientists-and-analysis-method-validity.md
+      summary: "Must in the research. Covered by Designloom when researched: Partly; degree-analysis criteria are wrong"

@@ -4,12 +4,18 @@ category: analysis
 description: Store node roles as data, styled through style layers. Roles include exposure, outcome, latent, adjusted,
     selected, target, evidence, decision and utility, and a node can hold more than one.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: causal-diagrams-and-bayesian-networks.md section 10, requirement 2 (Must)."
 algorithms: []
 used_by_workflows:
     - W423
     - W426
     - W427
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Node roles as data (exposure, outcome, latent, adjusted, selected, target, evidence, decision, utility),
+      styled through style layers"
+sources:
+    - title: "Causal Diagram Users: DAGs, Bayesian Networks, Causal Discovery, Time-Series Causal Graphs and SEM Path
+        Diagrams (section 10, requirement 2)"
+      url: design/user-research/causal-diagrams-and-bayesian-networks.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

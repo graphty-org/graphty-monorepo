@@ -5,7 +5,10 @@ validated: false
 personas:
     - publication-figure-author
     - graph-deliverable-recipient
+    - genomics-cytoscape-user
+    - network-biology-core-bioinformatician
 requires_capabilities:
+    - label-overlap-removal
     - filtering
     - component-analysis
     - community-detection
@@ -52,30 +55,30 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Write the caption first** (10 min) - State the one claim the panel supports; decide node-link or adjacency
+    1. **Write the caption first** - State the one claim the panel supports; decide node-link or adjacency
     matrix (a matrix for dense networks)
 
-    2. **Cut to the message** (20 min) - Filter, keep the largest component, collapse clusters, aggregate the
+    2. **Cut to the message** - Filter, keep the largest component, collapse clusters, aggregate the
     periphery; split overview and detail into separate panels rather than overloading one
 
-    3. **Style for print** (20 min) - Labels at least caption size; no red-green; check grayscale; no unjustified 3D;
+    3. **Style for print** - Labels at least caption size; no red-green; check grayscale; no unjustified 3D;
     target 85, 114 or 174 mm width with 6-8 pt minimum fonts, or the journal's pixel and dpi rules (PLOS 789-2250 px
     at 300 dpi, TIFF or EPS, at most 10 MB)
 
-    4. **Frame and export** (10 min) - Fit the whole network because only the visible area is exported; export vector
+    4. **Frame and export** - Fit the whole network because only the visible area is exported; export vector
     PDF or SVG; for bitmaps, resolution comes from zoom, not the DPI field
 
-    5. **Record parameters** (15 min) - Copy creation parameters (source and version, thresholds, clustering, layout,
+    5. **Record parameters** - Copy creation parameters (source and version, thresholds, clustering, layout,
     seed) into the legend and methods paragraph by hand; update them if filters changed the network
 
-    6. **Build the legend** (20 min) - Legend Creator covers node mappings only; edge style, color and width legends are
+    6. **Build the legend** - Legend Creator covers node mappings only; edge style, color and width legends are
     drawn by hand; Gephi exports have no legend at all
 
-    7. **Assemble panels** (1-4 h) - Illustrator or Inkscape; repeated after every reviewer round
+    7. **Assemble panels** - Illustrator or Inkscape; repeated after every reviewer round
 
-    8. **Save the session** (2 min) - Zipped session file with data, styles and positions
+    8. **Save the session** - Zipped session file with data, styles and positions
 
-    9. **Deposit** (20 min) - Export to NDEx as private, share the URL with reviewers, fill every property, request a
+    9. **Deposit** - Export to NDEx as private, share the URL with reviewers, fill every property, request a
     DOI after acceptance, after which the network is frozen
 
 

@@ -1,5 +1,8 @@
 id: plugin-author-frontend-developer
 name: Front-End Developer Integrating the Element
+roster_persona: plugin-author-frontend-developer
+tier: B
+scope: in-scope
 role: Front-End Web Developer Adding a Palette, Camera or Logger for a Product Team
 quote: I don't need to know what betweenness is. I need our brand colors on it and our logs in Datadog by Thursday.
 bio: >-

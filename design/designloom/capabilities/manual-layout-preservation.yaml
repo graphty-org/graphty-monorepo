@@ -4,17 +4,27 @@ category: visualization
 description: Hand-placed positions, alignment and grouping boxes that survive filtering, re-import and export, plus
     exports stamped with date and sequence number.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: law-enforcement-and-intelligence-analysts.md section 10, requirement 6 (Must)."
 algorithms: []
 used_by_workflows:
+    - W283
     - W103
     - W324
     - W325
     - W330
     - W98
     - W99
+    - W318
+    - W2030
 implemented_by_components: []
 requirements:
-    - Pin nodes and keep positions across sessions and edits; mix author-fixed nodes with computed placement in one
-      view, with groups as regions.
-sources: []
+    - "Must: Preserved hand layout, align, grouping boxes, legends; date and sequence number on exports"
+    - "Must: Pin nodes and keep positions across sessions and edits; mix author-fixed nodes with computed placement in one view, with groups as regions."
+    - "Should: An option to keep a node where the reader drops it after a drag, so the running layout does not pull it
+      back; 3d-force-graph ships this as its 'Fix nodes after dragging' example, and a 2026 issue reports dragged
+      nodes snapping back (https://github.com/vasturiano/3d-force-graph/issues/721)"
+sources:
+    - title: Law enforcement crime and intelligence analysts, and defense and national intelligence analysts (section
+          10, requirement 6)
+      url: design/user-research/law-enforcement-and-intelligence-analysts.md
+      summary: "Must in the research. Covered by Designloom when researched: Partly (legend-display, export-image)"

@@ -4,10 +4,17 @@ category: data
 description: Import a nodes x nodes x windows matrix stack as a snapshot series over a fixed node set with per-window
     weights, threshold or target density per window, and window clustering into states with dwell times.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: temporal-and-dynamic-networks.md section 11, requirement T24 (Must)."
 algorithms: []
 used_by_workflows:
     - W310
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Signal-derived networks: import a precomputed matrix stack (nodes x nodes x windows) as a snapshot series
+      with per-window weights and a threshold or target density; building the stack from a node x time matrix stays in
+      users' toolboxes for now"
+sources:
+    - title: Temporal and Dynamic Network Data and Analysis (section 11, requirement T24)
+      url: design/user-research/temporal-and-dynamic-networks.md
+      summary: "Must in the research (the document says: Must (import), Could (build)). Covered by Designloom when
+        researched: No"

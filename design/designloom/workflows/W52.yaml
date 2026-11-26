@@ -3,7 +3,7 @@ name: CiteSpace Co-citation with Time Slicing, Bursts and Timeline
 category: analysis
 validated: false
 personas:
-    - bibliometric-review-author
+    - bibliometric-analyst
 requires_capabilities:
     - data-import
     - data-validation
@@ -13,7 +13,6 @@ requires_capabilities:
     - community-detection
     - community-profiling
     - centrality-betweenness
-    - anomaly-detection
     - layout-hierarchical
     - visual-encoding-nodes
     - legend-display
@@ -61,28 +60,28 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Set up data** (30 min to hours) - Files named "download_*.txt"; other databases converted to Web of Science
+    1. **Set up data** - Files named "download_*.txt"; other databases converted to Web of Science
     format ("quite tricky"; 97% of Scopus references converted in one example)
 
-    2. **Deduplicate** (15 min) - Web of Science records win over duplicates from other sources; matching fails when
+    2. **Deduplicate** - Web of Science records win over duplicates from other sources; matching fails when
     author forms differ
 
-    3. **Configure** (15-30 min) - One-year slices; node type (cited reference, author, keyword); selection per slice by
+    3. **Configure** - One-year slices; node type (cited reference, author, keyword); selection per slice by
     g-index (k=25 is common), Top N or Top N%; optional Pathfinder or minimum-spanning-tree pruning; record a parameter
     string such as "g-index k=25, LRF=2.5, L/N=10, LBY=5"
 
-    4. **Run** (minutes) - One network per slice merged into a synthesized network
+    4. **Run** - One network per slice merged into a synthesized network
 
-    5. **Cluster and label** (30 min) - Aim for about 7-10 major clusters, silhouette above 0.70; label clusters from
+    5. **Cluster and label** - Aim for about 7-10 major clusters, silhouette above 0.70; label clusters from
     citing articles' titles or keywords by log-likelihood ratio (usually best), LSI or mutual information
 
-    6. **Detect bursts** (15 min) - Kleinberg's burst detection with gamma and minimum duration (5 years gave 31 bursts);
+    6. **Detect bursts** - Kleinberg's burst detection with gamma and minimum duration (5 years gave 31 bursts);
     export the burst table
 
-    7. **Timeline view** (30 min) - One row per cluster, nodes at publication year, red rings for bursts, purple trims
+    7. **Timeline view** - One row per cluster, nodes at publication year, red rings for bursts, purple trims
     for high betweenness, ring thickness for yearly citations
 
-    8. **Validate** (hours) - Check pivotal papers with domain experts; note citation variants that stayed unmerged
+    8. **Validate** - Check pivotal papers with domain experts; note citation variants that stayed unmerged
 
 
     **Decision Points**:

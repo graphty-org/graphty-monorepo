@@ -4,7 +4,7 @@ category: visualization
 description: Distinct node types (person, place, event, facility, holding, isolate) with their own shapes or icons, and
     layouts that separate the modes of a two-mode graph, for person-place and patient-ward data.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: public-health-and-molecular-epidemiology.md section 10, table row 21 (Should)."
 algorithms: []
 used_by_workflows:
     - W163
@@ -14,8 +14,16 @@ used_by_workflows:
     - W66
     - W71
     - W72
+    - W1138
+    - W3066
+    - W3096
 implemented_by_components: []
 requirements:
-    - Lay out a two-mode network as two rows, ordered by totals, a crossing-reducing ordering or module, with bar width
-      by abundance and link width by weight.
-sources: []
+    - "Should: Node shapes and icons by type (person, place, event, facility, holding) and bipartite layouts for
+      person-place data"
+    - "Must: Lay out a two-mode network as two rows, ordered by totals, a crossing-reducing ordering or module, with bar width by abundance and link width by weight."
+sources:
+    - title: Public Health Outbreak Investigators and Molecular Epidemiologists (section 10, table row 21)
+      url: design/user-research/public-health-and-molecular-epidemiology.md
+      summary: "Should in the research. Covered by Designloom when researched: NOT
+          covered"

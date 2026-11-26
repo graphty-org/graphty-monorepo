@@ -11,6 +11,10 @@ implements_capabilities:
     - degree-analysis
     - clustering-coefficient
 used_in_workflows:
+    - W3114
+    - W3058
+    - W3054
+    - W3006
     - W14
     - W01
     - W03
@@ -21,7 +25,6 @@ used_in_workflows:
     - W16
     - W17
     - W19
-    - W12
     - W24
     - W104
     - W106
@@ -96,10 +99,7 @@ used_in_workflows:
     - W344
     - W347
     - W348
-    - W350
-    - W352
-    - W355
-    - W357
+    - W345
     - W359
     - W360
     - W364
@@ -124,6 +124,18 @@ used_in_workflows:
     - W73
     - W74
     - W75
+    - W1042
+    - W1054
+    - W1084
+    - W1120
+    - W1138
+    - W1139
+    - W1156
+    - W1159
+    - W2030
+    - W3048
+    - W3049
+    - W3050
 dependencies:
     - metric-card
     - histogram

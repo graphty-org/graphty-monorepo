@@ -4,11 +4,17 @@ category: analysis
 description: Share of sources that reach a target set, nodes and edges that appear on the most paths into it, and
     what-if recount after removing a node or edge type.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: cybersecurity-graph-work.md section 10, requirement 16 (Should)."
 algorithms: []
 used_by_workflows:
     - W109
     - W114
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Should: Exposure and choke-point metrics: share of sources reaching the target set; nodes and edges on the most
+      paths; what-if removal"
+sources:
+    - title: "Cybersecurity Graph Work: Attack Paths, Threat-Intel Pivoting, Incident Response, Network, Cloud and
+        Binary Graphs (section 10, requirement 16)"
+      url: design/user-research/cybersecurity-graph-work.md
+      summary: "Should in the research. Covered by Designloom when researched: Not covered"

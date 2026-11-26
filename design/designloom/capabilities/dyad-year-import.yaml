@@ -1,0 +1,18 @@
+id: dyad-year-import
+name: "Dyad-year table import"
+category: data
+description: "Import dyad-year tables (actor A, actor B, year, type) into one network per year with stable actor codes, node sets that change by year, collapse of duplicate directed dyads, a rule for several events per dyad-year, and a report of rows merged or dropped."
+status: planned
+notes: "Research trace: academic-social-network-research.md section 10, table row 17 (Should)."
+algorithms: []
+used_by_workflows:
+    - W1139
+implemented_by_components: []
+requirements:
+    - "Should: Dyad-year import: de-duplicate directed dyads, several events per year, alliance and dispute as typed or
+      signed ties"
+sources:
+    - title: Academic Social Network Researchers (section 10, table row 17)
+      url: design/user-research/academic-social-network-research.md
+      summary: "Should in the research. Covered by Designloom when researched: NOT
+        covered"

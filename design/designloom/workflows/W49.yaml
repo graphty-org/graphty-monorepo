@@ -45,26 +45,26 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Load** (2 min) - Fetch an XGI-DATA set by name, or read HIF, edge lists, bipartite edge lists, incidence
+    1. **Load** - Fetch an XGI-DATA set by name, or read HIF, edge lists, bipartite edge lists, incidence
     matrices; keep attributes on nodes, hyperedges and incidences (such as author position)
 
-    2. **Choose the representation** (2 min) - Hypergraph, simplicial complex (every subset present; needed for homology
+    2. **Choose the representation** - Hypergraph, simplicial complex (every subset present; needed for homology
     and simplicial contagion), directed hypergraph (reaction inputs to outputs), or the bipartite node-to-group graph
 
-    3. **Describe** (2 min) - Hyperedge-size distribution, node degree, components, assortativity and clustering
+    3. **Describe** - Hyperedge-size distribution, node degree, components, assortativity and clustering
 
-    4. **Paths and centrality with a width** (5 min) - s-walks require consecutive hyperedges to share at least s nodes;
+    4. **Paths and centrality with a width** - s-walks require consecutive hyperedges to share at least s nodes;
     s-components, s-closeness, s-betweenness; eigenvector-style hypergraph centralities
 
-    5. **Communities** (minutes) - Hypergraph modularity with a chosen hyperedge weighting (strict, majority, linear) or
+    5. **Communities** - Hypergraph modularity with a chosen hyperedge weighting (strict, majority, linear) or
     a degree-corrected hypergraph block model with resolution and edge-size parameters
 
-    6. **Topology** (minutes) - Simplicial homology on modestly sized complexes
+    6. **Topology** - Simplicial homology on modestly sized complexes
 
-    7. **Dynamics** (minutes) - Simplicial contagion, where a filled triangle infects at its own rate, giving a
+    7. **Dynamics** - Simplicial contagion, where a filled triangle infects at its own rate, giving a
     discontinuous transition absent from the pairwise model
 
-    8. **Draw** (5 min) - Hyperedges as filled hulls over a seeded layout for small data; a bipartite view or PAOH-style
+    8. **Draw** - Hyperedges as filled hulls over a seeded layout for small data; a bipartite view or PAOH-style
     rows-and-lines view (nodes as rows, each hyperedge a vertical line) for many hyperedges or time slots
 
 

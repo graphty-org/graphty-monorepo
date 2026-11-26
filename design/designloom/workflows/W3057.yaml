@@ -1,0 +1,86 @@
+id: W3057
+name: Compare Evidence Networks Across Outcomes Side by Side
+category: reporting
+validated: false
+personas:
+    - nma-systematic-reviewer
+    - hta-indirect-comparison-analyst
+starting_state:
+    data_type: one trial list per outcome (or per PICO) over the same treatments
+    node_count: 3-112
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Draw one network per outcome or per payer question with treatments in the same places, so a reader sees which comparisons drop out, and export them as one multi-panel figure.
+
+
+    **Mental Model**: "Same treatments, different evidence." Each outcome is a subgraph of one treatment set.
+
+
+    **Task Phases**:
+
+    1. **Load each outcome** - One network per outcome or PICO
+
+    2. **Fix positions** - One layout shared by every panel
+
+    3. **Encode once** - The same size and width scales across panels
+
+    4. **Export** - A multi-panel figure with one legend
+
+
+    **Decision Points**:
+
+    - Which layout serves all panels?
+
+    - Shared or per-panel size scales?
+
+
+    **Information Needs**:
+
+    - Comparisons present in one outcome and missing in another
+
+
+    **Pain Points**:
+
+    - Each outcome's plot puts treatments in different places
+
+    - Panels are aligned by hand
+
+
+    **Data Flow**:
+
+    - Input: Per-outcome trial lists
+
+    - Transformations: Shared layout, shared scales
+
+    - Output: A multi-panel figure
+success_criteria:
+    - metric: Alignment
+      target: Every treatment sits in the same place in every panel
+sources:
+    - title: "Cipriani et al. 2018 - 21 antidepressants"
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5889788/
+      summary: "22 treatments, 522 trials; two network panels (efficacy, acceptability) with encodings stated in the caption"
+    - title: "netmeta netgraph reference"
+      url: https://search.r-project.org/CRAN/refmans/netmeta/html/netgraph.netmeta.html
+      summary: "Circle or eigenvector start, stress majorization, thickness by studies or weights, multi-arm polygons, 3D"
+    - title: "Papakonstantinou et al. 2020 - CINeMA software"
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8356302/
+      summary: "Network plot colored by majority, average or highest risk of bias; contribution matrix; one outcome per project"
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z
+requires_capabilities:
+    - network-collection-small-multiples
+    - shared-fixed-layout
+    - circle-seeded-stress-layout
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - journal-figure-export
+suggested_components:
+    - network-list-panel
+    - graph-canvas
+    - legend-panel
+    - image-export-dialog
+

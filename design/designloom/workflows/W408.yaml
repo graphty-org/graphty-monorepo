@@ -46,21 +46,21 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Paste text** (1 min) - As little as an abstract, or import CSV or GEXF
+    1. **Paste text** - As little as an abstract, or import CSV or GEXF
 
     2. **Normalize** (automatic) - Stopwords removed, lemmas merged, optional synonym list
 
     3. **Build** (automatic) - A 4-word window links lemmas with weights 3, 2 and 1 by distance
 
-    4. **Read structure** (5 min) - ForceAtlas layout, Louvain topics, node size by betweenness
+    4. **Read structure** - ForceAtlas layout, Louvain topics, node size by betweenness
 
-    5. **Find gaps** (5 min) - Structural gaps between clusters; a language model writes a bridging question
+    5. **Find gaps** - Structural gaps between clusters; a language model writes a bridging question
 
-    6. **Drill back** (10 min) - Select a keyword to show the statements that contain it
+    6. **Drill back** - Select a keyword to show the statements that contain it
 
-    7. **Remove hubs** (5 min) - Hide the most connected words to reveal concepts underneath
+    7. **Remove hubs** - Hide the most connected words to reveal concepts underneath
 
-    8. **Export** (2 min) - Topic-tagged statements, graph files
+    8. **Export** - Topic-tagged statements, graph files
 
 
     **Decision Points**:
@@ -100,7 +100,7 @@ goal: >-
     - Output: Topic network, list of gaps, topic-tagged statements, graph file
 success_criteria:
     - metric: Time to first network
-      target: Under 1 minute from pasted text
+      target: Under 1 minute from pasted text (design goal; no source measures it)
     - metric: Drill-back
       target: Selecting a word lists its statements immediately
 sources:

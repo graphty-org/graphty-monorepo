@@ -1,9 +1,12 @@
 id: network-archaeologist
 name: Network Archaeologist
+roster_persona: digital-humanist
+tier: B
+scope: in-scope
 role: Regional Archaeologist Building Site Similarity Networks in R
 quote: The network changes every time I change the similarity measure or the threshold. I need to see that, and I need it on the map.
 bio: >-
-    Dr. Sam Ortega studies interaction among 50 to 700 settlements over several 50-year periods. His networks are not
+    Dr. Santiago Ortega studies interaction among 50 to 700 settlements over several 50-year periods. His networks are not
     built from documents but from artifacts: a site-by-type table of counts (ceramic wares, obsidian sources) per
     period plus site coordinates, of the kind in the Southwest Social Networks database (over 700 sites, 42 wares,
     AD 1200-1500 in five 50-year periods). He works in R with Peeples's published network scripts (statnet, tnet,

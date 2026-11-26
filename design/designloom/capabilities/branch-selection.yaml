@@ -4,10 +4,16 @@ category: analysis
 description: Range-select along a tree path (first and last node), carrying attached and duplicate records, and emit
     record ids for the host's bulk action.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: ediscovery-and-legal-communication-analysis.md section 10, requirement R22 (Must)."
 algorithms: []
 used_by_workflows:
     - W362
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Branch selection (range-select along a path, include attachments and duplicates) that emits record IDs for
+      the host's mass edit"
+sources:
+    - title: eDiscovery, litigation review and internal-investigation teams who use communication graphs (section 10,
+        requirement R22)
+      url: design/user-research/ediscovery-and-legal-communication-analysis.md
+      summary: "Must in the research. Covered by Designloom when researched: Not covered"

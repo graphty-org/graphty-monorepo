@@ -5,7 +5,7 @@ description: Export an embeddable interactive view or print SVG of a verified su
     pinned manual layout, motion off, hover-highlighted paths, step-by-step reveal and phone-readable labels, plus a
     matching table of exactly the exported edges.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: investigative-journalism-and-osint.md section 10, requirement R16 (Must)."
 algorithms: []
 used_by_workflows:
     - W15
@@ -16,11 +16,15 @@ used_by_workflows:
     - W91
     - W92
     - W94
+    - W1018
 implemented_by_components: []
 requirements:
-    - Ordered steps each with a saved camera, focus or filter and Markdown text, played with transitions, published as a
-      private, password or public link and embeddable with autoplay.
-    - Ordered, captioned view states with text per step, published as PDF or slides or as a shareable, embeddable
-      standalone HTML viewer with share controls, phone-readable labels, scroll-zoom and motion off, keyboard navigation
-      and a tabular text alternative.
-sources: []
+    - "Must: Publication export: SVG for print, embeddable interactive view with hover-highlighted paths, step-by-step
+      reveal, labels readable on phones, motion off, manual pinned layout"
+    - "Must: Ordered steps each with a saved camera, focus or filter and Markdown text, played with transitions, published as a private, password or public link and embeddable with autoplay."
+    - "Must: Ordered, captioned view states with text per step, published as PDF or slides or as a shareable, embeddable standalone HTML viewer with share controls, phone-readable labels, scroll-zoom and motion off, keyboard navigation and a tabular text alternative."
+sources:
+    - title: Investigative journalists, OSINT investigators and trust-and-safety teams (section 10, requirement R16)
+      url: design/user-research/investigative-journalism-and-osint.md
+      summary: "Must in the research (the document says: Must for graphics desks). Covered by Designloom when
+          researched: Partly (export-image, view-bookmarks) -- embed and narrative steps not covered"

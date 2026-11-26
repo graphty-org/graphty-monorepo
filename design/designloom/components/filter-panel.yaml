@@ -9,6 +9,8 @@ implements_capabilities:
     - filtering
     - saved-filters
 used_in_workflows:
+    - W3058
+    - W3024
     - W02
     - W15
     - W03
@@ -21,7 +23,6 @@ used_in_workflows:
     - W17
     - W19
     - W07
-    - W12
     - W22
     - W23
     - W24
@@ -131,7 +132,6 @@ used_in_workflows:
     - W261
     - W262
     - W263
-    - W264
     - W265
     - W268
     - W27
@@ -169,7 +169,7 @@ used_in_workflows:
     - W335
     - W336
     - W337
-    - W338
+    - W430
     - W340
     - W341
     - W342
@@ -178,14 +178,7 @@ used_in_workflows:
     - W346
     - W348
     - W35
-    - W350
-    - W351
-    - W352
-    - W353
-    - W354
-    - W356
-    - W357
-    - W358
+    - W347
     - W359
     - W36
     - W363
@@ -222,7 +215,6 @@ used_in_workflows:
     - W419
     - W422
     - W43
-    - W430
     - W431
     - W432
     - W433
@@ -231,15 +223,6 @@ used_in_workflows:
     - W436
     - W437
     - W438
-    - W439
-    - W440
-    - W441
-    - W442
-    - W443
-    - W444
-    - W445
-    - W446
-    - W447
     - W47
     - W50
     - W51
@@ -282,6 +265,28 @@ used_in_workflows:
     - W96
     - W98
     - W99
+    - W1013
+    - W1054
+    - W1060
+    - W1084
+    - W1090
+    - W1096
+    - W1126
+    - W1132
+    - W1139
+    - W1158
+    - W1159
+    - W2000
+    - W2006
+    - W2030
+    - W2036
+    - W2098
+    - W3048
+    - W3049
+    - W3066
+    - W3078
+    - W3079
+    - W3096
 dependencies:
     - filter-chip
     - select

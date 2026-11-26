@@ -113,7 +113,7 @@ goal: >-
     - Output: Ordered list of chosen edges, distance and parent table, step images for homework
 success_criteria:
     - metric: Time to draw a 10-vertex exam network by hand
-      target: Under 5 minutes, with undo
+      target: Under 5 minutes, with undo (design goal; no source measures it)
     - metric: Trace fidelity
       target: Stepped order of chosen edges matches the mark scheme when the stated tie-break rule is used
     - metric: Working export

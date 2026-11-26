@@ -3,7 +3,7 @@ name: Filter, Group, Focus and Expand from a Topic in a Note Graph
 category: exploration
 validated: false
 personas:
-    - pkm-knowledge-worker
+    - personal-knowledge-gardener
     - zettelkasten-writer
     - academic-literature-note-researcher
 requires_capabilities:
@@ -49,21 +49,21 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Filter** (1-2 min) - Query filters such as -path:Daily, -tag:useless or path:"My ideas"; path filters can hide
+    1. **Filter** - Query filters such as -path:Daily, -tag:useless or path:"My ideas"; path filters can hide
     wanted links
 
-    2. **Group** (2-5 min) - "New group" with a query and a color; start with the largest groups, filter them out, then
+    2. **Group** - "New group" with a query and a color; start with the largest groups, filter them out, then
     group what remains
 
-    3. **Tune** (1 min) - Arrows, text fade, node size, link thickness; center, repel and link forces
+    3. **Tune** - Arrows, text fade, node size, link thickness; center, repel and link forces
 
-    4. **Focus** (1-3 min) - Zoom to a large node, drag it out, ask what connects to it and why
+    4. **Focus** - Zoom to a large node, drag it out, ask what connects to it and why
 
-    5. **Expand from a topic** (2-10 min) - Filters show only links among matches, so the user switches to a local graph
+    5. **Expand from a topic** - Filters show only links among matches, so the user switches to a local graph
     on a hub at higher depth, which drags in daily notes and hubs; a plugin adds right-click "Expand here (+1)",
     "Reduce here (-1)" and "Reset this branch"
 
-    6. **Save and share** (1 min) - Re-use a handful of filter configurations; bookmarks can save graph settings; share as
+    6. **Save and share** - Re-use a handful of filter configurations; bookmarks can save graph settings; share as
     a screenshot, sometimes annotated
 
 
@@ -108,7 +108,7 @@ goal: >-
     - Output: Saved view preset; screenshot; notes opened or linked during exploration
 success_criteria:
     - metric: Readable overview
-      target: User reaches a colored overview with daily notes and templates removed in under 5 minutes
+      target: User reaches a colored overview with daily notes and templates removed in under 5 minutes (design goal; no source measures it)
     - metric: Filter then expand
       target: Depth can be applied to a query-defined set of notes
     - metric: Preset persistence

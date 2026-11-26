@@ -39,6 +39,7 @@ used_in_workflows:
     - W62
     - W69
     - W73
+    - W1162
 dependencies: []
 props:
     value: number - Progress percentage 0-100 (omit for indeterminate)

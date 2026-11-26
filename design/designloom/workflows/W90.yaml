@@ -3,8 +3,9 @@ name: Documents and Registries to an Entity Graph
 category: analysis
 validated: false
 personas:
-    - investigative-reporter
+    - investigative-journalist
     - osint-investigator
+    - forced-labor-trade-investigator
 requires_capabilities:
     - data-import
     - data-validation
@@ -12,7 +13,6 @@ requires_capabilities:
     - search
     - node-merging
     - neighborhood-expansion
-    - centrality-betweenness
     - centrality-degree
     - filtering
     - details-on-demand
@@ -24,6 +24,8 @@ requires_capabilities:
     - local-only-processing
     - provenance-tracking
     - batch-name-matching
+    - import-report
+    - investigation-format-import
 suggested_components:
     - file-drop-zone
     - data-import-dialog
@@ -56,23 +58,23 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Ingest** (hours) - Index a folder in Datashare (offline local mode: no data leaves the machine), with OCR;
+    1. **Ingest** - Index a folder in Datashare (offline local mode: no data leaves the machine), with OCR;
     or create an Aleph investigation and upload documents and a persons-of-interest list
 
-    2. **Extract entities** (automatic, then 30 min review) - Named-entity recognition highlights people,
+    2. **Extract entities** (automatic) - Named-entity recognition highlights people,
     organizations, locations and emails; batch-search a name list to a spreadsheet
 
-    3. **Build the graph** (minutes) - Datashare's plug-in builds a graph in one step: edges from email sender and
+    3. **Build the graph** - Datashare's plug-in builds a graph in one step: edges from email sender and
     recipient fields (high precision) and document co-occurrence (noisy); Aleph relationships are themselves entities
     (an ownership with start date and percentage)
 
-    4. **Cross-reference** (minutes, then hours of review) - Match the investigation against all datasets; every match
+    4. **Cross-reference** - Match the investigation against all datasets; every match
     must be independently verified
 
-    5. **Diagram and expand** (15-60 min) - New network diagram; add entities and links; expand ownership from a
+    5. **Diagram and expand** - New network diagram; add entities and links; expand ownership from a
     company; large data quickly produces very complex diagrams
 
-    6. **Analyze elsewhere** (30 min) - Export GEXF for Gephi or Sigma.js, or Cypher for Neo4j; on an email corpus,
+    6. **Analyze elsewhere** - Export GEXF for Gephi or Sigma.js, or Cypher for Neo4j; on an email corpus,
     centrality finds the people who centralized information
 
     7. **Keep provenance** - Each value of each property carries its dataset, first seen and last seen; merged profiles
@@ -101,6 +103,8 @@ goal: >-
 
     - Merge history showing which records were combined and on whose judgement
 
+    - The source document (FollowTheMoney proof) of every node and edge read from an entity stream
+
 
     **Pain Points**:
 
@@ -113,11 +117,15 @@ goal: >-
 
     - Merges that cannot be undone or that lose the original records
 
+    - FollowTheMoney's own GEXF and Cypher exports turn linked properties into edges with no attributes, so the dates,
+    shares and source document survive only if the tool reads the entity stream itself
+
 
     **Data Flow**:
 
-    - Input: Document folders; persons-of-interest lists; FollowTheMoney JSON entities; OpenSanctions entities and
-    statements CSV
+    - Input: Document folders; persons-of-interest lists; FollowTheMoney JSON lines streams (.ftm, .ijson) with
+    interstitial Ownership and Membership entities and proof references; Maltego .mtgx or GraphML; OpenSanctions
+    entities and statements CSV
 
     - Transformations: OCR, entity extraction, email and co-occurrence edges, cross-referencing, merge judgements,
     ownership expansion, centrality
@@ -155,6 +163,15 @@ sources:
     - title: FollowTheMoney documentation
       url: https://followthemoney.tech/docs/
       summary: Relationships are interstitial entities such as Ownership with start date and percentage
-version: 1.0.0
+    - title: FollowTheMoney - Graphs
+      url: https://followthemoney.tech/docs/graphs
+      summary: Linked properties export as edges with no attributes; only Ownership and Membership contract into edges
+    - title: FollowTheMoney - Thing schema
+      url: https://followthemoney.tech/explorer/schemata/Thing/
+      summary: Every Thing can carry proof (source document), sourceUrl and publisher
+    - title: Maltego - Export Graph as XML
+      url: https://support.maltego.com/en/support/solutions/articles/15000019396-export-graph-as-xml
+      summary: Three GraphML variants (Maltego, yEd, Gephi); GraphML is not standardized
+version: 1.1.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

@@ -1,9 +1,12 @@
 id: clinical-connectome-researcher
 name: Clinical Connectome Researcher
+roster_persona: network-neuroscientist
+tier: B
+scope: in-scope
 role: Postdoctoral Researcher / Psychiatry or Neurology Imaging Lab
 quote: Patients differ from controls at a sparsity of 0.15, but the reviewer wants to know what happens at 0.10 and at 0.30, and I have to rebuild every figure again.
 bio: >-
-    Dr. Lin Zhao is a postdoc in a psychiatry imaging lab studying depression and schizophrenia with resting-state
+    Dr. Hui Zhao is a postdoc in a psychiatry imaging lab studying depression and schizophrenia with resting-state
     fMRI and diffusion MRI. She preprocesses scans with fMRIPrep and XCP-D (or SPM and DPABI), then turns each of 30
     to 200 subjects into one region-by-region matrix: 90 x 90 with the AAL atlas up to 400 x 400 with Schaefer,
     Fisher-z transformed, stored as text or BIDS TSV files in a folder per group. Next to them sit a covariate table
@@ -24,6 +27,7 @@ motivations:
     - Survive reviewer questions about threshold choice by showing results across a whole range of densities
     - Keep every threshold, atlas and style setting so a revision months later reproduces the same figure
     - Get off a paid MATLAB license without losing the GUI workflow her lab relies on
+    - Explore patient and control connectomes side by side in 3D, sometimes in a headset, before committing to a figure
 behaviors:
     - Starts from a folder of per-subject N x N matrices and a separate coordinate and label file, never from a graph file
     - Thresholds by sparsity (for example 0.05 to 0.5 in 0.05 steps) and summarizes each metric by area under the curve
@@ -53,6 +57,10 @@ workflows:
     - W154
     - W155
     - W159
+    - W414
+    - W1042
+    - W322
+    - W417
 sources:
     - title: BrainNet Viewer manual v1.42
       url: https://nitrc.org/docman/view.php/504/1280/brainnet
@@ -75,6 +83,9 @@ sources:
     - title: Neurostars - MNI152NLin2009cAsym versus MNI152NLin6Asym
       url: https://neurostars.org/t/what-is-the-difference-between-mni152nlin2009casym-and-mni152nlin6asym/30951
       summary: The two common MNI templates should not be used interchangeably
-version: 1.0.0
+    - title: Keiriz et al. 2018 - NeuroCave (Network Neuroscience)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6145855/
+      summary: Built for "enabling clinical neuroscientists to investigate connectome datasets"; users "tend to use the VR environments to make initial explorations"
+version: 1.1.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

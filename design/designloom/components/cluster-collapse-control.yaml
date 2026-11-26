@@ -26,8 +26,6 @@ used_in_workflows:
     - W313
     - W343
     - W348
-    - W353
-    - W358
     - W393
     - W421
     - W426
@@ -40,6 +38,10 @@ used_in_workflows:
     - W85
     - W87
     - W88
+    - W1096
+    - W1132
+    - W2099
+    - W3096
 dependencies: []
 props: {}
 sources: []

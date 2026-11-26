@@ -64,27 +64,27 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Identify the cited work** (10 min) - Find the work's identifier in OpenAlex (or Web of Science) and check that
+    1. **Identify the cited work** - Find the work's identifier in OpenAlex (or Web of Science) and check that
     the record is the one people cite; software is often cited through several papers or editions, which must be
     listed together
 
-    2. **Retrieve citing works** (15-60 min) - Query citing works (OpenAlex `filter=cites:<id>`, or Web of Science "Times
+    2. **Retrieve citing works** - Query citing works (OpenAlex `filter=cites:<id>`, or Web of Science "Times
     Cited" export in 500-record batches); record the query and retrieval date; VOSviewer reads an OpenAlex query
     directly up to 50,000 records
 
-    3. **Count by field and period** (15 min) - Group the citing works by the subfield of their primary topic and by year
+    3. **Count by field and period** - Group the citing works by the subfield of their primary topic and by year
     (OpenAlex `group_by=primary_topic.subfield.id`, at most 200 groups per page, unknown values hidden unless asked for);
     build a field-by-period table with shares, and list the largest changes between two periods
 
-    4. **Map the citing literature** (30-60 min) - Build a keyword co-occurrence or bibliographic coupling map of the
+    4. **Map the citing literature** - Build a keyword co-occurrence or bibliographic coupling map of the
     citing works with a minimum-occurrence threshold and fractional counting; cluster; color by average publication
     year (overlay); or overlay counts on a fixed base map of fields so periods can be compared without the layout moving
 
-    5. **Check the labels** (30 min) - Sample citing works from each large field and read titles and abstracts; run keyword
+    5. **Check the labels** - Sample citing works from each large field and read titles and abstracts; run keyword
     counts on titles and abstracts to find populations the classification hides (for example microbiome studies inside
     Plant Science and Soil Science)
 
-    6. **Report** (30 min) - Export the field-by-period table, the map with legend and the method record (identifier,
+    6. **Report** - Export the field-by-period table, the map with legend and the method record (identifier,
     query, retrieval date, grouping field, thresholds, resolution, sample size)
 
 

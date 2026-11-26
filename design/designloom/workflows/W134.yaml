@@ -47,19 +47,19 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Open** (2 min) - Load the ontology in Protege; the Active Ontology tab shows class, property and axiom counts
+    1. **Open** - Load the ontology in Protege; the Active Ontology tab shows class, property and axiom counts
 
-    2. **Classify** (1-10 min) - Reasoner > HermiT > Start (Ctrl+R); switch the class tree from Asserted to Inferred;
+    2. **Classify** - Reasoner > HermiT > Start (Ctrl+R); switch the class tree from Asserted to Inferred;
     unsatisfiable classes appear under owl:Nothing. The indented text tree is the main working view (an empirical test
     found it beat the graphical views for locating entities)
 
-    3. **Graph view** (10 min) - OWLViz (asserted vs inferred is-a graph) or OntoGraf (expandable, relationship filters);
+    3. **Graph view** - OWLViz (asserted vs inferred is-a graph) or OntoGraf (expandable, relationship filters);
     both struggle with large ontologies
 
-    4. **Stakeholder view** (15 min) - WebVOWL: classes as circles sized by instance count, datatypes as rectangles, some
+    4. **Stakeholder view** - WebVOWL: classes as circles sized by instance count, datatypes as rectangles, some
     elements drawn several times to simplify layout; small and medium TBoxes only
 
-    5. **Against real data** (15 min) - GraphDB Explore > Class hierarchy (nested circles by instance count, named-graph
+    5. **Against real data** - GraphDB Explore > Class hierarchy (nested circles by instance count, named-graph
     filter, SVG export) and Class relationships (bundles of instance links between classes, width by count; slow on
     large repositories)
 

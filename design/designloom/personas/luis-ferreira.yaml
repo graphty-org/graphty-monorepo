@@ -1,5 +1,8 @@
 id: luis-ferreira
 name: Luis Ferreira
+roster_persona: cybersecurity-analyst
+tier: B
+scope: in-scope
 role: Tier-2 SOC Analyst / Incident Responder at an MDR Provider
 quote: Show me what launched this process and what it did next, then tell me which other hosts that account logged on to, in order, and with what logon type.
 bio: >-
@@ -45,6 +48,7 @@ context:
 workflows:
     - W111
     - W112
+    - W320
 sources:
     - title: Microsoft Learn - Investigate alerts in Defender for Endpoint
       url: https://learn.microsoft.com/en-us/defender-endpoint/investigate-alerts

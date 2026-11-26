@@ -1,9 +1,12 @@
 id: it-change-impact-analyst
 name: IT Change Impact Analyst
+roster_persona: dependency-impact-engineer
+tier: A
+scope: in-scope
 role: Configuration and Change Manager (ITIL)
 quote: Before I approve this maintenance window, show me every business service and customer that sits on top of that server, and whether any of them has no redundancy.
 bio: >-
-    Marcus is an ITIL-certified configuration and change manager at a bank. He owns the data quality of the
+    Oscar is an ITIL-certified configuration and change manager at a bank. He owns the data quality of the
     configuration management database (CMDB) and chairs the change advisory board. His graph is a typed one:
     applications, services, virtual machines, hosts, storage, network devices and racks linked by relationship pairs
     such as "Depends on::Used by" and "Runs on::Runs", with business services, SLAs and customer counts at the top. For

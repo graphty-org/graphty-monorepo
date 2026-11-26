@@ -1,9 +1,12 @@
 id: process-mining-researcher
 name: Process Mining Researcher
+roster_persona: notebook-graph-data-scientist
+tier: B
+scope: in-scope
 role: PhD Student / Researcher in Process and Data Science
 quote: I want the map, the deviations and the fitness score on one screen, and I want to change the noise threshold without re-running a notebook cell and opening a PNG.
 bio: >-
-    Lukas is a PhD student in a process and data science group. He writes BPI Challenge reports and conference papers,
+    Jens is a PhD student in a process and data science group. He writes BPI Challenge reports and conference papers,
     works in PM4Py inside Jupyter, uses ProM's Inductive visual Miner for exploring deviations, and experiments with
     object-centric event logs (OCEL 2.0) and Neo4j event knowledge graphs. His data is public: XES logs from the BPI
     Challenges (13,087 to 251,734 cases, up to about 1.6 million events) and OCEL 2.0 sample logs. He compares discovery
@@ -48,10 +51,7 @@ workflows:
     - W344
     - W345
     - W347
-    - W354
-    - W355
-    - W356
-    - W357
+    - W346
 sources:
     - title: PM4Py API reference 2.7.11
       url: https://pm4py.fit.fraunhofer.de/static/assets/api/2.7.11/api.html

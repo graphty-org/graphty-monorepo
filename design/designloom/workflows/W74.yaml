@@ -2,6 +2,7 @@ id: W74
 name: Livestock Movement Tracing and Risk-Based Surveillance
 category: analysis
 validated: false
+scope: deferred
 personas:
     - veterinary-movement-epidemiologist
 requires_capabilities:
@@ -67,27 +68,31 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Get the movement extract** (minutes to hours) - One row per movement: source holding, destination holding,
+    1. **Get the movement extract** - One row per movement: source holding, destination holding,
     date, and optionally animal category, number of animals and individual animal identifiers; one example dataset
     holds 70,190 movements over three months, and a national foot-and-mouth disease exercise used real cattle, pig,
     sheep and goat movements over 90 days
 
-    2. **Set the root and the window** (minutes) - Name the holding under investigation and the time window, for
+    2. **Set the root and the window** - Name the holding under investigation and the time window, for
     example the presumed infectious window for the disease
 
-    3. **Trace both directions in time order** (seconds to minutes) - The ingoing contact chain is the set of
+    3. **Trace both directions in time order** - The ingoing contact chain is the set of
     holdings that could have passed infection in, traced backward through time; the outgoing contact chain is the set
-    it could have passed infection to, traced forward. A holding appearing several times counts once
+    it could have passed infection to, traced forward. A holding appearing several times counts once. The paper calls a
+    single-farm search "a rapid process" and gives one run time: 2.1 seconds for NetworkSummary over all herds on a Windows XP
+    desktop (3.25 GB RAM)
 
-    4. **Read the summary** (10 min) - A structure table giving source, destination and distance from the root, and a
+    4. **Read the summary** - A structure table giving source, destination and distance from the root, and a
     summary table giving in-degree, out-degree and both contact chain sizes per root holding
 
-    5. **Report per holding** (minutes, batched) - Per-holding documents for one holding or many at once, plus
+    5. **Report per holding** (batched) - Per-holding documents for one holding or many at once, plus
     network diagrams and, where coordinates exist, maps of contacts over time; these go to the veterinarians who
     visit the farms
 
     6. **Reuse for surveillance** (between outbreaks) - Rank holdings by the same movement-exposure measures for
-    risk-based sampling
+    risk-based sampling; W3049 covers choosing holdings by network position, and W3048 describing the whole network.
+    Contact chains reach far on national data: in Great Britain 47% of cattle farms had ingoing contact chains of more
+    than 1,000 farms over 12 months, and 16% of more than 10,000
 
 
     **Decision Points**:
@@ -149,13 +154,16 @@ success_criteria:
     - metric: Time order respected
       target: A path that violates movement order never appears in a contact chain
     - metric: Turnaround
-      target: Both chains for a newly positive holding are produced within the first hours of the investigation
+      target: Both chains for a newly positive holding are produced within the first hours of the investigation (design goal; no source measures it)
     - metric: Field-ready output
       target: Each implicated holding gets its own report naming the movements that implicate it
 sources:
     - title: Noremark and Widgren, EpiContactTrace - an R package for contact tracing (BMC Veterinary Research 2014, 10:71)
       url: https://pmc.ncbi.nlm.nih.gov/articles/PMC3974595/
-      summary: Movement row format, time-respecting ingoing and outgoing contact chains, deduplication of repeated holdings, NetworkStructure and NetworkSummary outputs, batch per-holding HTML and PDF reports, contact maps over time, the 70,190-movement example dataset, the 2010 Swedish foot-and-mouth disease exercise, and the risk-based surveillance reuse
+      summary: Movement row format, time-respecting ingoing and outgoing contact chains, deduplication of repeated holdings, NetworkStructure and NetworkSummary outputs, batch per-holding HTML and PDF reports, contact maps over time, the 70,190-movement example dataset, the 2010 Swedish foot-and-mouth disease exercise, and the risk-based surveillance reuse; a single-farm search is "a rapid process", NetworkSummary over all herds ran in 2.1 seconds (version 0.8.5)
+    - title: Fielding et al., Contact chains of cattle farms in Great Britain (Royal Society Open Science 2019, 6:180719)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6408381/
+      summary: Ingoing contact chains over the Cattle Tracing System 2001-2015 (about 70,000 holdings a year), computed with EpiContactTrace and igraph in 12-month windows "to reduce computational load"; 47% of farms had chains of more than 1,000 farms and 16% of more than 10,000
 version: 1.0.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

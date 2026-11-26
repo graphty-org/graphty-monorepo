@@ -4,16 +4,22 @@ category: export
 description: Every capped result states what was shown against what exists, by count and by bytes, names which cap
     applied, and offers the next page or a refine step.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: graph-database-query-and-expand-exploration.md section 10, requirement 6 (Must)."
 algorithms: []
 used_by_workflows:
+    - W3024
     - W142
     - W143
     - W147
     - W151
     - W363
     - W364
+    - W1013
 implemented_by_components: []
 requirements:
-    - Adjustable top-N caps for nodes and relationships that always report showing N of M.
-sources: []
+    - 'Must: Visible caps: every truncation reports "showing N of M" and offers next page or refine'
+    - "Must: Adjustable top-N caps for nodes and relationships that always report showing N of M."
+sources:
+    - title: Graph Database Users Who Explore by Search, Query and Expand (section 10, requirement 6)
+      url: design/user-research/graph-database-query-and-expand-exploration.md
+      summary: Must in the research.

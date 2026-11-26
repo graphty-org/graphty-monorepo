@@ -44,16 +44,16 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Detect IBD** (days of compute) - Phase genotypes; detect segments with distributed GERMLINE (minimum 5 cM)
+    1. **Detect IBD** - Phase genotypes; detect segments with distributed GERMLINE (minimum 5 cM)
     among 774,516 people
 
-    2. **Build the graph** (hours) - Keep pairs sharing over 12 cM (over 500 million pairs); weight edges from a Beta
+    2. **Build the graph** - Keep pairs sharing over 12 cM (over 500 million pairs); weight edges from a Beta
     cumulative distribution; drop edges above 72 cM (close relatives, 0.2% of edges)
 
-    3. **Partition** (hours) - Louvain modularity in igraph on the 769,444-vertex connected component: six top-level
+    3. **Partition** - Louvain modularity in igraph on the 769,444-vertex connected component: six top-level
     clusters, then recursively split the five largest; Infomap and label propagation did not find the substructure
 
-    4. **Embed and map** (hours) - Laplacian eigenmap with 40 eigenvectors for stable subsets; plot pairs of spectral
+    4. **Embed and map** - Laplacian eigenmap with 40 eigenvectors for stable subsets; plot pairs of spectral
     dimensions colored by cluster; map clusters to ancestor birth locations
 
 

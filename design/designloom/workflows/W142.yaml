@@ -3,7 +3,7 @@ name: Search Phrase to Saved Scene in a Graph Database Explorer
 category: exploration
 validated: false
 personas:
-    - no-code-graph-investigator
+    - aml-investigator
 requires_capabilities:
     - search
     - neighborhood-expansion
@@ -171,7 +171,7 @@ goal: >-
     - Output: Saved scene (view-only share, copyable), PNG, SVG or CSV export, deep link
 success_criteria:
     - metric: Time from a named entity to its readable neighborhood
-      target: Under 2 minutes, without writing a query
+      target: Under 2 minutes, without writing a query (design goal; no source measures it)
     - metric: Truncation awareness
       target: User can state whether the drawn result is complete or how much was cut
     - metric: Algorithm scope awareness

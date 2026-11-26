@@ -58,26 +58,26 @@ goal: >-
     1. **Prepare the table outside the tool** (varies) - Normalize in R or a pipeline; save CSV, TSV or Excel with a
     unique row ID, attribute columns, then numeric columns (the single-cell example used 48 principal components)
 
-    2. **Open the file in the correlation wizard** (2 min) - The wizard detects where numbers begin; adjust the boundary
+    2. **Open the file in the correlation wizard** - The wizard detects where numbers begin; adjust the boundary
     or transpose rows and columns
 
-    3. **Choose metric and thresholds** (5 min) - Pearson (Jaccard for discrete data), minimum threshold default 0.7,
+    3. **Choose metric and thresholds** - Pearson (Jaccard for discrete data), minimum threshold default 0.7,
     initial threshold near the knee of the predicted node and edge plot; optional log scaling, normalization,
     imputation. Published: 0.85 for genes, 0.75 for variant profiles
 
-    4. **Read the 3D layout as it settles** (5 min) - Live force layout, pausable; smooth-shaded 3D by default, with
+    4. **Read the 3D layout as it settles** - Live force layout, pausable; smooth-shaded 3D by default, with
     flat 3D, orthographic 3D and 2D in the View menu; rotate, pan, double-click to focus; overview and per-component
     modes
 
-    5. **Tune** (10 min) - Slide the threshold; singletons drop automatically; k nearest neighbors keeps the top k edges
+    5. **Tune** - Slide the threshold; singletons drop automatically; k nearest neighbors keeps the top k edges
     per node (15, 10 or 3 in published work, cutting a genome graph from 400.4k to 5,996 edges)
 
-    6. **Cluster** (5 min) - MCL with a granularity slider (about 1.7 for genes) or Louvain
+    6. **Cluster** - MCL with a granularity slider (about 1.7 for genes) or Louvain
 
-    7. **Inspect clusters** (20 min) - Step through clusters; a plot shows member rows' profiles; find rows of interest;
+    7. **Inspect clusters** - Step through clusters; a plot shows member rows' profiles; find rows of interest;
     color, size and text mappings; enrichment per cluster
 
-    8. **Export** (5 min) - GraphML, GML, JSON Graph or pairwise text; cluster tables; high-resolution image; save the
+    8. **Export** - GraphML, GML, JSON Graph or pairwise text; cluster tables; high-resolution image; save the
     layout to reload later
 
 
@@ -123,7 +123,7 @@ goal: >-
     log
 success_criteria:
     - metric: Time from table to clustered network
-      target: Under 30 minutes for a 10,000-row table
+      target: Under 30 minutes for a 10,000-row table (design goal; no source measures it)
     - metric: Threshold transparency
       target: User sees predicted node and edge counts before committing to a threshold
     - metric: Reproducibility

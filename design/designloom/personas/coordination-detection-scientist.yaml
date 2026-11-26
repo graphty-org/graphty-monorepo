@@ -1,9 +1,12 @@
 id: coordination-detection-scientist
 name: Coordination Detection Scientist
+roster_persona: social-media-network-researcher
+tier: B
+scope: in-scope
 role: Research Scientist, University Observatory or Platform Trust-and-Safety Team
 quote: Every threshold I pick changes who gets accused. Show me the edges, where they came from, and what happens to the groups when I move the cutoff.
 bio: >-
-    Dr. Wen Li holds a network science PhD and works as a research scientist in a university social media observatory;
+    Dr. Jing Li holds a network science PhD and works as a research scientist in a university social media observatory;
     peers do the same job on platform trust-and-safety teams. She builds and validates detectors for coordinated
     behavior: accounts that repost the same posts, share the same links within seconds, post the same hashtag sequences,
     or publish paraphrased text in lockstep. She writes Python (pandas, NetworkX, igraph) and uses the R packages

@@ -1,16 +1,37 @@
 id: table-to-graph-builder
 name: Graph from a record table
 category: analysis
-description: Build a graph from a flat post or action table without scripts by choosing which column pairs become edges,
-    which column is the weight and which are node attributes; keep 64-bit numeric IDs as text.
+description: Build a graph from a flat table without scripts - a post or action table, or an edge list from a BI tool,
+    a CSV file or a notebook - by choosing which column pairs become edges (source and target), which column is the
+    weight and which are node attributes; de-duplicate node ids, aggregate weights of repeated pairs, and keep 64-bit
+    numeric IDs as text. One record for every population that starts from a table (it absorbed table-to-graph-binding).
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: social-media-disinformation-and-marketing.md section 10, requirement 2 (Must); developers-embedding-and-extending-graph-visualization.md section 10, table row 9 (Must)."
 algorithms: []
 used_by_workflows:
+    - W3058
+    - W3054
     - W208
     - W209
     - W213
     - W214
+    - W1090
+    - W1138
+    - W1139
+    - W279
+    - W290
+    - W1120
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Build a graph from a post table without scripts, choosing which column pairs become edges (like Table2Net)"
+    - "Must: Build a graph from an edge-list table (source column, target column, optional weight column),
+      de-duplicating node ids, for BI, CSV and notebook hosts"
+sources:
+    - title: Social Media Researchers, Disinformation Analysts and Marketing Network Analysts (section 10, requirement
+        2)
+      url: design/user-research/social-media-disinformation-and-marketing.md
+      summary: "Must in the research. Covered by Designloom when researched: Gap."
+    - title: Developers Who Embed Graph Visualization in Products or Extend It With Plugins (section 10, table row 9)
+      url: design/user-research/developers-embedding-and-extending-graph-visualization.md
+      summary: "Must in the research. Covered by Designloom when researched: Partly (CSV import exists; no table-binding
+        API)"

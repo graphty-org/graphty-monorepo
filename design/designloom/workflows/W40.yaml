@@ -43,20 +43,21 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Pick endpoints** (1 min) - Search and select source and target
+    1. **Pick endpoints** - Search and select source and target
 
-    2. **Pick the query** (1 min) - One shortest path; all shortest paths (ties); k shortest loopless paths (Yen);
+    2. **Pick the query** - One shortest path; all shortest paths (ties); k shortest loopless paths (Yen);
     constrained by type, direction or maximum hops; time-respecting journeys with a maximum waiting time
 
-    3. **Set the weight convention** (1 min) - Unweighted, or a weight column read as a distance (see W39)
+    3. **Set the weight convention** - Unweighted, or a weight column read as a distance (see W39); a strength column
+    (as Gephi's Modularity and ForceAtlas2 read it) must be converted first, or the path follows the weakest ties
 
-    4. **Run and read** (3 min) - Highlight paths, compare lengths and intermediates, note how ties were broken when k
+    4. **Run and read** - Highlight paths, compare lengths and intermediates, note how ties were broken when k
     cuts through a tie
 
-    5. **Handle no path** (1 min) - Learn whether the endpoints are disconnected, or blocked by direction, edge type or
+    5. **Handle no path** - Learn whether the endpoints are disconnected, or blocked by direction, edge type or
     time order
 
-    6. **Report** (2 min) - The query type, constraints, weight convention and tie handling with the paths
+    6. **Report** - The query type, constraints, weight convention and tie handling with the paths
 
 
     **Decision Points**:
@@ -83,7 +84,10 @@ goal: >-
 
     **Pain Points**:
 
-    - Gephi's shortest path is unweighted and shows one path
+    - Gephi's Shortest Path tool sums raw weights as distances while its layout and Modularity read them as strengths,
+    so on strength data it draws the weakest route; it also shows one path
+
+    - Cypher's SHORTEST counts hops and ignores weights
 
     - Cypher's SHORTEST k picks arbitrarily when k cuts through a tie
 
@@ -114,6 +118,12 @@ sources:
     - title: Neo4j Cypher manual - shortest paths
       url: https://neo4j.com/docs/cypher-manual/current/patterns/shortest-paths/
       summary: ALL SHORTEST, SHORTEST k and quantified path patterns; ties cut by k are arbitrary
+    - title: Gephi ShortestPath.java (Shortest Path tool)
+      url: https://github.com/gephi/gephi/blob/master/modules/ToolsPlugin/src/main/java/org/gephi/tools/plugin/ShortestPath.java
+      summary: Runs Bellman-Ford on directed graphs and Dijkstra otherwise, summing edge weights as distances
+    - title: gephi/gephi issue 1816
+      url: https://github.com/gephi/gephi/issues/1816
+      summary: ForceAtlas2 reads weight as strength; a user reports the Shortest Path tool picks the lowest-weight route
     - title: Temporal networks (Holme and Saramaki 2012)
       url: https://arxiv.org/abs/1108.1780
       summary: Time-respecting paths are not transitive; static aggregation overstates reachability

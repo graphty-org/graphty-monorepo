@@ -6,6 +6,7 @@ status: planned
 implements_capabilities:
     - view-bookmarks
 used_in_workflows:
+    - W3024
     - W02
     - W07
     - W115
@@ -43,6 +44,8 @@ used_in_workflows:
     - W89
     - W92
     - W99
+    - W1018
+    - W105
 dependencies:
     - button
     - text-input

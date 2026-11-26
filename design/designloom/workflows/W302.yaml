@@ -3,7 +3,7 @@ name: Time and Location Columns at Import
 category: onboarding
 validated: false
 personas:
-    - event-log-network-builder
+    - crime-intelligence-analyst
 requires_capabilities:
     - data-import
     - data-validation

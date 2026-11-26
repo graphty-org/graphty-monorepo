@@ -6,6 +6,7 @@ status: planned
 implements_capabilities:
     - comparison-view
 used_in_workflows:
+    - W3006
     - W03
     - W11
     - W19
@@ -97,11 +98,7 @@ used_in_workflows:
     - W346
     - W347
     - W348
-    - W353
-    - W355
-    - W356
-    - W357
-    - W358
+    - W343
     - W360
     - W367
     - W372
@@ -135,9 +132,6 @@ used_in_workflows:
     - W434
     - W438
     - W44
-    - W441
-    - W443
-    - W447
     - W45
     - W46
     - W48
@@ -151,6 +145,20 @@ used_in_workflows:
     - W75
     - W83
     - W86
+    - W1006
+    - W1012
+    - W1013
+    - W1018
+    - W1042
+    - W1054
+    - W1060
+    - W81
+    - W1138
+    - W1139
+    - W1159
+    - W2030
+    - W3049
+    - W3050
 dependencies:
     - graph-canvas
     - toggle-switch

@@ -5,12 +5,18 @@ description: Load one graph per subject (folder or BIDS derivatives entities) wi
     per-subject metrics, build group-representative networks (mean, consensus fraction, distance-dependent consensus)
     and export subjects x metrics tables.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: network-neuroscience-connectomics.md section 10, requirement R9 (Must)."
 algorithms: []
 used_by_workflows:
     - W153
     - W154
     - W155
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Multi-graph sets: load one graph per subject plus a covariate table, or a BIDS derivatives folder whose
+      sub-, ses-, space- and atlas- entities become a subject table; join atlas dseg TSV columns (name, network,
+      hemisphere) as node attributes; per-subject metrics; export subjects x metrics"
+sources:
+    - title: "Network Neuroscientists: Structural, Functional and Cellular Connectomics (section 10, requirement R9)"
+      url: design/user-research/network-neuroscience-connectomics.md
+      summary: "Must in the research. Covered by Designloom when researched: Not covered"

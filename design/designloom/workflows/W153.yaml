@@ -53,24 +53,24 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Load matrices** (5 min) - Add one matrix file per subject and assign group IDs
+    1. **Load matrices** - Add one matrix file per subject and assign group IDs
 
-    2. **Choose sign** (1 min) - Positive only, negative only, or absolute values (negative correlations after global
+    2. **Choose sign** - Positive only, negative only, or absolute values (negative correlations after global
     signal regression are described as controversial)
 
-    3. **Choose threshold method** (3 min) - Sparsity (same edge count for every subject) or absolute value; enter a
+    3. **Choose threshold method** - Sparsity (same edge count for every subject) or absolute value; enter a
     sequence such as 0.05 to 0.5 in 0.05 steps; or a minimum spanning tree to avoid the choice
 
-    4. **Binary or weighted, plus nulls** (2 min) - Generate degree-preserving random networks for normalized
+    4. **Binary or weighted, plus nulls** - Generate degree-preserving random networks for normalized
     clustering, path length and small-worldness
 
-    5. **Pick metrics** (3 min) - Global (efficiency, rich club, assortativity), nodal (clustering, efficiency, degree,
+    5. **Pick metrics** - Global (efficiency, rich club, assortativity), nodal (clustering, efficiency, degree,
     betweenness), modular (modularity, participation coefficient)
 
-    6. **Run and read** (minutes to hours) - One row per subject, one column per threshold; area-under-curve scalars;
+    6. **Run and read** - One row per subject, one column per threshold; area-under-curve scalars;
     metric-versus-density curves per group; check small-worldness sigma above 1
 
-    7. **Export** (2 min) - Subjects x metrics table for statistics
+    7. **Export** - Subjects x metrics table for statistics
 
 
     **Decision Points**:

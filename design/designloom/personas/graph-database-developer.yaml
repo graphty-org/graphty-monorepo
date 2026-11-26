@@ -1,9 +1,12 @@
 id: graph-database-developer
 name: Graph Database Developer
+roster_persona: graph-database-developer
+tier: A
+scope: in-scope
 role: Backend Engineer / Data Engineer building on a graph database
 quote: My query returned 5,000 paths and the view shows 47 nodes. Is the model wrong, the query wrong, or just the drawing?
 bio: >-
-    Priya Shah is a backend engineer on a team building a recommendation and entity resolution service on Neo4j (on
+    Anjali Shah is a backend engineer on a team building a recommendation and entity resolution service on Neo4j (on
     other teams the same job runs on Amazon Neptune or Memgraph). She learned SQL first and Cypher on the job, and she
     treats the graph as an application store, not as an object of network analysis. The database holds millions of
     nodes; what she draws is tens to a few hundred at a time, because Neo4j Browser caps a drawing at 1,000 nodes and
@@ -43,10 +46,12 @@ context:
         - desktop
     voluntary: true
 workflows:
+    - W3024
     - W144
     - W146
     - W147
     - W148
+    - W143
 sources:
     - title: Neo4j Browser legacy visual tour
       url: https://neo4j.com/docs/browser/legacy/visual-tour/

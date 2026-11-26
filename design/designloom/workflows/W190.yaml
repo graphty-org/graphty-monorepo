@@ -9,7 +9,6 @@ personas:
 requires_capabilities:
     - filtering
     - centrality-degree
-    - centrality-betweenness
     - degree-analysis
     - metric-histograms
     - neighborhood-expansion
@@ -64,20 +63,20 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Keep relationship types separate** (15 min) - Load each question as its own edge type; filter and style by
+    1. **Keep relationship types separate** - Load each question as its own edge type; filter and style by
     type; never mix advice, trust and energy into one undifferentiated network
 
-    2. **Measure overload** (1 hour) - For each leader count how many name them as an important information source
+    2. **Measure overload** - For each leader count how many name them as an important information source
     and the share who say greater access would help; flag anyone above 25 percent; overlay counts on the org chart
     with span of control; check concentration (for example 5 percent of leaders holding 26 percent of ties)
 
-    3. **Rank change agents** (1 hour) - Rank by in-degree on energy or influence questions; then find the smallest set
+    3. **Rank change agents** - Rank by in-degree on energy or influence questions; then find the smallest set
     whose one- or two-step reach covers most of the network (for example two steps from the top ten reaching all 250
     employees)
 
-    4. **Validate** (days) - Combine with interviews and observation; check several metrics rather than one
+    4. **Validate** - Combine with interviews and observation; check several metrics rather than one
 
-    5. **Hand over** (hours) - Lists of overloaded people with suggested deputies and change-agent candidates, shown to
+    5. **Hand over** - Lists of overloaded people with suggested deputies and change-agent candidates, shown to
     HR and consenting leaders under the agreed transparency rules
 
 

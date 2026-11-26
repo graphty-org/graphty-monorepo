@@ -90,26 +90,26 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Get the claims and the agreement** (weeks to months) - Identifiable claims under a data use agreement, a
+    1. **Get the claims and the agreement** - Identifiable claims under a data use agreement, a
     state all-payer or Medicaid or private extract, or the public pre-projected provider dyad files, which already
     hold pairs of providers who treated the same patient, by year, in 30, 60, 90 and 180-day windows, as directed
     dyads, excluding any pair sharing fewer than 11 patients. Know who is missing: enrollees in private managed-care
     plans have no encounter data in the public claims, so they are excluded
 
-    2. **Define an encounter** (days) - The canonical definition: paid physician claims, keeping evaluation and
+    2. **Define an encounter** - The canonical definition: paid physician claims, keeping evaluation and
     management services plus procedures above a relative value unit threshold, dropping laboratory and other
     non-visit services, and dropping specialties the patient does not choose, such as anesthesia and radiology, as
     nodes
 
-    3. **Decide who is a node** (days) - Providers by individual identifier, or facilities by organizational
+    3. **Decide who is a node** - Providers by individual identifier, or facilities by organizational
     identifier; drop low-volume providers, for example fewer than 30 patients in the year, and anyone outside the
     study regions; attribute each patient to the primary care physician who provided the plurality of their visits,
     which matters when outcomes are linked later
 
-    4. **Project onto providers** (hours to days of compute) - Multiply the two-mode adjacency matrix by its
+    4. **Project onto providers** - Multiply the two-mode adjacency matrix by its
     transpose; the tie weight is the number of shared patients
 
-    5. **Discard the weak ties, and record the rule** (days, with sensitivity analyses) - The raw projection has a
+    5. **Discard the weak ties, and record the rule** (with sensitivity analyses) - The raw projection has a
     mean density around 0.23. Three families are in use: a relative rule keeping each provider's strongest 20% of
     ties and only where mutual, which brought mean density to 0.09 with 0.05 at 10% and 0.12 at 30%; a fixed cutoff
     of at least 1, 2, 5 or 9 shared patients, where a validation study found the chance that two physicians
@@ -118,27 +118,27 @@ goal: >-
     tying two providers only when they treated the same patient within the same episode of care, which produced more
     persistent ties year to year (72.4% versus 67.4%) and more stable communities
 
-    6. **Measure** (days) - Degree; degree adjusted for panel size (one study reported a mean of 27.3 ties per 100
+    6. **Measure** - Degree; degree adjusted for panel size (one study reported a mean of 27.3 ties per 100
     shared patients, range 11.7 to 54.4); betweenness reported relative to the other specialty group (primary care
     mean 0.38, specialists about 3.1 to 3.5); density; and clustering coefficient (mean 0.55, range 0.40 to 0.67)
 
-    7. **Find and characterize the groups** (days) - Modularity maximization with one non-overlapping community per
+    7. **Find and characterize the groups** - Modularity maximization with one non-overlapping community per
     provider; in the canonical study communities held a median of roughly 150 to 165 physicians and about 77% of
     their patients' visits stayed inside the community, against 56% when physicians were assigned to the hospital
     where they admitted most patients; episode-based networks produced more communities per region (median 14 versus
     9)
 
-    8. **Check what the data cannot see** (days) - Sampling patients distorts the projection unevenly: counts,
+    8. **Check what the data cannot see** - Sampling patients distorts the projection unevenly: counts,
     degree and centrality survive small samples while transitivity, clustering and community counts need the full
     cohort, and density and transitivity come out too low. One payer is one sample: one state comparison found
     Medicare claims missed 14.6% of shared-patient relationships while showing more relationships per provider than
     private claims
 
-    9. **Link to outcomes and compare places** (weeks) - Attach spending, utilization and quality to providers or to
+    9. **Link to outcomes and compare places** - Attach spending, utilization and quality to providers or to
     their attributed patients, and compare regions; the unit of comparison is usually a regional market, so the
     output is as often a map or a set of per-region summaries as a drawing of one network
 
-    10. **Publish under the cell rule** (days) - No displayed cell may hold a value of 1 to 10, the rule covers
+    10. **Publish under the cell rule** - No displayed cell may hold a value of 1 to 10, the rule covers
     percentages and anything derivable from the other reported numbers, and a second cell must be suppressed when
     totals would reveal the first. In practice a labeled edge or node below 11 cannot be shown, which is why
     published figures are unlabeled force-directed layouts and the inspectable detail lives in aggregate tables

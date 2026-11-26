@@ -58,25 +58,25 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Enter factors and links** (1-2 h) - Type factors from the sticky notes, theme by theme; draw arrows; mark each
+    1. **Enter factors and links** - Type factors from the sticky notes, theme by theme; draw arrows; mark each
     as same direction or opposite direction (drawn solid vs dashed, or "+" and "-" at the arrow end); mark delays
 
-    2. **Arrange by hand** (1-2 h) - Pin factors so each loop reads as a circle and loops sit in thematic regions around
+    2. **Arrange by hand** - Pin factors so each loop reads as a circle and loops sit in thematic regions around
     one central dynamic; minimize crossing arrows; merge duplicate factors
 
-    3. **Name the loops** (1 h) - Select the member connections of each loop, or detect cycles automatically (bounded,
+    3. **Name the loops** - Select the member connections of each loop, or detect cycles automatically (bounded,
     since dense maps produce thousands); classify R or B by sign parity; give each a label and narrative
 
-    4. **Enrich** (2-4 h) - Definition on each factor, a reason why two elements are causally related on each
+    4. **Enrich** - Definition on each factor, a reason why two elements are causally related on each
     connection, citations on loops, fields such as trend and needed change
 
-    5. **Socialize** (2-4 h of meetings) - Walk partners through the map; record what resonates, surprises and is
+    5. **Socialize** - Walk partners through the map; record what resonates, surprises and is
     missing, and the rationale for each change
 
     6. **Find leverage** (3 h) - Tag factors and loops with qualitative leverage categories (frozen, energy for change,
     bright spot, ripple effects); optionally an influence-versus-dependence grid; whole loops are candidates
 
-    7. **Overlay the portfolio** (1 h) - Import grants and grantees as a second layer linked to the factors they address;
+    7. **Overlay the portfolio** - Import grants and grantees as a second layer linked to the factors they address;
     filter by program area; look for loops no grant touches
 
     8. **Hand off and refresh** (ongoing) - Presentation (W202), narrative, grants overlay; revise every 3-12 months
@@ -137,7 +137,7 @@ success_criteria:
     - metric: Loop classification
       target: Reinforcing or balancing label agrees with sign parity for every enumerated cycle
     - metric: Portfolio gap question
-      target: User can list loops with no grant attached in under a minute
+      target: User can list loops with no grant attached in under a minute (design goal; no source measures it)
 sources:
     - title: Omidyar Group - Systems Practice workbook
       url: https://github.com/kumu/docs/raw/main/content/Workbook-012617.pdf

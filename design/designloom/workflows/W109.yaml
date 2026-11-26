@@ -61,14 +61,14 @@ goal: >-
     2. **Let collection and analysis run** (continuous) - Collection runs on a schedule; attack paths are recomputed
     after each run
 
-    3. **Read the queue** (daily, 15 min) - Filter the Attack Paths page by environment, zone and risk; each finding
+    3. **Read the queue** (daily) - Filter the Attack Paths page by environment, zone and risk; each finding
     shows severity, exposure (share of principals with a path through it), impact and remediation; a choke point graph
     aggregates the exposed principals behind each finding
 
-    4. **Prioritize** (30 min) - Pick findings with high exposure and high impact; one published example had a single
+    4. **Prioritize** - Pick findings with high exposure and high impact; one published example had a single
     choke point reachable by 93 percent of users, others by 41 and 10 percent
 
-    5. **Run a campaign** (weeks) - Define a Privilege Zone around in-scope assets, review findings, assign owners, track
+    5. **Run a campaign** - Define a Privilege Zone around in-scope assets, review findings, assign owners, track
     reduction
 
     6. **Check safety and remediate** - Before removing a privilege, determine whether it breaks a business process;

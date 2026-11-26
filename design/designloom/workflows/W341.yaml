@@ -5,6 +5,7 @@ validated: false
 personas:
     - process-mining-auditor
     - process-mining-consultant
+    - process-mining-analyst
 requires_capabilities:
     - filtering
     - saved-filters
@@ -18,6 +19,8 @@ requires_capabilities:
     - data-export
     - process-map-derivation
     - case-drilldown
+    - layout-hierarchical
+    - visual-encoding-edges
 suggested_components:
     - graph-canvas
     - context-menu
@@ -46,23 +49,23 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Return to the full data** (1 min) - Full log, sliders at full detail so rare paths show
+    1. **Return to the full data** - Full log, sliders at full detail so rare paths show
 
-    2. **Spot a forbidden path** (5 min) - For example invoice sent straight to payment authorization, skipping the
+    2. **Spot a forbidden path** - For example invoice sent straight to payment authorization, skipping the
     mandatory release step
 
-    3. **Turn the path into a rule** (3 min) - Filter this path: directly or eventually followed, or never; optional time
+    3. **Turn the path into a rule** - Filter this path: directly or eventually followed, or never; optional time
     constraint; optional four-eyes condition that an attribute such as resource is the same or different on both
     events; or filter an activity as mandatory or forbidden
 
-    4. **Collect evidence** (10 min) - Copy and filter into a named set; open each case (10 cases in the Disco tutorial)
+    4. **Collect evidence** - Copy and filter into a named set; open each case (10 cases in the Disco tutorial)
     and read its history
 
-    5. **Segregation of duties** (10 min) - "Create PO item" eventually followed by "Record goods receipt" with the same
+    5. **Segregation of duties** - "Create PO item" eventually followed by "Record goods receipt" with the same
     resource; compare rates between segments (49 percent of complete Service cases versus 0.8 percent of Standard
     cases in BPIC 2019)
 
-    6. **Export the audit report** (5 min) - Filtered cases as CSV, the filter recipe and a text report of each filter
+    6. **Export the audit report** - Filtered cases as CSV, the filter recipe and a text report of each filter
     and its counts
 
 
@@ -110,7 +113,7 @@ goal: >-
     - Output: Violation case lists, case histories, filter recipe and audit report
 success_criteria:
     - metric: Rule from the map
-      target: User can turn a clicked path into a follower rule with a four-eyes condition in under 2 minutes
+      target: User can turn a clicked path into a follower rule with a four-eyes condition in under 2 minutes (design goal; no source measures it)
     - metric: Evidence completeness
       target: Every reported count comes with its case list and filter recipe
     - metric: Uncertainty flagged
@@ -128,6 +131,12 @@ sources:
     - title: Jans, Depaire and Vanhoof - process mining for internal audit
       url: https://documentserver.uhasselt.be/bitstream/1942/13639/1/Process_Mining_EAA.pdf
       summary: Segregation-of-duties violations and payments without approval found by process mining
+    - title: Celonis blog - process mining and internal audit
+      url: https://celonis.com/blog/process-mining-and-internal-audit-a-match-made-in-heaven
+      summary: Auditors test whole populations instead of samples
+    - title: Fluxicon Process Mining in Practice - export
+      url: https://fluxicon.com/book/read/export/
+      summary: Audit report as ZIP with filtered CSV, recipe file and filter text report
 version: 1.0.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

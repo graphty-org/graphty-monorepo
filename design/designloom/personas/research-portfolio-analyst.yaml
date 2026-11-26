@@ -1,9 +1,12 @@
 id: research-portfolio-analyst
 name: Research Portfolio Analyst
+roster_persona: bibliometric-analyst
+tier: A
+scope: in-scope
 role: Evaluation Analyst in a Research Funder's Strategy Office
 quote: The board wants to know what we fund, who gets it, and whether that changed since the last strategy. The grant-to-paper links are the part I trust least.
 bio: >-
-    Daniel Osei is an evaluation analyst in a national health research funder's strategy office. Once or twice a year,
+    Yaw Osei is an evaluation analyst in a national health research funder's strategy office. Once or twice a year,
     and whenever the board asks, he analyzes what the funder's portfolio supports: which fields and topics, which
     institutions receive funding, how field shares shift between strategy periods, and where the funder overlaps with
     other funders. His data is grant records (funder, award ID, investigators, institution, amount, start and end dates,

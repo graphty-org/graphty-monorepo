@@ -6,6 +6,7 @@ personas:
     - egocentric-survey-researcher
     - sociometric-network-researcher
     - network-methods-grad-student
+    - people-analytics-ona-lead
 requires_capabilities:
     - data-import
     - data-validation
@@ -54,11 +55,11 @@ goal: >-
 
     **Path A, from a whole network:**
 
-    1. **Symmetrize** (estimate: 2 min) - Some helpers reject directed graphs.
+    1. **Symmetrize** - Some helpers reject directed graphs.
 
-    2. **Extract ego networks** (estimate: 2 min) - UCINET Data > Egonet, statnet ego.extract(), igraph make_ego_graph().
+    2. **Extract ego networks** - UCINET Data > Egonet, statnet ego.extract(), igraph make_ego_graph().
 
-    3. **Compute brokerage measures** (estimate: 5 min) - Size, density among alters, effective size (n - 2t/n),
+    3. **Compute brokerage measures** - Size, density among alters, effective size (n - 2t/n),
     efficiency, constraint, hierarchy. In the Florentine families the Medici have degree 6, effective size about 5.67
     and the lowest constraint (about 0.24).
 
@@ -68,16 +69,16 @@ goal: >-
     in Qualtrics with egor templates, Network Canvas (participants draw alter-alter ties on a sociogram), EgoNet or
     VennMaker.
 
-    2. **Import** (estimate: 15 min) - One file or three files (egos, alters, alter-alter ties) into egor
+    2. **Import** - One file or three files (egos, alters, alter-alter ties) into egor
     (onefile_to_egor, threefiles_to_egor, read_egoweb).
 
-    3. **Compute per-ego measures** (estimate: 10 min) - ego_density, composition (proportion kin), diversity entropy,
+    3. **Compute per-ego measures** - ego_density, composition (proportion kin), diversity entropy,
     EI index, ply.
 
-    4. **Visualize** (estimate: 20 min) - Egograms with alters grouped by attribute; vis_clustered_graphs; Network
+    4. **Visualize** - Egograms with alters grouped by attribute; vis_clustered_graphs; Network
     Canvas stores participant-drawn positions normalized to 0-1.
 
-    5. **Hand off** (estimate: 5 min) - Export one row per ego to a regression.
+    5. **Hand off** - Export one row per ego to a regression.
 
 
     **Decision Points**:

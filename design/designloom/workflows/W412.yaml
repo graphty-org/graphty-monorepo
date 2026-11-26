@@ -51,27 +51,27 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Narrow variants outside VR** (days) - Sequencing, filtering and pedigree comparison leave about 15 candidate
+    1. **Narrow variants outside VR** - Sequencing, filtering and pedigree comparison leave about 15 candidate
     genes
 
-    2. **Upload in the web module** (15 min) - Map candidates (13 of 15 mapped) and 276 curated seeds (247 mapped) onto
+    2. **Upload in the web module** - Map candidates (13 of 15 mapped) and 276 curated seeds (247 mapped) onto
     HIPPIE (16,376 proteins, 309,355 interactions) with GO, DisGeNET, OMIM, HPO, pathway and tissue features
 
-    3. **Precompute layouts** (hours, offline) - Force-directed, random-walk and t-SNE functional landscapes from node
+    3. **Precompute layouts** (offline) - Force-directed, random-walk and t-SNE functional landscapes from node
     feature matrices; DataDiVR packs positions into image textures
 
-    4. **Enter VR** (10 min) - On a GPU PC with a tethered Quest or an HTC Vive; over 100 Hz reported at hundreds of
+    4. **Enter VR** - On a GPU PC with a tethered Quest or an HTC Vive; over 100 Hz reported at hundreds of
     thousands of nodes and links
 
-    5. **Explore** (30 min) - Two-handed grab to move, rotate and scale; point to select; a hand-held panel with a stylus
+    5. **Explore** - Two-handed grab to move, rotate and scale; point to select; a hand-held panel with a stylus
     for search (up to four AND/OR clauses), node sets, settings and analytics; animated layout switches; a link fade
     showing random subsets of edges for about a second each
 
-    6. **Analyze in VR** (20 min) - The seed module's largest connected component (152 of 247, z = 5.8 against random
+    6. **Analyze in VR** - The seed module's largest connected component (152 of 247, z = 5.8 against random
     draws); random walk with restart from the module ranks candidates (DOK3, DOCK2, DDX31); DOCK2's immune neighborhood
     makes it the lead
 
-    7. **Leave VR** (10 min) - Results go to the web module for collaborators to review, annotate, download and share;
+    7. **Leave VR** - Results go to the web module for collaborators to review, annotate, download and share;
     the engine renders screenshots and videos
 
 

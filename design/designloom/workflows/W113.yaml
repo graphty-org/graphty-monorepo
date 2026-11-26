@@ -14,7 +14,6 @@ requires_capabilities:
     - saved-filters
     - degree-analysis
     - metric-histograms
-    - anomaly-detection
     - visual-encoding-nodes
     - visual-encoding-edges
     - layout-force-directed
@@ -26,6 +25,8 @@ requires_capabilities:
     - group-collapse
     - typed-edge-filtering
     - security-format-import
+    - large-source-aggregation
+    - event-window-aggregation
 suggested_components:
     - file-drop-zone
     - data-import-dialog
@@ -58,20 +59,20 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Pick a window and query** (2 min) - Filter sessions by expression and time; raise the query size for a
+    1. **Pick a window and query** - Filter sessions by expression and time; raise the query size for a
     complete picture, accepting that it is slower (smaller queries show only the top sessions)
 
-    2. **Open the connections graph** (1 min) - Force-directed; choose which fields become source and destination nodes
+    2. **Open the connections graph** - Force-directed; choose which fields become source and destination nodes
     (defaults source IP to destination IP and port; alternatives: IP to protocol, originating to responding segment,
     GeoIP city, MAC vendor); segment fields collapse addresses into subnets
 
-    3. **Weight and threshold** (2 min) - Set the link weight method and a minimum connection count to drop rare or
+    3. **Weight and threshold** - Set the link weight method and a minimum connection count to drop rare or
     noisy pairs; color nodes as source, destination or both
 
-    4. **Read patterns** (10-30 min) - Fan-out from one source to many destinations or ports suggests scanning; regular
+    4. **Read patterns** - Fan-out from one source to many destinations or ports suggests scanning; regular
     repeated connections between one pair suggest beaconing (scored outside the graph by RITA)
 
-    5. **Pivot** (5 min) - Click a node or link to add it to the query filter; list the sessions; export PCAP; join a
+    5. **Pivot** - Click a node or link to add it to the query filter; list the sessions; export PCAP; join a
     connection to its dns, http and ssl records by Zeek uid
 
     6. **Ad hoc variants** - Load Zeek logs into a graph database and run predefined queries or expand neighbors; turn a

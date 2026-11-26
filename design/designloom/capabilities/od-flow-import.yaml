@@ -5,7 +5,7 @@ description: Import a place table plus a flow table joined by id (long form or s
     recognizing lat/lon, several counts per pair and a time column; report flows whose ids match no place; clean release
     quirks such as total rows and ids that lost leading zeros; carry zone system and time window as metadata.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: geographic-flow-and-mobility-networks.md section 10, requirement R1 (Must)."
 algorithms: []
 used_by_workflows:
     - W380
@@ -18,5 +18,11 @@ used_by_workflows:
     - W388
     - W389
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Import a place table plus a flow table joined by id, recognizing lat/lon; report flows whose ids are
+      missing from the place table"
+sources:
+    - title: "Geographic Flow and Mobility Networks: Migration, Commuting, Mobility and Trade Flows on a Map (section
+        10, requirement R1)"
+      url: design/user-research/geographic-flow-and-mobility-networks.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

@@ -1,0 +1,157 @@
+id: W1132
+name: Who Still Uses This Application Before We Retire It
+category: analysis
+validated: false
+personas:
+    - enterprise-architect-portfolio-manager
+requires_capabilities:
+    - data-import
+    - search
+    - node-selection
+    - directed-closure
+    - typed-edge-filtering
+    - group-collapse
+    - computed-attributes
+    - filtering
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-hierarchical
+    - details-on-demand
+    - data-export
+    - export-image
+    - graph-diff
+    - containment-hierarchy-rollup
+    - ea-repository-import
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - search-input
+    - graph-canvas
+    - impact-analysis-dialog
+    - cluster-collapse-control
+    - filter-panel
+    - node-details-panel
+    - legend-panel
+    - data-table-panel
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: hand-curated enterprise architecture model (applications in a parent-child hierarchy, interfaces with provider and consumer applications, IT components, business capabilities three levels deep, organizations, owners) exported as Excel tables or ArchiMate exchange XML
+    node_count: 1,000-70,000 (LeanIX workspaces averaged about 6,700 fact sheets and 23,000 relations in 2019, vendor)
+    edge_density: sparse, typed by meta-model
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Before an application is retired or replaced, list every application and interface that still uses it,
+    every business capability it is the only one to support, the infrastructure it runs on, and the owners who must
+    agree.
+
+
+    **Mental Model**: "Who points at this, and what part of the business falls over without it." The model is curated
+    by hand and typed by a meta-model; usage references run into the application, and capabilities sit above it in a
+    hierarchy.
+
+
+    **Task Phases** (no source gives per-step durations):
+
+    1. **Pick candidates** - Place applications on a TIME chart (tolerate, invest, migrate, eliminate); rank by a
+    structural complexity score (realized capabilities, integrations, connected infrastructure); list quick wins that
+    reach end of life within a year with no capability at risk
+
+    2. **Open in context** - Make the candidate the focus, with incoming depth raised; choose which reference types count
+
+    3. **Follow incoming usage references** - Through the interfaces it provides to every consumer application, and on
+    to their dependents, ignoring ownership and hierarchy links; a chain that changes direction needs a second view
+
+    4. **Roll up to capabilities** - Collect realized capabilities at the lowest application level (module, not whole
+    ERP), roll up to level 2 and level 1, and flag any capability with no other realizer
+
+    5. **Add infrastructure and organizations** - Connected servers and services; owning organizational units and experts
+
+    6. **List owners** - Owner and expert for every affected application, interface and capability
+
+    7. **Hand off and plan** - Export the table to Excel, a map image for a presentation, a roadmap; write the decision
+    (retire, replace, keep) back to the application; compare the planned state with today's to see which links change
+
+
+    **Decision Points**:
+
+    - Which reference types count as usage for this question, and how deep to follow them?
+
+    - Is a capability truly covered by another application, or only mapped to one at a different level?
+
+    - Retire now, replace first, or keep (quick win versus capability at risk)?
+
+    - Is the model current enough to trust, or must owners confirm first?
+
+
+    **Information Needs**:
+
+    - Upstream closure with the reference types and depth used stated
+
+    - Affected capabilities grouped by the capability hierarchy, with a count of other realizers for each
+
+    - Owner and expert per affected item
+
+    - Provider versus consumer role on each interface, kept apart from data direction
+
+
+    **Pain Points**:
+
+    - Ardoq's Dependency Map cannot follow a chain that changes direction
+
+    - Sparx shows ArchiMate relationship types as plain UML dependencies in its Traceability window
+
+    - Provider and consumer are confused with data direction
+
+    - The model goes stale between surveys
+
+
+    **Data Flow**:
+
+    - Input: Excel tables of items and relations from LeanIX or Ardoq, or an ArchiMate Model Exchange File Format XML
+    file; capability hierarchy; owners
+
+    - Transformations: Reverse closure over usage reference types, rollup of realized capabilities through the
+    hierarchy, other-realizer count per capability, owner join
+
+    - Output: Affected application, interface and capability list with owners as Excel or CSV; grouped map image;
+    retirement decision recorded per application
+success_criteria:
+    - metric: Consumer completeness
+      target: User lists every application that uses the candidate through usage references, with the depth and types stated
+    - metric: Capability risk
+      target: User can name each capability, at every hierarchy level, that would be left with no supporting application
+    - metric: Hand-off
+      target: Affected items export with their owners as a table the owners can act on
+sources:
+    - title: Ardoq - Getting started with application rationalization
+      url: https://help.ardoq.com/en/articles/44015-getting-started-with-application-rationalization
+      summary: Structural complexity score, capabilities at risk, quick wins, rationalization viewpoints for capabilities, infrastructure and org units, Owner and Expert
+    - title: Ardoq - Dependency Map
+      url: https://help.ardoq.com/en/articles/44007-dependency-map
+      summary: Incoming degree slider, strictly directional chains, group by parent, collapse hierarchy, PNG export
+    - title: Ardoq - An introduction to application rationalization
+      url: https://help.ardoq.com/en/articles/43927-an-introduction-to-application-rationalization
+      summary: Seven-step process ending in the 5Rs (retain, retire, replace, renovate, re-engineer)
+    - title: SAP LeanIX - Circle Map report
+      url: https://docs-eam.leanix.net/docs/circle-map-report
+      summary: Interfaces shown with provider and consumer applications, which must be documented on each interface
+    - title: SAP LeanIX - Differential view in the Interface Circle Map
+      url: https://updates.leanix.net/announcements/differential-view-in-interface-circle-map
+      summary: Shows whether provider or consumer links are added, removed or unchanged for a planned change
+    - title: LeanIX community - Capability links at the lowest application level
+      url: https://community.leanix.net/application-portfolio-management-42/l1-applications-leave-empty-bcs-and-orgs-705
+      summary: Capability relations kept on child applications, not duplicated on the parent
+    - title: SAP LeanIX - GraphQL basics
+      url: https://docs-eam.leanix.net/reference/graphql-basics
+      summary: Retrieve fact sheets and relations for custom reports and extracts
+    - title: The Open Group - ArchiMate Model Exchange File Format
+      url: https://www.opengroup.org/open-group-archimate-model-exchange-file-format
+      summary: XML exchange of elements, relationships and views; required for certified tools since June 1, 2018
+    - title: LeanIX virtual workspaces webinar (vendor)
+      url: https://www.slideshare.net/leanIX_net/leanix-virtual-workspaces
+      summary: Average workspace 6,700 fact sheets and 23,000 relations; maxima 70,000 and 215,000 (May 2019)
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

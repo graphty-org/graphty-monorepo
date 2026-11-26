@@ -21,6 +21,10 @@ requires_capabilities:
     - export-image
     - data-export
     - backbone-extraction
+    - input-output-exposure
+    - matrix-import
+    - fixed-node-positions
+    - redacted-sharing
 suggested_components:
     - file-drop-zone
     - data-import-dialog

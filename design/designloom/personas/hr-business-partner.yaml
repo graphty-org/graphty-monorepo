@@ -1,9 +1,12 @@
 id: hr-business-partner
 name: HR Business Partner
+roster_persona: graph-deliverable-recipient
+tier: A
+scope: in-scope
 role: HR Business Partner who reads, presents and acts on ONA results
 quote: My president asked me what this map means for his team. I need to answer in one sentence, without naming anyone I'm not allowed to name.
 bio: >-
-    Elena Ruiz is the HR business partner to a division president. She is not an analyst: she reads dashboards and
+    Natalia Ruiz is the HR business partner to a division president. She is not an analyst: she reads dashboards and
     slides, sits in the executive readout of an organizational network analysis, and then holds the one-on-one
     conversations that follow it. In a confidential project she never sees row-level network data; she sees
     group-level collaboration matrices, counts of people in each role, and, for named leaders who consented, their own
@@ -43,6 +46,8 @@ workflows:
     - W189
     - W190
     - W191
+    - W316
+    - W1018
 sources:
     - title: Michael Arena - how organizational network analysis works in the real world (i4cp)
       url: https://www.i4cp.com/productivity-blog/awss-michael-arena-how-organizational-network-analysis-works-in-the-real-world

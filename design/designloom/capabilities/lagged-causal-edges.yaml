@@ -5,10 +5,17 @@ description: Keep several lags per variable pair, each with a value and p-value,
     Switch between a process graph (one node per variable) and an unrolled time-series graph, with an alpha or q
     threshold that filters links live.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: causal-diagrams-and-bayesian-networks.md section 10, requirement 20 (Must)."
 algorithms: []
 used_by_workflows:
     - W428
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Lag-indexed directed edges: several lags per pair kept as one edge with a lag list (label ordered by
+      strength) or as parallel edges, each with value and p-value"
+sources:
+    - title: "Causal Diagram Users: DAGs, Bayesian Networks, Causal Discovery, Time-Series Causal Graphs and SEM Path
+        Diagrams (section 10, requirement 20)"
+      url: design/user-research/causal-diagrams-and-bayesian-networks.md
+      summary: "Must in the research (the document says: must for time series). Covered by Designloom when researched:
+        No"

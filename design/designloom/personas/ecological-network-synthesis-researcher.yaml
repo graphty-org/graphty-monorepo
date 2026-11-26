@@ -1,9 +1,12 @@
 id: ecological-network-synthesis-researcher
 name: Ecological Network Synthesis and Prediction Researcher
+roster_persona: interaction-network-ecologist
+tier: B
+scope: in-scope
 role: Macroecologist / Quantitative Ecologist
 quote: I have 1,300 published networks with different names for the same species. Harmonize them, tell me which pairs we never sampled, and show me observed and predicted links in one picture.
 bio: >-
-    Dr. Kofi Mensah is a macroecologist who analyzes hundreds of published interaction networks at once and predicts
+    Dr. Kwesi Mensah is a macroecologist who analyzes hundreds of published interaction networks at once and predicts
     interactions that were never observed. He downloads networks from Web of Life, Mangal (via rmangal), the
     Interaction Web Database and GloBI, mostly webs of under 100 species each, with site, coordinates, date and
     sampling method. He harmonizes taxonomy against GBIF or ITIS, computes null-corrected indices across every network,
@@ -48,6 +51,7 @@ workflows:
     - W165
     - W167
     - W171
+    - W1042
 sources:
     - title: Strydom et al. 2021 - A roadmap towards predicting species interaction networks
       url: https://par.nsf.gov/servlets/purl/10312503

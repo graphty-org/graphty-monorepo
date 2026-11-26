@@ -1,5 +1,8 @@
 id: population-genomics-snp-analyst
 name: Population and Ancient-DNA Genomicist
+roster_persona: phylogeographer-population-geneticist
+tier: A
+scope: in-scope
 role: Postdoctoral Researcher / Staff Scientist in Population Genomics
 quote: PCA blurs the families and sub-populations together. A k-nearest-neighbor network with communities shows them -- but which k is right?
 bio: >-

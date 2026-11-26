@@ -47,25 +47,25 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Install and prepare** (under 1 h) - Install Java and the CausalPath jar, or the R packages for CARNIVAL and
+    1. **Install and prepare** - Install Java and the CausalPath jar, or the R packages for CARNIVAL and
     COSMOS
 
-    2. **Format the data** (about 1 h) - A tab file with an ID per site (for example G6PD_Y401), gene symbols, sites,
+    2. **Format the data** - A tab file with an ID per site (for example G6PD_Y401), gene symbols, sites,
     effect and a signed change value
 
-    3. **Set parameters** (15 min) - Significance 0.1, 10,000 permutations, network FDR 0.1 (CausalPath); prior network
+    3. **Set parameters** - Significance 0.1, 10,000 permutations, network FDR 0.1 (CausalPath); prior network
     and inputs (CARNIVAL)
 
-    4. **Run** (about 1 h) - CausalPath writes SIF and JSON; CARNIVAL and COSMOS solve for the smallest sign-consistent
+    4. **Run** - CausalPath writes SIF and JSON; CARNIVAL and COSMOS solve for the smallest sign-consistent
     subnetwork by integer programming; PathLinker ranks k shortest receptor to transcription factor paths
 
-    5. **View and style** (30 min) - Load the result; arrows for activation, T-bars for inhibition, color by sign; node
+    5. **View and style** - Load the result; arrows for activation, T-bars for inhibition, color by sign; node
     color by measured change; hierarchical layout from receptors down
 
-    6. **Interrogate paths** (20 min) - Select a source and a target, show directed paths and whether their signs are
+    6. **Interrogate paths** - Select a source and a target, show directed paths and whether their signs are
     consistent with the data
 
-    7. **Export** (10 min) - Image with a legend of the edge notation; edge table for the supplement
+    7. **Export** - Image with a legend of the edge notation; edge table for the supplement
 
 
     **Decision Points**:
@@ -73,6 +73,9 @@ goal: >-
     - Which prior network and which resources inside it (OmniPath has 103)?
 
     - Site-level or protein-level inference?
+
+    - Is a causal model needed, or does kinase activity enrichment over known kinase-substrate links answer the
+    question (W3066, the more common route)?
 
     - How many shortest paths (k) or how large a subnetwork to show?
 

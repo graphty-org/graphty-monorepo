@@ -3,6 +3,10 @@ name: Cybersecurity Attack-Path Findings and Exposure Tracking
 category: reporting
 validated: false
 personas:
+    - dana-okafor
+    - marcus-lindqvist
+    - aiko-tanaka
+    - luis-ferreira
     - graph-deliverable-recipient
 requires_capabilities:
     - shortest-path
@@ -10,6 +14,7 @@ requires_capabilities:
     - path-highlighting
     - removal-impact-analysis
     - temporal-analysis
+    - graph-diff
     - comparison-view
     - export-image
     - data-export
@@ -17,6 +22,8 @@ requires_capabilities:
     - de-identified-display
     - structured-findings-export
     - deliverable-templates
+    - comparison-coverage-gate
+    - period-change-table
 suggested_components:
     - graph-canvas
     - path-finder-dialog
@@ -38,6 +45,11 @@ goal: >-
     regenerated after every data collection.
 
 
+    **Who**: The penetration tester writes the per-path findings; the incident responder hands off the hop table;
+    the threat intelligence analyst exports STIX and blocklists; the attack-path management owner regenerates the
+    exposure trend after each collection. Clients, the CISO and auditors read the result (W1018).
+
+
     **Mental Model**: "Each path is a finding; exposure is a number over time." A client reads findings with
     reproduction steps; a defender watches whether there are fewer paths to Tier Zero than last month.
 
@@ -47,14 +59,17 @@ goal: >-
     1. **Per-engagement findings** (per path) - Hide labels, export the path image (PNG, JPG or SVG) or JSON, and write
     each path as a finding with reproduction commands
 
-    2. **Lateral movement** (1-2 h) - Hand off a chronological hop table: time, source, target, account, logon type,
+    2. **Lateral movement** - Hand off a chronological hop table: time, source, target, account, logon type,
     evidence
 
-    3. **Threat intelligence** (30 min) - Export a STIX report bundle, PDF or image; send blocklists and hunt queries to
+    3. **Threat intelligence** - Export a STIX report bundle, PDF or image; send blocklists and hunt queries to
     the SOC and STIX to partners
 
-    4. **Continuous exposure** (every collection) - Re-run the analysis, compare with the previous run, report the
-    trend in Tier Zero exposure
+    4. **Continuous exposure** (every collection) - Wait for ingest and analysis to finish; check Group and Session
+    Completeness (share of enabled computers with a login in the past 14 days that were scanned) before trusting any
+    drop; keep the same environment, zone, severity and date-range scope as the last review; read the per-category
+    Count and Change table, including paths resolved or deprecated during the range; report the exposure, findings,
+    attack path and object trends (the full recurring procedure is W323)
 
 
     **Decision Points**:
@@ -65,7 +80,7 @@ goal: >-
 
     - Which choke points to recommend removing first?
 
-    - Did exposure fall after remediation?
+    - Did exposure fall after remediation, or did collection coverage fall?
 
 
     **Information Needs**:
@@ -76,7 +91,9 @@ goal: >-
 
     - Time-ordered hops with evidence for incident reports
 
-    - Difference in exposure between two analysis runs
+    - Difference in exposure between two analysis runs, per finding category, with resolved paths listed
+
+    - Group and session completeness for each run being compared
 
 
     **Pain Points**:
@@ -104,6 +121,8 @@ success_criteria:
       target: Each hop carries time, source, target, account and evidence
     - metric: Trend regeneration
       target: Exposure after a new collection is compared with the previous run without rebuilding the view
+    - metric: Coverage-aware comparison
+      target: Each run-to-run change is shown beside both runs' completeness figures
 sources:
     - title: BloodHound Enterprise datasheet
       url: https://specterops.io/wp-content/uploads/sites/3/2025/07/BHE_Datasheet_1016-4_61bcf0.pdf
@@ -111,6 +130,12 @@ sources:
     - title: Cambridge Intelligence - Intelligence dissemination with PDF exports
       url: https://cambridge-intelligence.com/intelligence-dissemination-with-pdf-exports/
       summary: Static exports for disseminating graph findings
-version: 1.0.0
+    - title: BloodHound - Posture page
+      url: https://bloodhound.specterops.io/analyze-data/bloodhound-gui/posture-page
+      summary: A high-level view of security posture over time showing how remediation is reducing risk; the attack paths table is designed for trend tracking and reporting
+    - title: BloodHound - Data Quality
+      url: https://bloodhound.specterops.io/collect-data/data-quality
+      summary: Wait for ingest and analysis processing to complete before comparing counts or trends; review completeness
+version: 1.2.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

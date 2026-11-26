@@ -4,7 +4,7 @@ category: analysis
 description: Display a graph from NetworkX, igraph or a GEXF/GraphML string inside a hosted Jupyter or Colab notebook at
     about 10^5 nodes and 5 x 10^5 edges, with computed columns styleable.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: students-educators-and-first-time-users.md section 9, requirement 20 (Should)."
 algorithms: []
 used_by_workflows:
     - W235
@@ -12,8 +12,13 @@ used_by_workflows:
     - W266
     - W267
     - W274
+    - W1120
 implemented_by_components: []
 requirements:
-    - Render the graph inside Jupyter, VS Code, Colab and Databricks notebooks from a DataFrame or edge list plus node
-      table, keeping original ids beside integer indices, and return selections and annotations to Python.
-sources: []
+    - "Should: graphty-element as a notebook display fed from NetworkX, igraph or a GEXF/GraphML string, at about 10^5
+      nodes and 5 x 10^5 edges"
+    - "Must: Render the graph inside Jupyter, VS Code, Colab and Databricks notebooks from a DataFrame or edge list plus node table, keeping original ids beside integer indices, and return selections and annotations to Python."
+sources:
+    - title: Students, Instructors and First-Time Graph Users (section 9, requirement 20)
+      url: design/user-research/students-educators-and-first-time-users.md
+      summary: "Should in the research. Covered by Designloom when researched: Not covered"

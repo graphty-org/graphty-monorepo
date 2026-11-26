@@ -21,6 +21,7 @@ requires_capabilities:
     - geographic-layout
     - spatial-selection
     - dependency-propagation
+    - geospatial-file-io
 suggested_components:
     - graph-canvas
     - search-panel
@@ -105,7 +106,7 @@ goal: >-
     - Output: Ranked exposure table, footprint map, list of alternates to secure, status-tracked action list
 success_criteria:
     - metric: Time from alert to first exposure list
-      target: Within hours, not days
+      target: Within hours, not days (design goal; no source measures it)
     - metric: Exposure completeness
       target: Every site in the footprint traced to products and revenue at risk
     - metric: Status tracking

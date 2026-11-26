@@ -1,9 +1,12 @@
 id: air-maritime-network-analyst
 name: Air and Maritime Network Analyst
+roster_persona: migration-flow-demographer
+tier: B
+scope: in-scope
 role: Aviation and Shipping Network Researcher / Transport Research Institute or Airline Network Planning
 quote: Anchorage tops betweenness and Atlanta tops degree. That only makes sense on a map, and my graph tool will not draw one.
 bio: >-
-    Tomas is an aviation and shipping network researcher at a transport research institute, or a network planner at
+    Mateo is an aviation and shipping network researcher at a transport research institute, or a network planner at
     an airline, with an MSc or PhD in transport economics, operations research or network science. He works in Python
     (pandas, NetworkX) or R (igraph) and SQL, sometimes Neo4j Graph Data Science, and uses Gephi or matplotlib for
     figures. His edges are services rather than demand: non-stop flight segments from BTS T-100, itineraries from the

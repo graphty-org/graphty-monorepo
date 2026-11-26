@@ -8,13 +8,14 @@ notes: "Ships: graphty/src/workspace/inspector/NodeValues.tsx."
 implements_capabilities:
     - details-on-demand
 used_in_workflows:
+    - W3006
+    - W3024
     - W02
     - W05
     - W06
     - W09
     - W13
     - W17
-    - W12
     - W08
     - W10
     - W100
@@ -155,13 +156,7 @@ used_in_workflows:
     - W347
     - W348
     - W35
-    - W350
-    - W351
-    - W352
-    - W353
-    - W356
-    - W357
-    - W358
+    - W343
     - W359
     - W361
     - W362
@@ -202,7 +197,6 @@ used_in_workflows:
     - W436
     - W437
     - W438
-    - W446
     - W52
     - W55
     - W56
@@ -239,6 +233,39 @@ used_in_workflows:
     - W96
     - W98
     - W99
+    - W1006
+    - W1012
+    - W1013
+    - W1018
+    - W1042
+    - W1054
+    - W1060
+    - W1084
+    - W1090
+    - W1096
+    - W252
+    - W1120
+    - W1126
+    - W254
+    - W1132
+    - W1156
+    - W1157
+    - W1158
+    - W2000
+    - W2006
+    - W2030
+    - W2036
+    - W2037
+    - W2038
+    - W251
+    - W2066
+    - W3066
+    - W3078
+    - W3079
+    - W3080
+    - W3096
+    - W3102
+    - W3103
 dependencies:
     - attribute-row
     - metric-card

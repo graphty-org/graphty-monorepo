@@ -6,6 +6,7 @@ status: planned
 implements_capabilities:
     - analysis-history
 used_in_workflows:
+    - W3114
     - W03
     - W25
     - W06
@@ -45,10 +46,9 @@ used_in_workflows:
     - W335
     - W336
     - W337
-    - W338
+    - W430
     - W341
     - W343
-    - W351
     - W361
     - W37
     - W377
@@ -59,13 +59,9 @@ used_in_workflows:
     - W416
     - W42
     - W425
-    - W430
     - W432
     - W433
     - W438
-    - W439
-    - W441
-    - W447
     - W50
     - W51
     - W52
@@ -75,6 +71,8 @@ used_in_workflows:
     - W75
     - W88
     - W92
+    - W1054
+    - W105
 dependencies:
     - button
     - icon

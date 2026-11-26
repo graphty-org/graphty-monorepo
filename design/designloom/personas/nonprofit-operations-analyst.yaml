@@ -1,9 +1,12 @@
 id: nonprofit-operations-analyst
 name: Nonprofit Operations Analyst
+roster_persona: explorer-elena
+tier: A
+scope: in-scope
 role: Operations and Data Analyst at a Small Nonprofit ("the accidental techie")
 quote: The development director wants to know which board members can open doors to these 30 prospects. I have three spreadsheets that don't agree on anyone's name.
 bio: >-
-    Grace Lin is the one person at a small regional nonprofit who "does the data". She is fluent in Excel and the
+    Megan Lin is the one person at a small regional nonprofit who "does the data". She is fluent in Excel and the
     donor CRM (Salesforce Nonprofit Success Pack, where Relationships are reciprocal pairs between contacts and
     Affiliations link contacts to organizations), but she has no graph training and often cannot install software on
     her work laptop. She is asked for a one-slide picture of which board members connect to which funders, for a
@@ -12,7 +15,7 @@ bio: >-
     a grants table, and survey exports. Her nodes are real people and organizations with CRM identifiers and her edges
     are facts, so she asks lookups and paths ("who knows this prospect, in two steps?"), not loops. Donor names are
     sensitive, and the whole picture goes stale because people change jobs, so she redoes it quarterly or before a
-    major campaign. This persona absorbs the graphty studio persona "Grace"
+    major campaign. This persona absorbs the graphty studio persona "Megan"
     (design/ui/studio/personas/nonprofit-operations-analyst.md).
 characteristics:
     expertise: novice

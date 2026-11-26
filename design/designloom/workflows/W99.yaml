@@ -48,21 +48,21 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Choose theme lines** (5 min) - One per suspect, phone, vehicle or account; related lines placed together
+    1. **Choose theme lines** - One per suspect, phone, vehicle or account; related lines placed together
 
-    2. **Create events** (15-60 min) - From imported rows or from statements; text "no longer than three or four
+    2. **Create events** - From imported rows or from statements; text "no longer than three or four
     words"; hypothesized events drawn differently
 
-    3. **Connect and tidy** (10 min) - Attach events to theme lines; fix frames left pinned to lines after bulk import;
+    3. **Connect and tidy** - Attach events to theme lines; fix frames left pinned to lines after bulk import;
     configure the time bar (scale, breaks); save as a template
 
-    4. **Read the pattern** (15 min) - Gaps, bursts and order (in the Scarecrow case a vehicle was stolen "two to three
+    4. **Read the pattern** - Gaps, bursts and order (in the Scarecrow case a vehicle was stolen "two to three
     days before each offense"); filter to a time window
 
     5. **Link to the chart** (ongoing) - Keep the association chart and the timeline as linked views so selecting in
     one selects in the other
 
-    6. **Prepare for court** (hours) - Show only what the evidence supports, and keep alternative versions for possible
+    6. **Prepare for court** - Show only what the evidence supports, and keep alternative versions for possible
     rulings
 
 
@@ -112,7 +112,7 @@ success_criteria:
     - metric: Court variants
       target: An alternative version without a chosen set of events is produced without redrawing
     - metric: Readability
-      target: A reader can state the order of events around the offense in under a minute
+      target: A reader can state the order of events around the offense in under a minute (design goal; no source measures it)
 sources:
     - title: UNODC Criminal Intelligence Manual for Analysts, chapter 7
       url: https://www.azdps.gov/sites/default/files/2023-07/Criminal_Intelligence_Manual_for_Analysts.pdf

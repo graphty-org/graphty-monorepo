@@ -1,5 +1,8 @@
 id: aiko-tanaka
 name: Aiko Tanaka
+roster_persona: osint-investigator
+tier: A
+scope: in-scope
 role: Cyber Threat Intelligence Analyst
 quote: One IP hosting four hundred domains is noise, one reused certificate is a lead. Let me expand, judge each edge, prune hard, and hand the SOC a clean blocklist.
 bio: >-
@@ -48,6 +51,7 @@ context:
 workflows:
     - W110
     - W116
+    - W320
 sources:
     - title: Maltego - Beginner's guide, charting my first Maltego graph
       url: https://www.maltego.com/blog/beginners-guide-to-maltego-charting-my-first-maltego-graph/

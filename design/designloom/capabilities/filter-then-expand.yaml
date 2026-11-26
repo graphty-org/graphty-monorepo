@@ -4,11 +4,16 @@ category: analysis
 description: Apply neighborhood depth to a query-defined node set; hide hubs or placeholders while keeping routes
     through them; keep only paths reaching a target set within k hops.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: personal-knowledge-graphs-and-note-networks.md section 9, requirement 8 (Should)."
 algorithms: []
 used_by_workflows:
     - W324
     - W327
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Should: Path-preserving filters: hide hubs or placeholders but keep routes through them; keep only paths reaching
+      a target set within k hops"
+sources:
+    - title: Personal Knowledge Graphs and Note Networks (section 9, requirement 8)
+      url: design/user-research/personal-knowledge-graphs-and-note-networks.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

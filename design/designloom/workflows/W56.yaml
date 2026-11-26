@@ -3,9 +3,10 @@ name: Main Path Analysis and Algorithmic Historiography
 category: analysis
 validated: false
 personas:
-    - bibliometric-review-author
+    - bibliometric-analyst
     - scientometrics-analyst
     - patent-landscape-analyst
+    - legal-citation-network-scholar
 requires_capabilities:
     - data-import
     - component-analysis
@@ -54,22 +55,22 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Build the direct citation network** (10 min) - From records with cited references; keep only citations inside
+    1. **Build the direct citation network** - From records with cited references; keep only citations inside
     the corpus
 
-    2. **Make it acyclic** (5 min) - Remove or shrink cycles from mutual or same-year citations
+    2. **Make it acyclic** - Remove or shrink cycles from mutual or same-year citations
 
-    3. **Compute traversal weights** (minutes) - SPC (search path count: source-to-sink paths through each link), SPLC or
+    3. **Compute traversal weights** - SPC (search path count: source-to-sink paths through each link), SPLC or
     SPNP; in Pajek via Network > Acyclic Network > Create Weighted Network + Vector > Traversal Weights, or with mpaR in R
 
-    4. **Search for the main path** (minutes) - Local "priority first" search follows the heaviest outgoing link; global
+    4. **Search for the main path** - Local "priority first" search follows the heaviest outgoing link; global
     search finds the chain with the largest total weight; key-route search forces the top key links into the path and
     adds detail as their number grows
 
-    5. **Draw** (30 min) - A year-layered directed graph with time on one axis, as in HistCite historiographs;
+    5. **Draw** - A year-layered directed graph with time on one axis, as in HistCite historiographs;
     bibliometrix histNetwork returns the matrix for one
 
-    6. **Complement with RPYS** (30 min) - Plot the distribution of cited references' publication years to find
+    6. **Complement with RPYS** - Plot the distribution of cited references' publication years to find
     historical roots; compare with the main path, since the two can disagree
 
 
@@ -112,7 +113,7 @@ goal: >-
     - Output: Main path figure, path document table, RPYS chart, exported weighted network
 success_criteria:
     - metric: Time to a main path from loaded records
-      target: Under 15 minutes without leaving the tool
+      target: Under 15 minutes without leaving the tool (design goal; no source measures it)
     - metric: Method coverage
       target: SPC, SPLC and SPNP weights with local, global and key-route search
     - metric: Chronological readability

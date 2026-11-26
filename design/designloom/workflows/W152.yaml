@@ -50,21 +50,21 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Prepare the node file** (10 min) - Six tab-separated columns with no header: x, y, z in MNI millimeters,
+    1. **Prepare the node file** - Six tab-separated columns with no header: x, y, z in MNI millimeters,
     color value (often module number), size value (degree, centrality or t-value), label ("-" for none). Coordinates
     come from atlas centroids (nilearn find_parcellation_cut_coords) or files shipped for AAL90, HOA112, Dos160 and
     others; often edited in Excel
 
-    2. **Prepare the edge file** (2 min) - N x N ASCII matrix in node-file row order; zero means no edge; in
+    2. **Prepare the edge file** - N x N ASCII matrix in node-file row order; zero means no edge; in
     undirected mode only the upper triangle is read
 
-    3. **Load** (2 min) - Choose a background surface (ICBM152 or Colin27) plus the node and edge files
+    3. **Load** - Choose a background surface (ICBM152 or Colin27) plus the node and edge files
 
-    4. **Set options** (10 min) - Layout (single view, lateral and medial per hemisphere, or full); lower surface
+    4. **Set options** - Layout (single view, lateral and medial per hemisphere, or full); lower surface
     opacity; threshold, label, size and color nodes (by colormap or by module); threshold edges by value or sparsity
     and color by value, length or module (module color when both ends share it, gray otherwise)
 
-    5. **Export** (5 min) - Pixel or physical size and DPI; TIFF, PNG, EPS; optionally a rotating movie; save all
+    5. **Export** - Pixel or physical size and DPI; TIFF, PNG, EPS; optionally a rotating movie; save all
     options to a file
 
     6. **Batch** (varies) - Re-render with the saved option file for every subject, threshold or window
@@ -114,7 +114,7 @@ goal: >-
     - Output: Multi-view publication image, rotating movie or interactive HTML, saved option file for batch rendering
 success_criteria:
     - metric: Time from matrix and coordinates to a first figure
-      target: Under 15 minutes without editing a text file by hand
+      target: Under 15 minutes without editing a text file by hand (design goal; no source measures it)
     - metric: Position fidelity
       target: Every node lies inside the background brain when both use the same named template
     - metric: Batch reuse

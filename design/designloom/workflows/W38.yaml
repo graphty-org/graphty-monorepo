@@ -57,34 +57,34 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Prepare** (2 min) - Work on the giant component or state how isolates are handled; treat weights as strengths
+    1. **Prepare** - Work on the giant component or state how isolates are handled; treat weights as strengths
     (the opposite of path measures); for signed or correlation networks use a signed null or drop negative weights
     first
 
-    2. **Pick the method by goal** (1 min) - For "these groups exist in the generating process", a nested
+    2. **Pick the method by goal** - For "these groups exist in the generating process", a nested
     degree-corrected stochastic block model fitted by minimum description length; for description or a figure, Leiden
     (modularity or Constant Potts Model); Louvain only to reproduce older work
 
-    3. **Run many times with recorded seeds** (minutes) - 100 or more runs; do not keep the single highest-Q partition,
+    3. **Run many times with recorded seeds** - 100 or more runs; do not keep the single highest-Q partition,
     since many structurally different partitions have almost equal Q
 
-    4. **Sweep resolution** (minutes) - gamma = 1 is not special (one example gives 2, 3 and 4 communities at 0.5, 0.75
+    4. **Sweep resolution** - gamma = 1 is not special (one example gives 2, 3 and 4 communities at 0.5, 0.75
     and 1.0); keep the scales where repeated runs agree most, or several scales
 
-    5. **Consensus** (minutes) - Co-assignment matrix (fraction of runs in which two nodes share a community), subtract
+    5. **Consensus** - Co-assignment matrix (fraction of runs in which two nodes share a community), subtract
     a permutation null, recluster until stable; for block models, sample the posterior and report node marginals
 
-    6. **Compare partitions** (2 min) - Normalized mutual information, adjusted Rand or variation of information between
+    6. **Compare partitions** - Normalized mutual information, adjusted Rand or variation of information between
     runs, resolutions and known metadata
 
-    7. **Test against a null** (minutes) - Observed Q vs Q on degree-preserving randomizations, plus a distance-aware
+    7. **Test against a null** - Observed Q vs Q on degree-preserving randomizations, plus a distance-aware
     null for spatially embedded networks; or rely on the block model's description length
 
-    8. **Characterize** (10 min) - Sizes, internal density, attribute profiles, within-module degree z-score and
+    8. **Characterize** - Sizes, internal density, attribute profiles, within-module degree z-score and
     participation coefficient; check clusters against outside evidence (bios, metadata, PageRank, density) rather than
     treating them as final
 
-    9. **Hand off** (5 min) - Partition at the chosen scales, a stability statistic, the null comparison, seeds and
+    9. **Hand off** - Partition at the chosen scales, a stability statistic, the null comparison, seeds and
     software versions, and a figure colored by community with uncertain nodes drawn as uncertain
 
 

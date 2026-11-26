@@ -46,24 +46,24 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Pick the start** (1 min) - An alerted account, a compromised host, an index case, a facilitator; and a start
+    1. **Pick the start** - An alerted account, a compromised host, an index case, a facilitator; and a start
     time
 
-    2. **Set the waiting limit** (2 min) - A domain parameter: 24 hours between logins (matched to maximum session
+    2. **Set the waiting limit** - A domain parameter: 24 hours between logins (matched to maximum session
     length), an incubation range, a delta between messages; plus optional attribute constraints such as each transfer
     within 80 to 100 percent of the previous amount
 
-    3. **Search** (1-5 min) - Forward (where could it go?) or backward (where could it have come from?), respecting
+    3. **Search** - Forward (where could it go?) or backward (where could it have come from?), respecting
     order; or find ordered cycles of 3 to 6 transfers
 
-    4. **Read the result** (5 min) - Reachable set, earliest arrival time, latency and hop count per target
+    4. **Read the result** - Reachable set, earliest arrival time, latency and hop count per target
 
-    5. **Compare with the static view** (3 min) - Show which static paths are impossible in time
+    5. **Compare with the static view** - Show which static paths are impossible in time
 
-    6. **Check validity** (5 min) - Flag links that violate order (infector died before infectee was exposed) and export
+    6. **Check validity** - Flag links that violate order (infector died before infectee was exposed) and export
     them
 
-    7. **Report** (10 min) - The path as an ordered, timestamped list for a court exhibit, incident timeline or outbreak
+    7. **Report** - The path as an ordered, timestamped list for a court exhibit, incident timeline or outbreak
     report
 
 

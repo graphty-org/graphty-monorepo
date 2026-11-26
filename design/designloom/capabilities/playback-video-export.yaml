@@ -4,7 +4,7 @@ category: export
 description: Export playback as video or an image sequence with window dates burned in, plus a saved record of window
     length, step, aggregation and duration rule.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: temporal-and-dynamic-networks.md section 11, requirement T17 (Should)."
 algorithms: []
 used_by_workflows:
     - W19
@@ -13,6 +13,10 @@ used_by_workflows:
     - W321
 implemented_by_components: []
 requirements:
-    - Export a time-varying graph as MP4 or GIF with fixed camera and timing, standalone animated HTML, small-multiple
-      panels sharing one layout, and a timeline chart with source references per event.
-sources: []
+    - "Should: Video or image-sequence export of playback with the window dates burned in, and a saved record of window
+      parameters"
+    - "Must: Export a time-varying graph as MP4 or GIF with fixed camera and timing, standalone animated HTML, small-multiple panels sharing one layout, and a timeline chart with source references per event."
+sources:
+    - title: Temporal and Dynamic Network Data and Analysis (section 11, requirement T17)
+      url: design/user-research/temporal-and-dynamic-networks.md
+      summary: "Should in the research. Covered by Designloom when researched: No (export-image is static)"

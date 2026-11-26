@@ -4,10 +4,16 @@ category: analysis
 description: Rename or combine attribute values so groups in a before snapshot map to groups in an after snapshot, then
     color edges by increase or decrease and rank new, lost and changed group ties.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: organizational-network-analysis-people-analytics.md section 9, table row 9 (Must)."
 algorithms: []
 used_by_workflows:
     - W189
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Before/after comparison of two waves with group matching (rename or merge attribute values), edge color by
+      increase or decrease"
+sources:
+    - title: Organizational Network Analysis and People Analytics Practitioners (section 9, table row 9)
+      url: design/user-research/organizational-network-analysis-people-analytics.md
+      summary: "Must in the research. Covered by Designloom when researched: Partly (W19
+        covers evolution, not group matching or wave comparison)"

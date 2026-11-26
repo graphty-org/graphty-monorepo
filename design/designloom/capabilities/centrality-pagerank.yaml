@@ -2,23 +2,18 @@ id: centrality-pagerank
 name: PageRank Centrality
 category: analysis
 description: Calculate PageRank - a prestige-based centrality where a node's importance depends on the importance of
-    nodes pointing to it. Originally developed for web search, useful for directed networks where being referenced by
-    important nodes matters.
-status: implemented
-notes: "Ships: graphty-element/src/algorithms/PageRankAlgorithm.ts."
+    nodes pointing to it. Originally developed for web search; used for citation importance, internal link value in
+    website audits, logon-graph ranking and, personalized from chosen nodes, for seeded ranking.
+status: in-progress
+notes: "Partly ships: graphty-element/src/algorithms/PageRankAlgorithm.ts runs power iteration with Damping Factor 0.85, Max Iterations 100, Tolerance 1e-6 and Follow Edge Direction, reads a weight column as a strength, takes a personalization vector programmatically, and reports converged and iterations. Planned: personalization from a selected node set in the UI with weights from an attribute, a stated self-loop convention, and a non-convergence error code (today the result carries converged false). Any requirement below that this note does not name as shipping counts as planned."
 algorithms:
-    - PageRank
-    - Power iteration
+    - PageRank (shipped)
+    - Power iteration (shipped)
 used_by_workflows:
-    - W03
     - W10
     - W112
-    - W127
-    - W128
-    - W138
     - W142
     - W17
-    - W176
     - W207
     - W226
     - W227
@@ -29,33 +24,41 @@ used_by_workflows:
     - W290
     - W334
     - W364
-    - W365
     - W387
     - W41
-    - W447
     - W55
     - W86
     - W89
+    - W2036
 implemented_by_components:
     - algorithm-card
     - algorithm-panel
 requirements:
-    - Implement PageRank using power iteration method
-    - Provide damping factor parameter adjustable from 0.5 to 0.99 (default 0.85)
-    - Provide convergence threshold parameter adjustable from 1e-4 to 1e-8 (default 1e-6)
-    - Provide maximum iterations parameter adjustable from 100 to 10000 (default 1000)
-    - Handle sink nodes (no outgoing edges) by distributing their rank equally to all nodes
-    - Handle self-loops by including them in outlink count
-    - Normalize results so sum of all PageRank scores equals 1.0
-    - Store result with 8 decimal places precision
-    - Report 'Did not converge' warning if max iterations reached without convergence
-    - Report actual number of iterations used
-    - Complete calculation within 5 seconds for graphs under 100,000 nodes
-    - Rank nodes by PageRank in descending order
-    - Display top-10 nodes by PageRank in results panel
-    - Store result as node attribute named 'pagerank'
-    - Support personalized PageRank with configurable source node set
+    - "Library parity: Implement PageRank using power iteration method"
+    - "Library parity: Provide damping factor (alpha) option, default 0.85, matching NetworkX and graphology"
+    - "Library parity: Provide tolerance and maximum iterations options, defaults 1e-6 and 100, matching NetworkX and graphology, and record the values used in the result"
+    - "Library parity: Handle dangling nodes (no outgoing edges) by distributing their rank by the personalization vector, uniformly when none is given, as NetworkX does"
+    - "Library parity: State in the result how self-loops are counted (included in the outlink count)"
+    - "Library parity: Normalize results so sum of all PageRank scores equals 1.0"
+    - "Library parity: Return a non-convergence error code with the iteration count reached, never a silently partial result"
+    - "Library parity: Report actual number of iterations used"
+    - "Must: Read the edge weight as a strength (transition probability proportional to weight), as declared in weight-semantics; a column declared a distance is converted first, and the result records the column and the conversion used. The same column is a distance for betweenness unless converted"
+    - "Library parity: Rank nodes by PageRank in descending order"
+    - "Library parity: Store result as node attribute named 'pagerank'"
+    - "Should: Support personalized PageRank seeded from a selected node set, with weights from an attribute (root-cause ranking, seeded fraud ranking)"
 sources:
-    - title: Graph Analysis Textbook - Chapter 6
-      url: https://graphty.app/docs/
-      summary: PageRank models random surfer and prestige
+    - title: Page, Brin, Motwani and Winograd 1999, The PageRank citation ranking
+      url: http://ilpubs.stanford.edu:8090/422/
+      summary: Original PageRank random-surfer model with damping
+    - title: NetworkX pagerank
+      url: https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.link_analysis.pagerank_alg.pagerank.html
+      summary: alpha 0.85, max_iter 100, dangling nodes follow the personalization vector, PowerIterationFailedConvergence
+    - title: igraph page_rank
+      url: https://r.igraph.org/reference/page_rank.html
+      summary: Interprets edge weights as connection strengths
+    - title: graphology metrics README
+      url: https://raw.githubusercontent.com/graphology/graphology/master/src/metrics/README.md
+      summary: PageRank defaults match NetworkX (alpha 0.85, 100 iterations, tolerance 1e-6)
+    - title: MicroRCA, root cause localization with personalized PageRank
+      url: https://hal.archives-ouvertes.fr/hal-02441640
+      summary: Personalized PageRank over an anomaly-weighted dependency graph ranks root causes

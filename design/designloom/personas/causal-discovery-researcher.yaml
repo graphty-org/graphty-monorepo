@@ -1,9 +1,12 @@
 id: causal-discovery-researcher
 name: Causal Discovery Researcher
+roster_persona: causal-dag-epidemiologist
+tier: B
+scope: in-scope
 role: Postdoctoral Statistician / Causal-Discovery Methodologist on a Cohort Study
 quote: Three packages gave me three graphs. I need to see which arrows survive 200 bootstrap runs and which directions are a coin flip.
 bio: >-
-    Dr. Jonas Weber is a postdoctoral statistician on a multi-wave child cohort who also consults for psychopathology
+    Dr. Fabian Weber is a postdoctoral statistician on a multi-wave child cohort who also consults for psychopathology
     research groups. He learns directed causal graphs from tabular data rather than drawing them: 14 to 36 mixed
     variables measured over several waves, 5,000 to 10,000 rows, and 1% to 60% missingness per variable. In R he runs
     bnlearn (hill-climbing, tabu, pc.stable, boot.strength, averaged.network, strength.plot, graphviz.compare) and

@@ -4,11 +4,17 @@ category: visualization
 description: A non-network view placing nodes on a grid by two numeric attributes, such as influence against interest or
     MICMAC influence against dependence.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: systems-and-stakeholder-mapping-civic.md section 9, table row 21 (Should)."
 algorithms: []
 used_by_workflows:
     - W197
     - W205
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Should: A second, non-network view: two-axis grid of nodes by two attributes (influence and interest; MICMAC
+      influence and exposure)"
+sources:
+    - title: "Systems Mappers and Civic Power-Mappers: Foundations, NGOs, Evaluators and Organizers (section 9, table
+        row 21)"
+      url: design/user-research/systems-and-stakeholder-mapping-civic.md
+      summary: "Should in the research. Covered by Designloom when researched: No."

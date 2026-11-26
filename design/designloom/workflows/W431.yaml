@@ -5,7 +5,9 @@ validated: false
 personas:
     - network-pharmacology-graduate-student
     - phytochemistry-network-pharmacology-researcher
+    - network-toxicology-researcher
 requires_capabilities:
+    - label-overlap-removal
     - data-import
     - data-validation
     - visual-encoding-nodes
@@ -23,6 +25,11 @@ requires_capabilities:
     - layout-tiered-by-attribute
     - identifier-mapping
     - input-rederivation
+    - data-preview
+    - centrality-degree
+    - hover-highlight
+    - path-highlighting
+    - data-export
 suggested_components:
     - data-import-dialog
     - column-mapper
@@ -36,6 +43,9 @@ suggested_components:
     - graph-canvas
     - session-save-dialog
     - image-export-dialog
+    - file-drop-zone
+    - node-tooltip
+    - data-export-dialog
 starting_state:
     data_type: one stacked edge table (source, target, type) plus a node table with a type column (herb, compound, target, pathway, disease)
     node_count: 90-750
@@ -53,7 +63,7 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Stack the edge tables** (20 min) - Herb-compound, compound-target, target-pathway and target-disease rows in one
+    1. **Stack the edge tables** - Herb-compound, compound-target, target-pathway and target-disease rows in one
     table with a type column; a node table with a type and display columns
 
     2. **Import** (10 min) - Network from file, then the node table keyed on name; drop compounds with no target in the
@@ -66,10 +76,10 @@ goal: >-
     4. **Lay out in tiers** (20-60 min) - Arrange each type as an ordered column or ring, with order inside a tier chosen
     to reduce crossings with the next tier; today done by hand with Attribute Circle, Group Attributes or dragging
 
-    5. **Read** (10 min) - High-degree compounds become "key active ingredients"; targets hit by many compounds show
+    5. **Read** - High-degree compounds become "key active ingredients"; targets hit by many compounds show
     synergy
 
-    6. **Export** (15 min) - Vector export with legend; today labels and legend are fixed in Illustrator
+    6. **Export** - Vector export with legend; today labels and legend are fixed in Illustrator
 
 
     **Decision Points**:
@@ -145,6 +155,9 @@ sources:
     - title: Two-herb pair study (PMC7838196)
       url: https://pmc.ncbi.nlm.nih.gov/articles/PMC7838196
       summary: Compound-target network of 736 nodes and 3,034 edges; core compound-target-pathway network of 143 nodes and 646 edges
+    - title: Cytoscape manual - Creating Networks
+      url: https://manual.cytoscape.org/en/stable/Creating_Networks.html
+      summary: Import network from file, then table from file keyed on node name
 version: 1.0.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

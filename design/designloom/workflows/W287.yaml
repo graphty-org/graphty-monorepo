@@ -6,6 +6,7 @@ personas:
     - graph-product-frontend-engineer
     - plugin-author-frontend-developer
 requires_capabilities:
+    - element-accessibility
     - keyboard-shortcuts
     - search
     - node-selection
@@ -13,7 +14,7 @@ requires_capabilities:
     - style-presets
     - animated-transitions
     - data-export
-    - element-accessibility
+    - accessible-graph-overview
 suggested_components:
     - graph-canvas
     - search-input
@@ -21,83 +22,157 @@ suggested_components:
     - data-table-panel
     - node-details-panel
 starting_state:
-    data_type: an embedded investigation graph and a customer's WCAG 2.x and Section 508 questionnaire
+    data_type: an embedded investigation graph and a customer requirement (WCAG 2.1 AA under ADA Title II, Section 508, or
+        a questionnaire)
     node_count: 50-500
     edge_density: sparse
     user_expertise: expert developer
 goal: >-
-    **Intent**: Make the embedded graph usable by keyboard and screen-reader users and pass government and
-    law-enforcement procurement under WCAG and Section 508. Today the leading commercial toolkit says it does not
-    support many of these requirements and leaves most of the work to the embedding developer.
+    **Intent**: Make the embedded graph usable by a blind or low-vision reader with a screen reader and by keyboard-only
+    readers, and show it with a test on real assistive technology. Screen readers today often skip a diagram or
+    announce only a placeholder such as "embedded object", and the leading commercial toolkit says it does not support
+    many WCAG and Section 508 requirements for non-visual representations.
 
 
-    **Mental Model**: "The canvas is a picture; give it a keyboard and a text twin." Every node and edge must be
-    reachable by keyboard, findable by search, and described in text.
+    **Mental Model**: "Tell the basic first, then the details." The reader hears what the graph is and how big it is,
+    then searches or walks it along its edges, and can always get back to where they were. A table of nodes and edges
+    is a second way in, not a lesser one.
 
 
     **Task Phases**:
 
-    1. **Built-in keys** - Escape, Delete, arrow keys, Space and Ctrl+A, plus a call to focus the chart
+    1. **Identify the rule** - WCAG 2.1 AA for state and local government (ADA Title II), Section 508 (WCAG 2.0 AA) for
+    federal agencies, otherwise the customer's questionnaire
 
-    2. **Search entry point** - Add a search box users can Tab to and type into to find nodes
+    2. **Name and overview** - Give the graph an accessible name and an overview read first: node and edge counts,
+    components, the most connected nodes, the current selection
 
-    3. **Focus** - Add a focus function users can Tab to and press Enter to move focus into the chart
+    3. **Enter and leave** - The graph is one Tab stop; arrows move inside it; Escape leaves; focus is never trapped
 
-    4. **ARIA** - Label the chart's structure, or hide it with aria-hidden and rely on the text version
+    4. **Walk the structure** - Move to the next or previous neighbor, follow an edge to its other end, step into a
+    group and back up the same path, return home to the current node; say when the context changes
 
-    5. **Text alternatives** - A data table or summary of nodes and links, and descriptions of the focused node or link,
-    starting from the chart's serialized state
+    5. **Announce nodes and edges** - Node: kind, name, in and out degree, selection state. Edge: kind, both ends,
+    direction, weight or type. Offer a short and a long form
 
-    6. **Color and motion** - Colorblind and high-contrast schemes, never color alone, and a way to turn off animation
+    6. **Find by name** - A search entry that moves focus to the matching node
 
-    7. **Conformance statement** - Answer the customer's questionnaire
+    7. **Text twin** - An adjacency list or node and edge table generated from the same graph and kept in step
+
+    8. **Color, focus and motion** - Nothing by color alone, non-text contrast, a visible focus that panels do not cover,
+    a pause for moving layouts and a reduced-motion setting
+
+    9. **Test with assistive technology** - Run the overview, search, walk and table tasks with NVDA and JAWS on Windows
+    and VoiceOver on macOS; add an automated scan and the Chartability critical tests
+
+    10. **Conformance statement** - Write it from the test results and attach it to the procurement answer
 
 
     **Decision Points**:
 
-    - Expose graph structure to screen readers or hide the canvas and offer a table?
+    - Which key moves along an edge, which into a group, which back up, and which returns home?
 
-    - Which keyboard walk order for nodes and edges?
+    - How long is a node or edge announcement by default, and how does the reader switch to the long form?
 
-    - Which color schemes ship by default?
+    - When a node belongs to several groups, which way does "back up" go, and how does the reader learn there is a
+    choice?
+
+    - Is the table twin shown beside the graph, or offered from a button in the graph?
+
+    - Which screen reader and browser pairs are in the test matrix?
 
 
     **Information Needs**:
 
-    - What the library does for keyboard, focus, ARIA and text alternatives, and what it leaves to the embedder
+    - What the library does for overview, walk, announcements, search and text twin, and what it leaves to the embedder
 
-    - A published conformance statement to attach to the questionnaire
+    - Which WCAG success criteria apply: 1.1.1, 1.3.1, 1.4.1, 1.4.11, 2.1.1, 2.1.2, 2.2.2, 2.4.3, 2.4.7, 4.1.2, 4.1.3,
+    and in WCAG 2.2 also 2.4.11 and 2.5.7
+
+    - The exact text each screen reader speaks for a node and for an edge
+
+    - A published conformance statement to attach to the procurement answer
 
 
     **Pain Points**:
 
-    - The market-leading toolkit "does not support many" WCAG 2.0 and Section 508 requirements for non-visual
-    representations
+    - Screen readers skip the diagram or say "embedded object"
 
-    - Search, focus, ARIA and text alternatives are each left to the developer
+    - The market-leading toolkit "does not support many" WCAG 2.0 and Section 508 requirements and leaves search, focus,
+    ARIA and text alternatives to the developer
+
+    - Automated scans pass silent charts: in one audit all 10 libraries had zero axe-core violations, and 6 had no role,
+    name, description or table
+
+    - Readers get lost when context changes without a cue
+
+    - Walking a graph was slower than reading the same graph as a table for adjacency and path questions
 
 
     **Data Flow**:
 
-    - Input: Graph state, customer accessibility requirements
+    - Input: Graph state, the customer's accessibility rule
 
-    - Transformations: Keyboard model, focus model, ARIA labeling, text alternative generation, color schemes
+    - Transformations: Overview facts, structure-following keyboard walk, node and edge announcement facts, search,
+    adjacency table, color and motion settings, assistive-technology test runs
 
-    - Output: An accessible graph view and a conformance statement
+    - Output: An accessible graph view, a test record and a conformance statement
 success_criteria:
-    - metric: Keyboard reach
-      target: Every node and edge is reachable and selectable by keyboard alone
-    - metric: Text alternative
-      target: A screen-reader user can list nodes and edges and hear the focused item's details
+    - metric: Overview first
+      target: A screen-reader user hears the graph's name, size and most connected nodes before any node-level step
+    - metric: Structure walk
+      target: Every node and edge is reachable by keyboard, following edges, and the reader can return along the path
+          taken
+    - metric: Announcements
+      target: Each node and edge is announced with its kind, name and connections in NVDA, JAWS and VoiceOver
+    - metric: Text twin
+      target: The same graph is available as an adjacency list or table without embedder code
     - metric: Procurement
-      target: A published WCAG and Section 508 statement covers the element without embedder work
+      target: A published WCAG 2.1 AA and Section 508 statement covers the element without embedder work
 sources:
+    - title: TADA - Making Node-link Diagrams Accessible to Blind and Low-Vision People (CHI 2024)
+      url: https://arxiv.org/html/2311.04502v4
+      summary: 15 interviewed, 25 tested; diagrams skipped or announced as "embedded object"; overview, summary, search,
+          navigation and detail levels
+    - title: Data Navigator - An accessibility-centered data navigation toolkit (IEEE VIS 2023)
+      url: https://arxiv.org/pdf/2308.08475
+      summary: Navigation as nodes and edges with an HTML layer over canvas or SVG; no network case example; end-user
+          studies left to future work
+    - title: Data Navigator default key bindings
+      url: https://github.com/cmudig/data-navigator/blob/main/packages/data-navigator/src/consts.ts
+      summary: Arrows move, Enter drills in, Escape drills out, comma and period move backward and forward
+    - title: Benthic - Perceptually Congruent Structures for Accessible Charts and Diagrams (ASSETS 2025)
+      url: https://vis.csail.mit.edu/pubs/benthic.pdf
+      summary: 15 blind participants; neighbor arrows, Shift+Down and Shift+Up for levels, home key; fluidity versus
+          wayfinding
+    - title: Including Blind People in Computing Through Access to Graphs (ASSETS 2014)
+      url: https://ciigar.csc.ncsu.edu/files/bib/Balik2014-AccessGraphs.pdf
+      summary: Each focused node or edge voiced; 10 blind users; a table was faster for adjacency and path questions
+    - title: Rich Screen Reader Experiences for Accessible Data Visualization (EuroVis 2022)
+      url: https://ar5iv.labs.arxiv.org/html/2205.04917
+      summary: 13 blind or low-vision participants on JAWS, NVDA and VoiceOver wanted overview then drill-down; keep a
+          table
+    - title: The Accessibility of Data Visualizations on the Web for Screen Reader Users (TACCESS 2023)
+      url: https://shape.stanford.edu/research/DataAccessibility
+      summary: 127 screen-reader users; 15 percent of audited visualizations let a screen reader reach data points
+    - title: We Ran an Accessibility Audit on 10 JavaScript Charting Libraries (vendor)
+      url: https://apexcharts.com/blog/charting-library-accessibility-audit/
+      summary: All 10 passed axe-core; 6 had no role, name, description or table
+    - title: ADA Title II interim final rule on compliance dates
+      url: https://www.govinfo.gov/content/pkg/FR-2026-04-20/html/2026-07663.htm
+      summary: WCAG 2.1 AA compliance moved to April 26, 2027 and April 26, 2028
+    - title: WCAG 2.2
+      url: https://www.w3.org/TR/WCAG22/
+      summary: Success criteria for keyboard, focus, contrast, motion and name, role, value
+    - title: Intermediate accessibility audit with Chartability
+      url: https://data.europa.eu/apps/data-visualisation-guide/intermediate-accessibility-audit-with-chartability
+      summary: 14 critical tests out of 50, including a required table of the data
     - title: KeyLines - Accessibility
       url: https://developers.cambridge-intelligence.com/docs/keylines/accessibility
       summary: Built-in keys and focus call; does not support many WCAG 2.0 and Section 508 requirements
     - title: Cambridge Intelligence - Build accessible data visualization apps with KeyLines
       url: https://cambridge-intelligence.com/build-accessible-data-visualization-apps-with-keylines/
       summary: Search box, focus function, ARIA, text versions, colorblind schemes and animation off left to developers
-version: 1.0.0
+version: 1.1.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

@@ -5,10 +5,17 @@ description: Collapsible tree layout for large reporting hierarchies; copy a bas
     branches to new parents, recompute spans, layers and attribute sums (headcount, cost) live, and diff scenarios
     against the baseline as moved, added and removed nodes.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: organizational-network-analysis-people-analytics.md section 9, table row 22 (Should)."
 algorithms: []
 used_by_workflows:
     - W193
+    - W1013
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Should: Diff of two hierarchies or two graphs over the same people: moved, added, removed nodes and changed
+      metrics, side by side"
+sources:
+    - title: Organizational Network Analysis and People Analytics Practitioners (section 9, table row 22)
+      url: design/user-research/organizational-network-analysis-people-analytics.md
+      summary: "Should in the research. Covered by Designloom when researched: Partly
+        (W19)"

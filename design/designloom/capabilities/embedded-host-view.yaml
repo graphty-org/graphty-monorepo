@@ -4,11 +4,18 @@ category: export
 description: Mount inside a desktop plugin view (Obsidian, VS Code webview, Logseq plugin, local page beside Emacs) with
     no network access, no telemetry, no innerHTML from user data and full cleanup on unload.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: personal-knowledge-graphs-and-note-networks.md section 9, requirement 3 (Must)."
 algorithms: []
 used_by_workflows:
     - W325
     - W333
+    - W2038
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Runs inside a host's view. The element can be mounted in a desktop plugin view (Obsidian on Electron, a VS
+      Code webview, a Logseq plugin, a local page beside Emacs) with no network access, no telemetry, no innerHTML from
+      user data, and full cleanup on unload, so a plugin built on it can pass Obsidian's review"
+sources:
+    - title: Personal Knowledge Graphs and Note Networks (section 9, requirement 3)
+      url: design/user-research/personal-knowledge-graphs-and-note-networks.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

@@ -3,7 +3,7 @@ name: Following the Money Through Parallel Transactions
 category: analysis
 validated: false
 personas:
-    - aml-investigator-sar-writer
+    - aml-investigator
     - fiu-tax-intelligence-analyst
     - crypto-blockchain-investigator
     - forensic-accountant
@@ -65,23 +65,23 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Import** (10 min) - Load a statement or transaction extract, mapping columns to account and transaction types
+    1. **Import** - Load a statement or transaction extract, mapping columns to account and transaction types
     (i2 uses a saved import specification)
 
-    2. **Collapse parallel edges** (2 min) - One edge per pair and direction with count, sum, average, minimum, maximum and
+    2. **Collapse parallel edges** - One edge per pair and direction with count, sum, average, minimum, maximum and
     first and last date; width by sum
 
-    3. **Show net flow and a timeline** (5 min) - Net flow between pairs; play a time bar to see the sequence
+    3. **Show net flow and a timeline** - Net flow between pairs; play a time bar to see the sequence
 
-    4. **Filter by time and amount** (5 min) - Keep transactions over a threshold (the Cambridge Intelligence XRP example
+    4. **Filter by time and amount** - Keep transactions over a threshold (the Cambridge Intelligence XRP example
     uses 3,000 dollars) or within a period; filters apply to the individual transactions before summing; histograms show
     peaks
 
-    5. **Trace paths with direction** (10 min) - Directed paths from a source to a destination; templates such as "all
+    5. **Trace paths with direction** - Directed paths from a source to a destination; templates such as "all
     transactions within 24 hours of this one"; look for loops of 3 to 6 hops where each amount is 80 to 100 percent of the
     previous and dates increase
 
-    6. **Hand off** (10 min) - Export the image plus tables of sums, dates and paths for the case file or narrative
+    6. **Hand off** - Export the image plus tables of sums, dates and paths for the case file or narrative
 
 
     **Decision Points**:

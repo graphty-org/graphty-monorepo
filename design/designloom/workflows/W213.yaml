@@ -56,24 +56,24 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Query** (2 min) - Enter a claim's keywords, a URL or a post; collect matching posts with their repost, quote,
+    1. **Query** - Enter a claim's keywords, a URL or a post; collect matching posts with their repost, quote,
     reply and mention relations
 
-    2. **Build the network** (1 min) - Directed edges between accounts by relation type, each with its post and
+    2. **Build the network** - Directed edges between accounts by relation type, each with its post and
     timestamp; nodes sized by how often they were reposted
 
-    3. **Read the timeline** (5 min) - Cumulative posts over time beside the network; zoom into an interval, hover for
+    3. **Read the timeline** - Cumulative posts over time beside the network; zoom into an interval, hover for
     daily counts, add older or newer posts
 
-    4. **Replay the spread** (2 min) - Animate the network unfolding from start to end date, in 2D or 3D
+    4. **Replay the spread** - Animate the network unfolding from start to end date, in 2D or 3D
 
-    5. **Find early spreaders and amplifiers** (10 min) - Who posted first, which large nodes preceded bursts, which
+    5. **Find early spreaders and amplifiers** - Who posted first, which large nodes preceded bursts, which
     edges bridge communities; edges colored by type (reposts, mentions, replies, quotes, multiple types)
 
-    6. **Open the evidence** (10 min) - Click an edge to open the posts behind it; click a node for the account's
+    6. **Open the evidence** - Click an edge to open the posts behind it; click a node for the account's
     mentions, replies and quotes with links
 
-    7. **Export** (5 min) - Image and data; pair the figure with the timeline in a published investigation
+    7. **Export** - Image and data; pair the figure with the timeline in a published investigation
 
 
     **Decision Points**:

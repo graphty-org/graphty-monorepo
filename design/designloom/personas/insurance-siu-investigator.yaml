@@ -1,5 +1,8 @@
 id: insurance-siu-investigator
 name: Insurance SIU Investigator
+roster_persona: fraud-analyst
+tier: A
+scope: in-scope
 role: Special Investigation Unit (SIU) Investigator, motor insurer (UK, with US differences)
 quote: Each detail looks harmless alone. The same garage, the same solicitor and the same payout account across six claims is a crash-for-cash ring.
 bio: >-

@@ -47,21 +47,21 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Prepare** (1 week before) - Facilitator, wall mapper and an optional software recorder; 12-20 participants;
+    1. **Prepare** - Facilitator, wall mapper and an optional software recorder; 12-20 participants;
     questions from the program's logic model
 
-    2. **Interviews in pairs** (10-15 min) - Appreciative inquiry stories of how the program was used
+    2. **Interviews in pairs** - Appreciative inquiry stories of how the program was used
 
     3. **Group mapping** (60+ min) - Program name in the center, immediate results as first branches, outer ripples from
     probes; themes confirmed by the group; unintended consequences recorded
 
-    4. **Transfer to software** (1-2 h) - Type the tree, add effects from follow-up interviews with absentees; project it
+    4. **Transfer to software** - Type the tree, add effects from follow-up interviews with absentees; project it
     large enough to read
 
-    5. **Code** (1-2 h) - Tag each effect short, medium or long term and by Community Capital (natural, cultural, human,
+    5. **Code** - Tag each effect short, medium or long term and by Community Capital (natural, cultural, human,
     social, political, financial, built) or triple bottom line
 
-    6. **Report** (1 h) - Poster-sized PDF map colored by capital, plus counts of coded effects
+    6. **Report** - Poster-sized PDF map colored by capital, plus counts of coded effects
 
 
     **Decision Points**:
@@ -103,7 +103,7 @@ goal: >-
     - Output: Poster PDF map with legend, coded effect table, counts for the funder report
 success_criteria:
     - metric: Transfer time
-      target: A 60-effect paper map typed into a readable radial tree in under an hour
+      target: A 60-effect paper map typed into a readable radial tree in under an hour (design goal; no source measures it)
     - metric: Coding on the map
       target: Counts by time horizon and capital come from the map without a separate spreadsheet
     - metric: Projection readability

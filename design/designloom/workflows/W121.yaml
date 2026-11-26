@@ -61,9 +61,9 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Fix the seed and the question** (10 min) - Forward from a victim's deposit, or backward from an account or asset
+    1. **Fix the seed and the question** - Forward from a victim's deposit, or backward from an account or asset
 
-    2. **Choose the rule** (5 min) - The one the jurisdiction or engagement accepts; often a second for sensitivity
+    2. **Choose the rule** - The one the jurisdiction or engagement accepts; often a second for sensitivity
 
     3. **Walk accounts in time order** (the core step) - Keep a running balance and the traced portion at every
     transaction; record a balance checkpoint wherever the traced amount is capped
@@ -71,12 +71,12 @@ goal: >-
     4. **Split onward payments** - Divide each outgoing payment into traced and untraced parts under the rule and carry
     the traced part into the next account
 
-    5. **Summarize as flow of funds** (20 min) - A Sankey or flow-of-funds diagram sized by traced amount, each band
+    5. **Summarize as flow of funds** - A Sankey or flow-of-funds diagram sized by traced amount, each band
     drillable to its transactions
 
-    6. **Compare rules** (10 min) - Show the traced amount per destination under each rule side by side
+    6. **Compare rules** - Show the traced amount per destination under each rule side by side
 
-    7. **Export the allocation table** (15 min) - Each step, rule, balance, traced amount and source document page, for
+    7. **Export the allocation table** - Each step, rule, balance, traced amount and source document page, for
     the exhibit
 
 

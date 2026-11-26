@@ -7,8 +7,10 @@ personas:
     - bioinformatics-researcher
     - network-biology-core-bioinformatician
     - single-cell-computational-biologist
+    - crop-coexpression-biologist
 requires_capabilities:
     - centrality-degree
+    - hub-screening
     - centrality-betweenness
     - centrality-closeness
     - centrality-eigenvector
@@ -50,19 +52,19 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Compute several rankings** (3 min) - Degree, betweenness, closeness, eigenvector, clustering coefficient, and
+    1. **Compute several rankings** - Degree, betweenness, closeness, eigenvector, clustering coefficient, and
     where available MCC or a WGCNA module membership (kME) column already on the nodes
 
-    2. **Read the distributions** (3 min) - Histograms of each metric to see whether a few nodes stand far out (scale
+    2. **Read the distributions** - Histograms of each metric to see whether a few nodes stand far out (scale
     free) or the scores are flat
 
-    3. **Combine** (5 min) - Build a custom score, or take the intersection of the top-10 lists across methods; keep
+    3. **Combine** - Build a custom score, or take the intersection of the top-10 lists across methods; keep
     the per-method ranks as columns
 
-    4. **Look at the hubs in context** (8 min) - Select the top N, expand one step around them, check whether they fall
+    4. **Look at the hubs in context** - Select the top N, expand one step around them, check whether they fall
     in the same cluster, read their expression and mutation columns, and optionally simulate removing one
 
-    5. **Report** (3 min) - Encode size or color by the combined score, label the top 10, export the ranked table with
+    5. **Report** - Encode size or color by the combined score, label the top 10, export the ranked table with
     every metric as a column and the figure
 
 

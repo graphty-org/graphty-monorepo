@@ -6,7 +6,7 @@ personas:
     - crime-intelligence-analyst
     - prosecution-trial-analyst
     - intelligence-analyst
-    - crypto-tracing-investigator
+    - crypto-blockchain-investigator
 requires_capabilities:
     - visual-encoding-nodes
     - visual-encoding-edges
@@ -51,22 +51,22 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Assemble and focus** (30 min) - Choose the question the chart answers and the entities it needs
+    1. **Assemble and focus** - Choose the question the chart answers and the entities it needs
 
-    2. **Code associations** (30 min) - Matrix of who is associated with whom, each association coded by its grade;
+    2. **Code associations** - Matrix of who is associated with whom, each association coded by its grade;
     count links across and down to find the most-linked entities
 
-    3. **Draw a preliminary chart** (30 min) - Most-linked entities in the center; circles for people, rectangles for
+    3. **Draw a preliminary chart** - Most-linked entities in the center; circles for people, rectangles for
     organizations; confirmed links solid and suspected links dotted (confirmed only when graded A1, A2, B1 or B2);
     hypothesized links visibly different; line color or dash by activity type (money, communications) with a legend
 
-    4. **Clarify and re-plot** (30-90 min) - Move entities by hand to remove long and crossed lines; align; group in
+    4. **Clarify and re-plot** - Move entities by hand to remove long and crossed lines; align; group in
     boxes
 
-    5. **Mark the chart** (5 min) - Time, date and sequence number on every version, a key, and fact separated from
+    5. **Mark the chart** - Time, date and sequence number on every version, a key, and fact separated from
     judgment
 
-    6. **Distribute** (15 min) - A redacted copy per audience or classification level, PDF, large-format poster, or a
+    6. **Distribute** - A redacted copy per audience or classification level, PDF, large-format poster, or a
     read-only viewer copy
 
 

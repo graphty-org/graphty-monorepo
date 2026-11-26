@@ -19,6 +19,7 @@ requires_capabilities:
     - geographic-layout
     - od-flow-import
     - spatial-interaction-models
+    - geospatial-file-io
 suggested_components:
     - data-import-dialog
     - column-mapper
@@ -33,6 +34,7 @@ suggested_components:
     - comparison-view
     - graph-canvas
     - image-export-dialog
+    - attribute-table-join-dialog
 starting_state:
     data_type: OD flow table plus a place table with population or other mass attribute
     node_count: 30-5000

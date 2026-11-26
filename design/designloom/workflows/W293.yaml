@@ -3,8 +3,10 @@ name: Event Table to Weighted Network (Calls, Emails, Transactions, Connections)
 category: onboarding
 validated: false
 personas:
-    - event-log-network-builder
+    - crime-intelligence-analyst
     - graph-data-wrangler
+    - animal-social-network-ecologist
+    - workplace-collaboration-analyst
 requires_capabilities:
     - data-import
     - data-validation

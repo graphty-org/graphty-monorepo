@@ -3,6 +3,9 @@ name: Public Health Cluster Communication without Network Diagrams
 category: reporting
 validated: false
 personas:
+    - hiv-molecular-cluster-epidemiologist
+    - phl-genomic-epidemiologist
+    - dis-supervisor
     - graph-deliverable-recipient
 requires_capabilities:
     - community-detection
@@ -13,6 +16,7 @@ requires_capabilities:
     - data-export
     - report-generation
     - privacy-aggregation
+    - deliverable-handling-marking
 suggested_components:
     - graph-canvas
     - cluster-table
@@ -33,6 +37,11 @@ goal: >-
     public - without showing a node-link diagram or individual-level data outside the program.
 
 
+    **Who**: The HIV surveillance epidemiologist builds the line list, narrative, partner table and small-cell
+    check; the public health laboratory's genomic epidemiologist supplies the cluster calls behind them. The partner
+    services supervisor reads the line list, and partners and the public read only the aggregate summary (W1018).
+
+
     **Mental Model**: "The network is the working tool, never the handout." Federal guidance says not to use molecular
     network diagrams with partners; what leaves the program is counts by cluster, growth, population group and
     geography, with small cells protected.
@@ -40,13 +49,13 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Internal hand-off** (1 h) - Turn a cluster into a line list and narrative for disease intervention specialists
+    1. **Internal hand-off** - Turn a cluster into a line list and narrative for disease intervention specialists
     and program staff
 
-    2. **Partner summary** (1-2 h) - A cluster-level table: counts by cluster, growth over the period, population group,
+    2. **Partner summary** - A cluster-level table: counts by cluster, growth over the period, population group,
     geography; individual data only where a data sharing agreement allows
 
-    3. **Protect small cells** (30 min) - Check population size and cell counts against the jurisdiction's own
+    3. **Protect small cells** - Check population size and cell counts against the jurisdiction's own
     threshold; suppress or combine
 
     4. **Public communication** (varies) - Describe clusters or groups experiencing rapid transmission, never individuals
@@ -99,6 +108,9 @@ sources:
     - title: CDC - Cluster Detection and Response Guidance for Health Departments (Communications and Data Protection, October 30, 2024)
       url: https://www.cdc.gov/hivpartners/php/cdr/health-department-guidance.html
       summary: Avoid molecular network diagrams with partners; share only cluster- or population-level data without agreements; consider cell counts; no individual data to the public
-version: 1.0.0
+    - title: CDC - HIV cluster review and prioritization
+      url: https://www.Cdc.gov/hiv/programresources/guidance/hiv-cluster-detection-and-response-guidance/cluster-review-and-prioritization.html
+      summary: Review group includes HIV prevention, surveillance and partner services staff; line lists are access-limited
+version: 1.1.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

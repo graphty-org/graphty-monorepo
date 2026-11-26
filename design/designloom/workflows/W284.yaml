@@ -15,7 +15,6 @@ requires_capabilities:
     - algorithm-progress
     - overview-minimap
     - supernode-safeguards
-    - level-of-detail-rendering
 suggested_components:
     - graph-canvas
     - progress-bar

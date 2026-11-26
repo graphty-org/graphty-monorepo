@@ -3,6 +3,7 @@ name: Producing the Publication Sociogram
 category: reporting
 validated: false
 personas:
+    - political-networks-scholar
     - sociometric-network-researcher
     - network-methods-grad-student
     - archival-affiliation-researcher
@@ -51,29 +52,29 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Build and simplify** (estimate: 5 min) - From edge and node tables; drop loops (simplify with remove.loops).
+    1. **Build and simplify** - From edge and node tables; drop loops (simplify with remove.loops).
 
-    2. **Map attributes** (estimate: 10 min) - Color from a palette indexed by node type, size from a numeric attribute,
+    2. **Map attributes** - Color from a palette indexed by node type, size from a numeric attribute,
     labels off when crowded, smaller arrows and slight curves.
 
-    3. **Add the legend** (estimate: 10 min) - Base igraph draws none and the palette is repeated by hand; ggraph gives
+    3. **Add the legend** - Base igraph draws none and the palette is repeated by hand; ggraph gives
     legends for mapped aesthetics.
 
-    4. **Fix the layout** (estimate: 5 min) - "The F-R layout is not deterministic"; compute the layout once and reuse it
+    4. **Fix the layout** - "The F-R layout is not deterministic"; compute the layout once and reuse it
     everywhere; rescale for tighter or looser versions of the same layout.
 
-    5. **Reduce the hairball** (estimate: 10 min) - Keep edges above the mean weight, or split tie types into panels;
+    5. **Reduce the hairball** - Keep edges above the mean weight, or split tie types into panels;
     state the cutoff, since thresholding valued ties is unwise unless there is a real threshold effect.
 
-    6. **Panels with a shared layout** (estimate: 10 min) - One panel per relation or wave with the same coordinates
+    6. **Panels with a shared layout** - One panel per relation or wave with the same coordinates
     ("make sure the nodes stay in the same place in both plots"); ggraph facet_edges repeats nodes in every panel.
 
-    7. **Group hulls** (estimate: 5 min) - Outline communities or classes with filled hulls.
+    7. **Group hulls** - Outline communities or classes with filled hulls.
 
-    8. **Nudge by hand** (estimate: 15 min) - Drag nodes (tkplot, sna::gplot interactive) and keep the returned
+    8. **Nudge by hand** - Drag nodes (tkplot, sna::gplot interactive) and keep the returned
     coordinates for reuse; mostly for small networks.
 
-    9. **Export to journal specs** (estimate: 15 min) - SVG, EPS or PDF so text stays editable; Elsevier wants EPS for
+    9. **Export to journal specs** - SVG, EPS or PDF so text stays editable; Elsevier wants EPS for
     vector art and TIFF for bitmaps at 1000 dpi line art, 300 dpi halftones, 500 dpi combination, widths 90, 140 or 190
     mm and standard fonts; APSR requires figures readable in grayscale. Final touch-ups often in Inkscape.
 

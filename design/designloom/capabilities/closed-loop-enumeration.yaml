@@ -1,0 +1,17 @@
+id: closed-loop-enumeration
+name: "Closed loops of direct evidence listed"
+category: analysis
+description: "List the closed loops of an undirected graph (triangles, quadrilaterals, and a cycle basis for larger loops) and mark loops formed only inside one multi-arm study, which cannot show inconsistency. Inconsistency between direct and indirect evidence is testable only on closed loops; Stata ifplot enumerates triangular and quadratic loops for this, and reviewers check which comparisons have none."
+status: planned
+notes: "Research trace: network-meta-analysis-evidence-networks.md section 10, table row 8."
+algorithms: []
+used_by_workflows:
+    - W3055
+implemented_by_components: []
+requirements:
+    - "Should: List closed loops and mark loops formed only inside one multi-arm study"
+sources:
+    - title: "Network Meta-Analysis Authors: Treatment Evidence Networks (section 10, table row 8)"
+      url: design/user-research/network-meta-analysis-evidence-networks.md
+      summary: "Should in the research"
+

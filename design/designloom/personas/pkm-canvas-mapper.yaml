@@ -1,9 +1,12 @@
 id: pkm-canvas-mapper
 name: PKM Canvas Mapper
+roster_persona: personal-knowledge-gardener
+tier: A
+scope: in-scope
 role: UX Researcher and Workshop Facilitator who thinks spatially
 quote: Where I put a card means something. Don't move it.
 bio: >-
-    Lena is a UX researcher and workshop facilitator who abandoned the force-directed graph because the layout moves and
+    Maren is a UX researcher and workshop facilitator who abandoned the force-directed graph because the layout moves and
     she cannot pin a node where she put it. She thinks on canvases: 20 to 40 Obsidian Canvas files, each with 30 to 200
     cards -- note cards that point at vault files, text cards, web links, groups drawn as labeled regions -- connected by
     labeled arrows such as "causes" and "contradicts". Positions are hers and carry meaning (a timeline left to right,

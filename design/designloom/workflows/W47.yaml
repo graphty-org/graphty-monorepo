@@ -48,22 +48,22 @@ goal: >-
 
     **Task Phases (two-mode)**:
 
-    1. **Keep the two-mode graph** (2 min) - Import it and record which side is which
+    1. **Keep the two-mode graph** - Import it and record which side is which
 
-    2. **If projecting, choose the weighting** (2 min) - Shared-neighbor count, or Newman's collaboration weighting
+    2. **If projecting, choose the weighting** - Shared-neighbor count, or Newman's collaboration weighting
     (each shared paper adds 1/(n_p - 1) for its n_p authors)
 
-    3. **Extract a backbone against a bipartite null** (minutes) - Stochastic degree sequence model (approximately
+    3. **Extract a backbone against a bipartite null** - Stochastic degree sequence model (approximately
     preserves both sides' degrees) or fixed degree sequence model (exactly); the input must be the bipartite network,
     not the weighted projection
 
-    4. **Or analyze directly** (minutes) - Bipartite stochastic block model, bipartite modularity and nestedness, or
+    4. **Or analyze directly** - Bipartite stochastic block model, bipartite modularity and nestedness, or
     group analysis when the second mode is a group (W49)
 
 
     **Task Phases (very large graphs)**:
 
-    5. **Reduce first** (minutes) - Sample, take a k-core, extract a backbone, or coarse-grain by communities or nested
+    5. **Reduce first** - Sample, take a k-core, extract a backbone, or coarse-grain by communities or nested
     block-model levels
 
     6. **Drill down** (ongoing) - From a coarse level (for example 297 nodes into 16 groups into 5) to members

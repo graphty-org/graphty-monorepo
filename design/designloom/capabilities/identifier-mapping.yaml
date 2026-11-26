@@ -5,7 +5,7 @@ description: Map gene, protein, metabolite and RNA identifiers between namespace
     STRING, KEGG, miRBase, BiGG), list ambiguous matches with the chosen resolution, report matched and unmatched
     counts, and flag spreadsheet-mangled gene symbols such as dates.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: systems-biology-omics-networks.md section 10, requirement 2 (Must)."
 algorithms: []
 used_by_workflows:
     - W20
@@ -14,13 +14,21 @@ used_by_workflows:
     - W251
     - W430
     - W431
-    - W439
-    - W447
+    - W438
+    - W1054
+    - W291
+    - W1126
+    - W3102
+    - W3103
 implemented_by_components: []
 requirements:
-    - Map protein names, UniProt accessions, gene symbols, compound names, PubChem CIDs and InChIKeys with a species
-      filter, and report matched, unmatched and duplicate identifiers instead of dropping them silently.
-    - Maps protein names, UniProt ids, gene symbols, compound names, PubChem CIDs and InChIKeys to one another, with a
-      species filter. Reports counts of matched, unmatched and duplicate ids and lists the unmatched ones instead of
-      dropping them silently.
-sources: []
+    - "Must: Identifier mapping (symbol, Entrez, Ensembl, UniProt, STRING, KEGG, miRBase, BiGG) with match counts and
+      Excel-mangled symbol detection; for plants, convert gene ids between genome releases from an old-to-new table and
+      report how many changed (5.17)"
+    - "Must: Map protein names, UniProt accessions, gene symbols, compound names, PubChem CIDs and InChIKeys with a species filter, and report matched, unmatched and duplicate identifiers instead of dropping them silently."
+    - "Must: Maps protein names, UniProt ids, gene symbols, compound names, PubChem CIDs and InChIKeys to one another, with a species filter. Reports counts of matched, unmatched and duplicate ids and lists the unmatched ones instead of dropping them silently."
+sources:
+    - title: Systems Biologists and Bench Scientists Working With Molecular Interaction Networks (section 10,
+          requirement 2)
+      url: design/user-research/systems-biology-omics-networks.md
+      summary: Must in the research.

@@ -1,5 +1,8 @@
 id: therapist-receiving-network-feedback
 name: Therapist Receiving Network Feedback
+roster_persona: graph-deliverable-recipient
+tier: A
+scope: in-scope
 role: Outpatient Psychotherapist Reading a Patient's Personal Network (with the Patient as Co-Reader)
 quote: I wish it were a bit more intuitive, so I did not have to look at the table on the side -- one or two sentences under the network would help.
 bio: >-

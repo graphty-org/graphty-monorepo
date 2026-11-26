@@ -1,9 +1,12 @@
 id: research-impact-librarian
 name: Research Impact Librarian
+roster_persona: bibliometric-analyst
+tier: A
+scope: in-scope
 role: Bibliometrics and Research Intelligence Librarian
 quote: The dean asked who we collaborate with. I have twenty hours, a roster with half the ORCIDs missing, and an audience that has never seen a network map.
 bio: >-
-    Marcus Oyelaran is a Health Research Intelligence Librarian at a research university library, with an MLIS and
+    Tunde Oyelaran is a Health Research Intelligence Librarian at a research university library, with an MLIS and
     three years in a bibliometrics unit. He answers strategic requests from leadership: which institutions and countries
     a department collaborates with, which internal groups bridge to which partners, what a center's topic structure looks
     like. He pulls a department's publications for 5 to 10 years (hundreds to a few thousand records) from Web of
@@ -48,6 +51,12 @@ workflows:
     - W51
     - W54
     - W57
+    - W18
+    - W294
+    - W297
+    - W298
+    - W317
+    - W323
 sources:
     - title: UNC-Chapel Hill Health Research Intelligence Librarian posting (IASSIST jobs)
       url: https://iassistdata.org/jobs-repository/2026-07-22_2/
@@ -67,6 +76,24 @@ sources:
     - title: UCL library - downloading data for research metrics
       url: https://library-guides.ucl.ac.uk/research-metrics/downloading-data
       summary: Current per-export limits for Web of Science and Scopus
+    - title: Leiden University Library - VOSviewer collaboration guide
+      url: https://gorlaeus-library.github.io/VOSviewer/collab.html
+      summary: Export, concatenate, thesaurus, co-authorship analysis; first map is very colored with many small clusters
+    - title: University of Notre Dame LibGuide - VOSviewer demo
+      url: https://libguides.library.nd.edu/vos-viewer/demo
+      summary: Ignore documents with more than 25 authors; minimum documents per author
+    - title: UIC research guide - VOSviewer
+      url: https://researchguides.uic.edu/bibliometrics/vosviewer
+      summary: Web of Science and Scopus export steps for VOSviewer
+    - title: bibliometrix - Introduction vignette
+      url: https://bibliometrix.org/vignettes/Introduction_to_bibliometrix.html
+      summary: Scripted conversion of bibliographic exports to collaboration and co-occurrence networks in R
+    - title: Perianes-Rodriguez, Waltman and van Eck - Constructing bibliometric networks, full and fractional counting
+      url: https://arxiv.org/abs/1607.02452v4
+      summary: Full versus fractional counting changes link weights and the resulting maps
+    - title: Graphty user research - Data preparation, import and first assessment
+      url: https://github.com/graphty-org/graphty-monorepo/blob/master/design/user-research/data-preparation-and-import.md
+      summary: Composite persona section 2.3 and the bibliographic workflow in section 4.7
 version: 1.0.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

@@ -1,9 +1,12 @@
 id: pharma-target-assessment-scientist
 name: Pharma Target and Knowledge Graph Scientist
+roster_persona: biomedical-kg-analyst
+tier: B
+scope: in-scope
 role: Computational Biologist, Target Identification (pharma)
 quote: Don't show me the path, show me the abstracts behind every edge on it. The committee will ask.
 bio: >-
-    Dr. Sofia Marques is a computational biologist in a pharma target-identification group. She prepares evidence
+    Dr. Mariana Marques is a computational biologist in a pharma target-identification group. She prepares evidence
     dossiers on candidate targets for a target-assessment committee and answers biologists' "how are these connected?"
     questions against the company knowledge graph. Graphs at this scale hold tens of millions of typed nodes: AstraZeneca's
     BIKG reports 10.9 million nodes of 22 types and over 118 million edges of 59 types, and Novartis's Neo4j graph about

@@ -11,7 +11,6 @@ requires_capabilities:
     - comparison-view
     - community-detection
     - centrality-degree
-    - centrality-betweenness
     - computed-attributes
     - filtering
     - basic-statistics
@@ -46,15 +45,15 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Rebuild at each setting** (10-30 min) - Re-query at confidence 0.4, 0.7 and 0.9, or swap STRING for BioGRID or
+    1. **Rebuild at each setting** - Re-query at confidence 0.4, 0.7 and 0.9, or swap STRING for BioGRID or
     IntAct, or recluster at several resolutions
 
-    2. **Recompute** (10 min) - Re-run hub ranking and clustering on each version
+    2. **Recompute** - Re-run hub ranking and clustering on each version
 
-    3. **Compare** (20-60 min) - Today this is a spreadsheet of top-10 lists side by side; single-cell users draw a
+    3. **Compare** - Today this is a spreadsheet of top-10 lists side by side; single-cell users draw a
     clustering tree with one layer per resolution
 
-    4. **Decide and report** (10 min) - Keep results that persist; state the settings tried in the methods
+    4. **Decide and report** - Keep results that persist; state the settings tried in the methods
 
 
     **Decision Points**:

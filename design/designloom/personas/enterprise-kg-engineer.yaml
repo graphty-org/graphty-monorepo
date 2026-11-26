@@ -1,5 +1,8 @@
 id: enterprise-kg-engineer
 name: Enterprise Property-Graph KG Engineer
+roster_persona: graph-database-developer
+tier: A
+scope: in-scope
 role: Senior Knowledge Graph Engineer (property graph, ETL, entity resolution)
 quote: I don't need the full graph. After every rebuild I need a quick sanity check that what loaded is what I modeled.
 bio: >-

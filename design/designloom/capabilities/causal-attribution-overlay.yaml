@@ -5,10 +5,16 @@ description: Show signed attribution scores with confidence intervals on nodes, 
     distribution change). Highlight the path from a root cause to the symptom, and build a causal graph by reversing
     every edge of an imported dependency graph.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: causal-diagrams-and-bayesian-networks.md section 10, requirement 27 (Should)."
 algorithms: []
 used_by_workflows:
     - W429
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Should: Attribution scores on nodes: per-node score with confidence interval for a chosen target (anomaly or
+      distribution change), ranked, signed (negative means it made the anomaly less likely)"
+sources:
+    - title: "Causal Diagram Users: DAGs, Bayesian Networks, Causal Discovery, Time-Series Causal Graphs and SEM Path
+        Diagrams (section 10, requirement 27)"
+      url: design/user-research/causal-diagrams-and-bayesian-networks.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

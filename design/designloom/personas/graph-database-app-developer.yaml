@@ -1,5 +1,8 @@
 id: graph-database-app-developer
 name: Graph Database Application Developer
+roster_persona: graph-product-frontend-engineer
+tier: A
+scope: in-scope
 role: Full-Stack Engineer embedding a database-backed graph view
 quote: The SDK draws beautifully. Everything else -- the fetch, the mapping, the double-click expand, the hub limit -- I wrote myself.
 bio: >-

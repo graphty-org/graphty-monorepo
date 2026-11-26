@@ -9,7 +9,6 @@ requires_capabilities:
     - large-graph-rendering
     - component-analysis
     - centrality-betweenness
-    - centrality-closeness
     - shortest-path
     - removal-impact-analysis
     - computed-attributes
@@ -24,6 +23,8 @@ requires_capabilities:
     - scenario-sweep
     - flow-capacity-analysis
     - radius-limited-centrality
+    - study-area-buffer
+    - geospatial-file-io
 suggested_components:
     - file-drop-zone
     - data-import-dialog
@@ -53,22 +54,37 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Build** - Geocode a place, download the street network, keep the largest weakly connected component
+    1. **Build with a buffer** - Geocode a place, download the street network with a buffer at least as wide as the
+    largest distance threshold (for example 5,000 m), keep the largest weakly connected component
 
     2. **Clean and weight** - Simplify, consolidate intersections, project to meters; impute speeds and travel times
 
-    3. **Measure** - Travel-time-weighted node and edge betweenness as possible chokepoints
+    3. **Mark the study area** - Flag nodes inside the study boundary as live; buffer nodes stay in the graph for
+    routing but get no reported value
 
-    4. **Accessibility** - Cumulative opportunities within 30, 45 and 60 minute cutoffs per hexagon, mapped as
+    4. **Choose thresholds** - Pick one or more distance or time thresholds (for example 400 and 800 m for walking,
+    or 300 to 5,000 m in 100 m steps)
+
+    5. **Measure** - Local (threshold-limited) node and edge betweenness and closeness, one column per threshold, plus
+    travel-time-weighted global betweenness as a chokepoint screen
+
+    6. **Report and compare** - Show and export live nodes only; compare thresholds side by side or color each
+    segment by the radius at which its betweenness peaks
+
+    7. **Accessibility** - Cumulative opportunities within 30, 45 and 60 minute cutoffs per hexagon, mapped as
     choropleths
 
-    5. **Criticality** - Remove each link (or every flooded link), reassign, rank by added vehicle-hours; rerun
+    8. **Criticality** - Remove each link (or every flooded link), reassign, rank by added vehicle-hours; rerun
     accessibility for the flood scenario
 
 
     **Decision Points**:
 
     - Drive, walk, bike or transit network?
+
+    - Where is the study boundary, and how wide a buffer?
+
+    - Which distance thresholds, and metric, travel-time or angular distance?
 
     - Which cutoffs and opportunity types?
 
@@ -81,6 +97,10 @@ goal: >-
 
     - Edge betweenness weighted by travel time
 
+    - Local betweenness and closeness per threshold, for live nodes only
+
+    - Which nodes are buffer and which are live
+
     - Accessibility before and after a project or hazard
 
     - Added vehicle-hours per removed link, ranked
@@ -89,6 +109,9 @@ goal: >-
     **Pain Points**:
 
     - Plain betweenness assumes a flat origin-destination matrix
+
+    - Centrality near the edge of the downloaded area is distorted, and each measure reacts differently to the
+    boundary
 
     - One reassignment per link makes criticality studies slow
 
@@ -99,11 +122,15 @@ goal: >-
 
     - Input: OSM extract, GTFS, opportunity counts per H3 hexagon, flood layer, traffic counts
 
-    - Transformations: Largest component, simplification, travel-time weighting, weighted betweenness, accessibility,
+    - Transformations: Buffered download, live-node flag, largest component, simplification, travel-time weighting, weighted and threshold-limited betweenness and closeness, accessibility,
     per-link removal with reassignment
 
-    - Output: Chokepoint map, accessibility choropleths, ranked link criticality table, before-and-after comparison
+    - Output: Per-threshold centrality maps of the study area, peak-radius map, chokepoint map, accessibility choropleths, ranked link criticality table, before-and-after comparison
 success_criteria:
+    - metric: Edge effects
+      target: Network buffered by at least the largest threshold; no value reported or exported for a buffer node
+    - metric: Threshold comparison
+      target: Local centrality at every chosen threshold available as its own column and comparable side by side
     - metric: Weighted measures
       target: Every centrality and path computed on travel time, not hops
     - metric: Criticality ranking
@@ -111,6 +138,21 @@ success_criteria:
     - metric: Scenario comparison
       target: Accessibility before and after shown side by side
 sources:
+    - title: Boeing 2025, Modeling and Analyzing Urban Networks and Amenities with OSMnx
+      url: https://arxiv.org/html/2505.00736v1
+      summary: OSMnx buffers the query boundary by 500 m and truncates afterward to attenuate perimeter effects
+    - title: Gil 2017, Street network analysis edge effects (Environment and Planning B)
+      url: https://research.chalmers.se/en/publication/?id=245772
+      summary: Each centrality measure reacts differently to an artificial boundary; choose the boundary for the question
+    - title: Yamaoka, Kumakoshi and Yoshimura 2021, Local betweenness centrality analysis of 30 European cities
+      url: https://arxiv.org/pdf/2103.11437
+      summary: 5,000 m download buffer trimmed after computation; radii 300 to 5,000 m in 100 m steps; peak-radius map
+    - title: Simons 2021, The cityseer Python package
+      url: https://arxiv.org/abs/2106.15314
+      summary: Centrality computed in moving windows at network-distance thresholds, avoiding edge rolloff
+    - title: Norman Foster Institute, cityseer course notes
+      url: https://norman-foster-institute.github.io/ua_part1/themes/2_networks/cityseer.html
+      summary: Non-live nodes are routed over as buffer but receive no centrality value
     - title: OSMnx getting started
       url: https://osmnx.readthedocs.io/en/stable/getting-started.html
       summary: Build, simplify, consolidate, travel times and betweenness for possible chokepoints

@@ -1,9 +1,12 @@
 id: network-medicine-vr-researcher
 name: Network Medicine VR Researcher
+roster_persona: bioinformatics-researcher
+tier: B
+scope: in-scope
 role: Computational Biologist in a Network-Medicine Lab
 quote: I have 15 candidate genes and a whole interactome. In VR I can walk around the disease module and show the clinician why one candidate fits.
 bio: >-
-    Dr. Lukas Hofer is a computational biologist with a physics PhD in a network-medicine lab attached to a rare-disease
+    Dr. Florian Hofer is a computational biologist with a physics PhD in a network-medicine lab attached to a rare-disease
     clinic, modeled on the Menche lab at CeMM and MedUni Vienna. He works in Python and NetworkX, computes disease
     modules and their significance against random draws, and collaborates with clinician-scientists who bring sequenced
     patients. Upstream filtering and pedigree comparison leave him with a short list of candidate genes, which he maps
@@ -46,7 +49,6 @@ context:
     voluntary: true
 workflows:
     - W412
-    - W414
     - W417
 sources:
     - title: Pirch et al. 2021 - The VRNetzer platform enables interactive network analysis in Virtual Reality

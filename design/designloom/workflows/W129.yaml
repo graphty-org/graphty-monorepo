@@ -51,28 +51,28 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Enable the snapshot** (2 min, plus the indexing run) - Set snapshots graphml true (and raw_graph true to keep
+    1. **Enable the snapshot** (plus the indexing run) - Set snapshots graphml true (and raw_graph true to keep
     the pre-merge extraction) in settings.yaml and run graphrag index. Indexing cost is dominated by LLM calls; one
     study needed 35 minutes and about 4,000 calls per textbook. If GraphML was off, either re-index or rebuild a graph
     from the parquet tables with pandas and NetworkX
 
-    2. **Find the file** (1 min) - graph.graphml sits in output.base_dir (v3 config; v1 and v2 used storage.base_dir)
+    2. **Find the file** - graph.graphml sits in output.base_dir (v3 config; v1 and v2 used storage.base_dir)
 
-    3. **Import into Gephi** (1 min) - File > Open gives a plain undirected view; Gephi supports only part of GraphML
+    3. **Import into Gephi** - File > Open gives a plain undirected view; Gephi supports only part of GraphML
 
-    4. **Install Leiden** (3 min, once) - Tools > Plugins > Leiden Algorithm > Install > restart
+    4. **Install Leiden** (once) - Tools > Plugins > Leiden Algorithm > Install > restart
 
-    5. **Statistics** (2 min) - Run Average Degree; run Leiden with quality function Modularity and resolution 1
+    5. **Statistics** - Run Average Degree; run Leiden with quality function Modularity and resolution 1
 
-    6. **Color by cluster** (1 min) - Appearance > Nodes > Partition > Cluster > Palette > Generate with "Limit number
+    6. **Color by cluster** - Appearance > Nodes > Partition > Cluster > Palette > Generate with "Limit number
     of colors" unchecked > Apply
 
-    7. **Size by degree** (1 min) - Appearance > Nodes > Ranking > Degree, min 10, max 150 > Apply
+    7. **Size by degree** - Appearance > Nodes > Ranking > Degree, min 10, max 150 > Apply
 
-    8. **Layout** (5-15 min) - OpenORD with only the Liquid and Expansion stages (Expansion 50, others 0), then
+    8. **Layout** - OpenORD with only the Liquid and Expansion stages (Expansion 50, others 0), then
     ForceAtlas 2 with Scaling 15, Dissuade Hubs on, LinLog off, Prevent Overlap on; stop when nodes settle
 
-    9. **Read it** (10 min) - Look for unexpected hubs (for example "Project Gutenberg"), many tiny components,
+    9. **Read it** - Look for unexpected hubs (for example "Project Gutenberg"), many tiny components,
     near-duplicate labels, and clusters that mix topics; note candidates for a stoplist or prompt change
 
 
@@ -125,7 +125,7 @@ goal: >-
     - Output: An annotated picture, a list of noise hubs and suspected duplicates, notes for prompt or stoplist changes
 success_criteria:
     - metric: Time from finished index to readable whole-graph view
-      target: Under 10 minutes with no plugin install or conversion script
+      target: Under 10 minutes with no plugin install or conversion script (design goal; no source measures it)
     - metric: Community fidelity
       target: Colors can show GraphRAG's own communities at a chosen level, not only a recomputed clustering
     - metric: Noise detection

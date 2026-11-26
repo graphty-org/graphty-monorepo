@@ -20,6 +20,8 @@ requires_capabilities:
     - selection-statistics
     - neighborhood-expansion
     - hub-role-analysis
+    - weight-semantics
+    - seeded-runs
 suggested_components:
     - graph-canvas
     - ego-network-dialog
@@ -73,6 +75,9 @@ goal: >-
     - Above what degree is a node a supernode to cap or expand selectively?
 
     - Should this hub be investigated further as suspicious?
+
+    - Is the weight column a strength or a distance? Betweenness reads weights as distances in igraph and NetworkX,
+    PageRank reads them as strengths, and Gephi's betweenness ignores them
 
 
     **Information Needs**:
@@ -129,6 +134,12 @@ sources:
     - title: Exploring and Analyzing Network Data with Python (Programming Historian)
       url: https://programminghistorian.org/en/lessons/exploring-and-analyzing-network-data-with-python
       summary: High-betweenness, low-degree brokers missed by degree alone
+    - title: NetworkX betweenness_centrality
+      url: https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.centrality.betweenness_centrality.html
+      summary: Weights are used for weighted shortest paths, so they are interpreted as distances
+    - title: Gephi GraphDistance.java (betweenness and closeness)
+      url: https://github.com/gephi/gephi/blob/master/modules/StatisticsPlugin/src/main/java/org/gephi/statistics/plugin/GraphDistance.java
+      summary: Never reads edge weights; path lengths are hop counts
 version: 1.1.0
 created_at: 2026-01-16T16:42:38.801Z
 updated_at: 2026-11-25T00:00:00.000Z

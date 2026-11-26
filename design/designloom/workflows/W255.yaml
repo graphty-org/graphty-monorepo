@@ -46,22 +46,22 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Input** (5 min) - Upload PDB or mmCIF, or a PDB or AlphaFold id; or an MD trajectory
+    1. **Input** - Upload PDB or mmCIF, or a PDB or AlphaFold id; or an MD trajectory
 
-    2. **Contacts** (5 min) - Thresholds per contact type (for example hydrogen bond 3.5 A, ionic 4.0 A, pi-pi 6.5 A);
+    2. **Contacts** - Thresholds per contact type (for example hydrogen bond 3.5 A, ionic 4.0 A, pi-pi 6.5 A);
     one edge per type per residue pair
 
-    3. **Trajectory weights** (1-2 h) - Keep pairs within 4.5 A for 75 percent of frames; edge length -log(|C_ij|) from
+    3. **Trajectory weights** - Keep pairs within 4.5 A for 75 percent of frames; edge length -log(|C_ij|) from
     fluctuation correlations
 
-    4. **Explore** (30 min) - 3D view beside the network with shared selection; filter by type, chain or frequency;
+    4. **Explore** - 3D view beside the network with shared selection; filter by type, chain or frequency;
     color by chain or secondary structure
 
-    5. **Communities and centrality** (15 min) - Girvan-Newman communities; weighted betweenness for critical residues
+    5. **Communities and centrality** - Girvan-Newman communities; weighted betweenness for critical residues
 
-    6. **Paths** (20 min) - Suboptimal paths between two residues within a length offset; optimal path red, others blue
+    6. **Paths** - Suboptimal paths between two residues within a length offset; optimal path red, others blue
 
-    7. **Export** (5 min) - JSON, SVG and tables
+    7. **Export** - JSON, SVG and tables
 
 
     **Decision Points**:

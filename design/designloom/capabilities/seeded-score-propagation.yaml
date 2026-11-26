@@ -4,10 +4,15 @@ category: analysis
 description: Propagate scores from a labeled seed set of nodes (for example counsel) through a directed graph, such as
     personalized PageRank.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: ediscovery-and-legal-communication-analysis.md section 10, requirement R13 (Should)."
 algorithms: []
 used_by_workflows:
     - W365
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Should: Directional centralities and seeded score propagation"
+sources:
+    - title: eDiscovery, litigation review and internal-investigation teams who use communication graphs (section 10,
+        requirement R13)
+      url: design/user-research/ediscovery-and-legal-communication-analysis.md
+      summary: "Should in the research. Covered by Designloom when researched: Partly"

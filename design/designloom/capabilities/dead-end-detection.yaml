@@ -1,0 +1,19 @@
+id: dead-end-detection
+name: "Dead ends at node ends"
+category: analysis
+description: "Report node ends with no link (open ends of a bidirected graph) and per-component whether it is a closed circle, as a selectable list."
+status: planned
+notes: "Research trace: genome-assembly-and-pangenome-graphs.md section 10, table row 8 (Must)."
+algorithms: []
+used_by_workflows:
+    - W1156
+    - W1159
+implemented_by_components: []
+requirements:
+    - "Must: Components, cycles and dead ends reported and selectable (complete circles, open ends)"
+sources:
+    - title: "Genome Assemblers, Microbial Genome Finishers and Pangenome Researchers: Assembly Graphs and Pangenome
+        Graphs (section 10, table row 8)"
+      url: design/user-research/genome-assembly-and-pangenome-graphs.md
+      summary: "Must in the research. Covered by Designloom when researched: Partial (components and cycle detection
+        exist; dead ends at node ends do not)"

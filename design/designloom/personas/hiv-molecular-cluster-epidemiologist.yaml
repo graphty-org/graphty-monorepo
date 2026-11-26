@@ -1,9 +1,12 @@
 id: hiv-molecular-cluster-epidemiologist
 name: HIV Molecular Cluster Epidemiologist
+roster_persona: public-health-cluster-epidemiologist
+tier: B
+scope: in-scope
 role: HIV Surveillance Epidemiologist, State Health Department
 quote: I have to find the clusters that are growing fast, write the line list by Friday, and never show anyone a network picture.
 bio: >-
-    Dana Okafor is one of two people running HIV cluster detection in a mid-size state health department. She has an
+    Nkechi Okafor is one of two people running HIV cluster detection in a mid-size state health department. She has an
     MPH, writes strong SAS, some R, and no command-line bioinformatics at all. Every month she exports persons and
     sequences from the state eHARS surveillance system, runs the CDC-supplied SAS program that strips identifiers,
     uploads the result to CDC's hosted Secure HIV-TRACE, and reads back networks built at both 0.5% and 1.5% TN93
@@ -53,6 +56,7 @@ workflows:
     - W63
     - W65
     - W66
+    - W319
 sources:
     - title: Secure HIV-TRACE and national HIV molecular cluster detection (Emerging Infectious Diseases 2025)
       url: https://pmc.ncbi.nlm.nih.gov/articles/PMC12078553/

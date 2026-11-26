@@ -3,6 +3,10 @@ name: ONA Executive Readout and Recurring Dashboard
 category: reporting
 validated: false
 personas:
+    - people-analytics-ona-lead
+    - ona-consultant
+    - workplace-collaboration-analyst
+    - hr-business-partner
     - graph-deliverable-recipient
 requires_capabilities:
     - filtering
@@ -19,6 +23,7 @@ requires_capabilities:
     - guided-presentation
     - privacy-aggregation
     - deliverable-templates
+    - deliverable-handling-marking
 suggested_components:
     - graph-canvas
     - filter-panel
@@ -40,6 +45,11 @@ goal: >-
     a finding, then keep leaders informed with a monthly dashboard - without exposing individuals beyond what was agreed.
 
 
+    **Who**: The people analytics lead or the ONA consultant sets visibility, builds and titles the slides and
+    facilitates the readout; the collaboration-metadata analyst publishes the monthly dashboard. The HR business
+    partner and the executives read and act on it (W1018).
+
+
     **Mental Model**: "Visibility first, then a finding per slide." Who may see which names is settled before any map
     is shown, because management may act on the maps.
 
@@ -54,13 +64,13 @@ goal: >-
 
     3. **Title each slide with its finding** (per slide) - For example "the key barrier to connectivity is function"
 
-    4. **Show before and after** (30 min) - Modeled connectivity after proposed introductions ("we can improve current
+    4. **Show before and after** - Modeled connectivity after proposed introductions ("we can improve current
     connectivity by 31%")
 
-    5. **End with named actions** (20 min) - Recommended one-on-one pairs within the agreed visibility, using pseudonyms
+    5. **End with named actions** - Recommended one-on-one pairs within the agreed visibility, using pseudonyms
     where required
 
-    6. **Facilitate** (1 h) - Show the diagrams and explain what the numbers mean
+    6. **Facilitate** - Show the diagrams and explain what the numbers mean
 
     7. **Publish the recurring dashboard** (monthly) - Refresh group-level metrics in Power BI or Viva; send personal
     network reports where the practice includes them
@@ -132,6 +142,9 @@ sources:
     - title: Posit - Democratizing organizational surveys with Quarto and Shiny
       url: https://opensource.posit.co/resources/videos/2024-10-31_brennan-antone-democratizing-organizational-surveys-with-quarto-and-shiny/
       summary: Personal network reports generated for respondents
-version: 1.0.0
+    - title: Microsoft Learn - Roles in Viva Insights
+      url: https://learn.microsoft.com/en-us/viva/insights/advanced/setup-maint/user-roles
+      summary: The Insights Analyst role runs queries and Power BI templates on de-identified data; managers see only aggregated insights about their team
+version: 1.1.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

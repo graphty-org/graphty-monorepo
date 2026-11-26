@@ -1,5 +1,8 @@
 id: public-kg-explorer
 name: Public Knowledge Graph Explorer
+roster_persona: knowledge-engineer
+tier: B
+scope: in-scope
 role: Wikidata Editor / Librarian / Researcher writing SPARQL
 quote: I wrote the query and got a table. I want to see it as a graph, tweak it, and send a link to my colleague.
 bio: >-
@@ -19,6 +22,7 @@ motivations:
     - Iterate quickly on the query until the picture answers the question
     - Share a reproducible view with colleagues by link
     - Reuse saved results without rewriting the query in another tool
+    - Grow a graph from one resource by expanding the predicates he cares about, instead of writing the query first
 behaviors:
     - Writes SELECT queries with item, label, image, color (?rgb), size and ?edgeLabel columns for the graph view
     - Switches between Table, Graph, Map, Timeline, Tree and Bubble chart result views
@@ -38,6 +42,7 @@ context:
 workflows:
     - W138
     - W139
+    - W420
 sources:
     - title: Wikidata Query Service user manual
       url: https://www.mediawiki.org/wiki/Wikidata_Query_Service/User_Manual
@@ -51,6 +56,9 @@ sources:
     - title: Scaling the knowledge graph behind Wikipedia
       url: https://www.bigdatawire.com/2025/07/10/scaling-the-knowledge-graph-behind-wikipedia
       summary: About 116 million items and 16 billion triples
-version: 1.0.0
+    - title: Graph2VR (Database journal, 2024)
+      url: https://academic.oup.com/database/article/7613396
+      summary: SPARQL endpoint explored in VR by expanding predicates with counts; 34-participant evaluation
+version: 1.1.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

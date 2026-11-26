@@ -3,7 +3,7 @@ name: Build an Entity Graph from Notes with an LLM, Review It, Write Links Back
 category: analysis
 validated: false
 personas:
-    - pkm-knowledge-worker
+    - personal-knowledge-gardener
     - pkm-vault-analyst
 requires_capabilities:
     - algorithm-progress
@@ -45,23 +45,23 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Choose a model** (5-30 min first time) - Local (Ollama or another OpenAI-compatible server; a quick start pulls
+    1. **Choose a model** - Local (Ollama or another OpenAI-compatible server; a quick start pulls
     about 5 GB of models) or a cloud provider with an API key; some plugins manage a local LightRAG server
 
-    2. **Run extraction** (minutes to hours) - "Analyze current note" or the whole vault; fixed entity types, free-form
+    2. **Run extraction** - "Analyze current note" or the whole vault; fixed entity types, free-form
     relation verbs, replies validated against a JSON schema; first run processes every note, later runs only changed
     notes
 
-    3. **Merge entities** (5-20 min) - Resolve variants ("AI" and "artificial intelligence"); merge duplicates and edit
+    3. **Merge entities** - Resolve variants ("AI" and "artificial intelligence"); merge duplicates and edit
     descriptions
 
-    4. **Inspect** (10-30 min) - Interactive 2D or 3D graph with search, neighborhood focus and path finding; a typed-edge
+    4. **Inspect** - Interactive 2D or 3D graph with search, neighborhood focus and path finding; a typed-edge
     list filtered by predicate with provenance
 
     5. **Accept or reject** (varies) - Provenance (source note, confidence, timestamp, lineage) stored per triple; no
     per-edge accept or reject step found in the plugins read -- answers link to source notes for checking
 
-    6. **Write back** (seconds, opt-in) - Mirror the graph into the vault as real links, so edges appear in the core
+    6. **Write back** (opt-in) - Mirror the graph into the vault as real links, so edges appear in the core
     graph and backlinks
 
 

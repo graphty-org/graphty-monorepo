@@ -1,9 +1,12 @@
 id: qualitative-code-network-researcher
 name: Qualitative Code Network Researcher
+roster_persona: text-network-analyst
+tier: B
+scope: in-scope
 role: Health-Services Researcher / Qualitative Research Lead
 quote: The network is my theory. Every arrow has to point back to the quotations that justify it.
 bio: >-
-    Dr. Rosa Delgado leads four coders on a patient-experience and stigma study. Her team codes 20 to 60 interviews, or
+    Dr. Daniela Delgado leads four coders on a patient-experience and stigma study. Her team codes 20 to 60 interviews, or
     several hundred open-ended survey answers, in ATLAS.ti or MAXQDA (Dedoose for team projects), with 30 to 150 codes in
     code groups, memos and participant attributes. She uses graphs in two different ways. First she draws: categories as
     nodes, linked by typed arrows such as "is cause of", "is part of" or "contradicts", each link explained in a comment

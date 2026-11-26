@@ -1,0 +1,68 @@
+id: unknown-parentage-search-angel
+name: Unknown-Parentage Search Angel
+roster_persona: family-historian-dna
+tier: B
+scope: in-scope
+role: Volunteer Searcher for Adoptees and Donor-Conceived People (no coding)
+quote: Her matches split into two groups that only meet in one person, and that person's grandparents are the answer I am looking for.
+bio: >-
+    Dorothy Haines is a retired payroll manager who volunteers as a "search angel" for an adoptee support group, running
+    three or four cases at a time for strangers who share a DNA login or a match export with her. Facebook groups of
+    such volunteers are large: DNA Detectives reported over 70,000 members in 2017. For each case she works from the
+    client's match list (hundreds to a few thousand matches over 20 cM) and the shared-match pairs among the top few
+    hundred, using AncestryDNA's Matches by Cluster and Shared Matches, MyHeritage AutoClusters, a Leeds spreadsheet,
+    and DNA Painter's What Are the Odds to score candidate placements. She labels the clusters she can from known
+    relatives, treats the rest as the unknown side, and hunts for the match or small group that connects two unknown
+    clusters, because that person descends from both couples and points at the missing parent's parents. She builds
+    quick trees for matches from public records, and she must explain the reasoning to the client without exposing the
+    client's matches by name to the support group.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: novice
+    domain_knowledge: advanced
+motivations:
+    - Split a client's matches into the known parent's side and the unknown side
+    - Find the two unknown clusters that meet in one match, and the couple behind them
+    - Place a new match by the clusters it shares with, before building any tree
+    - Give the client a reasoning they can follow and a figure that names no stranger
+behaviors:
+    - Starts from the vendor's parental split when there is one, then labels clusters from known relatives
+    - Reads a match's cluster pattern as evidence ("related to him and her but not to them")
+    - Writes cluster membership back into the vendor's colored group labels so it survives the site recomputing clusters
+    - Enters shared cM per match into What Are the Odds to compare candidate placements
+    - Keeps a spreadsheet of which clusters each match belongs to, because the site lists only one
+frustrations:
+    - Full shared matches need a subscription; three are shown without one
+    - A match in two clusters is listed in only one, so she rebuilds the membership by hand
+    - The grid appears only for a cluster of 100 matches or fewer, and clusters are recomputed on every visit
+    - Each vendor's clusters live inside that vendor's site, so a client's two tests cannot be seen together
+    - Nothing anonymizes a figure before she shares it, and every node is a living person
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W2096
+    - W2099
+sources:
+    - title: Adoption.com - What you need to know about using a search angel
+      url: https://adoption.com/what-you-need-to-know-about-using-a-search-angel
+      summary: Search angels as volunteers for unknown-parentage searches; DNA Detectives over 70,000 members
+    - title: Your DNA Guide - MyHeritage AutoClusters
+      url: https://www.yourdnaguide.com/ydgblog/myheritage-autoclusters
+      summary: Labeling clusters from known matches and placing a mystery match by what it shares
+    - title: DNA Explained - How to use Ancestry's new match clusters
+      url: https://dna-explained.com/2025/07/10/how-to-use-ancestrys-new-match-clusters-and-what-they-mean/
+      summary: 65-1,300 cM range, 20 cM between matches, grid only to 100 matches, multi-cluster match listed once, no export
+    - title: DNA Explained - ThruLines and shared matches now require a subscription
+      url: https://dna-explained.com/2024/02/05/ancestrys-thrulines-and-shared-matches-now-require-a-subscription/
+      summary: Three shared matches visible without a subscription
+    - title: DNA Painter - What Are the Odds FAQ
+      url: https://dnapainter.com/help/wato-faq
+      summary: Scoring candidate placements from shared cM; the endogamy and pedigree-collapse caveat
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

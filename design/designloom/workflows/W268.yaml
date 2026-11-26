@@ -47,24 +47,24 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Overview of errors** (5 min) - Overall and test accuracy (GNNLens case: GCN on Amazon Photo, 7,650 products,
+    1. **Overview of errors** - Overall and test accuracy (GNNLens case: GCN on Amazon Photo, 7,650 products,
     91.15% overall, 677 wrong); break errors down by true label to find the dominant class
 
-    2. **Form a hypothesis with derived attributes** (10 min) - Per node: correct or not, label, whether the dominant
+    2. **Form a hypothesis with derived attributes** - Per node: correct or not, label, whether the dominant
     label of the nearest training nodes matches, shortest-path distance to a training node (most class-7 errors did not
     match their nearest training labels, 264 of 331)
 
-    3. **Look at neighborhoods** (15 min) - Show two-hop neighborhoods of about 150 misclassified nodes with label as
+    3. **Look at neighborhoods** - Show two-hop neighborhoods of about 150 misclassified nodes with label as
     color, prediction as border, and training membership marked (`k_hop_subgraph(idx, 2, edge_index)`); look for
     heterophily
 
-    4. **Compare models** (10 min) - GCN against a features-only MLP and a structure-only GNN to see which information
+    4. **Compare models** - GCN against a features-only MLP and a structure-only GNN to see which information
     source drives the error
 
-    5. **Read individual nodes** (10 min) - Feature words and raw records (GNNLens Cora-ML: "markov", "model", "chain"
+    5. **Read individual nodes** - Feature words and raw records (GNNLens Cora-ML: "markov", "model", "chain"
     revealed a mislabeled paper, with three neighbors sharing the problem)
 
-    6. **Act** (5 min) - Reweight the loss for the weak class or fix labels; the hand-off is a code change and a note
+    6. **Act** - Reweight the loss for the weak class or fix labels; the hand-off is a code change and a note
 
 
     **Decision Points**:

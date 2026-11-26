@@ -64,18 +64,18 @@ goal: >-
     1. **Design** (before the workshop) - Focal problem, stakeholders, focal factors and analysis questions, because the
     questions decide what attributes to collect
 
-    2. **Brainstorm and connect** (workshop, 2-3 h) - Factors that can increase or decrease, about 20; focal factor
+    2. **Brainstorm and connect** (workshop) - Factors that can increase or decrease, about 20; focal factor
     first; "+" and "-" links, uncertain links marked, agreed rationales
 
-    3. **Check** (30 min) - Weakly connected nodes, positive-link bias, A to B to C duplicated by A to C,
+    3. **Check** - Weakly connected nodes, positive-link bias, A to B to C duplicated by A to C,
     over-connected favorites
 
-    4. **Collect attributes** (30 min) - Controllability, importance and ownership per stakeholder group, vulnerability,
+    4. **Collect attributes** - Controllability, importance and ownership per stakeholder group, vulnerability,
     link strength
 
-    5. **Digitize** (1-2 h) - Import or type the map; attach attributes; keep history so changes can be rolled back
+    5. **Digitize** - Import or type the map; attach attributes; keep history so changes can be rolled back
 
-    6. **Analyze sub-maps** (2-4 h) - Downstream set of an intervention, upstream set of an outcome, union and
+    6. **Analyze sub-maps** - Downstream set of an intervention, upstream set of an outcome, union and
     intersection of several; paths between an intervention and an outcome; ego networks radius 1-3; size by out-degree,
     in-degree or betweenness; drivers (no inputs) and sinks (no outputs); influential but uncontrollable factors as
     vulnerabilities; optional layered layout by position in causal chains

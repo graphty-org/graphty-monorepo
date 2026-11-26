@@ -47,15 +47,15 @@ goal: >-
     1. **Compute a per-node value** (varies) - Degree, participation coefficient, hub score, involvement in a
     significant component, nodal t-value or module label
 
-    2. **Join to atlas labels** (5 min) - By row order or by region name matching the atlas label column
+    2. **Join to atlas labels** - By row order or by region name matching the atlas label column
 
-    3. **Render parcels colored by the value** (10 min) - Surfaces per parcel from a NIfTI label image, 2D atlas
+    3. **Render parcels colored by the value** - Surfaces per parcel from a NIfTI label image, 2D atlas
     outlines, 3D meshes, or label files on fsaverage or fs_LR surfaces
 
-    4. **Lay out views** (10 min) - Grid of lateral and medial views per hemisphere, one color bar (diverging for
+    4. **Lay out views** - Grid of lateral and medial views per hemisphere, one color bar (diverging for
     t-values, categorical for modules), often beside the ball-and-stick view with the same colors
 
-    5. **Export** (5 min) - Publication size and resolution
+    5. **Export** - Publication size and resolution
 
 
     **Decision Points**:

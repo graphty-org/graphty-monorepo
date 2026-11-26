@@ -17,7 +17,6 @@ requires_capabilities:
     - basic-statistics
     - statistics-panel
     - metric-histograms
-    - anomaly-detection
     - visual-encoding-nodes
     - legend-display
     - layout-force-directed
@@ -38,7 +37,6 @@ suggested_components:
     - statistics-panel
     - metric-card
     - histogram
-    - anomaly-panel
     - graph-canvas
     - legend-panel
     - bookmark-panel
@@ -67,10 +65,10 @@ goal: >-
     1. **Re-run with the previous run's identities** (automatic) - Feed the prior run's result back in so clusters
     keep their names, matching nodes by person or by sequence; restrict to a date window when comparing periods
 
-    2. **Count growth per cluster** (minutes) - New members in the last 12 months, and also 3 and 6 months, as a
+    2. **Count growth per cluster** - New members in the last 12 months, and also 3 and 6 months, as a
     count and as a share of cluster size
 
-    3. **Rank and flag** (10 min) - Sort clusters by recent growth relative to size, flag those that crossed a
+    3. **Rank and flag** - Sort clusters by recent growth relative to size, flag those that crossed a
     program threshold, and mark clusters that are newly detected rather than grown
 
     4. **Automate the cycle where possible** (setup once) - One national program's system queries its
@@ -82,7 +80,7 @@ goal: >-
     diagnoses exceed the prior 3-year mean by more than 2 standard deviations and by more than 2 cases; an
     evaluation of 2018-2021 found many short-lived alerts
 
-    6. **Show the growth** (1 hour) - Per-cluster epi curves, playback over diagnosis date, and a "grown since last
+    6. **Show the growth** - Per-cluster epi curves, playback over diagnosis date, and a "grown since last
     report" list for the review meeting
 
     7. **Explain a change in the method** (as needed) - A phylogenetic clustering method found 76% more clustered

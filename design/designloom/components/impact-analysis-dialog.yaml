@@ -33,10 +33,11 @@ used_in_workflows:
     - W408
     - W429
     - W434
-    - W443
     - W45
     - W77
     - W83
+    - W1132
+    - W3049
 dependencies:
     - metric-card
     - histogram

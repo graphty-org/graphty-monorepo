@@ -57,29 +57,29 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Load a corpus** (2 min) - Choose a reference corpus or import one
+    1. **Load a corpus** - Choose a reference corpus or import one
 
-    2. **Set unit and span** (1 min) - Word, lemma, headword or part of speech; span such as five words left and right
+    2. **Set unit and span** - Word, lemma, headword or part of speech; span such as five words left and right
 
-    3. **Search the node word** (1 min) - A word or a query such as [hw="drug" pos="N.*"]; a table and a graph appear,
+    3. **Search the node word** - A word or a query such as [hw="drug" pos="N.*"]; a table and a graph appear,
     sorted by logDice; all statistics (MI, MI2, MI3, log-likelihood, Delta P, user-defined) are computed
 
-    4. **Set thresholds** (2 min) - Statistic cut-off, minimum collocate and collocation frequency, or a top-N graph
+    4. **Set thresholds** - Statistic cut-off, minimum collocate and collocation frequency, or a top-N graph
     filter when the graph overpopulates
 
-    5. **Read the graph** (5 min) - Edge length = strength, circle size = collocation frequency, color = corpus
+    5. **Read the graph** - Edge length = strength, circle size = collocation frequency, color = corpus
     frequency, left or right placement = where the collocate occurs, middle when both; map any table column to a graph
     dimension
 
-    6. **Hover for concordance** (5 min) - A preview of the lines where the collocate occurs with the node word
+    6. **Hover for concordance** - A preview of the lines where the collocate occurs with the node word
 
-    7. **Expand** (10+ min) - Double-click a collocate to search it; shared collocates move to the middle, unique ones
+    7. **Expand** - Double-click a collocate to search it; shared collocates move to the middle, unique ones
     to the rim; list shared collocates; searched and unexpanded words are marked differently
 
     8. **Mind direction** - Arrows mean direction only with a directional statistic (Delta P) and only when both words
     were searched
 
-    9. **Report and export** (5 min) - Collocation Parameters Notation such as 4b-MI2(3), L5-R5, C5-NC1 saved with the
+    9. **Report and export** - Collocation Parameters Notation such as 4b-MI2(3), L5-R5, C5-NC1 saved with the
     results; collocate table as CSV, graph as image or dot
 
 

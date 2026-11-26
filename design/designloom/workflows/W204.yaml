@@ -53,18 +53,18 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Interview and code** (days per transcript, outside the tool) - Open and axial coding in NVivo; variables grouped
+    1. **Interview and code** (outside the tool) - Open and axial coding in NVivo; variables grouped
     by stakeholder group and theme
 
-    2. **Import claims** (30 min) - One row per claim: cause, effect, polarity, quote, transcript id, coder; repeated
+    2. **Import claims** - One row per claim: cause, effect, polarity, quote, transcript id, coder; repeated
     claims become one edge with many sources
 
-    3. **Build microstructures** (1-2 h per interview) - One small map per interview or theme
+    3. **Build microstructures** - One small map per interview or theme
 
     4. **Merge** (3 iterations between modellers) - Merge variables that mean the same thing, reversibly, keeping their
     original labels and sources; disagreements logged
 
-    5. **Find loops and report** (2 h) - Variables, microstructures and loops per map (TRUUD reported 55-133 variables
+    5. **Find loops and report** - Variables, microstructures and loops per map (TRUUD reported 55-133 variables
     and 0-8 loops); edge width by count of sources
 
     6. **Validate** (workshop) - Group model building sessions check the merged map

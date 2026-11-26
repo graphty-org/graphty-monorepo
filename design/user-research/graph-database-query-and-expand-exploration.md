@@ -16,6 +16,10 @@ tables (BigQuery Graph, Spanner Graph, Microsoft Fabric graph, Oracle SQL proper
 and get results as JSON graph elements or element ids, capped by bytes rather than node counts. All
 start from a known entity or a query, not an overview; every tool caps what reaches the screen; and an
 algorithm run in the front end gives different answers on the drawn subgraph than on the stored graph.
+A fifth group works from the same search-and-expand pattern inside a master data management (MDM) hub
+rather than a graph database console: data stewards and customer-insight analysts who open one customer,
+household or supplier, see the source records behind its merged "golden record", decide whether two
+profiles are the same, and fix the relationships between them (workflows 4.11 and 4.12).
 
 ## 1. Population
 
@@ -54,6 +58,19 @@ algorithm run in the front end gives different answers on the drawn subgraph tha
   who creates perspectives, search phrases, scene actions, query templates, alerts and role mappings for
   the business users [S6][S8][S10][S20], and now enables and checks the co-pilots that read the schema
   [S59][S63].
+- **Master data stewards and customer-insight analysts.** Business users in a data governance or
+  customer operations team who keep one trusted record per customer, household, organization or supplier.
+  Neo4j markets master data management as a graph use case because master data "has deep hierarchies
+  with top-down, lateral and diagonal connections" and promises a 360-degree view of customers [S86]; two
+  Neo4j authors wrote that "Customer 360 view is our most common use case because it's very difficult to
+  do" [S89]. Most stewards, however, work in a dedicated MDM hub (Reltio, Informatica Customer 360, Tamr,
+  IBM Match 360) whose screens are a profile page, a potential-match queue, a per-attribute sources view, a
+  relationship graph and a hierarchy tree [S90][S92][S93][S95][S97][S98]. Records the matcher is not sure
+  about "are sent to data stewards for manual intervention" [S90]. They differ from the entity resolution
+  data scientist in `code-first-data-scientists-and-graph-ml.md` (persona 3.6, workflow W275), who tunes a
+  match threshold over millions of clusters in code: the steward handles one profile at a time from a
+  queue, decides per pair and per attribute without code, edits relationships as well as identities, and
+  every decision is written back to the system of record. Workflows 4.11 and 4.12.
 
 ### Sectors and organizations (documented)
 
@@ -76,6 +93,13 @@ tech, retail, payments and telecom on warehouse graphs (Thales, Yahoo, DANA, Tar
   posting naming BigQuery Graph or SQL/PGQ, was found. BigQuery Graph reached general availability on
   2026-08-31 [S76]; SQL/PGQ was reverted from PostgreSQL 19 on 2026-09-07 [S85]. Vendor case studies show
   movement, e.g. Verisoul consolidating services that included Neo4j onto Spanner [S79].
+- **Master data management:** no count of data stewards was found. Neo4j's own MDM pages name Cisco and
+  Pitney Bowes without sizes [S86]. A credit card provider's MDM graph on Neo4j holds "over 1 million
+  merchant nodes, 100 million" end-user accounts and "billions of data relationships", about 1 TB [S87].
+  The Neo4j pages cited for a "golden record" with "probabilistic authority scores" do not contain
+  those terms [S86][S87][S88]; the nearest Neo4j material is a 2015 post that scores record pairs, links
+  pairs above a threshold with a `COMPUTER_IDENTIFIED` relationship, and reports that a score of about 3
+  and up can be treated as the same person [S101].
 - **Proportion who visualize:** in a survey of 89 graph-processing users, graph visualization was the
   most popular non-query task (55 of 89 participants) [S31].
 
@@ -176,6 +200,29 @@ tech, retail, payments and telecom on warehouse graphs (Thales, Yahoo, DANA, Tar
   2 MB, Spanner Studio at 10 MB [S74][S78]. Fabric cannot yet export graph results or connect Power BI to
   a graph [S81].
 
+### Grace -- master data steward for customer and household records (id: `master-data-steward`)
+
+- **Role:** Data steward in a bank's, insurer's or retailer's data governance team; a customer-insight
+  analyst uses the same screens read-only to look at one customer before a campaign or a complaint.
+- **Background:** Knows the source systems (core banking, CRM, e-commerce, a supplier register) and the
+  business rules for which one is trusted for which field; no query language.
+- **Tools today:** An MDM hub: Reltio's Potential Matches, Sources and Graph perspectives [S90][S92][S93];
+  Tamr's queues of suggested duplicates and edits [S95]; Informatica Customer 360's hierarchy view and
+  relationship graph [S97]; IBM's hierarchy graph [S98]; a Neo4j-based customer-360 screen where one was
+  built (workflow 4.9).
+- **Data:** One profile merged from several source records ("crosswalks" in Reltio), each attribute
+  with several source values and one surviving value [S92]; households (2.53 people on average in the
+  United States [S100]) and corporate family trees that can exceed 7,500 members [S99]; whole stores of
+  100 million accounts or more [S87].
+- **Goals:** Clear the potential-match queue: merge, mark "not a match" or escalate [S91]; check the
+  merged result and unmerge a wrong merge [S91]; override a wrong surviving value [S92]; put a person in
+  the right household and a company under the right parent [S97][S98].
+- **Frustrations:** The relationship graph stops loading above 10,000 entities with "The request might
+  consume more resources than it is allowed" [S93]; IBM's hierarchy graph shows 10 members until more are
+  requested [S98]; Informatica's hierarchy view "does not immediately persist" new relationships [S97];
+  the reason a value won (source priority, recency) sits in a column of the sources table, not on the
+  graph [S92][S94].
+
 ## 3. Use cases (ranked)
 
 | Rank | Question                                                                                                                                                     | Who                              | Frequency                            | Stakes                                                  |
@@ -192,6 +239,8 @@ tech, retail, payments and telecom on warehouse graphs (Thales, Yahoo, DANA, Tar
 | 10   | "Give our users a connections screen in our own app"                                                                                                         | Application developers           | Per product, then daily by end users | High: the product's core view [S57][S65]                |
 | 11   | "Show the whole graph"                                                                                                                                       | New users                        | Once, then abandoned                 | Low: tools refuse it by design [S3]                     |
 | 12   | "Which accounts are 2-5 transfers from this one?" over warehouse tables, no copy                                                                             | Warehouse analysts               | Per investigation                    | High: fraud rings, attack paths [S76][S77]              |
+| 13   | "Are these two profiles the same customer, and which value of each field should win?" (potential match, survivorship) | Data stewards | Per queue item, daily | High: a wrong merge joins two people's accounts [S90][S91] |
+| 14   | "Who is in this household, and who is this company's ultimate parent?" (household and hierarchy view) | Data stewards, customer-insight analysts | Weekly | Medium-high: credit exposure, marketing consent [S97][S98] |
 
 ## 4. Step-by-step workflows
 
@@ -442,9 +491,59 @@ The same GQL runs on Spanner Graph for operational checks (block a suspicious tr
 Graph for historical analysis (long-running fraud rings), and BigQuery can query Spanner data in place
 [S77]; BigQuery's conversational agent "visualizes the traversal for path-based answers" [S76].
 
+### 4.11 Reviewing a potential match and correcting a golden record (data steward)
+
+Source: Reltio, Tamr and Informatica documentation and a Reltio community post [S90][S91][S92][S95][S96][S97].
+
+1. **Pick up work.** Generate or open a list of profiles to review [S91]; Tamr keeps open queues of
+   "suggested duplicates and suggested edits", each with a high, medium or low match confidence [S95].
+2. **Open the profile and its candidates.** In Reltio, search for a profile and open the Potential Matches
+   perspective [S90]; Tamr lets the curator "View match details for insight into which fields match and
+   partially match between the records" [S95].
+3. **Decide.** Merge, mark "not a match" so the pair "no longer appear[s] as Potential Matches", or, with a
+   workflow enabled, send it "for review by someone who can make a decision" [S91]. Informatica allows a
+   merge from the hierarchy view only between records "of the same type of business entity", after a merge
+   preview [S97].
+4. **Check the merged record per attribute.** Reltio's Sources perspective lists every attribute with its
+   surviving value, the "Winner Source System", the "Rule type" (the survivorship strategy applied), the
+   count of source values, and each source value color-coded by its crosswalk [S92]. Tamr builds the same
+   result with "consolidation rules to aggregate values for each attribute", including dataset
+   prioritization [S96].
+5. **Override.** Pin a value ("override the OV with the original source value"), ignore a source value,
+   edit or delete it [S92]; Tamr curators "edit golden values with a value override" [S96].
+6. **Undo a wrong merge.** "If two profiles have been merged by mistake, they can be unmerged in the sources
+   view" [S91].
+7. **Publish.** Tamr publishes the consolidated dataset "for downstream consumption" [S96]; in a hub the
+   change is live in the system of record.
+
+Decision points: is a shared address or phone a real link or a data-entry default; which source is trusted
+for which field; whether a merge would also join the two profiles' relationships and households.
+
+### 4.12 Investigating one customer, household or corporate family (data steward, customer-insight analyst)
+
+Source: [S93][S94][S97][S98][S99].
+
+1. **Find the entity** by search and open its profile [S94].
+2. **Open the relationship graph.** Reltio's Graph tab draws the profile's relationships; the user drags,
+   zooms, clicks **+** on a node to show its relationships, and reads the selected entity's details in a
+   side pane [S94]. Informatica's relationship graph has Graph, Fields, Filters and Visualization Options
+   panels and filters related records by the filters "available for the business entity" [S97].
+3. **Open the hierarchy.** Informatica's Hierarchy view shows each hierarchy the record belongs to (a
+   person can be in an Organization and a Household hierarchy) as a tree, for an effective date, and can
+   compare the current hierarchy with an earlier version [S97]. IBM's hierarchy graph loads 10 members
+   first, then more by a member-count drop-down, "Browse children" or search-and-center [S98]. A D&B family
+   tree returns the global ultimate parent and every member, or only the direct line in its Standard form
+   [S99].
+4. **Fix relationships.** Add, edit or delete relationships from the Relationships pane [S94]; in IBM, add
+   members, assign an ultimate parent ("Hierarchies must have an ultimate parent"), give a member several
+   parents, move members to orphans, then undo, redo, reset or save [S98].
+5. **Hit the cap.** Above 10,000 entities Reltio's graph does not load [S93]; D&B's linkage service "cannot
+   be relied upon to deliver family trees exceeding 7,500 or more members" [S99].
+
 ## 5. Overview first or search first?
 
-Shneiderman's "overview first, zoom and filter, then details-on-demand" [S44] underlies Graphty's W02.
+Shneiderman's "overview first, zoom and filter, then details-on-demand" [S44], a design guideline rather
+than an observed user sequence, underlies Graphty's W02, now limited to graphs drawn in full.
 Van Ham and Perer (InfoVis 2009) argue that for large graphs an overview is often "not relevant or
 practical" and propose "search, show context, expand on demand", shown on over 3 million legal citations
 [S45]; Apolo (CHI 2011) likewise supports "bottom-up sensemaking ... starting small" [S46]. Every front end
@@ -473,6 +572,9 @@ two strategies on graph databases was found.
 | Fabric graph                          | up to about 2 billion elements [S81]                              | response truncated above 64 MB; builder paths at most 8 hops [S81]                           |
 | Survey of 89 graph users              | 27 had more than 100 M vertices; 20 had more than 1 B edges [S31] | "several thousands of nodes" in one consultant's fraud visualizations [S31]                  |
 | Knowledge graph practitioners         | 8/19 thousands, 7/19 millions, 4/19 billions of nodes [S30]       | not reported                                                                                 |
+| Credit card provider MDM on Neo4j      | >1 M merchants, 100 M accounts, billions of relationships, ~1 TB [S87] | one customer or merchant 360 view; no figure published |
+| Reltio relationship graph              | whole tenant                                                      | refuses to load above 10,000 entities [S93]                                                  |
+| Households and corporate families      | 2.53 people per US household [S100]; family trees beyond 7,500 members [S99] | IBM hierarchy graph: 10 members first [S98]                                       |
 
 The ratio is routinely 1,000:1 to 1,000,000:1. A product that states a scale range as "nodes in the
 graph" conflates these two numbers.
@@ -540,6 +642,9 @@ scene-scoped algorithm score lives only in that scene [S67].
 | BigQuery Studio / Spanner Studio                                             | Graph over existing tables, no copy; schema view; Spanner expand by direction or edge type [S73][S74][S78]                              | Draws only `TO_JSON` graph elements; 2 MB notebook and 10 MB Spanner caps; display settings not kept [S74][S78]                                                           |
 | Fabric graph                                                                 | No-code model and query builder over lakehouse tables; diagram, card and table views [S80][S82]                                         | No export of graph results, no Power BI connection, schema change forces a reload [S81]                                                                                   |
 | Oracle Graph Explorer                                                        | `GRAPH_TABLE` queries over SQL property graphs, generated starter query [S83]                                                           | SELECT only; must return vertex or edge ids [S83]                                                                                                                         |
+| Reltio Hub (Potential Matches, Sources, Graph perspectives)                  | Per-attribute winner, rule type and crosswalk colors; pin, ignore, merge, not a match, unmerge [S90][S91][S92]                         | Graph refuses more than 10,000 entities; why a value won is a table column, not on the graph [S92][S93]                                                                 |
+| Informatica Customer 360                                                     | Hierarchy view by effective date with version compare; relationship graph with filters [S97]                                            | New relationships not persisted at once in the hierarchy view [S97]                                                                                                      |
+| Tamr (Curator Hub, golden records)                                           | Queues with match confidence, field-level match details, per-attribute consolidation rules and overrides [S95][S96]                     | No published user critique found                                                                                                                                          |
 
 Cross-cutting pain points with evidence: hairballs ("Then it turns into a hairball. This is the story of
 graph visualization", P17) [S30]; visualization ranked the second most pressing challenge (39 of 89),
@@ -557,7 +662,7 @@ connection, a query language or supernodes.
 | #   | Requirement                                                                                                                                                                     | M/S | Gap?                                                                              |
 | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --- | --------------------------------------------------------------------------------- |
 | 1   | Live data source: connect to a graph database (Neo4j Bolt/HTTP, Neptune, Gremlin Server, SPARQL endpoint) and fetch subgraphs on demand rather than importing a file            | M   | Gap                                                                               |
-| 2   | Search-first entry: full-text and property search with fuzzy matching against the store, results added to an initially empty canvas                                             | M   | Gap (W02 starts from a loaded graph; `search` capability searches what is loaded) |
+| 2   | Search-first entry: full-text and property search with fuzzy matching against the store, results added to an initially empty canvas                                             | M   | Partial (W3024 records the sequence; `search` capability searches what is loaded) |
 | 3   | Query editor (Cypher, Gremlin, SPARQL, GQL) with results as graph and table, and the count of what was returned versus drawn                                                    | M   | Gap                                                                               |
 | 4   | Incremental expand with filters: by relationship type, direction, neighbor category, attribute, max count, most/least connected                                                 | M   | Partial (`neighborhood-expansion` exists, no filters or caps)                     |
 | 5   | Supernode handling: show hidden-degree badges before expanding, warn above a threshold, never auto-expand a hub                                                                 | M   | Gap                                                                               |
@@ -574,7 +679,7 @@ connection, a query language or supernodes.
 | 16  | Timeline / slicer over temporal properties                                                                                                                                      | S   | Covered by `temporal-navigation`                                                  |
 | 17  | Schema (meta-graph) view for developers                                                                                                                                         | S   | Gap                                                                               |
 | 18  | Read-only by default; writes only when explicitly enabled                                                                                                                       | M   | Gap                                                                               |
-| 19  | Separate "stored graph size" from "on-screen size" in all scale claims and starting states                                                                                      | M   | Gap (W02 "node_count: any"; W06 10,000-1,000,000 without saying drawn or stored)  |
+| 19  | Separate "stored graph size" from "on-screen size" in all scale claims and starting states                                                                                      | M   | Partial (W02 and W3024 now say drawn vs stored; W06 does not yet)                 |
 | 20  | Every algorithm result records its scope: "loaded subgraph" or "stored graph" (with the source and time)                                                                        | M   | Gap (graphty's 60+ algorithms run only on what is loaded and do not say so)       |
 | 21  | Scene-scoped results are kept with the saved view, never written to the source                                                                                                  | M   | Gap                                                                               |
 | 22  | Writing results back to the source is a separate, opt-in action, read-only by default (with 18)                                                                                 | M   | Gap                                                                               |
@@ -587,17 +692,33 @@ connection, a query language or supernodes.
 | 29  | Accept warehouse graph results: JSON graph elements and paths (BigQuery, Spanner `TO_JSON`), vertex and edge id columns (Oracle `GRAPH_TABLE`), with properties and labels kept | M   | Gap                                                                               |
 | 30  | Read a declared graph schema (node tables, edge tables, keys) and draw it as a schema view                                                                                      | S   | Gap                                                                               |
 | 31  | Report truncation by bytes as well as by count ("result cut at 2 MB")                                                                                                           | M   | Gap (extends 6)                                                                   |
+| 32  | Show the source records behind a merged entity as a cluster (one node per source record, linked to the merged node), colored by source system                                   | M   | Partial (`entity-resolution-review` collapses records; no per-source view)        |
+| 33  | Per-attribute provenance on a merged entity: every source value, the winning value, the rule that chose it, and any manual pin or ignore                                         | M   | Gap (`provenance-tracking` is per element, not per surviving value)               |
+| 34  | Merge, not-a-match and unmerge decisions on candidate pairs, kept as edge attributes with who and when, reversible                                                              | M   | Partial (`node-merging` has no unmerge or decision record)                        |
+| 35  | Household and parent-child hierarchy views of one entity, with several parents per member, orphans, and the tree as of an effective date                                       | S   | Partial (`hierarchy-scenario-editing`, `temporal-validity`)                       |
+| 36  | Expand a hierarchy or relationship graph in pages (10 members, then more) with the total known, instead of refusing above a cap                                                | M   | Covered by 5 and 6 (`supernode-safeguards`, `truncation-reporting`)               |
 
 Implications for existing records:
 
-- **W02** should be split or extended: keep overview-first for small loaded graphs (under a few thousand
-  elements), and add a search-show-context-expand variant whose starting state is "empty canvas, live
-  database of any size", citing van Ham and Perer [S45] and the tool evidence above.
+- **W02** is split. W02 keeps overview-first for graphs loaded and drawn in full (up to a few thousand
+  elements); its phases now follow the tutorials that walk through a loaded graph (Gephi Quick Start
+  [S102], Cytoscape's basic data visualization tutorial [S103], Graphistry's UI guide [S104]), because
+  Shneiderman's mantra [S44] is a design guideline, not an observed sequence. Those steps are the reading
+  loop between W01 (counts and data quality) and W43 (a figure for export). The search-show-context-expand
+  sequence is its own record, W3024, with the starting state "empty canvas, stored graph of any size",
+  citing van Ham and Perer [S45] and the tool evidence above. aml-investigator and investigative-journalist
+  moved from W02 to W3024 (their documented starts are an alerted entity, a selector or a name: W06, W88,
+  W89, W143); personal-knowledge-gardener left W02 because its documented start is the local graph beside
+  the open note (W324).
 - **W06** starting state should read "stored: 10^4-10^9; on screen: tens to a few thousand", consistent
   with the Linkurious and Bloom caps.
 - New personas: `graph-database-developer`, `graph-database-app-developer`, `graph-perspective-curator`,
   `no-code-graph-investigator`, `investigative-journalist`, `warehouse-graph-analyst`. The existing `fraud-analyst` overlaps with the investigator but assumes
   graph-literate centrality use; the documented daily work is search, expand, common neighbors and paths.
+- New persona `master-data-steward` with workflows W1012 (review a potential match and correct a golden
+  record, 4.11) and W1013 (investigate one customer, household or corporate family, 4.12). It extends the
+  entity resolution review in W275 with per-attribute survivorship, reversible merge decisions and
+  household and hierarchy views; it does not change W275.
 
 ## 11. Sources
 
@@ -686,3 +807,22 @@ Implications for existing records:
 - [S83] https://docs.oracle.com/en/database/oracle/property-graph/26.2/spgdg/querying-and-visualizing-sql-property-graphs.html -- Oracle Graph Explorer: GRAPH_TABLE.
 - [S84] https://docs.puppygraph.com/ -- PuppyGraph: tables mapped to nodes and edges.
 - [S85] https://neon.com/postgresql/postgresql-19/sql-pgq-graph-queries -- SQL/PGQ reverted from PostgreSQL 19 on 2026-09-07.
+- [S86] https://neo4j.com/use-cases/master-data-management/ -- Neo4j MDM use case: deep hierarchies, 360 view of customers; Cisco, Pitney Bowes.
+- [S87] https://neo4j.com/blog/customer-360/financial-services-neo4j-360-degree-view-customer-experience/ -- credit card provider MDM graph: 1 M merchants, 100 M accounts, about 1 TB.
+- [S88] https://neo4j.com/blog/master-data-management/graph-technology-enterprise-master-data-management/ -- single customer view as the heart of MDM.
+- [S89] https://neo4j.com/blog/machine-learning/transforming-the-enterprise-ai-scale-neo4j/ -- Moore and Azhar (2019): "Customer 360 view is our most common use case".
+- [S90] https://docs.reltio.com/en/explore/get-your-bearings-in-reltio/hub/profiles/profile-perspectives/potential-matches-perspective -- Reltio Potential Match Review, stewards decide match or not.
+- [S91] https://community.reltio.com/blogs/terence-kirk/2021/06/25/how-a-data-steward-uses-reltio-to-view-and-manage -- steward steps: review list, merge, not a match, escalate, unmerge in sources view.
+- [S92] https://docs.reltio.com/explore/get-your-bearings-in-reltio/hub/profiles/profile-perspectives/sources-perspective -- Reltio Sources perspective: winner source system, rule type, crosswalks, pin, ignore, edit.
+- [S93] https://docs.reltio.com/applications/hub/profiles-at-a-glance/profile-perspectives-tabs/profile-perspectives-navigation/graph-perspective -- Reltio Graph perspective: refuses to load above 10,000 entities.
+- [S94] https://docs.reltio.com/en/objectives/manage-profiles/profile-management-at-a-glance/profile-management-operation/view-entity-relationships-in-a-graph -- Reltio graph steps: + to expand, Relationships and Entities panes.
+- [S95] https://cloud.docs.tamr.com/docs/curating-records-in-the-system-of-record -- Tamr queues, match confidence, match details, apply or dismiss.
+- [S96] https://docs.tamr.com/new/docs/overview-golden-records -- Tamr golden records: per-attribute consolidation rules, value overrides, publish.
+- [S97] https://docs.informatica.com/master-data-management/customer-360/10-4/user-guide/introduction-to-informatica-mdm---customer-360/key-concepts/hierarchies-and-relationships.html, https://docs.informatica.com/master-data-management/customer-360/10-4/user-guide/investigating-relationships/user-interfaces/hierarchy-view.html, https://docs.informatica.com/master-data-management/customer-360/10-3/user-guide/viewing-the-relationship-graph/relationship-graph-user-interface.html and https://docs.informatica.com/master-data-management/multidomain-mdm/10-3/data-director-user-guide/hierarchies-and-relationships/investigating-hierarchies-and-relationships/changing-records-and-relationships-for-a-record/initiating-a-merge-from-the-hierarchy-view.html -- Informatica Customer 360: household and organization hierarchies, hierarchy view by effective date, relationship graph panels, merge from hierarchy view. These pages refuse automated fetches (HTTP 403); quoted text was read in search-engine excerpts of the pages on 2026-11-25.
+- [S98] https://www.ibm.com/docs/en/DSXDOC/wsj/mdm/explore-hierarchies.html -- IBM MDM hierarchies: 10 members by default, ultimate parent, multiple parents, orphans, undo.
+- [S99] https://docs.dnb.com/direct/2.0/en-US/linkage/3.1/orderproduct/linkage-soap-API -- D&B linkage: family trees of 7,500 or more members not reliably delivered; Standard versus Enhanced.
+- [S100] https://www.census.gov/quickfacts/fact/table/US/HSD310224 -- US Census QuickFacts: 2.53 persons per household, 2020-2024 (the page refuses automated fetches; read in a search-engine excerpt on 2026-11-25).
+- [S101] https://neo4j.com/blog/master-data-management/making-master-data-management-fun-with-neo4j-3/ -- record-pair scores, COMPUTER_IDENTIFIED links above a threshold, score about 3 and up as the same person.
+- [S102] https://gephi.org/quickstart/ -- Gephi Quick Start (desktop and Lite): zoom, pan, rectangle or lasso selection, size by degree ranking, ForceAtlas 2, degree range filter at 2, Data Laboratory sort and search.
+- [S103] https://cytoscape.org/cytoscape-tutorials/protocols/basic-data-visualization/ -- Cytoscape basic data visualization: column filter highlights matching nodes, First Neighbors of Selected Nodes, selection limits the Node Table.
+- [S104] https://hub.graphistry.com/docs/ui/index/ -- Graphistry UI guide: click a node for details, drag across a histogram to keep a range, Data Inspector row finds the node.

@@ -19,6 +19,8 @@ requires_capabilities:
     - od-flow-import
     - flow-arithmetic
     - flow-clutter-control
+    - geospatial-file-io
+    - data-export
 suggested_components:
     - data-import-dialog
     - column-mapper
@@ -31,6 +33,7 @@ suggested_components:
     - annotation-toolbar
     - graph-canvas
     - image-export-dialog
+    - data-export-dialog
 starting_state:
     data_type: aggregated edges table (origin id, destination id, count) and a geocoded nodes table
     node_count: 20-3000

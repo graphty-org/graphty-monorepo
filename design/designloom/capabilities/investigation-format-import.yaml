@@ -1,0 +1,22 @@
+id: investigation-format-import
+name: "Investigation Format Import"
+category: data
+description: "Read FollowTheMoney JSON lines streams (.ftm, .ijson: id, schema, multi-valued string properties) and Maltego .mtgx archives and Maltego GraphML. Entity-type properties become links; interstitial schemata (Ownership, Membership, Payment, Directorship) become edges that keep their dates, shares and amounts, or stay as nodes by choice; proof, sourceUrl and publisher are kept as the source of every node and edge; Maltego entity types and fields become typed attributes; references to entities missing from the file are counted in the import report."
+status: planned
+notes: "Research trace: data-preparation-and-import.md section 9, requirement 21 (Must)."
+algorithms: []
+used_by_workflows:
+    - W1084
+    - W90
+    - W301
+    - W1162
+implemented_by_components: []
+requirements:
+    - "Must: Keep a source-document reference on every node and edge; read FollowTheMoney entity streams (interstitial
+      Ownership and Membership as edges with their dates and shares, proof kept as the source document), Maltego .mtgx
+      and Maltego GraphML (entity type and fields as typed attributes), and GraphRAG tables"
+sources:
+    - title: Data Preparation, Import and First Assessment Across All Graph Users (section 9, requirement 21)
+      url: design/user-research/data-preparation-and-import.md
+      summary: "Must in the research. Covered by Designloom when researched: Partial: graphrag-output-import and
+        provenance-tracking; FollowTheMoney and Maltego planned in investigation-format-import"

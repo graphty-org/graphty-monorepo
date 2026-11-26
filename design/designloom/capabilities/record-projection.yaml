@@ -5,7 +5,7 @@ description: Keep the record-level bipartite or hypergraph model (paper-author, 
     family-assignee, grant-paper) and derive co-authorship, co-occurrence, direct citation, bibliographic coupling and
     co-citation networks as views, with full, fractional and binary counting and a maximum-authors-per-record cap.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: bibliometrics-and-science-mapping.md section 10, requirement 3 (Must)."
 algorithms: []
 used_by_workflows:
     - W50
@@ -17,5 +17,10 @@ used_by_workflows:
     - W59
     - W60
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Keep the record-level bipartite or hypergraph model; derive projections (co-authorship at three levels,
+      co-occurrence, citation, coupling, co-citation) as views"
+sources:
+    - title: Bibliometrics and Science Mapping (section 10, requirement 3)
+      url: design/user-research/bibliometrics-and-science-mapping.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

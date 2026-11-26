@@ -4,12 +4,18 @@ category: visualization
 description: Reconcile labels across many maps with a correspondence table, average edge weights (weighted or not) per
     group, report disagreement per edge, and compare an individual map with the merged map.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: systems-and-stakeholder-mapping-civic.md section 9, table row 10 (Should)."
 algorithms: []
 used_by_workflows:
     - W199
     - W200
     - W204
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Should: Merge many maps: label reconciliation, averaging (weighted or not) of edge weights, category-level map,
+      disagreement per edge; compare an individual map with the merged map"
+sources:
+    - title: "Systems Mappers and Civic Power-Mappers: Foundations, NGOs, Evaluators and Organizers (section 9, table
+        row 10)"
+      url: design/user-research/systems-and-stakeholder-mapping-civic.md
+      summary: "Should in the research. Covered by Designloom when researched: No."

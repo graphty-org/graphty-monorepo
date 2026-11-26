@@ -1,5 +1,8 @@
 id: tb-genomic-cluster-epidemiologist
 name: TB Genomic Cluster Epidemiologist
+roster_persona: public-health-cluster-epidemiologist
+tier: B
+scope: in-scope
 role: Tuberculosis Cluster and Genotyping Epidemiologist, State TB Program
 quote: The genotypes match, but I still have to say which case infected the others, and why I think so.
 bio: >-

@@ -52,24 +52,24 @@ goal: >-
     1. **Collect texts** (outside the tool) - Newspaper articles, parliamentary testimony or other documents on one
     debate, with dates.
 
-    2. **Code statements in DNA** (estimate: weeks, manual) - Each statement has an actor (person or organization,
+    2. **Code statements in DNA** (manual) - Each statement has an actor (person or organization,
     chosen before coding), a concept (a policy instrument or a justification), an agreement qualifier (usually agree or
     disagree) and a date.
 
-    3. **Export a network** (estimate: 5 min) - Affiliation network (actors by concepts, separately for positive and
+    3. **Export a network** - Affiliation network (actors by concepts, separately for positive and
     negative stances, or one signed network drawn green and red); actor congruence network (same stance on a concept);
     actor conflict network (opposite stances, negative ties); concept congruence network; time window network (ties
     only between statements within a set number of days, moved along the time axis); attenuation network (older
     co-statements down-weighted, usually by exponential decay). Exports are GraphML or matrices.
 
-    4. **Normalize** (estimate: 5 min) - Normalize congruence weights so the most quoted actors (government, parties) do
+    4. **Normalize** - Normalize congruence weights so the most quoted actors (government, parties) do
     not dominate.
 
-    5. **Analyze and draw** (estimate: 30 min) - Open the GraphML in visone (recommended by DNA's authors) or Gephi;
+    5. **Analyze and draw** - Open the GraphML in visone (recommended by DNA's authors) or Gephi;
     find coalitions as cohesive subgroups (edge betweenness or modularity); rDNA adds clustering, phase-transition
     detection, backbones, ideological scaling and polarization measures.
 
-    6. **Compare over time** (estimate: 30 min) - One network per window, or an animated sequence, to show coalitions
+    6. **Compare over time** - One network per window, or an animated sequence, to show coalitions
     forming and polarizing.
 
 

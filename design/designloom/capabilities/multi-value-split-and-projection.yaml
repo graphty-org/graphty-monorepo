@@ -5,11 +5,15 @@ description: Split delimited multi-value cells into edges, load two-mode data wi
     one-mode networks with a chosen weighting (count, fractional) and participant cap while keeping the original
     two-mode network.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: data-preparation-and-import.md section 9, requirement 8 (Must)."
 algorithms: []
 used_by_workflows:
     - W294
     - W297
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Two-mode load (type column) and projection with weighting choice, keeping the original"
+sources:
+    - title: Data Preparation, Import and First Assessment Across All Graph Users (section 9, requirement 8)
+      url: design/user-research/data-preparation-and-import.md
+      summary: "Must in the research. Covered by Designloom when researched: Gap outside W16 and the fraud doc"

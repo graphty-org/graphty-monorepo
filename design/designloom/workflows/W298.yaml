@@ -4,8 +4,8 @@ category: onboarding
 validated: false
 personas:
     - spreadsheet-first-network-builder
-    - event-log-network-builder
-    - bibliometric-network-analyst
+    - crime-intelligence-analyst
+    - research-impact-librarian
 requires_capabilities:
     - data-import
     - data-validation

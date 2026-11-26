@@ -23,6 +23,7 @@ requires_capabilities:
     - export-image
     - data-export
     - notebook-widget
+    - columnar-table-import
 suggested_components:
     - file-drop-zone
     - column-mapper
@@ -55,28 +56,28 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Load and clean** (10 min) - Read the CSV or run a SQL query; decide node identity (customer id vs account
+    1. **Load and clean** - Read the CSV or Parquet file, or run a SQL query; decide node identity (customer id vs account
     id), drop self-pairs, aggregate repeated pairs into a weight count, decide directed or undirected and what counts
     as an edge (any transaction or above a threshold)
 
-    2. **Build** (5 min) - `nx.from_pandas_edgelist(df, "src", "dst", edge_attr="weight", create_using=nx.DiGraph)`,
+    2. **Build** - `nx.from_pandas_edgelist(df, "src", "dst", edge_attr="weight", create_using=nx.DiGraph)`,
     attach node attributes from a second table; check node count, number of connected components and the degree
     histogram
 
-    3. **First picture** (2 min) - `nx.draw(G)`; above a few hundred nodes this is a hairball, so many stop here or
+    3. **First picture** - `nx.draw(G)`; above a few hundred nodes this is a hairball, so many stop here or
     switch representation (matrix, arc, circos or hive plots grouped by an attribute)
 
-    4. **Metrics** (5 min) - PageRank with weights, betweenness sampled with k=500 on larger graphs, Louvain with
+    4. **Metrics** - PageRank with weights, betweenness sampled with k=500 on larger graphs, Louvain with
     seed=42; results are dicts or lists of sets, written back to node attributes and into a DataFrame for sorting
 
-    5. **Interactive look** (10 min) - pyvis with precomputed `spring_layout(seed=42)` positions and physics off on
+    5. **Interactive look** - pyvis with precomputed `spring_layout(seed=42)` positions and physics off on
     thousands of nodes, ipysigma with color by community and size by PageRank in the cell, or GEXF export to Gephi for
     ForceAtlas2 after stringifying list and dict attributes
 
-    6. **Read and decide** (10 min) - Do communities match known labels? Is a hub an artifact (a test account, a
+    6. **Read and decide** - Do communities match known labels? Is a hub an artifact (a test account, a
     default merchant id)? If so, return to step 1 and filter
 
-    7. **Hand off** (5 min) - PNG or HTML into a slide or wiki page; node metric DataFrame to the modeling pipeline
+    7. **Hand off** - PNG or HTML into a slide or wiki page; node metric DataFrame to the modeling pipeline
 
 
     **Warehouse-scale variant**: With 10^8 to 10^9 edge rows she builds a GraphFrame in Databricks, runs
@@ -125,6 +126,9 @@ goal: >-
 
     - Interactive HTML does not survive in GitHub or nbviewer; reproducibility depends on code plus a seed
 
+    - Widgets that take a NetworkX graph rather than the DataFrame, or send the DataFrame as JSON, so the edge table
+    is rebuilt or slowed on the way to the browser (opening the Parquet tables directly is W1120)
+
 
     **Data Flow**:
 
@@ -136,7 +140,7 @@ goal: >-
     - Output: Figure (PNG or HTML), node metric table for the modeling pipeline
 success_criteria:
     - metric: Time from DataFrame to a readable, metric-encoded view
-      target: Under 15 minutes for 10,000 nodes
+      target: Under 15 minutes for 10,000 nodes (design goal; no source measures it)
     - metric: Attribute fidelity
       target: Every node and edge column survives import and export with its type, including list-valued columns
     - metric: Reproducibility

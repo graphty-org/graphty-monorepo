@@ -1,0 +1,18 @@
+id: sequence-hit-overlay
+name: "Sequence hits painted on nodes"
+category: visualization
+description: "Import alignment hits of external sequences (BLAST tabular, GAF) keyed on node name with start and end positions, paint the covered part of each node in the query's color, filter by identity and coverage, and find oriented paths through hit nodes that spell a query."
+status: planned
+notes: "Research trace: genome-assembly-and-pangenome-graphs.md section 10, table row 6 (Should)."
+algorithms: []
+used_by_workflows:
+    - W1157
+implemented_by_components: []
+requirements:
+    - "Should: Highlight where external sequence hits fall on nodes, imported from BLAST tabular or GAF, with the
+      covered part of the node painted"
+sources:
+    - title: "Genome Assemblers, Microbial Genome Finishers and Pangenome Researchers: Assembly Graphs and Pangenome
+        Graphs (section 10, table row 6)"
+      url: design/user-research/genome-assembly-and-pangenome-graphs.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

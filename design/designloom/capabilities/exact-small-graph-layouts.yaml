@@ -1,0 +1,28 @@
+id: exact-small-graph-layouts
+name: "Exact small-graph layouts (shells, planar from a stored embedding, Tutte, symmetric)"
+category: visualization
+description: "Deterministic layouts for small exact graphs: shells by degree or distance, planar straight-line drawing from a stored embedding (plantri planar code) when present and from a computed one otherwise, Tutte's barycentric drawing for 3-connected planar graphs, and a drawing that places automorphism orbits symmetrically. graphty-element already ships shell, spectral and planar (computed-embedding, NetworkX port) layouts that no capability record names; stored-embedding planar, Tutte and symmetry layouts are missing. Source: https://doc.sagemath.org/html/en/reference/plotting/sage/graphs/graph_plot.html"
+status: planned
+notes: "Research trace: students-educators-and-first-time-users.md section 9, requirement 32 (Must)."
+algorithms: []
+used_by_workflows:
+    - W2030
+implemented_by_components: []
+requirements:
+    - "Must: Shell layouts by degree or by distance from a chosen node, deterministic for the same graph"
+    - "Must: Planar straight-line drawing from a stored embedding (plantri planar code) when present, and from a computed embedding otherwise; a non-planar graph returns a code"
+    - "Must: Tutte's barycentric drawing for 3-connected planar graphs"
+    - "Should: A drawing that places automorphism orbits symmetrically"
+sources:
+    - title: "SageMath graph_plot reference"
+      url: "https://doc.sagemath.org/html/en/reference/plotting/sage/graphs/graph_plot.html"
+      summary: "Sage's layouts for exact small graphs, including circular, spring, planar and tree"
+    - title: "plantri guide"
+      url: "https://users.cecs.anu.edu.au/~bdm/plantri/plantri-guide.txt"
+      summary: "Planar code stores each vertex's clockwise neighbor order, the embedding a planar drawing uses"
+    - title: "House of Graphs 2.0 (Coolsaet, D'hondt, Goedgebeur, 2022)"
+      url: "https://arxiv.org/html/2210.17253"
+      summary: "A database of interesting graphs with a drawing tool and planar embedder"
+    - title: "Students, educators and first-time users, section 9, requirement 32"
+      url: "design/user-research/students-educators-and-first-time-users.md"
+      summary: "Exact, deterministic layouts, Must"

@@ -21,6 +21,7 @@ requires_capabilities:
     - geographic-layout
     - od-flow-import
     - spatial-aggregation
+    - geospatial-file-io
 suggested_components:
     - file-drop-zone
     - data-import-dialog
@@ -33,6 +34,7 @@ suggested_components:
     - legend-panel
     - graph-canvas
     - image-export-dialog
+    - attribute-table-join-dialog
 starting_state:
     data_type: LODES origin-destination file for one state and year (census-block workplace and residence pairs with job counts by segment)
     node_count: 1000-10000 after aggregation to tracts
@@ -115,7 +117,7 @@ success_criteria:
     - metric: Id integrity
       target: Zero block or tract ids lose leading zeros on import
     - metric: Time from downloaded file to tract-level flow map
-      target: Under 15 minutes
+      target: Under 15 minutes (design goal; no source measures it)
     - metric: Aggregation transparency
       target: User can state total jobs before and after aggregation and filtering
 sources:

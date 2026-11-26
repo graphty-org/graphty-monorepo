@@ -49,21 +49,21 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Get a model** (5 min) - Load a bundled empirical model, read a model file in a standard flow format, or
+    1. **Get a model** - Load a bundled empirical model, read a model file in a standard flow format, or
     export from Ecopath
 
-    2. **Pack it** (5 min) - Internal flow matrix plus per-node input, export, respiration and storage vectors and a
+    2. **Pack it** - Internal flow matrix plus per-node input, export, respiration and storage vectors and a
     living or non-living flag
 
-    3. **Check balance** (2 min) - Test whether inputs equal outputs per node within a tolerance; adjust inputs or
+    3. **Check balance** - Test whether inputs equal outputs per node within a tolerance; adjust inputs or
     outputs if not
 
-    4. **Analyze** (5 min) - Throughflow and total system throughflow, cycles and the cycling index, ascendency,
+    4. **Analyze** - Throughflow and total system throughflow, cycles and the cycling index, ascendency,
     storage analysis, input and output environs, control, mixed trophic impacts
 
-    5. **Compare models** (15 min) - Across ecosystems or management scenarios
+    5. **Compare models** - Across ecosystems or management scenarios
 
-    6. **Hand off** (10 min) - Index tables and a trophic spine plot
+    6. **Hand off** - Index tables and a trophic spine plot
 
 
     **Decision Points**:

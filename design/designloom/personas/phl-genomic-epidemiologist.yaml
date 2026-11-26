@@ -1,9 +1,12 @@
 id: phl-genomic-epidemiologist
 name: Public Health Laboratory Genomic Epidemiologist
+roster_persona: public-health-cluster-epidemiologist
+tier: B
+scope: in-scope
 role: Genomic Epidemiologist and Bioinformatician, State Public Health Laboratory
 quote: Our 300 genomes mean nothing until I can see where they sit among five million other ones.
 bio: >-
-    Priya Natarajan runs SARS-CoV-2, mpox and influenza genomic surveillance for a state public health laboratory and
+    Nandini Natarajan runs SARS-CoV-2, mpox and influenza genomic surveillance for a state public health laboratory and
     supports outbreak investigations for the epidemiologists down the hall. She is comfortable on the command line and
     is the only person in the building who is. Her week is a Nextstrain build with Augur viewed in Auspice, placing new
     local genomes onto a national mutation-annotated tree with UShER and exploring the result in Taxonium, publishing a
@@ -53,6 +56,7 @@ workflows:
     - W67
     - W68
     - W69
+    - W319
 sources:
     - title: Nextstrain - creating a workflow with Augur
       url: https://docs.nextstrain.org/en/latest/tutorials/creating-a-workflow.html

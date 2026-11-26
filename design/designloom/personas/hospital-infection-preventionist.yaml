@@ -1,9 +1,12 @@
 id: hospital-infection-preventionist
 name: Hospital Infection Preventionist
+roster_persona: public-health-cluster-epidemiologist
+tier: B
+scope: in-scope
 role: Infection Preventionist and Healthcare Epidemiologist, Hospital Group
 quote: Which of these patients were on the same ward on the same day, and which sink do I swab first?
 bio: >-
-    Grace Mensah investigates clusters of carbapenemase-producing Enterobacterales, Clostridioides difficile, Candida
+    Efua Mensah investigates clusters of carbapenemase-producing Enterobacterales, Clostridioides difficile, Candida
     auris and vancomycin-resistant Enterococcus across wards, and with the health department across facilities. Her raw
     material is an electronic health record export of patient admission, discharge and transfer history, one row per
     stay per ward with start and end times, joined to microbiology results and to a genomics partner's trees and

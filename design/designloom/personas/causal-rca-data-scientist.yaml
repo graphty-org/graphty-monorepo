@@ -1,9 +1,12 @@
 id: causal-rca-data-scientist
 name: Causal Root-Cause Analysis Data Scientist
+roster_persona: causal-dag-epidemiologist
+tier: B
+scope: in-scope
 role: Senior Data Scientist on a Platform Reliability or Business Analytics Team
 quote: The checkout latency spiked. Give me the ranked list of upstream services that explain it, with error bars, on the service graph the on-call engineer already knows.
 bio: >-
-    Arjun Mehta is a senior data scientist on an e-commerce platform's reliability and analytics team. When a metric
+    Nikhil Mehta is a senior data scientist on an e-commerce platform's reliability and analytics team. When a metric
     spikes or shifts -- website latency, revenue, profit -- he uses graphical causal models in DoWhy's GCM module to
     attribute it to upstream causes. His causal graph is not learned from scratch: he takes the service call graph from
     tracing (for example AWS X-Ray) and reverses its arrows, because latency flows from callee to caller, or he writes a

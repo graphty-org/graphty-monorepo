@@ -1,9 +1,12 @@
 id: kinship-demographer
 name: Kinship Demographer
+roster_persona: digital-humanist
+tier: B
+scope: in-scope
 role: Historical Anthropologist and Demographer Studying Marriage Alliances
 quote: I need to count the marriages that re-link families who were already related. A force layout of six thousand people tells me nothing about generations.
 bio: >-
-    Prof. Ana Duarte studies marriage alliances among a regional elite over 300 years. Family historians send her
+    Prof. Beatriz Duarte studies marriage alliances among a regional elite over 300 years. Family historians send her
     GEDCOM files, and she also reconstitutes families from parish registers. Her genealogies run from 2,000 to 50,000
     individuals (the Ragusan nobility genealogy used with Pajek has 5,999 people; the largest network in the Kinsources
     repository, Watchi, has about 50,000). She reads GEDCOM straight into Pajek as an Ore graph (people as nodes,

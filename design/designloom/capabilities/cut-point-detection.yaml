@@ -1,0 +1,24 @@
+id: cut-point-detection
+name: "Cut points (articulation points)"
+category: analysis
+description: "Return the nodes whose removal disconnects their component, per layer of a multiplex graph, as a node attribute that can be styled and filtered; used as a collusion-risk indicator in co-bidding networks (requirement 34)."
+status: planned
+notes: "Research trace: financial-crime-fraud-aml-kyc.md section 10, requirement 34 (Should); supply-chain-and-physical-infrastructure-networks.md section 10, requirement R14 (Must, bridges and articulation points)."
+algorithms: []
+used_by_workflows:
+    - W2072
+implemented_by_components: []
+requirements:
+    - "Must: Return every articulation point (a node whose removal disconnects its component) as a node attribute that a style layer and a filter can read"
+    - "Should: Compute cut points per layer of a multiplex graph (for example co-bidding and ownership per year) and record the layer"
+    - "Should: Report bridges (edges whose removal disconnects) with the same result, and the components each cut point would separate"
+sources:
+    - title: "Wachs and Kertesz, A network approach to cartel detection in public auction markets (Scientific Reports 2019)"
+      url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC6658564"
+      summary: "Co-bidding network screens for collusion"
+    - title: "Villamil, Kertesz and Fazekas, Collusion risk in corporate networks (Scientific Reports 2024)"
+      url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC10850496/"
+      summary: "Cut points in co-bidding and ownership layers used as a collusion-risk indicator"
+    - title: "Financial crime research, section 10, requirement 34"
+      url: "design/user-research/financial-crime-fraud-aml-kyc.md"
+      summary: "Per-year two-layer graph with cut points per layer, Should"

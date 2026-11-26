@@ -62,29 +62,29 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Seed the population** (30 min) - A short seed list (12 accounts for a pain map, 22 for oncology, about 13,500
+    1. **Seed the population** - A short seed list (12 accounts for a pain map, 22 for oncology, about 13,500
     well-connected accounts for a Congress map), keyword authors, or Bluesky starter pack members
 
-    2. **Collect followers and followings** (hours to days) - For each seed collect its followers and the accounts they
+    2. **Collect followers and followings** - For each seed collect its followers and the accounts they
     follow; Bluesky follows are open, X sells follower reads at $0.010 per account, so budget sets depth
 
-    3. **Cut to the well-connected core** (10 min) - Keep accounts well connected inside the collected set by an in-set
+    3. **Cut to the well-connected core** - Keep accounts well connected inside the collected set by an in-set
     degree minimum or k-core; no published minimum was found
 
-    4. **Build the two-mode profile** (10 min) - Account x followed-account (or x cited source) matrix
+    4. **Build the two-mode profile** - Account x followed-account (or x cited source) matrix
 
-    5. **Cluster in two levels** (10 min) - Fine clusters by shared-following similarity (hierarchical agglomerative),
+    5. **Cluster in two levels** - Fine clusters by shared-following similarity (hierarchical agglomerative),
     then grouped into segments (12,086 accounts into 47 clusters and 8 groups; 12,617 into 48 and 7); Louvain or Leiden
     on the in-set follow graph is a practical substitute
 
-    6. **Lay out and encode** (15 min) - Force layout with a node near the accounts it follows; size by follow
+    6. **Lay out and encode** - Force layout with a node near the accounts it follows; size by follow
     relationships inside the map (or by follower count); color by cluster; dense graphs (about 60 follows per account
     on Bluesky) need node-only views or edge sampling
 
-    7. **Label clusters** (hours) - Read each cluster's bios, cited sources, mentioned users and most-followed accounts
+    7. **Label clusters** - Read each cluster's bios, cited sources, mentioned users and most-followed accounts
     inside the map; check labels by hand
 
-    8. **Interpret and report** (hours) - Shared followers between groups, where amplifiers sit, which clusters a suspect
+    8. **Interpret and report** - Shared followers between groups, where amplifiers sit, which clusters a suspect
     network borders
 
 

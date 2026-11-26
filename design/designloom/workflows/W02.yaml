@@ -6,9 +6,6 @@ personas:
     - explorer-elena
     - analyst-alex
     - expert-emma
-    - no-code-graph-investigator
-    - investigative-journalist
-    - personal-knowledge-gardener
 requires_capabilities:
     - graph-rendering
     - layout-force-directed
@@ -27,9 +24,6 @@ requires_capabilities:
     - search
     - neighborhood-expansion
     - degree-analysis
-    - schema-meta-graph
-    - live-data-source
-    - reveal-relationships
 suggested_components:
     - graph-canvas
     - minimap
@@ -52,81 +46,74 @@ suggested_components:
     - search-panel
     - badge
 starting_state:
-    data_type: "overview-first variant: graph loaded in full; search-first variant: empty canvas over a live database or very large file"
-    node_count: "overview-first: up to a few thousand elements drawn in full; search-first: stored graph of any size, tens to a few thousand on screen"
+    data_type: graph loaded in full from a file or sample (not a live database)
+    node_count: up to a few thousand elements, all drawn
     edge_density: any
     user_expertise: any
 goal: >-
-    **Intent**: Navigate through a graph visualization to discover patterns, understand structure, and identify areas of
-    interest. User wants to build a mental map of the data before targeted analysis.
+    **Intent**: Read a graph that is already loaded and drawn in full: find its clusters, hubs and outliers and pick
+    the elements worth a closer look. This is the interactive reading loop between W01 (counts, structure and data
+    quality before trusting the data) and W43 (styling a figure for export). It ends in understanding, not a file.
 
 
-    **Mental Model**: "Map exploration" - like using Google Maps, starting from satellite view (overview), zooming to
-    neighborhood level (zoom), hiding irrelevant roads (filter), then clicking on a specific building for details
-    (details-on-demand). Also known as Shneiderman's Visual Information Seeking Mantra.
-    This holds for graphs small enough to draw whole (up to a few thousand elements). For graphs too large to draw, the
-    documented practice is the reverse: "search, show context, expand on demand" (van Ham and Perer, InfoVis 2009), and
-    every graph database front end reviewed (Neo4j Bloom, Linkurious, AWS Graph Explorer, BigQuery and Spanner Studio)
-    starts from a search box or query, not an overview. This workflow therefore has two variants.
+    **Scope**: Only graphs small enough to draw whole (up to a few thousand elements). For a stored graph too large
+    to draw, or a live database, the documented start is a search, not an overview (van Ham and Perer, InfoVis 2009):
+    see W3024 (generic), W142 and W143 (graph database explorers), W06, W88 and W89 (investigators start from an
+    alerted entity, a selector or a name) and W324 (a note vault starts from the local graph beside the open note).
+
+
+    **Mental Model**: Shneiderman's "overview first, zoom and filter, then details-on-demand" is a design guideline,
+    not an observed user sequence. The tutorials that walk a user through a loaded graph (Gephi Quick Start for Gephi
+    and Gephi Lite, Cytoscape's basic data visualization tutorial, Graphistry's UI guide) use the same actions but
+    interleave them with layout, appearance and metrics, and loop rather than run once. The phases below are those
+    tutorial steps, in the order the tutorials give them.
 
 
     **Task Phases**:
 
-    1. **Overview** - See entire graph to understand scope, identify obvious clusters/outliers
+    1. **Draw the whole graph** - Run a force layout (ForceAtlas 2 in Gephi) and size nodes by a degree ranking with a
+    minimum and maximum size, so hubs stand out (Gephi Quick Start, "Appearance")
 
-    2. **Zoom** - Focus on areas of interest, reduce visual complexity
+    2. **Zoom, pan and select** - Scroll to zoom, drag the background to pan, select nodes one at a time or with a
+    rectangle or lasso (Gephi Lite); recenter to get back to the whole graph
 
-    3. **Filter** - Remove uninteresting elements to reduce cognitive load
+    3. **Filter** - Hide low-degree nodes with a degree range of 2 or more (Gephi "Degree Range"), or keep nodes whose
+    attribute passes a threshold (Cytoscape column filter; matching nodes are highlighted); in Graphistry, drag across
+    a histogram to keep a range of values
 
-    4. **Details-on-Demand** - Inspect specific nodes/edges when needed
+    4. **Grow the selection to neighbors** - Add the first neighbors of the selected nodes, and repeat for the second
+    degree (Cytoscape "First Neighbors of Selected Nodes")
 
-
-    **Search-First Variant** (stored graph too large to draw; see W142 and W143 for tool-specific detail):
-
-    1. **Orient on the schema** - A small meta-graph of node and relationship types replaces the overview; knowledge
-    graph builders check "the graph is connected as expected" but say "I don't want to have to see the full graph"
-
-    2. **Search** - Name, identifier or a prepared parameterized search; results are added to an empty canvas
-
-    3. **Show context** - Hover and details for the found entity; a badge shows how many relationships are not drawn
-
-    4. **Expand on demand** - Expand by relationship type, direction, neighbor category and maximum count; hubs above a
-    threshold ask before expanding; reveal relationships among nodes already drawn
-
-    5. **Prune** - Dismiss nodes, dismiss isolated nodes, filter; the canvas only ever holds what the user built
-
-    6. **Save** - A scene or bookmark that records what was searched, expanded and filtered
+    5. **Details on demand** - The selection limits the node table to its rows, and selecting table rows selects the
+    nodes (Cytoscape); sort and search the table (Gephi Data Laboratory); click a node or a table row to find it in
+    the graph (Graphistry)
 
 
     **Decision Points**:
 
     - Which areas look interesting enough to zoom into?
 
-    - What filtering criteria will reveal vs. hide important structure?
+    - What filter criteria will reveal vs. hide important structure?
 
     - When to stop exploring and start targeted analysis?
-
-    - (Search-first) Is this node a hub worth expanding, and has a result cap silently cut the answer?
 
     - Is the current view answering my question or do I need to reconfigure?
 
 
     **Information Needs**:
 
-    - Overview: Overall network size, density, presence of clusters/outliers
+    - Overview: Overall network size, presence of clusters, hubs and outliers
 
     - Zoom: Local structure, node labels become readable
 
-    - Filter: What percentage of data remains, did important nodes disappear?
+    - Filter: What share of the data remains, did important nodes disappear?
 
-    - Details: All attributes of selected element, its connections
-
-    - (Search-first) Count of results returned versus drawn, and hidden-relationship counts per node
+    - Details: All attributes of selected elements, and their neighbors
 
 
     **Pain Points**:
 
-    - Large graphs become "hairball" - impossible to see structure
+    - Large graphs become a "hairball" - impossible to see structure
 
     - Losing context/orientation when zoomed in
 
@@ -134,17 +121,12 @@ goal: >-
 
     - Difficulty returning to a previous view state
 
-    - (Search-first) Caps cut results silently: an Aura Explore user saw 38 of 236 nodes and assumed data was missing
-
-    - (Search-first) Expanding a hub floods the view
-
 
     **Data Flow**:
 
-    - Input: Loaded graph with initial layout applied; or (search-first) a live database or large file and a search
-    term
+    - Input: Loaded graph with a layout applied
 
-    - Transformations: Zoom level changes, filter application, selection
+    - Transformations: Zoom level changes, filter application, selection and its neighbors
 
     - Output: Understanding of graph structure + specific elements of interest identified
 success_criteria:
@@ -155,27 +137,21 @@ success_criteria:
     - metric: Navigation fluidity
       target: Transitions feel smooth, not jarring
 sources:
-    - title: Shneiderman Visual Information Seeking Mantra
+    - title: Shneiderman, The Eyes Have It (1996)
       url: https://www.cs.umd.edu/~ben/papers/Shneiderman1996eyes.pdf
-      summary: Overview first, zoom and filter, then details-on-demand
-    - title: Neo4j Bloom Overview
-      url: https://neo4j.com/docs/bloom-user-guide/current/bloom-visual-tour/bloom-overview/
-      summary: Graph exploration and visualization patterns for code-free interaction
+      summary: Design guideline "overview first, zoom and filter, then details-on-demand"; not an observed user sequence
+    - title: Gephi Quick Start (desktop and Gephi Lite)
+      url: https://gephi.org/quickstart/
+      summary: Interact (zoom, pan, select by rectangle or lasso), size by degree ranking, ForceAtlas 2, degree range filter at 2, Data Laboratory sort and search
+    - title: Cytoscape tutorial - Basic Data Visualization
+      url: https://cytoscape.org/cytoscape-tutorials/protocols/basic-data-visualization/
+      summary: Column filter highlights matching nodes; First Neighbors of Selected Nodes, repeated for second degree; selection limits the Node Table
+    - title: Graphistry UI guide
+      url: https://hub.graphistry.com/docs/ui/index/
+      summary: Click a node for details; drag across a histogram to keep a range; click a Data Inspector row to find it in the graph
     - title: van Ham and Perer, Search, Show Context, Expand on Demand (InfoVis 2009)
       url: https://dig.cmu.edu/publications/2009-doigraphs.html
-      summary: For large graphs an overview is often not relevant or practical; start from search and expand, shown on over 3 million legal citations
-    - title: Apolo (CHI 2011)
-      url: https://poloclub.github.io/polochau/papers/11-chi-apolo.pdf
-      summary: Bottom-up sensemaking starting small from seed nodes
-    - title: Bloom search bar
-      url: https://neo4j.com/docs/bloom-user-guide/current/bloom-visual-tour/search-bar/
-      summary: Bloom describes itself as a search-first environment
-    - title: Li et al., knowledge graph practitioners interview study
-      url: https://arxiv.org/html/2304.01311v4
-      summary: Builders verify the graph is connected as expected but do not want to see the full graph
-    - title: Aura Explore feedback - I can't see all my nodes
-      url: https://aura.feedback.neo4j.com/explore/p/i-cant-see-all-my-nodes
-      summary: Silent cap; 38 of 236 nodes shown
-version: 1.1.0
+      summary: For large graphs an overview is often not relevant or practical; why this workflow is limited to graphs drawn in full (search-first is W3024)
+version: 1.2.0
 created_at: 2026-01-16T16:22:44.523Z
 updated_at: 2026-11-25T00:00:00.000Z

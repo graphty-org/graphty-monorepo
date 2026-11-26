@@ -1,5 +1,8 @@
 id: 3d-graph-embedder
 name: Developer Embedding a 3D Graph
+roster_persona: graph-product-frontend-engineer
+tier: A
+scope: in-scope
 role: Independent Developer Building 3D Knowledge-Base and Network Views
 quote: A script tag and graphData gets me a spinning 3D graph in ten minutes. Making it fast at ten thousand nodes, and usable in a headset, is the part nobody documents.
 bio: >-
@@ -8,8 +11,12 @@ bio: >-
     from a CDN or through the React packages that share one interface across 2D, 3D, VR and AR. He replaces node spheres
     with text sprites or custom three.js meshes, draws flow with directional particles, switches to a DAG mode for trees,
     and reaches into the scene, camera and renderer for anything the props do not cover. His graphs come from markdown
-    links and tags or from a client's JSON, a few hundred to tens of thousands of nodes. The evidence for this persona is
-    mostly open-source plugins and issue threads; no commercial product built on a 3D graph library was found.
+    links and tags, from a knowledge graph his LLM pipeline extracted, from a Neo4j query or from a code base's imports,
+    usually a few hundred to ten thousand nodes. He copies the README's interaction examples: hover to highlight
+    neighbors, click to fly the camera to a node and open his own side panel, frame the graph once the layout settles.
+    In Next.js he loads the graph client-only. The evidence for this persona is open-source plugins, AI and developer
+    tools on GitHub and issue threads; products with paying users that use the same libraries (SigNoz, cognee) chose
+    the 2D package, and no commercial product built on a 3D graph library was found.
 characteristics:
     expertise: intermediate
     time_pressure: medium
@@ -31,7 +38,12 @@ goals:
     - Labels that remain readable without killing frame rate
     - A VR mode where a controller can select a node and the camera is reachable
     - A way to share or export a 3D view
+    - A graph that appears already framed, and click-to-focus and hover-highlight without copying camera arithmetic
+    - A graph that imports in a Next.js page without a client-only wrapper
 frustrations:
+    - Server-side rendering throws "window is not defined", and the dynamic-import fix breaks ref methods
+    - zoomToFit after the engine stops fires many seconds late, so he polls with setTimeout
+    - Screenshots of the 3D canvas come out blank or black
     - Text sprites on 10,000+ nodes are very slow
     - The animation loop never stops on graphs over 5,000 nodes and the view gets slower each time data is replaced
     - No WebGPU path for 200k elements
@@ -72,6 +84,15 @@ sources:
     - title: nextjs-3d-force-graph-impl
       url: https://github.com/mohidmakhdoomi/nextjs-3d-force-graph-impl
       summary: react-force-graph in a Next.js App Router project manipulating three.js objects
+    - title: dep-tree
+      url: https://github.com/gabotechs/dep-tree
+      summary: Command-line tool that opens a react-force-graph-3d view of a code base's file dependencies
+    - title: graphaura
+      url: https://github.com/liamellison02/graphaura
+      summary: Next.js 15 AI knowledge graph built on react-force-graph-3d
+    - title: react-force-graph issues 155 and 324
+      url: https://github.com/vasturiano/react-force-graph/issues/324
+      summary: Next.js SSR errors and dynamic imports breaking ref methods such as cameraPosition
 version: 1.0.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

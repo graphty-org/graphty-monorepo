@@ -87,13 +87,67 @@ Open-source embedders include:
 developers, and much of the volume is transitive.
 
 - `cytoscape` has 29.2M, but `mermaid` (28.5M) depends on it, so nearly all Cytoscape.js volume comes from Mermaid
-  diagrams.
+  diagrams. Those authors are not embedders; see "Diagram-as-code authors" below for why they are out of scope.
 - Direct-use packages: `graphology` 2.2M, `force-graph` 1.5M, `react-force-graph-2d` 1.35M, `vis-network` 1.1M,
   `3d-force-graph` 851K, `sigma` 655K, `react-force-graph-3d` 408K, `@antv/g6` 386K, `@react-sigma/core` 127K,
   `reagraph` 105K, `react-cytoscapejs` 93K, `@neo4j-nvl/base` 29K, `3d-force-graph-vr` 26K, `3d-force-graph-ar` 25K.
-- `react-force-graph-3d` depends on `3d-force-graph`, so part of the 851K is React use.
+- `react-force-graph-3d` depends on `3d-force-graph`, so part of the 851K is React use. For 2026-11-18 to 2026-11-24
+  the counts were 850,914 and 408,145; `three-forcegraph` (842K), the three.js object both depend on, has nearly the
+  same count, which confirms the volume is one dependency chain. Other 3D-capable web graph packages are far smaller:
+  `reagraph` (105K, React, 2D and 3D layouts) and `r3f-forcegraph` (1.4K). `@cosmos.gl/graph` (122K) is a GPU
+  force layout for hundreds of thousands of points, but its quick start passes x, y pairs: it is 2D
+  (https://api.npmjs.org/downloads/point/2026-11-18:2026-11-24/three-forcegraph,
+  https://github.com/reaviz/reagraph, https://github.com/cosmograph-org/cosmos).
 - Commercial toolkits ship as private tarballs and have no public counts. The ReGraph install is
   `npm install file:<downloaded>.tgz` (https://developers.cambridge-intelligence.com/docs/regraph/getting-started).
+
+**Diagram-as-code authors (scope decision).** By download count, the largest group producing node-link drawings with
+a JavaScript library writes diagrams as text -- Mermaid, Graphviz DOT, PlantUML, D2 -- and lets a layout engine
+place them. The group splits in two, and only one half is in scope.
+
+- **Size.** Weekly downloads fetched 2026-11-25 (https://api.npmjs.org/downloads/point/last-week/,
+  https://pypistats.org/api/packages/): `mermaid` 28.5M, `elkjs` 22.0M and `@dagrejs/dagre` 9.5M (Mermaid's
+  layout engines), `@viz-js/viz` 541K and `@hpcc-js/wasm-graphviz` 436K (Graphviz in the browser),
+  `plantuml-encoder` 387K, `@terrastruct/d2` 140K; on PyPI `graphviz` 9.3M, `pydot` 4.5M, `diagrams` 174K. The VS
+  Code extension that previews Mermaid in Markdown shows 5,544,970 installs
+  (https://marketplace.visualstudio.com/items?itemName=bierner.markdown-mermaid). GitHub renders Mermaid natively in
+  Markdown since 14 February 2022, a request on its "top list of feature requests" since 2015
+  (https://github.com/github/roadmap/issues/372, https://github.blog/2022-02-14-include-diagrams-markdown-files-mermaid/).
+  GitHub renders Mermaid, GeoJSON, TopoJSON and ASCII STL, and not DOT or PlantUML
+  (https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/creating-diagrams). No
+  public count of Mermaid blocks or `.dot` files was found: GitHub code search needs a login and gives no stable
+  totals.
+- **Hand-written documentation diagrams: out of scope.** A flowchart, architecture, sequence or state diagram in a
+  README is documentation, not data to explore. It is small by design: Mermaid refuses more than 500 edges and 50,000
+  characters by default (`maxEdges`, `maxTextSize`, https://mermaid.js.org/config/schema-docs/config.html). It is
+  rendered where the Markdown is read, by the platform (GitHub draws it client-side in an iframe, per the GitHub blog
+  post above), so the author chooses no renderer. Mermaid already bundles the layered engines these authors need: ELK
+  is its default from v12, with Dagre, Cose Bilkent and tidy-tree as alternatives
+  (https://mermaid.js.org/config/layouts.html); D2 offers Dagre (its default), ELK and TALA
+  (https://d2lang.com/tour/layouts/). Nothing in their work calls for analysis, styling by data, or 3D, so graphty
+  would replace a text renderer with a graph engine for no gain. Their one recurring complaint, navigating a diagram
+  too big for the page, is a viewer feature the hosts are adding: Mermaid issue 2162 asks to zoom large diagrams
+  (https://github.com/mermaid-js/mermaid/issues/2162), and GitLab cites GitHub's newer zoom, pan and full-screen view
+  for Mermaid (https://gitlab.com/gitlab-org/gitlab/-/issues/398629). No persona is written for them.
+- **Machine-generated DOT too large for a static image: in scope, already covered.** Build and infrastructure tools
+  emit DOT for the author to render: `terraform graph` outputs DOT and the docs suggest piping it to `dot -Tpng`
+  (https://developer.hashicorp.com/terraform/cli/commands/graph); Bazel pipes `query --output graph` through `dot
+  -Tsvg` and, for a "big and complicated" graph, advises starting with one path (https://bazel.build/query/guide).
+  The Graphviz FAQ warns that dot's layout time can be "quadratic in the number of nodes" and that spline routing on
+  "many thousands of edges" takes "a lot of cycles" (https://graphviz.org/faq/). The interactive answer today is a
+  desktop viewer such as xdot.py, an "interactive viewer for graphs written in Graphviz's dot language" with zoom,
+  find and click-to-follow edges (https://github.com/jrfonseca/xdot.py). This is the move from text diagram to
+  exploration where graphty helps, and it belongs to the build and IaC engineers of
+  [dependency-and-impact-analysis-engineers.md](dependency-and-impact-analysis-engineers.md), Workflow 5.9 (Designloom
+  W84), not to a new persona.
+- **What graphty already ships for them.** graph-io's DOT importer keeps `cluster` subgraphs as container nodes with
+  their boxes, and `rank=same|min|max|source|sink` subgraphs as node columns (`graph-io/src/formats/dot/`).
+  graphty-element runs Graphviz itself (dot with `rankdir`, plus the force engines) and passes raw graph attributes
+  such as `{ splines: "ortho" }` for orthogonal routing (`graphty-element/src/layout/GraphvizLayoutEngine.ts`).
+  Version-controlled output needs the same drawing from the same text: the random `start` placement is "neato, fdp,
+  sfdp only" (https://graphviz.org/docs/attrs/start/), so dot has no seed to set. Not shipped: a Mermaid,
+  PlantUML or D2 importer. Given the decision above, none is proposed; the gap is recorded in the
+  `dependency-format-import` capability's requirements as DOT from build and IaC tools only.
 
 **Cytoscape app authors.** The Cytoscape App Store launched with "over 150" apps
 (https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3654709/). By 2018 it had "over 330 apps written by over 550 authors"
@@ -121,8 +175,10 @@ developers, and much of the volume is transitive.
 **Accessibility and procurement.** The leading buyers (government, law enforcement, intelligence) buy under Section
 508 and WCAG rules. The market leader states its limits openly. KeyLines, being "a visual tool," does not support
 "many of the accessibility requirements for non-visual representations" in WCAG 2.0 and Section 508
-(https://developers.cambridge-intelligence.com/docs/keylines/accessibility). Accessibility is therefore integration
-work that the embedding developer carries (Section 5.9).
+(https://developers.cambridge-intelligence.com/docs/keylines/accessibility). State and local governments must also
+meet WCAG 2.1 AA under the ADA Title II rule
+(https://www.govinfo.gov/content/pkg/FR-2026-04-20/html/2026-07663.htm). Accessibility is therefore integration work
+that the embedding developer carries (Section 5.9).
 
 ## 3. Personas
 
@@ -301,6 +357,8 @@ and expand on click. The documentation also warns that the "Layered layout can b
 
 The first two are inferred from the documented caps and the pause control. No first-person report was found.
 
+**A related population that is not this persona.** Robotics developers read a live runtime topology too: the ROS node-and-topic graph in rqt_graph or Foxglove's Topic Graph panel. They are researched as `ros-graph-robotics-developer` in dependency-and-impact-analysis-engineers.md (persona 3.12, workflow W3096). They read a tool's view of their own robot rather than embedding a map in a product, and they ask whether a publish and subscribe wire exists and is compatible, not how much traffic fails over it. Both need nodes that keep their positions when the graph refreshes.
+
 ### 3.7 Leo Brandt -- developer embedding a 3D graph (NEW: `3d-graph-embedder`)
 
 **Role.** Leo is an independent developer who builds a 3D "explore your notes" view as an Obsidian plugin, and builds
@@ -314,7 +372,34 @@ The evidence is mostly open source:
   https://github.com/kctekn/obsidian-TagsRoutes, https://github.com/mohidmakhdoomi/nextjs-3d-force-graph-impl,
   https://github.com/vasturiano/3d-force-graph/issues/491).
 
-No commercial product built on a 3D graph library was found.
+**What 3D embedders build.** GitHub lists about 4,741 repositories and 92 packages that depend on 3d-force-graph
+(https://github.com/vasturiano/3d-force-graph/network/dependents, 2026-11-25). The most-starred projects that use
+3d-force-graph or react-force-graph-3d fall into four groups:
+
+- **Notes vaults:** obsidian-3d-graph, TagsRoutes and obsidian-galaxy (26 stars) render an Obsidian vault in 3D.
+- **AI and RAG knowledge graphs:** graphaura (77 stars, Next.js 15 with react-force-graph-3d), The-Brain (40 stars, a
+  RAG dashboard on LightRAG and Neo4j loading 3d-force-graph by script tag) and inferagraph show what an LLM
+  pipeline extracted (https://github.com/liamellison02/graphaura, https://github.com/Hastur-HP/The-Brain,
+  https://github.com/inferagraph/core).
+- **Database query explorers:** neo4j-3d-force-graph (318 stars) loads 5,000
+  relationships of a Game of Thrones graph, sizes nodes by PageRank, colors them by Louvain community and draws
+  weights as particles (https://github.com/jexp/neo4j-3d-force-graph).
+- **Developer tools:** dep-tree (1,726 stars) is a command-line tool that opens a react-force-graph-3d view of a code
+  base's file dependencies (https://github.com/gabotechs/dep-tree).
+
+Sizes in the evidence: the README's "larger graph" example has about 4,000 elements; issue reports mention 4,000
+nodes and 80,000 links (react-force-graph issue 427), slowdowns above 5,000 and 10,000 nodes, and one request for
+200,000. Products with paying users that build on the same author's libraries chose the 2D package: SigNoz's
+service map and cognee's graph view both import `react-force-graph-2d`
+(https://github.com/SigNoz/signoz/blob/main/frontend/src/modules/Servicemap/Map.tsx,
+https://github.com/topoteretes/cognee/blob/main/cognee-frontend/package.json). No commercial product built on a 3D
+graph library was found.
+
+**How they wire it.** dep-tree and graphaura both copy the README's "Click to focus on node" camera arithmetic
+verbatim, keep highlight sets in React state, and open their own side panel on click. dep-tree frames the graph
+with `setTimeout(() => zoomToFit(...), 1000)` rather than waiting for the layout to stop
+(https://github.com/gabotechs/dep-tree/blob/main/web/src/App.tsx,
+https://github.com/liamellison02/graphaura/blob/main/frontend/components/Graph3D.tsx).
 
 **Workflow choices** (https://github.com/vasturiano/3d-force-graph, https://github.com/vasturiano/react-force-graph):
 
@@ -337,7 +422,11 @@ No commercial product built on a 3D graph library was found.
   desktop mode (react-force-graph issues 285 and 243).
 - Any React state change re-renders the whole VR graph (issue 581).
 
-No README section covers exporting or sharing a 3D view, and no source was found for how 3D views are shared.
+- Screenshots of the 3D canvas come out blank or black (3d-force-graph issues 25, 68, 189, 564).
+- Server-side rendering in Next.js throws, and the dynamic-import fix breaks ref methods (react-force-graph issues
+  155 and 324).
+
+No README section covers exporting or sharing a 3D view; sharing in the projects found is a link to the hosted page.
 
 ## 4. Use cases (ranked)
 
@@ -347,7 +436,7 @@ No README section covers exporting or sharing a 3D view, and no source was found
 | 2   | "Show live traffic between services, keep it in place while numbers update every 10-60 s, let on-call pause and click into one edge"  | Platform engineer                     | Built once; watched continuously, critical in incidents | High: a jumping or frozen map during an outage costs time to recovery |
 | 3   | Which library should we build on? (performance, license, framework fit, 3D, security review)                                          | Tech lead                             | Once per product                                        | High and hard to reverse (Memgraph rewrote its renderer, Section 5.2) |
 | 4   | Keep the view responsive at the sizes users load                                                                                      | Product, platform engineers           | Continuous                                              | High: freezing browsers end evaluations                               |
-| 5   | Pass the customer's security review and accessibility questionnaire (CSP, offline, Section 508)                                       | Product engineer                      | Every regulated sale                                    | High: a blocker, not a bug                                            |
+| 5   | Pass the customer's security review and accessibility review (CSP, offline, WCAG 2.1 AA, Section 508)                                 | Product engineer                      | Every regulated sale                                    | High: a blocker, not a bug                                            |
 | 6   | Encode domain meaning: type to color, score to size, icons, grouping, time filter                                                     | Product engineer                      | Every release                                           | Medium                                                                |
 | 7   | Save and share; export PDF/PNG reports, often generated on the server                                                                 | Product engineer                      | Every product                                           | Medium-high (evidence in policing)                                    |
 | 8   | Package the graph as a plugin of a BI or dashboard host (Power BI visual, Grafana panel, Streamlit, Jupyter) from a fixed table shape | Host-plugin developer, data scientist | Once per host                                           | Medium                                                                |
@@ -501,16 +590,53 @@ Sources: Grafana Node Graph and Tempo service-graph docs; Kiali topology and con
 
 ### 5.5 Embedding a 3D graph
 
-Sources: 3d-force-graph and react-force-graph READMEs and issues (Section 3.7).
+Sources: 3d-force-graph and react-force-graph READMEs and issues, and the projects in Section 3.7. The 3d-force-graph
+README lists 31 examples; the interaction ones (click to focus, highlight, fix after drag, dynamic data, emit
+particles on demand, fit to canvas) are the ones the projects in Section 3.7 copy
+(https://github.com/vasturiano/3d-force-graph).
 
-1. Install by script tag or npm. Choose 2D, 3D, VR or AR (same props).
-2. Pass `graphData({nodes, links})` or `jsonUrl`. Color with `nodeAutoColorBy`.
-3. Choose camera controls and the initial `cameraPosition`.
-4. Replace nodes with custom meshes or text sprites. Add particles for flow.
-5. Tune for size: `warmupTicks`, `cooldownTicks`, and pausing the animation for a static view. Turning off pointer
-   interaction is documented as the biggest performance gain.
-6. For VR, switch to the A-Frame package and handle controllers yourself (issue 285).
-7. Export or share: no documented route found.
+What gets built: a notes-vault viewer, a view of an AI pipeline's knowledge graph, a database query explorer or a
+code-dependency view, read by the developer, their users or a demo audience, at a few hundred to about 10,000 nodes.
+
+1. **Install and mount.** Script tag or npm; 2D, 3D, VR and AR share props. In Next.js and Gatsby the import throws
+   `window is not defined` (or `self is not defined` from A-Frame in the umbrella package). The maintainer's answer
+   is to bypass server rendering with a dynamic import. That breaks ref methods such as `cameraPosition`, and the fix
+   is a wrapper file that holds both the import and the ref; a later comment reports it still failing on Next.js 15
+   (https://github.com/vasturiano/react-force-graph/issues/155, /324, /357, /475). Importing it in jsdom tests
+   crashes the same way (/30).
+2. **Bind data.** `graphData({nodes, links})` mapped from the app's data. Color with `nodeAutoColorBy`; size by a
+   score such as PageRank.
+3. **First frame.** To skip the visible build-up, set `cooldownTicks={0}` and `warmupTicks`, then frame in
+   `onEngineStop` with `zoomToFit` (maintainer, react-force-graph issue 427). In practice `onEngineStop` can fire 10+
+   seconds after the graph shows, so developers poll with `setTimeout` (issues 231 and 593; dep-tree).
+4. **Interaction loop.** On hover, highlight the node, its links and its neighbors (neighbor sets kept in app
+   state) and show a label or HTML tooltip. On click, select the node, fly the camera to it with `cameraPosition`
+   (the copied arithmetic) and open the app's own panel. Double-click the background to frame everything again.
+   Keep dragged nodes where they were dropped (`fx`, `fy`, `fz` in `onNodeDragEnd`).
+5. **Live changes.** Replace `graphData` incrementally as data arrives; send one particle along a link when
+   something happens (`emitParticle`), or show particles only on highlighted links (dep-tree). Replacing data
+   repeatedly slows the view (3d-force-graph issue 479).
+6. **Customize.** Text sprites or custom meshes through `nodeThreeObject`, bloom through
+   `postProcessingComposer()`, per-type link distance and charge through `d3Force`, `dagMode` for trees.
+7. **Tune for size.** `enablePointerInteraction` off is documented as the biggest gain; pause the animation for a
+   static view.
+8. **Capture and share.** There is no capture call. Users get blank or black images from `canvas.toDataURL` and
+   html2canvas; the answers are to call `renderer().domElement.toDataURL()` at the right moment, inside an animation
+   frame, and react-force-graph does not expose the canvas (3d-force-graph issues 25, 68, 189, 564;
+   react-force-graph issue 255). No issue asks for camera state in a URL; sharing in the projects above is a link to
+   the hosted page.
+9. **VR (sometimes).** Switch to the A-Frame package and handle controllers yourself (issue 285).
+10. **Unmount.** A 2026 issue found the destructor left the renderer, scene and controls undisposed, since fixed in
+    a dependency; big graphs with custom meshes can lose the WebGL context (3d-force-graph issues 732 and 595).
+
+Accessibility and fallback: neither repository has an issue mentioning accessibility or keyboard use (GitHub issue
+search, 2026-11-25), and neither README covers a fallback when WebGL is unavailable. 3D embedders do not ask, so
+the element has to supply both by default (Section 5.9).
+
+What this asks of graphty-element: a settled event and a lay-out-before-first-frame option; fly-to-node as one
+call; hover highlight of neighbors and click events with neighbor data; keep-where-dropped as an option; on-demand
+edge particles; stable-id incremental updates that do not slow down; a capture call that never returns a blank
+image; an SSR-safe import; a WebGL-unavailable error code and context-loss recovery; and full release on removal.
 
 ### 5.6 Keeping an embedded graph fast
 
@@ -575,19 +701,116 @@ Sources: AntV issue (https://github.com/antvis/G2/issues/5462); graphology Force
 
 ### 5.9 Accessibility
 
-Sources: KeyLines accessibility docs (https://developers.cambridge-intelligence.com/docs/keylines/accessibility) and
-guide (https://cambridge-intelligence.com/build-accessible-data-visualization-apps-with-keylines/).
+A developer meets this work as a customer requirement, but its point is the blind or low-vision reader who lands on
+the embedded graph. The procedure below rests on studies with those readers and on the one open toolkit whose model
+is nodes and edges. A vendor checklist is only the floor.
 
-What KeyLines provides: built-in Esc, Delete, arrow keys, Space (time bar) and Ctrl+A, plus a `focus(true)` call.
+**The floor a commercial toolkit offers.** KeyLines provides Esc, Delete, arrow keys, Space (time bar) and Ctrl+A,
+plus a `focus(true)` call, and says it does not support many WCAG 2.0 and Section 508 requirements for non-visual
+representations (https://developers.cambridge-intelligence.com/docs/keylines/accessibility). It leaves to the
+embedder a search box users can Tab to, a focus entry point, the ARIA choice (label the structure, or
+`aria-hidden` the chart and rely on a text version), text versions built from `chart.serialize`, colorblind and
+high-contrast schemes, and a way to turn animation off
+(https://cambridge-intelligence.com/build-accessible-data-visualization-apps-with-keylines/). It does not say what a
+screen-reader user hears or in what order they move.
 
-What it leaves to the embedder:
+**What a screen-reader user meets today.**
 
-- "Add a search box that users can Tab to and enter text to find nodes".
-- "Add a focus function that users can Tab to and press Enter to give focus to the chart".
-- ARIA decisions: label the chart's structure, or "use the aria-hidden attribute to hide it from screen readers".
-- Text alternatives: "Create text versions of your charts", a data table or summary, and screen-reader descriptions
-  for focused nodes and links. Its docs suggest `chart.serialize` as the starting point.
-- Colorblind and high-contrast schemes, never "colour alone", and the ability to turn off animations.
+- TADA (Zhao, Nacenta, Sukhai and Somanath, CHI 2024) interviewed 15 blind or low-vision adults about node-link
+  diagrams. Screen readers often skip a diagram ("you hit the page with the diagram, and it stops") or announce a
+  placeholder such as "embedded object". One participant put the order plainly: "You have to tell the basic first
+  and then you tell the details of it" (https://arxiv.org/html/2311.04502v4).
+- A survey of 127 screen-reader users found 65 percent meet data-driven media at least weekly. An expert audit of
+  COVID-19 visualizations rated 16 percent very or extremely accessible, and only 15 percent let a screen reader
+  reach individual data points (Fan et al., ACM Transactions on Accessible Computing, 2023,
+  https://shape.stanford.edu/research/DataAccessibility).
+- An audit of 10 charting libraries' default charts found 6 with no role, no accessible name, no title or
+  description and no data-table fallback, yet all 10 passed axe-core with zero violations. An automated scan cannot
+  tell a silent chart from an accessible one. The audit is by ApexCharts, one of the 10 libraries, and used no
+  screen reader (https://apexcharts.com/blog/charting-library-accessibility-audit/).
+
+**Overview first, then search and the walk.** TADA's design principles are to rely on spatial layout, make element
+categories perceptually different, offer several levels of access (overview, summary, finding, navigation, detail)
+and let them be used together. In its test with 25 legally blind participants, 16 called the overview sweep
+informative; 11 found the sub-region summary helpful, and 3 found it overwhelming (https://arxiv.org/html/2311.04502v4).
+TADA is a tablet with touch and sound, not a desktop screen reader. On desktop screen readers (JAWS 3, NVDA 4,
+VoiceOver 6), Zong et al. found the same order with 13 blind or low-vision participants. One wanted to "scroll
+through at a higher level and then drill down"; another said "It's too easy to get lost". Their recommendations: keep
+alt text and a data table as the baseline, offer structural, spatial and targeted (jump-to) navigation, give clear
+origin points, and let the reader control verbosity (EuroVis 2022, https://ar5iv.labs.arxiv.org/html/2205.04917).
+
+**A keyboard walk that follows the graph.**
+
+- Data Navigator (Elavsky, Nadolskis and Moritz, IEEE VIS 2023; npm `data-navigator`) models navigation as a graph of
+  nodes and edges. Each navigation rule names a key and a direction: follow the edge to its source or to its target
+  (https://github.com/cmudig/data-navigator/blob/main/docs/getting-started/input.md). Its default bindings are the
+  arrow keys for left, right, up and down, Enter to drill in, Escape to drill out, and comma and period for backward
+  and forward (https://github.com/cmudig/data-navigator/blob/main/packages/data-navigator/src/consts.ts). It renders
+  an HTML layer over SVG, canvas or WebGL: a wrapper with `role="application"` and `aria-activedescendant`, and
+  one element per node. A node without `semantics.label` logs "Accessibility error: a label must be supplied to
+  every rendered element"
+  (https://github.com/cmudig/data-navigator/blob/main/packages/data-navigator/src/rendering.ts). The paper's three
+  case examples are a raster image, Vega-Lite (which "provides no navigation at all when rendered using canvas") and
+  a co-design session with its blind co-author. None is a network diagram, and the authors list studies with end
+  users as future work (https://arxiv.org/pdf/2308.08475).
+- Benthic (Mei, Pollock, Hajas, Zong and Satyanarayan, ASSETS 2025) tested a structure walk with 15 blind participants
+  (NVDA 5, JAWS 9, VoiceOver 1). The arrow keys move to the previous or next neighbor in a group, Shift+Down steps
+  into a child, Shift+Up steps back to the parent, `h` refocuses the current node, and Enter selects. When a node has
+  several parents, the walk stops and lists them. The authors name the trade-off "fluidity and wayfinding". When an
+  early prototype changed context silently, the blind co-designer could not get back up the path he came down
+  (https://vis.csail.mit.edu/pubs/benthic.pdf).
+
+**What is announced.** GSK (Balik et al., ASSETS 2014) voices each node or edge as it gets keyboard focus. Ten blind
+JAWS users answered questions about 12-node, 24-edge graphs with 99.3 percent accuracy, against 97.6 percent from the
+same graph as an Excel table. The table was significantly faster for adjacency and path questions, partly because
+the graph made readers check incoming and outgoing edges separately. After the study the authors added a verbosity
+level, edge filtering and simpler edge navigation (https://ciigar.csc.ncsu.edu/files/bib/Balik2014-AccessGraphs.pdf).
+So an announcement needs the item's kind (node or edge), its name, its degree split by direction, and the far end of
+an edge, at a length the reader can choose. The text twin must be an adjacency list or table, which competes with the
+walk instead of being a lesser fallback. TADA gives nodes, links and speech distinct sounds. A screen-reader version
+of that principle, saying the kind first, is this document's inference, not a tested result.
+
+**What it is tested against.** State and local government content must meet WCAG 2.1 Level AA under the ADA Title II
+rule, with compliance moved to April 26, 2027 for entities of 50,000 or more people and April 26, 2028 for smaller ones
+(https://www.govinfo.gov/content/pkg/FR-2026-04-20/html/2026-07663.htm). Federal agencies fall under Section 508,
+which incorporates WCAG 2.0 AA (https://www.access-board.gov/ict/). The success criteria an interactive graph touches
+are 1.1.1 Non-text Content, 1.3.1 Info and Relationships, 1.4.1 Use of Color, 1.4.3 and 1.4.11 contrast, 2.1.1
+Keyboard, 2.1.2 No Keyboard Trap, 2.2.2 Pause, Stop, Hide (moving layouts), 2.4.3 Focus Order, 2.4.7 Focus Visible,
+4.1.2 Name, Role, Value and 4.1.3 Status Messages. WCAG 2.2 adds 2.4.11 Focus Not Obscured and 2.5.7 Dragging
+Movements; 2.3.3 Animation from Interactions is AAA (https://www.w3.org/TR/WCAG22/). WCAG "were not developed with
+data visualisation in mind" (https://data.europa.eu/apps/data-visualisation-guide/intro-to-chartability), so audits
+add Chartability's 50 tests, 14 of them critical, including "No table" (Elavsky, Bennett and Moritz, EuroVis 2022,
+https://data.europa.eu/apps/data-visualisation-guide/intermediate-accessibility-audit-with-chartability).
+Highcharts states support for JAWS, NVDA, Narrator, VoiceOver and TalkBack, with Tab between chart elements, arrows
+within one, and a data-table view
+(https://www.highcharts.com/docs/accessibility/accessibility-module-feature-overview). Its accessibility pages do not
+say how network-graph nodes and links are announced. No charting library was found that documents node and edge
+announcements.
+
+**The procedure.**
+
+1. **Find out who reads it and under what rule.** WCAG 2.1 AA for state and local government, Section 508 (WCAG 2.0
+   AA) for federal agencies, the customer's questionnaire otherwise.
+2. **Give the graph a name and an overview first.** An accessible name, then counts of nodes and edges, the
+   components, the most connected nodes and what is selected, before any node-by-node movement.
+3. **One focus stop and an exit.** Tab enters the graph as one stop, arrows move inside it, Escape leaves, and focus
+   is never trapped (2.1.2).
+4. **A walk that follows the structure.** Step to the next or previous neighbor, follow an edge to its other end,
+   step into a group and back up the same path, and return home to the current node. Say when context changes.
+5. **Announce nodes and edges.** Node: kind, name, in and out degree, selection state. Edge: kind, the two ends,
+   direction, and weight or type. Offer a short and a long form.
+6. **Search by name.** A find entry that moves focus to the match, as GSK's jump-to-node and TADA's search do.
+7. **A text twin.** An adjacency list or a node and edge table generated from the same graph, kept in step with it.
+8. **Color and motion.** No meaning by color alone (1.4.1), contrast (1.4.11), visible focus not hidden by panels
+   (2.4.7, 2.4.11), a pause for moving layouts (2.2.2) and a reduced-motion setting.
+9. **Test with real assistive technology.** Do the tasks above with NVDA and JAWS on Windows and VoiceOver on macOS,
+   the screen readers used in the Zong and Benthic studies. Add an automated scan, but do not trust it alone. Then
+   audit with Chartability's critical tests.
+10. **Write the conformance statement** from those results.
+
+**What this means for graphty-element.** Steps 2 to 8 are work every embedder would repeat, so by this repository's
+rules they belong inside the element. The element supplies neutral facts and codes; the embedding application
+chooses the words.
 
 ### 5.10 Testing an embedded graph view and rendering it headless
 
@@ -721,13 +944,13 @@ is uncovered unless noted.
 | Build a graph from an edge-list table (source column, target column, optional weight column), de-duplicating node ids, for BI, CSV and notebook hosts                                                                                                                                                    | Must     | Partly (CSV import exists; no table-binding API) |
 | Works under a strict CSP with a published policy (no `eval`, no blob workers required); detects when workers or WebGPU are blocked and reports a code instead of failing silently                                                                                                                        | Must     | No                                               |
 | Every on-demand asset (workers, fonts, datasets, optional packages) can be bundled or self-hosted; no runtime network calls unless configured                                                                                                                                                            | Must     | No (some assets fetched on demand)               |
-| Accessibility inside the element: keyboard walk of nodes and edges, a focus model, a built-in find-node entry point, ARIA roles and labels, an element-generated text alternative (table or list of nodes and edges), reduced-motion support, and a published WCAG and Section 508 conformance statement | Must     | No                                               |
+| Accessibility inside the element: an overview of the graph before node-level movement; a keyboard walk that follows the structure (neighbor to neighbor, along an edge, into a group and back up the same path, home); node and edge announcement facts (kind, name, degree by direction, edge ends and direction) with a short and a long form; a focus model with one Tab stop and an exit; a built-in find-node entry point; an element-generated adjacency list or table; reduced motion and a pause for moving layouts; and a WCAG 2.1 AA and Section 508 conformance statement tested with NVDA, JAWS and VoiceOver | Must     | No                                               |
 | Layout-done event or promise, deterministic layout given a seed, and graph state queryable through the API for tests                                                                                                                                                                                     | Must     | Partly (seed option exists)                      |
 | Headless or offscreen rendering to an image (PNG/SVG) for tests and server-side report generation                                                                                                                                                                                                        | Should   | No                                               |
 | Style rules from data (type to color, score to size) without learning internals                                                                                                                                                                                                                          | Must     | Partly (end-user style capabilities)             |
 | Accept a precomputed node column as a "metric" treated like built-in algorithms                                                                                                                                                                                                                          | Must     | No                                               |
 | Performance tools: level-of-detail labels, hiding edges during interaction, WebGPU, worker layouts, layout time caps with progress                                                                                                                                                                       | Must     | Partly                                           |
-| 3D embedding parity: camera control modes, custom node meshes, labels that scale to 10k+ nodes, an idle render loop when nothing changes, and XR input that does not re-render on host state changes                                                                                                     | Should   | Partly (3D exists; XR unknown)                   |
+| 3D embedding parity: camera control modes, custom node meshes, labels that scale to 10k+ nodes, an idle render loop when nothing changes, and XR input that does not re-render on host state changes; plus the 3D embedding loop of Section 5.5 (settled event, fly-to-node, keep-where-dropped, on-demand particles, a capture call that is never blank, SSR-safe import, WebGL-unavailable error code, release on removal) | Should   | Partly (3D exists; XR unknown)                   |
 | Plugin contract for layouts and algorithms with parity to built-ins (simple `fn(graph, options)` path, typed-array advanced path, progress, cancel, worker and GPU access)                                                                                                                               | Must     | No                                               |
 | Plugin contract for file readers with row-level error codes; registration that fails at once, naming the plugin and the bad field                                                                                                                                                                        | Must     | No                                               |
 | Published types, API stability, and a version range a plugin can declare                                                                                                                                                                                                                                 | Should   | No                                               |
@@ -744,6 +967,21 @@ is uncovered unless noted.
 - https://graphaware.breezy.hr/p/a278e03099da-senior-software-engineer-frontend -- graph vendor role (closed)
 - https://www.biostars.org/p/494745 -- Cytoscape contract request
 - https://api.npmjs.org/downloads/point/last-week/ -- weekly downloads (fetched 2026-11-25)
+- https://pypistats.org/api/packages/ -- PyPI weekly downloads for graphviz, pydot, diagrams (fetched 2026-11-25)
+- https://github.com/github/roadmap/issues/372 -- GitHub Mermaid rendering shipped 2022-02-14, top request since 2015
+- https://github.blog/2022-02-14-include-diagrams-markdown-files-mermaid/ -- how GitHub renders Mermaid client-side
+- https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/creating-diagrams -- the four diagram syntaxes GitHub renders
+- https://mermaid.js.org/config/layouts.html -- Mermaid layouts (ELK default from v12, Dagre, Cose Bilkent, tidy-tree)
+- https://mermaid.js.org/config/schema-docs/config.html -- Mermaid maxEdges 500 and maxTextSize 50,000 defaults
+- https://d2lang.com/tour/layouts/ -- D2 layout engines
+- https://marketplace.visualstudio.com/items?itemName=bierner.markdown-mermaid -- Mermaid preview extension installs
+- https://github.com/mermaid-js/mermaid/issues/2162 -- request to zoom large Mermaid diagrams
+- https://gitlab.com/gitlab-org/gitlab/-/issues/398629 -- navigating large Mermaid diagrams; GitHub's zoom and pan view
+- https://developer.hashicorp.com/terraform/cli/commands/graph -- terraform graph emits DOT
+- https://bazel.build/query/guide -- bazel query --output graph piped to dot
+- https://graphviz.org/faq/ -- Graphviz layout time on large graphs
+- https://graphviz.org/docs/attrs/start/ -- random start placement applies to neato, fdp, sfdp only
+- https://github.com/jrfonseca/xdot.py -- interactive DOT viewer
 - https://dev.to/timlrx/a-comparison-of-javascript-graph-network-visualisation-libraries-34a8 -- criteria, licenses, rendering ceilings
 - https://memgraph.com/blog/you-want-a-fast-easy-to-use-and-popular-graph-visualization-tool -- Memgraph criteria, benchmarks, Orb
 - https://doc.linkurious.com/ogma/latest/compare/cytoscape.html -- Ogma vs Cytoscape.js (vendor)
@@ -760,6 +998,22 @@ is uncovered unless noted.
 - https://cambridge-intelligence.com/pricing/procurement/ -- subscription licensing
 - https://developers.cambridge-intelligence.com/docs/keylines/accessibility -- KeyLines WCAG/508 statement and built-in keys
 - https://cambridge-intelligence.com/build-accessible-data-visualization-apps-with-keylines/ -- accessibility work left to developers
+- https://arxiv.org/html/2311.04502v4 -- TADA (CHI 2024): 15 interviewed and 25 tested blind or low-vision readers of node-link diagrams; design principles and levels of access
+- https://shape.stanford.edu/research/DataAccessibility -- Fan et al. 2023: 127 screen-reader users surveyed; audit of web visualizations
+- https://apexcharts.com/blog/charting-library-accessibility-audit/ -- vendor audit of 10 charting libraries' defaults (axe-core and DOM only)
+- https://ar5iv.labs.arxiv.org/html/2205.04917 -- Zong et al., rich screen reader experiences (EuroVis 2022), 13 blind or low-vision participants
+- https://arxiv.org/pdf/2308.08475 -- Data Navigator paper (IEEE VIS 2023)
+- https://github.com/cmudig/data-navigator/blob/main/docs/getting-started/input.md -- Data Navigator navigation rules
+- https://github.com/cmudig/data-navigator/blob/main/packages/data-navigator/src/consts.ts -- Data Navigator default key bindings
+- https://github.com/cmudig/data-navigator/blob/main/packages/data-navigator/src/rendering.ts -- Data Navigator ARIA rendering
+- https://vis.csail.mit.edu/pubs/benthic.pdf -- Benthic (ASSETS 2025), structure walk tested with 15 blind participants
+- https://ciigar.csc.ncsu.edu/files/bib/Balik2014-AccessGraphs.pdf -- GSK (ASSETS 2014), keyboard node-link navigation with 10 blind participants
+- https://www.govinfo.gov/content/pkg/FR-2026-04-20/html/2026-07663.htm -- ADA Title II compliance dates
+- https://www.access-board.gov/ict/ -- Section 508 standards
+- https://www.w3.org/TR/WCAG22/ -- WCAG 2.2 success criteria
+- https://data.europa.eu/apps/data-visualisation-guide/intro-to-chartability -- WCAG not written for data visualization
+- https://data.europa.eu/apps/data-visualisation-guide/intermediate-accessibility-audit-with-chartability -- Chartability's 14 critical tests
+- https://www.highcharts.com/docs/accessibility/accessibility-module-feature-overview -- Highcharts keyboard model and supported screen readers
 - https://github.com/plotly/react-cytoscapejs -- wrapper props and caveats
 - https://github.com/plotly/react-cytoscapejs/issues/28 -- listener cleanup
 - https://lightrun.com/answers/plotly-react-cytoscapejs-question-setting-elements-property-via-setstate-causes-graph-nodes-to-stack-on-top-of-each-other -- stacked nodes
@@ -800,6 +1054,22 @@ is uncovered unless noted.
 - https://github.com/Apoo711/obsidian-3d-graph -- Obsidian 3D graph plugin
 - https://github.com/kctekn/obsidian-TagsRoutes -- Obsidian 3D tags graph
 - https://github.com/mohidmakhdoomi/nextjs-3d-force-graph-impl -- react-force-graph in Next.js
+- https://github.com/vasturiano/3d-force-graph/network/dependents -- about 4,741 dependent repositories (2026-11-25)
+- https://github.com/vasturiano/3d-force-graph/issues/25, /68, /189, /564 -- blank or black screenshots
+- https://github.com/vasturiano/3d-force-graph/issues/595 -- WebGL context loss; /732 -- destructor leaks
+- https://github.com/vasturiano/react-force-graph/issues/155, /324, /357, /475 -- Next.js SSR and dynamic-import refs
+- https://github.com/vasturiano/react-force-graph/issues/231, /427, /593 -- framing after the layout settles
+- https://github.com/vasturiano/react-force-graph/issues/30 -- import crashes jsdom tests
+- https://github.com/vasturiano/react-force-graph/issues/255 -- canvas not exposed for image export
+- https://github.com/gabotechs/dep-tree -- code-dependency 3D view (web/src/App.tsx)
+- https://github.com/liamellison02/graphaura -- Next.js AI knowledge graph in 3D
+- https://github.com/Hastur-HP/The-Brain -- RAG dashboard with a 3D knowledge graph
+- https://github.com/inferagraph/core -- knowledge graph platform with 3D force layouts
+- https://github.com/jexp/neo4j-3d-force-graph -- Neo4j queries in 3D
+- https://github.com/SigNoz/signoz/blob/main/frontend/src/modules/Servicemap/Map.tsx -- service map on react-force-graph-2d
+- https://github.com/topoteretes/cognee/blob/main/cognee-frontend/package.json -- react-force-graph-2d dependency
+- https://github.com/reaviz/reagraph -- React WebGL graphs with 2D and 3D layouts
+- https://github.com/cosmograph-org/cosmos -- cosmos.gl GPU force layout (2D)
 - https://vuejs.org/guide/extras/web-components.html -- Vue custom element binding
 - https://custom-elements-everywhere.com/ -- framework custom element support scores
 - https://github.com/microsoft/PowerBI-visuals-ForceGraph -- Power BI force graph: two dimensions plus one measure

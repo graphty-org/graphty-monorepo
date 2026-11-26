@@ -1,0 +1,24 @@
+id: export-field-audit
+name: "Export field audit"
+category: export
+description: "Before a web export or embed ships, list every node and edge field the file will contain, including fields hidden in the view, and strip any the author did not choose."
+status: planned
+notes: "Research trace: communicating-findings-and-deliverables.md section 10, requirement R12 (Must when sharing exists)."
+algorithms: []
+used_by_workflows:
+    - W318
+implemented_by_components: []
+requirements:
+    - "Must: Before a web export or embed is written, list every node and edge field the file will contain, including fields hidden in the view"
+    - "Must: Strip every field the author did not choose, and confirm the written file holds only the chosen ones"
+    - "Should: Warn that every included attribute ships with the file"
+sources:
+    - title: "Graphistry - Privacy"
+      url: "https://pygraphistry.readthedocs.io/en/latest/server/privacy.html"
+      summary: "Shared visualizations carry the uploaded data; privacy settings control who can open them"
+    - title: "Gephi Lite - Share a graph as URL"
+      url: "https://docs.gephi.org/lite/user-manual/share-graph-as-url"
+      summary: "A shared Gephi Lite graph carries its data with the link"
+    - title: "Communicating findings, section 10, requirement R12"
+      url: "design/user-research/communicating-findings-and-deliverables.md"
+      summary: "Share controls, a warning that all included attributes ship, field stripping before publish; Must when sharing exists"

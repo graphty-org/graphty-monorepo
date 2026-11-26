@@ -4,12 +4,19 @@ category: analysis
 description: Match nodes across survey waves or re-imported sheets by a stable ID, update rows instead of duplicating,
     list added and removed members, and show ties gained and lost.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: systems-and-stakeholder-mapping-civic.md section 9, table row 16 (Should)."
 algorithms: []
 used_by_workflows:
     - W201
     - W205
     - W206
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Should: Waves: stable node identity across survey rounds, members added and removed, side-by-side and difference
+      views of ties gained and lost"
+sources:
+    - title: "Systems Mappers and Civic Power-Mappers: Foundations, NGOs, Evaluators and Organizers (section 9, table
+        row 16)"
+      url: design/user-research/systems-and-stakeholder-mapping-civic.md
+      summary: "Should in the research. Covered by Designloom when researched: Partly.
+        comparison-view exists for data; identity matching across waves is not specified."

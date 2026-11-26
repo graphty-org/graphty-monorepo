@@ -5,12 +5,17 @@ description: Show how many items meet each minimum (occurrences, citations, link
     item table to untick items before the network is built, and draw only the N strongest links with a stated count of
     hidden links.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: bibliometrics-and-science-mapping.md section 10, requirement 5 (Must)."
 algorithms: []
 used_by_workflows:
     - W50
     - W51
     - W59
+    - W2098
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Threshold step showing how many items meet each minimum; item table to untick"
+sources:
+    - title: Bibliometrics and Science Mapping (section 10, requirement 5)
+      url: design/user-research/bibliometrics-and-science-mapping.md
+      summary: "Must in the research. Covered by Designloom when researched: Partly"

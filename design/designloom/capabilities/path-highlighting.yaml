@@ -1,10 +1,12 @@
 id: path-highlighting
 name: Path Highlighting
 category: interaction
-description: Visually highlight paths between nodes in the visualization. After computing shortest path, show the path
-    clearly with distinctive styling while dimming surrounding context.
-status: implemented
-notes: "Ships: path results styled through their suggested style layers, started from graphty/src/workspace/analyze/PathForm.tsx."
+description: Show paths between nodes in the graph -- one shortest path, every tied shortest path, k shortest paths,
+    or paths constrained by edge type, direction or time -- styled so they stand out, with the path also listed step by
+    step. Path following is a core graph task (Lee et al. 2006); investigators, journalists and security testers read
+    a path name by name and need to see when a single drawn path hides tied alternatives.
+status: in-progress
+notes: "Partly ships: path results styled through their suggested style layers, started from graphty/src/workspace/analyze/PathForm.tsx. Planned: every tied path and several paths at once (these need all-shortest and k-shortest paths in shortest-path), and animated traversal. Any requirement below that this note does not name as shipping counts as planned."
 algorithms: []
 used_by_workflows:
     - W05
@@ -56,8 +58,7 @@ used_by_workflows:
     - W332
     - W34
     - W341
-    - W351
-    - W355
+    - W345
     - W362
     - W378
     - W40
@@ -67,7 +68,7 @@ used_by_workflows:
     - W424
     - W429
     - W433
-    - W440
+    - W431
     - W56
     - W64
     - W72
@@ -83,25 +84,36 @@ used_by_workflows:
     - W89
     - W95
     - W96
+    - W77
+    - W1090
+    - W1157
+    - W1158
 implemented_by_components:
     - path-finder-dialog
 requirements:
-    - "Highlight path nodes with distinct fill color (default: orange)"
-    - Highlight path edges with increased width (3x normal) and distinct color
-    - Dim non-path nodes to 30% opacity for focus effect
-    - Dim non-path edges to 20% opacity for focus effect
-    - "Display path length annotation near path: 'Path length: N hops' or 'Weight: X.XX'"
-    - Number path nodes sequentially (1, 2, 3...) from source to target
-    - Support highlighting up to 5 paths simultaneously with distinct colors
-    - Provide path color legend when multiple paths displayed
-    - Offer 'Animate along path' option showing traversal from source to target
-    - Set animation speed configurable from 500ms to 3000ms per step (default 1000ms)
-    - Provide 'Clear path highlight' button to remove all path highlighting
-    - Maintain path highlight when panning/zooming until explicitly cleared
-    - Allow clicking path step number to center view on that node
-    - Highlight intermediate nodes on path with their hop distance from source
-    - Support path highlighting for both directed and undirected paths
+    - "Library parity: Style path nodes and edges through suggested style layers scoped to the path result; dimming everything else is the reader's choice, offered as an option and never written into the suggested layers"
+    - "Library parity: Carry each node's position along the path (step number, hop distance from the source) as a result value that styles and labels can use"
+    - "Must: Show every tied shortest path, or say how many ties exist when only one is drawn; showing one tie silently hides the alternatives"
+    - "Library parity: Show several paths at once (k shortest, all shortest, paths to several targets) with a distinct, non-color cue for each as well as color, and a legend"
+    - "Must: List the path step by step (node, edge type, node) in a form the application can show and export; selecting a step centers the view on it"
+    - "Must: State the path's length in hops and, when weighted, its total and the weight convention used (distance, or a strength converted by a named rule such as 1/w)"
+    - "Must: Honor direction, edge-type filters and a hop limit, and offer reversing the path direction"
+    - "Must: When no path exists, return the reason as a code (disconnected, blocked by direction, edge type, hop limit or time order) rather than an empty highlight"
+    - "Library parity: Keep the highlight through pan, zoom and layout changes until cleared, and clear it in one action"
+    - "Library parity: Optionally animate traversal from source to target, with the speed as an option"
 sources:
-    - title: W05 Path Investigation
-      url: https://graphty.app/docs/
-      summary: Path Visualization - show path in context
+    - title: Lee et al. 2006, Task taxonomy for graph visualization
+      url: https://doi.org/10.1145/1168149.1168168
+      summary: Following a path between nodes is one of the core graph visualization tasks
+    - title: User research -- network scientists and analysis method validity (Workflows C and D)
+      url: design/user-research/network-scientists-and-analysis-method-validity.md
+      summary: All-shortest and k-shortest paths with tie handling, typed and directed constraints, a "no path" result
+          with its reason, and the weight convention reported
+    - title: User research -- investigative journalism and OSINT (R5)
+      url: design/user-research/investigative-journalism-and-osint.md
+      summary: Shortest and all shortest paths between two named nodes with relationship-type filter and hop limit,
+          listed name by name, is a Must
+    - title: BloodHound search and pathfinding (cybersecurity research, section 5.1)
+      url: https://bloodhound.specterops.io/analyze-data/explore/search
+      summary: Pathfinding to up to three destinations combined, Reverse path, edge-type filter; clicking a node dims
+          everything except paths through it

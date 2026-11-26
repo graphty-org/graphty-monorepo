@@ -13,10 +13,12 @@ requires_capabilities:
     - filtering
     - component-analysis
     - centrality-degree
+    - hub-screening
     - centrality-betweenness
     - centrality-closeness
     - centrality-eigenvector
     - community-detection
+    - dense-region-detection
     - computed-attributes
     - node-selection
     - visual-encoding-nodes
@@ -32,6 +34,14 @@ requires_capabilities:
     - identifier-mapping
     - set-operations
     - input-rederivation
+    - saved-filters
+    - selection-statistics
+    - visual-encoding-edges
+    - layout-hierarchical
+    - details-on-demand
+    - layout-tiered-by-attribute
+    - layout-radial
+    - statistics-panel
 suggested_components:
     - data-import-dialog
     - file-drop-zone
@@ -50,6 +60,11 @@ suggested_components:
     - graph-canvas
     - image-export-dialog
     - data-export-dialog
+    - gene-set-import-dialog
+    - layout-panel
+    - visual-encoding-panel
+    - legend-panel
+    - data-preview-table
 starting_state:
     data_type: herb names; compound tables with ADME columns; predicted target lists; disease gene lists; STRING TSV edge list; enrichment term table
     node_count: 300-600 raw compounds, 100-200 intersected targets in the PPI
@@ -59,7 +74,10 @@ goal: >-
     **Intent**: Explain how a herbal formula treats a disease by finding which of its compounds are predicted to act on
     which disease genes, which of those genes are hubs, and which pathways they fall in. This is the near-fixed recipe
     behind most of the 3,357 network pharmacology papers indexed in PubMed in 2024, and it decides which compound is
-    docked and which protein is blotted.
+    docked and which protein is blotted. The network toxicology variant (W1054) runs the same steps from a pollutant
+    instead of a formula, drawing its targets from the Comparative Toxicogenomics Database by CAS number and from
+    SwissTargetPrediction, SuperPred, STITCH or ChEMBL, with toxicity endpoints from ProTox or ADMETlab; it grew from
+    12 PubMed records in 2023 to 1,021 in the first eleven months of 2026.
 
 
     **Mental Model**: "Narrow the funnel." Hundreds of compounds and thousands of genes go in at the top; each filter
@@ -89,12 +107,12 @@ goal: >-
 
     7. **Intersect** (10 min) - Overlap of herb targets and disease genes in Venny; the Venn is Figure 1
 
-    8. **Build the PPI** (15 min) - STRING multiple proteins, human, minimum score 0.4, 0.7, 0.9 or 0.99, disconnected
+    8. **Build the PPI** - STRING multiple proteins, human, minimum score 0.4, 0.7, 0.9 or 0.99, disconnected
     nodes hidden
 
     9. **Screen core targets** (20-40 min) - Top 10 by degree, cytoHubba MCC or the intersection of several top-10 lists,
     or CytoNCA median rules (degree >= 2x median, then above median on betweenness, closeness, eigenvector and others);
-    optional MCODE modules; figure shows full, filtered and core networks side by side
+    optional MCODE modules (degree cutoff 2, node score cutoff 0.2, k-core 2, max depth 100); figure shows full, filtered and core networks side by side
 
     10. **Enrich** (20 min) - DAVID, Metascape or clusterProfiler; top GO bars, top KEGG bubbles, sometimes a gene-pathway
     Sankey
@@ -102,7 +120,7 @@ goal: >-
     11. **Compound-target-pathway network** (30 min) - Add pathways, prune by degree, pick two or three pathways to
     validate
 
-    12. **Dock and validate** (days) - Top compounds against top targets in AutoDock Vina; cell and animal experiments
+    12. **Dock and validate** - Top compounds against top targets in AutoDock Vina; cell and animal experiments
 
 
     **Decision Points**:
@@ -161,7 +179,7 @@ success_criteria:
     - metric: Count consistency
       target: Every count in the exported methods paragraph matches the networks and tables it describes
     - metric: Time from compound tables to ranked core targets
-      target: Under 2 hours once lists are collected
+      target: Under 2 hours once lists are collected (design goal; no source measures it)
     - metric: Hub rule transparency
       target: User can state which rule and cutoff selected each core target
 sources:
@@ -189,6 +207,30 @@ sources:
     - title: MCODE user manual
       url: https://baderlab.org/Software/MCODE/UsersManual
       summary: Default degree cutoff 2, node score 0.2, k-core 2, depth 100
+    - title: Lee et al. 2022 - review of network pharmacology methods (BMB Reports)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC9537023
+      summary: Herb databases, predicted targets, disease genes, herb-compound-target-disease network, STRING PPI and GO or KEGG enrichment; warns of in silico target annotations
+    - title: Yinchensini decoction study
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6317126/
+      summary: Attribute circle layout named in methods for the layered network
+    - title: Diao et al. 2026 - census of network pharmacology results (Frontiers in Pharmacology)
+      url: https://www.frontiersin.org/journals/pharmacology/articles/10.3389/fphar.2026.1748478/full
+      summary: Quercetin and AKT1 appear as key results in most studies; omics-integrated studies are less homogeneous
+    - title: Cytoscape manual - Creating networks
+      url: https://manual.cytoscape.org/en/stable/Creating_Networks.html
+      summary: Import network from file and table from file keyed on name
+    - title: Docking practice in network pharmacology (Frontiers in Pharmacology 2025)
+      url: https://www.frontiersin.org/journals/pharmacology/articles/10.3389/fphar.2025.1566772/full
+      summary: In 35 papers AutoDock Vina in 20, -5.0 kcal/mol threshold in 15, no positive controls in any, only 6 docked into a specific site
+    - title: Comparative Toxicogenomics Database, 2025 update (Nucleic Acids Research)
+      url: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC11701581/
+      summary: The curated chemical-gene source of the network toxicology variant - 3.8 million curated interactions over 17,700 chemicals and 55,400 genes, within over 94 million connections
+    - title: Polychlorinated biphenyls and breast cancer (Frontiers in Pharmacology 2025)
+      url: https://www.frontiersin.org/articles/10.3389/fphar.2025.1604993/full
+      summary: "The same pipeline from a pollutant: Comparative Toxicogenomics Database by CAS number, TCGA differential expression, 124 targets to 76 to six hubs at STRING 0.7"
+    - title: TCMDATA target retrieval tutorial
+      url: https://yulab-smu.top/TCMDATA/target-retrieval.html
+      summary: GeneCards relevance cutoff > 10 in a scripted version of the pipeline
 version: 1.0.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

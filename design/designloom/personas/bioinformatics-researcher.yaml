@@ -1,5 +1,8 @@
 id: bioinformatics-researcher
 name: Network Medicine Researcher
+roster_persona: bioinformatics-researcher
+tier: B
+scope: in-scope
 role: Postdoctoral Researcher / Academic Network Medicine Lab (drug repurposing)
 quote: A drug's targets sitting next to a hub means nothing. They have to sit closer to the disease module than a random, degree-matched set would.
 bio: >-

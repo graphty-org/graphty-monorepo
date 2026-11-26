@@ -1,15 +1,18 @@
 id: entity-resolution-cluster-reviewer
 name: Entity Resolution Cluster Reviewer
+roster_persona: notebook-graph-data-scientist
+tier: B
+scope: in-scope
 role: Data Scientist / Record Linkage and Master Data, Splink on Python or Spark
 quote: One giant cluster means a weak bridge fused two people. A sparse cluster means I'm missing links. I need to find both among a million clusters.
 bio: >-
-    Sam is a data scientist who links records of the same person or company in code with libraries such as Splink, in a
+    Robin is a data scientist who links records of the same person or company in code with libraries such as Splink, in a
     notebook or on Spark. A probabilistic model scores pairs of records with a match weight and a match probability;
     clustering pairs above a threshold by connected components turns them into one small graph per real-world entity.
     The output is a collection of thousands to millions of small graphs, and the work is choosing a threshold and
     blocking rules that neither over-merge (one giant cluster joined by a weak bridge) nor under-merge (a sparse cluster
     missing links). Splink's cluster studio dashboard and its graph metrics -- cluster size, density, centralisation,
-    node degree, and `is_bridge` per edge -- tell Sam which clusters to open. Review is one cluster at a time, records as
+    node degree, and `is_bridge` per edge -- tell Robin which clusters to open. Review is one cluster at a time, records as
     nodes and pairs as edges labeled with match probability, with the record fields side by side.
 characteristics:
     expertise: advanced

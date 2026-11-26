@@ -1,5 +1,8 @@
 id: warehouse-graph-analyst
 name: Warehouse Graph Analyst
+roster_persona: graph-database-developer
+tier: A
+scope: in-scope
 role: SQL Analyst / Analytics Engineer querying a graph defined over warehouse tables
 quote: The transfers are already in BigQuery. I just want the accounts two to five hops from this one, drawn, without copying anything into another database.
 bio: >-

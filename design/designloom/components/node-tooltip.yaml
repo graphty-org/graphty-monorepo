@@ -8,6 +8,7 @@ implements_capabilities:
     - tooltip-display
     - hover-highlight
 used_in_workflows:
+    - W3024
     - W02
     - W06
     - W111
@@ -46,9 +47,8 @@ used_in_workflows:
     - W421
     - W422
     - W437
-    - W440
-    - W442
-    - W446
+    - W431
+    - W433
     - W55
     - W57
     - W63
@@ -61,6 +61,8 @@ used_in_workflows:
     - W80
     - W83
     - W91
+    - W105
+    - W2038
 dependencies:
     - attribute-row
     - badge

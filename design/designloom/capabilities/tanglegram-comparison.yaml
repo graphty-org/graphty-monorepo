@@ -4,10 +4,15 @@ category: analysis
 description: Two trees face to face with matching tips linked and crossings minimized, plus tree distances such as
     Robinson-Foulds.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: phylogenetics-and-haplotype-networks.md section 10, table row 20 (Should)."
 algorithms: []
 used_by_workflows:
     - W395
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Should: Tanglegram with crossing minimization; tree distances"
+sources:
+    - title: "Evolutionary Biologists, Population Geneticists and Protein-Family Analysts: Trees, Haplotype Networks,
+        Population Graphs and Similarity Networks (section 10, table row 20)"
+      url: design/user-research/phylogenetics-and-haplotype-networks.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

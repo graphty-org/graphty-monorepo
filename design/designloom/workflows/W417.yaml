@@ -7,6 +7,8 @@ personas:
     - network-medicine-vr-researcher
     - multilayer-network-3d-biologist
     - desktop-3d-graph-investigator
+    - clinical-connectome-researcher
+    - eeg-meg-connectivity-researcher
 requires_capabilities:
     - view-bookmarks
     - export-image
@@ -35,8 +37,10 @@ starting_state:
     user_expertise: intermediate
 goal: >-
     **Intent**: Turn what was found by rotating, flying or walking through a 3D graph into something that works on
-    paper, in a slide, in court or in a colleague's browser. No tool examined offers a documented "flatten to print"
-    step; practitioners combine the steps below.
+    paper, in a slide, in court or in a colleague's browser. Connectome figure tools document one flattening route,
+    a canonical view set: named standard views laid out as one panel at a set DPI, plus a turntable movie (BrainNet
+    Viewer's single, medium and full views; nilearn's display modes; netplotbrain's presets). General 3D graph tools
+    document only a capture of the current camera, so their users combine the steps below.
 
 
     **Mental Model**: "The 3D view is where I found it; the 2D picture is how I prove it." Paper and court have no 3D
@@ -45,28 +49,36 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Choose the viewpoint** (5 min) - Rotate to the angle that shows the finding with the fewest crossings; 3D
+    1. **Choose the viewpoint** - Rotate to the angle that shows the finding with the fewest crossings; 3D
     drawings are highly viewpoint-dependent
 
-    2. **Save a high-resolution image** (2 min) - Of the current camera, often after switching to a light print theme
+    2. **Export a canonical view set** (when the figure needs several angles) - Named standard views laid out as one
+    panel at a set DPI and physical size: lateral and medial of each hemisphere, or all sides, for a brain
+    (BrainNet Viewer medium and full views; netplotbrain 'preset-3' Left, Right, Superior); views along the
+    layout's principal axes when the space has no anatomy (no tool found that does this)
+
+
+    3. **Save a high-resolution image** - Of the current camera, often after switching to a light print theme
     (Graphia, Arena3Dweb, CellexalVR screenshots)
 
-    3. **Render a video** (10 min, optional) - Engine-rendered video (VRNetzer), a fly-by MP4 (CellexalVR) or a
-    rotating movie (BrainNet Viewer)
+    4. **Render a video** (optional) - Engine-rendered video (VRNetzer), a fly-by MP4 (CellexalVR) or a
+    turntable (BrainNet Viewer: 12 seconds at 30 FPS, one degree per frame)
 
-    4. **Save a session or link** (2 min) - A session file (Arena3Dweb JSON, Graphia layout) or a stored-view link
+    5. **Save a session or link** - A session file (Arena3Dweb JSON, Graphia layout) or a stored-view link
     (NeuroMArVL, OmicsNet bookmarks)
 
-    5. **Carry results out** (10 min) - To a web or desktop module for annotation (VRNetzer) or an automatic report
+    6. **Carry results out** - To a web or desktop module for annotation (VRNetzer) or an automatic report
     (CellexalVR)
 
-    6. **Switch to 2D for the figure** (5 min, often) - Project or re-lay out in 2D when the figure must be read without
+    7. **Switch to 2D for the figure** (often) - Project or re-lay out in 2D when the figure must be read without
     rotation
 
 
     **Decision Points**:
 
-    - Is one viewpoint enough, or does the finding need several fixed views or a video?
+    - Is one viewpoint enough, or does the finding need a canonical view set or a video?
+
+    - Which views make up the set: anatomical names when the space has axes, principal axes when it does not?
 
     - Keep the 3D positions in the 2D figure, or re-lay out in 2D?
 
@@ -86,7 +98,13 @@ goal: >-
 
     - Saved camera viewpoints are often missing or undocumented
 
-    - No tool exports a set of fixed views or a turntable in one step
+    - General 3D graph tools export only the current camera; a canonical view set and a turntable in one step exist
+    only in connectome figure tools, whose views are tied to brain anatomy
+
+    - A layout with no anatomical axes has no agreed set of standard views
+
+    - Journals size figures by column width and DPI (Elsevier: 90, 140 or 190 mm; 300 DPI color), so a screen
+    capture must be re-rendered to fit
 
     - 3D graphs are described by a vendor of 2D tools as almost impossible to print
 
@@ -126,10 +144,24 @@ sources:
       summary: 2D added because users are more accustomed to 2D; bookmarks
     - title: Joos et al. GD 2025 - viewpoint dependence of 3D graph drawings
       url: https://arxiv.org/abs/2506.09212
-      summary: 3D drawings are highly viewpoint-dependent
+      summary: 3D drawings are highly viewpoint-dependent; perceivable principal axes predict preferred viewpoints
+    - title: Xia et al. 2013 - BrainNet Viewer
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC3701683/
+      summary: Single, medium (lateral and medial of each hemisphere) and full views; TIFF, BMP, EPS, JPEG or PNG at a
+          chosen DPI; 12 second 30 FPS rotating AVI
+    - title: nilearn plot_connectome
+      url: https://nilearn.github.io/stable/modules/generated/nilearn.plotting.plot_connectome.html
+      summary: display_mode strings ('ortho', 'lzry', 'lyrz' and others) put several glass-brain views in one figure
+    - title: netplotbrain preset viewing angles
+      url: https://netplotbrain.org/preset/
+      summary: view='preset-3' gives Left, Right and Superior panels; 'preset-4' the lateral and medial of each
+          hemisphere
+    - title: Elsevier artwork sizing
+      url: https://www.elsevier.com/about/policies-and-standards/author/artwork-and-media-instructions/artwork-sizing
+      summary: 300 DPI color, 500 DPI combination, 1000 DPI line art; 90, 140 or 190 mm wide
     - title: Cambridge Intelligence on 3D graph visualization (read through a search summary; the page returned 404)
       url: https://cambridge-intelligence.com/?p=2694
       summary: 3D graphs hard to navigate without feeling seasick and almost impossible to print
 version: 1.0.0
 created_at: 2026-11-25T00:00:00.000Z
-updated_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T12:00:00.000Z

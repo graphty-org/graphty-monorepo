@@ -4,11 +4,17 @@ category: visualization
 description: Color strips, binary columns, bars and heatmaps aligned beside tree tips from a table joined on tip label
     with exact, substring or regex matching, plus clade highlighting.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: phylogenetics-and-haplotype-networks.md section 10, table row 4 (Must)."
 algorithms: []
 used_by_workflows:
     - W393
     - W401
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Clade highlighting; per-tip strips, bars and heatmaps from a table joined on tip label with regex or
+      substring matching"
+sources:
+    - title: "Evolutionary Biologists, Population Geneticists and Protein-Family Analysts: Trees, Haplotype Networks,
+        Population Graphs and Similarity Networks (section 10, table row 4)"
+      url: design/user-research/phylogenetics-and-haplotype-networks.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

@@ -1,9 +1,12 @@
 id: sociometric-network-researcher
 name: Whole-Network Survey Sociologist
+roster_persona: survey-network-researcher
+tier: B
+scope: in-scope
 role: Associate Professor of Sociology (Sociometric School and Organization Studies)
 quote: Half my effects only mean something if I can show the reviewer exactly how I handled the forty kids who never filled in the survey.
 bio: >-
-    Dr. Lena Brandt is an associate professor of sociology of education. She runs roster surveys in schools and
+    Dr. Katarina Brandt is an associate professor of sociology of education. She runs roster surveys in schools and
     organizations: every student or employee gets a list of everyone inside the boundary and names friends or advice
     partners, often across two to four waves. Her networks have 25 to about 1,500 nodes with 10 to 50 attribute columns,
     and she often has many classrooms at once that she analyzes as a collection of separate networks. She cleans the
@@ -47,12 +50,14 @@ context:
         - desktop
     voluntary: true
 workflows:
+    - W3114
     - W26
     - W27
     - W29
     - W30
     - W31
     - W33
+    - W291
 sources:
     - title: Moody (2001) Race, school integration, and friendship segregation in America
       url: https://cpi.stanford.edu/_media/pdf/Reference%20Media/Moody_2001_Race.pdf

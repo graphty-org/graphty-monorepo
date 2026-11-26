@@ -1,0 +1,17 @@
+id: live-exclusion-connectivity-check
+name: "Connectivity rechecked as items are excluded"
+category: analysis
+description: "As the user includes or excludes records that create edges (studies, trials), recompute the connected components live, name each subnetwork, and mark nodes that lose their connection to a chosen node, beside the full network. MetaInsight drops disconnected treatments after an exclusion; netmeta finds a disconnected network only when the model fails."
+status: planned
+notes: "Research trace: network-meta-analysis-evidence-networks.md section 10, table row 6."
+algorithms: []
+used_by_workflows:
+    - W3058
+implemented_by_components: []
+requirements:
+    - "Must: Connectivity check that names each disconnected subnetwork and updates live as studies are excluded"
+sources:
+    - title: "Network Meta-Analysis Authors: Treatment Evidence Networks (section 10, table row 6)"
+      url: design/user-research/network-meta-analysis-evidence-networks.md
+      summary: "Must in the research"
+

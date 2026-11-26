@@ -39,7 +39,9 @@ goal: >-
     **Intent**: Draw the whole family, or a chosen part of it, as one chart that standard pedigree and descendant
     charts cannot show: several marriages, step and adopted children, and cousins who married cousins. Print it as a
     poster or share it with relatives, with living people hidden. Family historians are the largest population that
-    could use this; today they fight Graphviz reports.
+    could use this (Ancestry reports about 3.8 million subscribers), though for most of them the chart sits beside
+    their family-tree software rather than replacing it; today they fight Graphviz reports. Kinship demographers draw
+    the same genealogies for marriage-circuit analysis.
 
 
     **Mental Model**: "My family is not a tree." Once ancestors repeat, the chart has loops, and the chart must still
@@ -48,26 +50,26 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Export GEDCOM** (2 min) - Individuals and family records linking up to two partners and their children; three
+    1. **Export GEDCOM** - Individuals and family records linking up to two partners and their children; three
     marriages mean three family records
 
-    2. **Pick a chart** (5 min) - Pedigree, descendant, hourglass and fan are trees and the default; for everyone at
+    2. **Pick a chart** - Pedigree, descendant, hourglass and fan are trees and the default; for everyone at
     once, Gramps Relationship Graph (generations in rows, optional family nodes), Family Lines Graph, Graph View
     add-on, Family Historian's All Relatives diagram, ged2dot or GedGraph (shortest named relationship path)
 
-    3. **Select a subset** (15-60 min) - A whole tree of about 600 people came out "a mess", so users set a center
+    3. **Select a subset** - A whole tree of about 600 people came out "a mess", so users set a center
     person, generation limits and filters, add people of interest "without their relations", or make several partial
     charts
 
-    4. **Render** (minutes) - Gramps writes a Graphviz file and runs dot; blank or frozen output sends users to "Find
+    4. **Render** - Gramps writes a Graphviz file and runs dot; blank or frozen output sends users to "Find
     database loop"; pedigree collapse creates loops and crossings, handled by duplicating the repeated ancestor
     (Family Historian links duplicates with ribbons) or drawing the loop
 
-    5. **Fix the layout by hand** (hours) - Drag boxes in a reopened .gv file, edit the SVG in Inkscape, try yEd's
+    5. **Fix the layout by hand** - Drag boxes in a reopened .gv file, edit the SVG in Inkscape, try yEd's
     family tree layout, or run GrampsCrossing to reorder the file for several minutes; one user found no usable editor
     and gave up
 
-    6. **Print or share** (30 min) - PDF or SVG, tiled or sent to a chart printer; clickable SVG on a family website;
+    6. **Print or share** - PDF or SVG, tiled or sent to a chart printer; clickable SVG on a family website;
     living people hidden first
 
 
@@ -150,6 +152,9 @@ sources:
     - title: Family ChartMasters ordering (MacKiev)
       url: https://support.mackiev.com/754878-Ordering-Printed-Charts-through-Family-ChartMasters
       summary: PDF sent to a large-format chart printer
-version: 1.0.0
+    - title: Ancestry 2025 Impact Report (3BL Media)
+      url: https://www.3blmedia.com/news/generations-come-ancestry-publishes-2025-impact-report
+      summary: About 3.8 million subscribers and about 29 million people in the DNA network
+version: 1.1.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

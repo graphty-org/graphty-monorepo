@@ -1,5 +1,8 @@
 id: causal-dag-epidemiologist
 name: Causal DAG Epidemiologist
+roster_persona: causal-dag-epidemiologist
+tier: B
+scope: in-scope
 role: Assistant Professor of Epidemiology / Clinical Researcher who draws causal diagrams
 quote: Tell me which covariates to adjust for, and give me a left-to-right figure a reviewer can read without squinting.
 bio: >-

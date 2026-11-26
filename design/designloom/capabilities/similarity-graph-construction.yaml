@@ -4,7 +4,7 @@ category: analysis
 description: Turn a case-by-type count table into pairwise similarity (Brainerd-Robinson, co-presence, chi-square) and a
     network via an interactive threshold, showing edge and component counts per threshold.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: digital-humanities-and-historical-networks.md section 9, table row 17 (Should)."
 algorithms: []
 used_by_workflows:
     - W184
@@ -14,18 +14,18 @@ used_by_workflows:
     - W397
     - W411
     - W433
-    - W442
+    - W2098
 implemented_by_components: []
 requirements:
-    - Build a kNN or mutual-top-K similarity graph from vectors, with k, metric, cutoff and component-size cap recorded
-      with the graph.
-    - Build a graph from an N x N distance or similarity matrix by mutual k-nearest-neighbors or threshold, optionally
-      adding minimum spanning tree edges, and sweep k or threshold reporting communities per value.
-    - "Build a graph from a numeric table: metric choice, minimum and display thresholds with a predicted node and edge
-      count plot, k-nearest-neighbor pruning, component-size filter, all recorded for provenance."
-    - Import correlation and p-value matrices as a signed, weighted bipartite network with live |r| and p thresholds
-      that are recorded with the network.
-    - Imports a correlation matrix and its matching p-value matrix as a signed, weighted bipartite network, for example
-      gut taxa against metabolites. Edges are thresholded live by absolute r and by p, and the thresholds are recorded
-      on the network.
-sources: []
+    - "Should: Similarity-matrix-to-network builder (case-by-type counts, Brainerd-Robinson and others) with an
+      interactive threshold"
+    - "Should: Build a kNN or mutual-top-K similarity graph from vectors, with k, metric, cutoff and component-size cap recorded with the graph."
+    - "Must: Build a graph from an N x N distance or similarity matrix by mutual k-nearest-neighbors or threshold, optionally adding minimum spanning tree edges, and sweep k or threshold reporting communities per value."
+    - "Must: Build a graph from a numeric table: metric choice, minimum and display thresholds with a predicted node and edge count plot, k-nearest-neighbor pruning, component-size filter, all recorded for provenance."
+    - "Should: Import correlation and p-value matrices as a signed, weighted bipartite network with live |r| and p thresholds that are recorded with the network."
+    - "Should: Imports a correlation matrix and its matching p-value matrix as a signed, weighted bipartite network, for example gut taxa against metabolites. Edges are thresholded live by absolute r and by p, and the thresholds are recorded on the network."
+sources:
+    - title: "Digital Humanities Scholars and Historians: Correspondence, Prosopography, Kinship, Literary and
+          Archaeological Networks (section 9, table row 17)"
+      url: design/user-research/digital-humanities-and-historical-networks.md
+      summary: "Should in the research. Covered by Designloom when researched: Not covered"

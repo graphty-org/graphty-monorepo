@@ -20,9 +20,6 @@ used_in_workflows:
     - W340
     - W341
     - W343
-    - W350
-    - W351
-    - W353
     - W359
     - W363
     - W437
@@ -33,6 +30,8 @@ used_in_workflows:
     - W76
     - W79
     - W92
+    - W1054
+    - W2038
 dependencies:
     - badge
     - icon-button

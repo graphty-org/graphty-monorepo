@@ -3,7 +3,7 @@ name: Merging Web of Science and Scopus with bibliometrix
 category: analysis
 validated: false
 personas:
-    - bibliometric-review-author
+    - bibliometric-analyst
     - scientometrics-analyst
 requires_capabilities:
     - data-import
@@ -11,7 +11,6 @@ requires_capabilities:
     - data-preview
     - node-merging
     - community-detection
-    - centrality-betweenness
     - layout-force-directed
     - visual-encoding-nodes
     - legend-display
@@ -59,21 +58,21 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Export each source** (hours) - Within each database's export limit; record queries and dates
+    1. **Export each source** - Within each database's export limit; record queries and dates
 
-    2. **Convert** (5 min) - convert2df(file, dbsource, format) maps each source to Web of Science field tags
+    2. **Convert** - convert2df(file, dbsource, format) maps each source to Web of Science field tags
 
-    3. **Merge and deduplicate** (10 min) - mergeDbSources(..., remove.duplicated = TRUE), by DOI and then by normalized
+    3. **Merge and deduplicate** - mergeDbSources(..., remove.duplicated = TRUE), by DOI and then by normalized
     title; check how many duplicates were dropped
 
-    4. **Build networks** (10 min) - biblioNetwork(M, analysis, network) for collaboration, co-citation, coupling or
+    4. **Build networks** - biblioNetwork(M, analysis, network) for collaboration, co-citation, coupling or
     co-occurrence matrices
 
-    5. **Plot networks** (30 min) - networkPlot with normalization (association, Jaccard, inclusion, Salton,
+    5. **Plot networks** - networkPlot with normalization (association, Jaccard, inclusion, Salton,
     equivalence), number of vertices, clustering (Louvain, Leiden, Infomap, Walktrap), layout (Fruchterman-Reingold,
     Kamada-Kawai, MDS), seed 123 by default
 
-    6. **Thematic map** (30 min) - thematicMap clusters keyword co-occurrence and plots each cluster's Callon centrality
+    6. **Thematic map** - thematicMap clusters keyword co-occurrence and plots each cluster's Callon centrality
     (links to other clusters) against density (internal links) into four quadrants
 
     7. **Hand off** (variable) - Export the merged data; when the merged keyword field breaks VOSviewer, users write their

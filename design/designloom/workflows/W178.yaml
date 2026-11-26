@@ -43,17 +43,17 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Ordered removal** (30 min) - Remove people in the historical order they died or were executed and recompute
+    1. **Ordered removal** - Remove people in the historical order they died or were executed and recompute
     betweenness after each removal (Protestant letters under Mary I: 289 letters, 377 actors, 795 ties; the network
     "does not fragment" and couriers rise to the top)
 
-    2. **Edge spells** (1 hour) - Give each tie an onset and terminus (with censoring flags); uncertain ranges are
+    2. **Edge spells** - Give each tie an onset and terminus (with censoring flags); uncertain ranges are
     often averaged, which the lesson itself calls "not an ideal solution"
 
-    3. **Time-sliced views** (30 min) - Filmstrip of periods, animated rendering, rolling betweenness centralization,
+    3. **Time-sliced views** - Filmstrip of periods, animated rendering, rolling betweenness centralization,
     forward reachability (who could a message from X have reached by date D)
 
-    4. **In Gephi desktop** (30 min) - Build intervals by merging start and end columns; filter with the timeline;
+    4. **In Gephi desktop** - Build intervals by merging start and end columns; filter with the timeline;
     save often because dynamic data is unstable
 
     5. **Traversal with dates** (nodegoat) - Apply dates along a path ("people who attended the same institute at the

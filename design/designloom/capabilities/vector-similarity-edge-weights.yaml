@@ -1,0 +1,23 @@
+id: vector-similarity-edge-weights
+name: "Edge weights from node vector similarity"
+category: analysis
+description: "Weight each existing edge by the cosine similarity of a vector column (for example per-decision topic proportions) on its two end nodes, recorded as a strength weight for community detection and other weighted algorithms."
+status: planned
+notes: "Research trace: ediscovery-and-legal-communication-analysis.md section 10, requirement L6 (Could); social-media-disinformation-and-marketing.md section 10, Should-have 21 (similarity networks from a provided vector column)."
+algorithms: []
+used_by_workflows:
+    - W2037
+implemented_by_components: []
+requirements:
+    - "Should: Weight each existing edge by the cosine similarity of a vector column on its two end nodes"
+    - "Should: Record the weight as a strength, with the column and the measure used, so community detection and other weighted algorithms read it correctly"
+sources:
+    - title: "Mohammadi et al., topic modelling and citation network analysis of ECtHR Article 8 case law (2024)"
+      url: "https://arxiv.org/html/2401.16429v1"
+      summary: "Citation edges weighted by the similarity of the two decisions' topic proportions before community detection"
+    - title: "Legal and ediscovery research, section 10, requirement L6"
+      url: "design/user-research/ediscovery-and-legal-communication-analysis.md"
+      summary: "Edge weights from node vectors, Could"
+    - title: "Social media research, section 10, Should-have 21"
+      url: "design/user-research/social-media-disinformation-and-marketing.md"
+      summary: "Similarity networks from a provided vector column"

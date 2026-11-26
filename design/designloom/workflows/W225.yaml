@@ -2,6 +2,7 @@ id: W225
 name: Fiber OSP Trace, Circuit Assignment and Diversity Audit
 category: analysis
 validated: false
+scope: deferred
 personas:
     - telecom-osp-planner
 requires_capabilities:
@@ -20,6 +21,7 @@ requires_capabilities:
     - multilayer-networks
     - geographic-layout
     - shared-risk-diversity
+    - geospatial-file-io
 suggested_components:
     - file-drop-zone
     - data-import-dialog

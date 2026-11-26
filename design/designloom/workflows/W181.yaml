@@ -47,20 +47,20 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Choose the corpus** (5 min) - List a corpus's plays with metadata
+    1. **Choose the corpus** - List a corpus's plays with metadata
 
     2. **Choose the tie rule** (decision) - DraCor default is co-presence in a scene, weighted by shared scenes;
     speaking to, co-reference or knowledge transfer reveal different aspects; novels need character extraction first
 
-    3. **Extract one network per text** (10 min) - Co-occurrence (undirected, weighted) or stated relations such as
+    3. **Extract one network per text** - Co-occurrence (undirected, weighted) or stated relations such as
     parent_of; GEXF or GraphML export
 
-    4. **Compute per play and per character** (10 min) - Size, density, diameter, clustering; degree, betweenness,
+    4. **Compute per play and per character** - Size, density, diameter, clustering; degree, betweenness,
     words spoken
 
-    5. **Compare across the corpus** (hours) - Tabulate metrics by genre or decade, plot distributions, pick outliers
+    5. **Compare across the corpus** - Tabulate metrics by genre or decade, plot distributions, pick outliers
 
-    6. **Return to the text** (hours) - Speaker, scene and line for the scenes behind a strong tie; remove a character
+    6. **Return to the text** - Speaker, scene and line for the scenes behind a strong tie; remove a character
     (Moretti removed Hamlet's Horatio) and reread
 
 

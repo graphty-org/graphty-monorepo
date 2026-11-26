@@ -44,31 +44,31 @@ goal: >-
     1. **Index** (automatic) - Org files and headings with IDs are nodes; ID links are edges; autosync keeps org-roam.db
     current
 
-    2. **Start the viewer** (seconds) - org-roam-ui starts a local server and connects over a WebSocket for real-time
+    2. **Start the viewer** - org-roam-ui starts a local server and connects over a WebSocket for real-time
     updates
 
     3. **Write and follow** (continuous) - The graph moves to the node open in Emacs; a command opens the current node in
     local view
 
-    4. **Open from the graph** (seconds) - Double-click a node to open it in Emacs; the graph reloads in full on each save
+    4. **Open from the graph** - Double-click a node to open it in Emacs; the graph reloads in full on each save
 
     Analysis in R:
 
-    5. **Query** (5 min) - Connect with RSQLite; select id and title from nodes; select source and dest from links where
+    5. **Query** - Connect with RSQLite; select id and title from nodes; select source and dest from links where
     type is id
 
-    6. **Build** (5 min) - Strip quotes from titles, join links to nodes, build an igraph, simplify away multi-edges and
+    6. **Build** - Strip quotes from titles, join links to nodes, build an igraph, simplify away multi-edges and
     self-loops
 
-    7. **Degree** (2 min) - Total, out ("Links") and in ("Backlinks"); list the top ten
+    7. **Degree** - Total, out ("Links") and in ("Backlinks"); list the top ten
 
-    8. **Communities** (5 min) - Spinglass, each named after its member with the most backlinks; no agreed validation
+    8. **Communities** - Spinglass, each named after its member with the most backlinks; no agreed validation
 
-    9. **Plot** (5 min) - Fruchterman-Reingold, color by community, size by sqrt(in-degree + 1), labels hidden
+    9. **Plot** - Fruchterman-Reingold, color by community, size by sqrt(in-degree + 1), labels hidden
 
-    10. **Ego graph** (5 min) - Order-2 neighborhood around one node, walktrap communities, Kamada-Kawai layout
+    10. **Ego graph** - Order-2 neighborhood around one node, walktrap communities, Kamada-Kawai layout
 
-    11. **Export** (2 min) - Interactive networkD3 force graph sized by backlinks, saved as HTML
+    11. **Export** - Interactive networkD3 force graph sized by backlinks, saved as HTML
 
 
     **Decision Points**:

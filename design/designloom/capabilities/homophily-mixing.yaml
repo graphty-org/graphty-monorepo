@@ -3,10 +3,16 @@ name: Homophily and Mixing Matrices
 category: analysis
 description: Mixing matrix per attribute with empty cells flagged, EI index and assortativity.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: academic-social-network-research.md section 10, table row 19 (Must)."
 algorithms: []
 used_by_workflows:
     - W30
+    - W254
+    - W1138
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Homophily: mixing matrix, EI index, assortativity per attribute"
+sources:
+    - title: Academic Social Network Researchers (section 10, table row 19)
+      url: design/user-research/academic-social-network-research.md
+      summary: "Must in the research. Covered by Designloom when researched: NOT covered"

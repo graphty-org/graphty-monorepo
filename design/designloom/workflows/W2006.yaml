@@ -1,0 +1,176 @@
+id: W2006
+name: Group Audit and Violence-Prevention Network for Group Violence Intervention
+category: analysis
+validated: false
+personas:
+    - crime-intelligence-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - signed-edges
+    - group-collapse
+    - manual-grouping
+    - node-merging
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - centrality-degree
+    - bipartite-projection
+    - ego-network
+    - details-on-demand
+    - filtering
+    - geographic-layout
+    - comparison-view
+    - graph-diff
+    - provenance-tracking
+    - deliverable-handling-marking
+    - redacted-sharing
+    - export-image
+    - data-export
+    - group-audit-network
+    - incident-group-attribution
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-table-panel
+    - node-merge-dialog
+    - filter-panel
+    - visual-encoding-panel
+    - legend-panel
+    - ego-network-dialog
+    - ranked-node-table
+    - graph-canvas
+    - node-details-panel
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: >-
+        Group audit table (one row per group with size range, age range, territory, conflicts and allies), member
+        list with criminal-history and supervision fields, incident review sheet of homicides and shootings, and
+        arrest and field-contact records
+    node_count: 30-60 groups with 1,000-1,500 members; co-arrest networks of thousands to over 100,000 people
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Turn what frontline officers know about street groups into a map of which groups are allied, which are
+    in conflict, which conflicts actually produce shootings, and which members to reach through call-ins and
+    one-to-one notifications, as the problem analysis of a Group Violence Intervention.
+
+
+    **Mental Model**: "Groups first, people second." The main picture is groups joined by alliances and beefs; people
+    hang off their groups, and a co-arrest network of people is drawn out from the names the room gives. The product
+    feeds outreach, not arrests.
+
+
+    **Task Phases**:
+
+    1. **Run the audit** - With officers around a map, record per group: name, territory, estimated members,
+    standout members, activities, beefs, alliances, what started each conflict, violence and organization level
+    (very, somewhat, not very), larger affiliation
+
+    2. **Organize** - Build the group table and member table; merge each relationship listed on two groups' rows
+    into one signed edge; keep sizes as ranges; nest groups under umbrella groups
+
+    3. **Draw the group network** - Groups as nodes sized by number of conflicts, conflict and alliance edges
+    styled differently, territories on a map
+
+    4. **Attach incidents** - Code each homicide and shooting as group-member-involved confirmed, likely, unknown
+    or not; link it to groups and people as victim side or suspect side; count per group and per conflict edge
+
+    5. **Expand to people** - Project arrest and field-contact records from person-event to person-person ties two
+    degrees out from named members; rank unknown people most tied to known members for the room to confirm; mark
+    gunshot victims
+
+    6. **Report and act** - Write the confidential problem analysis with a sociogram and group table; pick who
+    attends call-ins so every group is represented; refresh the audit two to four times a year and compare
+
+
+    **Decision Points**:
+
+    - Is this set of people a group, even without a name or a statutory gang label?
+
+    - Which of many rivalries actually carry violence?
+
+    - Is a proposed member actively involved now, and reliable enough to list?
+
+    - Which members should attend the call-in so the message reaches every group?
+
+    - What can appear in a version shared outside the partnership?
+
+
+    **Information Needs**:
+
+    - Per group: size range, territory, conflicts, allies, violence level, members on probation or parole, members who
+    attended a call-in or receive services
+
+    - Per conflict: what started it and the incidents along it
+
+    - Per incident: involvement class, groups on each side, retaliation and other context codes
+
+    - Per person: group, criminal history summary, supervision status, notified and attended
+
+    - Network position of victims and the people two steps from them
+
+
+    **Pain Points**:
+
+    - Audit tables record each relationship on one group's row, so one tie can appear twice or once, and names vary
+    ("Group 12" and "Group 12s")
+
+    - Group diagrams that draw every rivalry look equally violent; most rivalries produce no shootings
+
+    - Law enforcement habitually draws gangs as hierarchies; co-arrest networks show loose subgroups joined by
+    non-members
+
+    - Groups change between audits, so drawings go stale within months
+
+    - Results are confidential and the public version must hide group names
+
+
+    **Data Flow**:
+
+    - Input: Group audit table, member list, incident review sheet, arrest and field-contact records
+
+    - Transformations: Relationship merging into signed edges, group nesting, incident attribution, person-event to
+    person-person projection, two-degree expansion, comparison across audits
+
+    - Output: Confidential problem analysis with group sociogram and group table, member and call-in lists,
+    before-and-after networks
+success_criteria:
+    - metric: Audit to group network
+      target: A group audit table with conflict and ally lists becomes a signed group network, with one-sided reports
+          flagged, in one import
+    - metric: Violent conflicts visible
+      target: Conflict edges show how many reviewed incidents run along them
+    - metric: Confidential handling
+      target: Every export carries the confidentiality marking, and a public version replaces group names with numbers
+sources:
+    - title: National Network for Safe Communities - Group Violence Intervention, An Implementation Guide (2015)
+      url: https://portal.cops.usdoj.gov/resourcecenter/content.ashx/cops-p280-pub.pdf
+      summary: Group audit questions, group and individual database fields, group network diagram, incident review,
+          member identification, criminal-history review, social network analysis from co-arrests, Chicago two-degree
+          example with nine of ten candidates confirmed
+    - title: OJP abstract - Group Violence Intervention implementation guide
+      url: https://ojp.gov/ncjrs/virtual-library/abstracts/group-violence-intervention-implementation-guide
+      summary: Catalog record and summary of the guide's steps
+    - title: Aurora, Colorado - Group Violence Intervention Problem Analysis Report (2023)
+      url: https://www.auroragov.org/UserFiles/Servers/Server_1881137/Image/Departments/Police/NNSC%20Aurora%20Problem%20Analysis%20Final%20Repor%20July%202023.pdf
+      summary: 36 groups and about 1,355 members, 93 incidents with involvement classes, group audit table with conflicts
+          and allies, confidentiality under a data-sharing agreement, refresh 2-4 times a year
+    - title: Papachristos and Sierra-Arevalo (2018) - Policing the Connected World (COPS Office)
+      url: https://portal.cops.usdoj.gov/resourcecenter/content.ashx/cops-w0859-pub.pdf
+      summary: Group audit definition, New Haven conflict network of 21 groups sized by degree, person-event to
+          person-person conversion, East Palo Alto victims network, Stockton network "is not a hierarchy"
+    - title: Sierra-Arevalo and Papachristos (2015) - Applying Group Audits to Problem-Oriented Policing
+      url: https://isps.yale.edu/research/publications/isps15-08
+      summary: Audit information "lends itself to use in social network analysis"
+    - title: National Network for Safe Communities - Group Violence Intervention
+      url: https://nnscommunities.org/strategies/group-violence-intervention/
+      summary: Problem analysis is the group audit and incident review; call-ins and the three messages
+    - title: Green, Horel and Papachristos (2017) - Modeling contagion through social networks (JAMA Internal Medicine)
+      url: https://isps.yale.edu/research/publications/isps17-02
+      summary: Co-arrest network of 138,163 people; contagion accounted for 63.1 percent of 11,123 gunshot episodes
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

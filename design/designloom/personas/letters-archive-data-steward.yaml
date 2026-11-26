@@ -1,9 +1,12 @@
 id: letters-archive-data-steward
 name: Letters Archive Data Steward
+roster_persona: notebook-graph-data-scientist
+tier: B
+scope: in-scope
 role: Postdoctoral Researcher on a Large Correspondence Meta-Archive (Python or R)
 quote: Every time we re-clean the names I have to re-import, re-style and re-export everything, and my historians still cannot open the result without Python.
 bio: >-
-    Dr. Tomas Rhee is a postdoc merging about half a million letter records from several catalogs, working beside a
+    Dr. Jin Rhee is a postdoc merging about half a million letter records from several catalogs, working beside a
     network scientist on a project modeled on Networking Archives (State Papers Online plus EMLO). His data has more
     than 20,000 people and more than 100,000 letters: directed, temporal and multi-edge, with persons reconciled to VIAF
     and places to GeoNames as the CMIF letter standard expects. He cleans with pandas or R, clusters name variants,

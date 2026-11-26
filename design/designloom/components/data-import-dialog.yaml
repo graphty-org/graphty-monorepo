@@ -10,6 +10,8 @@ implements_capabilities:
     - data-preview
     - data-validation
 used_in_workflows:
+    - W3054
+    - W3006
     - W01
     - W18
     - W13
@@ -145,7 +147,6 @@ used_in_workflows:
     - W261
     - W262
     - W263
-    - W264
     - W265
     - W266
     - W267
@@ -188,20 +189,15 @@ used_in_workflows:
     - W334
     - W335
     - W337
-    - W338
+    - W430
     - W339
     - W34
     - W340
     - W346
     - W347
     - W348
-    - W349
-    - W350
-    - W354
-    - W355
-    - W356
-    - W357
-    - W358
+    - W344
+    - W345
     - W36
     - W361
     - W367
@@ -261,21 +257,13 @@ used_in_workflows:
     - W427
     - W428
     - W429
-    - W430
     - W431
     - W433
     - W434
     - W435
     - W436
     - W438
-    - W439
-    - W440
-    - W441
-    - W442
-    - W443
-    - W444
-    - W445
-    - W447
+    - W432
     - W46
     - W47
     - W49
@@ -319,6 +307,40 @@ used_in_workflows:
     - W96
     - W97
     - W98
+    - W1006
+    - W117
+    - W1042
+    - W1054
+    - W1060
+    - W1084
+    - W1090
+    - W1096
+    - W1120
+    - W1126
+    - W1132
+    - W1138
+    - W1139
+    - W1156
+    - W1157
+    - W1158
+    - W1159
+    - W1162
+    - W2000
+    - W2006
+    - W2030
+    - W2036
+    - W2037
+    - W2066
+    - W2072
+    - W2096
+    - W2097
+    - W2098
+    - W2099
+    - W3048
+    - W3050
+    - W3066
+    - W3102
+    - W3103
 dependencies:
     - file-drop-zone
     - column-mapper

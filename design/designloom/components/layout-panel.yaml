@@ -9,6 +9,8 @@ implements_capabilities:
     - layout-hierarchical
     - layout-radial
 used_in_workflows:
+    - W3054
+    - W3006
     - W02
     - W15
     - W108
@@ -67,9 +69,9 @@ used_in_workflows:
     - W325
     - W327
     - W331
-    - W338
+    - W430
     - W34
-    - W354
+    - W344
     - W36
     - W364
     - W370
@@ -94,8 +96,6 @@ used_in_workflows:
     - W43
     - W431
     - W437
-    - W440
-    - W446
     - W50
     - W53
     - W55
@@ -112,6 +112,17 @@ used_in_workflows:
     - W91
     - W94
     - W96
+    - W1013
+    - W1054
+    - W1090
+    - W1096
+    - W1138
+    - W105
+    - W1158
+    - W2000
+    - W2030
+    - W2036
+    - W3066
 dependencies:
     - layout-option
     - slider

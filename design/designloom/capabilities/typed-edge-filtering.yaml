@@ -4,7 +4,7 @@ category: analysis
 description: Keep typed, directed multi-edges (MemberOf, AdminTo, resolves-to, spawned, logon type) and include or
     exclude edge types from views and path queries.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: cybersecurity-graph-work.md section 10, requirement 1 (Must)."
 algorithms: []
 used_by_workflows:
     - W07
@@ -18,8 +18,19 @@ used_by_workflows:
     - W330
     - W331
     - W332
+    - W1013
+    - W117
+    - W1084
+    - W1090
+    - W1132
+    - W1139
+    - W2038
 implemented_by_components: []
 requirements:
-    - Edge kinds by origin (inline link, property link per property, tag, embed, folder, canvas edge, similarity,
-      LLM-extracted, citation), each filterable and stylable, with optional traversal through tag nodes.
-sources: []
+    - "Must: Typed, directed multi-edges; filter paths and views by edge type"
+    - "Must: Edge kinds by origin (inline link, property link per property, tag, embed, folder, canvas edge, similarity, LLM-extracted, citation), each filterable and stylable, with optional traversal through tag nodes."
+sources:
+    - title: "Cybersecurity Graph Work: Attack Paths, Threat-Intel Pivoting, Incident Response, Network, Cloud and
+          Binary Graphs (section 10, requirement 1)"
+      url: design/user-research/cybersecurity-graph-work.md
+      summary: "Must in the research. Covered by Designloom when researched: Not covered"

@@ -14,7 +14,6 @@ requires_capabilities:
     - neighborhood-expansion
     - ego-network
     - filtering
-    - centrality-pagerank
     - progressive-loading
     - details-on-demand
     - tooltip-display
@@ -54,13 +53,13 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Seed** (1 min) - GraphDB Visual graph (type a label, pick the IRI); Stardog search (first 50 results); a Cypher
+    1. **Seed** - GraphDB Visual graph (type a label, pick the IRI); Stardog search (first 50 results); a Cypher
     query in Neo4j Browser
 
     2. **Respect caps** (implicit) - GraphDB 20 links per expansion ordered by RDF rank; Stardog warns above 500 added
     nodes; Neo4j Browser 300 nodes initially and 100 neighbors per expand; LightRAG WebUI 1,000 nodes, depth 3
 
-    3. **Expand** (5-20 min) - All relationships, or by a chosen predicate and direction; GraphDB options include
+    3. **Expand** - All relationships, or by a chosen predicate and direction; GraphDB options include
     inferred or schema statements, expanding over owl:sameAs, preferred and ignored predicates, label languages
 
     4. **Read literals** (as needed) - Literals sit in a side panel by default; Stardog's Visualize ignores RDF-star edge
@@ -69,7 +68,7 @@ goal: >-
     5. **Custom views** (optional) - GraphDB graph configs are five SPARQL queries (start, expansion CONSTRUCT, node
     basics, edge label, extra properties)
 
-    6. **Hand off** (1 min) - The query goes into an application; a screenshot goes to a ticket
+    6. **Hand off** - The query goes into an application; a screenshot goes to a ticket
 
 
     **Decision Points**:

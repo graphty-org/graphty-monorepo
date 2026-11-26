@@ -49,7 +49,7 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Create or import** (10-60 min) - PoolParty quick start: concept schemes, then top concepts, then concepts;
+    1. **Create or import** - PoolParty quick start: concept schemes, then top concepts, then concepts;
     spreadsheet import is common (VocBench ships Sheet2RDF)
 
     2. **Edit the hierarchy** (ongoing) - In a tree: add narrower concepts, move or merge concepts by drag and drop, add a
@@ -58,7 +58,7 @@ goal: >-
     3. **Add labels and links** (ongoing) - prefLabel and altLabel per language, skos:related links, mappings to other
     schemes
 
-    4. **Run quality checks** (10 min) - qSKOS checks include orphan concepts, disconnected concept clusters (connected
+    4. **Run quality checks** - qSKOS checks include orphan concepts, disconnected concept clusters (connected
     components), cyclic hierarchical relations (cycles over skos:broader), omitted top concepts, missing labels,
     incomplete language coverage, relation clashes (related and hierarchically linked) and hierarchical redundancy; the
     qSKOS study found possible issues in all 15 vocabularies analyzed

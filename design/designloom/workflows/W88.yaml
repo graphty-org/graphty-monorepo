@@ -55,31 +55,31 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Drop the seed** (1 min) - New graph; add one entity of a typed kind (domain, alias, email, phone) and set its
+    1. **Drop the seed** - New graph; add one entity of a typed kind (domain, alias, email, phone) and set its
     value; choose a distinctive string, because common strings return profiles belonging to unrelated people
 
-    2. **Set result volume** (under 1 min) - Pick a per-lookup result limit (Maltego offers Small, Balanced and Large;
+    2. **Set result volume** - Pick a per-lookup result limit (Maltego offers Small, Balanced and Large;
     Large noticeably increases graph complexity and load time)
 
-    3. **Run lookups** (5-30 min) - Domain to WHOIS emails, to DNS names, then multi-select DNS names to IP addresses;
+    3. **Run lookups** - Domain to WHOIS emails, to DNS names, then multi-select DNS names to IP addresses;
     for a person, alias profile search, leaked-records search, then extraction of personal details; in one published
     case, tracking tag ids from six seed sites led through lookups to seven more sites sharing them
 
-    4. **Prune** (5-15 min) - Delete non-matching profiles and disposable emails; keep nothing from a generic alias
+    4. **Prune** - Delete non-matching profiles and disposable emails; keep nothing from a generic alias
     without corroboration; same-type results that share parents and children fold into a collapsed group (Maltego's
     default minimum is 25); pin an entity to pull it out; entities with notes are never folded
 
     5. **Repeat** (iterative) - Treat each new alias or email as a new, independent seed; stop when searches yield
     nothing new, credits run out or the question is answered
 
-    6. **Arrange and read** (5 min) - Switch among block, hierarchical, circular and organic layouts; size by link
+    6. **Arrange and read** - Switch among block, hierarchical, circular and organic layouts; size by link
     count or entity weight; read the graph as a table in a list view
 
-    7. **Export and measure** (10 min) - Export GraphML (Maltego, yEd or Gephi dialect, optionally selected entities
+    7. **Export and measure** - Export GraphML (Maltego, yEd or Gephi dialect, optionally selected entities
     only) or CSV; in Gephi compute betweenness to find gatekeepers; save GEXF with metrics and layout; encrypt the saved
     graph if it is sensitive
 
-    8. **Hand off** (30 min) - A report with the pivot chain, hashed page captures and the graph file
+    8. **Hand off** - A report with the pivot chain, hashed page captures and the graph file
 
 
     **Decision Points**:

@@ -1,5 +1,8 @@
 id: proteomics-bench-scientist
 name: Proteomics Bench Scientist
+roster_persona: genomics-cytoscape-user
+tier: A
+scope: in-scope
 role: Cell Biologist in a Signaling Lab / Mass Spectrometry Data Owner
 quote: The core gave me a spreadsheet of interactors for my bait. I need one figure that says which are known, which are new, and what complexes they form.
 bio: >-
@@ -22,6 +25,7 @@ motivations:
     - See which preys form known complexes so the story is about complexes, not single proteins
     - Pick a handful of candidates to validate by western blot or knockdown
     - Show several phosphosites or time points per protein without collapsing them to one number
+    - Know which kinases changed activity in her phosphoproteomics experiment, and which measured sites say so
     - Get there without installing desktop software or learning a scripting language
 behaviors:
     - Receives a pre-filtered AP-MS table from the core with one row per bait-prey pair and a confidence score
@@ -35,6 +39,7 @@ frustrations:
     - Importing bait-prey pairs keeps only the last value when a prey appears for several baits
     - Long lists turn into hairballs with no obvious way to see complexes
     - Site-level phosphoproteomics data does not fit one row per protein, so sites are averaged away
+    - Kinase activity tools (KSEA App) return a bar plot and a links table, not a network she can look at
     - Small lists fall apart at confidence 0.4, and dropping to 0.15 was described as close to 9 in 10 false positives
     - Legends and complex hulls have to be redrawn in a drawing program
 context:
@@ -50,6 +55,7 @@ workflows:
     - W242
     - W243
     - W245
+    - W3066
 sources:
     - title: Cytoscape tutorial - AP-MS network analysis
       url: https://cytoscape.org/cytoscape-tutorials/protocols/AP-MS-network-analysis/
@@ -75,6 +81,9 @@ sources:
     - title: Postdoc posting - Krogan Lab AP-MS
       url: https://careers.iscb.org/jobs/view/7736
       summary: Job posting listing AP-MS network analysis with Cytoscape
+    - title: KSEA App (Bioinformatics 2017)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5860163
+      summary: Web tool for kinase activity from phosphosite fold changes using PhosphoSitePlus, optionally NetworKIN
 version: 1.0.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

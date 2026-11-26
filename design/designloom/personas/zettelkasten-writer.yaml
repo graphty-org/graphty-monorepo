@@ -1,9 +1,12 @@
 id: zettelkasten-writer
 name: Zettelkasten Writer
+roster_persona: personal-knowledge-gardener
+tier: A
+scope: in-scope
 role: Independent Essayist practicing the Zettelkasten (slip-box) method
 quote: Don't make a link you can't explain. Then show me the paths those links make.
 bio: >-
-    Tomas is an independent essayist who follows Niklas Luhmann's slip-box method in Obsidian. He writes atomic permanent
+    Hugo is an independent essayist who follows Niklas Luhmann's slip-box method in Obsidian. He writes atomic permanent
     notes, gathers them into structure notes (Maps of Content) under a single "Home" note, and links deliberately: every
     link must be one he can explain. His 2,000 to 10,000 notes average three or more links each, and he records typed
     relations in frontmatter (`up:`, `parent::`) with the Breadcrumbs and ExcaliBrain plugins so he can walk up, down and

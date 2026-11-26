@@ -69,26 +69,26 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Frame** (1 h) - Decision-maker, influencers, allies and opponents; or a bullseye by issue and sector; or
+    1. **Frame** - Decision-maker, influencers, allies and opponents; or a bullseye by issue and sector; or
     interest or alignment against influence
 
-    2. **Collect** (days to months) - Brainstorm power holders, find hidden power, research each in registries, campaign
+    2. **Collect** - Brainstorm power holders, find hidden power, research each in registries, campaign
     finance, lobbying disclosures and news; interviews or surveys
 
-    3. **Structure the sheet** (1 h) - Elements with a label, type and attributes; relationships with from, to, type,
+    3. **Structure the sheet** - Elements with a label, type and attributes; relationships with from, to, type,
     direction, date and source URL; multiple values in one cell; an ID column for updates
 
-    4. **Load** (10 min) - Import, or link a live sheet re-read on refresh; re-import updates rows by ID instead of
+    4. **Load** - Import, or link a live sheet re-read on refresh; re-import updates rows by ID instead of
     duplicating
 
-    5. **Derive** (15 min) - Project person-organization links into organization-organization interlocks or
+    5. **Derive** - Project person-organization links into organization-organization interlocks or
     person-person links
 
-    6. **Analyze** (1-2 h) - Degree, closeness, betweenness, eigenvector, two-step reach; overlapping communities treated
+    6. **Analyze** - Degree, closeness, betweenness, eigenvector, two-step reach; overlapping communities treated
     as prompts for questions, not facts; core, periphery and bridges; paths to the decision-maker; two-axis grid of
     influence against alignment
 
-    7. **Decide and publish or protect** (1 h) - Who is missing, who bridges clusters, which triangles to close; publish
+    7. **Decide and publish or protect** - Who is missing, who bridges clusters, which triangles to close; publish
     a public map or keep it private
 
 
@@ -144,7 +144,7 @@ success_criteria:
     - metric: Provenance
       target: Every relationship opens to its source URL
     - metric: Interlock question
-      target: User can list organizations sharing a board member with a target in under a minute
+      target: User can list organizations sharing a board member with a target in under a minute (design goal; no source measures it)
 sources:
     - title: Kumu documentation (full text)
       url: https://docs.kumu.io/llms-full.txt

@@ -4,16 +4,16 @@ category: visualization
 description: Derive a directly-follows graph per object type from an OCEL log, merged at shared activities, with
     per-type sliders and counts, object type encoded beyond hue, and a flattened comparison.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: process-mining-and-process-maps.md section 10, requirement R18 (Should)."
 algorithms: []
 used_by_workflows:
     - W342
     - W347
-    - W352
-    - W357
 implemented_by_components: []
 requirements:
-    - Import OCEL 2.0 (SQLite, XML, JSON) with typed objects, events and qualified event-to-object and object-to-object
-      relations, and derive an object-centric directly-follows graph with shared activities once, one edge set per
-      object type, per-type thresholds and type encoding beyond hue.
-sources: []
+    - "Must: Import OCEL 2.0 (SQLite, XML, JSON) with typed objects, events and qualified event-to-object and object-to-object relations, and derive an object-centric directly-follows graph with shared activities once, one edge set per object type, per-type thresholds and type encoding beyond hue."
+sources:
+    - title: "Process Mining Analysts: Process Maps, Models and Deviations from Event Logs (section 10, requirement
+          R18)"
+      url: design/user-research/process-mining-and-process-maps.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

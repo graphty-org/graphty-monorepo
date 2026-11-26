@@ -33,7 +33,7 @@ workforce gap of about 4.8 million [ISC2-2024]. No source found that counts how 
 | Network security monitoring (NSM) and network / OT security | NSM analyst, network security engineer, ICS/OT security engineer | Arkime Connections, Zeek plus RITA, Graphistry, RedSeal, Nozomi/Claroty, GRASSMARLIN (archived) | Daily (NSM); periodic segmentation and OT asset reviews                              |
 | Threat hunting / security data science                      | Threat hunter, detection engineer                                | Graphistry with Splunk or Databricks, KQL hunting graph                                         | Weekly; threat hunting was the top CTI use case (75%) in 2024 [SANS-CTI-24]          |
 | Cloud and Kubernetes security                               | Cloud security engineer, CNAPP owner, platform security          | Wiz, Defender for Cloud attack paths, Cartography on Neo4j, KubeHound                           | Daily issue queue; periodic posture reviews                                          |
-| Security architecture / threat modeling                     | Security architect, application security engineer                | Microsoft Threat Modeling Tool, OWASP Threat Dragon, general diagramming tools                  | Per design or major change                                                           |
+| Security architecture / threat modeling                     | Security architect, application security engineer                | Microsoft Threat Modeling Tool, OWASP Threat Dragon, pytm, Threagile, whiteboards               | Per design or major change; under half of those who do it, every release [SC-25]     |
 
 **Skill profile.**
 
@@ -128,6 +128,27 @@ hand-off artifact.
   pivot from a suspicious pair to the raw sessions.
 - **Frustrations.** Graph views show only the top sessions unless the query size is raised, and larger queries are
   slow [MALCOLM-ARKIME]; NAT and DHCP make IP addresses unstable identities [ZEEK-CONN].
+
+### 3.7 Nadia Haddad -- Application security architect (threat modeling)
+
+- **Role.** Security architect in a product security team; runs threat modeling sessions with a development team
+  when a new system is designed or an existing one changes. Facilitating, not owning, the model: the cheat sheet asks
+  that it be reviewed by all stakeholders, not only security [OWASP-TM]. Application security engineers (Designloom
+  `software-supply-chain-security-engineer`) join the sessions and triage threats; Nadia owns the model.
+- **Tools.** Microsoft Threat Modeling Tool (design view, analysis view, HTML report) [MS-TMT-FEAT]; OWASP Threat
+  Dragon, a free web or desktop tool supporting STRIDE, LINDDUN, CIA, DIE and PLOT4ai [THREAT-DRAGON-HOME]; models as
+  code in pytm or Threagile for teams that keep the model beside the source [PYTM] [THREAGILE]; a whiteboard or a
+  general diagramming tool to start [OWASP-TM].
+- **Data.** A hand-drawn or code-declared data flow diagram: 10 to 100 typed elements (process, external interactor,
+  data store, data flow, trust boundary) with per-element properties such as protocol, encrypted, public network or
+  stores credentials [MS-TMT-FEAT] [TD-THREATS]. No source gives a typical element count; the range is an estimate.
+- **Goals.** Answer the four questions -- what are we working on, what can go wrong, what are we going to do about
+  it, did we do a good enough job -- with the diagram as the usual answer to the first [4Q]; find every flow that
+  crosses a trust boundary; leave a triaged threat list the team will act on.
+- **Frustrations.** Scope is hard to set, architecture documentation is often missing, the practice is hard to scale,
+  and follow-up on results is weak [SOUPS24-TM]; practitioners keep going back to the diagram while validating threats
+  [ESEM26-TM]; models go stale as code changes, which is why pytm ships a staleness check [PYTM]; generated threat
+  lists are long and every item needs a status [MS-TMT-FEAT] [TD-THREATS].
 
 ## 4. Use cases ranked by frequency and stakes
 
@@ -387,15 +408,37 @@ Sources: [AF-BUILDER] [AF-BEST] [AF-LANG] [AF-2026].
    there is no autosave [AF-BUILDER]. The 2026 release adds drafting from a PDF or URL, technique suggestions,
    mitigations and detections, timeline and matrix views, and TLP banners on exports [AF-2026].
 
-### 5.10 Threat modeling a system design (adjacent population)
+### 5.10 Threat modeling a system design (security architects; Nadia, section 3.7)
 
-Sources: [OWASP-TM] [MS-TMT] [THREAT-DRAGON].
+Sources: [OWASP-TM] [MS-TMT] [MS-TMT-FEAT] [THREAT-DRAGON] [TD-THREATS] [PYTM] [THREAGILE] [4Q] [TMC-24] [SC-25]
+[SOUPS24-TM].
 
-Security architects draw a data flow diagram from stencils (process, external interactor, data store, data flow,
-trust boundary), with child types such as an HTTP versus HTTPS flow and per-element properties [MS-TMT]. The tool
-generates threats per element or flow from STRIDE rules (for example, a flow crossing a named trust boundary), and the
-architect triages each [MS-TMT] [THREAT-DRAGON]. DFDs are also drawn in general diagramming tools or on a
-whiteboard, and attack trees decompose an attacker's goal into alternative paths [OWASP-TM]. This is diagramming more than analysis; it is kept as adjacent, with should-have requirements only.
+**Cadence.** Early in design, then maintained alongside the system as it changes [OWASP-TM]. In a 2025 vendor survey,
+fewer than half of the companies that threat model do it for every application release [SC-25].
+
+**Method.** STRIDE dominates: 88% of respondents to the 2024-2025 Threat Modeling Connect survey (60+ organizations)
+named it as part of their strategy, and 37% of organizations cited diagrams as a main source of information for
+identifying threats [TMC-24]. The diagram answers "what are we working on?" [4Q].
+
+1. **Draw the diagram** (30-60 minutes; estimate, no source). Place stencils -- process, external interactor, data
+   store, data flow, trust boundary -- with child types such as an HTTP versus HTTPS flow [MS-TMT-FEAT]; or declare
+   the same elements in Python (pytm) or YAML (Threagile) and generate the diagram [PYTM] [THREAGILE].
+2. **Set properties.** Name, out of scope with a reason [MS-TMT-FEAT]; protocol, encrypted, public network on flows,
+   stores credentials on stores [TD-THREATS].
+3. **Generate threats.** Rules read element properties and the graph around them: pytm conditions use helpers such
+   as `crosses`, `enters`, `exits` and `inside` a boundary [PYTM]; Threagile ships about 40 built-in risk rules
+   [THREAGILE]; Threat Dragon suggests threats by type (STRIDE per element) or by context from properties
+   [TD-THREATS]. The tool flags flows left unconnected [MS-TMT-FEAT].
+4. **Triage.** Select a threat and the tool highlights its interaction on the diagram; set priority, mark read, fill
+   justification [MS-TMT-FEAT]; status Open, N/A or a treatment (mitigated, accepted, transferred, avoided,
+   eliminated) and severity TBD to Critical [TD-THREATS]. pytm can color elements by risk [PYTM].
+5. **Decompose goals** (optional). Attack trees break an attacker's goal into alternative paths [OWASP-TM].
+6. **Report and keep current.** HTML report with diagrams and per-element threats [MS-TMT-FEAT]; pytm reports and
+   checks how stale the model is relative to the code [PYTM]. Follow-up on results is a common weakness [SOUPS24-TM].
+
+The graph is small and drawn or declared by hand, but the core question -- which directed flows cross which grouped
+boundaries, and which elements carry open threats -- is a query over typed nodes, edges and groups. It is kept in
+scope with should-have requirements (section 10, items 23 and 28).
 
 ## 6. Data
 
@@ -517,6 +560,7 @@ Detection, W19 Network Evolution Analysis).
 | 25  | Commonalities across a selection                                                                                                                                                                | S        | Not covered                        |
 | 26  | Image export with labels hidden; JSON export of the current subgraph                                                                                                                            | S        | Partly                             |
 | 27  | Incremental append of streamed events into an open graph                                                                                                                                        | S        | Not covered                        |
+| 28  | List edges that cross a group boundary (enter, exit), and color elements by the status and severity of threats attached to them                                                                 | S        | Not covered                        |
 
 Persona correction: `cybersecurity-analyst` should be split or rewritten. Its behaviors omit BloodHound, Maltego,
 process trees, logon graphs, flow graphs and disassembler graphs; its frustration "graph databases are too slow for
@@ -608,3 +652,13 @@ logon-graph scoping and network flow hunting.
 - [OWASP-TM] https://cheatsheetseries.owasp.org/cheatsheets/Threat_Modeling_Cheat_Sheet.html -- DFDs, tools, attack trees.
 - [MS-TMT] https://learn.microsoft.com/en-us/training/modules/tm-use-recommended-tools-to-create-a-data-flow-diagram/2-threat-modeling-tool -- stencils, threat generation.
 - [THREAT-DRAGON] https://owasp.org/www-project-threat-dragon/docs-1/threat-generation -- STRIDE per element.
+- [THREAT-DRAGON-HOME] https://owasp.org/www-project-threat-dragon/ -- web or desktop; STRIDE, LINDDUN, CIA, DIE, PLOT4ai.
+- [TD-THREATS] https://www.threatdragon.com/docs/usage/threats.html -- threats by type or context, properties, status and severity values.
+- [MS-TMT-FEAT] https://learn.microsoft.com/en-us/azure/security/develop/threat-modeling-tool-feature-overview -- stencil categories, out of scope, messages, analysis view, interaction focus, reports.
+- [PYTM] https://github.com/OWASP/pytm -- threat model as Python; Graphviz DFD, `crosses`/`enters`/`inside` conditions, risk color map, staleness check.
+- [THREAGILE] https://github.com/Threagile/threagile -- threat model as YAML; about 40 built-in risk rules; generated DFDs (read through a search summary).
+- [4Q] https://shostack.org/files/papers/The_Four_Question_Framework.pdf -- the four questions; DFDs commonly answer the first (read through a search summary).
+- [TMC-24] https://shostack.org/blog/state-of-threat-modeling-2024-2025/ -- 60+ organizations; STRIDE 88%; diagrams 37%.
+- [SC-25] https://www.securitycompass.com/Research%20Reports/The-2025-state-of-threat-modeling-and-security-by-design.pdf -- under half of companies that threat model do it every release (vendor survey; read through a search summary).
+- [SOUPS24-TM] https://usenix.org/conference/soups2024/presentation/verreydt -- interviews in large Dutch organizations: scope, architecture documentation, scaling, follow-up.
+- [ESEM26-TM] https://drops.dagstuhl.de/storage/00lipics/lipics-vol394-esem2026/LIPIcs.ESEM.2026.57/LIPIcs.ESEM.2026.57.pdf -- practitioners revisit the DFD while validating threats (read through a search summary).

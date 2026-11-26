@@ -4,6 +4,7 @@ category: analysis
 validated: false
 personas:
     - herbal-formula-mechanism-lead
+    - network-pharmacology-graduate-student
 requires_capabilities:
     - data-import
     - visual-encoding-nodes
@@ -18,6 +19,7 @@ requires_capabilities:
     - data-export
     - report-generation
     - layout-tiered-by-attribute
+    - export-image
 suggested_components:
     - data-import-dialog
     - attribute-table-join-dialog
@@ -108,6 +110,9 @@ sources:
     - title: Pheretima quality markers (PMC9553678)
       url: https://pmc.ncbi.nlm.nih.gov/articles/PMC9553678/
       summary: 40 batch fingerprints, a 79-node, 281-edge layered network, grey relational analysis, six markers
+    - title: Quality-marker review (PMC12855425)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC12855425
+      summary: Quality-marker selection combining network pharmacology with content and detectability
 version: 1.0.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

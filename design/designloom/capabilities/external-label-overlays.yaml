@@ -4,13 +4,22 @@ category: analysis
 description: Overlay externally supplied label sets (attribution labels, watch lists, sanctions hits, prior alert and
     case flags) onto nodes or clusters, keeping each label's source and confidence, and toggle sets on and off.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: financial-crime-fraud-aml-kyc.md section 10, requirement 24 (Should)."
 algorithms: []
 used_by_workflows:
     - W06
     - W118
     - W124
     - W127
+    - W105
+    - W1157
+    - W1158
+    - W2072
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Should: Attribution overlays: external label sets on clusters with their source"
+sources:
+    - title: "Financial crime investigators: fraud rings, anti-money-laundering, beneficial ownership, crypto tracing
+        and insurance fraud (section 10, requirement 24)"
+      url: design/user-research/financial-crime-fraud-aml-kyc.md
+      summary: Should in the research.

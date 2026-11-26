@@ -56,21 +56,21 @@ goal: >-
     1. **Estimate one network per group** (in R) - Same estimator, gamma and items; for example 290 widowed and 434
     separated respondents, 12 CES-D items plus a life-event node
 
-    2. **Test** (minutes to hours) - NetworkComparisonTest with 1,000 permutations, per-edge and per-centrality tests,
+    2. **Test** - NetworkComparisonTest with 1,000 permutations, per-edge and per-centrality tests,
     Holm adjustment; users cut iterations to 10 for large networks; output is permutation histograms, not graphs
 
-    3. **Similarity** (2 min) - Correlate the weight matrices (0.62 to 0.74 across four PTSD sites)
+    3. **Similarity** - Correlate the weight matrices (0.62 to 0.74 across four PTSD sites)
 
-    4. **Load and align** (5 min) - Load each matrix, compute one shared layout from the averaged weights or reuse
+    4. **Load and align** - Load each matrix, compute one shared layout from the averaged weights or reuse
     supplied coordinates, and set one maximum edge weight for all panels
 
-    5. **Compare** (10 min) - Side-by-side panels with synced zoom; highlight edges whose NCT test is significant;
+    5. **Compare** - Side-by-side panels with synced zoom; highlight edges whose NCT test is significant;
     optionally a difference network
 
-    6. **Interpretable distances (optional)** (10 min) - MDS layout on absolute weights with a stress value (0.189 in
+    6. **Interpretable distances (optional)** - MDS layout on absolute weights with a stress value (0.189 in
     one example), Procrustes alignment between groups (congruence 0.930)
 
-    7. **Figure** (5 min) - Side-by-side panels with identical maxima and a caption giving each network's minimum and
+    7. **Figure** - Side-by-side panels with identical maxima and a caption giving each network's minimum and
     maximum edge
 
 

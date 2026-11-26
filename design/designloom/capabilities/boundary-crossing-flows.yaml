@@ -1,0 +1,18 @@
+id: boundary-crossing-flows
+name: "Boundary-Crossing Flow Query"
+category: analysis
+description: "List and highlight the directed edges that cross a named group boundary (entering, leaving or passing through), so a rule or a reader can ask questions of exactly those flows; the same test pytm exposes as crosses, enters, exits and inside. Elements can then be styled by the status and severity of items attached to them (for example open versus mitigated threats)."
+status: planned
+notes: "Research trace: cybersecurity-graph-work.md section 10, requirement 28 (Should)."
+algorithms: []
+used_by_workflows:
+    - W117
+implemented_by_components: []
+requirements:
+    - "Should: List edges that cross a group boundary (enter, exit), and color elements by the status and severity of
+      threats attached to them"
+sources:
+    - title: "Cybersecurity Graph Work: Attack Paths, Threat-Intel Pivoting, Incident Response, Network, Cloud and
+        Binary Graphs (section 10, requirement 28)"
+      url: design/user-research/cybersecurity-graph-work.md
+      summary: "Should in the research. Covered by Designloom when researched: Not covered"

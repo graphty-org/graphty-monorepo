@@ -20,6 +20,9 @@ requires_capabilities:
     - process-map-derivation
     - variant-analysis
     - token-replay-animation
+    - legend-display
+    - temporal-analysis
+    - centrality-degree
 suggested_components:
     - graph-canvas
     - filter-panel
@@ -28,6 +31,11 @@ suggested_components:
     - temporal-controls
     - image-export-dialog
     - data-export-dialog
+    - data-import-dialog
+    - column-mapper
+    - range-slider
+    - legend-panel
+    - layout-panel
 starting_state:
     data_type: XES file or a pandas or R data frame of events
     node_count: 10-50 activities (ED study 1,754 cases, 16,376 events, 884 variants)
@@ -44,23 +52,23 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Load** (2 min) - read_xes, or format a data frame with case, activity and timestamp keys; in bupaR build an
+    1. **Load** - read_xes, or format a data frame with case, activity and timestamp keys; in bupaR build an
     event log with case, activity, activity instance, lifecycle, timestamp and resource
 
-    2. **Clean** (15 min) - Remove cases with too few events or broken boundaries and implausible durations (the ED
+    2. **Clean** - Remove cases with too few events or broken boundaries and implausible durations (the ED
     study kept 1,754 of 1,820)
 
-    3. **Variants** (10 min) - Top-k or coverage filters (top 10 covered 21.3 percent; 80 percent needed 519 variants);
+    3. **Variants** - Top-k or coverage filters (top 10 covered 21.3 percent; 80 percent needed 519 variants);
     bupaR trace frequency filter at 95 percent
 
-    4. **Discover** (5 min) - DFG and performance DFG viewed as Graphviz images; bupaR process_map with frequency on
+    4. **Discover** - DFG and performance DFG viewed as Graphviz images; bupaR process_map with frequency on
     nodes and performance on edges, secondary layers, direction TB, BT or RL, or returned unrendered for editing
 
-    5. **Models and conformance** (30 min) - See W345
+    5. **Models and conformance** - See W345
 
-    6. **Resources** (15 min) - Handover-of-work, working-together and role networks; dotted chart
+    6. **Resources** - Handover-of-work, working-together and role networks; dotted chart
 
-    7. **Animate** (10 min) - processanimateR in absolute or relative mode as an SVG widget
+    7. **Animate** - processanimateR in absolute or relative mode as an SVG widget
 
 
     **Decision Points**:

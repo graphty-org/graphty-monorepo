@@ -1,0 +1,72 @@
+id: enterprise-architect-portfolio-manager
+name: Enterprise Architect and Application Portfolio Manager
+roster_persona: dependency-impact-engineer
+tier: A
+scope: in-scope
+role: Enterprise Architect responsible for the application portfolio
+quote: Before we switch this application off, tell me every application that still calls it, every capability it is the only one to support, and who has to sign off.
+bio: >-
+    Ingrid is an enterprise architect at an insurer and runs its application rationalization program. She keeps a
+    hand-curated model in SAP LeanIX or Ardoq (Sparx Enterprise Architect on modeling-heavy programs): applications in
+    a parent-child hierarchy, interfaces with one provider and many consumer applications, IT components and servers,
+    a business capability map about three levels deep, organizations, and people in owner and expert roles. Lifecycle
+    dates, cost and a TIME rating (tolerate, invest, migrate, eliminate) sit on each application. Before an application
+    is retired or replaced she follows incoming usage references to every consumer, rolls the realized capabilities up
+    the capability hierarchy to see which ones would lose their only supporting application, and hands the owners a
+    list. She is fluent in her tool's meta-model and in Excel, not in code or graph algorithms. She is a variant of the
+    change-impact analyst: the same typed upstream closure ending in an owner list, but on a curated model and read by
+    business capability rather than by business service.
+characteristics:
+    expertise: intermediate
+    time_pressure: low
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Know the full impact of retiring or replacing an application before the decision is made
+    - Find business capabilities that depend on a single application
+    - Sort retirement candidates into quick wins and risky ones by structural complexity
+    - Give every affected owner a clear list of what changes for them
+behaviors:
+    - Starts from a retirement candidate picked on a TIME chart or by end-of-life date
+    - Follows incoming usage references (interfaces it provides, consumer applications) to the needed depth, ignoring ownership and hierarchy links
+    - Rolls realized capabilities from the lowest level up to level 2 and level 1 and checks each for another realizer
+    - Groups the map by parent and collapses deep hierarchies to read it by capability
+    - Exports the result as an Excel table or a map image for a presentation, and writes the decision back to the application
+frustrations:
+    - The model is only as current as the surveys that fill it
+    - Ardoq's Dependency Map cannot follow a chain that changes direction, so mixed-direction questions need a second view
+    - Sparx reports ArchiMate relationships such as Realization and UsedBy as plain UML dependencies in its Traceability window, losing typed filtering
+    - Provider and consumer on an interface mean ownership and invocation, not data direction, and are easily confused
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: false
+workflows:
+    - W1132
+sources:
+    - title: Ardoq - Getting started with application rationalization
+      url: https://help.ardoq.com/en/articles/44015-getting-started-with-application-rationalization
+      summary: Owner and Expert per application; structural complexity score; capabilities at risk; quick wins; Dependency Map, Block Diagram and Timeline before removing anything
+    - title: Ardoq - Dependency Map
+      url: https://help.ardoq.com/en/articles/44007-dependency-map
+      summary: Incoming and outgoing degree sliders; reference chains strictly directional; group by parent and collapse hierarchy; PNG export
+    - title: SAP LeanIX - Application Portfolio Management (vendor)
+      url: https://www.leanix.net/en/products/application-portfolio-management
+      summary: Understand the full impact of retiring an application; see how applications, interfaces and IT components connect
+    - title: LeanIX community - Interface provider and consumer
+      url: https://community.leanix.net/it-s-all-about-community-7/interface-fact-sheet-category-provider-and-consumer-825
+      summary: Provider owns the interface definition; consumers are the applications that invoke it
+    - title: Sparx Enterprise Architect - Traceability window
+      url: https://sparxsystems.com/enterprise_architect_user_guide/15.1/guidebooks/tools_ea_traceability_window.html
+      summary: Lists every relationship an element takes part in, filtered by relationship type, for impact analysis; ArchiMate relationships reported as UML types
+    - title: TechTarget - SAP acquires LeanIX
+      url: https://www.techtarget.com/enterprise-software/news/366551416/SAP-acquires-enterprise-architecture-vendor-LeanIX?amp=1
+      summary: More than 500 joint SAP and LeanIX customers at the announcement
+    - title: Sumble - LeanIX (third-party estimate)
+      url: https://sumble.com/tech/leanix.md
+      summary: 2,484 companies using LeanIX, 1,464 naming it in their own job posts
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

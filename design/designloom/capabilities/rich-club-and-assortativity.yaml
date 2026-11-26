@@ -3,10 +3,14 @@ name: Rich Club and Assortativity
 category: analysis
 description: Rich-club coefficient normalized by a degree-preserving null, degree and attribute assortativity.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: network-scientists-and-analysis-method-validity.md section 9, requirement R10 (Should)."
 algorithms: []
 used_by_workflows:
     - W37
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Should: Normalized rich-club coefficient; degree and attribute assortativity"
+sources:
+    - title: Network Scientists and the Validity of Core Analysis Methods (section 9, requirement R10)
+      url: design/user-research/network-scientists-and-analysis-method-validity.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

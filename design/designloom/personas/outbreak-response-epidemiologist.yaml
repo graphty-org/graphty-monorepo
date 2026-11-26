@@ -1,9 +1,12 @@
 id: outbreak-response-epidemiologist
 name: Outbreak Response Epidemiologist
+roster_persona: public-health-cluster-epidemiologist
+tier: B
+scope: in-scope
 role: Field Epidemiologist, CDC Field Team or State Outbreak Unit
 quote: Show me the genetic links and the named contacts in the same picture, and tell me who is connected but was never named.
 bio: >-
-    Marcus Bell is a former Epidemic Intelligence Service officer who now deploys to outbreaks: HIV among people who
+    Graham Bell is a former Epidemic Intelligence Service officer who now deploys to outbreaks: HIV among people who
     inject drugs, COVID-19 in congregate settings, hepatitis in a rural county. He is competent in R and comfortable
     reading phylogenetic trees. In the field he overlays genetic links on named contacts and on person-place exposures
     in MicrobeTrace, imports Nextstrain trees exported as Newick in divergence mode, and sometimes works from a

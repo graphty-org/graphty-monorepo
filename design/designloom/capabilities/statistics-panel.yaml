@@ -1,12 +1,14 @@
 id: statistics-panel
 name: Statistics Panel
 category: export
-description: Display a comprehensive panel showing all computed graph statistics and analysis results. Provide
-    exportable summary for reports and quick reference during analysis.
-status: implemented
-notes: "Ships: graphty/src/workspace/inspector/GraphValues.tsx."
+description: Display a panel of the computed graph statistics and analysis results -- the descriptive table every
+    study reports (size, density, reciprocity, transitivity, components, centralization, communities) -- with the
+    parameters behind each value, so it can be cited in a report or copied into a methods section.
+status: in-progress
+notes: "Partly ships: graphty/src/workspace/inspector/GraphValues.tsx. Planned: the degree CCDF on log-log axes, export of statistics with their parameters, plain-language notes per metric, and stale marks after data or filters change. Any requirement below that this note does not name as shipping counts as planned."
 algorithms: []
 used_by_workflows:
+    - W3114
     - W01
     - W03
     - W04
@@ -72,10 +74,6 @@ used_by_workflows:
     - W345
     - W347
     - W348
-    - W350
-    - W352
-    - W355
-    - W357
     - W359
     - W360
     - W364
@@ -91,7 +89,7 @@ used_by_workflows:
     - W389
     - W397
     - W42
-    - W439
+    - W430
     - W54
     - W61
     - W62
@@ -103,29 +101,54 @@ used_by_workflows:
     - W74
     - W75
     - W97
+    - W1042
+    - W1054
+    - W2098
+    - W3048
+    - W3049
+    - W3050
 implemented_by_components:
     - statistics-panel
 requirements:
-    - "Display basic statistics section: node count, edge count, density (4 decimals), average degree (2 decimals)"
-    - "Display graph type indicators: directed/undirected, weighted/unweighted, connected/disconnected"
-    - "Display component summary: component count, giant component size and percentage"
-    - "Display degree distribution summary: min, max, mean, median, std dev"
-    - Display degree distribution mini-histogram (50px height inline chart)
-    - Display centrality leaders section with top-5 nodes by each computed metric
-    - Show centrality metric name, node label, and score for each leader
-    - "Display community summary when detected: community count, modularity score"
-    - "Display community size distribution: largest, smallest, average sizes"
-    - Update all statistics within 500ms when filters change visible graph
-    - Display 'Filtered view' indicator when statistics reflect filtered subset
-    - Display both 'Visible' and 'Total' counts when filter is active
-    - Organize sections as collapsible accordions (click header to expand/collapse)
-    - Remember collapsed/expanded state across session
-    - Provide 'Export Statistics' button generating CSV with all displayed metrics
-    - Provide 'Copy to Clipboard' button copying statistics as formatted text
-    - Display '-' or 'Not computed' for metrics that haven't been calculated yet
-    - "Display computation timestamp: 'Computed at [time]' for each metric section"
-    - Highlight metrics that have changed since last computation with subtle indicator
+    - "Must: Display basic statistics: node count, edge count, density, average degree"
+    - "Library parity: Display graph type indicators: directed/undirected, weighted/unweighted, connected/disconnected"
+    - "Must: Display reciprocity (directed graphs), transitivity and degree centralization when computed"
+    - "Must: Display component summary: component count, giant component size and percentage"
+    - "Must: Display degree distribution summary: min, max, mean, median; describe it as heavy-tailed or not rather than claiming a power law, and link to degree-distribution fitting for any distribution claim"
+    - "Library parity: Show the degree distribution as a complementary cumulative distribution (CCDF) on log-log axes, with a histogram offered only where the range is small"
+    - "Library parity: Display centrality leaders for each computed metric (metric name, node label, score), with the number shown chosen by the reader"
+    - "Must: Display community summary when detected: method, resolution and seed, community count, modularity, and community sizes (largest, smallest, average); modularity is shown as a property of this partition, not as evidence that communities exist"
+    - "Must: For every weighted value, show which weight column was used and whether it was read as a strength or a distance (weight-semantics)"
+    - "Must: Display a 'Filtered view' indicator when statistics reflect a filtered subset, with both visible and total counts"
+    - "Library parity: Update statistics when filters change the visible graph"
+    - "Must: Offer a plain-language note per metric -- what it measures, what weight means for it, what it cannot tell"
+    - "Library parity: Organize sections as collapsible accordions and remember their state across the session"
+    - "Must: Provide 'Export Statistics' generating CSV with all displayed metrics and their parameters (algorithm, weight reading, seed, filters, time window)"
+    - "Library parity: Provide 'Copy to Clipboard' copying statistics as formatted text with the same parameters"
+    - "Must: Display subgroup and position summaries when computed (maximum core number, maximal cliques by size,
+      factions with their error count, the triad census, number of positions and blockmodel fit), with the conventions
+      behind them; the analyses themselves are defined in positional-subgroup-analysis"
+    - "Library parity: Display '-' or 'Not computed' for metrics that haven't been calculated yet"
+    - "Library parity: Display when each metric section was computed, and mark metrics that are stale after data or filters changed"
 sources:
-    - title: W01 First Exploration
-      url: https://graphty.app/docs/
-      summary: Quick Data Assessment - basic statistics output
+    - title: Newman 2003, The Structure and Function of Complex Networks
+      url: https://doi.org/10.1137/S003614450342480
+      summary: Standard definitions of the descriptive network statistics (density, degree, clustering, components)
+    - title: Clauset, Shalizi and Newman 2009, Power-law distributions in empirical data
+      url: https://arxiv.org/abs/0706.1062
+      summary: Plot the CCDF; least-squares fits on log-log histograms are biased; p >= 0.1 only means plausible
+    - title: Broido and Clauset 2019, Scale-free networks are rare
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6399239/
+      summary: Across 928 datasets few met strong scale-free evidence; report heavy-tailed, not scale-free
+    - title: Academic social network research (use case 2)
+      url: design/user-research/academic-social-network-research.md
+      summary: Density, reciprocity, transitivity, components, centralization and subgroups appear in tables in every paper
+    - title: Network scientists and analysis method validity (workflows A to C)
+      url: design/user-research/network-scientists-and-analysis-method-validity.md
+      summary: Degree-distribution claims, modularity caveats and weight conventions that a statistics display must carry
+    - title: Students, educators and first-time users (requirement 5)
+      url: design/user-research/students-educators-and-first-time-users.md
+      summary: A plain-language note per metric -- what it measures, what weight means, what it cannot tell
+    - title: Communicating findings and deliverables (requirement R4)
+      url: design/user-research/communicating-findings-and-deliverables.md
+      summary: Parameters and provenance (algorithms, layout and seed, filters, time window) travel with reported results

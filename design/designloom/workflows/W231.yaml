@@ -58,7 +58,7 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Install** (before class; 10-60 minutes when it fails) - Gephi desktop with the right OS build; older releases
+    1. **Install** (before class, 10-60 minutes when it fails) - Gephi desktop with the right OS build; older releases
     needed Java 8
 
     2. **Open the data** (2 min) - A GEXF with its import report, or nodes CSV then edges CSV in the Data Laboratory,
@@ -137,7 +137,7 @@ goal: >-
     - Output: SVG, PDF or high-resolution PNG figure with legend; node table with computed columns; written report
 success_criteria:
     - metric: Time from opening the dataset to an exported figure
-      target: Under 30 minutes with no install step
+      target: Under 30 minutes with no install step (design goal; no source measures it)
     - metric: Import check
       target: Student can state that node and edge counts match the source file
     - metric: Interpretation

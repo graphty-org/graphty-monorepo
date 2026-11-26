@@ -5,7 +5,7 @@ description: Before a quadratic distance computation or a build whose candidate 
     expected size and cost, offer to proceed or narrow the input, and report honest progress with partial results
     instead of failing after fifteen minutes.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: public-health-and-molecular-epidemiology.md section 10, table row 20 (Must)."
 algorithms: []
 used_by_workflows:
     - W62
@@ -14,5 +14,11 @@ used_by_workflows:
     - W70
     - W75
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Scale: hundreds of thousands of candidate edges interactively, millions of tree tips in a tree view,
+      without the tab dying; honest progress and a cost warning before an expensive run"
+sources:
+    - title: Public Health Outbreak Investigators and Molecular Epidemiologists (section 10, table row 20)
+      url: design/user-research/public-health-and-molecular-epidemiology.md
+      summary: "Must in the research. Covered by Designloom when researched: NOT covered
+        at this scale"

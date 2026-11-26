@@ -4,12 +4,18 @@ category: analysis
 description: Host sets the active node and the view follows and marks it; click or hover hands the node id back so the
     host opens or previews it.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: personal-knowledge-graphs-and-note-networks.md section 9, requirement 4 (Must)."
 algorithms: []
 used_by_workflows:
     - W324
     - W325
     - W333
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Current-item input and open-item output. The host tells the element the active node; the view follows and
+      marks it. Click or hover hands the node id back so the host opens or previews it in a pane"
+sources:
+    - title: Personal Knowledge Graphs and Note Networks (section 9, requirement 4)
+      url: design/user-research/personal-knowledge-graphs-and-note-networks.md
+      summary: "Must in the research. Covered by Designloom when researched: Partly
+        (ego-network, details-on-demand)"

@@ -1,5 +1,8 @@
 id: immersive-cyber-defense-analyst
 name: Immersive Cyber Defense Analyst
+roster_persona: cybersecurity-analyst
+tier: B
+scope: in-scope
 role: Cyber Cadet / Security Analyst in a Defense Exercise
 quote: My partner walked me through the network in the headset and we found more attackers -- but afterward I could not draw the topology from memory.
 bio: >-

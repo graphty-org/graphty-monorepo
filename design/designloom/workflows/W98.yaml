@@ -52,24 +52,24 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Import subject phones** (10 min) - Import every subject phone with one line per direction (W97)
+    1. **Import subject phones** - Import every subject phone with one line per direction (W97)
 
-    2. **Size links by count** (2 min) - Link width by call count through a conditional formatting rule
+    2. **Size links by count** - Link width by call count through a conditional formatting rule
 
-    3. **Find common numbers** (5 min) - Numbers linked to two or more subjects; a subject-by-number heat matrix where
+    3. **Find common numbers** - Numbers linked to two or more subjects; a subject-by-number heat matrix where
     available
 
-    4. **Trim and focus** (10 min) - Hide one-off contacts, filter to a date window around the event, and switch one
+    4. **Trim and focus** - Hide one-off contacts, filter to a date window around the event, and switch one
     pair to show every call; look at time-of-day and weekday patterns
 
-    5. **Identify unknowns** (hours to days) - Subscriber lookups on unknown numbers; add names, aliases and addresses
+    5. **Identify unknowns** - Subscriber lookups on unknown numbers; add names, aliases and addresses
     to the nodes
 
-    6. **Rank** (5 min) - Run degree and betweenness on the number network (see W104)
+    6. **Rank** - Run degree and betweenness on the number network (see W104)
 
-    7. **Hand off** (15 min) - Priority numbers for legal process or a wiretap application, and a toll chart
+    7. **Hand off** - Priority numbers for legal process or a wiretap application, and a toll chart
 
-    8. **Append live data** (repeating, minutes each) - Pen registers, trap-and-trace orders and wiretaps deliver
+    8. **Append live data** (repeating) - Pen registers, trap-and-trace orders and wiretaps deliver
     records continuously; re-import through the same specification, match new rows to entities already on the chart,
     keep the hand layout and annotations, and highlight what is new since the last update (inferred from vendor
     material; how i2 users do this: no source found)

@@ -4,11 +4,19 @@ category: analysis
 description: Collapse paths that reach the same target through the same chain into one finding listing all affected
     sources, with a count.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: cybersecurity-graph-work.md section 10, requirement 17 (S) and section 5.1."
 algorithms: []
 used_by_workflows:
     - W108
     - W114
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Should: Collapse paths that reach the same target through the same chain into one finding"
+    - "Should: List every source the finding covers, with a count"
+sources:
+    - title: "NetSPI, ADPathfinder: OpenGraph attack path mapping in BloodHound CE"
+      url: "https://www.netspi.com/blog/technical-blog/network-pentesting/adpathfinder-opengraph-attack-path-mapping-in-bloodhound-ce/"
+      summary: "Pentesters face duplicate attack paths and group them into findings"
+    - title: "Cybersecurity research, section 10, requirement 17"
+      url: "design/user-research/cybersecurity-graph-work.md"
+      summary: "Group duplicate paths into one finding with affected principals, Should"

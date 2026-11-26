@@ -3,7 +3,7 @@ name: Very Large Files - Size Check, Reduction and Database Loading
 category: onboarding
 validated: false
 personas:
-    - event-log-network-builder
+    - crime-intelligence-analyst
     - graph-data-wrangler
 requires_capabilities:
     - data-import
@@ -70,6 +70,9 @@ goal: >-
 
     - Progress with counts during the load, and what was dropped by any sample or filter
 
+    - Whether the format can be read as a stream; a whole-document parse (one XML tree) needs the whole file in
+    memory, while a streamed CSV does not
+
 
     **Pain Points**:
 
@@ -78,6 +81,9 @@ goal: >-
     - Tools crash or hang during load with no progress or estimate
 
     - Splitting files by hand to get them under a tool's limit
+
+    - Fixed size thresholds with no evidence behind them (no source supports a 50 MB streaming cutoff or a 100 MB
+    browser ceiling; a V8 string tops out near 1 GiB and the real limit is memory for the parsed graph)
 
     - Database loads that crawl because constraints were not created first
 
@@ -94,6 +100,9 @@ success_criteria:
       target: User sees row and node estimates and options before committing to a full load
     - metric: No silent truncation
       target: A file at a known row ceiling is flagged
+    - metric: Streamed reading
+      target: Files are read as a stream at every size, so no size threshold decides whether the browser runs out of
+          memory while parsing
     - metric: Reduction disclosed
       target: Any sample or filter applied at import is recorded with the loaded graph
 sources:
@@ -121,6 +130,15 @@ sources:
     - title: Neo4j data ingestion guide - LOAD CSV
       url: https://neo4j.com/docs/data-ingestion-guide/ingestion-methods/load-csv/
       summary: Constraints first, CALL IN TRANSACTIONS batching, nodes then relationships
-version: 1.0.0
+    - title: Papa Parse documentation
+      url: https://www.papaparse.com/docs
+      summary: Streaming "is necessary for large files which would otherwise crash the browser"; 10 MB local chunks
+    - title: MDN - String length
+      url: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/length
+      summary: V8 strings hold at most 2^29 - 24 characters (about 1 GiB); Firefox about 2 GiB
+    - title: MDN - Blob.stream()
+      url: https://developer.mozilla.org/en-US/docs/Web/API/Blob/stream
+      summary: Browsers expose a file's bytes as a readable stream
+version: 1.1.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

@@ -1,9 +1,12 @@
 id: food-web-ecologist
 name: Food Web and Ecosystem Model Ecologist
+roster_persona: interaction-network-ecologist
+tier: B
+scope: in-scope
 role: Research Scientist / Aquatic and Fisheries Ecologist
 quote: Basal species at the bottom, top predators at the top, body size as node size. Then tell me what happens to the seals if we double the fishing on small pelagics.
 bio: >-
-    Dr. Tomas Lindqvist is a research scientist in a freshwater, marine or fisheries group, part empiricist and part
+    Dr. Lars Lindqvist is a research scientist in a freshwater, marine or fisheries group, part empiricist and part
     modeler, who sometimes advises fisheries managers. His networks are directed: who eats whom, assembled from gut
     contents, stable isotopes, literature and DNA metabarcoding. A typical web has 25 to 200 species or functional groups
     with body mass and abundance per node (the classic Tuesday Lake 1984 web has 56 nodes and 269 links), and regional

@@ -1,9 +1,12 @@
 id: text-network-analyst
 name: Text Network Analyst
+roster_persona: text-network-analyst
+tier: B
+scope: in-scope
 role: Associate Professor of Public Health / Text-Mining Social Scientist
 quote: Show me which words travel together in these 3,000 answers, and then show me the answers behind each cluster.
 bio: >-
-    Dr. Aiko Morimoto is an associate professor of public health in Japan who supervises three master's students. Her
+    Dr. Keiko Morimoto is an associate professor of public health in Japan who supervises three master's students. Her
     data are words, not tables: hundreds to thousands of open-ended survey answers, or tens of thousands of tweets split
     by day or by region, each carrying a few document variables such as age group or date. She builds word
     co-occurrence networks in KH Coder (MeCab for Japanese, R for the plots), sometimes moves a term list to Gephi, and

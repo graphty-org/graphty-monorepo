@@ -63,10 +63,10 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Place the genomes** (minutes) - Add local sequences to an existing mutation-annotated tree rather than
+    1. **Place the genomes** - Add local sequences to an existing mutation-annotated tree rather than
     inferring a new tree from scratch
 
-    2. **Convert for viewing** (minutes) - Turn the mutation-annotated tree, or a Newick tree plus a metadata table,
+    2. **Convert for viewing** - Turn the mutation-annotated tree, or a Newick tree plus a metadata table,
     into a single viewing file that carries tree, metadata and mutations together
 
     3. **Choose where the processing happens** (a decision, not a step) - A browser mode that keeps all processing
@@ -75,14 +75,14 @@ goal: >-
     12.5 million sequences on an 8 GB laptop, and client-side processing reached roughly 6 million terminal nodes on
     some systems
 
-    4. **Navigate** (10 min to hours) - Pan and zoom each axis independently with a minimap, and switch between the
+    4. **Navigate** - Pan and zoom each axis independently with a minimap, and switch between the
     chronological tree and the distance tree
 
-    5. **Color and search** (20 min) - Color by any metadata field or by the genotype at a chosen site; search by
+    5. **Color and search** - Color by any metadata field or by the genotype at a chosen site; search by
     metadata or by mutation with AND, OR and NOT, filtering mutation searches by the number of descendant tips;
     matches are circled in place rather than listed
 
-    6. **Read the answer** (20 min) - Whether the local genomes form one group with a recent common ancestor, or sit
+    6. **Read the answer** - Whether the local genomes form one group with a recent common ancestor, or sit
     in several places with national neighbors between them
 
 
@@ -139,7 +139,7 @@ goal: >-
     and an exported figure
 success_criteria:
     - metric: Scale
-      target: Millions of tips stay navigable, with the local tips findable in seconds
+      target: Millions of tips stay navigable, with the local tips findable in seconds (design goal; no source measures it)
     - metric: Local processing
       target: A sensitive dataset can be explored without any sequence leaving the machine
     - metric: Introduction counting

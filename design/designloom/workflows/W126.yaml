@@ -65,25 +65,25 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Plan and obtain** (weeks) - Subpoenas; inventory every record received with an index and status log
+    1. **Plan and obtain** - Subpoenas; inventory every record received with an index and status log
 
     2. **Extract** (the longest step) - Statements, checks, deposit items and wires into rows by OCR
 
-    3. **Normalize** (hours) - One template: date, account, counterparty, amount, instrument, check number, memo, source
+    3. **Normalize** - One template: date, account, counterparty, amount, instrument, check number, memo, source
     file and page; import many files into one graph
 
-    4. **Review for leads** (hours) - Payees, endorsements, signatories, where checks were negotiated
+    4. **Review for leads** - Payees, endorsements, signatories, where checks were negotiated
 
-    5. **Match internal transfers** (1 hour) - Pair a debit and a credit of the same amount within a few days across the
+    5. **Match internal transfers** - Pair a debit and a credit of the same amount within a few days across the
     subject's own accounts so they are not counted as income
 
-    6. **Analyze** (hours) - By date, payee and source; a flow matrix among accounts
+    6. **Analyze** - By date, payee and source; a flow matrix among accounts
 
-    7. **Chart** (1 hour) - Flow-of-funds Sankey or link chart sized by amount, each flow drillable to its transactions
+    7. **Chart** - Flow-of-funds Sankey or link chart sized by amount, each flow drillable to its transactions
 
     8. **Trace under a rule** (when needed) - W121
 
-    9. **Present** (hours) - Exhibit and summary tied to source documents
+    9. **Present** - Exhibit and summary tied to source documents
 
 
     **Decision Points**:

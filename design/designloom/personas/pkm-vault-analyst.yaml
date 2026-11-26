@@ -1,9 +1,12 @@
 id: pkm-vault-analyst
 name: PKM Vault Analyst
+roster_persona: personal-knowledge-gardener
+tier: A
+scope: in-scope
 role: Data Engineer treating an 18,000-note vault as a dataset
 quote: There is no one script yet, just a series of moves. I want the whole link graph in one call.
 bio: >-
-    Kenji is a data engineer whose Obsidian vault has grown to about 18,000 notes and 58,000 internal links. The
+    Hiroshi is a data engineer whose Obsidian vault has grown to about 18,000 notes and 58,000 internal links. The
     built-in global graph takes minutes to build at that size, so he no longer opens it. Instead he treats the vault as a
     dataset: Graph Analysis for Jaccard, Adamic-Adar and co-citation suggestions relative to the current note; Advanced
     Graph View for a WebGL graph sized by PageRank and colored by Louvain clusters; obsidiantools in Python for a NetworkX

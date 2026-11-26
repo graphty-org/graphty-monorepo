@@ -28,30 +28,40 @@ starting_state:
     user_expertise: expert
 goal: >-
     **Intent**: Measure how a network falls apart as nodes are removed at random (failure) or in order of importance
-    (attack), and report the curve of the giant component's share against the fraction removed, plus the critical
-    fraction where it collapses.
+    (attack), and report the curve of the giant component's share against the fraction removed, the robustness R
+    (the mean of that share over every removal step, Schneider et al. 2011) per strategy, and the critical fraction
+    where it collapses.
 
 
     **Mental Model**: "Remove one node at a time and watch the giant component." Robustness is a curve per strategy,
-    not a single removal.
+    not a single removal; R is the one number that ranks networks, because two networks can share a critical
+    fraction and still differ in R.
 
 
     **Task Phases**:
 
-    1. **Pick removal strategies** (1 min) - Random failure; targeted attack by decreasing degree or betweenness
+    1. **Pick removal strategies** - Random failure; targeted attack by decreasing degree or betweenness
 
-    2. **Decide whether to recompute** (1 min) - Recalculate the ranking after each removal or not; recalculated attacks
-    are often more harmful
+    2. **Decide whether to recompute** - Recalculate the ranking after each removal or not; recalculated attacks
+    are often more harmful, and recomputing changes R (static betweenness attacks do much worse than recomputed
+    ones), so the setting is recorded with the result
 
-    3. **Remove step by step** (minutes) - Record the giant component's share S against the fraction removed f
+    3. **Remove step by step** - Record the giant component's share S against the fraction removed f
 
-    4. **Repeat random removal** (minutes) - Many seeded runs; mean curve with spread
+    4. **Repeat random removal** - Many seeded runs; mean curve with spread
 
-    5. **Read the curves** (5 min) - Heavy-tailed networks keep a giant component under random failure but break
+    5. **Compute R per strategy** - R = (1/N) times the sum over Q = 1..N of the largest component's share after Q
+    removals, from 1/N (a star) to 0.5 (a complete graph); for random failure, the mean R over runs and its spread
+
+    6. **Read the curves** - Heavy-tailed networks keep a giant component under random failure but break
     quickly when hubs are attacked; random graphs fall apart beyond a threshold (about f = 0.28 in Albert et al.'s
-    exponential network)
+    exponential network); compare networks, or one network before and after a change, by R
 
-    6. **Hand off** (5 min) - S(f) curves per strategy, the critical fraction, and the order of removed nodes
+    7. **Edge removal when links fail** - Remove links by highest edge betweenness and report the link-robustness
+    index separately; better node robustness does not guarantee better link robustness
+
+    8. **Hand off** - S(f) curves per strategy, R per strategy with spread for random runs, the critical fraction,
+    the recompute setting, the seeds, and the order of removed nodes
 
 
     **Decision Points**:
@@ -69,6 +79,8 @@ goal: >-
 
     - S(f) per strategy with spread for random removal
 
+    - R per strategy, with mean and spread over random runs
+
     - Critical fraction per strategy
 
     - Ordered list of removed nodes for targeted attacks
@@ -77,6 +89,10 @@ goal: >-
     **Pain Points**:
 
     - Existing impact tools report one removal at a time, not a curve
+
+    - Common libraries return the curve but not R: graph-tool's vertex_percolation takes a fixed removal order
+    (static attacks only), and networkx-robustness ranks once, takes no seed and returns no R, so analysts write the
+    loop themselves
 
     - Recomputing betweenness after each removal is expensive and needs progress feedback
 
@@ -87,12 +103,14 @@ goal: >-
 
     - Transformations: Sequential removal, component tracking, repeated random runs
 
-    - Output: Robustness curves, critical fractions, removal order, provenance record
+    - Output: Robustness curves, R per strategy with spread, critical fractions, removal order, provenance record
 success_criteria:
     - metric: Curves produced
       target: S(f) per strategy plotted with spread for random removal
     - metric: Critical fraction reported
       target: User can state f at which the giant component collapses per strategy
+    - metric: Robustness R reported
+      target: R per strategy and recompute setting, with mean and spread over random runs, comparable across networks
 sources:
     - title: Error and attack tolerance of complex networks (Albert, Jeong and Barabasi 2000)
       url: https://arxiv.org/abs/cond-mat/0008064
@@ -100,6 +118,21 @@ sources:
     - title: Attack vulnerability of complex networks (Holme, Kim, Yoon and Han 2002)
       url: https://arxiv.org/abs/cond-mat/0202410
       summary: Degree and betweenness attacks, with recalculated rankings often more harmful
+    - title: Mitigation of malicious attacks on networks (Schneider, Moreira, Andrade, Havlin and Herrmann, PNAS 2011)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC3053993
+      summary: Defines R, the mean largest-component share over all removals (1/N to 0.5); threshold stays the same while R rises 45% for the European power grid after degree-preserving rewiring
+    - title: Enhancing network robustness against malicious attacks (Zeng and Liu, Phys. Rev. E 2012)
+      url: https://arxiv.org/abs/1203.2982
+      summary: Link-robustness index under highest edge-betweenness link removal; improving node robustness does not guarantee link robustness
+    - title: A comparative analysis of approaches to network-dismantling (Wandelt et al., Scientific Reports 2018)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6131543
+      summary: Benchmarks 13 static and recomputed strategies by R; recomputed betweenness gives the lowest R in about 70-80 percent of networks at cubic cost
+    - title: graph-tool vertex_percolation
+      url: https://graph-tool.skewed.de/static/docs/stable/autosummary/graph_tool.topology.vertex_percolation.html
+      summary: Largest component size before each removal for a given removal order, Newman-Ziff method in O(V + E)
+    - title: networkx-robustness (PyPI)
+      url: https://pypi.org/project/networkx-robustness/
+      summary: Random, degree, betweenness, closeness and eigenvector attacks returning giant-component share per removal; static ranking, no R
 version: 1.0.0
 created_at: 2026-11-25T00:00:00.000Z
-updated_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T12:00:00.000Z

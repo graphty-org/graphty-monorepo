@@ -1,5 +1,8 @@
 id: graph-perspective-curator
 name: Graph Perspective Curator
+roster_persona: graph-database-developer
+tier: A
+scope: in-scope
 role: Graph Solutions Engineer / Data Engineer who prepares views for business users
 quote: The analysts keep asking the same six questions. My job is to make each one a search phrase they can run without knowing Cypher.
 bio: >-

@@ -77,19 +77,19 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Sequence and quality-control** (hours) - Trim reads, check for interspecies and intraspecies contamination,
+    1. **Sequence and quality-control** - Trim reads, check for interspecies and intraspecies contamination,
     assess completeness, and assemble
 
-    2. **Call alleles** (minutes to hours) - Run the organism's core-genome or whole-genome scheme against the
+    2. **Call alleles** - Run the organism's core-genome or whole-genome scheme against the
     assembly: 2,513 loci for one Shiga toxin-producing E. coli core-genome scheme, 30,717 for the chromosomal
     whole-genome scheme. One national caller matches with BLASTn against reference alleles and hashes allele
     sequences; an open-source alternative calls alleles from predicted coding sequences scored by a BLAST score ratio
 
-    3. **Turn profiles into distances** (minutes) - Count pairwise allele differences, excluding loci missing in
+    3. **Turn profiles into distances** - Count pairwise allele differences, excluding loci missing in
     either isolate; the proportion of loci successfully called is itself a quality metric, because missing loci drop
     out of a comparison
 
-    4. **Draw a minimum spanning tree** (seconds to hours, scale-dependent) - Identical profiles group into one node
+    4. **Draw a minimum spanning tree** (scale-dependent) - Identical profiles group into one node
     whose diameter scales with the number of isolates it holds, any metadata column colors or labels the nodes, and
     allele differences are written on the branches; a force-directed alternative can delete links above a chosen
     distance to split the tree
@@ -98,21 +98,21 @@ goal: >-
     failed above that on Windows; 100,000 types needed roughly 300 GB of RAM on a Linux server and under 700
     minutes; trees above 20,000 nodes open collapsed
 
-    6. **Apply the organism's rule** (10 min) - For example five or more clinical cases published within 60 days of
+    6. **Apply the organism's rule** - For example five or more clinical cases published within 60 days of
     each other and within 0 to 10 core-genome allele differences for one organism, or three or more cases within 25
     whole-genome alleles in 120 days for another
 
-    7. **Check for chaining** (10 min) - Each new isolate may be within the cutoff of one member and not of the
+    7. **Check for chaining** - Each new isolate may be within the cutoff of one member and not of the
     others; one Salmonella Enteritidis cluster defined at 5 alleles grew to 14 alleles of internal diversity
 
-    8. **Confirm with SNPs** (hours) - Re-analyze the candidate with a reference-based high-quality SNP pipeline and
+    8. **Confirm with SNPs** - Re-analyze the candidate with a reference-based high-quality SNP pipeline and
     tree, and compare the SNP tree against the allele-based dendrogram side by side
 
-    9. **Check national context** (30 min) - National systems group isolates by sequence similarity and then build
+    9. **Check national context** - National systems group isolates by sequence similarity and then build
     fixed single-linkage clusters; those clusters cannot be customized, are re-analyzed continuously so accessions
     are not archival, and the system states it does not identify outbreaks or outbreak membership
 
-    10. **Hand off** (30 min) - A short list of isolates with source, state and collection date, plus the tree
+    10. **Hand off** - A short list of isolates with source, state and collection date, plus the tree
     picture, for interviews and traceback
 
 

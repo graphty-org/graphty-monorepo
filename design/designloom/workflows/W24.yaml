@@ -34,14 +34,17 @@ suggested_components:
     - data-export-dialog
     - image-export-dialog
 starting_state:
-    data_type: two or more networks over the same gene identifier space (tumor vs normal, treated vs untreated, two diseases)
+    data_type: two networks over the same gene identifier space (tumor vs normal, treated vs untreated, two diseases)
     node_count: 100-5000 each
     edge_density: sparse to medium
     user_expertise: intermediate+
 goal: >-
     **Intent**: Compare two networks built for two conditions and find what is shared, what is specific to each, and
     which genes changed their position (rewired) between them. Typical pairs: tumor vs normal co-expression modules,
-    two disease gene networks from STRING, before vs after a treatment.
+    two disease gene networks from STRING, before vs after a treatment. This record is the two-network case only.
+    Ecology, connectomics, digital humanities and psychological network studies compare many networks (sites x
+    seasons, subjects x conditions x bands, plays in a corpus, groups) as small multiples with one layout and shared
+    scales; that is W1042, not an extension of the three-state legend here.
 
 
     **Mental Model**: "Overlay two maps of the same city." Streets present in both are the stable backbone; streets in
@@ -50,22 +53,22 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Load both** (3 min) - Import each network as its own named network in one session; confirm both use the same
+    1. **Load both** - Import each network as its own named network in one session; confirm both use the same
     identifier column
 
-    2. **Merge** (3 min) - Union to see everything, intersection for the shared core, difference for condition-specific
+    2. **Merge** - Union to see everything, intersection for the shared core, difference for condition-specific
     parts, matching nodes by identifier; keep per-condition attributes side by side (logFC_tumor, logFC_normal)
 
-    3. **Compare statistics** (3 min) - Node and edge counts, density, component count and community count for each
+    3. **Compare statistics** - Node and edge counts, density, component count and community count for each
     network and for the merged one
 
-    4. **Find rewired genes** (8 min) - Compute degree or betweenness in each condition, build a custom score for the
+    4. **Find rewired genes** - Compute degree or betweenness in each condition, build a custom score for the
     difference, filter to the largest changes, encode edges by "in A only / in B only / both"
 
-    5. **Look side by side** (5 min) - Two synchronized views with the same node positions, one per condition; select a
+    5. **Look side by side** - Two synchronized views with the same node positions, one per condition; select a
     gene in one and see it highlighted in the other
 
-    6. **Report** (3 min) - Export the merged edge list with a membership column and a figure with the three-state
+    6. **Report** - Export the merged edge list with a membership column and a figure with the three-state
     edge legend
 
 

@@ -5,7 +5,7 @@ description: "Typed multi-field attachments on items: indicators (who, how many,
     rationale and assumptions on edges, interventions attached to edges, Markdown narrative and citations, multiple
     source quotes with a count of sources."
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: systems-and-stakeholder-mapping-civic.md section 9, table row 4 (Must)."
 algorithms: []
 used_by_workflows:
     - W196
@@ -13,5 +13,12 @@ used_by_workflows:
     - W204
     - W205
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Per-node structured attachments: indicators (who, how many, how much, by when) on outcomes; rationale and
+      assumption on edges; interventions on edges"
+sources:
+    - title: "Systems Mappers and Civic Power-Mappers: Foundations, NGOs, Evaluators and Organizers (section 9, table
+        row 4)"
+      url: design/user-research/systems-and-stakeholder-mapping-civic.md
+      summary: "Must in the research. Covered by Designloom when researched: No.
+        details-on-demand shows attributes only."

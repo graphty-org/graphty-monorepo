@@ -4,12 +4,17 @@ category: analysis
 description: Show a translucent background surface (brain mesh such as ICBM152, fsaverage, fs_LR; GIfTI or OBJ) in the
     same space as the nodes, with opacity control, plus region overlays such as a resection mask.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: network-neuroscience-connectomics.md section 10, requirement R4 (Must)."
 algorithms: []
 used_by_workflows:
     - W152
     - W158
     - W159
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Anatomical context: a translucent brain surface mesh (ICBM152/fsaverage/fs_LR, GIfTI or OBJ) in the same
+      space, opacity control, explicit space name to catch mismatches"
+sources:
+    - title: "Network Neuroscientists: Structural, Functional and Cellular Connectomics (section 10, requirement R4)"
+      url: design/user-research/network-neuroscience-connectomics.md
+      summary: "Must in the research. Covered by Designloom when researched: Not covered"

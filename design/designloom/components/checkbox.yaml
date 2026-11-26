@@ -6,6 +6,7 @@ status: implemented
 notes: "Ships: Mantine Checkbox, Mantine through compact-mantine, used across graphty/src."
 implements_capabilities: []
 used_in_workflows:
+    - W3058
     - W363
 dependencies: []
 props:

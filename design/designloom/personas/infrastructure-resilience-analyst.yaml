@@ -1,5 +1,8 @@
 id: infrastructure-resilience-analyst
 name: Infrastructure Resilience Analyst
+roster_persona: infrastructure-resilience-analyst
+tier: B
+scope: in-scope
 role: Infrastructure Resilience Analyst at a state emergency management agency
 quote: If that substation goes down, the hospital has generator fuel for 72 hours and the water plant has six. I need to
     see who fails, and when, before the storm makes landfall.
@@ -43,6 +46,7 @@ context:
     voluntary: true
 workflows:
     - W221
+    - W77
 sources:
     - title: CISA Fact Sheet - CISA Gateway Dependency and Cascading Impacts (2024)
       url: https://www.cisa.gov/sites/default/files/2024-09/CISA%20Fact%20Sheet%20-%20CISA%20Gateway%20-%20Dependency%20and%20Cascading%20Impacts.20SEP2024%20508%20compliant.pdf

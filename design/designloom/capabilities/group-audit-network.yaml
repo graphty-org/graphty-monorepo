@@ -1,0 +1,19 @@
+id: group-audit-network
+name: "Group audit table to two-level signed group network"
+category: data
+description: "Import a table with one row per group whose conflict and ally columns list other groups; merge the two sides of each relationship into one signed edge (alliance or conflict) and flag relationships reported by only one side or under variant names; keep sizes as ranges; nest groups under umbrella groups; attach people as members; size groups by number of conflicts."
+status: planned
+notes: "Research trace: law-enforcement-and-intelligence-analysts.md section 10, requirement 27 (Must)."
+algorithms: []
+used_by_workflows:
+    - W2006
+implemented_by_components: []
+requirements:
+    - "Must: Group-level graph from a group audit table: one row per group with conflict and ally lists merged into one
+      signed edge per pair, sizes as ranges, umbrella groups containing groups, people attached as members; degree of
+      conflict per group"
+sources:
+    - title: Law enforcement crime and intelligence analysts, and defense and national intelligence analysts (section
+        10, requirement 27)
+      url: design/user-research/law-enforcement-and-intelligence-analysts.md
+      summary: "Must in the research. Covered by Designloom when researched: Partly (signed-edges, group-collapse)"

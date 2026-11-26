@@ -5,7 +5,7 @@ description: Every node, edge and property value carries its source (document or
     first and last seen or cited, who added it), a verification status (accepted, conflict, work needed) and a
     confidence rating; visible in details, usable in filters and styling, and kept in every export.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: investigative-journalism-and-osint.md section 10, requirement R1 (Must)."
 algorithms: []
 used_by_workflows:
     - W09
@@ -51,9 +51,6 @@ used_by_workflows:
     - W432
     - W437
     - W438
-    - W441
-    - W446
-    - W447
     - W88
     - W89
     - W90
@@ -62,34 +59,39 @@ used_by_workflows:
     - W95
     - W96
     - W97
+    - W1012
+    - W1018
+    - W1042
+    - W1054
+    - W1084
+    - W1090
+    - W1096
+    - W1126
+    - W254
+    - W1138
+    - W105
+    - W2006
+    - W2066
+    - W2072
 implemented_by_components: []
 requirements:
-    - Every node and edge traces to the source records behind it (file and row, extraction artifact, message), which can
-      be opened from the element and exported as a list.
-    - Carry and display the source of every node and edge (institution, filing or report, information-sharing response,
-      statement file and page, vendor label set) and filter or style by source, so every exported number can be tied
-      back to its origin.
-    - From a node or edge, reach the source chunks, documents, episodes or knowledge sources it came from, and back from
-      a source to the elements it produced; highlight the subgraph a given id list (such as a RAG answer's context)
-      used.
-    - Keep a citation, page or scene id, and evidence excerpt on every node and edge, show them on click, and carry them
-      through import and export to the figure.
-    - Every node and edge keeps or links its source records (post text, URL, timestamp, criterion that created a
-      projected edge), opened from a click on the canvas.
-    - Attach source, confidence and documents (record type, number, date, quantity, file reference) to edges and nodes;
-      show unknown links as unknown rather than absent; list edges with no evidence.
-    - Keep a reference to the source record or document on every node and edge created by import or extraction, so any
-      link can be traced back to its row or document.
-    - Attach record ids, exhibit or Bates numbers or URLs to nodes and edges and carry them through export as footnotes
-      or a linked source table; an evidence-only mode that hides unconfirmed links and non-evidence attributes and a
-      neutral-emphasis check.
-    - Each edge records which source (custodian copy or production) produced it; observed versus partly observed nodes
-      usable as a filter and as a caution on centrality.
-    - Every node and edge keeps the ids of the passages, segments or concordance lines behind it; clicking or hovering
-      shows them, sampled and fast when an edge rests on thousands.
-    - Every node and edge records its source database, version, access date and evidence class (curated, predicted with
-      native score, text-mined, measured, absorbed, metabolite); stylable and excludable by class to show what survives.
-    - Every node and edge carries its source, database version, access date and evidence class (curated, predicted with
-      its native score, text-mined, measured). The evidence class can be styled, for example dashed edges for
-      predictions, and a whole class can be excluded to see what survives.
-sources: []
+    - "Must: Provenance on every node, edge and property value: source document or dataset, URL, capture date,
+      first/last seen or first/last cited, who added it, verification status (accepted, conflict, work needed) and a
+      confidence rating per claim (Security Force Monitor shows sources and confidence for each value); visible in
+      details and carried in every export"
+    - "Must: Every node and edge traces to the source records behind it (file and row, extraction artifact, message), which can be opened from the element and exported as a list."
+    - "Must: Carry and display the source of every node and edge (institution, filing or report, information-sharing response, statement file and page, vendor label set) and filter or style by source, so every exported number can be tied back to its origin."
+    - "Must: From a node or edge, reach the source chunks, documents, episodes or knowledge sources it came from, and back from a source to the elements it produced; highlight the subgraph a given id list (such as a RAG answer's context) used."
+    - "Must: Keep a citation, page or scene id, and evidence excerpt on every node and edge, show them on click, and carry them through import and export to the figure."
+    - "Must: Every node and edge keeps or links its source records (post text, URL, timestamp, criterion that created a projected edge), opened from a click on the canvas."
+    - "Must: Attach source, confidence and documents (record type, number, date, quantity, file reference) to edges and nodes; show unknown links as unknown rather than absent; list edges with no evidence."
+    - "Must: Keep a reference to the source record or document on every node and edge created by import or extraction, so any link can be traced back to its row or document."
+    - "Must: Attach record ids, exhibit or Bates numbers or URLs to nodes and edges and carry them through export as footnotes or a linked source table; an evidence-only mode that hides unconfirmed links and non-evidence attributes and a neutral-emphasis check."
+    - "Must: Each edge records which source (custodian copy or production) produced it; observed versus partly observed nodes usable as a filter and as a caution on centrality."
+    - "Must: Every node and edge keeps the ids of the passages, segments or concordance lines behind it; clicking or hovering shows them, sampled and fast when an edge rests on thousands."
+    - "Must: Every node and edge records its source database, version, access date and evidence class (curated, predicted with native score, text-mined, measured, absorbed, metabolite); stylable and excludable by class to show what survives."
+    - "Must: Every node and edge carries its source, database version, access date and evidence class (curated, predicted with its native score, text-mined, measured). The evidence class can be styled, for example dashed edges for predictions, and a whole class can be excluded to see what survives."
+sources:
+    - title: Investigative journalists, OSINT investigators and trust-and-safety teams (section 10, requirement R1)
+      url: design/user-research/investigative-journalism-and-osint.md
+      summary: "Must in the research. Covered by Designloom when researched: Not covered (annotation is free text only)"

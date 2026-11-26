@@ -5,7 +5,7 @@ description: Import a square (or rectangular) weighted adjacency matrix from tex
     .node/.edge pairs and XCP-D relmat TSV; header labels or a row-order-joined node table give node ids; validates N x
     N shape and symmetry; zero means no edge.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: network-neuroscience-connectomics.md section 10, requirement R1 (Must)."
 algorithms: []
 used_by_workflows:
     - W152
@@ -32,20 +32,23 @@ used_by_workflows:
     - W375
     - W376
     - W377
+    - W1006
+    - W1042
+    - W1126
+    - W226
+    - W2099
 implemented_by_components: []
 requirements:
-    - Import a wide interaction matrix (names in first row and column) as a weighted bipartite or square directed graph,
-      and split a long observation table into one network per site or season, optionally padded to one shared species
-      list.
-    - Import and export adjacency matrices, one matrix per relationship type, and respondent-by-member survey matrices
-      with node attribute sheets.
-    - Import a dense adjacency, correlation or topological overlap matrix, a long all-pairs table, or a sparse matrix
-      with a node table (.h5ad), then sparsify by weight threshold or top-k per node with live edge, component and
-      hub-retention counts and a recorded cut.
-    - Read adjacency, incidence, similarity and distance matrices (and stacks of them), symmetrize, threshold by
-      absolute value or proportional density, and preview edge count, density and components across a sweep before
-      building.
-    - Import a square weights or adjacency matrix (CSV with item names as header and row names) as a weighted, signed,
-      undirected or directed graph with zeros as absent edges, plus an optional node table (label, full text, group,
-      role).
-sources: []
+    - "Must: Import a square adjacency matrix (text/CSV/TSV, whitespace, comma or tab) as a weighted graph; use
+      header-row labels as node ids when present (XCP-D relmat TSV), else join a node table by row order; validate N x N
+      and symmetry; treat zero as no edge"
+    - "Must: Import a wide interaction matrix (names in first row and column) as a weighted bipartite or square directed graph, and split a long observation table into one network per site or season, optionally padded to one shared species list."
+    - "Must: Import and export adjacency matrices, one matrix per relationship type, and respondent-by-member survey matrices with node attribute sheets."
+    - "Must: Import a dense adjacency, correlation or topological overlap matrix, a long all-pairs table, or a sparse matrix with a node table (.h5ad), then sparsify by weight threshold or top-k per node with live edge, component and hub-retention counts and a recorded cut."
+    - "Must: Read adjacency, incidence, similarity and distance matrices (and stacks of them), symmetrize, threshold by absolute value or proportional density, and preview edge count, density and components across a sweep before building."
+    - "Must: Import a square weights or adjacency matrix (CSV with item names as header and row names) as a weighted, signed, undirected or directed graph with zeros as absent edges, plus an optional node table (label, full text, group, role)."
+sources:
+    - title: "Network Neuroscientists: Structural, Functional and Cellular Connectomics (section 10, requirement R1)"
+      url: design/user-research/network-neuroscience-connectomics.md
+      summary: "Must in the research. Covered by Designloom when researched: Not covered
+          (current imports are edge lists and graph formats)"

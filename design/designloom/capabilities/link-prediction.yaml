@@ -1,15 +1,14 @@
 id: link-prediction
 name: Link Prediction
 category: analysis
-description: Predict which connections are likely to form between currently unconnected nodes. Use structural features
-    (common neighbors, path length) to score potential edges. Useful for recommendation systems and fraud detection.
-status: implemented
-notes: "Ships: graphty-element/src/algorithms/LinkPredictionAlgorithm.ts."
+description: "Score pairs of currently unconnected nodes by how likely a link between them is, from local structure (common neighbors, Jaccard, Adamic-Adar, resource allocation, preferential attachment), and rank the candidates. Users suggest links between notes, guess hidden links in incomplete data (a missing supply-chain edge is unknown, not absent) and rank candidates in fraud work. No single predictor is best on every network, so the capability also evaluates predictors on held-out edges with precision-recall, and keeps predicted edges apart from observed ones."
+status: in-progress
+notes: "Partly ships: graphty-element/src/algorithms/LinkPredictionAlgorithm.ts ranks unconnected pairs on the undirected view by Adamic-Adar (the default) or Common neighbors, returning the top Pairs (10 by default) as a table. Planned: Jaccard, Resource Allocation and Preferential Attachment, candidates relative to one node, type and hop filters, shared-neighbor counts in the result, the held-out precision-recall evaluation mode, loading externally scored edges, and CSV export of candidates. Any requirement below that this note does not name as shipping counts as planned."
 algorithms:
-    - Common neighbors
-    - Jaccard coefficient
-    - Adamic-Adar index
-    - Preferential attachment
+    - Common neighbors (shipped)
+    - Jaccard coefficient (planned)
+    - Adamic-Adar index (shipped)
+    - Preferential attachment (planned)
 used_by_workflows:
     - W16
     - W104
@@ -23,23 +22,43 @@ used_by_workflows:
 implemented_by_components:
     - link-prediction-panel
 requirements:
-    - Calculate Common Neighbors score as count of shared neighbors between node pairs
-    - Calculate Jaccard Coefficient as common_neighbors / union_neighbors with 4 decimal places
-    - Calculate Adamic-Adar Index as sum of 1/log(degree) for common neighbors
-    - Calculate Preferential Attachment score as degree(u) * degree(v)
-    - Calculate Resource Allocation Index as sum of 1/degree for common neighbors
-    - "Provide algorithm selection: common_neighbors, jaccard, adamic_adar, preferential_attachment, resource_allocation"
-    - Rank unconnected node pairs by selected prediction score descending
-    - Display top-N predicted links with configurable N from 10 to 1000 (default 50)
-    - Filter predictions to specific node type pairs (e.g., only person-person links)
-    - "Filter predictions to nodes within N hops of specified seed node (default: all pairs)"
-    - Exclude node pairs already connected by any edge type
-    - Display predicted link with source, target, score, and common neighbor count
-    - Allow clicking predicted link to visualize the two nodes and their common neighbors
-    - Complete prediction for top-100 within 5 seconds for graphs under 10,000 nodes
-    - Report 'No predictions available' when all node pairs are already connected
-    - "Export predictions as CSV with columns: source, target, score, algorithm"
+    - "Should: Calculate Common Neighbors as the count of shared neighbors of a node pair"
+    - "Library parity: Calculate the Jaccard coefficient as shared neighbors divided by the union of the two neighborhoods"
+    - "Should: Calculate the Adamic-Adar index as the sum of 1/log(degree) over shared neighbors"
+    - "Library parity: Calculate the Resource Allocation index as the sum of 1/degree over shared neighbors"
+    - "Library parity: Calculate Preferential Attachment as degree(u) * degree(v)"
+    - "Must: Let the caller choose the index; the result records which index and parameters produced it"
+    - "Library parity: Rank unconnected node pairs by the chosen score, highest first, and return the top N, with N set by the caller"
+    - "Should: Rank candidates relative to one chosen node (link suggestions for the node in focus) as well as over all pairs"
+    - "Library parity: Filter candidates to given node type pairs and to nodes within N hops of a seed node"
+    - "Library parity: Exclude pairs already connected by an edge of any type"
+    - "Library parity: Return each candidate's source, target, score and shared-neighbor count"
+    - "Library parity: Allow showing a candidate's two nodes and their shared neighbors on the canvas"
+    - "Library parity: Evaluation mode: hold out a seeded sample of edges, score them against non-edges, and report precision-recall (not ROC area alone, since non-edges vastly outnumber edges); the seed is recorded so the run repeats"
+    - "Should: Load externally scored predicted edges (for example from a trained model) and draw them distinct from observed edges, with the supporting paths per prediction"
+    - "Should: Never add predicted edges to the observed graph unless the user explicitly accepts them"
+    - "Library parity: Return an empty result with a reason code when no unconnected pairs remain"
+    - "Library parity: Export candidates as CSV with source, target, score and index columns"
+    - "Library parity: Report progress on runs that take longer than about a second"
 sources:
-    - title: Practical Graph Analysis Guide - Chapter 4
-      url: https://graphty.app/docs/
-      summary: Link Prediction Pipeline - feature engineering and scoring
+    - title: "Liben-Nowell and Kleinberg, The link-prediction problem for social networks (2007)"
+      url: "https://doi.org/10.1002/asi.20591"
+      summary: "Defines and compares common neighbors, Jaccard, Adamic-Adar, preferential attachment and path-based predictors"
+    - title: "Zhou, Lu and Zhang, Predicting missing links via local information (2009)"
+      url: "https://arxiv.org/abs/0901.0553"
+      summary: "Defines the resource allocation index"
+    - title: "Yang, Lichtenwalter and Chawla, Evaluating link prediction methods (2015)"
+      url: "https://arxiv.org/abs/1505.04094"
+      summary: "Recommends precision-recall curves for this heavily imbalanced task"
+    - title: "Ghasemian et al., Stacking models for nearly optimal link prediction in complex networks (PNAS 2020)"
+      url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC7519231"
+      summary: "Across 203 predictors on 548 networks no single predictor was best everywhere"
+    - title: "Obsidian Graph Analysis plugin"
+      url: "https://github.com/skepticmystic/graph-analysis"
+      summary: "Note-taking users get Jaccard, Adamic-Adar and co-citation link suggestions relative to the current note"
+    - title: "Mungo et al., Reconstructing supply networks"
+      url: "https://arxiv.org/pdf/2310.00446"
+      summary: "Supply datasets cover a small fraction of links; link prediction guesses hidden ones"
+    - title: "User research: network scientists and analysis method validity"
+      url: "design/user-research/network-scientists-and-analysis-method-validity.md"
+      summary: "Adds the held-out, precision-recall evaluation mode to the shipped link-prediction record"

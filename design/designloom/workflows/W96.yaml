@@ -54,7 +54,7 @@ goal: >-
     1. **Build a source list and cite every claim** (ongoing) - A claim is an assertion evidenced by a citation;
     every claim needs at least one
 
-    2. **Record claims by type** (weeks) - Units; relations between units (child-of for hierarchy, member-of for joint
+    2. **Record claims by type** - Units; relations between units (child-of for hierarchy, member-of for joint
     task forces), each with an optional class (command, administrative, or a training cohort); postings of persons to
     units; positionings (where a unit was); incidents
 

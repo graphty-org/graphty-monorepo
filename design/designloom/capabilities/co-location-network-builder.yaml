@@ -4,7 +4,7 @@ category: analysis
 description: Derive links between entities seen at the same place within a time tolerance at least N times, weighted by
     encounter count, with the individual sightings kept as evidence.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: law-enforcement-and-intelligence-analysts.md section 10, requirement 11 (Should)."
 algorithms: []
 used_by_workflows:
     - W100
@@ -13,9 +13,11 @@ used_by_workflows:
     - W311
 implemented_by_components: []
 requirements:
-    - Build individual-by-individual edges (simple ratio, half-weight index) from group sightings, detection streams or
-      GPS relocations using time and distance thresholds.
-    - "Build association networks from position tables: group fixes by a time threshold, then by distance (chain, all
-      pairs, nearest neighbor), and compute an association index per period, with randomized null networks for
-      comparison."
-sources: []
+    - "Should: Co-location and convoy links: same place within a time window at least N times, weighted by count"
+    - "Must: Build individual-by-individual edges (simple ratio, half-weight index) from group sightings, detection streams or GPS relocations using time and distance thresholds."
+    - "Must: Build association networks from position tables: group fixes by a time threshold, then by distance (chain, all pairs, nearest neighbor), and compute an association index per period, with randomized null networks for comparison."
+sources:
+    - title: Law enforcement crime and intelligence analysts, and defense and national intelligence analysts (section
+          10, requirement 11)
+      url: design/user-research/law-enforcement-and-intelligence-analysts.md
+      summary: "Should in the research. Covered by Designloom when researched: Gap"

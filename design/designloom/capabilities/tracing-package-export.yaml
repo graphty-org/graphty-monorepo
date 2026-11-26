@@ -4,10 +4,15 @@ category: export
 description: Export a numbered flowchart of production steps, a map of facility locations and an exhibit index that
     share one numbering scheme.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: supply-chain-and-physical-infrastructure-networks.md section 10, requirement R43 (Should)."
 algorithms: []
 used_by_workflows:
     - W230
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Should: Tracing-package export: numbered flowchart of steps, map of facility locations, exhibit index keyed to
+      the same numbers"
+sources:
+    - title: Supply Chain Risk Analysts and Physical Infrastructure Network Engineers (section 10, requirement R43)
+      url: design/user-research/supply-chain-and-physical-infrastructure-networks.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

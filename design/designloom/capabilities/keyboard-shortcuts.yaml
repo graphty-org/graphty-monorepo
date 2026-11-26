@@ -1,10 +1,14 @@
 id: keyboard-shortcuts
 name: Keyboard Shortcuts
 category: interaction
-description: Enable keyboard shortcuts for common operations to speed up expert workflows. Provide discoverable
-    shortcuts that don't conflict with browser defaults.
-status: implemented
-notes: "Ships: graphty/src/workspace/keys/keys.ts and the shortcuts dialog in graphty/src/workspace/frame/HelpDialogs.tsx."
+description: Keyboard access to the graph and its common operations, for expert speed and for readers who cannot use
+    a pointer. WCAG 2.1.1 requires every function to be operable from the keyboard. Studies with blind readers of
+    node-link diagrams found that a keyboard walk which follows the graph's structure (neighbor to neighbor, along an
+    edge, into a group and back up the same path) works where movement by screen position does not (Benthic, GSK).
+    Shortcuts must not take over browser keys, and single-key shortcuts must be possible to turn off or remap (WCAG
+    2.1.4).
+status: in-progress
+notes: "Partly ships: graphty/src/workspace/keys/keys.ts and the shortcuts dialog in graphty/src/workspace/frame/HelpDialogs.tsx. Planned: walking the graph by structure from the keyboard, authoring nodes and edges by keyboard, and remapping shortcuts. Any requirement below that this note does not name as shipping counts as planned."
 algorithms: []
 used_by_workflows:
     - W02
@@ -22,24 +26,46 @@ implemented_by_components:
     - keyboard-shortcut
     - keyboard-shortcuts-dialog
 requirements:
-    - Zoom in with '+' or '=' key (10% zoom increase per press)
-    - Zoom out with '-' key (10% zoom decrease per press)
-    - Reset view to fit-all with 'Home' or '0' key
-    - Delete selected nodes with 'Delete' or 'Backspace' key (with confirmation)
-    - Select all visible nodes with 'Ctrl+A' (Cmd+A on Mac)
-    - Deselect all with 'Escape' key
-    - Undo last action with 'Ctrl+Z' (Cmd+Z on Mac)
-    - Redo action with 'Ctrl+Shift+Z' or 'Ctrl+Y'
-    - Open search with 'Ctrl+F' (Cmd+F on Mac) or '/' key
-    - Show keyboard shortcut help overlay with '?' key
-    - Navigate selection with arrow keys (move to nearest neighbor)
-    - Expand selection to neighbors with 'E' key
-    - Toggle detail panel with 'D' key
-    - Toggle minimap with 'M' key
-    - Do not override browser shortcuts (Ctrl+T, Ctrl+W, etc.)
-    - Provide shortcut customization in settings panel
-    - Display shortcut hints in tooltips for toolbar buttons
+    - "Library parity: Zoom in with '+' or '=' and out with '-', by a fixed step per press"
+    - "Library parity: Reset the view to fit the whole graph with 'Home' or '0'"
+    - "Library parity: Delete selected nodes with 'Delete' or 'Backspace', with confirmation or undo"
+    - "Library parity: Select all visible nodes with 'Ctrl+A' (Cmd+A on Mac); deselect all with 'Escape'"
+    - "Must: Undo with 'Ctrl+Z' (Cmd+Z on Mac); redo with 'Ctrl+Shift+Z' or 'Ctrl+Y'"
+    - "Library parity: Open search (find a node) with 'Ctrl+F' (Cmd+F on Mac) or '/'"
+    - "Library parity: Show the shortcut list with '?'"
+    - "Must: Walk the graph by its structure, not by screen position: from the focused node move to the previous or next neighbor, follow an edge to its other end (respecting direction), step into a group and back up the same path, and return to a home node (Data Navigator's and Benthic's bindings)"
+    - "Library parity: Expand the selection to neighbors with 'E'"
+    - "Library parity: Toggle the detail panel with 'D' and the minimap with 'M'"
+    - "Must: Give the graph one Tab stop with a keyboard exit, so focus is never trapped in the canvas, and keep the focused node visible and unobscured (WCAG 2.1.2, 2.4.3, 2.4.7, 2.4.11)"
+    - "Must: Pause and resume a moving layout from the keyboard (WCAG 2.2.2 Pause, Stop, Hide)"
+    - "Must: Add, rename and delete nodes and edges from the keyboard when authoring a graph by hand (a must-have for causal diagram and civic systems-mapping authors in the user research)"
+    - "Must: Step and play the time bar from the keyboard (a must-have for temporal network analysts in the user research)"
+    - "Library parity: Do not override browser shortcuts (Ctrl+T, Ctrl+W, etc.)"
+    - "Library parity: Let readers remap shortcuts in settings, and turn off single-character shortcuts or make them active only while the graph has focus (WCAG 2.1.4 Character Key Shortcuts)"
+    - "Library parity: Show each shortcut's key in the tooltip of its toolbar button"
 sources:
-    - title: W02 Visual Exploration
-      url: https://graphty.app/docs/
-      summary: Navigation fluidity - transitions feel smooth
+    - title: WCAG 2.2, Understanding 2.1.1 Keyboard
+      url: https://www.w3.org/WAI/WCAG22/Understanding/keyboard.html
+      summary: All functionality operable through a keyboard interface; the reference for keyboard-shortcuts in
+          data-preparation-and-import.md
+    - title: WCAG 2.2, Understanding 2.1.4 Character Key Shortcuts
+      url: https://www.w3.org/WAI/WCAG22/Understanding/character-key-shortcuts.html
+      summary: Single-character shortcuts must be possible to turn off, remap, or limit to when the component has focus
+    - title: WCAG 2.2
+      url: https://www.w3.org/TR/WCAG22/
+      summary: 2.1.2 No Keyboard Trap, 2.2.2 Pause Stop Hide (moving layouts), 2.4.3 Focus Order, 2.4.7 Focus Visible
+          and 2.4.11 Focus Not Obscured apply to an interactive graph
+    - title: Data Navigator default key bindings
+      url: https://github.com/cmudig/data-navigator/blob/main/packages/data-navigator/src/consts.ts
+      summary: Arrow keys for direction, Enter to drill in, Escape to drill out, comma and period for backward and forward
+    - title: Mei et al. 2025, Benthic (ASSETS 2025)
+      url: https://vis.csail.mit.edu/pubs/benthic.pdf
+      summary:
+          Structure walk tested with 15 blind participants; arrows move among neighbors, Shift+Down and Shift+Up step
+          into a child and back to the parent
+    - title: Balik et al. 2014, GSK (ASSETS 2014)
+      url: https://ciigar.csc.ncsu.edu/files/bib/Balik2014-AccessGraphs.pdf
+      summary: Keyboard node-link navigation with 10 blind JAWS users; announcements need kind, name and degree by direction
+    - title: DAGitty manual
+      url: https://dagitty.net/manual-3.x.pdf
+      summary: The browser DAG editor causal-diagram authors use, drawn with keyboard shortcuts

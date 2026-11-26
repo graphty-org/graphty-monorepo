@@ -17,7 +17,7 @@ requires_capabilities:
     - layout-force-directed
     - fixed-node-positions
     - framework-neutral-embedding
-    - table-to-graph-binding
+    - table-to-graph-builder
 suggested_components:
     - graph-canvas
     - column-mapper
@@ -41,23 +41,23 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Plain HTML** (10 min) - Add a script tag from a CDN or an ES module import; extensions auto-register when the
+    1. **Plain HTML** - Add a script tag from a CDN or an ES module import; extensions auto-register when the
     library global exists
 
-    2. **Vue** (30 min) - Mark the tag as a custom element with `compilerOptions.isCustomElement`; pass objects and
+    2. **Vue** - Mark the tag as a custom element with `compilerOptions.isCustomElement`; pass objects and
     arrays as properties (`.prop` or the `.` shorthand) because attributes are always strings; read events from
     `event.detail`
 
-    3. **Angular or React 19** (30 min) - Bind properties and native events; both pass Custom Elements Everywhere's
+    3. **Angular or React 19** - Bind properties and native events; both pass Custom Elements Everywhere's
     property and event tests, earlier React versions are not listed
 
-    4. **Host plugin** (hours to days) - Receive the host's fixed table shape: two dimensions and one measure in Power
+    4. **Host plugin** - Receive the host's fixed table shape: two dimensions and one measure in Power
     BI, `nodes` and `edges` frames in Grafana, Python lists or NetworkX graphs in Streamlit and Jupyter
 
-    5. **Write the adapter** (hours) - Turn table rows into nodes and edges, de-duplicate node ids that appear in both
+    5. **Write the adapter** - Turn table rows into nodes and edges, de-duplicate node ids that appear in both
     source and target columns, sum or carry the weight measure
 
-    6. **Pin and persist** (hours) - Let users drag and pin nodes and keep positions across host refreshes
+    6. **Pin and persist** - Let users drag and pin nodes and keep positions across host refreshes
 
 
     **Decision Points**:

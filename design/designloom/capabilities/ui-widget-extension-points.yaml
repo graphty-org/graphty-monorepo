@@ -4,11 +4,15 @@ category: analysis
 description: Extension points for tooltips, context menus, minimaps, map underlays and custom node renderers bound to
     application data.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: developers-embedding-and-extending-graph-visualization.md section 10, table row 25 (Should)."
 algorithms: []
 used_by_workflows:
     - W278
     - W285
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Should: UI widget extension points: tooltip, context menu, minimap, map underlay"
+sources:
+    - title: Developers Who Embed Graph Visualization in Products or Extend It With Plugins (section 10, table row 25)
+      url: design/user-research/developers-embedding-and-extending-graph-visualization.md
+      summary: "Should in the research. Covered by Designloom when researched: Partly"

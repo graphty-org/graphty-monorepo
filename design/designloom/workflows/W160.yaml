@@ -2,6 +2,7 @@ id: W160
 name: Laying Out a Traced Neural Circuit Outside CATMAID and Bringing It Back
 category: analysis
 validated: false
+scope: deferred
 personas:
     - cellular-connectomics-neuroscientist
 requires_capabilities:
@@ -32,15 +33,15 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Build** (10 min) - Assemble the circuit graph in CATMAID's Graph Widget from reconstructed neurons
+    1. **Build** - Assemble the circuit graph in CATMAID's Graph Widget from reconstructed neurons
 
-    2. **Export** (1 min) - GML with the default options (linearized IDs)
+    2. **Export** - GML with the default options (linearized IDs)
 
-    3. **Lay out** (10 min) - Open in Gephi and run a layout, because layout is easier in other tools
+    3. **Lay out** - Open in Gephi and run a layout, because layout is easier in other tools
 
-    4. **Export back** (2 min) - Write GraphML from Gephi
+    4. **Export back** - Write GraphML from Gephi
 
-    5. **Re-import** (2 min) - Open the GraphML in the widget, because coloring is easier in CATMAID
+    5. **Re-import** - Open the GraphML in the widget, because coloring is easier in CATMAID
 
 
     **Decision Points**:
@@ -75,7 +76,7 @@ success_criteria:
     - metric: Round-trip fidelity
       target: Node IDs and attributes identical before and after, with positions added
     - metric: Effort
-      target: Import, layout and export in under 5 minutes
+      target: Import, layout and export in under 5 minutes (design goal; no source measures it)
 sources:
     - title: CATMAID Graph Widget documentation
       url: https://catmaid.readthedocs.io/en/stable/widgets/graph-widget.html

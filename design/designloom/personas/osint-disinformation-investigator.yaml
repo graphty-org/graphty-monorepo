@@ -1,5 +1,8 @@
 id: osint-disinformation-investigator
 name: OSINT Disinformation Investigator
+roster_persona: osint-investigator
+tier: A
+scope: in-scope
 role: Influence-Operation Analyst at a Verification Unit or Digital Forensics Lab
 quote: Fifty-six seed channels became nearly four thousand. Now I have to show readers which ones act together without accusing anyone who just shared a post.
 bio: >-

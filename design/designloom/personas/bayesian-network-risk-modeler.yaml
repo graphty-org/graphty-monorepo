@@ -1,9 +1,12 @@
 id: bayesian-network-risk-modeler
 name: Bayesian Network Risk Modeler
+roster_persona: causal-dag-epidemiologist
+tier: B
+scope: in-scope
 role: Senior Risk Analyst / Reliability Engineer who builds Bayesian networks and influence diagrams
 quote: The manager wants one number. I need to show her that the endpoint moves when we set this evidence, and which three parameters it moves on.
 bio: >-
-    Dr. Helen Okafor is a senior risk analyst at an environmental consultancy (her counterpart at an offshore operator
+    Dr. Esther Okafor is a senior risk analyst at an environmental consultancy (her counterpart at an offshore operator
     does the same for equipment reliability). She builds probabilistic Bayesian networks and influence diagrams in GeNIe
     or Netica, sometimes Hugin's object-oriented networks or AgenaRisk, and lives in one model for months through
     alpha, beta and gamma versions. Her models have 15 to 60 discrete nodes with 2 to 5 states each; larger ones are

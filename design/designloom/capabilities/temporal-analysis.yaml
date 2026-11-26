@@ -1,13 +1,16 @@
 id: temporal-analysis
 name: Temporal Analysis
 category: analysis
-description: Analyze how the network changes over time. Track metric evolution, detect significant changes, identify
-    trends, and understand network dynamics from timestamped data.
+description: Analyze how the network changes over time. Compute any built-in metric per time window (sliding or
+    cumulative), compare periods, track arrivals and departures, and record the window parameters behind every result.
+    Works on the time models users actually have -- point events, intervals with several spells, snapshot series and
+    time-varying attributes on nodes and edges -- not only edges with one timestamp; results depend on window length,
+    so the parameters are part of the result.
 status: planned
 algorithms:
-    - Time windowing
-    - Change point detection
-    - Trend analysis
+    - Sliding and cumulative time windowing
+    - Snapshot comparison (new, removed, persistent; rewiring)
+    - Community matching across windows
 used_by_workflows:
     - W07
     - W17
@@ -53,8 +56,8 @@ used_by_workflows:
     - W320
     - W321
     - W33
-    - W349
-    - W354
+    - W339
+    - W344
     - W36
     - W362
     - W366
@@ -88,27 +91,45 @@ used_by_workflows:
     - W95
     - W96
     - W99
+    - W323
+    - W1139
+    - W3048
+    - W3049
+    - W3079
+    - W3080
 implemented_by_components:
     - temporal-controls
 requirements:
-    - Create time-window snapshots from edges with timestamp attribute
-    - "Support configurable time window size: hour, day, week, month, quarter, year, or custom duration"
-    - Support sliding window with configurable step size (e.g., window=week, step=day)
-    - "Track metric evolution over time: node count, edge count, density, average degree"
-    - "Track metric evolution for computed metrics: modularity, average centrality, component count"
-    - Display time series chart for selected metrics with time on x-axis
-    - Detect significant changes between consecutive periods (>20% change in metric)
-    - Highlight significant change points on time series chart
-    - Calculate node arrival rate (new nodes per period)
-    - Calculate node departure rate (nodes not appearing in subsequent periods)
-    - Calculate edge creation rate (new edges per period)
-    - Calculate edge dissolution rate (edges not appearing in subsequent periods)
-    - "Identify trend direction: 'Growing', 'Shrinking', 'Stable' based on linear regression slope"
-    - "Report trend with confidence: 'Strong growth (R²=0.95)' or 'Weak decline (R²=0.3)'"
-    - Support playback animation stepping through time windows
-    - Complete analysis within 10 seconds for graphs with up to 100 time windows
-    - "Export temporal data as CSV with columns: period_start, period_end, metric_name, value"
+    - "Must: Read time from the documented time model (temporal-data-model-import) -- point events, intervals with multiple spells, snapshot series and time-varying attributes on nodes and edges -- not only a single edge timestamp"
+    - "Must: State interval semantics with every window -- inclusive or half-open bounds, open-ended ends, time zone and granularity"
+    - "Must: Bin into windows with user-set window length, step and overlap (sliding), and offer cumulative (expanding) windows from the start of the data"
+    - "Must: Convert true point events to intervals with a user-set duration or decay, kept separate from start plus duration columns"
+    - "Must: Aggregate parallel events within a window (count, sum, first, last) so styles and algorithms read one value"
+    - "Must: Compute metrics per window over any built-in algorithm (counts, density, reciprocity, degree, centralities, clustering, components, communities), not a fixed short list"
+    - "Library parity: Make it easy to rerun the same analysis at several window lengths, since slice structure depends on window length"
+    - "Library parity: Display time series chart for selected metrics with time on x-axis"
+    - "Should: Compare two periods -- new, removed and persistent nodes and edges, and a per-node rewiring score"
+    - "Library parity: Calculate node and edge arrival and departure counts per window"
+    - "Library parity: Report change between periods as values and differences; do not label change points or trends as significant from a fixed percent threshold or a fit statistic alone"
+    - "Should: Match communities across windows and label births, deaths, merges and splits"
+    - "Must: Support playback animation stepping through time windows, with positions kept stable (stable-temporal-layout) rather than re-laid out every frame"
+    - "Should: Offer small multiples or a time axis as alternatives to animation"
+    - "Must: Leave undated items under a stated rule (always shown, hidden, or flagged with counts of missing and invalid dates)"
+    - "Must: Export per-window results as tidy CSV (window start, window end, metric, value) together with the window length, step, aggregation and interval semantics used"
+    - "Library parity: Time-respecting paths and reachability belong to time-respecting-paths, not to per-window aggregates"
 sources:
-    - title: Practical Graph Analysis Guide - Chapter 4
-      url: https://graphty.app/docs/
-      summary: Network Evolution Analysis Pipeline
+    - title: Holme and Saramaki 2012, Temporal networks
+      url: https://arxiv.org/abs/1108.1780
+      summary: Contact sequences and interval graphs; projecting a temporal network to a static graph always loses information
+    - title: Raphtory view algorithms (rolling and expanding windows)
+      url: https://raphtory.readthedocs.io/en/master/user-guide/algorithms/4_view-algorithms/
+      summary: Rolling(window, step) and expanding views running algorithms such as PageRank per window
+    - title: ndtv vignette
+      url: https://cran.r-project.org/web/packages/ndtv/vignettes/ndtv.pdf
+      summary: Window and step parameters; overlapping windows reduce abrupt change in animation
+    - title: Archambault, Purchase and Pinaud 2011, Animation, small multiples, and the effect of mental map preservation
+      url: https://pubmed.ncbi.nlm.nih.gov/20498503/
+      summary: Small multiples were faster; animation more accurate for detecting appearance
+    - title: Temporal and dynamic network data and analysis (sections 2, 7 and 11, requirements T1-T25)
+      url: design/user-research/temporal-and-dynamic-networks.md
+      summary: Time models, sliding and cumulative metrics, period comparison, stable layout, reproducible window parameters

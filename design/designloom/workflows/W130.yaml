@@ -5,6 +5,7 @@ validated: false
 personas:
     - graphrag-developer
     - enterprise-kg-engineer
+    - knowledge-engineer
 requires_capabilities:
     - data-import
     - data-validation
@@ -58,35 +59,35 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Load into something queryable** (5 min) - pandas over parquet, or Neo4j via Microsoft's Cypher import notebook
+    1. **Load into something queryable** - pandas over parquet, or Neo4j via Microsoft's Cypher import notebook
     or apoc.load.parquet; check which GraphRAG version wrote the tables
 
-    2. **Profile counts** (5 min) - Entities, relationships and description coverage. Example: 2,000 news articles with
+    2. **Profile counts** - Entities, relationships and description coverage. Example: 2,000 news articles with
     GPT-4o (about 35 minutes, about $30) gave 12,994 entities and 15,921 relationships; only 45.6 percent of entities and
     35 percent of relationships had a description
 
-    3. **Degree distribution** (5 min) - Log histogram (in the example mean 2.45, median 1, 75 percent of nodes degree 2
+    3. **Degree distribution** - Log histogram (in the example mean 2.45, median 1, 75 percent of nodes degree 2
     or less); list the top entities by degree to spot noise hubs and add them to a stoplist
 
-    4. **Entities per chunk** (2 min) - About 3 per 300-token chunk without gleanings; raise max_gleanings if too low
+    4. **Entities per chunk** - About 3 per 300-token chunk without gleanings; raise max_gleanings if too low
 
-    5. **Components** (3 min) - Weakly connected components (example 1,119 components, largest 9,109 nodes, median size
+    5. **Components** - Weakly connected components (example 1,119 components, largest 9,109 nodes, median size
     2); many tiny components signal missed relations or unmerged aliases
 
-    6. **Duplicate candidates** (10 min) - Embed name plus description; kNN with topK 10 and similarity cutoff 0.95
+    6. **Duplicate candidates** - Embed name plus description; kNN with topK 10 and similarity cutoff 0.95
     written as SIMILAR edges; WCC over SIMILAR; keep pairs with edit distance under 3 or substring containment
 
-    7. **Review groups** (30-120 min) - An LLM or a person decides each group, rejecting merges that differ in numbers,
+    7. **Review groups** - An LLM or a person decides each group, rejecting merges that differ in numbers,
     dates or products; embedding false positives include Google/Apple at 0.96 and BMW/Mercedes Benz at 0.97. This step
     most needs a side-by-side view of each group with its neighbors and source chunks
 
-    8. **Merge** (5 min) - apoc.refactor.mergeNodes, or Neo4j LLM Graph Builder's dedup and Delete Disconnected Nodes
+    8. **Merge** - apoc.refactor.mergeNodes, or Neo4j LLM Graph Builder's dedup and Delete Disconnected Nodes
     screens
 
-    9. **Type conflicts** (15 min) - On a 700-page 5G specification 1,123 of 8,873 entities (12.7 percent) got two or
+    9. **Type conflicts** - On a 700-page 5G specification 1,123 of 8,873 entities (12.7 percent) got two or
     more types and PMIC got seven; vote a primary type, keep alternatives as properties, flag same-chunk conflicts
 
-    10. **Measure and compare runs** (10 min) - Duplicate rate (for example RapidFuzz partial_ratio at 75 percent within
+    10. **Measure and compare runs** - Duplicate rate (for example RapidFuzz partial_ratio at 75 percent within
     type plus expert review) before and after prompt or pipeline changes
 
 
@@ -138,7 +139,7 @@ goal: >-
     - Output: Cleaned graph, stoplist, prompt changes, merge and rejection log, duplicate-rate measurement
 success_criteria:
     - metric: Quality profile
-      target: User can state counts by type, description coverage, component distribution and top hubs within 10 minutes of loading
+      target: User can state counts by type, description coverage, component distribution and top hubs within 10 minutes of loading (design goal; no source measures it)
     - metric: Review throughput
       target: Each duplicate group is decided with its neighbors and source text visible, without leaving the view
     - metric: Decision durability

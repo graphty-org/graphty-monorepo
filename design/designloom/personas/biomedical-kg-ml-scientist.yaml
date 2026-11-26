@@ -1,9 +1,12 @@
 id: biomedical-kg-ml-scientist
 name: Biomedical Knowledge Graph ML Scientist
+roster_persona: ml-engineer-recsys
+tier: B
+scope: in-scope
 role: Machine Learning Scientist, Drug Repurposing and Biomedical Question Answering
 quote: The model's AUROC is fine. What clinicians need is the handful of paths it actually relied on, not 7,000 of them.
 bio: >-
-    Dr. Arjun Rao builds link-prediction models for drug repurposing on heterogeneous biomedical knowledge graphs, and
+    Dr. Rohan Rao builds link-prediction models for drug repurposing on heterogeneous biomedical knowledge graphs, and
     more recently large language model (LLM) question answering over them. He loads PrimeKG CSVs into NetworkX or igraph,
     trains on DRKG triples with DGL-KE or PyKEEN, explores Hetionet in the public Neo4j Browser and het.io/search, and
     uses TxGNN and KG-RAG over SPOKE. Public graphs hold 47,031 to 129,375 nodes and 2.25 to 8 million edges of 11 to 22

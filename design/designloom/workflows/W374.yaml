@@ -55,22 +55,22 @@ goal: >-
     1. **Collect** (weeks) - Fixed or pseudo-random prompts on phones; median 61 possible and 47.5 completed time points
     per person
 
-    2. **Preprocess** (hours, in R) - Long format with id, day, beep; exclude low compliance (often below 30 percent);
+    2. **Preprocess** (in R) - Long format with id, day, beep; exclude low compliance (often below 30 percent);
     check stationarity and detrend
 
-    3. **Fit** (minutes) - mlVAR with lag 1 for groups; graphicalVAR with gamma 0.5 for one patient; psychonetrics
+    3. **Fit** - mlVAR with lag 1 for groups; graphicalVAR with gamma 0.5 for one patient; psychonetrics
     panelgvar for panel data
 
-    4. **Load the three matrices** (3 min) - Directed temporal with self-loops, undirected contemporaneous and
+    4. **Load the three matrices** - Directed temporal with self-loops, undirected contemporaneous and
     between-subjects, with significance per edge
 
-    5. **Draw** (10 min) - Three synced panels on one circle layout; the temporal panel with its own maximum; hide
+    5. **Draw** - Three synced panels on one circle layout; the temporal panel with its own maximum; hide
     non-significant edges; curve reciprocal pairs; keep self-loops; for one patient optionally overlay directed and
     undirected edges in one view
 
-    6. **Centrality** (5 min) - In-strength, out-strength and expected influence for the temporal network
+    6. **Centrality** - In-strength, out-strength and expected influence for the temporal network
 
-    7. **Individual differences** (10 min) - Random-effect SD networks or one network per participant
+    7. **Individual differences** - Random-effect SD networks or one network per participant
 
 
     **Decision Points**:
@@ -118,7 +118,7 @@ goal: >-
     - Output: Three synced panels or a mixed overlay, centrality table, exported figure
 success_criteria:
     - metric: Three-panel figure
-      target: Temporal, contemporaneous and between-subjects networks on shared positions with per-panel maxima in under 15 minutes
+      target: Temporal, contemporaneous and between-subjects networks on shared positions with per-panel maxima in under 15 minutes (design goal; no source measures it)
     - metric: Self-loop and reciprocity legibility
       target: Every self-loop and both directions of a reciprocal pair are distinguishable
 sources:

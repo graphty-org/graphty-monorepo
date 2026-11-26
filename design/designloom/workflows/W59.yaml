@@ -60,33 +60,33 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Plan** (hours) - Topic, collaborators, scope, countries and time coverage
+    1. **Plan** - Topic, collaborators, scope, countries and time coverage
 
-    2. **Search** (hours to days) - Boolean queries over full text, claims and classification codes, restricted by
+    2. **Search** - Boolean queries over full text, claims and classification codes, restricted by
     jurisdiction and grant or application
 
-    3. **Collapse to families** (minutes) - One record per DOCDB simple family (same priorities) or INPADOC extended
+    3. **Collapse to families** - One record per DOCDB simple family (same priorities) or INPADOC extended
     family (shared priority, directly or indirectly); 44,773 publications became 19,856 simple families in one Lens
     example
 
-    4. **Export** (30 min) - Lens allows 50,000 records logged in as CSV, RIS or JSON; JSONL carries all fields
+    4. **Export** - Lens allows 50,000 records logged in as CSV, RIS or JSON; JSONL carries all fields
 
-    5. **Normalize assignees** (hours) - Split multi-applicant fields, strip suffixes, expand abbreviations, fuzzy-group
+    5. **Normalize assignees** - Split multi-applicant fields, strip suffixes, expand abbreviations, fuzzy-group
     variants, roll subsidiaries up to parents (VantagePoint or OpenRefine; 5,884 drone documents in the WIPO example)
 
-    6. **Assignee network** (1-2 hours) - Co-occurrence of applicants, remove self-loops, modularity (246 communities in
+    6. **Assignee network** - Co-occurrence of applicants, remove self-loops, modularity (246 communities in
     the WIPO example), filter by minimum frequency 5, Fruchterman-Reingold then NoOverlap, about 20 minutes of label
     cleanup, finish in Illustrator
 
-    7. **Technology map** (1 hour) - CPC co-occurrence or an overlay on an IPC base map
+    7. **Technology map** - CPC co-occurrence or an overlay on an IPC base map
 
-    8. **Forward-citation map for key patents** (30 min) - Center a selected patent, group citing and cited records by
+    8. **Forward-citation map for key patents** - Center a selected patent, group citing and cited records by
     assignee, weigh examiner citations above applicant citations
 
     9. **Link to science** (optional) - Patent-to-paper citations, each flagged as applicant or examiner and front page
     or body text
 
-    10. **Deliver** (days) - Filing trends, top assignees, technology maps, networks, white space; usually confidential
+    10. **Deliver** - Filing trends, top assignees, technology maps, networks, white space; usually confidential
 
 
     **Decision Points**:

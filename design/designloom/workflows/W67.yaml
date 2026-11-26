@@ -73,29 +73,29 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Assemble inputs** (30 min) - A sequence FASTA and a metadata table with at least a strain name, a date and
+    1. **Assemble inputs** - A sequence FASTA and a metadata table with at least a strain name, a date and
     geography, plus local fields such as facility or outbreak identifier
 
-    2. **Index, filter, subsample, align** (minutes to an hour) - Precompute sequence composition, drop excluded
+    2. **Index, filter, subsample, align** - Precompute sequence composition, drop excluded
     strains, subsample deliberately (for example 20 sequences per country per month), apply a date cutoff, and align
     to a reference while filling gaps
 
-    3. **Build the divergence tree** (minutes to hours) - Infer a tree whose branch lengths are nucleotide divergence
+    3. **Build the divergence tree** - Infer a tree whose branch lengths are nucleotide divergence
 
-    4. **Date it** (minutes) - Estimate internal node dates, place tips at their sample dates, drop outlier tips and
+    4. **Date it** - Estimate internal node dates, place tips at their sample dates, drop outlier tips and
     record date confidence intervals; this is the step that turns divergence into a time axis
 
-    5. **Annotate** (minutes) - Put nucleotide and amino acid mutations on branches, infer region and country for
+    5. **Annotate** - Put nucleotide and amino acid mutations on branches, infer region and country for
     internal nodes, and add divergence measures
 
-    6. **Export one bundle** (seconds) - Tree, metadata, node annotations, colors and coordinates in a single file
+    6. **Export one bundle** - Tree, metadata, node annotations, colors and coordinates in a single file
 
-    7. **Read it** (30 min to hours) - Switch layout between rectangular, radial, unrooted, clock and scatter; switch
+    7. **Read it** - Switch layout between rectangular, radial, unrooted, clock and scatter; switch
     the x axis between divergence and time; color by any field; filter by attribute; show the map with transmission
     lines, a mutation entropy panel and a measurements panel. The whole view state lives in the URL, so a particular
     reading can be sent to a colleague as a link
 
-    8. **Hand off to a network tool** (15 min) - Switch the tree to divergence mode so branch lengths are mutation
+    8. **Hand off to a network tool** - Switch the tree to divergence mode so branch lengths are mutation
     counts, export it, and start a threshold network at about 6 SNPs to see whether the network reproduces the tree,
     then adjust
 

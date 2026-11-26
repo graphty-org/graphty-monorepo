@@ -37,6 +37,15 @@ UCINet" [BU-POSTDOC].
   social media networks and 43% semantic networks [GEPHI-SURVEY]. It does not separate survey sociometry from social
   media work, much of which is the digital-trace work in section 3.6.
 - Papers, not people: more than 70,000 "social network*" publications [ARXIV-2502.07412].
+- Political science has its own organized network community: the American Political Science Association's Political
+  Networks section (Section 41), founded in 2009, with awards for student papers, articles and books [APSA-S41]. Its
+  summer event pairs a research conference with introductory and advanced network-analysis workshops, hosted at
+  Harvard, Duke, Michigan, George Mason, Florida State and elsewhere [APSA-S41-CONF]. The 2021 workshops (online) were
+  network visualization with R, ERGM with R, network and text methods, and latent factor models [POLNET-2021]; earlier
+  programs ran separate advanced ERGM and temporal ERGM sessions [POLNET-2013-TERGM]. In the census of OpenAlex works
+  citing general graph tools, "Sociology and Political Science" is 1.3% of all tool citations and 5.4% of Pajek's, and
+  UCINET, which these researchers cite, has no OpenAlex record, so the field is under-counted
+  (population-to-designloom-persona-index.md, section 2.1). Section 3.7 describes this population.
 - No source found for a worldwide head count or UCINET or statnet license numbers: a large, stable, low-budget
   population with its own society, conference and workshop pipeline.
 
@@ -113,7 +122,8 @@ months of writing. Students touch the tools weekly; a Kansas seminar requires an
 - **Data.** Person-by-group incidence data (Fowler mapped "all 280,000 pieces of legislation" in Congress
   [FOWLER-2006]); yearly networks among countries (btergm's `alliances` data: 20 yearly defense alliance networks
   among 164 countries, 1981-2000 [BTERGM]); actor-by-concept statement data from newspapers or testimony, signed by
-  agreement [LEIFELD-2017]. Usually temporal and weighted.
+  agreement [LEIFELD-2017]. Usually temporal and weighted. Political scientists who make legislatures, alliances and
+  policy networks their main subject are a variant of this persona, described in section 3.7.
 - **Goals.** Who is central or bridging; which coalitions exist and how they shift; whether position predicts an
   outcome (bill passage, alliance formation, policy adoption).
 - **Frustrations.** Projections that turn every group into a clique and inflate clustering [OPSAHL-2013]; choosing
@@ -152,6 +162,41 @@ owned by `social-media-disinformation-and-marketing.md` (personas `communication
 
 Section 5.11 summarizes their workflows.
 
+### 3.7 Dr. Yetunde Okafor -- political networks scholar of legislatures and alliances (id: political-networks-scholar)
+
+A variant of section 3.4: the same record-based, two-mode, temporal data, but political networks are the whole
+research program, not one source among several, and the data are released records covering many sessions or many
+years rather than one hand-built archive.
+
+- **Role.** Political scientist in American or comparative politics or international relations; a member of APSA's
+  Political Networks section, which has run a summer conference with network-analysis workshops since about 2009
+  [APSA-S41] [APSA-S41-CONF].
+- **Tools today.** R (statnet `ergm`, `btergm`, `NetMix`, `peacesciencer`, `Rvoteview`), UCINET for quick
+  descriptives, Pajek or Gephi for large files and figures. Learned ERGM and TERGM at the section's workshops
+  [POLNET-2021] [POLNET-2013-TERGM].
+- **Data.**
+  - Bill cosponsorship: legislator-by-bill records for every session. Fowler's data cover all 280,000 bills in the House
+    and Senate, 1973-2004 [FOWLER-2006]; derived copies hold 1,718 legislators and 282,049 timestamped bills
+    [ZENODO-FOWLER-HG]; the 107th Senate alone had over 20,660 bills with cosponsors [LO-2025]. Outside the US, parlnet
+    builds 150 networks from 27 chambers in 19 European countries plus Israel, one per legislative period [PARLNET].
+  - Roll-call votes: Voteview's member-by-vote download, members keyed by ICPSR code [VOTEVIEW-VOTES]. Andris and
+    colleagues built one agreement network per House from 1949 to 2012 (32 Congresses), tying two members when their
+    agreement count passes a per-Congress threshold [ANDRIS-2015].
+  - Alliances and conflict: the Correlates of War Formal Alliances data (v4.1, 1816-2012) with a dyadic file and
+    alliance types (defense, neutrality, non-aggression, entente) [COW-ALLIANCE]; Militarized Interstate Disputes v5.0
+    (1816-2014) as dispute and participant files, with dyad-years derived by tools such as peacesciencer
+    [COW-MID] [PEACESCIENCER-MID].
+  - Policy-actor networks: a common policy network survey of the organizations engaged in climate politics, from state
+    and society, fielded by teams in over 25 societies (COMPON) [COMPON]; actor-by-institution participation analyzed as
+    a bipartite network with ERGM [LUBELL-2014].
+- **Goals.** Who cooperates across party lines and how that changes from session to session; whether cosponsorship or
+  alliance ties predict passage, votes or conflict; publishing a model table and one figure per session or period.
+- **Frustrations.** Projecting bills onto legislators inflates clustering and hides bipartisan bills [LO-2025]; the
+  binary TERGM forces a cutoff on cosponsorship counts (for example, more than one bill from the same sponsor)
+  [CRAIG-2015]; an agreement network depends on a threshold the reader never sees [ANDRIS-2015]; dyad-year files have
+  duplicate directed dyads and several dispute onsets in one year [PEACESCIENCER-ALLY] [PEACESCIENCER-ADD]; states and
+  legislators enter and leave, so each session or year has a different node set.
+
 ---
 
 ## 4. Use cases (ranked)
@@ -170,13 +215,14 @@ Section 5.11 summarizes their workflows.
 | 10  | Handle non-respondents and boundary problems first                                                     | Every survey study                                  | High [SMITH-2021]                                     |
 | 11  | Draw publication sociograms colored by attribute                                                       | Every paper                                         | Medium: readers judge the paper by them               |
 | 12  | Discourse networks: code statements, compare coalitions over time (DNA)                                | Common in policy studies                            | High: the coalition map is the finding [LEIFELD-2017] |
-| 13  | Yearly networks among states or organizations (TERGM)                                                  | Common in international relations                   | High [BTERGM-JSS]                                     |
+| 13  | Yearly networks among states from alliance and dispute dyad-years (TERGM)                              | Common in international relations                   | High [BTERGM-JSS] [COW-ALLIANCE]                      |
 | 14  | Peer influence on an outcome (network autocorrelation, ALAAM)                                          | Common                                              | High: the influence claim itself [LNAM] [ALAAMEE]     |
 | 15  | Timestamped interaction sequences (relational event models, DyNAM)                                     | Growing                                             | High [GOLDFISH]                                       |
 | 16  | Many whole networks analyzed together (classrooms, schools)                                            | Common in education                                 | High: pooled estimates                                |
 | 17  | Kinship: genealogies, marriage circuits                                                                | Core in kinship anthropology                        | Medium [PUCK]                                         |
 | 18  | Participatory influence mapping with informants (Net-Map)                                              | Common in applied anthropology and development      | Medium [NETMAP-MANUAL]                                |
-| 19  | Structural equivalence classes or blockmodels                                                          | Occasional                                          | Medium                                                |
+| 19  | Structural equivalence classes or blockmodels (5.14)                                                   | Occasional                                          | Medium                                                |
+| 20  | Legislative cosponsorship and roll-call networks compared across sessions                              | Core in legislative studies                         | High: polarization claims rest on it [ANDRIS-2015]    |
 
 ---
 
@@ -257,7 +303,8 @@ Sources: [HANNEMAN-C6] [TNET-PROJECTION] [OPSAHL-2013] [OGNYANOVA-UCINET] [BORGA
    two-mode coefficient gave 0.28 versus 0.36 one-mode [ARXIV-2102.03270]; structural holes measures on projections
    are inflated [TNET-SH].
 6. **Or analyze bipartite directly**: two-mode centrality and clustering, bipartite communities, correspondence
-   analysis, two-mode ERGM, bipartite backbones [SOCIOL208]; bipartite models of cosponsorship [ARXIV-2305.05833].
+   analysis, two-mode ERGM, bipartite backbones [SOCIOL208]; bipartite models of cosponsorship [ARXIV-2305.05833]; the published version argues projection causes aggregation
+   bias and inflated clustering, and that different bipartite networks can give the same projection [LO-2025].
 
 ### 5.4 Ego networks: extraction and per-ego statistics
 
@@ -469,6 +516,87 @@ Source: Net-Map manual [NETMAP-MANUAL]; [NETMAP-WIKI].
 - **Coordinated behavior:** keep account pairs sharing an object within 30 to 60 seconds a minimum number of times,
   project to an account network, inspect components (CooRTweet) [COORTWEET].
 
+### 5.12 Legislative cosponsorship and roll-call networks across sessions
+
+Sources: [FOWLER-2006] [CONGRESS-REPO] [PARLNET] [VOTEVIEW-VOTES] [ANDRIS-2015] [CRAIG-2015] [LO-2025].
+
+1. **Get the records.** Cosponsorship: sponsor, cosponsors and date per bill, rebuilt from the Library of Congress by
+   the briatte/congress code or taken from Fowler's archive [CONGRESS-REPO] [FOWLER-2006]; for European chambers,
+   parlnet splits records by legislative period between elections [PARLNET]. Roll calls: Voteview's member votes,
+   joined to member data by ICPSR code [VOTEVIEW-VOTES].
+2. **Build one network per session.** Cosponsorship is legislator-by-bill (two-mode) or directed cosponsor-to-sponsor
+   counts. Roll calls become a legislator agreement network: count the votes on which each pair agreed and tie the
+   pair when the count passes a threshold; Andris and colleagues set it at the crossing point of the same-party and
+   cross-party agreement distributions, per Congress [ANDRIS-2015].
+3. **Decide projection versus bipartite.** Projecting bills onto legislators can inflate clustering and suggest
+   copartisan cooperation where the bipartite data show many bipartisan bills [LO-2025]. Keep the two-mode network
+   and fit a bipartite model (biMMSBM in NetMix, with party, ideology, seniority and bill topic as covariates)
+   [LO-2025], or project with a stated weight (section 5.3).
+4. **Model.** For a sequence of sessions, a TERGM treats each two-year Congress as one network observation; Craig and
+   colleagues fit the 97th through 108th Houses, tying i to j when i cosponsored more than one bill by j [CRAIG-2015].
+5. **Draw and compare.** One figure per session, colored by party, sized by degree, force-directed (Andris used a
+   linear-attraction, linear-repulsion layout with Barnes-Hut) [ANDRIS-2015]; read change across sessions as cross-party
+   edges, modularity by party, and who bridges.
+6. **Publish** the per-session edge lists, the threshold or weight rule and the model code for replication
+   [CONGRESS-REPO].
+
+### 5.13 Alliance and conflict dyads to yearly networks among states
+
+Sources: [COW-ALLIANCE] [COW-MID] [PEACESCIENCER-ALLY] [PEACESCIENCER-MID] [BTERGM] [BTERGM-JSS].
+
+1. **Get dyad-years.** Alliances from the COW dyadic file, with alliance type [COW-ALLIANCE]; disputes from MID 5.0
+   participant data converted to dyad-years [COW-MID] [PEACESCIENCER-MID].
+2. **Clean the dyads.** Collapse duplicate directed dyad-years (the directed alliance file has 120,784 rows that
+   include duplicates) [PEACESCIENCER-ALLY]; decide how to count years with several dispute onsets (France and Italy
+   had three in 1860) [PEACESCIENCER-ADD], and remember that overlapping dispute years do not prove the two states
+   fought each other [PEACESCIENCER-MID].
+3. **One network per year**, with states that exist that year as nodes; alliances as positive ties, disputes as
+   negative ties, kept as separate relations or as one signed network.
+4. **Model** with TERGM (btergm's `alliances` example: 20 yearly networks of 164 countries) and check out-of-sample
+   fit [BTERGM].
+5. **Show** small multiples per year or per decade, alliance blocs as communities, conflict ties overlaid.
+
+### 5.14 Cohesive subgroups and positions: k-cores, cliques, factions, equivalence, blockmodels
+
+Sources: [HANNEMAN-C11] [HANNEMAN-C13] [HANNEMAN-C15] [HANNEMAN-C8] [HANNEMAN-BLOCKS] [SNA-EQUIVCLUST]
+[SNA-BLOCKMODEL] [SNA-TRIAD] [SNA-KCORES] [SNA-CLIQUE] [KCORE-CODE].
+
+A standard lab in a methods course and a standard table in a whole-network paper. UCINET and statnet give the
+reference definitions; every step depends on stated choices about direction and dichotomizing.
+
+1. **Prepare the relation.** Clique routines symmetrize directed data (sna `clique.census` with `mode="digraph"`
+   symmetrizes first) [SNA-CLIQUE]; sna `kcores` defaults to directed Freeman degree and counts edge values
+   [SNA-KCORES]; `triad.census` warns that valued data "may behave unexpectedly" and should be dichotomized first
+   [SNA-TRIAD]. The cutoff and the symmetrizing rule go in the methods section.
+2. **k-cores.** UCINET Network > Regions > K-Core; NetDraw can color a graph by k-core [HANNEMAN-C11]. sna `kcores`
+   returns one core number per vertex [SNA-KCORES]. graphty-element already ships a k-core algorithm that publishes
+   a per-node core number ("Core depth"), counted on the undirected graph [KCORE-CODE], so it can be colored or
+   filtered; note the direction difference from sna's default.
+3. **Cliques and relaxations.** UCINET Network > Subgroups > Cliques, N-Cliques, N-Clan, K-Plex; output is a clique
+   census, an actor-by-clique table and actor-by-actor co-membership clustered to show overlap [HANNEMAN-C11]. sna
+   `clique.census` returns maximal cliques by size, counts per vertex and optional co-membership; its cost "grows very
+   sharply in size and network density" [SNA-CLIQUE].
+4. **Factions.** UCINET Network > Subgroups > Factions; the analyst sets the number of factions and reads the "final
+   number of errors" as fit, with a blocked adjacency matrix and block densities [HANNEMAN-C11].
+5. **Triad census.** The 16 directed MAN types, or 4 for undirected data, in sna `triad.census` [SNA-TRIAD].
+   Hanneman's text notes that UCINET "does not have a routine for conducting triad censuses (see Pajek, which does)"
+   [HANNEMAN-C8].
+6. **Structural equivalence.** UCINET Network > Roles & Positions > Structural > Profile, CONCOR or Optimization
+   (tabu search); similarity by correlation, Euclidean distance, matches or Jaccard [HANNEMAN-C13]. sna `equiv.clust`
+   defaults: `equiv.fun="sedist"`, `method="hamming"`, `mode="digraph"`, `diag=FALSE`, `cluster.method="complete"`
+   [SNA-EQUIVCLUST]; the analyst cuts the dendrogram at k positions.
+7. **Regular equivalence.** UCINET Network > Roles & Positions > Maximal Regular > REGE or CATREGE, searching to
+   distance 3 by default; on undirected data REGE "can produce rather unexpected results" and should be used
+   "cautiously, if at all" [HANNEMAN-C15].
+8. **Blockmodel and its display.** Permute rows and columns by position (Data > Permute) and draw dividing lines
+   (Transform > Block); compute the block density matrix; make the image matrix by coding a block 1 when its density
+   is above a cutoff, usually "the average density for the whole matrix" [HANNEMAN-BLOCKS]. CONCOR and tabu search
+   report fit (r-squared, or the correlation with a perfect 0/1 model) [HANNEMAN-C13]. sna `blockmodel` reduces by
+   `block.content="density"` by default, or sum, median, min, max or block types [SNA-BLOCKMODEL]. The views are the
+   permuted matrix, the density and image tables, and a reduced graph with one node per position.
+9. **Use the result.** Memberships and positions become actor attributes for QAP or ERGM (5.5) and group colors in
+   the sociogram (5.6).
+
 ---
 
 ## 6. Data
@@ -481,6 +609,7 @@ Source: Net-Map manual [NETMAP-MANUAL]; [NETMAP-WIKI].
 | Collections of networks | Many classrooms or schools analyzed together; 20 yearly networks of 164 countries                                                                                                              | [MLERGM] [BTERGM]                                                   |
 | Ego network sizes       | 5 to about 50 alters, hundreds to thousands of egos                                                                                                                                            | [GSS-NAMEGEN] [UFL-ANG5420]                                         |
 | Two-mode sizes          | 18 by 14 (Southern Women) to 280,000 bills                                                                                                                                                     | [BORGATTI-EVERETT-1997] [FOWLER-2006]                               |
+| Political records       | Legislator-by-bill per session; member-by-vote tables keyed by ICPSR code; state dyad-years (alliances 1816-2012, disputes 1816-2014); policy-actor surveys                                     | [VOTEVIEW-VOTES] [COW-ALLIANCE] [COW-MID] [COMPON]                  |
 | Timestamped events      | Sender, receiver, time, increment (439 calls among 84 students in the goldfish teaching data)                                                                                                  | [GOLDFISH-TEACH]                                                    |
 | Signed ties             | Agreement versus disagreement in discourse networks; conflict networks as negative ties                                                                                                        | [LEIFELD-2017]                                                      |
 | Genealogies             | Parent-child arcs plus union edges; 17 to about 50,000 individuals; no generation field                                                                                                        | [KINSOURCES-ARXIV]                                                  |
@@ -499,7 +628,8 @@ Source: Net-Map manual [NETMAP-MANUAL]; [NETMAP-WIKI].
 - **Centrality and centralization:** degree, closeness, betweenness, eigenvector, Bonacich power [OGNYANOVA-UCINET].
 - **Brokerage and ego measures:** effective size, efficiency, constraint, hierarchy, ego density, EI index,
   composition, diversity [HOFFMANN-SH] [EGOR-VIGNETTE].
-- **Roles and positions:** structural and regular equivalence, blockmodels, triad census, MDS [OGNYANOVA-UCINET].
+- **Roles and positions:** structural and regular equivalence, blockmodels, triad census, MDS [OGNYANOVA-UCINET];
+  menu paths, statnet defaults and blockmodel displays in 5.14 [HANNEMAN-C13] [SNA-EQUIVCLUST] [SNA-BLOCKMODEL].
 - **Homophily:** mixing matrices, EI index, nodematch, assortativity [ERGM-VIGNETTE] [EGOR-VIGNETTE].
 - **Inference:** CUG, QAP, MRQAP (DSP), ERGM, multilevel ERGM, TERGM, SAOM, relational event models, network
   autocorrelation, ALAAM [R4SNA-QAP] [ERGM-VIGNETTE] [RSIENA-BASIC] [BTERGM] [GOLDFISH] [LNAM] [ALAAMEE].
@@ -571,7 +701,11 @@ importer reads `.net` (two-mode headers, arcs and edges lists, matrices) and a s
 | Ego measures beyond size, density and constraint: effective size, efficiency, hierarchy, EI, composition, heterogeneity                                                                    | must-have   | NOT covered                                                                                                |
 | Many-small-networks mode (ego, alter, alter-alter tables) with egograms                                                                                                                    | should-have | NOT covered                                                                                                |
 | Collections of many whole networks (classrooms, years) viewed as small multiples with shared styling                                                                                       | should-have | NOT covered                                                                                                |
-| Classic descriptives with UCINET definitions: centralization, cliques, n-clans, factions, k-cores, core-periphery, equivalence, triad census                                               | must-have   | partly (centrality and communities in W04, W10, W17)                                                       |
+| Per-session or per-year networks with stable ids (ICPSR codes, country codes) and node sets that change between sessions                                                                 | should-have | NOT covered (W1138, W1139 proposed)                                                                        |
+| Bipartite view beside its projection, showing what the projection hides (clustering both ways, mixed-party groups)                                                                       | should-have | NOT covered                                                                                                |
+| Vote-agreement network from a member-by-vote table with the threshold rule recorded on the network                                                                                         | should-have | NOT covered                                                                                                |
+| Dyad-year import: de-duplicate directed dyads, several events per year, alliance and dispute as typed or signed ties                                                                      | should-have | NOT covered                                                                                                |
+| Classic descriptives with UCINET definitions: centralization, cliques, n-clans, factions, k-cores, core-periphery, equivalence, triad census                                               | must-have   | planned: `positional-subgroup-analysis` (W3114, W26, W187); k-core per node ships in graphty-element |
 | Homophily: mixing matrix, EI index, assortativity per attribute                                                                                                                            | must-have   | NOT covered                                                                                                |
 | Permutation tests: CUG, QAP, MRQAP with DSP, null-distribution histogram                                                                                                                   | should-have | NOT covered                                                                                                |
 | Timestamped event streams (sender, receiver, time, weight): import, slice and aggregate by time window, animate                                                                            | must-have   | partly (`temporal-analysis` and W19, planned, cover windows over timestamped edges; no event-table import) |
@@ -687,3 +821,31 @@ importer reads `.net` (two-mode headers, arcs and edges lists, matrices) and a s
 - [ELSEVIER-SIZE] https://www.elsevier.com/about/policies-and-standards/author/artwork-and-media-instructions/artwork-sizing -- dpi and column widths.
 - [APSR-FIG] https://www.cambridge.org/core/journals/american-political-science-review/information/author-instructions/preparing-your-materials -- grayscale readability.
 - [THOMAS-BLITZSTEIN] https://arxiv.org/abs/1101.0788 -- "Valued Ties Tell Fewer Lies: Why Not To Dichotomize Network Edges With Thresholds".
+- [APSA-S41] https://apsanet.org/Section41 -- APSA Political Networks section, founded 2009; awards.
+- [APSA-S41-CONF] https://connect.apsanet.org/s41/?p=27 -- summer conference with introductory and advanced workshops; past hosts.
+- [POLNET-2021] https://www.insna.org/events/polnet-xiv -- PolNet XIV workshops, June 15-18, 2021, online.
+- [POLNET-2013-TERGM] https://polnet2013.indiana.edu/workshops/workshop-tergm.html -- TERGM workshop at the 2013 conference.
+- [LO-2025] https://www.cambridge.org/core/product/013054D312143518259551EEA9103FA0/core-reader -- Lo, Olivella and Imai, "A Statistical Model of Bipartite Networks: Application to Cosponsorship in the United States Senate", Political Analysis (2025): projection bias, biMMSBM, NetMix, 107th Senate.
+- [ZENODO-FOWLER-HG] https://zenodo.org/records/10928561 -- hypergraph derived from Fowler's data, 1,718 nodes, 282,049 timestamped hyperedges.
+- [PARLNET] https://github.com/briatte/parlnet -- 150 cosponsorship networks, 27 chambers, 19 European countries plus Israel.
+- [VOTEVIEW-VOTES] https://voteview.com/articles/data_help_votes -- member-by-vote download keyed by ICPSR code.
+- [ANDRIS-2015] https://pmc.ncbi.nlm.nih.gov/articles/PMC4405569 -- Andris et al., roll-call agreement networks per House, 1949-2012, threshold at distribution crossing point.
+- [CRAIG-2015] https://arxiv.org/abs/1512.06141 -- TERGM on House cosponsorship, 97th-108th Congresses, binary cutoff.
+- [COW-ALLIANCE] https://correlatesofwar.org/data-sets/formal-alliances -- Formal Alliances v4.1, 1816-2012, dyadic file and types.
+- [COW-MID] https://correlatesofwar.org/data-sets/MIDs -- Militarized Interstate Disputes v5.0, 1816-2014.
+- [PEACESCIENCER-ALLY] https://search.r-project.org/CRAN/refmans/peacesciencer/html/cow_alliance.html -- directed dyad-year alliances, 120,784 rows with duplicates.
+- [PEACESCIENCER-MID] https://search.r-project.org/CRAN/refmans/peacesciencer/html/cow_mid_ddydisps.html -- MID dyad-years, multiple onsets, naive overlap caveat.
+- [COMPON] https://isaconf.confex.com/isaconf/forum2016/webprogram/Paper83719.html -- COMPON common policy network survey; teams in over 25 societies.
+- [LUBELL-2014] https://findanexpert.unimelb.edu.au/scholarlywork/949070-network-structure-and-institutional-complexity-in-an-ecology-of-water-management-games -- Lubell, Robins and Wang (2014), Ecology and Society: actors in institutions as a bipartite network tested with ERGM.
+- [PEACESCIENCER-ADD] https://search.r-project.org/CRAN/refmans/peacesciencer/html/add_cow_mids.html -- several dispute onsets per dyad-year (France and Italy, 1860).
+- [HANNEMAN-C11] https://faculty.ucr.edu/~hanneman/nettext/C11_Cliques.html -- UCINET cliques, N-cliques, N-clans, K-plexes, K-cores, factions.
+- [HANNEMAN-C13] https://faculty.ucr.edu/~hanneman/nettext/C13_%20Structural_Equivalence.html -- profile similarity, CONCOR, tabu search, blocked and image matrices, fit.
+- [HANNEMAN-C15] https://faculty.ucr.edu/~hanneman/nettext/C15_Regular_Equivalence.html -- REGE and CATREGE, depth 3, caution on undirected data.
+- [HANNEMAN-C8] https://faculty.ucr.edu/~hanneman/nettext/C8_Embedding.html -- UCINET has no full triad census; Pajek does.
+- [HANNEMAN-BLOCKS] https://math.libretexts.org/Bookshelves/Scientific_Computing_Simulations_and_Modeling/Book%3A_Introduction_to_Social_Network_Methods_(Hanneman)/05%3A_Using_Matrices_to_Represent_Social_Relations/5.03%3A_Matrix_permutation_blocks_and_images -- permute, block, density matrix, image at the average density.
+- [SNA-EQUIVCLUST] https://search.r-project.org/CRAN/refmans/sna/html/equiv.clust.html -- equiv.clust defaults (sedist, hamming, digraph, complete linkage).
+- [SNA-BLOCKMODEL] https://search.r-project.org/CRAN/refmans/sna/html/blockmodel.html -- block.content density by default and alternatives.
+- [SNA-TRIAD] https://search.r-project.org/CRAN/refmans/sna/html/triad.census.html -- 16 directed or 4 undirected types; dichotomize valued data.
+- [SNA-KCORES] https://search.r-project.org/CRAN/refmans/sna/html/kcores.html -- core number per vertex; directed Freeman degree by default.
+- [SNA-CLIQUE] https://search.r-project.org/CRAN/refmans/sna/html/clique.census.html -- maximal cliques by size, per vertex, co-membership; cost grows sharply.
+- [KCORE-CODE] graphty-element/src/algorithms/KCoreAlgorithm.ts -- shipped k-core algorithm publishing a per-node core number ("Core depth"), undirected.

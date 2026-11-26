@@ -8,8 +8,8 @@ personas:
     - expert-emma
     - genomics-cytoscape-user
     - spreadsheet-first-network-builder
-    - event-log-network-builder
-    - bibliometric-network-analyst
+    - crime-intelligence-analyst
+    - research-impact-librarian
     - graph-data-wrangler
     - process-mining-analyst
 requires_capabilities:
@@ -96,7 +96,12 @@ goal: >-
 
     **Information Needs**:
 
-    - Supported formats and input shapes
+    - Supported formats and input shapes: graph-io reads CSV and TSV, XLSX and XLSM (one sheet per import), the JSON
+    dialects, GraphML, GEXF, GML, DOT, Pajek, SIF, XGMML, CX, CX2, OBO, Cytoscape sessions and Neo4j CSV; a specialist
+    format (MITAB, SBOM, SharpHound, Newick, RDF and others) is opened through its own reader (W1162)
+
+    - The encoding used to read the file, with a warning when bytes that are not UTF-8 were read as windows-1252, and
+    a way to choose another
 
     - Auto-detected format with confidence
 
@@ -127,7 +132,10 @@ goal: >-
 
     - Node attributes silently overwritten by the last row
 
-    - Large files take long time to load with no progress indicator
+    - Large files take long time to load with no progress indicator (a looped indicator suits waits of 2 to 10
+    seconds, a percent-done indicator waits of 10 seconds or more, per Nielsen Norman Group)
+
+    - Accented names garbled because the file was not UTF-8 and the tool guessed its encoding silently
 
     - Cryptic error messages when load fails
 
@@ -151,12 +159,12 @@ success_criteria:
       target: All major issues flagged, with counts, before user proceeds
     - metric: Import decisions visible
       target: Direction, merge strategy and missing-node handling are shown as named choices, not silent defaults
-    - metric: Time to loaded graph
-      target: Fast enough that user doesn't abandon
+    - metric: Load feedback
+      target: A load expected to take 2 seconds or more shows an indicator, and one expected to take 10 seconds or more
+          shows percent done (Nielsen Norman Group guidance; no source measures Graphty load times)
+    - metric: Encoding disclosed
+      target: The encoding used is shown when it was not UTF-8 by byte order mark or declaration, and can be changed
 sources:
-    - title: Graphty Progressive Disclosure Design
-      url: https://graphty.app/docs/
-      summary: Load Data Wizard with staged disclosure
     - title: University of Toronto Gephi Guide
       url: https://mdl.library.utoronto.ca/technology/tutorials/visualizing-network-dataset-using-gephi
       summary: Data preparation workflow for network visualization
@@ -178,6 +186,15 @@ sources:
     - title: Ziemann, Eren and El-Osta 2016 - Gene name errors
       url: https://genomebiology.biomedcentral.com/track/pdf/10.1186/s13059-016-1044-7
       summary: Excel converts gene symbols such as SEPT2 to dates
-version: 1.0.0
+    - title: Nielsen Norman Group - Progress Indicators Make a Slow System Less Insufferable
+      url: https://www.nngroup.com/articles/progress-indicators/
+      summary: Looped indicator for 2-10 second waits, percent-done for 10 seconds or more
+    - title: WHATWG Encoding Standard
+      url: https://encoding.spec.whatwg.org/
+      summary: Only byte-order-mark sniffing is defined; latin1 and iso-8859-1 are labels for windows-1252
+    - title: ICU User Guide - Character Set Detection
+      url: https://unicode-org.github.io/icu/userguide/conversion/detection.html
+      summary: Detection is "at best, an imprecise operation using statistics and heuristics"
+version: 1.1.0
 created_at: 2026-01-16T16:22:52.356Z
 updated_at: 2026-11-25T00:00:00.000Z

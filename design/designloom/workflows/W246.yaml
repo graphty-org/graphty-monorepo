@@ -38,19 +38,20 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Connect** (1 min) - Start desktop Cytoscape and check the connection (cytoscapePing in RCy3)
+    1. **Connect** - Start desktop Cytoscape and check the connection (cytoscapePing in RCy3)
 
-    2. **Build** (5 min) - createNetworkFromDataFrames(nodes, edges), or a STRING query by command
+    2. **Build** - createNetworkFromDataFrames(nodes, edges), or a STRING query by command
 
-    3. **Join and style** (10 min) - loadTableData; setNodeColorMapping and other mappings; save the style by name
+    3. **Join and style** - loadTableData; setNodeColorMapping and other mappings; save the style by name
 
-    4. **Analyze** (10 min) - Run MCL clustering, enrichment and Network Analyzer by command
+    4. **Analyze** - Run MCL clustering (inflation, which clusterMaker2 calls granularity), enrichment and Network
+    Analyzer by command
 
-    5. **Export** (5 min) - exportImage, saveSession, exportNetworkToNDEx
+    5. **Export** - exportImage, saveSession, exportNetworkToNDEx
 
     6. **Publish** (varies) - NDEx private link for reviewers, then a DOI at publication
 
-    7. **Write methods** (15 min) - Database, version, access date, cutoff, enrichment background and every parameter
+    7. **Write methods** - Database, version, access date, cutoff, enrichment background and every parameter
 
 
     **Decision Points**:

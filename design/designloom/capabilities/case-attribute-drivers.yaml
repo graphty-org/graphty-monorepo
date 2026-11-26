@@ -5,10 +5,18 @@ description: For a selection made on the graph (node, edge, variant, deviation) 
     attribute value the counts in each set, share, deviation from baseline and a significance flag, optionally a
     decision tree over case attributes for a target metric, returned as structured facts linked to the selection.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: process-mining-and-process-maps.md section 10, requirement R25 (Must)."
 algorithms: []
 used_by_workflows:
     - W359
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Case attribute statistics for the current selection against a reference set (the cases behind a clicked
+      node, edge, variant or deviation vs all, or a filter vs a period): per attribute value, counts in each set, share,
+      deviation from baseline and a significance flag; optionally a decision tree over case attributes for a target
+      metric; linked to the map selection, returned as structured facts (5.11)"
+sources:
+    - title: "Process Mining Analysts: Process Maps, Models and Deviations from Event Logs (section 10, requirement
+        R25)"
+      url: design/user-research/process-mining-and-process-maps.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

@@ -16,6 +16,7 @@ requires_capabilities:
     - entity-resolution-review
     - provenance-tracking
     - live-data-source
+    - investigation-format-import
 suggested_components:
     - data-import-dialog
     - column-mapper
@@ -62,8 +63,9 @@ goal: >-
 
     2. **Cross-reference** - Against registries and sanctions lists; unresolved mentions stay unlinked
 
-    3. **Export** - FollowTheMoney to GEXF for Gephi or Cypher for Neo4j, where ownership and membership entities
-    contract into edges; GraphRAG writes Parquet entity and relationship tables with ids back to the source text chunks
+    3. **Export or read the stream** - FollowTheMoney to GEXF for Gephi or Cypher for Neo4j, where ownership and
+    membership entities contract into edges and other links lose their attributes; or read the JSON lines stream
+    itself so every edge keeps its dates and its proof document; GraphRAG writes Parquet entity and relationship tables with ids back to the source text chunks
 
     4. **Check** - Counts by type, unresolved mentions, near-duplicates, and that every edge leads back to a document
 
@@ -117,7 +119,8 @@ goal: >-
 
     **Data Flow**:
 
-    - Input: Connection and query; document collection or its exported entity stream; relational tables
+    - Input: Connection and query; document collection or its FollowTheMoney JSON lines stream (.ftm, .ijson);
+    relational tables
 
     - Transformations: Capped query and expansion; extraction, resolution and edge contraction; table-to-graph mapping
 
@@ -160,6 +163,12 @@ sources:
     - title: PyGraphistry - hypergraph
       url: https://pygraphistry.readthedocs.io/en/0.52.1/api/hyper.html
       summary: Shared values as nodes by default, direct links with direct=True
-version: 1.0.0
+    - title: FollowTheMoney documentation
+      url: https://followthemoney.tech/docs/
+      summary: Entities are id, schema and multi-valued string properties; streams are one entity per line in .ftm or .ijson files
+    - title: FollowTheMoney - Thing schema
+      url: https://followthemoney.tech/explorer/schemata/Thing/
+      summary: Every Thing can carry proof (source document), sourceUrl and publisher
+version: 1.1.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

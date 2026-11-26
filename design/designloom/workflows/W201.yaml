@@ -59,27 +59,27 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Build the roster** (1 h) - Member list with attributes (sector, role, joined date)
+    1. **Build the roster** - Member list with attributes (sector, role, joined date)
 
-    2. **Survey** (2-6 weeks, outside the tool) - Each respondent rates each roster member; track response status and
+    2. **Survey** (outside the tool) - Each respondent rates each roster member; track response status and
     chase non-response; keep networks above about 70% response
 
-    3. **Import a wave** (20 min) - One worksheet per relationship question or a respondent-by-member matrix; member
+    3. **Import a wave** - One worksheet per relationship question or a respondent-by-member matrix; member
     attributes; respondent status; ratings become edge weights
 
-    4. **Decide on direction** (5 min) - Keep reported ties directed and report reciprocity, or symmetrize with a stated
+    4. **Decide on direction** - Keep reported ties directed and report reciprocity, or symmetrize with a stated
     rule for one-sided ties where the other side did not respond
 
-    5. **Compute** (10 min) - Density, degree centralization, in- and out-degree, reciprocity, mean trust and value
+    5. **Compute** - Density, degree centralization, in- and out-degree, reciprocity, mean trust and value
     ratings; identify central and peripheral members
 
-    6. **Import the follow-up wave** (20 min) - Match members across waves by a stable identifier; members join and
+    6. **Import the follow-up wave** - Match members across waves by a stable identifier; members join and
     leave
 
-    7. **Compare** (30 min) - Side-by-side maps with stable positions; ties gained and lost; change in the network-level
+    7. **Compare** - Side-by-side maps with stable positions; ties gained and lost; change in the network-level
     figures
 
-    8. **Report** (2 h) - Maps, a table of network-level figures per wave, and action steps for the coalition
+    8. **Report** - Maps, a table of network-level figures per wave, and action steps for the coalition
 
 
     **Decision Points**:

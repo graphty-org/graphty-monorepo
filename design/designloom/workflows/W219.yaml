@@ -105,7 +105,7 @@ goal: >-
     - Output: Valve list, affected customers, crew schematic, criticality ranking for the capital plan
 success_criteria:
     - metric: Time to isolation answer
-      target: Valve list and affected customers within minutes of a break
+      target: Valve list and affected customers within minutes of a break (design goal; no source measures it)
     - metric: State correctness
       target: Closed devices stop every trace
     - metric: Criticality ranking

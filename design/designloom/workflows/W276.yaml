@@ -2,6 +2,7 @@ id: W276
 name: Debug a Converted or Quantized Model's Computation Graph (Adjacent, Out of Scope)
 category: analysis
 validated: false
+scope: out-of-scope
 personas:
     - model-graph-and-interpretability-users
 requires_capabilities:
@@ -53,22 +54,22 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Open both models** (3 min) - `model-explorer` starts a local server, or `model_explorer.visualize(path)` in
+    1. **Open both models** - `model-explorer` starts a local server, or `model_explorer.visualize(path)` in
     Colab; PyTorch goes through torch.export; select original and converted models
 
-    2. **Orient** (5 min) - Only top-level layers show; double-click expands one; expand-all can be slow; layers with
+    2. **Orient** - Only top-level layers show; double-click expands one; expand-all can be slow; layers with
     more than 1,000 children are split into sections
 
-    3. **Find an operator** (2 min) - Regex search over label, attributes (shape=.*x3), inputs or outputs; results
+    3. **Find an operator** - Regex search over label, attributes (shape=.*x3), inputs or outputs; results
     grouped by hierarchy; click locates the node
 
-    4. **Compare** (10 min) - Split pane with synchronized navigation, matched by node id or an uploaded mapping;
+    4. **Compare** - Split pane with synchronized navigation, matched by node id or an uploaded mapping;
     deleted and new nodes highlighted red and green; compare shapes and data types
 
-    5. **Overlay numbers** (10 min) - Upload per-node JSON (for example per-operator mean squared error between quantized
+    5. **Overlay numbers** - Upload per-node JSON (for example per-operator mean squared error between quantized
     and float model) with color thresholds; layer nodes show a summary bar of their operators
 
-    6. **Save and share** (2 min) - Bookmarked view states, permalinks, PNG export
+    6. **Save and share** - Bookmarked view states, permalinks, PNG export
 
 
     **Decision Points**:

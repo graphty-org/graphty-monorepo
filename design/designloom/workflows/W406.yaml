@@ -55,31 +55,31 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Create a network** (1 min) - Name it; often one per category or code group
+    1. **Create a network** - Name it; often one per category or code group
 
-    2. **Add nodes** (10 min) - Drag codes, quotations, memos, documents or groups into the editor; one item may
+    2. **Add nodes** - Drag codes, quotations, memos, documents or groups into the editor; one item may
     appear in several networks
 
-    3. **Link nodes** (20+ min) - Drag from one node onto another and pick a relation from the list: symmetric ("is
+    3. **Link nodes** - Drag from one node onto another and pick a relation from the list: symmetric ("is
     associated with", "contradicts") or asymmetric ("is part of", "is cause of", "is a", "is property of");
     quotation-to-quotation links such as "explains" or "supports"
 
-    4. **Define relations** (10 min) - Each relation has a name, short and symbolic labels, line width and color, a
+    4. **Define relations** - Each relation has a name, short and symbolic labels, line width and color, a
     property (symmetric, asymmetric, transitive in older versions) and a preferred layout direction; editing it
     restyles all links that use it
 
     5. **Edit links** (ongoing) - Write a comment on why the nodes are linked, reverse direction, change relation,
     unlink
 
-    6. **Review all links** (15 min) - A link manager lists every code-code link and quotation hyperlink, filterable by
+    6. **Review all links** - A link manager lists every code-code link and quotation hyperlink, filterable by
     relation and comment
 
     7. **Mind the code tree** - Hierarchical links drawn in a network change the code hierarchy across the project
 
-    8. **Arrange** (15 min) - Start from a circular, hierarchical or left-right layout, then place by hand; align and
+    8. **Arrange** - Start from a circular, hierarchical or left-right layout, then place by hand; align and
     distribute
 
-    9. **Export** (5 min) - PNG, JPG, PDF or print; the project travels as QDPX, losing relation types and complex maps
+    9. **Export** - PNG, JPG, PDF or print; the project travels as QDPX, losing relation types and complex maps
 
 
     **Decision Points**:

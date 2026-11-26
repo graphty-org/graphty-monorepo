@@ -5,11 +5,17 @@ description: Keep each node's shortest (strongest) weighted link, with ties and 
     applied to one edge layer only, as a standard simplification of molecular distance networks before epidemiologic
     links are added.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: public-health-and-molecular-epidemiology.md section 10, table row 10 (Must)."
 algorithms: []
 used_by_workflows:
     - W62
     - W63
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Connected components, component sizes, minimum component size filter, singleton toggle, and
+      nearest-neighbor pruning of weighted edges"
+sources:
+    - title: Public Health Outbreak Investigators and Molecular Epidemiologists (section 10, table row 10)
+      url: design/user-research/public-health-and-molecular-epidemiology.md
+      summary: "Must in the research. Covered by Designloom when researched: partly
+        (components in existing analysis workflows)"

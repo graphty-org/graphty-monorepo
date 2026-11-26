@@ -4,10 +4,15 @@ category: analysis
 description: Turn a plain-language question into a query or pattern that is always shown and editable before it runs,
     applies the user's access rights, and lists any view actions taken so they can be undone.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: graph-database-query-and-expand-exploration.md section 10, requirement 27 (Should)."
 algorithms: []
 used_by_workflows:
     - W149
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Should: Natural-language-to-query entry that always shows the generated query before running and applies the
+      user's access rights"
+sources:
+    - title: Graph Database Users Who Explore by Search, Query and Expand (section 10, requirement 27)
+      url: design/user-research/graph-database-query-and-expand-exploration.md
+      summary: Should in the research.

@@ -4,11 +4,17 @@ category: analysis
 description: "Navigate a community hierarchy supplied with the data (levels, parent, children): choose a level, color by
     community, drill from parent to children, and read attached report text on demand."
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: knowledge-graph-engineers-and-graphrag.md section 10, table row 8 (Must)."
 algorithms: []
 used_by_workflows:
     - W129
     - W141
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Community hierarchy navigation: choose level, color by community, drill parent to children, report text on
+      demand"
+sources:
+    - title: Knowledge Graph Engineers, Ontologists and GraphRAG Developers (section 10, table row 8)
+      url: design/user-research/knowledge-graph-engineers-and-graphrag.md
+      summary: "Must in the research. Covered by Designloom when researched: Partly:
+        community algorithms exist, not supplied hierarchies"

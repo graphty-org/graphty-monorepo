@@ -1,0 +1,18 @@
+id: relatedness-from-presence-matrix
+name: "Relatedness Network from a Two-Mode Presence Table"
+category: analysis
+description: "From a two-mode value table (country by product, region by industry), binarize presence by revealed comparative advantage (threshold 1 by default, or a per-capita test, or a supplied matrix), project to a one-mode proximity network as the minimum of the two conditional probabilities, draw it as a maximum spanning tree plus links above a proximity threshold or a target average degree while metrics use the full matrix, and for one chosen entity rank its absent nodes by density (the proximity-weighted share of neighbors it already has) in a table linked to the canvas."
+status: planned
+notes: "Research trace: supply-chain-and-physical-infrastructure-networks.md section 10, requirement R45 (Should)."
+algorithms: []
+used_by_workflows:
+    - W1006
+implemented_by_components: []
+requirements:
+    - "Should: Two-mode table to relatedness network: binarize by RCA (threshold 1, or per-capita, or a supplied
+      matrix), project to proximity as the minimum of the two conditional probabilities"
+sources:
+    - title: Supply Chain Risk Analysts and Physical Infrastructure Network Engineers (section 10, requirement R45)
+      url: design/user-research/supply-chain-and-physical-infrastructure-networks.md
+      summary: "Should in the research. Covered by Designloom when researched: Partly (bipartite-projection weights by
+        count, not RCA and conditional probability)"

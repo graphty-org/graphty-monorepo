@@ -110,7 +110,7 @@ goal: >-
     - Output: Scenario comparison, change list in CSV or XLSX, slide deck
 success_criteria:
     - metric: Diagnosis speed
-      target: Off-target spans and excess layers are listed within 5 minutes of import
+      target: Off-target spans and excess layers are listed within 5 minutes of import (design goal; no source measures it)
     - metric: Live recompute
       target: Moving a branch updates headcount, cost, span and layers without a manual refresh
     - metric: Change list

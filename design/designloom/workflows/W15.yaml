@@ -8,9 +8,10 @@ personas:
     - fraud-analyst
     - intelligence-analyst
     - publication-figure-author
-    - litigation-demonstratives-specialist
+    - forensic-accountant
     - graph-deliverable-recipient
 requires_capabilities:
+    - label-overlap-removal
     - export-image
     - annotation
     - style-presets
@@ -147,15 +148,15 @@ success_criteria:
     - metric: Rule compliance
       target: The deliverable meets its setting's rules (format, privacy, provenance) on first review
     - metric: Audience comprehension
-      target: Key message understood in under a minute by a non-operator
+      target: Key message understood in under a minute by a non-operator (design goal; no source measures it)
     - metric: Provenance
       target: Parameters and source references travel with the deliverable
     - metric: Accessibility
       target: Colorblind-safe, grayscale-readable, labeled, with a text alternative for web output
 sources:
-    - title: Practical Graph Analysis Guide - Chapter 15
-      url: https://graphty.app/docs/
-      summary: Visualization best practices and styling workflow
+    - title: W3C WCAG 2.2 - Understanding Success Criterion 1.4.1 Use of Color
+      url: https://www.w3.org/WAI/WCAG22/Understanding/use-of-color.html
+      summary: Color must not be the only visual means of conveying information or distinguishing a visual element, so legends and encodings need a second channel
     - title: Storytelling with Data
       url: https://www.storytellingwithdata.com/blog/2014/04/exploratory-vs-explanatory-analysis
       summary: Distinction between exploratory and explanatory visualization

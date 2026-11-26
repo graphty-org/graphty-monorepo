@@ -1,10 +1,14 @@
 id: zoom-pan
 name: Zoom and Pan Navigation
 category: interaction
-description: Navigate the graph visualization through zooming (changing magnification) and panning (shifting viewport).
-    The most fundamental interaction for exploring graphs of any size.
-status: implemented
-notes: "Ships: graphty-element/src/cameras/ and the zoom commands in graphty/src/workspace/toolbar/commands.ts."
+description: Navigate the graph view by zooming (changing magnification) and panning (shifting the viewport), with
+    one-step framing of the whole graph or the selection. Zooming is the "zoom" step of Shneiderman's "overview first,
+    zoom and filter, then details-on-demand", but for large database-backed graphs users start from a search and
+    expand rather than from a full overview (van Ham and Perer 2009), so framing a selection or a newly expanded
+    neighborhood matters as much as framing the whole graph. Readers of embedded and published graphs need page scroll
+    left alone, and keyboard and single-pointer users need navigation that does not depend on dragging.
+status: in-progress
+notes: "Partly ships: graphty-element/src/cameras/ and the zoom commands in graphty/src/workspace/toolbar/commands.ts. Planned: a consumer option that turns scroll-wheel zoom off for an embedding page, and a one-step return to the overview in headset modes. Any requirement below that this note does not name as shipping counts as planned."
 algorithms: []
 used_by_workflows:
     - W02
@@ -22,33 +26,51 @@ used_by_workflows:
     - W422
     - W43
     - W437
-    - W446
     - W47
     - W63
     - W67
     - W68
     - W69
+    - W1018
+    - W2066
 implemented_by_components:
     - zoom-controls
 requirements:
-    - Zoom in/out with mouse scroll wheel (10% per scroll notch)
-    - Zoom toward cursor position (semantic zoom, not center-zoom)
-    - Support pinch-to-zoom gesture on touch devices
-    - Pan by click-and-drag with left mouse button on empty canvas area
-    - Pan by click-and-drag with middle mouse button anywhere
-    - Support two-finger pan gesture on touch devices
-    - Provide 'Zoom to Fit' button that frames entire graph with 10% padding
-    - Provide 'Zoom to Selection' button that frames selected nodes with 10% padding
-    - Display current zoom level as percentage (e.g., '150%') in status bar
-    - Set minimum zoom limit at 10% (prevent zooming out too far)
-    - Set maximum zoom limit at 1000% (prevent zooming in too far)
-    - Maintain 60fps during pan and zoom operations
-    - Support momentum/inertia scrolling on trackpads
-    - "Support keyboard zoom: '+' or '=' to zoom in, '-' to zoom out"
-    - "Support keyboard pan: arrow keys to pan viewport"
-    - Animate zoom-to-fit transition over 300ms
-    - Provide zoom slider control as alternative to scroll wheel
+    - "Library parity: Zoom in and out with the mouse wheel and trackpad, centered on the pointer position rather than the view center"
+    - "Library parity: Support pinch-to-zoom and two-finger pan on touch devices"
+    - "Library parity: Pan by dragging empty canvas, without starting a node drag or a selection"
+    - "Library parity: Provide 'Zoom to Fit' that frames the entire graph, and 'Zoom to Selection' that frames the selected nodes, computed from the canvas size alone (app overlays do not shrink the frame)"
+    - "Library parity: Frame a newly expanded or searched-for neighborhood, so search-first exploration does not leave the result off screen"
+    - "Library parity: Clamp zoom to minimum and maximum limits that the consumer can set, so the graph cannot be lost off screen"
+    - "Library parity: Offer zoom and pan without dragging: zoom buttons and keyboard zoom ('+'/'=' in, '-' out) and arrow-key pan (WCAG 2.2 2.5.7 Dragging Movements and 2.1.1 Keyboard)"
+    - "Library parity: Make scroll-wheel zoom an option an embedding page can turn off, so the graph does not capture page scroll"
+    - "Library parity: Animate framing transitions, and skip the animation when the reader asks for reduced motion"
+    - "Must: Keep pan and zoom interactive on large graphs, with level-of-detail labels (hide labels below a readable on-screen size) and the option to hide edges while the view moves"
+    - "Library parity: Expose the current zoom level and viewport as values a consumer can read and set, so an app can show a zoom level, save a view and restore it (a saved slide keeps its view and zoom, as Kumu presentations do)"
+    - "Must: In 3D and headset modes, avoid free flying as the default navigation and keep a one-step return to the overview"
+    - "Library parity: Fly the camera to a given node, keeping a set distance, as one call; 3D embedders copy the 'Click to focus on node' example's camera arithmetic into their own code (dep-tree's web view and graphaura do it verbatim)"
 sources:
-    - title: Complete Graph Visualization Textbook - Chapter 6
-      url: https://graphty.app/docs/
-      summary: Navigation Interactions - zooming and panning fundamentals
+    - title: Cockburn, Karlson and Bederson 2009, A review of overview+detail, zooming, and focus+context interfaces
+      url: https://doi.org/10.1145/1456650.1456652
+      summary: Survey of zooming and overview+detail interfaces; the reference for zoom-pan in data-preparation-and-import.md
+    - title: Shneiderman 1996, The eyes have it
+      url: https://www.cs.umd.edu/~ben/papers/Shneiderman1996eyes.pdf
+      summary: '"Overview first, zoom and filter, then details-on-demand"'
+    - title: van Ham and Perer 2009, Search, show context, expand on demand
+      url: https://doi.org/10.1109/TVCG.2009.108
+      summary: For large graphs an overview is often "not relevant or practical"; start from search and expand
+    - title: WCAG 2.2
+      url: https://www.w3.org/TR/WCAG22/
+      summary: 2.1.1 Keyboard, 2.5.7 Dragging Movements and 2.3.3 Animation from Interactions apply to an interactive graph
+    - title: Kumu embeds
+      url: https://docs.kumu.io/guides/embeds.html
+      summary: Embedded maps have scroll-zoom off by default
+    - title: Kumu presentations
+      url: https://docs.kumu.io/guides/presentations
+      summary: Each map slide keeps its view, zoom, focus and filter
+    - title: yFiles large-graph performance
+      url: https://docs.yworks.com/yfiles-html/dguide/large_graph_performance/
+      summary: Level-of-detail rendering and other tactics for keeping large graphs interactive
+    - title: Sorger et al. 2019, immersive node-link exploration
+      url: https://ar5iv.labs.arxiv.org/html/1910.06825
+      summary: Free flying confused an expert; overview also works in 2D, hubs easier to browse up close

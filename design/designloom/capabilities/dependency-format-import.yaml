@@ -2,10 +2,10 @@ id: dependency-format-import
 name: Dependency and Lineage Format Import
 category: data
 description: Import dbt manifest.json, CycloneDX and SPDX SBOMs, OpenLineage events, npm ls --json, migration connection
-    CSVs, NetBox exports, Nx graph JSON, crawler inlink exports with cleanup options, and SysML v2 models through the
+    CSVs, NetBox exports, Nx project graph JSON (`nx graph --file`), dependency-cruiser and madge JSON, crawler inlink exports with cleanup options, and SysML v2 models through the
     Systems Modeling API.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: dependency-and-impact-analysis-engineers.md section 10, requirement R22 (Must)."
 algorithms: []
 used_by_workflows:
     - W78
@@ -15,8 +15,35 @@ used_by_workflows:
     - W82
     - W83
     - W84
+    - W85
     - W86
     - W87
+    - W1162
+    - W3096
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Import dbt manifest, CycloneDX, SPDX, OpenLineage, npm ls --json, migration CSVs, NetBox exports, Nx graph
+      JSON, dependency-cruiser JSON"
+    - "Should: Open the DOT that build and infrastructure tools emit (terraform graph, bazel query --output graph) at
+      sizes where a static dot render stops being readable, keeping its cluster and rank subgraphs; graph-io's DOT
+      importer already reads these, so the remaining work is size and the tool-specific node attributes"
+sources:
+    - title: "Engineers Who Analyze Dependencies: IT Services, Networks, Software and Data Lineage (section 10,
+        requirement R22)"
+      url: design/user-research/dependency-and-impact-analysis-engineers.md
+      summary: "Must in the research. Covered by Designloom when researched: No"
+    - title: dependency-cruiser - command line interface
+      url: https://github.com/sverweij/dependency-cruiser/blob/main/doc/cli.md
+      summary: json output carries modules, dependencies and rule violations; dot, ddot, archi, mermaid and d2 draw the graph
+    - title: Nx - Explore your workspace
+      url: https://nx.dev/docs/features/explore-graph
+      summary: nx graph --file writes the project graph as JSON for other tools
+    - title: Terraform graph command
+      url: https://developer.hashicorp.com/terraform/cli/commands/graph
+      summary: terraform graph outputs DOT; the docs suggest rendering it with Graphviz dot
+    - title: Bazel query guide
+      url: https://bazel.build/query/guide
+      summary: query --output graph is piped to dot -Tsvg; big graphs are approached one path at a time
+    - title: "Developers Who Embed Graph Visualization (section 2, diagram-as-code scope decision)"
+      url: design/user-research/developers-embedding-and-extending-graph-visualization.md
+      summary: Hand-written text diagrams are out of scope; machine-generated DOT is in scope through this workflow

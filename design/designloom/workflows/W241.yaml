@@ -58,7 +58,7 @@ goal: >-
     2. **Import** (5 min) - Bait as source, prey as target, score on the edge; watch for preys that appear under several
     baits, where some tools keep only the last value
 
-    3. **Add known interactions among preys** (5 min) - Query STRING with the prey list at a very high confidence (0.999
+    3. **Add known interactions among preys** - Query STRING with the prey list at a very high confidence (0.999
     in the Cytoscape protocol) with no added interactors, and confirm ambiguous name matches
 
     4. **Merge** (5 min) - Join the AP-MS network and the STRING network on UniProt accession versus STRING query term
@@ -70,7 +70,7 @@ goal: >-
     6. **Enrich and chart** (15 min) - STRING enrichment at FDR 0.05; donut or pie charts on nodes for membership in the
     top terms
 
-    7. **Export** (5 min) - Session, PNG or SVG with legend, NDEx upload, and CX2, GraphML, XGMML or SIF for
+    7. **Export** - Session, PNG or SVG with legend, NDEx upload, and CX2, GraphML, XGMML or SIF for
     collaborators
 
 
@@ -125,7 +125,7 @@ goal: >-
     - Output: Merged interactor network with provenance-colored edges, figure with legend, enrichment table, NDEx link
 success_criteria:
     - metric: Time from scored table to interactor figure
-      target: Under 45 minutes for a bench scientist without coding
+      target: Under 45 minutes for a bench scientist without coding (design goal; no source measures it)
     - metric: Provenance visible
       target: Every edge is identifiable as AP-MS, STRING or both, in the figure legend
     - metric: No silent loss

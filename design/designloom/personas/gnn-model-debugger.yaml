@@ -1,9 +1,12 @@
 id: gnn-model-debugger
 name: GNN Model Developer and Debugger
+roster_persona: ml-engineer-recsys
+tier: B
+scope: in-scope
 role: Research Scientist / Deep Learning Engineer, Node Classification and Link Prediction
 quote: The F1 tells me something is wrong with class 7. It does not tell me whether it's the labels, the neighbors or the features.
 bio: >-
-    Wei is a research scientist building node classification and link prediction models (GCN, GAT, GraphSAGE) on one
+    Jun is a research scientist building node classification and link prediction models (GCN, GAT, GraphSAGE) on one
     large graph -- benchmarks from Cora (2,708 nodes) to ogbn-papers100M (111 million nodes) plus a proprietary graph.
     He works in PyTorch Geometric or DGL. His visual tools today are improvised: `to_networkx` and `nx.draw_networkx`
     with `spring_layout(seed=42)` on a k-hop subgraph, t-SNE of hidden embeddings colored by class, the static PDF from

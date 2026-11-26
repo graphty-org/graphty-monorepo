@@ -1,5 +1,8 @@
 id: knowledge-engineer
 name: Knowledge Graph Engineer
+roster_persona: knowledge-engineer
+tier: B
+scope: in-scope
 role: Ontologist / Semantic Engineer (RDF, OWL, SKOS, SHACL)
 quote: Show me where the inferred hierarchy moved in this release, and which one class explains five thousand SHACL
     violations - not another list of axioms.
@@ -57,6 +60,8 @@ workflows:
     - W135
     - W137
     - W138
+    - W420
+    - W130
 sources:
     - title: Knowledge Graphs in Practice - interviews with 19 practitioners (Li et al. 2023)
       url: https://arxiv.org/pdf/2304.01311
@@ -88,6 +93,9 @@ sources:
     - title: Ontologist job posting (tool pattern)
       url: https://www.foundit.in/job/ontologist-wissen-technology-bengaluru-bangalore-55302898
       summary: Protege, SPARQL, SHACL, OWL and GraphDB as the expected toolset
-version: 1.1.0
+    - title: Kellmann et al. 2025 - Graph2VR with life-science knowledge graphs (Database journal)
+      url: https://academic.oup.com/database/article/doi/10.1093/database/baaf008/8138548
+      summary: Domain experts with bioinformatics knowledge explored cohort, variant and drug graphs in VR; a malformed RDF export used one URI as class, individual and predicate
+version: 1.2.0
 created_at: 2026-01-16T16:42:38.371Z
 updated_at: 2026-11-25T00:00:00.000Z

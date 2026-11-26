@@ -1,0 +1,70 @@
+id: eudr-due-diligence-officer
+name: EUDR Due Diligence Officer
+roster_persona: supply-chain-analyst
+tier: B
+scope: in-scope
+role: EUDR Compliance Lead / Deforestation Due Diligence Manager
+quote: Before this cocoa can be placed on the EU market I need every plot that could have fed the batch, mapped,
+    checked against the forest map and inside 25 MB. One bad polygon from one cooperative taints the whole lot.
+bio: >-
+    Sanne leads deforestation due diligence at an EU importer of cocoa beans and green coffee, a first placer on the
+    market under the EU Deforestation Regulation (2023/1115). Large and medium operators apply its rules from 30 December
+    2026. Her unit of work is a due diligence statement, which may cover several batches and can be prepared up to a year
+    ahead, not a detained shipment. Her evidence is a set of land plots: a GeoJSON point with an area for each plot under
+    4 hectares and a closed polygon for each larger one, collected from cooperatives, exporters and national systems such
+    as Cote d'Ivoire's cocoa census. She links plots to collection points, cooperatives, silos and the batch, knowing that
+    a shared silo means declaring every plot whose goods entered it since it was last emptied, so a plot-to-batch link
+    means "could have contributed". She overlays the plots on deforestation maps for the 31 December 2020 cut-off,
+    chases suppliers for better polygons, drops plots that cannot be cleared, validates the GeoJSON against the EUDR
+    Information System's rules and files the statement there to get a reference number, which her buyers keep. She
+    works with a commodity traceability platform and the sustainability teams of her suppliers.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: low
+    domain_knowledge: expert
+motivations:
+    - File a valid statement before every placing on the market or export, so goods are never held at the border
+    - Know exactly which plots could have fed each batch, and keep that set small enough to defend
+    - Reach negligible risk with evidence, not assurances from the cooperative
+    - Reuse verified plots across repeat shipments instead of collecting them again
+behaviors:
+    - Collects plot geolocations from cooperatives, mills and exporters as GeoJSON points and polygons
+    - Links plots to collection points, cooperatives, silos and batches, declaring every plot that entered a shared container since it was last emptied
+    - Overlays plots on forest-cover and deforestation maps and checks legality evidence per producing country
+    - Treats a gap in the plot list as a high risk of mixing and refuses to mix compliant goods with unknown ones
+    - Fixes or drops invalid polygons before upload and splits files to stay under the 25 MB limit
+    - Passes the statement's reference number to the first downstream buyer and keeps the record for five years
+frustrations:
+    - Invalid polygons, overlaps and missing plots that have to be checked by hand in GeoJSON
+    - Traceability often stops at the cooperative or licensed buying agent while informal buyers supply the rest
+    - One non-compliant plot linked to a statement makes the whole batch non-compliant
+    - Thousands of smallholder plots per mill make the origin tier too wide to read as a list
+    - Rules moved twice (two delays and a 2025 amendment), so suppliers collected the wrong data
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: false
+workflows:
+    - W1096
+sources:
+    - title: European Commission, traceability and geolocation of commodities subject to the EUDR
+      url: https://green-forum.ec.europa.eu/nature-and-biodiversity/deforestation-regulation-implementation/traceability-and-geolocation-commodities-subject-eudr_en
+      summary: Seven commodities, first placers and exporters must show products are deforestation-free and legal; applies from 30 December 2026
+    - title: EUDR Information System, GeoJSON file description
+      url: https://eudr.webcloud.ec.europa.eu/tracesnt/help/eudr-documentation/operator/geojson-description.html
+      summary: Point, MultiPoint, Polygon, MultiPolygon only; no holes or crossings; six decimals; 25 MB per statement; Area defaults to 4 hectares
+    - title: Jones Day, EUDR amendments (December 2025)
+      url: https://www.jonesday.com/en/insights/2025/12/eu-deforestation-regulation-amendments-deferred-timelines-and-simplification-measures
+      summary: Downstream operators and traders no longer file statements but pass on reference numbers; simplified declaration for micro and small primary operators
+    - title: Finnish Food Authority, EUDR FAQ
+      url: https://www.ruokavirasto.fi/en/themes/deforestation-regulation/faq-eudr/
+      summary: Statements need not be batch-specific, may be prepared a year ahead; mass balance only when all material is compliant; reference number kept five years
+    - title: Sourcemap, analysis of the April 2026 Commission EUDR FAQ update (vendor)
+      url: https://www.sourcemap.com/blog/analysis-commission-publishes-updated-eudr-faqs
+      summary: Declare all production places of goods that entered a shared container since it was last emptied; geolocation required in low-risk countries
+    - title: Koltiva, EUDR traceability modules (vendor)
+      url: https://www.koltiva.com/latin-america
+      summary: Invalid polygons, overlaps and missing reports need manual GeoJSON checks

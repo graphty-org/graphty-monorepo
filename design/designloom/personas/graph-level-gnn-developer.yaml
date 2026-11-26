@@ -1,9 +1,12 @@
 id: graph-level-gnn-developer
 name: Graph-Level GNN Developer
+roster_persona: ml-engineer-recsys
+tier: none
+scope: deferred
 role: Machine Learning Scientist / Drug Discovery, Materials or Program Analysis
 quote: I have forty thousand molecules and the model gets three hundred wrong. Show me those, one at a time, next to the training molecules that look most like them.
 bio: >-
-    Lena is a machine learning scientist who predicts a property of a whole graph: is this molecule active or toxic,
+    Petra is a machine learning scientist who predicts a property of a whole graph: is this molecule active or toxic,
     which class is this protein association graph, what does this syntax tree do. Her data is a collection of many small
     graphs, each with its own label and split membership -- ogbg-molhiv has 41,127 molecules averaging about 25 atoms
     and 27 bonds, with a scaffold split that separates molecules by their two-dimensional structural frameworks. She

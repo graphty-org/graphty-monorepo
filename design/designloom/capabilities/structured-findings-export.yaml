@@ -4,11 +4,18 @@ category: export
 description: Filtered, column-chosen, size-capped CSV of a subgraph (for example 1 MB for a SAR) with per-pair sums and
     counts over a date window, chronological hop tables for a path, and STIX bundle export.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: communicating-findings-and-deliverables.md section 10, requirement R6 (Must)."
 algorithms: []
 used_by_workflows:
     - W315
     - W320
+    - W1090
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Filtered, column-chosen, size-capped CSV of a subgraph (1 MB SAR), plus per-pair sums and counts over a
+      date window"
+sources:
+    - title: "Communicating findings: the deliverables each population hands to someone else (section 10, requirement
+        R6)"
+      url: design/user-research/communicating-findings-and-deliverables.md
+      summary: "Must in the research (the document says: must for AML). Covered by Designloom when researched: Gap"

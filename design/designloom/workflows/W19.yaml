@@ -9,7 +9,7 @@ personas:
     - temporal-network-researcher
     - bibliometric-evolution-analyst
     - social-media-dynamics-researcher
-    - animal-social-network-researcher
+    - animal-social-network-ecologist
 requires_capabilities:
     - data-import
     - data-validation
@@ -33,6 +33,7 @@ requires_capabilities:
     - community-evolution-tracking
     - playback-video-export
     - uncertain-dates
+    - seeded-runs
 suggested_components:
     - data-import-dialog
     - column-mapper
@@ -162,9 +163,9 @@ success_criteria:
     - metric: Evolution understood
       target: User can explain how the network changed and why
 sources:
-    - title: Practical Graph Analysis Guide - Chapter 4
-      url: https://graphty.app/docs/
-      summary: Network Evolution Analysis Pipeline
+    - title: Palla, Barabasi and Vicsek 2007 - Quantifying social group evolution (Nature 446, 664-667; arXiv 0704.0744)
+      url: https://arxiv.org/abs/0704.0744
+      summary: Tracks overlapping communities across time slices of collaboration and phone-call networks; large groups persist longer when their membership changes, small groups only when it stays the same
     - title: Cambridge Intelligence - Methods for visualizing dynamic networks
       url: https://cambridge-intelligence.com/methods-visualizing-dynamic-networks/
       summary: Animation, time bars, small multiples and 3D layers for dynamic networks

@@ -1,9 +1,12 @@
 id: aml-investigator
 name: AML Investigator
+roster_persona: aml-investigator
+tier: A
+scope: in-scope
 role: Level 2 Anti-Money-Laundering Investigator at a bank (consolidated; KYC and ownership, blockchain and FIU analysts as variants)
 quote: The alert is one account. The case is the network around it. Give me the summed flows, the other open alerts and the reason each link exists, and let me write the narrative from that.
 bio: >-
-    Dana Whitfield is a Level 2 AML investigator at a mid-size US bank and the consolidated persona for the analysts who
+    Rebecca Whitfield is a Level 2 AML investigator at a mid-size US bank and the consolidated persona for the analysts who
     work an escalated alert or a generated case through to a file or no-file decision. Cases reach her from a vendor
     case manager (Actimize, Oracle FCCM, Verafin) or from a graph platform's alert list (Linkurious, Quantexa), where a
     saved detection query or a scored model raised them. She pulls 6 to 12 months of transactions for every subject,
@@ -13,9 +16,8 @@ bio: >-
     the five essential elements, and supporting documentation retained for five years. Most alerts are false positives
     (working-paper estimates of 70 to 95 percent), so the ranked case list and a fast, explainable dismissal matter as
     much as the deep investigation. Variants: corporate KYC and beneficial-ownership analysts, blockchain tracers, FIU
-    and tax intelligence analysts; the forensic accountant splits between this persona and trial exhibit work. A more
-    detailed record of the SAR-writing role is aml-investigator-sar-writer. She does not code; graph literacy is
-    operational (hops, linked, cluster, summed edge).
+    and tax intelligence analysts; the forensic accountant splits between this persona and trial exhibit work. She does
+    not code; graph literacy is operational (hops, linked, cluster, summed edge).
 characteristics:
     expertise: intermediate
     time_pressure: high
@@ -47,7 +49,17 @@ context:
         - desktop
     voluntary: false
 workflows:
+    - W3024
     - W336
+    - W06
+    - W118
+    - W120
+    - W142
+    - W143
+    - W147
+    - W149
+    - W315
+    - W323
 sources:
     - title: FFIEC BSA/AML Examination Manual - Suspicious Activity Reporting
       url: https://bsaaml.ffiec.gov/manual/AssessingComplianceWithBSARegulatoryRequirements/04
@@ -70,6 +82,45 @@ sources:
     - title: FinCEN - SAR supporting documentation guidance
       url: https://www.fincen.gov/index.php/resources/statutes-regulations/guidance/suspicious-activity-report-supporting-documentation
       summary: Supporting documentation is deemed filed and must be produced on request
+    - title: FinCEN SAR FAQs, October 2025 (NCUA copy)
+      url: https://ncua.gov/regulation-supervision/regulatory-compliance-resources/bank-secrecy-act-resources/frequently-asked-questions-regarding-suspicious-activity-reporting
+      summary: 30-day filing deadline, optional 90-day continuing-activity review with filing at 120 days, no-file documentation encouraged but not required
+    - title: FinCEN - Suggestions for addressing common errors noted in suspicious activity reporting
+      url: https://www.fincen.gov/resources/statutes-regulations/guidance/suggestions-addressing-common-errors-noted-suspicious
+      summary: The narrative must cover the five essential elements; attachments are not accepted
+    - title: Bank of America - Global Financial Crimes investigator posting
+      url: https://careers.bankofamerica.com/en-us/job-detail/24017594/global-financial-crimes-gfc-investigator-multiple-locations
+      summary: Investigator and SAR writer role that works alerts end to end
+    - title: Linkurious - AML investigation solution
+      url: https://linkurious.com/aml-investigation-solution
+      summary: Vendor; subject neighborhood styled by open alerts and prior SARs
+    - title: Morrison Foerster - FinCEN expands section 314(b) information-sharing guidance
+      url: https://www.mofo.com/resources/insights/260617-fincen-expands-section-314-b-information-sharing-guidance
+      summary: June 2026 fact sheet; suspected fraud alone qualifies, real-time sharing allowed, SARs themselves may not be shared
+    - title: Open Ownership - What graph visualisation teaches us about beneficial ownership
+      url: https://www.openownership.org/en/blog/what-graph-visualisation-teaches-us-about-beneficial-ownership/
+      summary: Graph tools such as Linkurious and Neo4j Bloom liked but their expense and steep learning curve excluded many users
+    - title: BforBank detects fraud with Linkurious
+      url: https://linkurious.com/blog/bforbank-detects-fraud-with-linkurious/
+      summary: Data sources (customers, transfers, checks, IP, email, address); ring of 11 found in half an hour; 2 minutes to hours before
+    - title: European bank using Neo4j Bloom
+      url: https://neo4j.com/?p=435908
+      summary: Daily Bloom use across anti-financial crime teams; 10,000 payments in a list quote; on-premises deployment
+    - title: Ria accelerates AML investigations with graph technology
+      url: https://thepaypers.com/fraud-and-fincrime/thought-leader-insights/ria-accelerates-aml-investigations-5x-with-graph-technology
+      summary: Money transfer firm using Linkurious for AML investigation
+    - title: Linkurious top 10 query templates
+      url: https://linkurious.com/blog/top-10-query-templates-to-accelerate-your-investigations/
+      summary: Investigation templates such as UBOs above 20 percent and common neighbors
+    - title: Linkurious advanced settings
+      url: https://doc.linkurious.com/admin-manual/4.1/advanced-settings
+      summary: Selective expand above 50 neighbors, supernode threshold 10,000
+    - title: Aura Explore feedback - I can't see all my nodes
+      url: https://aura.feedback.neo4j.com/explore/p/i-cant-see-all-my-nodes
+      summary: User sees 38 of 236 nodes and assumes data is missing; Bloom not built to load a whole graph
+    - title: Neo4j Bloom tips and tricks for domain experts
+      url: https://neo4j.com/blog/graph-visualization/neo4j-bloom-tips-tricks-domain-knowledge-experts/
+      summary: Shortest path may not be the one expected; good data model needed
 version: 1.0.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

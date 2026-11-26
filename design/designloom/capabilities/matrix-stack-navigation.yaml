@@ -4,11 +4,18 @@ category: analysis
 description: Navigate stacks of networks over the same node set indexed by subject, condition, method, frequency
     band/bin and time window, with a slider per dimension and small multiples along one dimension.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: network-neuroscience-connectomics.md section 10, requirement R20 (Must)."
 algorithms: []
 used_by_workflows:
     - W161
     - W162
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Stacks of matrices indexed by subject, condition, method, frequency (band or bin) and time window, with a
+      slider per dimension and small multiples along any one of them; plus a community-by-time view (heatmap or
+      alluvial) of per-layer labels"
+sources:
+    - title: "Network Neuroscientists: Structural, Functional and Cellular Connectomics (section 10, requirement R20)"
+      url: design/user-research/network-neuroscience-connectomics.md
+      summary: "Must in the research (the document says: must-have for EEG/MEG users). Covered by Designloom when
+        researched: Partially (temporal-navigation assumes timestamped edges)"

@@ -4,12 +4,18 @@ category: analysis
 description: Communities and stability plotted against resolution (and against interlayer coupling for multilayer
     modularity); choose one or several scales.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: network-scientists-and-analysis-method-validity.md section 9, requirement R4 (Must)."
 algorithms: []
 used_by_workflows:
     - W04
     - W38
     - W46
+    - W2097
+    - W2098
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Resolution sweep: communities and stability against gamma; choose one or several scales"
+sources:
+    - title: Network Scientists and the Validity of Core Analysis Methods (section 9, requirement R4)
+      url: design/user-research/network-scientists-and-analysis-method-validity.md
+      summary: "Must in the research. Covered by Designloom when researched: No (slider only)"

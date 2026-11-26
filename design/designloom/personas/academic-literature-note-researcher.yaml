@@ -1,5 +1,8 @@
 id: academic-literature-note-researcher
 name: Academic Literature-Note Researcher
+roster_persona: personal-knowledge-gardener
+tier: A
+scope: in-scope
 role: Fourth-year PhD Student keeping Zotero literature notes in Obsidian
 quote: Which of my 900 papers talk about the same concept, and where are the holes in my reading?
 bio: >-

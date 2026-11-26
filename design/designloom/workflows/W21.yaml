@@ -9,6 +9,7 @@ personas:
     - network-biology-core-bioinformatician
 requires_capabilities:
     - community-detection
+    - dense-region-detection
     - community-profiling
     - filtering
     - node-selection
@@ -50,20 +51,22 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Cluster** (2 min) - Run MCL (inflation 2 to 4) or a dense-subgraph method (MCODE style); Louvain is acceptable
-    but biologists expect MCL because that is what the tutorials use
+    1. **Cluster** - Run MCL with an inflation value, which stringApp and clusterMaker2 call granularity
+    (clusterMaker2 suggests about 2.0; the stringApp tutorials use 4 and 5), or MCODE with its defaults (degree
+    cutoff 2, node score cutoff 0.2, k-core 2, max depth 100), which leaves low-scoring nodes unclustered; Louvain is
+    acceptable but biologists expect MCL because that is what the tutorials use
 
-    2. **Inspect clusters** (5 min) - Table of clusters by size; click a row to select and center its members; drop
+    2. **Inspect clusters** - Table of clusters by size; click a row to select and center its members; drop
     clusters below 3 or 4 nodes; optionally lay out each cluster as its own subnetwork
 
-    3. **Annotate each cluster** (10 min) - For the selected cluster, obtain enriched GO Biological Process, KEGG or
+    3. **Annotate each cluster** - For the selected cluster, obtain enriched GO Biological Process, KEGG or
     Reactome terms with FDR, filter redundant terms, keep the top 3 to 5; when no enrichment service is available,
     profile the cluster by the categorical and numeric columns already on the nodes (mean logFC, dominant annotation)
 
-    4. **Show terms on the map** (5 min) - Color clusters, write the top term as a cluster label or annotation, and
+    4. **Show terms on the map** - Color clusters, write the top term as a cluster label or annotation, and
     optionally draw small pie or donut charts on nodes for term membership
 
-    5. **Export** (3 min) - Cluster membership CSV, enrichment table CSV, figure with legend
+    5. **Export** - Cluster membership CSV, enrichment table CSV, figure with legend
 
 
     **Decision Points**:
@@ -131,6 +134,12 @@ success_criteria:
     - metric: Figure readiness
       target: Cluster colors and labels exported with a legend
 sources:
+    - title: Jensen Lab stringApp disease networks tutorial
+      url: https://jensenlab.org/training/stringapp/diseases
+      summary: Cluster network (MCL) from the STRING Results panel with granularity (inflation) 5
+    - title: clusterMaker2 documentation
+      url: https://rbvi.ucsf.edu/cytoscape/clusterMaker2
+      summary: MCL granularity about 2.0 (1.8 to 2.5 reasonable); MCODE, Leiden, Infomap and Fast Greedy also offered
     - title: Cytoscape tutorial - Functional Enrichment Analysis
       url: https://cytoscape.org/cytoscape-tutorials/protocols/functional-enrichment/
       summary: Column filters on log2FC, STRING query at confidence 0.8, MCL clustering into a new network, per-component enrichment

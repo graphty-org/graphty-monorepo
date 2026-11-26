@@ -5,11 +5,16 @@ description: Run traversal, shortest-path, spanning-tree and flow algorithms one
     play and speed, showing visited order, queue contents, distance and parent table, a stated settable tie-break rule,
     the ordered list of chosen edges, and export of each step's state.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: students-educators-and-first-time-users.md section 9, requirement 15 (Must)."
 algorithms: []
 used_by_workflows:
     - W232
     - W239
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Step-through playback of traversal, shortest-path, spanning-tree and flow algorithms with visited order,
+      queue, distance and parent table"
+sources:
+    - title: Students, Instructors and First-Time Graph Users (section 9, requirement 15)
+      url: design/user-research/students-educators-and-first-time-users.md
+      summary: "Must in the research. Covered by Designloom when researched: Not covered"

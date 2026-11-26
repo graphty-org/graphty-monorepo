@@ -1,5 +1,8 @@
 id: communications-surveillance-reviewer
 name: Communications Surveillance Reviewer
+roster_persona: litigation-support-analyst
+tier: B
+scope: in-scope
 role: Compliance Analyst Clearing Trade-Surveillance Alerts at a Bank or Broker
 quote: Is this alert a one-off, or part of a group of people who keep turning up together?
 bio: >-

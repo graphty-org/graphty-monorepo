@@ -47,23 +47,23 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Declare the schema** (15 min) - LangChain LLMGraphTransformer takes allowed_nodes, allowed_relationships and
+    1. **Declare the schema** - LangChain LLMGraphTransformer takes allowed_nodes, allowed_relationships and
     node_properties; neo4j-graphrag SimpleKGPipeline takes a schema with node_types, relationship_types, patterns and
     additional_node_types
 
-    2. **Run** (minutes to hours) - The pipeline loads files, splits chunks, embeds them, extracts per chunk, prunes,
+    2. **Run** - The pipeline loads files, splits chunks, embeds them, extracts per chunk, prunes,
     writes and resolves; it returns a summary such as number_of_nodes_to_resolve 12 and number_of_created_nodes 10.
     Neo4j LLM Graph Builder runs the same flow with a UI
 
-    3. **Inspect the lexical layer** (5 min) - MATCH (d:Document)<-[:FROM_DOCUMENT]-(c:Chunk) RETURN d.path, c.text
+    3. **Inspect the lexical layer** - MATCH (d:Document)<-[:FROM_DOCUMENT]-(c:Chunk) RETURN d.path, c.text
 
-    4. **Inspect the entity layer** (10 min) - MATCH p = (c:Chunk)<-[:FROM_CHUNK]-(e1:__Entity__)-[*1..2]->(e2:__Entity__)
+    4. **Inspect the entity layer** - MATCH p = (c:Chunk)<-[:FROM_CHUNK]-(e1:__Entity__)-[*1..2]->(e2:__Entity__)
     RETURN p in Browser or Bloom; check the schema view for labels and relationship types outside the declared schema
 
     5. **Prune** (automatic, then checked) - With additional_node_types false undefined types are removed; nodes with an
     empty label or id and relationships with invalid endpoints are always pruned
 
-    6. **Merge and re-check** (10 min) - Resolvers do exact match on name within a label, RapidFuzz fuzzy match, or spaCy
+    6. **Merge and re-check** - Resolvers do exact match on name within a label, RapidFuzz fuzzy match, or spaCy
     embedding match; they replace written nodes, so the user re-checks counts
 
 

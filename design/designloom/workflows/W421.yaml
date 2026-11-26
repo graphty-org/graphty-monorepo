@@ -2,7 +2,8 @@ id: W421
 name: Exploring a Running Software System as a 3D City (ExplorViz)
 category: exploration
 validated: false
-personas: []
+personas:
+    - program-comprehension-developer
 requires_capabilities:
     - data-import
     - graph-rendering
@@ -41,9 +42,9 @@ goal: >-
 
     1. **Instrument** (setup) - For Java, an agent such as inspectIT Ocelot; export traces to an OpenTelemetry collector
 
-    2. **Open the web view** (1 min) - The city is drawn from the hierarchy and the observed calls
+    2. **Open the web view** - The city is drawn from the hierarchy and the observed calls
 
-    3. **Explore** (20 min) - Alone on a desktop or phone, or together in VR where users share one space and see each
+    3. **Explore** - Alone on a desktop or phone, or together in VR where users share one space and see each
     other as avatars
 
     4. **Answer a comprehension question** (varies) - Which components and calls implement a behavior; what depends on
@@ -97,6 +98,12 @@ sources:
     - title: Joos et al. 2025 - survey of immersive network analysis
       url: https://arxiv.org/html/2501.08500v2
       summary: AR helped novices, not experts, identify dependencies in large systems
-version: 1.0.0
+    - title: Wettel, Lanza and Robbes 2011 - Software systems as cities, a controlled experiment
+      url: https://2011.icse-conferences.org/content/software-systems-cities-controlled-experiment.html
+      summary: 41 participants from academia and industry; city view more correct and faster than Eclipse with Excel
+    - title: Romano et al. 2019 - Virtual reality in software visualization, the city metaphor
+      url: https://www.iris.unisa.it/handle/11386/4779848
+      summary: City on a screen and in VR more correct than Eclipse; VR faster than the screen city (abstract)
+version: 1.1.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

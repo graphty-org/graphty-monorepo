@@ -1,9 +1,12 @@
 id: graph-data-wrangler
 name: Graph Data Wrangler
+roster_persona: notebook-graph-data-scientist
+tier: B
+scope: in-scope
 role: Research Software Engineer, Bioinformatician or Data Scientist Preparing Network Files
 quote: My colleague needs a file Cytoscape can open. I need to know the threshold is defensible and that nothing got silently dropped on the way.
 bio: >-
-    Tomas Lindqvist is a research software engineer who prepares network files for colleagues who use desktop tools.
+    Erik Lindqvist is a research software engineer who prepares network files for colleagues who use desktop tools.
     He writes pandas, R and SQL, and his inputs are correlation and distance matrices, event logs with millions of rows,
     and relational tables. He uses pandas with NetworkX, R igraph, the WGCNA export to Cytoscape, tn93 with HIV-TRACE
     for sequence distances, and Neo4j LOAD CSV when the data belongs in a database. The deliverable is a node table and
@@ -52,6 +55,7 @@ workflows:
     - W300
     - W301
     - W303
+    - W1162
 sources:
     - title: Bioconductor support - WGCNA export threshold
       url: https://support.bioconductor.org/p/95965/

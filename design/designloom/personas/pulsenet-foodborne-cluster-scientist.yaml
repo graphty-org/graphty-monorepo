@@ -1,9 +1,12 @@
 id: pulsenet-foodborne-cluster-scientist
 name: PulseNet Laboratory Scientist
+roster_persona: public-health-cluster-epidemiologist
+tier: B
+scope: in-scope
 role: Enteric Laboratory Scientist and Foodborne Cluster Coordinator, Public Health Laboratory
 quote: Five cases within ten alleles in sixty days. The hard part is knowing when the rule has quietly stopped meaning anything.
 bio: >-
-    Tomas Herrera sequences enteric isolates (Salmonella, Shiga toxin-producing E. coli, Listeria, Campylobacter) for a
+    Carlos Herrera sequences enteric isolates (Salmonella, Shiga toxin-producing E. coli, Listeria, Campylobacter) for a
     public health laboratory in the PulseNet network of more than 80 laboratories, reviews candidate clusters on a
     rolling basis and hands the credible ones to the state foodborne epidemiologist for interviews and traceback. Since
     September 2024 his national system is PulseNet 2.0, which replaced a customized BioNumerics 7.6 and calls alleles

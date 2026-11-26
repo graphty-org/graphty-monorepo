@@ -60,27 +60,27 @@ goal: >-
 
     2. **Pattern** (decision) - All pairs, one seed against all (a star graph or a value per node), or two lists
 
-    3. **Epoch with rejection** (10 min) - Time window, baseline and rejection thresholds; some epochs dropped
+    3. **Epoch with rejection** - Time window, baseline and rejection thresholds; some epochs dropped
 
-    4. **Source extraction** (10 min) - Inverse solution per epoch, one time course per atlas label, label colors kept
+    4. **Source extraction** - Inverse solution per epoch, one time course per atlas label, label colors kept
     for node coloring
 
     5. **Compute measures** (minutes) - Several methods at once (PLI, debiased wPLI, ciPLV) over a band or every bin;
     directed measures (Granger, phase transfer entropy) where needed; time-resolved windows for some measures
 
-    6. **Band summary** (5 min) - Average within bands (theta, alpha, beta) or keep the spectrum; click a connection to
+    6. **Band summary** - Average within bands (theta, alpha, beta) or keep the spectrum; click a connection to
     see its value across frequency
 
-    7. **Threshold** (2 min) - Top percent within a file, strongest N lines, or a minimum spanning tree
+    7. **Threshold** - Top percent within a file, strongest N lines, or a minimum spanning tree
 
-    8. **Order and lay out** (10 min) - Source: circle with left-hemisphere labels ordered anterior to posterior and the
+    8. **Order and lay out** - Source: circle with left-hemisphere labels ordered anterior to posterior and the
     right hemisphere mirrored; or grouped by lobe. Sensor: lines on a 2D scalp layout or 3D helmet, with arrowheads for
     directed measures
 
-    9. **Filter** (5 min) - By intensity (value and percentile kept in step), minimum distance between nodes, direction
+    9. **Filter** - By intensity (value and percentile kept in step), minimum distance between nodes, direction
     (In, Out, Both), and anatomy (between lobes or hemispheres); absolute or signed values
 
-    10. **Small multiples** (10 min) - One circle plot per method, band or condition in a row
+    10. **Small multiples** - One circle plot per method, band or condition in a row
 
     11. **Group statistics** (varies) - Permutation tests between conditions, cluster-permutation over connection
     pairs, or per-band t-tests with the significant MST drawn on the scalp

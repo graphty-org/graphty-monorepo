@@ -5,6 +5,10 @@ validated: false
 personas:
     - publication-figure-author
     - graph-deliverable-recipient
+    - newsroom-graphics-editor
+    - investigative-journalist
+    - prosopography-archivist
+    - notebook-graph-data-scientist
 requires_capabilities:
     - filtering
     - search
@@ -19,6 +23,11 @@ requires_capabilities:
     - de-identified-display
     - provenance-tracking
     - guided-presentation
+    - export-field-audit
+    - phone-readable-embed
+    - redacted-sharing
+    - private-share-link
+    - manual-layout-preservation
 suggested_components:
     - graph-canvas
     - filter-panel
@@ -47,17 +56,17 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Pick the vehicle** (15 min) - Network to web page (about 1,000 nodes well, 5,000 slowly), a public gist read by
+    1. **Pick the vehicle** - Network to web page (about 1,000 nodes well, 5,000 slowly), a public gist read by
     Gephi Lite, a private, organization or public-link share, a guest link to a database, a pyvis or Plotly HTML file,
     a Streamlit or Dash app, or a D3 or sigma.js project site
 
-    2. **Simplify for the page** (1-4 h) - Verified subset only, manual layout, background zones, scroll reveal, motion
+    2. **Simplify for the page** - Verified subset only, manual layout, background zones, scroll reveal, motion
     stopped, text moved out of the canvas for phones
 
     3. **Public database** (project) - Search plus a graph per entity; cap entities with too many connections; state
     that inclusion does not imply wrongdoing; offer CSV and graph database downloads under an open license
 
-    4. **Check what leaks** (30 min) - Strip attributes not meant to ship; confirm guest access cannot browse the whole
+    4. **Check what leaks** - Strip attributes not meant to ship; confirm guest access cannot browse the whole
     database
 
 

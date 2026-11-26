@@ -56,23 +56,23 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Test the seeds** (10 min) - Compare the largest connected component of the seed genes with random sets of the
+    1. **Test the seeds** - Compare the largest connected component of the seed genes with random sets of the
     same size (multiple sclerosis: 11 versus 2 +/- 1, z = 5.8)
 
-    2. **Grow the module** (minutes, scripted or in Drugst.One / NeDRex) - DIAMOnD adds the neighbor whose links to the
+    2. **Grow the module** (scripted or in Drugst.One / NeDRex) - DIAMOnD adds the neighbor whose links to the
     set are least likely by a hypergeometric test, about 200 iterations; alternatives are Steiner trees, BiCoN or random
     walk with restart
 
-    3. **Validate the module** (30 min) - GO and pathway enrichment, or comparison against 1,000 mock modules; stop
+    3. **Validate the module** - GO and pathway enrichment, or comparison against 1,000 mock modules; stop
     growing where enrichment plateaus
 
-    4. **Look at it** (15 min) - Draw seeds and added proteins with different shapes; published module figures hold 20 to
+    4. **Look at it** - Draw seeds and added proteins with different shapes; published module figures hold 20 to
     200 nodes (NeDRex use cases: 23 to 87 genes)
 
-    5. **Overlay drugs** (15 min) - Rank drugs near the module by TrustRank or closeness to the seeds (235 drugs for an
+    5. **Overlay drugs** - Rank drugs near the module by TrustRank or closeness to the seeds (235 drugs for an
     87-gene IBD module in NeDRex) and add the top ones with their target edges
 
-    6. **Score druggability and safety** (1 hour) - Check each candidate in the Open Targets prioritisation grid
+    6. **Score druggability and safety** - Check each candidate in the Open Targets prioritisation grid
     (tractability, safety, essentiality as a liability); this is a table, not a network
 
     7. **Decide** (meeting) - Expert review; empirical p-values "cannot replace the expert user"

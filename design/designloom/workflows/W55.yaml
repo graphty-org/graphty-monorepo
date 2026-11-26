@@ -58,23 +58,23 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Enter seeds** (2 min) - DOI, title, URL or a BibTeX or Zotero library; several seeds at once
+    1. **Enter seeds** - DOI, title, URL or a BibTeX or Zotero library; several seeds at once
 
-    2. **Expand** (1 min) - Collect references and citations one or two hops out (Inciteful collects 10,000-20,000 papers
+    2. **Expand** - Collect references and citations one or two hops out (Inciteful collects 10,000-20,000 papers
     two hops out and stops at one hop above 150,000); compute similarity from co-citation and bibliographic coupling
 
-    3. **Read the graph** (10-20 min) - Similarity graph (node size citations, color year, distance similarity) or an
+    3. **Read the graph** - Similarity graph (node size citations, color year, distance similarity) or an
     attribute-axis map (x year, y citations; switch to momentum, connectivity or similarity); clusters of related work
 
-    4. **Read ranked lists** (10 min) - Prior works (older papers most cited by the set, often seminal), derivative works
+    4. **Read ranked lists** - Prior works (older papers most cited by the set, often seminal), derivative works
     (newer papers citing many in the set, often surveys), PageRank and similarity tables
 
     5. **Grow the collection** (iterated, weekly) - Click a node to make it a seed, or add papers from the lists; the
     graph updates as the collection grows
 
-    6. **Export and monitor** (5 min) - BibTeX or RIS into Zotero; rerun the expansion later and flag new papers
+    6. **Export and monitor** - BibTeX or RIS into Zotero; rerun the expansion later and flag new papers
 
-    7. **Systematic variant: snowball** (days to weeks) - For each included paper, screen references and citing papers
+    7. **Systematic variant: snowball** - For each included paper, screen references and citing papers
     by title, context, abstract and full text; record include or exclude and the stage; one iteration at a time until
     no new papers; report counts in the PRISMA flow diagram
 
@@ -126,7 +126,7 @@ goal: >-
     - Output: Growing collection exported as BibTeX or RIS, screening log with counts per iteration, saved map to rerun
 success_criteria:
     - metric: Time from seed to first useful suggestion
-      target: Under 2 minutes
+      target: Under 2 minutes (design goal; no source measures it)
     - metric: Incremental growth
       target: Adding a seed extends the current graph in place without losing positions or prior decisions
     - metric: Traceability

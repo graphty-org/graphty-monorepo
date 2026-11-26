@@ -49,26 +49,26 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Get the genealogy** (days) - GEDCOM from family historians (family records assume one husband and one wife),
+    1. **Get the genealogy** - GEDCOM from family historians (family records assume one husband and one wife),
     parish register reconstitution, or a CBDB kinship query
 
     2. **Choose a model** (decision) - Ore graph (people are nodes, parent-child arcs, marriage edges) or p-graph
     (couples are nodes, each person an arc from family of origin to family of procreation); Mrvar and Batagelj find
     p-graphs more suitable for analyses
 
-    3. **Load** (10 min) - Pajek reads GEDCOM directly as an Ore graph (father links value 1, mother 2, marriages 0)
+    3. **Load** - Pajek reads GEDCOM directly as an Ore graph (father links value 1, mother 2, marriages 0)
     and keeps birth, marriage and death years as vectors; others parse GEDCOM by script
 
-    4. **Normalize kin terms** (days) - When ties come as relation labels, normalize to basic terms (CBDB: 484,066
+    4. **Normalize kin terms** - When ties come as relation labels, normalize to basic terms (CBDB: 484,066
     relation instances among 255,149 persons) before trees can be rebuilt
 
-    5. **Analyze** (hours) - Generation depth (pseudogenerations), census of matrimonial circuits, 0-1 relinking index,
+    5. **Analyze** - Generation depth (pseudogenerations), census of matrimonial circuits, 0-1 relinking index,
     consanguinity paths, descent lines; reshuffling simulations test whether a marriage pattern beats chance
 
-    6. **Lay out by generation** (30 min) - Layered or pedigree layout (Kinsources used Graphviz network simplex to
+    6. **Lay out by generation** - Layered or pedigree layout (Kinsources used Graphviz network simplex to
     assign pseudogenerations), or a force picture in Gephi
 
-    7. **Compare** (hours) - Against Kinsources' 105 usable datasets (17 to about 50,000 individuals)
+    7. **Compare** - Against Kinsources' 105 usable datasets (17 to about 50,000 individuals)
 
 
     **Decision Points**:

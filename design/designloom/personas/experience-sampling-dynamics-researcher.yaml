@@ -1,9 +1,12 @@
 id: experience-sampling-dynamics-researcher
 name: Experience Sampling Dynamics Researcher
+roster_persona: symptom-network-researcher
+tier: B
+scope: in-scope
 role: Psychiatry Postdoc Running Experience Sampling (ESM / EMA) Studies
 quote: I have three networks from one model -- what predicts what an hour later, what happens together, and how people differ -- and they have to sit on the same node positions without pretending they share a scale.
 bio: >-
-    Tomas is a postdoc in a psychiatry department running an experience sampling study: 60 to 120 participants answer
+    Ruben is a postdoc in a psychiatry department running an experience sampling study: 60 to 120 participants answer
     6 to 12 mood and symptom items on their phones five times a day for 14 to 30 days. The data arrive as a long
     table, one row per prompt (person, day, beep, timestamp, items scored 0-100 or 1-7). He excludes low-compliance
     participants, checks stationarity, and fits mlVAR to get a directed lag-1 temporal network with self-loops, an

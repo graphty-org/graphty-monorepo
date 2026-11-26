@@ -15,7 +15,6 @@ requires_capabilities:
     - tooltip-display
     - neighborhood-expansion
     - centrality-degree
-    - anomaly-detection
     - legend-display
     - supernode-safeguards
     - fixed-node-positions

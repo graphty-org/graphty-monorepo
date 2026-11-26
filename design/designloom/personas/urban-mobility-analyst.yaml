@@ -1,9 +1,12 @@
 id: urban-mobility-analyst
 name: Urban Mobility Analyst
+roster_persona: migration-flow-demographer
+tier: B
+scope: in-scope
 role: Mobility Data Scientist / City Transport Department or Mobility Data Vendor
 quote: I have 135 million trip records for one week. Show me the morning peak corridors without drawing a hairball, and do not make me upload vendor data to someone else's server.
 bio: >-
-    Marc is a mobility data scientist in a city transport department, a metropolitan planning organization or a
+    Andre is a mobility data scientist in a city transport department, a metropolitan planning organization or a
     mobility data vendor, with an MSc in transport or GIS. He works in Python (pandas, geopandas, DuckDB) or R and SQL,
     and makes flow maps in kepler.gl or Foursquare Studio, flowmap.blue and its R wrapper, deck.gl with flowmap.gl, and
     QGIS. His data is hourly or daily origin-destination counts between districts, H3 cells or bike-share stations --
@@ -29,6 +32,7 @@ behaviors:
     - Clips to a study area with a buffer, keeps intra-zonal pairs, and checks which flows name an id missing from the location table
     - Starts with an arc layer, then switches to a clustered flow layer with top-N flows, fade and location totals when it becomes cluttered
     - Scrubs a time slider to compare hours, then takes numbers back to Python or R for the actual analysis
+    - Joins zone boundary files (shapefile, GeoPackage or GeoJSON, often in a projected coordinate system) to the OD table by zone code, reprojects them to WGS84 and reduces each zone to a point, or uses H3 cell ids as zones
     - Derives OD from raw pings with stay detection parameters (20 minutes within 200 m, or 60 to 120 seconds within 100 m) and peak windows when the team holds trajectories
 frustrations:
     - Arc layers become many intersecting lines that hide patterns
@@ -72,6 +76,6 @@ sources:
     - title: kepler.gl issue 2512
       url: https://www.github.com/keplergl/kepler.gl/issues/2512
       summary: Arcs that cannot cross over continents; limits of kepler.gl arc rendering
-version: 1.0.0
+version: 1.1.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

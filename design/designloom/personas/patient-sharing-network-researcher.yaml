@@ -1,5 +1,8 @@
 id: patient-sharing-network-researcher
 name: Patient-Sharing Network Researcher
+roster_persona: public-health-cluster-epidemiologist
+tier: B
+scope: in-scope
 role: Health Services Researcher, Health Policy Department or All-Payer Claims Program
 quote: Two doctors who share enough patients are working together. Proving that from claims is a year of decisions I have to defend.
 bio: >-

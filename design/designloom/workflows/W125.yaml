@@ -12,7 +12,6 @@ requires_capabilities:
     - neighborhood-expansion
     - component-analysis
     - degree-analysis
-    - centrality-betweenness
     - filtering
     - saved-filters
     - visual-encoding-nodes
@@ -64,16 +63,16 @@ goal: >-
 
     1. **Ingest reports** (automated) - Reports into one store of people, companies, accounts and transactions
 
-    2. **Resolve subjects across filers** (30 min per network) - Merge or split by rules, logged and without altering
+    2. **Resolve subjects across filers** - Merge or split by rules, logged and without altering
     original data; where identity cannot be confirmed create a tentative "possibly the same" link (goAML calls it a
     Virtual Object)
 
-    3. **Find report clusters** (20 min) - Subjects and accounts named in several reports; components after resolution;
+    3. **Find report clusters** - Subjects and accounts named in several reports; components after resolution;
     centrality to find facilitators; paths across jurisdictions
 
     4. **Run strategic pivots** (varies) - By sector, occupation or geography (HMRC plots undeclared work street by street)
 
-    5. **Disseminate** (30 min) - Case proposal with a chart to police, prosecutors, a foreign FIU or (tax) compliance
+    5. **Disseminate** - Case proposal with a chart to police, prosecutors, a foreign FIU or (tax) compliance
     teams
 
 

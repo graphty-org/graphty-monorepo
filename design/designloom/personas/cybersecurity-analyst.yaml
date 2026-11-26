@@ -1,5 +1,8 @@
 id: cybersecurity-analyst
 name: Cybersecurity Threat Hunter
+roster_persona: cybersecurity-analyst
+tier: B
+scope: in-scope
 role: Threat Hunter / Security Data Scientist
 quote: My hypothesis is a sentence. My data is a SIEM table with ten million rows. I need to get from one to the other as a graph I can query, aggregate and click through to raw events.
 bio: >-
@@ -52,7 +55,6 @@ context:
     voluntary: true
 workflows:
     - W07
-    - W12
     - W109
     - W113
     - W336

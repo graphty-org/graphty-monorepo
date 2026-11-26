@@ -3,8 +3,10 @@ name: Search, Expand and Investigate with Supernode Safeguards
 category: exploration
 validated: false
 personas:
-    - no-code-graph-investigator
+    - aml-investigator
     - investigative-journalist
+    - graph-database-developer
+    - intelligence-analyst
 requires_capabilities:
     - search
     - neighborhood-expansion
@@ -27,6 +29,7 @@ requires_capabilities:
     - supernode-safeguards
     - truncation-reporting
     - parameterized-saved-searches
+    - large-graph-rendering
 suggested_components:
     - search-input
     - search-panel
@@ -143,7 +146,7 @@ goal: >-
     image
 success_criteria:
     - metric: Ring detection time from a flagged client
-      target: Within half an hour (BforBank reported 11 fraudsters found in half an hour versus several days before)
+      target: Within half an hour (BforBank reported 11 fraudsters found in half an hour versus several days before) (design goal; no source measures it)
     - metric: Hub safety
       target: No expand freezes the view; every hub over the threshold asks before expanding
     - metric: Case completeness

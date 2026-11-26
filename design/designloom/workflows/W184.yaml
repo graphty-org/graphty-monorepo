@@ -51,24 +51,24 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Build the table** (days) - One row per site and period, one column per ware or source, counts in cells; drop
+    1. **Build the table** - One row per site and period, one column per ware or source, counts in cells; drop
     sites with too few sherds (SWSN keeps sites with more than 30 decorated sherds); coordinates in two columns
 
-    2. **Compute similarity** (10 min) - Convert to row proportions; Brainerd-Robinson (2 minus the summed absolute
+    2. **Compute similarity** - Convert to row proportions; Brainerd-Robinson (2 minus the summed absolute
     difference of proportions, rescaled 0-1), co-presence (types above 10 percent of an assemblage) or chi-square
     distance; measures "do not necessarily have similar contextual meaning"
 
-    3. **Threshold into a network** (30 min) - Brainerd-Robinson ties above 0.6, a 50 percent co-presence threshold
+    3. **Threshold into a network** - Brainerd-Robinson ties above 0.6, a 50 percent co-presence threshold
     found by trial and error, or keep weights
 
-    4. **Compute** (10 min) - Degree, eigenvector and betweenness centrality and centralization, per period
+    4. **Compute** - Degree, eigenvector and betweenness centrality and centralization, per period
 
-    5. **Test robustness** (hours) - Resample 90 percent down to 10 percent of sites 1,000 times and correlate
+    5. **Test robustness** - Resample 90 percent down to 10 percent of sites 1,000 times and correlate
     centralities with the full network (Spearman's rho boxplots); simulate edges with similarities as probabilities
 
-    6. **Map** (30 min) - Plot the network at site coordinates over a shapefile
+    6. **Map** - Plot the network at site coordinates over a shapefile
 
-    7. **Interpret** (days) - Ties as interaction, shared practice or exchange, period by period
+    7. **Interpret** - Ties as interaction, shared practice or exchange, period by period
 
 
     **Decision Points**:

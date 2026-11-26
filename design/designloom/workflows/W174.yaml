@@ -45,21 +45,21 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Define the tie** (days) - Pick one relationship type deliberately (Grandjean calls this a deliberate modeling
+    1. **Define the tie** - Pick one relationship type deliberately (Grandjean calls this a deliberate modeling
     choice); in literature, decide whether characters must speak, be present or merely be mentioned
 
-    2. **Design the coding scheme** (days) - Columns such as Giver, Recipient, Form of Help, intensity, Duration, Date
+    2. **Design the coding scheme** - Columns such as Giver, Recipient, Form of Help, intensity, Duration, Date
     (Duering used six-month steps); a separate person table; expect to adapt the scheme frequently
 
-    3. **Code while reading** (weeks to years) - One row per act or letter, so the data is a directed multigraph;
+    3. **Code while reading** - One row per act or letter, so the data is a directed multigraph;
     unknown values coded with a sentinel such as 99; source citation (shelfmark, page) on each row
 
     4. **Keep a master and a working copy** (ongoing) - "Use one spreadsheet for storage and a copy for visualization"
 
-    5. **Normalize names and assign ids** (hours to days) - Duke used a name-letter id scheme, Harvard a VLOOKUP;
+    5. **Normalize names and assign ids** - Duke used a name-letter id scheme, Harvard a VLOOKUP;
     nodegoat imports references first; homonyms within families are the hardest case
 
-    6. **Hand off** (minutes) - Two CSVs (nodes, edges) for Gephi, one wide table for Palladio, or a nodegoat relational
+    6. **Hand off** - Two CSVs (nodes, edges) for Gephi, one wide table for Palladio, or a nodegoat relational
     model; then look at the first network and go back to fix duplicates
 
 

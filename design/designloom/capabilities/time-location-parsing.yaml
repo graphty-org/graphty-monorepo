@@ -4,10 +4,15 @@ category: data
 description: Parse timestamp or interval columns with format and time-zone detection, build intervals from start and end
     columns, join or geocode place columns, and count and list rows that failed to parse or place.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: data-preparation-and-import.md section 9, requirement 23 (Must)."
 algorithms: []
 used_by_workflows:
     - W302
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Time columns: timestamp or interval, format parsing, time zone, and a count and list of rows that failed to
+      parse"
+sources:
+    - title: Data Preparation, Import and First Assessment Across All Graph Users (section 9, requirement 23)
+      url: design/user-research/data-preparation-and-import.md
+      summary: "Must in the research. Covered by Designloom when researched: Gap (see temporal-and-dynamic-networks.md)"

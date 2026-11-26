@@ -54,23 +54,23 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Edge bootstrap** (minutes to 10+ hours, in R) - 1,000 to 2,500 nonparametric bootstraps; users with 2,000
+    1. **Edge bootstrap** (in R) - 1,000 to 2,500 nonparametric bootstraps; users with 2,000
     respondents and 60-70 nodes report runs that stall for more than 10 hours
 
-    2. **Edge intervals** (5 min) - One row per edge ordered by estimate, sample value, bootstrap mean and a gray 95
+    2. **Edge intervals** - One row per edge ordered by estimate, sample value, bootstrap mean and a gray 95
     percent band; with 136 possible edges it is a tall strip that must stay linked to the network
 
-    3. **Case-dropping bootstrap** (minutes to hours) - Drop 5 to 75 percent of cases at 10 levels; plot correlation
+    3. **Case-dropping bootstrap** - Drop 5 to 75 percent of cases at 10 levels; plot correlation
     with the full-sample ranking; CS-coefficient per index (should not be below 0.25, preferably above 0.5; in the
     PTSD example strength 0.44, betweenness and closeness 0.05)
 
-    4. **Difference tests** (5 min) - Triangular edge and centrality difference matrices, black for significant
+    4. **Difference tests** - Triangular edge and centrality difference matrices, black for significant
     difference at alpha 0.05 uncorrected, gray otherwise
 
-    5. **Read on the network** (5 min) - Edge opacity or band by interval width, flag indices below the CS threshold,
+    5. **Read on the network** - Edge opacity or band by interval width, flag indices below the CS threshold,
     hover an edge to see its interval and proportion non-zero
 
-    6. **Report** (15 min) - CS-coefficients in the text, plots in the supplement, softened wording
+    6. **Report** - CS-coefficients in the text, plots in the supplement, softened wording
 
 
     **Decision Points**:

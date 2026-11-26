@@ -1,5 +1,8 @@
 id: supply-chain-analyst
 name: Supply Chain Network Analyst
+roster_persona: supply-chain-analyst
+tier: B
+scope: in-scope
 role: Supply Chain Risk Manager / Supplier Risk Analyst
 quote: A low-cost sensor can stop a whole vehicle line. Tell me which sites cost us the most revenue while they are
     down, and tell me within hours of the earthquake, not weeks.
@@ -59,6 +62,7 @@ workflows:
     - W215
     - W216
     - W217
+    - W323
 sources:
     - title: Simchi-Levi et al., Identifying Risks and Mitigating Disruptions in the Automotive Supply Chain (Interfaces, 2015)
       url: https://hdl.handle.net/1721.1/101782

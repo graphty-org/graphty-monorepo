@@ -1,0 +1,18 @@
+id: possible-contribution-reach
+name: "Possible-contribution reach marking"
+category: analysis
+description: "Treat edges as 'could have contributed' (shared silos since last emptied, declaration in excess) and, from a flagged origin node, mark every downstream batch and statement it can reach; from a batch, list every origin that could have fed it, aggregated by supplier with plot, flagged and missing counts. Research requirement R49; dependency-propagation models AND/OR failure with time buffers, not taint over possible inputs."
+status: planned
+notes: "Research trace: supply-chain-and-physical-infrastructure-networks.md section 10, requirement R49 (Should)."
+algorithms: []
+used_by_workflows:
+    - W1096
+implemented_by_components: []
+requirements:
+    - "Should: Possible-contribution trace: from a flagged plot mark every batch and statement it can reach, and from a
+      batch list every plot that could have fed it, aggregated by supplier with counts"
+sources:
+    - title: Supply Chain Risk Analysts and Physical Infrastructure Network Engineers (section 10, requirement R49)
+      url: design/user-research/supply-chain-and-physical-infrastructure-networks.md
+      summary: "Should in the research. Covered by Designloom when researched: Partly (dependency-propagation marks
+        downstream failure; leaf-grouping folds plots by supplier)"

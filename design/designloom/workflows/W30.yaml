@@ -3,6 +3,7 @@ name: Statistical Inference on Networks -- QAP, ERGM and SAOM
 category: analysis
 validated: false
 personas:
+    - political-networks-scholar
     - sociometric-network-researcher
     - network-methods-grad-student
     - archival-affiliation-researcher
@@ -55,43 +56,43 @@ goal: >-
 
     **QAP and MRQAP:**
 
-    1. **Build dyadic predictors** (estimate: 15 min) - Same gender, absolute grade difference (UCINET Data >
+    1. **Build dyadic predictors** - Same gender, absolute grade difference (UCINET Data >
     Attribute; ideanet qap_setup()).
 
-    2. **QAP correlation** (estimate: 5 min) - qaptest(nets, gcor, g1=1, g2=2), 1,000 permutations by default.
+    2. **QAP correlation** - qaptest(nets, gcor, g1=1, g2=2), 1,000 permutations by default.
 
-    3. **MRQAP** (estimate: 10 min) - UCINET Tools > Testing Hypotheses > Dyadic (QAP) > MR-QAP > Double-Dekker
+    3. **MRQAP** - UCINET Tools > Testing Hypotheses > Dyadic (QAP) > MR-QAP > Double-Dekker
     Semi-Partialling, or netlm()/netlogit() with nullhyp = "qap"; DSP is recommended for collinear predictors.
 
-    4. **Read results** (estimate: 10 min) - Estimates with permutation p-values and a null-distribution histogram; CUG
+    4. **Read results** - Estimates with permutation p-values and a null-distribution histogram; CUG
     tests for "is this density unusual for a random graph of this size".
 
     **ERGM:**
 
-    1. **Explore** (estimate: 15 min) - mixingmatrix() and summary(net ~ edges + triangle) to catch empty cells.
+    1. **Explore** - mixingmatrix() and summary(net ~ edges + triangle) to catch empty cells.
 
-    2. **Fit** (estimate: minutes to hours of compute) - ergm(net ~ edges + nodefactor("Grade") + nodematch("Grade",
+    2. **Fit** - ergm(net ~ edges + nodefactor("Grade") + nodematch("Grade",
     diff=T) + gwesp(...)); dyad-dependent terms switch to MCMC; empty mixing cells give -Inf.
 
-    3. **Diagnose** (estimate: 10 min) - mcmc.diagnostics() trace plots.
+    3. **Diagnose** - mcmc.diagnostics() trace plots.
 
-    4. **Goodness of fit** (estimate: 10 min) - plot(gof(fit)): observed degree, shared partner and geodesic distributions
+    4. **Goodness of fit** - plot(gof(fit)): observed degree, shared partner and geodesic distributions
     against simulations.
 
     **SAOM (RSiena):**
 
-    1. **Stack waves** (estimate: 20 min) - sienaDependent() for the network, coCovar() and varCovar() for covariates,
+    1. **Stack waves** - sienaDependent() for the network, coCovar() and varCovar() for covariates,
     sienaDependent(drink, type = "behavior") for behavior.
 
-    2. **Describe change** (estimate: 10 min) - sienaDataCreate(), print01Report() for wave-to-wave change.
+    2. **Describe change** - sienaDataCreate(), print01Report() for wave-to-wave change.
 
-    3. **Specify effects** (estimate: 20 min) - getEffects(), includeEffects(myeff, transTrip, cycle3), avAlt for
+    3. **Specify effects** - getEffects(), includeEffects(myeff, transTrip, cycle3), avAlt for
     influence.
 
-    4. **Estimate until converged** (estimate: hours, repeated) - siena07(), re-run with prevAns until the overall
+    4. **Estimate until converged** (repeated) - siena07(), re-run with prevAns until the overall
     maximum convergence ratio is below 0.25.
 
-    5. **Test and check fit** (estimate: 20 min) - Tabulate, sienaGOF.
+    5. **Test and check fit** - Tabulate, sienaGOF.
 
 
     **Decision Points**:

@@ -5,7 +5,7 @@ description: Derive a directly-follows graph with artificial start and end from 
     node attribute (activity, role, department, resource) as parameters, frequency and duration metrics on nodes and
     edges, and recomputation from the filtered table on every filter rather than deleting edges from the built graph.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: process-mining-and-process-maps.md section 10, requirement R3 (Must)."
 algorithms: []
 used_by_workflows:
     - W340
@@ -15,18 +15,12 @@ used_by_workflows:
     - W344
     - W346
     - W348
-    - W349
-    - W350
-    - W351
-    - W353
-    - W354
-    - W356
-    - W358
+    - W339
     - W359
 implemented_by_components: []
 requirements:
-    - Derive a directly-follows graph from an event table (case id, activity, timestamp, optional lifecycle and
-      resource), with artificial start and end, any event attribute as the node classifier, frequency and duration
-      metrics on nodes and edges, and re-aggregation from the filtered table on every filter or threshold change rather
-      than deleting edges from the full graph.
-sources: []
+    - "Must: Derive a directly-follows graph from an event table (case id, activity, timestamp, optional lifecycle and resource), with artificial start and end, any event attribute as the node classifier, frequency and duration metrics on nodes and edges, and re-aggregation from the filtered table on every filter or threshold change rather than deleting edges from the full graph."
+sources:
+    - title: "Process Mining Analysts: Process Maps, Models and Deviations from Event Logs (section 10, requirement R3)"
+      url: design/user-research/process-mining-and-process-maps.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

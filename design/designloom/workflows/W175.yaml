@@ -50,21 +50,21 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Load** (2 min) - Paste a CSV or link a Google Sheet; fix detected column types; split multi-valued cells on a
+    1. **Load** - Paste a CSV or link a Google Sheet; fix detected column types; split multi-valued cells on a
     delimiter
 
-    2. **Link tables** (5 min) - Extend Sender and Recipient to a People table and places to a Places table with
+    2. **Link tables** - Extend Sender and Recipient to a People table and places to a Places table with
     latitude and longitude in one cell; set dates as "Year or Date"
 
-    3. **Graph view** (2 min) - Source = Sender, Target = Recipient; size nodes by count; a fixed force layout
+    3. **Graph view** - Source = Sender, Target = Recipient; size nodes by count; a fixed force layout
 
-    4. **Two-mode views** (2 min) - Set Target to Year or Form of Help to see people linked to periods or categories
+    4. **Two-mode views** - Set Target to Year or Form of Help to see people linked to periods or categories
 
-    5. **Map view** (3 min) - Point layers for places and a point-to-point layer from sender place to recipient place
+    5. **Map view** - Point layers for places and a point-to-point layer from sender place to recipient place
 
-    6. **Facets and timeline** (5 min) - Drag a date range; every view filters
+    6. **Facets and timeline** - Drag a date range; every view filters
 
-    7. **Export and share** (1 min) - SVG of a view, or a JSON project file
+    7. **Export and share** - SVG of a view, or a JSON project file
 
     8. **Return to sources** - Read the letters behind what the views suggest, then move to Gephi or Python for metrics
 
@@ -111,7 +111,7 @@ goal: >-
     - Output: SVG of a view, JSON project file, notes for further analysis
 success_criteria:
     - metric: Time from pasted table to linked network, map and timeline
-      target: Under 15 minutes for a novice
+      target: Under 15 minutes for a novice (design goal; no source measures it)
     - metric: Linked filtering
       target: One date-range brush filters network, map and table together
     - metric: Fix in place

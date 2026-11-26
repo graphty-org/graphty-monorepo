@@ -1,9 +1,12 @@
 id: patent-landscape-analyst
 name: Patent Landscape Analyst
+roster_persona: bibliometric-analyst
+tier: A
+scope: in-scope
 role: Patent Information Analyst in a Corporate IP Department
 quote: Siemens appears under forty spellings and three subsidiaries. Until those are one node, every assignee map I draw is wrong.
 bio: >-
-    Priya Natarajan is a senior patent information analyst in a medical-device company's IP department, with an
+    Shalini Natarajan is a senior patent information analyst in a medical-device company's IP department, with an
     engineering degree and a patent-search certification. She works with patent attorneys and R&D leads and produces
     landscape reports that feed portfolio management, R&D investment, licensing and freedom-to-operate work; in industry
     these are usually confidential. She searches Derwent Innovation, PatSnap, Orbit or Lens with Boolean queries over

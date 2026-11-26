@@ -1,5 +1,8 @@
 id: tomasz-novak
 name: Tomasz Novak
+roster_persona: cybersecurity-analyst
+tier: B
+scope: in-scope
 role: Network Security Monitoring Analyst (with OT support)
 quote: I want to see who talks to whom that should not, collapse the noise into subnets, and click straight through from a suspicious pair to the sessions and the PCAP.
 bio: >-

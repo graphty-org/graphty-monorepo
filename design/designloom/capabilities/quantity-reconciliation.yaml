@@ -4,10 +4,15 @@ category: analysis
 description: Per node, compare input and output volume with a yield factor and flag nodes whose inputs come from both
     flagged and unflagged sources.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: supply-chain-and-physical-infrastructure-networks.md section 10, requirement R42 (Should)."
 algorithms: []
 used_by_workflows:
     - W230
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Should: Quantity reconciliation: per node compare input and output volume with a yield factor; flag nodes whose
+      inputs come from both flagged and unflagged sources"
+sources:
+    - title: Supply Chain Risk Analysts and Physical Infrastructure Network Engineers (section 10, requirement R42)
+      url: design/user-research/supply-chain-and-physical-infrastructure-networks.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

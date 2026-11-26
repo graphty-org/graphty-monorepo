@@ -26,6 +26,12 @@ The graph is almost never the deliverable. Its correctness depends on steps most
 see: entity merging, deduplication, permission scoping, and the fact that a graph built from collected
 mailboxes is a biased sample of who actually communicated.
 
+A second, smaller legal population works with a different graph: **the case-law citation network**,
+in which court decisions are nodes and each citation from a later decision to an earlier one is a
+directed edge. Its users are empirical legal scholars, who rank precedents and trace how a line of
+case law developed, and legal researchers in practice, who meet a citation map inside Lexis or
+Westlaw. Section 11 covers them.
+
 ## 2. Population
 
 **Job titles.** Contract and first-pass review attorney; review manager; case-team associate;
@@ -553,7 +559,198 @@ record-to-edge derivation, permission scoping, caps with totals, tree layout, br
 provenance belong in graphty-element as neutral data and events; wording, panel layout and how a host
 maps descriptors to its own search syntax belong to the consuming application.
 
-## 11. Sources
+## 11. Case-law citation networks: legal network analysts
+
+Sections 1 to 10 cover graphs built from communications. This section covers a separate legal
+population whose graph is built from court decisions citing earlier decisions. The users, data
+sources and analysis steps differ from eDiscovery; the methods overlap with bibliometric citation
+analysis (bibliometrics-and-science-mapping.md).
+
+### 11.1 Population
+
+**Who.** Empirical and computational legal scholars (law faculty, political scientists who study
+courts, PhD students), legal informatics researchers, and at the edge legal researchers in practice
+who meet a citation map inside a commercial research service.
+
+**How large.** No source counts the people. The proxies found are small:
+
+- The German Law Journal ran a special section on network analysis and legal scholarship, prompted
+  by Derlen and Lindholm's network analysis of the Court of Justice of the European Union (CJEU).
+  Its introduction takes "a broader perspective" on "the utility and the limits of network analysis
+  for legal scholarship generally" and lists the strand's anchor works: Fowler et al. (2007) on the
+  US Supreme Court, Lupu and Voeten (2012) on the European Court of Human Rights (ECtHR), Gelter
+  and Siems (2013) on cross-citation between European supreme courts, Lettieri et al. (2016) on EU
+  case law and Whalen (2016) on the promises and challenges of legal network analysis
+  ([Petersen and Towfigh, German Law Journal 18(3), 2017](https://www.cambridge.org/core/journals/german-law-journal/article/network-analysis-and-legal-scholarship/E8C3D0AB58A01DD35C4B5DAC4893ACDF)).
+- JURIX, the main European legal informatics conference, received 90 submissions in 2024 and
+  accepted 21 long and 17 short papers plus 16 or 17 posters (sources differ); only some are about
+  citation networks (search excerpts of the
+  [JURIX 2024 proceedings listing](https://ebooks.iospress.nl/volumearticle/70992) and
+  [conference site](https://jurix2024.law.muni.cz/); not read directly).
+- Frontiers in Physics published several case-law network papers in 2021 and 2022 (Soh; Adusumilli
+  et al., below), from physics and complex-systems groups rather than law schools.
+
+So this is a specialist academic community, probably hundreds of active researchers worldwide, not
+thousands; the "hundreds" is an inference from the venues above, not a count.
+
+**Do practitioners use citation graphs beyond citator lists?** Partly, and only inside their research
+service:
+
+- LexisNexis added Ravel View to Lexis Advance in June 2018. It maps "the top 75 results from a
+  user's case law search"; "The bigger the circle, the more frequently that case has been cited by
+  other cases"; "The vertical axis shows the Supreme Court at the top, followed by federal and state
+  courts below"; connecting lines use "familiar Shepard's colors for positive and negative
+  treatment"; and "By mapping cases across time, lawyers can identify trends"
+  ([LexisNexis press release, 2018](https://www.lexisnexis.com/community/pressroom/b/news/posts/lexisnexis-launches-data-visualization-to-enhance-its-flagship-online-legal-research-platform-lexis-advance)).
+  A LexisNexis how-to guide (search excerpt only) says it is not the default view, and that hovering
+  a link shows the citing language
+  ([Ravel View how-to](https://www.lexisnexis.com/pdf/lexis-advance/Ravel-View-How-To-Literature.pdf)).
+- Westlaw KeyCite shows a case's direct appellate history as a graphical view beside the list of
+  linked documents; citing references stay a filtered list (by jurisdiction, reported status,
+  headnote) (search excerpt of
+  [Thomson Reuters help](https://www.thomsonreuters.com/en-us/help/westlaw-precision/tools/access-keycite-for-cases)).
+- On CanLII, "indegree centrality and PageRank scores of caselaw within the network are effective
+  predictors" of how often a case is viewed, and "roughly 19% of Canada Supreme Court cases remain
+  important despite the passage of time" while other courts keep fewer than 3% in regular citation
+  ([Neale, Journal of Open Access to Law, 2013](https://ojs.law.cornell.edu/index.php/joal/article/view/20)).
+  Network measures track what practitioners open, but no source shows practitioners building or
+  analyzing a citation graph themselves, or how often Ravel View is opened.
+
+### 11.2 Personas
+
+**Legal citation network scholar (id: `legal-citation-network-scholar`).** A law or political
+science researcher who builds the citation network of one court (or one doctrine) from a court
+database, ranks precedents by authority, follows how a line of case law developed, and writes it up
+for a law review or a computational journal. Codes in Python (the studies read used NetworkX and
+NetworKit). Evidence: the works in 11.1 and 11.4.
+
+**Case-law research attorney (id: `case-law-research-attorney`), weak evidence.** A litigator or law
+librarian who opens a citation map of a search result to see which cases are central, which court
+decided them and when, and whether later treatment was positive or negative, then reads the cases.
+The only evidence is the products themselves (Ravel View, KeyCite's graphical history); no source
+describes this user's own steps or frequency.
+
+### 11.3 Data
+
+| Source                                                     | What it gives                                                                                                                                                                                                                                                                                                                                 | Size seen                                                                                     |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| CourtListener (Free Law Project), US                       | Opinions Cited/Citing API: filter by `citing_opinion` for what an opinion cites and `cited_opinion` for what cites it, with a `depth` (times cited within the opinion); bulk export of the citation graph (monthly in the v3 docs, quarterly in the v4 docs); the docs warn that not every parallel citation is known (search excerpts of [v4 citations API](https://wiki.free.law/c/courtlistener/help/api/rest/v4/citations) and [v3](https://www.courtlistener.com/help/api/rest/v3/citations)) | Federal subset: 1,317,233 cases and 11,451,351 citations, about 1926 to 2020 (Adusumilli et al.) |
+| HUDOC, ECtHR                                               | Case metadata including a free-text field of cited Strasbourg case law; open Python libraries build a nodes and edges CSV from it, with a list of references they could not resolve (search excerpt of [echr-extractor](https://pypi.org/project/echr-extractor))                                                                                     | Article 8 corpus: 9,777 cases, 39,582 citation links (Mohammadi et al.)                       |
+| EUR-Lex and the CELLAR SPARQL endpoint, CJEU               | Case metadata and case-to-case citations by CELEX number or ECLI; open toolkits export a directed citation graph (search excerpt of [cjeu-py](https://pypi.org/project/cjeu-py/)); some researchers parse citations from judgment text with regular expressions instead                                                                       | Consumer-law subset: 446 cases, 1980 to October 2023 (Jiang et al.)                           |
+| CanLII, Canada                                             | Citations among Canadian decisions on CanLII (Neale)                                                                                                                                                                                                                                                                                         | Not stated in the abstract                                                                    |
+| Published research edge lists                              | Fowler et al.'s US Supreme Court edge list joined with Spaeth database issue areas; Singapore Court of Appeal citations with Singapore Law Reports subjects (Soh)                                                                                                                                                                                                                                                                  | US Supreme Court 26,681 majority opinions 1791 to 2005 (Fowler et al.)                        |
+
+Node attributes that matter: decision date, court, court level, jurisdiction or circuit, subject or
+issue area, and an identifier (CELEX, ECLI, application number, reporter citation). Edge attributes:
+date (from the citing case), times cited within the opinion, and in commercial citators a treatment
+(followed, distinguished, overruled). The graph is directed and almost acyclic, since decisions cite
+earlier decisions; it is sparse and fragmented: in the federal network 299,973 of the 1,317,233
+cases are isolated, and the largest component in the Article 8 network holds 7,234 of 9,777 cases
+(about 74 percent).
+
+### 11.4 Workflows and analysis steps
+
+**A. Rank precedents by authority, then check how the ranking moves over time.**
+
+1. Pull one court's decisions and their citations (CourtListener bulk file, HUDOC metadata, CELLAR).
+2. Resolve each citation to a decision; count and keep a list of citations that do not resolve.
+3. Join court, date and subject attributes.
+4. Compute in-degree, PageRank and hub and authority (HITS) scores. Fowler et al. built a network of
+   26,681 majority opinions (1791 to 2005) and proposed centrality measures that identify the most
+   legally relevant precedents "at any point in time", validated by how well they predict later
+   citations by state courts, the Courts of Appeals and the Supreme Court itself (abstract, search
+   excerpt of [Political Analysis 15:324](https://www.cambridge.org/core/journals/political-analysis/article/network-analysis-and-the-law-measuring-the-legal-importance-of-precedents-at-the-us-supreme-court/D9B2F13BE2594E1527780AAFDD6BF164)).
+   Soh combines hub and authority scores, an exponential time decay and subject relevance,
+   including a subject-sensitive PageRank
+   ([Soh, Frontiers in Physics, 2021](https://frontiersin.org/articles/10.3389/fphy.2021.665563/full)).
+   Hub and authority scores are Kleinberg's HITS: a decision that cites many authoritative
+   decisions is a good hub, and one cited by many good hubs is a good authority, so every decision
+   gets two scores from one run. Soh says "we use Kleinberg's authority and hub scores" and includes
+   both score types in the model; he lets the power iteration run "for a maximum of 300 power
+   iterations, three times the package default", modifies the package "to return prevailing scores
+   if convergence is not achieved", and in one model recomputes the scores "within the subgraph of
+   nodes sharing at least one subject with the citer" (sections 2.3 and 2.4 of the same paper).
+5. Recompute the ranking on the network as it stood at chosen dates (the graph truncated to decisions
+   up to each date) and compare. Neale reads citation life spans the same way: most Canadian cases
+   stop being cited after a span that depends on jurisdiction.
+6. Compare scores across court levels. In the federal network "the striking predominance of Supreme
+   Court case decisions" holds among the top 1,000 nodes, and ArticleRank scaling exponents fall
+   with court level: district 4.07, appellate 3.30, Supreme Court 2.88
+   ([Adusumilli et al., Frontiers in Physics, 2022](https://www.frontiersin.org/articles/10.3389/fphy.2021.695219)).
+7. Read the top cases against doctrine; export the ranked table and a figure. Sadl and Olsen argue
+   the method should give doctrinal study "a stable and complete quantitative basis for a further
+   in-depth study of case law"
+   ([Leiden Journal of International Law, 2017](https://www.cambridge.org/core/product/CC01D5633773395798E64ECBC6FC0384/core-reader)).
+
+**B. Find and group the case law on one provision.** Mohammadi et al. collected 9,777 ECtHR Article 8
+cases from HUDOC, fitted a 17-topic LDA model to the texts, ran Louvain community detection on the
+citation network, and then weighted each citation by the cosine similarity of the two cases' topic
+vectors before running Louvain again; "our combined (text and citation-based) approach provides the
+best results in finding and grouping case law", evaluated against 198 hand-labeled eviction cases
+([arXiv 2401.16429](https://arxiv.org/html/2401.16429v1)). Steps: import the network, keep the
+largest component, attach a per-case topic vector, weight edges by similarity, detect communities,
+inspect the community that holds known seed cases, list its members.
+
+**C. Trace how a line of case law developed (main path).** Jiang, Breskaya and van Dijck applied main
+path analysis to 446 CJEU consumer-rights cases from 1980 to October 2023: five time slices, the top
+three key-route main paths per slice, merged into one overlay network; the paths fell into five
+themes (unfair terms, equivalent effect, comparative advertising, free movement of goods, product
+liability), and the authors note the method's limits for "comprehensive, representative results in
+large networks"
+([Artificial Intelligence and Law, 2026](https://eprints.whiterose.ac.uk/id/eprint/243421/)). This is
+the bibliometric main path workflow (W56) with legal attributes, plus a per-slice merge.
+
+**D. Map a search result by court and time (practice).** As in Ravel View: take the top results of a
+case search, place each case by decision date and court level, size by citation count, draw
+citations colored by treatment, hover a link to read the citing sentence, click a case to bring it to
+the top of the list.
+
+**How much is reused from bibliometrics.** Steps A4, B and C reuse the citation-network methods of
+bibliometrics-and-science-mapping.md: centralities, community detection, time slicing, main paths
+and a year axis. What is new is legal: the data sources and identifier resolution (A1, A2), the court
+level and jurisdiction attributes (A3, A6, D), authority as of a date (A5), treatment-typed edges (D)
+and HITS, which the bibliometric workflows do not use.
+
+**Is HITS a legal measure or a general one?** A general directed-graph measure that court citation
+research favors more than other citation research does. Xu, Mariani, Lu and Medo compared 17 ranking
+metrics on paper citations (APS and high-energy physics) and US patent citations and found "the
+identification rate values of the HITS authority score are 0.143 (APS), 0.116 (HEP), and 0.054
+(PAT)", well behind age-corrected PageRank; they contrast "the poor performance of HITS here" with
+the praise it gets in court-citation studies, and suggest "court decision citation networks may be
+intrinsically more favorable to HITS"
+([Xu et al., Journal of Informetrics, 2020](https://arxiv.org/html/2001.05414)). So the bibliometric
+and patent workflows have no evidence-backed reason to adopt it, while flow networks do: the
+migration-flow workflow already computes "eigenvector, PageRank and hub and authority scores on raw
+weights". HITS needs direction (hub is the outgoing side, authority the incoming side), returns two
+values per node, and has its own options (iteration cap, tolerance, normalization, edge weight), so it
+is its own measure rather than a setting of PageRank or eigenvector centrality. graphty-element
+already ships it (`graphty-element/src/algorithms/HITSAlgorithm.ts`, publishing a combined score plus
+separate hub and authority values, and refusing undirected input); the gap is that it is not
+recorded as a capability any workflow can require.
+
+**Does the court hierarchy need a layered layout?** Yes for D, and usefully for A6. The one
+practitioner citation map found puts court level on the vertical axis and time across, rather than
+using a force layout; a force layout drawn from citations alone mixes levels, and the federal-network
+finding that centrality follows court level is easiest to see with levels as bands. The research does
+not show scholars asking for it: the scholarly papers report tables and force or community pictures.
+
+### 11.5 Requirements implied
+
+| #   | Requirement                                                                                                                                                                                      | Priority | Covered today?                                    |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- | ------------------------------------------------- |
+| L1  | **Court citation import**: build a directed graph from a court database export or API (CourtListener, HUDOC metadata, CELLAR), keeping date, court, level and identifier, and reporting unresolved citations as a count and list | Should   | Partly (generic CSV edge import and import report) |
+| L2  | **Authority measures**: in-degree, PageRank and hub and authority scores on a directed citation graph                                                                                             | Should   | Yes (degree, PageRank and HITS ship in graphty-element; HITS has no capability record yet) |
+| L3  | **Authority as of a date**: compute a measure on the graph truncated to decisions up to a date, and as a series over dates                                                                         | Should   | Partly (cumulative windows are planned)           |
+| L4  | **Court-by-time layout**: decision date on one axis, court level as bands on the other, citations drawn between them                                                                              | Should   | Partly (attribute axes and tiers are planned)     |
+| L5  | **Treatment-typed citations**: edges carry a treatment value, colored and filterable                                                                                                              | Could    | Partly (typed edges and edge encoding)            |
+| L6  | **Edge weights from node vectors**: weight each existing edge by the cosine similarity of a vector column on its two nodes, then detect communities                                              | Could    | Not covered                                       |
+| L7  | **Main paths per time slice, merged**: run main path analysis on each slice and overlay the results                                                                                                | Could    | Partly (main path analysis is planned)            |
+
+Priorities are Should and Could because the population is small and academic. Under the
+repository's rules, the import, measures, layouts and edge weighting belong in graphty-element; the
+names a reader sees for courts and treatments belong to the application.
+
+## 12. Sources
 
 Read directly:
 
@@ -605,3 +802,25 @@ itself and labeled in the text:
 - https://help.relativity.com/RelativityOne/Content/Relativity/aiR_for_Privilege/Entities.htm, .../Known_items.htm, .../Confirm_Privilege_Status_annotation.htm -- privilege roles and Known Attorneys
 - https://help.relativity.com/RelativityOne/Content/Relativity/aiR_for_Case_Strategy/aiR_for_Case_Strategy.htm, .../Creating_a_fact_chronology.htm, .../Creating_witness_summaries_and_deposition_outlines.htm -- case setup and witness rules
 - https://www.ftc.gov/system/files/attachments/merger-review/best_practices_for_merger_investigations_august_2015.pdf -- fewer than 35 custodians
+
+Case-law citation networks (section 11), read directly:
+
+- https://www.cambridge.org/core/journals/german-law-journal/article/network-analysis-and-legal-scholarship/E8C3D0AB58A01DD35C4B5DAC4893ACDF -- German Law Journal special section introduction and the strand's anchor works
+- https://arxiv.org/html/2401.16429v1 -- ECtHR Article 8 network from HUDOC, topic-weighted community detection
+- https://arxiv.org/abs/1501.05237 -- EU legislation network from the Official Journal (abstract)
+- https://frontiersin.org/articles/10.3389/fphy.2021.665563/full -- Soh, hub and authority (Kleinberg HITS, 300-iteration cap, subject-local recomputation), time decay, subject-sensitive PageRank
+- https://arxiv.org/html/2001.05414 -- Xu, Mariani, Lu and Medo, HITS weak on paper and patent citations, contrasted with court networks
+- https://www.frontiersin.org/articles/10.3389/fphy.2021.695219 -- US federal case law from CourtListener, sizes and court-level scaling
+- https://eprints.whiterose.ac.uk/id/eprint/243421/ -- main path analysis of CJEU consumer cases
+- https://ojs.law.cornell.edu/index.php/joal/article/view/20 -- Neale, CanLII in-degree and PageRank predict views
+- https://www.cambridge.org/core/product/CC01D5633773395798E64ECBC6FC0384/core-reader -- Sadl and Olsen, citation networks and doctrinal method (abstract)
+- https://www.lexisnexis.com/community/pressroom/b/news/posts/lexisnexis-launches-data-visualization-to-enhance-its-flagship-online-legal-research-platform-lexis-advance -- Ravel View
+
+Case-law citation networks, from search excerpts only (labeled in the text):
+
+- https://www.cambridge.org/core/journals/political-analysis/article/network-analysis-and-the-law-measuring-the-legal-importance-of-precedents-at-the-us-supreme-court/D9B2F13BE2594E1527780AAFDD6BF164 -- Fowler et al. 2007 abstract
+- https://wiki.free.law/c/courtlistener/help/api/rest/v4/citations and https://www.courtlistener.com/help/api/rest/v3/citations -- CourtListener citation API
+- https://pypi.org/project/echr-extractor and https://pypi.org/project/cjeu-py/ -- HUDOC and CELLAR citation extraction tools
+- https://www.lexisnexis.com/pdf/lexis-advance/Ravel-View-How-To-Literature.pdf -- Ravel View interaction
+- https://www.thomsonreuters.com/en-us/help/westlaw-precision/tools/access-keycite-for-cases -- KeyCite graphical history
+- https://ebooks.iospress.nl/volumearticle/70992 and https://jurix2024.law.muni.cz/ -- JURIX 2024 counts

@@ -46,22 +46,22 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Window** (10 min) - Compute one matrix per window (75-100 s windows gave the widest range of flexibility in
+    1. **Window** - Compute one matrix per window (75-100 s windows gave the widest range of flexibility in
     one study)
 
-    2. **Link layers** (2 min) - Tie each node to itself in adjacent windows with weight omega; small omega gives more
+    2. **Link layers** - Tie each node to itself in adjacent windows with weight omega; small omega gives more
     independent partitions per window
 
-    3. **Maximize multilayer modularity** (minutes to hours) - Louvain-style heuristic, run many times, search the
+    3. **Maximize multilayer modularity** - Louvain-style heuristic, run many times, search the
     gamma-omega plane for a stable partition (one study tuned omega over 0.1 to 10)
 
-    4. **Node measures** (5 min) - Flexibility (community changes divided by T-1), module allegiance (fraction of
+    4. **Node measures** - Flexibility (community changes divided by T-1), module allegiance (fraction of
     windows two nodes share a community), core-periphery labels
 
     5. **Check window length** (iterated) - Long windows give mostly zero flexibility; short windows fail to separate
     regions
 
-    6. **Visualize** (20 min) - Node-by-window community heatmap or alluvial diagram, allegiance matrix reordered by
+    6. **Visualize** - Node-by-window community heatmap or alluvial diagram, allegiance matrix reordered by
     system, flexibility painted on parcels (W159)
 
 

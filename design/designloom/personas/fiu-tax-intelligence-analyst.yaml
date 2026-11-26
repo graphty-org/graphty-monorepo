@@ -1,5 +1,8 @@
 id: fiu-tax-intelligence-analyst
 name: FIU and Tax Intelligence Analyst
+roster_persona: aml-investigator
+tier: A
+scope: in-scope
 role: Intelligence Analyst, government financial intelligence unit or tax agency
 quote: Forty banks each filed about part of this network, each spelling the names their own way. My job is to see it as one network.
 bio: >-

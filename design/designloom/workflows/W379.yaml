@@ -50,24 +50,24 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Recode** (30 min) - Each item's options become symbols ("Strongly Agree" to ++, "Strongly Disagree" to --)
+    1. **Recode** - Each item's options become symbols ("Strongly Agree" to ++, "Strongly Disagree" to --)
 
-    2. **Build** (5 min) - Each option is a binary node; a positive phi correlation between options of two different
+    2. **Build** - Each option is a binary node; a positive phi correlation between options of two different
     issues becomes a weighted edge
 
-    3. **Lay out** (2 min) - Fruchterman-Reingold, then rotate so the main dimension lies on the x axis; anchor a chosen
+    3. **Lay out** - Fruchterman-Reingold, then rotate so the main dimension lies on the x axis; anchor a chosen
     option on the left; fix the seed
 
-    4. **Read positions** (10 min) - Each option's x is its latent position (correlated 0.87 with endorsers' mean
+    4. **Read positions** - Each option's x is its latent position (correlated 0.87 with endorsers' mean
     partisanship in the vignette); each respondent gets the mean position of the options they endorsed
 
-    5. **Clusters and statistics** (5 min) - Leading-eigenvector clusters; strength, closeness, betweenness, expected
+    5. **Clusters and statistics** - Leading-eigenvector clusters; strength, closeness, betweenness, expected
     influence; mean covariates per node
 
-    6. **Compare waves** (30 min) - One network per survey wave (ANES 2000 to 2020 on five issues); linearization (x
+    6. **Compare waves** - One network per survey wave (ANES 2000 to 2020 on five issues); linearization (x
     spread over y spread) and link density, with 200 resamples of 80 percent of respondents for uncertainty
 
-    7. **Export** (2 min) - igraph, qgraph or Gephi CSV; node coordinates as data
+    7. **Export** - igraph, qgraph or Gephi CSV; node coordinates as data
 
 
     **Decision Points**:

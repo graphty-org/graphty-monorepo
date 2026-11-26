@@ -2,6 +2,7 @@ id: W156
 name: Neuron-Centric Exploration of a Fly Connectome
 category: exploration
 validated: false
+scope: deferred
 personas:
     - cellular-connectomics-neuroscientist
 requires_capabilities:
@@ -48,16 +49,16 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Find the neuron** (1 min) - Search by cell type (for example a "like" match on Pm2) or transmitter
+    1. **Find the neuron** - Search by cell type (for example a "like" match on Pm2) or transmitter
 
-    2. **Partners** (3 min) - Upstream and downstream tables counted at or above the dataset minimum (5 synapses in
+    2. **Partners** - Upstream and downstream tables counted at or above the dataset minimum (5 synapses in
     FAFB and male CNS, 3 in BANC, 1 in MANC), which users may raise but not lower; one row per pair per region; or
     fetch a neuron table and a connection table (pre, post, region, weight)
 
-    3. **Network graph** (5 min) - Labels, group by cell type, color by hemilineage or transmitter, minimum synapse
+    3. **Network graph** - Labels, group by cell type, color by hemilineage or transmitter, minimum synapse
     threshold, cap on top connections, edge filters
 
-    4. **Pathways** (5 min) - Shortest paths from a source set to the target, downloadable as a path-length matrix CSV
+    4. **Pathways** - Shortest paths from a source set to the target, downloadable as a path-length matrix CSV
 
     5. **Export and analyze** (varies) - CSV, JSON or Feather tables; continue in NetworkX or navis, or query with
     Cypher in neuPrint
@@ -103,7 +104,7 @@ goal: >-
     - Output: Partner tables, neuron-centric network figure, path-length matrix, exported tables
 success_criteria:
     - metric: Partner lookup
-      target: Strongest upstream and downstream partners of a named cell type shown within 2 minutes
+      target: Strongest upstream and downstream partners of a named cell type shown within 2 minutes (design goal; no source measures it)
     - metric: Aggregation clarity
       target: User can switch between per-region and summed edges and see which is shown
     - metric: Scale

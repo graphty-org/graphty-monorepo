@@ -54,16 +54,16 @@ goal: >-
 
     1. **Item matrix** - Respondents by items, for example the 25 bfi items
 
-    2. **Redundancy** (15 min) - UVA flags locally dependent pairs by weighted topological overlap; values above 0.25
+    2. **Redundancy** - UVA flags locally dependent pairs by weighted topological overlap; values above 0.25
     need action; keep one item of each pair (for example "Get angry easily." dropped at 0.431)
 
-    3. **Estimate dimensions** (minutes) - EGA with glasso and walktrap (check defaults per version); network colored by
+    3. **Estimate dimensions** - EGA with glasso and walktrap (check defaults per version); network colored by
     dimension; number of communities and TEFI fit index
 
-    4. **Bootstrap** (minutes to hours) - 500 parametric replicates; how often each number of dimensions appeared (5
+    4. **Bootstrap** - 500 parametric replicates; how often each number of dimensions appeared (5
     in 94.2 percent in one example); typical (median) structure
 
-    5. **Stability** (10 min) - Item stability per node (proportion of replicates in its empirical dimension), drawn
+    5. **Stability** - Item stability per node (proportion of replicates in its empirical dimension), drawn
     on the network as opacity or a ring and as a dot chart; dimension stability per community; guideline 0.70,
     applied papers often 0.75
 

@@ -3,11 +3,17 @@ name: Offline Operation and Audit Log
 category: analysis
 description: Run fully offline on agency networks and log each search with its stated purpose (case number) for audit.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: law-enforcement-and-intelligence-analysts.md section 10, requirement 25 (Must)."
 algorithms: []
 used_by_workflows:
     - W09
     - W106
+    - W105
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Offline, on-premise operation; audit log of searches and purposes"
+sources:
+    - title: Law enforcement crime and intelligence analysts, and defense and national intelligence analysts (section
+        10, requirement 25)
+      url: design/user-research/law-enforcement-and-intelligence-analysts.md
+      summary: "Must in the research. Covered by Designloom when researched: Gap"

@@ -1,9 +1,12 @@
 id: scientometrics-analyst
 name: Scientometrics Analyst
+roster_persona: expert-emma
+tier: B
+scope: in-scope
 role: Professional Scientometrician / Research Analyst in a Ministry or Research Institute
 quote: The pipeline is code. What I need is a display that any institution can embed, that labels itself, and that draws the same map from the same seed.
 bio: >-
-    Dr. Ana Ribeiro holds a PhD in information science and works in a national research ministry's data team, modeled
+    Dr. Isabel Ribeiro holds a PhD in information science and works in a national research ministry's data team, modeled
     on France's scanR team; her peers sit at CWTS in Leiden and at Drexel. She works continuously and in code: Python,
     Elasticsearch, OpenAlex snapshots, igraph or graphology. Her data is millions of publications with disambiguated
     author, affiliation and topic identifiers. For the ministry portal she precomputes entity pairs, keeps the top 2,000

@@ -128,7 +128,7 @@ goal: >-
     - Output: User understands basic workflow + has seen their data visualized
 success_criteria:
     - metric: Time to first visualization
-      target: Under 2 minutes
+      target: Under 2 minutes (design goal; no source measures it)
     - metric: Comprehension
       target: User can describe what they see
     - metric: Confidence
@@ -140,9 +140,6 @@ success_criteria:
     - metric: Valid reading
       target: User can state one valid and one invalid conclusion about the picture
 sources:
-    - title: Graphty Progressive Disclosure Design
-      url: https://graphty.app/docs/
-      summary: Explorer Elena persona journey and progressive disclosure patterns
     - title: Nielsen Norman Group Progressive Disclosure
       url: https://www.nngroup.com/articles/progressive-disclosure/
       summary: UX pattern for reducing complexity for new users

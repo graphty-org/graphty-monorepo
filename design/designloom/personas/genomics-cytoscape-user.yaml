@@ -1,9 +1,12 @@
 id: genomics-cytoscape-user
 name: Genomics Cytoscape User
+roster_persona: genomics-cytoscape-user
+tier: A
+scope: in-scope
 role: Postdoctoral Researcher / Genomics Lab Bioinformatician
 quote: I have a list of 300 differentially expressed genes and a figure due Friday. Show me how they connect and what they do.
 bio: >-
-    Dr. Priya Raman is a postdoc in a cancer genomics lab. She runs RNA-seq and proteomics experiments, produces
+    Dr. Lakshmi Raman is a postdoc in a cancer genomics lab. She runs RNA-seq and proteomics experiments, produces
     ranked gene lists in R, and then turns to Cytoscape two or three times a month to make sense of them. Her typical
     network is 100 to 600 proteins pulled from STRING for one species, with 10 to 40 columns of expression, mutation and
     annotation data joined onto the nodes from a spreadsheet. She follows the published cytoscape.org protocols almost
@@ -69,6 +72,7 @@ workflows:
     - W245
     - W247
     - W251
+    - W313
 sources:
     - title: Cytoscape tutorial - Differentially Expressed Genes Network Analysis
       url: https://cytoscape.org/cytoscape-tutorials/protocols/differentially-expressed-genes/

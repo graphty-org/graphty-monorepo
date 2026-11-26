@@ -4,12 +4,18 @@ category: export
 description: Share a project or a saved starting state by a link that is private by default and read-only for graders,
     group members or a class.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: students-educators-and-first-time-users.md section 9, requirement 24 (Should)."
 algorithms: []
 used_by_workflows:
     - W234
     - W239
     - W240
+    - W1018
+    - W318
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Should: Read-only share link for graders, private by default"
+sources:
+    - title: Students, Instructors and First-Time Graph Users (section 9, requirement 24)
+      url: design/user-research/students-educators-and-first-time-users.md
+      summary: "Should in the research. Covered by Designloom when researched: Not covered"

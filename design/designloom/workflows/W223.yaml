@@ -2,6 +2,7 @@ id: W223
 name: Fault Location, Isolation and Service Restoration in an ADMS
 category: analysis
 validated: false
+scope: out-of-scope
 personas:
     - distribution-control-room-operator
 requires_capabilities:

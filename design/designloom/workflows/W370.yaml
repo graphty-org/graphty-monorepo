@@ -7,6 +7,7 @@ personas:
     - point-and-click-network-analyst
     - network-psychometrics-methodologist
 requires_capabilities:
+    - label-overlap-removal
     - data-import
     - data-validation
     - data-preview
@@ -68,25 +69,25 @@ goal: >-
     2. **Check redundancy** (30 min) - Merge items with overlapping content and correlation of .50 or more
     (goldbricker, UVA); one published example went from 15 to 12 nodes
 
-    3. **Estimate** (minutes, in R or JASP) - Polychoric correlations, EBICglasso over 100 lambda values, gamma between
+    3. **Estimate** (in R or JASP) - Polychoric correlations, EBICglasso over 100 lambda values, gamma between
     0 and 0.5 (one example gave 105 edges at 0, 95 at 0.25, 87 at 0.5)
 
-    4. **Load the weights matrix** (2 min) - Import a square CSV with item names as header and row names; zeros mean no
+    4. **Load the weights matrix** - Import a square CSV with item names as header and row names; zeros mean no
     edge; join the node table (short label, full item text, subscale)
 
-    5. **Encode** (5 min) - Blue positive, red negative, dashed negatives for print; width and saturation by absolute
+    5. **Encode** - Blue positive, red negative, dashed negatives for print; width and saturation by absolute
     weight against a fixed maximum; hide-below threshold that does not move the layout; node color by subscale;
     short labels with a legend of full item text
 
-    6. **Lay out** (2 min) - Fruchterman-Reingold spring layout with a fixed seed; save the coordinates
+    6. **Lay out** - Fruchterman-Reingold spring layout with a fixed seed; save the coordinates
 
-    7. **Describe** (5 min) - Density and mean absolute weight, because the average edge weight cannot be read from
+    7. **Describe** - Density and mean absolute weight, because the average edge weight cannot be read from
     the picture
 
-    8. **Centrality** (5 min) - Strength and expected influence as raw scores; bridge strength and bridge expected
+    8. **Centrality** - Strength and expected influence as raw scores; bridge strength and bridge expected
     influence with a community per node; then run the stability workflow (W371) before any claim
 
-    9. **Hand off** (10 min) - Export the network figure at journal size with the layout and drawing settings
+    9. **Hand off** - Export the network figure at journal size with the layout and drawing settings
     (maximum, minimum, cut, seed) recorded; export the weights and centrality tables for the supplement
 
 
@@ -139,7 +140,7 @@ goal: >-
     - Output: Journal figure with legend and recorded settings, centrality table, weights matrix for the supplement
 success_criteria:
     - metric: Time from weights matrix to figure following the reporting standards
-      target: Under 15 minutes
+      target: Under 15 minutes (design goal; no source measures it)
     - metric: Signed encoding readable in grayscale
       target: Negative edges distinguishable without color
     - metric: Caption facts available

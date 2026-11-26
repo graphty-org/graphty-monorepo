@@ -56,32 +56,32 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Upload** (5 min) - Case-versus-control table (IDs, fold change, optional p-value); map columns to observations
+    1. **Upload** - Case-versus-control table (IDs, fold change, optional p-value); map columns to observations
 
-    2. **Run Core Analysis** (10 min) - Cutoff such as p < 0.05; keep analysis-ready molecules under about 3,000 (hard cap
+    2. **Run Core Analysis** - Cutoff such as p < 0.05; keep analysis-ready molecules under about 3,000 (hard cap
     8,000)
 
-    3. **Read result tabs** (20 min) - Graphical summary, canonical pathways, upstream analysis, diseases and functions,
+    3. **Read result tabs** - Graphical summary, canonical pathways, upstream analysis, diseases and functions,
     regulator effects, networks; each entity has an enrichment p-value and an activation z-score (+2 or more predicted
     activated, shown orange; -2 or less predicted inhibited, blue); observed up and down genes are red and green
 
-    4. **Upstream regulators** (15 min) - Table with predicted state, z-score and overlap p-value (dupilumab-treated
+    4. **Upstream regulators** - Table with predicted state, z-score and overlap p-value (dupilumab-treated
     atopic dermatitis: IL4 inhibited at z = -6.09); "Targets of X" opens the regulator and its downstream dataset genes
     as a network
 
-    5. **Causal networks and building** (20 min) - Master regulators linked through intermediates; Path Explorer between
+    5. **Causal networks and building** - Master regulators linked through intermediates; Path Explorer between
     Set A and Set B with direction, shortest paths plus one; Connect or Grow with filters
 
-    6. **Simulate** (10 min) - Molecule Activity Predictor: set a node inhibited or activated and read predicted
+    6. **Simulate** - Molecule Activity Predictor: set a node inhibited or activated and read predicted
     downstream changes on the network
 
-    7. **Overlay drugs** (10 min) - Grow upstream from selected nodes and overlay labels for known drug targets (the
+    7. **Overlay drugs** - Grow upstream from selected nodes and overlay labels for known drug targets (the
     training example ends with a candidate drug for atopic dermatitis)
 
-    8. **Compare** (20 min) - Comparison Analysis across up to 20 analyses; match the signature against curated studies,
+    8. **Compare** - Comparison Analysis across up to 20 analyses; match the signature against curated studies,
     where an opposite signature suggests repurposing
 
-    9. **Figure and share** (30 min) - Format the network for publication in a designer view; share a project link
+    9. **Figure and share** - Format the network for publication in a designer view; share a project link
 
 
     **Decision Points**:

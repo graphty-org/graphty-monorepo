@@ -1,9 +1,12 @@
 id: social-media-dynamics-researcher
 name: Social Media Dynamics Researcher
+roster_persona: social-media-network-researcher
+tier: B
+scope: in-scope
 role: Communication Researcher (Hashtag Conversations, Retweet Cascades, Coordinated Campaigns)
 quote: Each @reply lives thirty minutes in my model. Play it in fifteen-minute windows and you can watch the conversation ignite.
 bio: >-
-    Dr. Tomas Rey is a communication researcher who studies how online conversations ignite, who bridges communities
+    Dr. Pablo Rey is a communication researcher who studies how online conversations ignite, who bridges communities
     and when, and when a conversation dies down. He collects tweets and replies with scripts, converts them to dynamic
     GEXF, and plays them in Gephi. His model follows Axel Bruns' #spill work: each @reply is an edge that lives for a
     decay time (1,800 seconds), converted with gawk scripts, filtered to active users (degree 10 or more took 5,485

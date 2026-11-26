@@ -1,12 +1,15 @@
 id: search
 name: Node Search
 category: interaction
-description: Find specific nodes by searching labels or attribute values. Navigate directly to search results in the
-    visualization. Essential for locating known entities in large graphs.
-status: implemented
-notes: "Ships: graphty/src/workspace/graph-place/FindBox.tsx (opened with /)."
+description: Find specific nodes in the loaded graph by label or attribute value, tolerating name variants, and move
+    the view and keyboard focus to a match. The entry point for locating a known entity (a person, a company, a gene, a
+    neuron) before expanding, tracing paths or reading its details. Searching a database for nodes that are not yet
+    loaded is a separate, search-first capability.
+status: in-progress
+notes: "Partly ships: graphty/src/workspace/graph-place/FindBox.tsx (opened with /). Planned: fuzzy and alias matching, a recent-query history, and a visible-nodes-only scope. Any requirement below that this note does not name as shipping counts as planned."
 algorithms: []
 used_by_workflows:
+    - W3024
     - W05
     - W06
     - W07
@@ -62,7 +65,6 @@ used_by_workflows:
     - W258
     - W261
     - W263
-    - W264
     - W273
     - W276
     - W278
@@ -91,7 +93,6 @@ used_by_workflows:
     - W416
     - W420
     - W437
-    - W446
     - W50
     - W51
     - W55
@@ -117,29 +118,58 @@ used_by_workflows:
     - W89
     - W90
     - W98
+    - W1006
+    - W1012
+    - W1013
+    - W1060
+    - W1084
+    - W1090
+    - W1096
+    - W252
+    - W1132
+    - W105
+    - W1157
+    - W2000
+    - W2030
+    - W2037
+    - W3096
+    - W3102
 implemented_by_components:
     - search-input
     - search-result-item
     - search-panel
 requirements:
-    - Open search input with Ctrl+F or '/' keyboard shortcut
-    - Search node labels for substring match (case-insensitive by default)
-    - Search node attribute values across all string attributes
-    - Display search results as scrollable list showing node label and matching attribute
-    - Limit displayed results to 100 with 'N more results' indicator
-    - Highlight matching text in search results with bold or background color
-    - Update results incrementally while typing (debounced 200ms)
-    - Highlight all matching nodes in graph visualization with distinct color
-    - Click search result to select node and center view on it
-    - Double-click search result to select and zoom to node
-    - Support exact match mode via checkbox or 'exact:' prefix
-    - Support regex search via checkbox or 'regex:' prefix
-    - "Support attribute-specific search: 'attribute:value' syntax (e.g., 'type:person')"
-    - Display 'No results found' message when search yields no matches
-    - Clear search with Escape key or 'X' button
-    - Remember last 10 search queries in dropdown history
-    - "Provide search scope option: 'All nodes' vs 'Visible nodes only'"
+    - "Library parity: Open the search entry with the '/' keyboard shortcut; the entry is also reachable by Tab"
+    - "Must: Search node labels for substring match (case-insensitive by default)"
+    - "Must: Offer fuzzy matching that finds spelling and name variants of the query, and match alias or synonym attributes when the data has them"
+    - "Must: Search node attribute values across all string attributes"
+    - "Must: Display search results as scrollable list showing node label and matching attribute"
+    - "Must: Report the total number of matches, and say so when the displayed list is cut short"
+    - "Library parity: Highlight matching text in search results with bold or background color"
+    - "Library parity: Update results incrementally while typing"
+    - "Library parity: Highlight all matching nodes in the graph through a style layer on the match"
+    - "Library parity: Choosing a result selects the node, centers the view on it and moves keyboard focus to it, so a screen reader announces it"
+    - "Library parity: Double-click search result to select and zoom to node"
+    - "Library parity: Support exact match mode via checkbox or 'exact:' prefix"
+    - "Library parity: Support regex search via checkbox or 'regex:' prefix"
+    - "Must: Support attribute-specific search: 'attribute:value' syntax (e.g., 'type:person')"
+    - "Library parity: Display 'No results found' message when search yields no matches"
+    - "Library parity: Clear search with Escape key or 'X' button"
+    - "Library parity: Remember recent search queries in a history list"
+    - "Library parity: Provide search scope option: 'All nodes' vs 'Visible nodes only'"
 sources:
-    - title: Complete Graph Visualization Textbook - Chapter 6
-      url: https://graphty.app/docs/
-      summary: Search - text search and pattern search
+    - title: Neo4j Bloom search bar
+      url: https://neo4j.com/docs/bloom-user-guide/current/bloom-visual-tour/search-bar/
+      summary: Search-first exploration with full-text and property search
+    - title: ICIJ and Neo4j, the Panama Papers graph
+      url: https://neo4j.com/blog/cypher-and-gql/icij-neo4j-unravel-panama-papers
+      summary: Journalists type a person's or company's name and need fuzzy-matched variants
+    - title: TADA (CHI 2024), accessible node-link diagrams
+      url: https://arxiv.org/html/2311.04502v4
+      summary: Blind and low-vision readers need a find entry that moves focus to the match
+    - title: GSK (ASSETS 2014), keyboard navigation of node-link diagrams
+      url: https://ciigar.csc.ncsu.edu/files/bib/Balik2014-AccessGraphs.pdf
+      summary: Jump-to-node by name for keyboard and screen-reader users
+    - title: KeyLines accessibility
+      url: https://cambridge-intelligence.com/build-accessible-data-visualization-apps-with-keylines/
+      summary: Commercial toolkits leave a Tab-reachable search box to the embedder

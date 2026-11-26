@@ -1,9 +1,12 @@
 id: process-mining-consultant
 name: Process Mining Consultant
+roster_persona: process-mining-analyst
+tier: A
+scope: in-scope
 role: Operational Excellence Consultant / Process Mining Consultant
 quote: Give me the client's export on Monday and by Thursday I need the happy path, the bottleneck, the money, and an animation the executives understand.
 bio: >-
-    Marc is a consultant at a partner firm with a Lean Six Sigma background. He runs value workshops that turn a process
+    Thijs is a consultant at a partner firm with a Lean Six Sigma background. He runs value workshops that turn a process
     map into a business case. On every engagement he receives whatever the client can export -- ticket histories, CRM
     cases, ERP extracts -- usually as CSV, and opens it in Disco within the first hour to get a first map. For long
     deployments he works in Celonis or Power Automate Process Mining with the client's data engineers. Projects run from
@@ -52,10 +55,6 @@ workflows:
     - W342
     - W343
     - W347
-    - W349
-    - W350
-    - W352
-    - W353
     - W359
     - W360
 sources:

@@ -3,14 +3,13 @@ name: Computed Attributes
 category: analysis
 description: Define custom node or edge attributes by combining existing metrics using formulas, enabling
     domain-specific scoring and ranking without hardcoded logic.
-status: implemented
-notes: "Ships: the session's derived columns (deriveScore, derivedColumns in graphty-element/api/session.api.md) and graphty/src/workspace/data-place/ScoreDialog.tsx."
+status: in-progress
+notes: "Partly ships: the session's derived columns (deriveScore, derivedColumns in graphty-element/api/session.api.md) and graphty/src/workspace/data-place/ScoreDialog.tsx. Planned: aggregation over neighbor values, storing a result once as fixed values, and declaring a computed weight's meaning. Any requirement below that this note does not name as shipping counts as planned."
 algorithms: []
 used_by_workflows:
     - W06
     - W08
     - W10
-    - W12
     - W23
     - W24
     - W11
@@ -80,9 +79,7 @@ used_by_workflows:
     - W337
     - W339
     - W346
-    - W349
-    - W352
-    - W356
+    - W342
     - W365
     - W37
     - W370
@@ -110,11 +107,6 @@ used_by_workflows:
     - W435
     - W436
     - W438
-    - W439
-    - W441
-    - W443
-    - W444
-    - W445
     - W53
     - W57
     - W64
@@ -130,32 +122,41 @@ used_by_workflows:
     - W86
     - W87
     - W93
+    - W1006
+    - W1054
+    - W1132
+    - W2000
+    - W2037
 implemented_by_components:
     - computed-attributes-panel
     - ranked-node-table
 requirements:
-    - "Support arithmetic operators: + (add), - (subtract), * (multiply), / (divide), % (modulo), ^ (power)"
-    - "Support comparison operators: > (greater), < (less), >= (gte), <= (lte), == (equal), != (not equal)"
-    - "Support logical operators: AND, OR, NOT for boolean expressions"
-    - "Support functions: min(a,b), max(a,b), abs(x), sqrt(x), log(x), log10(x), exp(x), round(x,decimals)"
-    - "Support aggregation functions: sum(), avg(), count(), stddev() over neighbor values"
-    - "Support conditional function: if(condition, true_value, false_value)"
-    - Support normalize(attribute) to scale values to 0-1 range
-    - "Reference node attributes by name: [attribute_name] syntax"
-    - "Reference computed metrics by name: [degree], [betweenness], [pagerank], [community]"
-    - Validate formula syntax before execution; display parse error with position marker
-    - "Display 'Unknown attribute: X' error when referencing non-existent attribute"
-    - Display 'Type mismatch' error when applying numeric operation to string attribute
-    - Recompute derived attributes automatically when source attributes change
-    - Allow naming computed attribute with alphanumeric identifier (no spaces)
-    - Save formula definitions to session for reuse
-    - Delete computed attribute when no longer needed
-    - Complete computation within 1 second for graphs under 50,000 nodes
-    - Use computed attributes for visual encoding (size, color, filter) immediately after creation
+    - "Library parity: Support arithmetic operators: + (add), - (subtract), * (multiply), / (divide), % (modulo), ^ (power)"
+    - "Library parity: Support comparison operators: > (greater), < (less), >= (gte), <= (lte), == (equal), != (not equal)"
+    - "Library parity: Support logical operators: AND, OR, NOT for boolean expressions"
+    - "Library parity: Support functions: min(a,b), max(a,b), abs(x), sqrt(x), log(x), log10(x), exp(x), round(x,decimals)"
+    - "Library parity: Support aggregation functions: sum(), avg(), count(), stddev() over neighbor values"
+    - "Library parity: Support conditional function: if(condition, true_value, false_value)"
+    - "Library parity: Support normalize(attribute) to scale values to 0-1 range"
+    - "Library parity: Reference node attributes by name: [attribute_name] syntax"
+    - "Library parity: Reference computed metrics by name: [degree], [betweenness], [pagerank], [community]"
+    - "Library parity: Validate formula syntax before execution; return a parse error code with the position of the error"
+    - "Library parity: Return an unknown-attribute error code with the attribute name when a formula references a missing attribute"
+    - "Library parity: Return a type-mismatch error code when a numeric operation is applied to a text attribute"
+    - "Library parity: Recompute derived attributes automatically when source attributes change"
+    - 'Library parity: Offer to store the result once as fixed values instead of a live formula, for large graphs where live re-evaluation is slow (Cytoscape''s "Evaluate and Insert Result")'
+    - "Library parity: Allow naming computed attribute with alphanumeric identifier (no spaces)"
+    - "Must: Save formula definitions to session for reuse, and record the formula with the result so a figure or export that uses the column can say how it was computed"
+    - "Library parity: When a composite score combines several measures, keep each component column available, so a reader can see why a node ranks high rather than one opaque number"
+    - "Must: When a computed column is used as an edge weight, declare whether it is a strength or a distance (weight-semantics), since path algorithms read weights as distances and community and PageRank read them as strengths"
+    - "Library parity: Delete computed attribute when no longer needed"
+    - "Must: Use computed attributes for visual encoding (size, color, filter) immediately after creation, and include them in node and edge table exports"
 sources:
-    - title: Gephi Calculated Columns
-      url: https://gephi.org/users/
-      summary: Users need to derive new attributes from existing ones for domain-specific analysis
+    - title: Akoglu, Tong and Koutra 2015, Graph based anomaly detection and description
+      url: https://doi.org/10.1007/s10618-014-0365-y
+      summary: Cited in network-scientists-and-analysis-method-validity.md for keeping each score with its reason; a weighted sum of incomparable scores hides why a node was flagged
     - title: Cytoscape Column Expressions
       url: https://manual.cytoscape.org/en/stable/Column_Data_Functions_and_Equations.html
-      summary: Formula-based attribute computation pattern in network analysis tools
+      summary: Column formulas with numeric, comparison and logical operators, network functions (Degree, SourceID),
+          re-evaluation when a referenced column changes, an evaluate-once option for large networks, and type-mismatch
+          errors

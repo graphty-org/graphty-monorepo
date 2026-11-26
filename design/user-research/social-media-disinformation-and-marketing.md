@@ -284,7 +284,7 @@ Recurring pain points: data access collapse; conversion scripts between collecti
 5. **Per-cluster content summary**: top hashtags, URLs, domains, words and accounts per community; editable labels. Partly covered (community-profiling); text tokens are a gap.
 6. **Network-level typology report**: density, modularity, isolates share, centralization, components, reciprocity, compared across networks. Partly covered (statistics-panel, comparison-view).
 7. **Isolates handled explicitly**: kept for statistics, hidden in the drawing. Gap.
-8. **Community detection with resolution control and Infomap** in addition to Louvain/Leiden. Covered in part (community-detection).
+8. **Community detection with resolution control and Infomap** in addition to Louvain/Leiden. Covered in part (community-detection): Louvain and Leiden with resolution ship; Infomap and Clauset-Newman-Moore (NodeXL's default) are listed there as planned.
 9. **Reduction before drawing**: degree, k-core and attribute filters, sampling by betweenness; 20,000-100,000 nodes drawn smoothly. Covered in part (filtering, large-graph-rendering).
 10. **64-bit IDs kept as strings on import** and stable across formats. Gap (data-validation should name it).
 11. **Import GEXF, GraphML, GDF, GML, CSV, JSON/NDJSON and NodeXL workbooks**, keeping Gephi positions and colors. Covered in part (data-import); NodeXL .xlsx and GDF are not among the 13 formats.

@@ -5,7 +5,7 @@ description: Read record exports from Web of Science, Scopus, Dimensions, Lens (
     PubMed, RIS, BibTeX, OpenAlex and grant databases, loading many batch files as one corpus and deduplicating across
     sources by DOI, database ID or title plus author plus year, with per-source and duplicate counts.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: bibliometrics-and-science-mapping.md section 10, requirement 1 (Must)."
 algorithms: []
 used_by_workflows:
     - W335
@@ -17,9 +17,13 @@ used_by_workflows:
     - W55
     - W59
     - W60
+    - W1162
 implemented_by_components: []
 requirements:
-    - Read Web of Science, Scopus and OpenAlex records (including an OpenAlex citing-works query) into works with year,
-      field, keywords and references, and build keyword co-occurrence or coupling networks with thresholds and
-      fractional counting.
-sources: []
+    - "Must: Import bibliographic exports (Web of Science, Scopus, Dimensions, Lens, PubMed, RIS, BibTeX, OpenAlex),
+      many batch files as one corpus"
+    - "Must: Read Web of Science, Scopus and OpenAlex records (including an OpenAlex citing-works query) into works with year, field, keywords and references, and build keyword co-occurrence or coupling networks with thresholds and fractional counting."
+sources:
+    - title: Bibliometrics and Science Mapping (section 10, requirement 1)
+      url: design/user-research/bibliometrics-and-science-mapping.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

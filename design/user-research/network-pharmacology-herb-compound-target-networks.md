@@ -22,6 +22,14 @@ studies build taxon-metabolite correlation networks, manufacturers pick "quality
 teams serve in-browser network views over millions of predicted edges (the sub-population that would embed a graph
 web component).
 
+The same pipeline has a second, faster-growing branch that swaps the herb for a pollutant. Papers calling themselves
+network toxicology take a plastics additive, a bisphenol, a pesticide or a PFAS compound as the root node, pull its
+targets from the Comparative Toxicogenomics Database or a prediction server, intersect them with disease genes, and
+then run the identical STRING, cytoHubba, GO and KEGG, docking and molecular dynamics sequence. PubMed records naming
+"network toxicology" went from 12 in 2023 to 54 in 2024, 497 in 2025 and 1,021 in the first eleven months of 2026
+(section 2.1); 348 of the 1,503 come from Chinese-medicine institutions, the same labs as the herbal work. For a graph
+product this is one population with two root node types, not two populations.
+
 The field is large (3,357 PubMed records naming "network pharmacology" in 2024, 5,172 in 2025) and heavily
 criticized: in a census of studies from October 2023 to June 2024, quercetin was a key compound in 63.2% (294 of 465
 studies reporting compounds) and AKT1 a key target in 48.8% (429 of 880)
@@ -67,6 +75,43 @@ Overlapping, but measured-data integration is clearly not a fringe:
 | "single-cell" or "single cell"                  | 422                         |
 | "quality marker(s)" or Q-marker*                | 211                         |
 | "Mendelian randomization"                       | 206                         |
+
+**Network toxicology: the same pipeline on a pollutant.** PubMed E-utilities, query `"network toxicology"[tiab]` by
+publication year, run 2026-11-25 (same endpoint); 1,503 records in total, of which 1,448 carry a China affiliation and
+13 an India affiliation:
+
+| Year    | 2015 | 2018 | 2020 | 2021 | 2022 | 2023 | 2024 | 2025 | 2026 (to 25 Nov) |
+| ------- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---------------- |
+| Records | 1    | 1    | 2    | 5    | 12   | 12   | 54   | 497  | 1,021            |
+
+That is a steeper curve than network pharmacology's at the same stage, and it is the same community: 348 of the 1,503
+records (225 of the 1,021 in 2026) have an author at an institution whose name contains "Chinese Medicine" or
+"Traditional Chinese", and only 62 name network pharmacology in the title or abstract, so the two literatures are
+counted separately although the method is one. The journals are environmental and toxicological rather than
+ethnopharmacological: in the 600 most recent records, Ecotoxicology and Environmental Safety 71, Frontiers in
+Pharmacology 26, Chemico-Biological Interactions 24, Food and Chemical Toxicology 24, Environmental Pollution 20. Some
+of the "Pollution" share in the persona index's citation census (section 2.1 of
+population-to-designloom-persona-index.md) is this literature rather than microbial ecology.
+
+What the root node is (PubMed, `"network toxicology"[tiab] AND` the second term, run 2026-11-25): phthalates, DEHP or
+DBP 176; bisphenols 137; perfluorinated compounds or PFAS 117; cadmium, arsenic, lead or mercury 77; pesticides,
+herbicides or glyphosate 67; smoking or nicotine 53; microplastics or nanoplastics 50. A separate 216 name
+hepatotoxicity, nephrotoxicity or cardiotoxicity, so a drug's adverse effect is also a root; 412 name a cancer as the
+disease. The method terms are those of Workflow A and Workflow C: molecular docking 1,178, molecular dynamics 384,
+machine learning, LASSO or random forest 450, single-cell 233, GEO, TCGA or "differentially expressed" 313, Mendelian
+randomization 143, WGCNA 67, and 447 name in vitro work (cell viability, western blot or qPCR). Cytoscape appears in
+195 abstracts and STRING in 186.
+
+The sources differ, and not as expected: target servers (SwissTargetPrediction, SuperPred or STITCH) are named in 235
+abstracts, disease-gene resources (GeneCards, OMIM, DisGeNET) in 252, the Comparative Toxicogenomics Database in 131
+and the toxicity predictors ProTox or ADMETlab in 84, but ToxCast or Tox21, the United States assay screens, in only 2.
+The field predicts a pollutant's targets rather than reading them from a measured assay set. The Comparative
+Toxicogenomics Database, the one source with no equivalent in the herbal pipeline, holds over 94 million toxicogenomic
+connections, of which 3.8 million are manually curated from more than 149,000 articles over 17,700 chemicals, 55,400
+genes, 7,200 diseases and 214,000 exposures (https://www.ncbi.nlm.nih.gov/pmc/articles/PMC11701581/). The recipe is
+now taught the way the herbal one is: a video protocol for benzo[a]pyrene and rheumatoid arthritis names STRING v12,
+Cytoscape 3.10.1, cytoHubba's degree algorithm and the R venn package, and screens five core genes (LCK, ZAP70, ITK,
+GZMA, ITGAL) before validating them with machine learning (https://www.jove.com/v/70636, dated 26 May 2026).
 
 Prescription mining, counted separately: 306 records name "data mining" with "Chinese medicine" and prescription or
 formula; 314 name Apriori or association rules with Chinese medicine or TCM; 38 name SPSS Modeler with Chinese
@@ -123,6 +168,21 @@ boundary is not "predicted versus measured": the database-only pipeline (Workflo
 exposure- and omics-integrated form (Workflow C) carries measured columns (fold change, adjusted p, serum detection,
 model AUC, Mendelian randomization odds ratios), and Diao et al. recommend it because AKT1 falls from 54.9% (398/725)
 of database-only studies to 19.6% (30/153) of omics-integrated ones (fphar.2026.1748478).
+
+Network toxicology is also not an adjacent population: it is this one with a different root node, and section 3.6
+records it as a persona variant. The test is whether a user would need different software, and it would not. A
+chronic-urticaria study of the plasticizer dioctyl terephthalate, by authors at Chengdu University of Traditional
+Chinese Medicine, took the structure from PubChem, predicted targets with SwissTargetPrediction and SuperPred,
+standardized them in UniProt, built the protein interaction network in STRING and Cytoscape, screened 38 targets down
+to six (EGFR, BCL2, NFKB1, CASP3, ERBB2, mTOR), ran GO and KEGG, docked in AutoDock and finished with Gromacs
+molecular dynamics (Ecotoxicology and Environmental Safety 2025;291:117864, https://pubmed.ncbi.nlm.nih.gov/39923559/).
+Every step but the first appears verbatim in Workflow A. What changes is the root node type (an exposure, not a
+formula and its herbs), the tier above it (there is no herb or plant-part tier, so the figure is four tiers rather than
+five), one source (the Comparative Toxicogenomics Database, queried by CAS number) and one extra node attribute
+(predicted toxicity endpoints from ProTox or ADMETlab). The population is a variant of the network pharmacology
+personas, not of the omics interpreter in systems-biology-omics-networks.md: the omics interpreter starts from measured
+genes in a single-type network, while this one starts from a chemical name and ends in a typed, tiered figure, and a
+quarter of the papers come from the same Chinese-medicine institutions.
 
 ## 3. Personas
 
@@ -235,6 +295,37 @@ of database-only studies to 19.6% (30/153) of omics-integrated ones (fphar.2026.
 - **Frustrations.** No direct statement found; each resource writes its own viewer, the cost Drugst.One exists to
   remove.
 
+### 3.6 Network toxicology researcher (`network-toxicology-researcher`)
+
+A variant of 3.1 and 3.2 with a pollutant where the formula was. Recorded as its own persona because the sources, the
+root node and the reviewers' objections differ, and because it is now the larger half by growth rate (section 2.1).
+
+- **Who.** A master's student or junior faculty member in public health, food safety, environmental medicine or
+  pharmacy, often in the same Chinese-medicine institution that produces the herbal papers (348 of 1,503 records).
+  The question comes from a regulatory or news-driven worry: a plasticizer in food packaging, a bisphenol in receipts,
+  a pesticide residue, a PFAS compound in water.
+- **Tools.** PubChem for the structure and SMILES, the Comparative Toxicogenomics Database queried by CAS number,
+  SwissTargetPrediction, SuperPred, STITCH or ChEMBL for predicted targets, ProTox and ADMETlab for toxicity
+  endpoints, GeneCards, OMIM and TTD or a TCGA or GEO expression set for the disease side, Venny, STRING, Cytoscape
+  with cytoHubba, clusterProfiler, AutoDock Vina, Gromacs, and increasingly an R or Python machine-learning step
+  (LASSO, random forest, SHAP) where the herbal papers use degree.
+- **Data.** One to a few chemicals rather than hundreds of compounds, so the graph is smaller at the top and wider
+  below: in published examples 124 chemical-associated genes narrowing to 76 differentially expressed and 6 hubs for
+  six polychlorinated biphenyl congeners against breast cancer (STRING 0.7, cytoHubba degree, closeness and
+  betweenness top-10 overlap, giving AKT1, BRCA1, EGF, EZH2, IL6 and TNF;
+  https://www.frontiersin.org/articles/10.3389/fphar.2025.1604993/full), and 1,053 predicted targets against 3,420
+  disease genes intersecting to 324 for 4-nonylphenol (STRING above 0.9, top five by degree;
+  https://pmc.ncbi.nlm.nih.gov/articles/PMC12419657/).
+- **Goals.** A mechanism for a chemical the public is already worried about; a hub list a laboratory can confirm with
+  qPCR in one cell line (447 of 1,503 records name in vitro work, a higher share than the herbal literature's).
+- **Frustrations.** The same silent identifier drop as 3.1, with chemicals added: a CAS number, a PubChem compound id,
+  a SMILES string and a congener name are four keys for one node. Target counts differ by an order of magnitude
+  between servers for the same chemical (14 from SwissTargetPrediction, 8 from STITCH, 1,031 from ChEMBL for
+  4-nonylphenol), and nothing records which server contributed a node. A published docking threshold is stated and
+  then not applied: the 4-nonylphenol study keeps poses at -6.0 kcal/mol or better and reports TP53 at -4.8 and ESR1
+  at -5.1.
+- **What reviewers say.** The objections of 3.4 arrive here too, with evidence now in print (section 7.2).
+
 ## 4. Use cases (ranked by frequency, then stakes)
 
 | #   | Question answered with a graph                                                                                  | Who                     | Frequency                  | Stakes                                  |
@@ -251,6 +342,7 @@ of database-only studies to 19.6% (30/153) of omics-integrated ones (fphar.2026.
 | 10  | Which compounds should the quality standard assay? (Q-markers)                                                  | industry                | 211 records                | A product specification                 |
 | 11  | What does the database know around this herb, ingredient or target?                                             | 3.5 and its users       | Every database visit       | The resource's front door               |
 | 12  | Is this study trustworthy? (provenance, threshold sensitivity)                                                  | 3.4                     | Every review               | Acceptance                              |
+| 13  | Through which human proteins could this pollutant cause this disease? (exposure-target-disease network)          | 3.6                     | 1,021 records in 2026      | A publishable health claim              |
 
 ## 5. Step-by-step workflows
 
@@ -305,6 +397,18 @@ Yougui Pill (https://pmc.ncbi.nlm.nih.gov/articles/PMC6877955).
       (https://pmc.ncbi.nlm.nih.gov/articles/PMC9886246/figure/pone.0280847.g006).
       Optional MCODE at degree cutoff 2, node score 0.2, k-core 2, depth 100
       (https://baderlab.org/Software/MCODE/UsersManual). Figure: three panels (full, filtered, core ring).
+      How common each rule is: of 1,259 open-access 2024 papers with "network pharmacology" in the title or
+      abstract, the full text mentions cytoHubba in 272, CytoNCA in 172, MCC or "maximal clique centrality" in 144,
+      MCODE in 130 and "twice the median" in 25 (Europe PMC full-text keyword counts, queried 2026-11-25 through
+      https://www.ebi.ac.uk/europepmc/webservices/rest/search; mentions, not a coded sample of methods sections).
+      Rule and result drift in the intersection pattern too: Tongxieyaofang's Methods name Degree, Closeness, MCC and
+      EcCentricity, its Results name Betweenness in place of EcCentricity, for five core targets from an 82-node,
+      282-edge network (https://pmc.ncbi.nlm.nih.gov/articles/PMC11604607/). cytoHubba's definitions use unweighted
+      shortest paths, and two of its measures carry hidden parameters (DMNC epsilon 1.7; EPC averages 1000 randomly
+      reduced networks, so it needs a seed) (https://pmc.ncbi.nlm.nih.gov/articles/PMC4290687/); CytoNCA 2.1.6
+      (2014) adds local average connectivity, network centrality, subgraph and information centrality for weighted or
+      unweighted networks (https://apps.cytoscape.org/apps/cytonca). The Designloom capability hub-screening records
+      the rule, its parameters and the count after each step, and keeps the core subnetwork beside its parent.
 10. **Enrich (20 min).** DAVID (lotus: P < 0.05, 622 GO terms, 112 KEGG pathways), Metascape or clusterProfiler; top 10
     GO bars, top 20-30 KEGG bubbles, newer papers adding a genes-to-pathways Sankey from bioinformatics.com.cn
     (https://bioinformatics.com.cn/plot_basic_go_pathway_sankey_dot_plot_121); targets highlighted on a KEGG map.
@@ -503,6 +607,49 @@ Rarely done; it is what reviewers ask for.
 5. Dock at a known site with a positive control and a second program.
 6. Report every database version, access date, threshold and full list (PMC7838196 dates every source; rare).
 
+### 5.10 Workflow J: Network toxicology, from an exposure to a disease mechanism
+
+Sources: polychlorinated biphenyls and breast cancer (fphar.2025.1604993), 4-nonylphenol and breast cancer
+(PMC12419657), dioctyl terephthalate and chronic urticaria (PMID 39923559), the benzo[a]pyrene video protocol
+(jove.com/v/70636), the robustness re-analysis (PMC13604017). Steps 5 to 9 are Workflow A unchanged; the work that is
+new is all in steps 1 to 4.
+
+1. **Name the exposure (10 min).** One chemical or a congener family, with its CAS number, PubChem compound id and
+   SMILES string; the PCB study carried six congeners as six root nodes.
+2. **Predict toxicity endpoints (20 min).** ProTox and ADMETlab give carcinogenicity, endocrine-receptor and
+   mitochondrial-toxicity calls, which become attributes of the root node and part of the argument that the chemical
+   is worth studying at all. Named in 84 of 1,503 abstracts.
+3. **Collect chemical targets (30-90 min).** Two routes, often both. The curated route queries the Comparative
+   Toxicogenomics Database by CAS number for chemical-gene interactions and filters by the disease association (the
+   PCB study used "Breast Neoplasms" at p < 0.01). The predicted route runs SwissTargetPrediction, SuperPred, STITCH
+   or ChEMBL on the SMILES string, human only, and merges after UniProt normalization. Counts differ by an order of
+   magnitude between servers for one chemical (14, 8 and 1,031 for 4-nonylphenol), and the merged list keeps no record
+   of which server supplied which node.
+4. **Collect disease genes (30 min).** Either the keyword route of Workflow A (GeneCards relevance above 10 plus OMIM
+   and TTD gave 3,420 genes) or, in 313 of 1,503 records, differential expression from TCGA or GEO: the PCB study took
+   113 normal and 1,113 tumor samples from TCGA-BRCA at absolute log fold change at least 1 and adjusted p below 0.05,
+   giving 9,554 differentially expressed genes.
+5. **Intersect (10 min).** Venny or the R venn package. The PCB study's 124 chemical-associated genes left 76 that
+   were also differentially expressed (52 up, 24 down); 4-nonylphenol left 324.
+6. **Build the protein interaction network and screen hubs (30-60 min).** STRING at 0.7 or above 0.9, Cytoscape
+   3.10.x, then either cytoHubba's top-10 lists by degree, closeness and betweenness intersected (six hubs: AKT1,
+   BRCA1, EGF, EZH2, IL6, TNF) or the top five by degree alone. A machine-learning step increasingly replaces the
+   degree rule: LASSO, random forest or SHAP over the expression matrix, named in 450 of 1,503 abstracts.
+7. **Enrich (20 min).** clusterProfiler, GO and KEGG, with Benjamini-Hochberg adjustment in better papers.
+8. **Dock and simulate (half a day to two days).** AutoDock Vina against the hubs, then Gromacs molecular dynamics in
+   384 of 1,503 records, a much higher share than in the herbal literature.
+9. **Confirm in one cell line (447 of 1,503).** The PCB study exposed MCF-7 cells to 1 micromolar for 48 hours and
+   read the hubs by RT-qPCR.
+10. **Robustness, when a reviewer asks.** Re-run at other thresholds, fix the direction of any receiver-operating
+    characteristic test from the discovery data rather than per cohort, test the overlap against the set of genes the
+    sources could have returned instead of the whole protein-coding genome, and drop any one chemical from a mixture
+    to see whether the result was carried by it (section 7.2).
+
+**What a graph product has to add over Workflow A.** An exposure root node type with its own attributes; a per-node
+record of which target server or curated source contributed it, since the merge is where the evidence class is lost
+(requirement R4); a four-tier rather than five-tier figure; and the robustness re-runs of step 10 as something other
+than a manual repeat of the whole pipeline (R8, R23).
+
 ## 6. Data
 
 | Resource                                                                                                                                 | Role                                                  | Size (as reported)                                                                                 |
@@ -514,6 +661,8 @@ Rarely done; it is what reviewers ask for.
 | SymMap 2.0                                                                                                                               | Herb, symptom, ingredient, target                     | 698 herbs, 26,035 compounds (https://pmc.ncbi.nlm.nih.gov/articles/PMC9537023)                     |
 | IMPPAT 2.0 (3.0 on the site)                                                                                                             | Indian plants, per plant part                         | 4,010 plants, 17,967 phytochemicals, 1,335 drug-like (PMC9996785)                                  |
 | TM-MC 2.0                                                                                                                                | Korean, Chinese, Japanese materials and prescriptions | 635 materials, 21,306 compounds, 5,075 prescriptions (PMC10790428)                                 |
+| Comparative Toxicogenomics Database (CTD)                                                                                                | Chemical-gene and chemical-disease, curated; exposures | 3.8 million curated interactions over 17,700 chemicals and 55,400 genes; over 94 million connections in all (PMC11701581) |
+| ProTox, ADMETlab                                                                                                                         | Predicted toxicity endpoints on an exposure node       | One call per endpoint                                                                              |
 | SwissTargetPrediction, PharmMapper, STITCH, SEA                                                                                          | Target prediction                                     | A score per prediction                                                                             |
 | GeneCards, OMIM, DisGeNET, TTD, CTD                                                                                                      | Disease genes                                         | Thousands per disease; DisGeNET full data licensed                                                 |
 | STRING; DAVID, Metascape, clusterProfiler, KEGG                                                                                          | PPI; enrichment                                       | Score 0.15-0.999; term tables                                                                      |
@@ -523,7 +672,9 @@ Rarely done; it is what reviewers ask for.
 **Formats.** Excel and CSV for nearly everything; TCMSP XGMML; STRING TSV; Cytoscape .cys; correlation matrices;
 Boolean prescription-by-herb matrices; JSON APIs; GraphML and CX2 from web viewers; PDB, PDBQT and SDF for docking.
 
-**Node types.** Formula; herb (and plant part, which IMPPAT records per association); compound with an evidence class
+**Node types.** Exposure, in the network toxicology branch, carrying a CAS number, a PubChem compound id, a SMILES
+string and predicted toxicity endpoints, and standing where the formula and herb tiers stand in the herbal pipeline;
+formula; herb (and plant part, which IMPPAT records per association); compound with an evidence class
 (database-listed, measured in product, absorbed prototype, metabolite) and measured content where known; target with
 measured columns in Workflow C (log fold change, adjusted p, model AUC, Mendelian randomization odds ratio); pathway;
 disease; in the microbiome branch, taxon and metabolite.
@@ -576,6 +727,20 @@ mechanistic link; the k-core = the physician's core formula.
 - **Docking misuse.** Blind docking, no positive controls; Vina's correlation with measured affinity fell from r =
   0.604 at a defined site to 0.387 blind on CASF-2016 (Che and Zhang 2025).
 - **PAINS and unreachable concentrations** among flavonoids (PMC10264668).
+- **Thresholds carry the result, measured once.** A 2026 re-analysis of a network toxicology study (pharmaceuticals
+  and caffeine against vitiligo) varied every cutoff its own authors had chosen and reported what survived: the core
+  overlap was zero at every disease-gene tier threshold above 0.170; the overlap was enriched 2.49-fold against the
+  whole protein-coding genome (p = 5.1 x 10^-5) but only 1.29-fold against the 5,601 genes the sources could actually
+  have returned (p = 0.12); HIF1A was the highest-degree hub at STRING 0.70 but was overtaken by MAOB at 0.85 and
+  0.90; with the direction of each receiver-operating characteristic test fixed from the discovery data instead of
+  chosen per cohort, 7 of 10 gene-cohort estimates fell below 0.50 and EDNRA fell from 0.96 to 0.04 (95% confidence
+  interval 0.00 to 0.24); and removing one chemical, caffeine, cut the key differentially expressed gene panel from
+  five to two. No gene passed all four checks. Provenance failed the same way: on re-query the similarity channel
+  returned no rows for 9 of 11 compounds, analogue identities and Tanimoto coefficients were recoverable for 4 of 73
+  similarity records, and the database release used in the original run had not been recorded. The authors' conclusion
+  is that "such checks should be standard, not optional"
+  (https://pmc.ncbi.nlm.nih.gov/articles/PMC13604017/). This is the strongest published statement of requirements R4,
+  R8, R9 and R23.
 - **No reporting standard.** "No formal risk-of-bias tool exists for network pharmacology studies"; Cytoscape version
   omitted in 11 of 36 studies; 28.57% did no ADMET evaluation (f1000research 14-1384).
 - **Internal inconsistency.** Every full methods section read contained a contradiction: Pulsatilla 162 vs 130
@@ -619,6 +784,7 @@ unreported.
 | QIIME, LEfSe, R correlation                             | Microbiome                                  | Standard pipelines                                                                                    | Thresholds unstated; drawn outside Cytoscape                                                                                                                                |
 | TCMNP, TCMDATA, unitcm, TCMNPAS                         | End-to-end in R or Shiny                    | Scripted, Sankey                                                                                      | Need R; force layout on typed graphs                                                                                                                                        |
 | BATMAN-TCM, ETCM viewers; Drugst.One; Cytoscape Web     | Embedded views                              | Confidence-weighted edges, three-line embed, CX2                                                      | Each resource builds its own; Drugst.One is protein-drug only                                                                                                               |
+| CTD, ProTox, ADMETlab, SuperPred                        | Network toxicology inputs (Workflow J)      | Curated chemical-gene evidence with a disease filter; endpoint calls on one chemical                  | Queried by CAS number while the rest of the pipeline uses gene symbols; server target counts differ by an order of magnitude for one chemical and the merge records no source |
 | Freelancers                                             | Whole pipeline                              | Cheap, fast                                                                                           | Quality unverifiable                                                                                                                                                        |
 
 ## 10. Requirements implied
@@ -635,10 +801,10 @@ W23 (hub ranking), W24 (merge networks), W25 (reproducible session), W05 (paths)
 | R4  | Per-node and per-edge provenance (source, version, access date) and evidence class (curated, predicted with native score, text-mined, measured), stylable (dashed = predicted) and excludable by class to see what survives                                                                                                                                                                                           | must     | No                                          |
 | R5  | Identifier mapping with a match report (protein names, UniProt, symbols, compound names, CIDs, InChIKeys; species filter; unmatched listed)                                                                                                                                                                                                                                                                           | must     | Partly (W18)                                |
 | R6  | Enrichment table import as pathway nodes linked to member targets                                                                                                                                                                                                                                                                                                                                                     | must     | Partly (W22 differs)                        |
-| R7  | Core-target screening as a recorded rule (top-N, MCC, intersection of top lists, median and multiple-of-median thresholds), the surviving subnetwork kept beside the parent                                                                                                                                                                                                                                           | must     | Partly (W23)                                |
-| R8  | Threshold sensitivity: re-run at alternative cutoffs and compare hub lists                                                                                                                                                                                                                                                                                                                                            | should   | No                                          |
+| R7  | Core-target screening as a recorded rule (top-N, MCC, intersection of top lists, median and multiple-of-median thresholds), the surviving subnetwork kept beside the parent                                                                                                                                                                                                                                           | must     | Planned: hub-screening (W23, W430, W1054)   |
+| R8  | Threshold sensitivity: re-run at alternative cutoffs and compare hub lists                                                                                                                                                                                                                                                                                                                                            | should   | Planned: threshold-sweep with hub-screening |
 | R9  | Pipeline record: every threshold, the count at each step, database versions, exportable as a methods paragraph, counts that cannot drift                                                                                                                                                                                                                                                                              | must     | Partly (W25)                                |
-| R10 | Per-type style presets with automatic legend; label collision avoidance; short-code labels with a mapping table; publication export                                                                                                                                                                                                                                                                                   | must     | Partly                                      |
+| R10 | Per-type style presets with automatic legend; label collision avoidance; short-code labels with a mapping table; publication export                                                                                                                                                                                                                                                                                   | must     | Partly (collisions: `label-overlap-removal`, planned) |
 | R11 | Frequent-hitter and popularity flags (recurring compounds and targets, PAINS); layer-aware or popularity-corrected centrality                                                                                                                                                                                                                                                                                         | should   | No                                          |
 | R12 | Numeric measured attributes on any node (log fold change, adjusted p, AUC, Mendelian randomization effect; compound evidence class and content); overlay and filter by measured support; a hub list imported from an external model                                                                                                                                                                                   | must     | Partly (W20 overlays on PPI)                |
 | R13 | Correlation-matrix import building a signed, weighted bipartite network with live                                                                                                                                                                                                                                                                                                                                     | r        | and p thresholds                            | must | No  |
@@ -652,14 +818,16 @@ W23 (hub ranking), W24 (merge networks), W25 (reproducible session), W05 (paths)
 | R21 | Offline project: inputs cached so an unreachable database does not break reproduction                                                                                                                                                                                                                                                                                                                                 | should   | No                                          |
 | R22 | All of Workflow A without code or internal vocabulary                                                                                                                                                                                                                                                                                                                                                                 | must     | Not as a workflow                           |
 | R23 | Re-derivation: replace an input list (compounds after serum profiling, disease genes after GEO) and rebuild every downstream network, count and figure without redoing styling or layout                                                                                                                                                                                                                              | must     | No                                          |
+| R24 | A root node that is a single chemical rather than a formula, carrying several chemical identifiers (CAS, PubChem compound id, SMILES, congener name) and predicted-endpoint attributes, with a four-tier figure; and a per-node record of which of several target servers or curated sources contributed it, since merging them is where evidence class is lost                                                       | must     | No; R4 and R5 cover the halves separately   |
 
-**Persona and workflow recommendation.** Adopt the five personas in section 3, with
-`network-pharmacology-graduate-student` as the lead; record clinician prescription miners, Q-marker teams and the
-Northeast Asian (TM-MC) strand as variants. Do not fold this population into `genomics-cytoscape-user`: that persona
+**Persona and workflow recommendation.** Adopt the six personas in section 3, with
+`network-pharmacology-graduate-student` as the lead and `network-toxicology-researcher` (section 3.6) as the variant
+that carries the field's growth; record clinician prescription miners, Q-marker teams and the Northeast Asian (TM-MC)
+strand as variants. Do not fold this population into `genomics-cytoscape-user`: that persona
 starts from a measured gene list with one node type, this one from a herb name ending in a five-tier typed graph.
 Existing W20-W23 cover the PPI, hub and enrichment half; the tiered figure, set intersection as a node-creation step,
-provenance and evidence class, measured overlays and re-derivation, the correlation network, prescription mining and
-the embedded database viewer are new workflows. A neutral graphty-element would expose these as data facts (node
+provenance and evidence class, measured overlays and re-derivation, the correlation network, prescription mining, the
+exposure-to-disease pipeline of Workflow J and the embedded database viewer are new workflows. A neutral graphty-element would expose these as data facts (node
 type, list membership, evidence class, source, score, measured values) and a tiered layout option; the application
 decides styling and wording.
 
@@ -671,4 +839,7 @@ https://www.frontiersin.org/journals/oncology/articles/10.3389/fonc.2023.1174848
 al.), fphar.2025.1566772 (Che and Zhang) and fphar.2024.1303693 (Wang et al.) are under
 https://www.frontiersin.org/journals/pharmacology/articles/10.3389/ with "/full" appended; "f1000research 14-1384" is
 https://f1000research.com/articles/14-1384. PubMed counts come from
-https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi with the queries in section 2.1, run 2026-11-25.
+https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi with the queries in section 2.1, run 2026-11-25; the
+network toxicology journal counts come from the 600 most recent records fetched from
+https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi on the same date. fphar.2025.1604993 is
+https://www.frontiersin.org/articles/10.3389/fphar.2025.1604993/full.

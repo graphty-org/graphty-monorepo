@@ -6,7 +6,7 @@ description: Import RDF (Turtle, N-Triples, N-Quads/TriG, JSON-LD, RDF/XML) with
     language tags, stable blank-node ids, named graphs as a filterable attribute and RDF-star statements as edge
     attributes.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: knowledge-graph-engineers-and-graphrag.md section 10, table row 1 (Must)."
 algorithms: []
 used_by_workflows:
     - W13
@@ -16,6 +16,12 @@ used_by_workflows:
     - W137
     - W138
     - W139
+    - W1162
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Import RDF (Turtle, N-Triples, N-Quads/TriG, JSON-LD) with prefix shortening and label display by language
+      preference"
+sources:
+    - title: Knowledge Graph Engineers, Ontologists and GraphRAG Developers (section 10, table row 1)
+      url: design/user-research/knowledge-graph-engineers-and-graphrag.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

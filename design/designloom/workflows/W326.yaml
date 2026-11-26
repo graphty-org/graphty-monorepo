@@ -3,7 +3,7 @@ name: Orphan and Dead-End Note Sweep
 category: administration
 validated: false
 personas:
-    - pkm-knowledge-worker
+    - personal-knowledge-gardener
     - zettelkasten-writer
     - pkm-vault-analyst
 requires_capabilities:
@@ -36,12 +36,12 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Show orphans** (1 min) - Open the global graph with Orphans on; orphans sit "on the outside off to themselves";
+    1. **Show orphans** - Open the global graph with Orphans on; orphans sit "on the outside off to themselves";
     untagged notes form an outer ring when tags are shown
 
-    2. **Remove noise** (1 min) - Filter out daily notes and templates with path filters
+    2. **Remove noise** - Filter out daily notes and templates with path filters
 
-    3. **Work through stragglers** (10-30 min) - Click each isolated note; link it, tag it, merge it or delete it
+    3. **Work through stragglers** - Click each isolated note; link it, tag it, merge it or delete it
 
     4. **Switch to a list** (optional) - A plugin or script writes a report of notes with no backlinks, no links either
     way, or only one link; obsidiantools lists isolated notes, media files and canvas files
@@ -49,7 +49,7 @@ goal: >-
     5. **Apply a rule of thumb** (optional) - Logseq advice: fewer than two connections is dangling; many more than eight
     is overloaded and should be split
 
-    6. **Re-run later** (seconds) - Saved presets for Orphans, Broken links and Dead ends
+    6. **Re-run later** - Saved presets for Orphans, Broken links and Dead ends
 
 
     **Decision Points**:

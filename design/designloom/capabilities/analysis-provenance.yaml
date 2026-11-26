@@ -3,11 +3,15 @@ name: Analysis Provenance Record
 category: analysis
 description: Algorithm, version, parameters, seed, weight convention, null, layout settings and dataset hash recorded
     per result and exportable with figures, with a recipe that reproduces the analysis in igraph or NetworkX. Extends
-    analysis-history, which lacks parameters and seeds.
+    analysis-history, which lacks parameters and seeds. Also records the filters and
+    thresholds (and the items they excluded) behind an exported figure or table, as vendor DNA autocluster reports do in
+    their ReadMe.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: network-scientists-and-analysis-method-validity.md section 9, requirement R19 (Must)."
 algorithms: []
 used_by_workflows:
+    - W3058
+    - W3054
     - W03
     - W15
     - W234
@@ -39,19 +43,26 @@ used_by_workflows:
     - W54
     - W56
     - W58
+    - W252
+    - W2036
+    - W2037
+    - W2097
+    - W2098
+    - W2099
+    - W3066
+    - W3103
 implemented_by_components: []
 requirements:
-    - Record every parameter of a map (sources, query, dates, counting, thresholds, normalization, layout, clustering
-      resolution, seeds, thesaurus) as structured data that exports as a methods-section list and reruns to the same
-      result.
-    - Export the ordered list of steps, settings, seeds, data source and software versions, with steps made by an
-      assistant marked, for a methods section or an AI-use disclosure.
-    - Record and export every parameter that shaped a graph (source database and version, access date, confidence
-      cutoff, k, TopK, cosine, resolution, edge threshold, enrichment background) as a methods paragraph and as data.
-    - Generate a parameters block (data source and version, filters, algorithms and their settings, layout and seed,
-      time window, date) as legend text and a methods paragraph that stays in sync with the current view.
-    - Export the parameters behind a view (scope, caps, filters, merges, hidden nodes, contributing sources) alongside
-      the image or edge list.
-    - Record how a graph was built (unit, window, measure, threshold, vocabulary, coder, collocation parameter notation)
-      with the graph and every exported figure.
-sources: []
+    - "Must: Provenance record: algorithm, version, parameters, seed, weight convention, null, layout settings, dataset
+      hash, exportable with figures"
+    - "Must: Record every parameter of a map (sources, query, dates, counting, thresholds, normalization, layout, clustering resolution, seeds, thesaurus) as structured data that exports as a methods-section list and reruns to the same result."
+    - "Must: Export the ordered list of steps, settings, seeds, data source and software versions, with steps made by an assistant marked, for a methods section or an AI-use disclosure."
+    - "Must: Record and export every parameter that shaped a graph (source database and version, access date, confidence cutoff, k, TopK, cosine, resolution, edge threshold, enrichment background) as a methods paragraph and as data."
+    - "Must: Generate a parameters block (data source and version, filters, algorithms and their settings, layout and seed, time window, date) as legend text and a methods paragraph that stays in sync with the current view."
+    - "Should: Export the parameters behind a view (scope, caps, filters, merges, hidden nodes, contributing sources) alongside the image or edge list."
+    - "Should: Record how a graph was built (unit, window, measure, threshold, vocabulary, coder, collocation parameter notation) with the graph and every exported figure."
+sources:
+    - title: Network Scientists and the Validity of Core Analysis Methods (section 9, requirement R19)
+      url: design/user-research/network-scientists-and-analysis-method-validity.md
+      summary: "Must in the research. Covered by Designloom when researched: Partly (analysis-history lacks parameters
+          and seeds)"

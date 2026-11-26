@@ -1,10 +1,12 @@
 id: data-preview
 name: Data Preview
 category: data
-description: Preview a sample of graph data before committing to full import. Show detected format, field mapping,
-    sample nodes and edges, and estimated total counts to let users verify the import will work as expected.
-status: implemented
-notes: "Ships: the table preview in graphty/src/workspace/data-page/DataPage.tsx."
+description: Preview a source before committing to a full import -- the detected format, the column roles (node id,
+    source, target, type, weight, time), each column's inferred type with an override, sample rows, and the node and edge
+    counts the import will produce -- so a user catches id mismatches, a wrong direction default, mangled identifiers
+    and truncated files before loading.
+status: in-progress
+notes: "Partly ships: the table preview in graphty/src/workspace/data-page/DataPage.tsx. Planned: choosing sheets from an xlsx workbook, the near-Excel-row-limit warning, saved column mappings and sampling a source too large to load. Any requirement below that this note does not name as shipping counts as planned."
 algorithms: []
 used_by_workflows:
     - W01
@@ -75,15 +77,11 @@ used_by_workflows:
     - W32
     - W335
     - W337
-    - W338
+    - W430
     - W339
     - W340
     - W346
     - W347
-    - W349
-    - W350
-    - W356
-    - W357
     - W361
     - W367
     - W370
@@ -99,11 +97,9 @@ used_by_workflows:
     - W419
     - W425
     - W428
-    - W430
-    - W439
-    - W440
-    - W441
-    - W444
+    - W431
+    - W432
+    - W435
     - W47
     - W50
     - W53
@@ -123,28 +119,47 @@ used_by_workflows:
     - W90
     - W91
     - W97
+    - W1054
+    - W1084
+    - W1120
+    - W1162
+    - W2072
+    - W3048
 implemented_by_components:
     - data-preview-table
     - data-import-dialog
 requirements:
-    - Display first 10 rows of raw source data in tabular format
-    - "Show detected file format with confidence percentage (e.g., 'CSV detected: 98% confidence')"
-    - Display inferred data type for each column (string, integer, float, boolean, date)
-    - Show source-to-attribute mapping with editable field assignments
-    - Display estimated total node count based on sampling
-    - Display estimated total edge count based on sampling
-    - Show 3 sample nodes with all detected attributes
-    - Show 3 sample edges with source, target, and all attributes
-    - Allow user to reassign column mappings before proceeding
-    - Allow user to change inferred data types before proceeding
-    - Allow user to skip/exclude specific columns from import
-    - Render preview within 2 seconds for files up to 10MB
-    - Show loading indicator for preview generation taking longer than 500ms
-    - Display warning banner for any detected data quality issues
-    - Provide 'Cancel' button to abort import process
-    - Provide 'Import' button to proceed with current settings
-    - Disable 'Import' button with explanation when critical mapping is missing
+    - "Library parity: Show the first rows of the raw source in a table, with the separator, quote character and charset in use, and let the user change them"
+    - "Library parity: Show the detected format and whether it was detected by extension or by content; when detection fails, list the formats that are read"
+    - "Must: Let the user assign column roles: node id and label for a node table; source, target and optional type (direction or layer), weight and time columns for an edge table; an edge table alone is enough to build a graph"
+    - "Must: Show each column's inferred type (string, integer, float, boolean, date, list) and let the user override it before import, since a column's type may not be changeable afterwards and unparseable cells become null"
+    - "Must: Read identifier columns as strings by default and never coerce identifier-like values (SEPT2, MARCH1, leading zeros, 64-bit ids) to dates or numbers"
+    - "Must: Show the direction setting with its default named, and per-edge direction from a column when one is assigned"
+    - "Must: Show the parallel-edge policy that will apply (keep as multi-edges, or merge by count, sum, average, min, max, first, last)"
+    - "Must: Show the counts the import will produce -- nodes, edges, endpoints that match no node id (with the unmatched ids listed and the choice to create or drop them), duplicate edges, self-loops -- before the user commits"
+    - "Must: Show key-type mismatches (number versus string, whitespace, case) between node and edge tables before matching"
+    - "Must: For an xlsx workbook, list the sheets and let the user pick a node sheet and an edge sheet as one graph"
+    - "Library parity: Allow the user to exclude columns from import"
+    - "Library parity: Flag a file whose row count sits at or just under Excel's 1,048,576-row limit as probably truncated"
+    - "Must: When a source is too large to load whole, show its size and offer to sample, filter or aggregate before loading"
+    - "Library parity: Show progress while the preview is generated and keep it cancellable"
+    - "Library parity: Provide Cancel and Import; disable Import, with the reason returned as a code, while a required role (node id, or source and target) is unassigned"
+    - "Should: Save, name and re-apply a column mapping to another file, and warn when a file does not fit it"
 sources:
-    - title: W18 Data Import and Validation
-      url: https://graphty.app/docs/
-      summary: Preview phase - see sample of data before committing to full load
+    - title: Data preparation, import and first assessment (sections 4.1, 4.2, 4.10; requirements 2-5, 10, 11, 14, 26)
+      url: design/user-research/data-preparation-and-import.md
+      summary: Column roles, direction default, parallel-edge merge, endpoint matching, key type, identifier safety,
+          size check, saved mappings and workbook sheets are what import dialogs force users to decide
+    - title: Gephi manual, CSV import
+      url: http://docs.gephi.org/desktop/User_Manual/Import/CSV_Format/
+      summary: Types are fixed before Finish, unparseable cells become null, Source and Target are mandatory, edges
+          default to Directed
+    - title: Cytoscape, Importing Network From Table
+      url: https://cytoscape.org/cytoscape-tutorials/protocols/importing-network-from-table/
+      summary: Assigning source, target and interaction columns; key-column matching for attribute tables
+    - title: Ziemann, Eren and El-Osta 2016, Gene name errors are widespread in the scientific literature
+      url: https://doi.org/10.1186/s13059-016-1044-7
+      summary: Excel converts gene symbols such as SEPT2 to dates in published supplementary files
+    - title: Microsoft, Excel specifications and limits
+      url: https://support.microsoft.com/en-us/office/excel-specifications-and-limits-1672b34d-7043-467e-8e27-269d656771c3
+      summary: A worksheet holds at most 1,048,576 rows

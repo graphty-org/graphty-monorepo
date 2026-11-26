@@ -5,14 +5,14 @@ validated: false
 personas:
     - ethnopharmacology-reviewer
     - herbal-formula-mechanism-lead
+    - network-pharmacology-graduate-student
+    - network-toxicology-researcher
 requires_capabilities:
     - data-import
     - data-validation
     - filtering
     - saved-filters
     - centrality-degree
-    - centrality-betweenness
-    - centrality-eigenvector
     - comparison-view
     - computed-attributes
     - visual-encoding-edges
@@ -23,6 +23,9 @@ requires_capabilities:
     - provenance-tracking
     - threshold-sweep
     - set-operations
+    - visual-encoding-nodes
+    - legend-display
+    - identifier-mapping
 suggested_components:
     - data-import-dialog
     - data-table-panel
@@ -36,6 +39,10 @@ suggested_components:
     - report-generator-dialog
     - graph-canvas
     - data-export-dialog
+    - network-merge-dialog
+    - algorithm-panel
+    - visual-encoding-panel
+    - legend-panel
 starting_state:
     data_type: a finished study's networks and lists, ideally with the recorded thresholds, database versions and sources per node and edge
     node_count: 70-750
@@ -108,7 +115,7 @@ success_criteria:
     - metric: Exclusion test
       target: Reviewer removes all predicted edges in one action and sees what survives
     - metric: Sensitivity
-      target: Hub lists at three STRING cutoffs compared side by side within 10 minutes
+      target: Hub lists at three STRING cutoffs compared side by side within 10 minutes (design goal; no source measures it)
     - metric: Re-derivation
       target: Every count in the methods can be traced to a recorded input and threshold
 sources:
@@ -130,6 +137,12 @@ sources:
     - title: F1000Research review of 36 herbal network pharmacology studies
       url: https://f1000research.com/articles/14-1384
       summary: No formal risk-of-bias tool; Cytoscape version omitted in 11 of 36 studies
+    - title: Single-database dependence (PMC9143318)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC9143318
+      summary: Studies depend on usually one single database
+    - title: Two-herb pair network pharmacology (PMC7838196)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC7838196
+      summary: Dates every database source, a rare practice
 version: 1.0.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

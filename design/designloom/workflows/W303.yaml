@@ -3,7 +3,7 @@ name: Multilayer and Multiplex Data Import and First Assessment
 category: analysis
 validated: false
 personas:
-    - event-log-network-builder
+    - crime-intelligence-analyst
     - graph-data-wrangler
 requires_capabilities:
     - data-import
@@ -18,6 +18,7 @@ requires_capabilities:
     - legend-display
     - multilayer-networks
     - edge-merge-policy
+    - multilayer-format-import
 suggested_components:
     - file-drop-zone
     - data-import-dialog
@@ -95,6 +96,10 @@ goal: >-
 
     **Pain Points**:
 
+    - Read by a plain edge-list reader, an extended edge list takes node and layer as the two endpoints
+
+    - muxViz needs sequential integer ids, or a layout file listing every label
+
     - Most general tools merge parallel edges across layers into one weight
 
     - Multilayer tools are R or Python only, with strict id and layout-file rules
@@ -107,7 +112,9 @@ goal: >-
 
     **Data Flow**:
 
-    - Input: Per-layer files, a layered edge table, an extended edge list, or a supra-adjacency matrix
+    - Input: Per-layer files, a layered edge table, an extended edge list (node, layer, node, layer, weight), a muxViz
+    configuration file with its layer, layer-info and layout files, a multinet text file (#LAYERS, #ACTORS,
+    #VERTICES, #EDGES), or a supra-adjacency matrix
 
     - Transformations: Layer-preserving import, optional interlayer links, per-layer and cross-layer metrics
 
@@ -157,6 +164,6 @@ sources:
     - title: Feyer et al. 2023 - 2D, 2.5D or 3D for multilayer networks in VR
       url: https://arxiv.org/abs/2307.10674
       summary: No overall winner for 3- and 7-layer networks
-version: 1.0.0
+version: 1.1.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

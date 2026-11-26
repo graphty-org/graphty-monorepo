@@ -1,9 +1,12 @@
 id: animal-social-network-ecologist
 name: Animal Social Network Ecologist
+roster_persona: interaction-network-ecologist
+tier: B
+scope: in-scope
 role: Postdoctoral Researcher / Behavioral and Wildlife Disease Ecologist
 quote: Two winters of feeder detections, 500 tagged birds. Who flocks with whom, does sex predict centrality, and is that real or just who visits the feeders most?
 bio: >-
-    Dr. Lena Okafor is a postdoc on a long-term study of a marked population: wild birds carrying RFID tags at feeders,
+    Dr. Ifeoma Okafor is a postdoc on a long-term study of a marked population: wild birds carrying RFID tags at feeders,
     dolphins or whales identified by photo-ID, a primate group observed in focal follows, or collared ungulates. Her
     nodes are individual animals, not species, and each carries sex, age, rank, kinship and breeding status from the
     project's life-history database. Edges are association indices (simple ratio or half-weight) computed from thousands
@@ -47,6 +50,10 @@ context:
     voluntary: true
 workflows:
     - W172
+    - W19
+    - W309
+    - W311
+    - W293
 sources:
     - title: Farine and Whitehead 2015 - Constructing, conducting and interpreting animal social network analysis
       url: https://kops.uni-konstanz.de/entities/publication/8843792c-3d9a-427e-88d0-c5be7788fb7a
@@ -72,6 +79,18 @@ sources:
     - title: Wytham Woods great tit study (University of Oxford news)
       url: https://www.ox.ac.uk/news/2024-04-04-more-social-birds-are-more-adventurous-feeders-study-finds
       summary: Long-term RFID feeder study of wild great tits
+    - title: spatsoc introduction vignette
+      url: https://cloud.r-project.org/web/packages/spatsoc/vignettes/intro.html
+      summary: group_times with a 5-minute threshold, group_pts, edge_dist and edge_nn
+    - title: spatsoc for social network analysis vignette
+      url: https://cloud.r-project.org/web/packages/spatsoc/vignettes/using-in-sna.html
+      summary: get_gbi, asnipe get_network with SRI, randomizations by step, daily or trajectory per year
+    - title: spatsoc repository (rOpenSci)
+      url: https://github.com/ropensci/spatsoc/
+      summary: Package source and documentation for grouping relocations in time and space
+    - title: SocioPatterns hospital ward dynamic contact network
+      url: http://www.sociopatterns.org/datasets/hospital-ward-dynamic-contact-network/
+      summary: Wearable-sensor contacts as 20-second intervals (t i j)
 version: 1.0.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

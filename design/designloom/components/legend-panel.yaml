@@ -9,6 +9,11 @@ implements_capabilities:
     - visual-encoding-nodes
     - visual-encoding-edges
 used_in_workflows:
+    - W3057
+    - W3056
+    - W3055
+    - W3054
+    - W3006
     - W02
     - W15
     - W04
@@ -134,7 +139,6 @@ used_in_workflows:
     - W261
     - W262
     - W263
-    - W264
     - W265
     - W266
     - W267
@@ -177,19 +181,15 @@ used_in_workflows:
     - W331
     - W335
     - W337
-    - W338
+    - W430
     - W34
     - W340
     - W342
     - W345
     - W347
     - W35
-    - W350
-    - W352
-    - W354
-    - W355
-    - W356
-    - W357
+    - W344
+    - W346
     - W36
     - W360
     - W362
@@ -256,15 +256,7 @@ used_in_workflows:
     - W435
     - W436
     - W437
-    - W439
-    - W440
-    - W441
-    - W442
-    - W443
-    - W444
-    - W445
-    - W446
-    - W447
+    - W438
     - W46
     - W49
     - W50
@@ -307,6 +299,36 @@ used_in_workflows:
     - W95
     - W96
     - W99
+    - W1006
+    - W1012
+    - W1018
+    - W1042
+    - W1054
+    - W1060
+    - W1084
+    - W1096
+    - W1120
+    - W1126
+    - W1132
+    - W1138
+    - W1139
+    - W1156
+    - W1157
+    - W1158
+    - W2000
+    - W2006
+    - W2036
+    - W2037
+    - W2038
+    - W2066
+    - W2072
+    - W2096
+    - W2097
+    - W2099
+    - W3066
+    - W3096
+    - W3102
+    - W3103
 dependencies:
     - legend-item
     - divider

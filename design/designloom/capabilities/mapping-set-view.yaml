@@ -4,10 +4,14 @@ category: data
 description: Show an SSSOM mapping set as a bipartite graph between two vocabularies, colored by mapping predicate and
     confidence, so one-to-many and low-confidence clusters stand out.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: knowledge-graph-engineers-and-graphrag.md section 10, table row 19 (Could); a Could in the research, so it is built after every Must and Should."
 algorithms: []
 used_by_workflows:
     - W135
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Could: SSSOM mapping set as a bipartite graph between two vocabularies, colored by predicate and confidence"
+sources:
+    - title: Knowledge Graph Engineers, Ontologists and GraphRAG Developers (section 10, table row 19)
+      url: design/user-research/knowledge-graph-engineers-and-graphrag.md
+      summary: "Could in the research (the document says: nice-to-have). Covered by Designloom when researched: No"

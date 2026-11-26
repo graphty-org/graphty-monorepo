@@ -5,10 +5,17 @@ description: Lasso or modifier-click selection writes an editable group or tag a
     community detection with hub exclusion and a size cap; shows cut size (count and weight of edges between groups)
     live.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: dependency-and-impact-analysis-engineers.md section 10, requirement R7 (Must)."
 algorithms: []
 used_by_workflows:
     - W82
+    - W117
+    - W2006
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Lasso and modifier-click selection that writes an editable group or tag attribute"
+sources:
+    - title: "Engineers Who Analyze Dependencies: IT Services, Networks, Software and Data Lineage (section 10,
+        requirement R7)"
+      url: design/user-research/dependency-and-impact-analysis-engineers.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

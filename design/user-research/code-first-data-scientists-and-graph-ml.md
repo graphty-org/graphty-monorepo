@@ -16,7 +16,7 @@ one graph at a time, picked by label, split or error. Tabular data scientists fe
 component size, community, embeddings) to models such as XGBoost and open the graph only to check a flagged case.
 Entity resolution analysts review thousands of small clusters of linked records. Temporal graph learners need each
 edge's event time, because a time-respecting split decides whether a metric is honest. Both groups expect an algorithm to return a value per node (the NetworkX "returns a dict" shape) and
-move data to a viewer as DataFrames, edge lists, GraphML and parquet. An adjacent group draws the model itself, not
+move data to a viewer as DataFrames, edge lists, GraphML and Parquet or Arrow tables (Section 6.1). An adjacent group draws the model itself, not
 graph data: engineers who inspect a network's computation graph in Netron or Model Explorer, and interpretability
 researchers who prune and annotate attribution graphs on Neuronpedia (Persona 3.7). Section 9.1 records why the first is
 out of scope and the second deferred.
@@ -521,6 +521,30 @@ probe-prompting preprint (Persona 3.7); Neuronpedia graph schema validator (http
 7. **Share.** The graph's saved state includes pinned node ids (the schema's `pinnedIds`); uploading a graph needs its
    model to be on Neuronpedia.
 
+### 5.13 Open pipeline output tables as Parquet or Arrow (Priya, Chris)
+
+Sources: Section 6.1 and the URLs there.
+
+1. **Write the tables.** The last step of a pandas, polars, DuckDB, Spark, cuDF, GraphRAG or Neo4j job writes an edge
+   table and a node table to Parquet (or Feather, which is the Arrow file format on disk). Column names follow the
+   writer: `src`/`dst` and `id` for GraphFrames, `source`/`target`/`weight` for GraphRAG relationships with `id` and
+   `title` on entities, whatever the author chose elsewhere. Metric columns (component, community, PageRank, model
+   score) ride along as ordinary columns.
+2. **Open them.** In the browser, drop both files on the viewer; in a notebook, pass the two DataFrames to a widget,
+   which can send them as Arrow bytes instead of JSON (Section 6.1).
+3. **Map columns.** Say which column is the node id, which are source and target, which is the weight, and whether
+   edges are directed. Decision: keep 64-bit integer ids as exact values (a JavaScript number loses precision above
+   2^53).
+4. **Check what arrived.** Row counts of both tables, how many edge endpoints have no node row, column types as
+   written (integer, float, string, timestamp, list), and which columns the viewer could not keep.
+5. **Encode and read.** Color and size by the precomputed metric columns; filter by a score or a component; click a
+   node to read its full row.
+6. **Hand back.** Export the visible subset or annotations with the original ids, as Parquet or CSV, so the next
+   pipeline step can join on them.
+
+A viewer that needs CSV forces an extra conversion step that drops types: Parquet and Arrow carry a schema, CSV does
+not.
+
 ## 6. Data
 
 - **Sources.** Event and transaction tables, interaction logs, item catalogs, citation and co-purchase benchmarks, graph
@@ -566,6 +590,49 @@ extract and show a small piece of a huge graph, or one graph of a collection, wi
   (https://tgb.complexdatalab.com/docs/linkprop/); time must survive import as a comparable value.
 - **Sensitivity.** Interaction data is personal; notebook HTML exports embed the data in the file.
 
+### 6.1 Columnar tables: Parquet, Arrow and Feather
+
+The tables this population hands to a viewer are increasingly columnar files, not CSV. What writes them, and in what
+layout:
+
+| Writer                   | What it writes                                                                                     | Source                                                                                    |
+| ------------------------ | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| pandas, polars           | Any DataFrame to Parquet (`to_parquet`, `write_parquet`)                                           | https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.to_parquet.html             |
+| DuckDB                   | Any query result: `COPY (SELECT ...) TO 'edges.parquet' (FORMAT parquet)`                          | https://duckdb.org/docs/2.0/data/parquet/overview.html                                    |
+| Spark GraphFrames        | A vertex DataFrame with an `id` column and an edge DataFrame with `src` and `dst`; results are DataFrames, saved as Parquet in a lakehouse | https://graphframes.io/04-user-guide/01-creating-graphframes.html |
+| cuGraph                  | Builds from a cuDF edge DataFrame with named source and destination columns, renumbering ids internally | https://docs.nvidia.com/cugraph/latest/api_docs/api/cugraph/cugraph.Graph.from_cudf_edgelist/ |
+| Microsoft GraphRAG       | Parquet by default; `entities` (`id`, `title`, `type`, `degree`, ...) and `relationships` (`id`, `source`, `target`, `weight`, ...) | https://microsoft.github.io/graphrag/index/outputs/ |
+| Neo4j APOC               | `apoc.export.parquet.data(nodes, rels, 'file.parquet')` writes nodes and relationships; `apoc.load.parquet` and `apoc.import.parquet` read them | https://neo4j.com/apoc/2026/export/parquet/ |
+| FlyWire Codex releases   | Neuron and connection tables as Feather; Feather V2 "is exactly represented as the Arrow IPC file format on disk" | https://zenodo.org/records/10676866, https://arrow.apache.org/docs/python/feather.html |
+
+There is no shared graph layout inside these files: each writer names its own id, source and target columns, and
+nodes and edges are usually two tables (APOC's single-file export is the exception seen). A reader therefore needs
+column mapping, as for CSV, but gets typed columns, including 64-bit integers, timestamps and lists, which CSV loses.
+
+**Notebook widgets.** The Jupyter widget protocol carries binary buffers; anywidget maps Python `bytes` to a JavaScript
+`DataView` and suggests serializing a DataFrame to Arrow as the advanced case
+(https://anywidget.dev/en/jupyter-widgets-the-good-parts/). Lonboard, a map widget, converts GeoPandas to GeoArrow
+inside Parquet, copies the buffer to the browser and decodes it with WebAssembly (parquet-wasm) instead of a text
+format (https://developmentseed.org/lonboard/latest/how-it-works/); a talk reports 3 million points rendered in 2.5
+seconds where two JSON-based widgets crashed (https://talks.osgeo.org/foss4g-2025/talk/UY3SBT/, a speaker's claim).
+Among graph widgets, Cosmograph's is built on anywidget and takes `points` and `links` pandas DataFrames
+(https://cosmograph.app/docs-widget/), but its docs do not say how they cross to the browser. ipysigma takes a NetworkX
+or igraph graph, sends DataFrame users to its sister library pelote to build one, and states no size limit, only
+performance advice for "larger graphs" (https://github.com/medialab/ipysigma). No graph widget found publishes a row
+count it handles through an Arrow path.
+
+**Browser viewers reading Parquet directly.** Cosmograph's JavaScript library lists `.csv`, `.parquet`, `.arrow` and
+`.json` and claims "millions of points and edges on modern hardware" (vendor claim,
+https://cdn.jsdelivr.net/npm/@cosmograph/cosmograph@2.3.2/README.md). Graphistry accepts Parquet and Arrow edge
+uploads, but the server renders them, not the browser (https://pygraphistry.readthedocs.io/en/latest/cheatsheet.html).
+A dependency-free JavaScript reader exists (hyparquet, "Works in browsers and node.js", Snappy built in,
+https://github.com/hyparam/hyparquet), so reading Parquet in the page needs no server.
+
+**Why it matters for scale.** The trained graphs in the table above run to 10^7 to 10^9 edges, and even a
+warehouse extract of one component can be 10^5 to 10^6 rows. Text formats are the slow path at those sizes; a typed
+columnar table is the realistic way to deliver millions of rows to a viewer, whether as a dropped file or a widget
+hand-off.
+
 ## 7. Analysis methods
 
 - **Ad hoc analytics.** Degree, PageRank, betweenness (often sampled with `k`), clustering coefficient, connected
@@ -608,6 +675,7 @@ extract and show a small piece of a huge graph, or one graph of a collection, wi
 | Model Explorer                | Per-layer lazy layout, WebGL, regex search, two-model diff, numeric overlays  | Needs an adapter per framework                                     | Workflow 5.11                                           |
 | circuit-tracer, Neuronpedia   | Influence pruning, pinning, supernodes, steering                              | Bound to transcoders and hosted models                             | Workflow 5.12                                           |
 | GNNLens, CorGIE, RekomGNN     | Purpose-built linked views                                                    | Research prototypes                                                | papers                                                  |
+| Cosmograph                    | GPU drawing in the browser; reads CSV, Parquet, Arrow and JSON; anywidget notebook widget | Vendor scale claim only (Section 6.1)                    | Cosmograph README                                       |
 | Spark GraphFrames, nx-cugraph | Warehouse-scale or GPU algorithms with familiar APIs                          | Results are tables; cuGraph needs an NVIDIA GPU                    | Persona 3.1, Workflow 5.1                               |
 | RDKit, Splink cluster studio  | Chemistry-aware 2D drawing; per-cluster review sampled by size or density     | One molecule or one cluster at a time                              | Personas 3.5, 3.6                                       |
 
@@ -639,7 +707,8 @@ Coverage is checked against the capabilities in design/designloom/capabilities.
 
 | Requirement                                                                                                                           | Priority | Covered today?                                            |
 | ------------------------------------------------------------------------------------------------------------------------------------- | -------- | --------------------------------------------------------- |
-| Load an edge DataFrame or parquet edge list plus a node table, keeping original ids beside integer indices                            | Must     | Partly (data-import; no DataFrame, parquet or id mapping) |
+| Load an edge DataFrame or parquet edge list plus a node table, keeping original ids beside integer indices                            | Must     | No: data-import reads CSV, JSON, GraphML, GEXF and GML; graphrag-output-import reads only GraphRAG tables (6.1, 5.13) |
+| Take Parquet, Arrow or Feather edge and node tables, as files or as Arrow bytes from a notebook widget, with typed columns kept     | Must     | No (6.1, 5.13)                                            |
 | k-hop neighborhood around one or many seeds, hop distance as a visual channel, a node cap with documented sampling                    | Must     | Partly (ego-network, neighborhood-expansion)              |
 | Attach per-node and per-edge arrays (prediction, label, probability, mask, split) and map them to color, size, opacity                | Must     | Partly (visual-encoding; model outputs not modeled)       |
 | Edge opacity or width from an importance mask, with an on-screen threshold or top-k control                                           | Must     | No                                                        |
@@ -660,7 +729,7 @@ Coverage is checked against the capabilities in design/designloom/capabilities.
 | Nested groups that expand and collapse, laid out only when opened, with numeric overlays summarized on collapsed groups (Section 9.1) | Should   | Partly (layout-hierarchical; no lazy compound groups)     |
 | Diff two graphs through a node mapping, marking added and removed nodes; prune to the smallest set reaching a cumulative weight       | Could    | Partly (comparison-view)                                  |
 
-Missing from the existing Designloom workflows: 5.3, 5.4, 5.8, 5.9 and 5.10.
+Missing from the existing Designloom workflows: 5.3, 5.4, 5.8, 5.9 and 5.10. Workflow 5.13 is Designloom workflow W1120.
 
 ### 10.1 Correction to Designloom workflow W16, "Graph-Based Recommendation"
 

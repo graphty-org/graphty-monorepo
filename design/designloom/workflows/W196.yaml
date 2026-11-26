@@ -53,30 +53,30 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Name the long-term outcome** (30 min in session) - One goal node at the top; competing definitions go to a
+    1. **Name the long-term outcome** - One goal node at the top; competing definitions go to a
     parking-lot area until the group agrees
 
-    2. **Backwards map** (1-2 h in session) - Add the first row of 4-6 preconditions directly beneath the goal, then
+    2. **Backwards map** - Add the first row of 4-6 preconditions directly beneath the goal, then
     unpack each one, turning barriers into positive preconditions; several parallel pathways usually emerge; stop three
     or four levels down when an intervention is obvious
 
-    3. **Draw the accountability ceiling** (2 min) - A horizontal dashed line across the diagram separating
+    3. **Draw the accountability ceiling** - A horizontal dashed line across the diagram separating
     accountable outcomes from contributory ones
 
-    4. **Place interventions** (20 min) - Attach each program or activity to the arrow leading to the outcome it most
+    4. **Place interventions** - Attach each program or activity to the arrow leading to the outcome it most
     directly produces; check whether existing programs connect to any outcome at all
 
-    5. **Record rationales and assumptions** (30 min) - A reason on each arrow, assumptions about the environment as
+    5. **Record rationales and assumptions** - A reason on each arrow, assumptions about the environment as
     notes; uncertain assumptions may be promoted to outcomes; color outcome kinds (longer-term, organizational capacity)
 
-    6. **Define indicators** (1-3 h with the evaluator) - Every outcome below the ceiling gets an indicator answering
+    6. **Define indicators** - Every outcome below the ceiling gets an indicator answering
     who, how many, how much and by when
 
-    7. **Quality review** (30 min) - Plausible (right order, no big gaps), feasible (partners needed?) and testable
+    7. **Quality review** - Plausible (right order, no big gaps), feasible (partners needed?) and testable
     (solid indicators); structural checks for outcomes with no path to the goal and outcomes with no precondition or
     intervention
 
-    8. **Hand off** (30 min) - One-slide diagram, a one-to-two-page narrative, the indicator table for the evaluation
+    8. **Hand off** - One-slide diagram, a one-to-two-page narrative, the indicator table for the evaluation
     plan; revise later as the program learns
 
 
@@ -134,7 +134,7 @@ goal: >-
     indicators and rationales for the next revision
 success_criteria:
     - metric: Time from session notes to a reviewable diagram
-      target: Under 2 hours for about 40 outcomes
+      target: Under 2 hours for about 40 outcomes (design goal; no source measures it)
     - metric: Structural completeness
       target: User can list every below-ceiling outcome lacking an indicator and every outcome with no path to the goal
     - metric: Round trip

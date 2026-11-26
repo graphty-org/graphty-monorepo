@@ -3,7 +3,7 @@ name: Term and Keyword Co-occurrence with Thesaurus Cleaning
 category: analysis
 validated: false
 personas:
-    - bibliometric-review-author
+    - bibliometric-analyst
     - research-impact-librarian
     - patent-landscape-analyst
 requires_capabilities:
@@ -62,22 +62,22 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Choose text or keywords** (5 min) - Extract noun phrases from titles and abstracts (ignoring copyright
+    1. **Choose text or keywords** - Extract noun phrases from titles and abstracts (ignoring copyright
     statements and structured-abstract labels, unifying plurals) or use author keywords or indexed keywords
 
-    2. **Choose counting** (1 min) - Binary counting (once per document) is usually preferred over full counting
+    2. **Choose counting** - Binary counting (once per document) is usually preferred over full counting
 
-    3. **Threshold and relevance** (10-20 min) - Default minimum of 10 occurrences; drop the 40% of terms with the lowest
+    3. **Threshold and relevance** - Default minimum of 10 occurrences; drop the 40% of terms with the lowest
     relevance score; lower the threshold until 1,000-2,000 terms remain, then review the list
 
     4. **First map, then thesaurus** (2-5 rounds, hours to days) - Read the map and term list, write a tab-separated
     thesaurus with columns "label" and "replace by" (an empty replacement removes the term); rebuild the map from scratch
     with the thesaurus; repeat
 
-    5. **Clean upstream when needed** (hours) - Fix records in Excel or OpenRefine; "100 records in 5 minutes, 10,000 in
+    5. **Clean upstream when needed** - Fix records in Excel or OpenRefine; "100 records in 5 minutes, 10,000 in
     8 hours"
 
-    6. **Report** (1-2 hours) - Name clusters as themes from their largest terms; use the overlay by average year to
+    6. **Report** - Name clusters as themes from their largest terms; use the overlay by average year to
     describe emerging topics
 
 
@@ -128,7 +128,7 @@ goal: >-
     - Output: Cleaned co-occurrence map with named theme clusters, overlay-by-year map, reusable thesaurus file
 success_criteria:
     - metric: Thesaurus round-trip time
-      target: A merge or deletion is reflected in the map in under a minute without re-running the import wizard
+      target: A merge or deletion is reflected in the map in under a minute without re-running the import wizard (design goal; no source measures it)
     - metric: Thesaurus reuse
       target: The thesaurus is a saved table that can be applied to the next corpus and exported in VOSviewer format
     - metric: Stability across edits

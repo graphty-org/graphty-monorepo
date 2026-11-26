@@ -1,9 +1,12 @@
 id: bibliometric-evolution-analyst
 name: Bibliometric Evolution Analyst
+roster_persona: bibliometric-analyst
+tier: A
+scope: in-scope
 role: Research Analyst, University Library or Research Office / PhD Student Writing a Scientometric Review
 quote: Change the slice length and my clusters change. I need the timeline figure and the exact parameters in the caption.
 bio: >-
-    Marcus Hale is a research analyst in a university library and research office who maps how a research field
+    Simon Hale is a research analyst in a university library and research office who maps how a research field
     evolved: which research fronts formed, when the turning points came, and which papers burst into citation. He is
     not a coder; he is expert in Web of Science and Scopus exports. He runs CiteSpace for time-sliced co-citation
     networks, timeline views and citation bursts, VOSviewer for an overlay colored by average publication year, and

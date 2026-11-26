@@ -8,12 +8,10 @@ implements_capabilities:
     - community-profiling
 used_in_workflows:
     - W04
-    - W06
     - W19
     - W21
     - W10
     - W107
-    - W128
     - W129
     - W141
     - W155
@@ -68,7 +66,6 @@ used_in_workflows:
     - W413
     - W414
     - W435
-    - W444
     - W46
     - W50
     - W51
@@ -83,6 +80,13 @@ used_in_workflows:
     - W75
     - W82
     - W94
+    - W1060
+    - W2037
+    - W2096
+    - W2097
+    - W2098
+    - W2099
+    - W3080
 dependencies:
     - metric-card
     - color-swatch

@@ -1,12 +1,16 @@
 id: legend-display
 name: Legend Display
 category: visualization
-description: Display legends explaining the visual encodings currently in use. Show what colors, sizes, and shapes
-    represent so users can interpret the visualization accurately.
-status: implemented
-notes: "Ships: the element's legend attribute and graphty/src/workspace/canvas/LegendCard.tsx."
+description: "Display legends that explain the visual encodings in use -- what node and edge colors, sizes, widths and shapes stand for -- generated from the live style so they never drift from the drawing, on screen and inside exported figures. People who publish network figures otherwise build legends by hand: Cytoscape's Legend Creator covers node mappings only, Gephi's Preview export has no legend, and parameters are copied into the legend from dialogs. The element returns the legend as structured data; the application decides its wording, grouping and placement."
+status: in-progress
+notes: "Partly ships: the element's legend attribute and graphty/src/workspace/canvas/LegendCard.tsx; the legend is drawn into figures by graphty-element/src/screenshot/drawLegend.ts. Planned: clicking a legend entry to select or filter its elements, a provenance block, and a count of entries left out. Any requirement below that this note does not name as shipping counts as planned."
 algorithms: []
 used_by_workflows:
+    - W3057
+    - W3056
+    - W3055
+    - W3054
+    - W3006
     - W04
     - W15
     - W20
@@ -130,7 +134,6 @@ used_by_workflows:
     - W261
     - W262
     - W263
-    - W264
     - W265
     - W267
     - W268
@@ -169,19 +172,15 @@ used_by_workflows:
     - W331
     - W335
     - W337
-    - W338
+    - W430
     - W34
     - W340
     - W342
     - W345
     - W347
     - W35
-    - W350
-    - W352
-    - W354
-    - W355
-    - W356
-    - W357
+    - W344
+    - W346
     - W36
     - W360
     - W362
@@ -238,7 +237,6 @@ used_by_workflows:
     - W428
     - W429
     - W43
-    - W430
     - W431
     - W432
     - W433
@@ -246,15 +244,7 @@ used_by_workflows:
     - W435
     - W436
     - W437
-    - W439
-    - W440
-    - W441
-    - W442
-    - W443
-    - W444
-    - W445
-    - W446
-    - W447
+    - W438
     - W46
     - W49
     - W50
@@ -295,27 +285,66 @@ used_by_workflows:
     - W95
     - W96
     - W99
+    - W1006
+    - W1012
+    - W1018
+    - W1042
+    - W1054
+    - W1060
+    - W1084
+    - W1096
+    - W1120
+    - W1126
+    - W1132
+    - W1138
+    - W1139
+    - W1156
+    - W1157
+    - W1158
+    - W2000
+    - W2006
+    - W2036
+    - W2037
+    - W2038
+    - W2066
+    - W2072
+    - W2096
+    - W2099
+    - W3066
+    - W3102
+    - W3103
 implemented_by_components:
     - legend-item
     - legend-panel
 requirements:
-    - Display color legend showing category-to-color mapping for categorical node encoding
-    - Display color gradient legend with min/max values for quantitative node color encoding
-    - Display size legend with representative node sizes for quantitative size encoding
-    - Display shape legend showing shape-to-category mapping when shape encoding is active
-    - Display edge color legend for categorical edge type encoding
-    - Display edge thickness legend with min/max values for edge weight encoding
-    - Position legend in bottom-left corner by default without obscuring graph content
-    - Allow repositioning legend to any corner via drag or settings
-    - Allow collapsing legend to icon-only state to maximize graph viewport
-    - Support clicking legend item to filter graph to that category only
-    - Support shift-clicking legend item to add/remove category from current filter
-    - Update legend automatically within 100ms when encoding settings change
-    - Display numeric range with units for quantitative legends (e.g., '0 - 1.0 centrality')
-    - Limit categorical legend to 12 items maximum; show 'and N more' for overflow
-    - Use same color palette in legend as in graph visualization
-    - Provide legend visibility toggle in view settings
+    - "Must: Generate the legend from the live style layers, so it uses exactly the mapping and palette of the drawn graph"
+    - "Must: Cover categorical node color (category to color), quantitative node color (gradient with its minimum and maximum values), node size (representative sizes with their values) and node shape (shape to category)"
+    - "Must: Cover edge encodings as well as node encodings: edge color by type, edge width by weight with its minimum and maximum, and edge line style"
+    - "Library parity: For a weight-driven encoding, name the attribute behind it and state whether a larger value means a stronger or a more distant tie, never an unlabeled weight convention"
+    - "Must: Include the legend inside exported images and vector figures, with its text kept as editable text in vector exports"
+    - "Must: Offer a parameters and provenance block next to the legend (data source and version, filters, algorithms, layout and its seed, time window, date) for figures and methods text"
+    - "Must: Return the legend as neutral structured data (encoding, attribute, entries, range values, units when the data declares them); wording, headings, order and placement are the application's"
+    - "Must: Never rely on color alone: when color encodes a category, shape, size, pattern or a text label can carry the same information, and the legend shows it"
+    - "Library parity: Let the application hide, collapse and place the legend so it does not cover the graph"
+    - "Library parity: Support clicking a legend entry to select or filter the elements in that category, and shift-clicking to add or remove a category"
+    - "Library parity: When a categorical legend is longer than the application chooses to show, return the count of entries left out instead of dropping them silently"
+    - "Library parity: Update the legend in the same frame as the style change it describes, so the change feels instant"
 sources:
-    - title: Complete Graph Visualization Textbook - Chapter 3
-      url: https://graphty.app/docs/
-      summary: Legends and annotations for explaining visual encodings
+    - title: "Cytoscape Legend Creator tutorial"
+      url: "https://cytoscape.org/cytoscape-tutorials/protocols/legend-creator"
+      summary: "Legend Creator builds legends from node mappings and does not support edge line style, color or thickness"
+    - title: "Gephi: export visualizations as static images (University of Toronto)"
+      url: "https://mdlutoronto.github.io/gephi-visualize-network-dataset/7-g-export-visualizations-as-static-images/"
+      summary: "Gephi Preview export has no legend: use Illustrator or Inkscape to add one"
+    - title: "EnrichmentMap protocol: exporting figures, creating legends and saving work"
+      url: "https://baderlab.github.io/EnrichmentMap_Protocol/exporting-figures-creating-legends-and-saving-work.html"
+      summary: "Figure legends and creation parameters are assembled by hand after export"
+    - title: "Munzner, Visualization Analysis and Design (2014)"
+      url: "https://doi.org/10.1201/b17511"
+      summary: "Visual encoding channels and how a reader decodes them"
+    - title: "WCAG 2.2 success criterion 1.4.1, Use of Color"
+      url: "https://www.w3.org/WAI/WCAG22/Understanding/use-of-color.html"
+      summary: "Color is not used as the only visual means of conveying information"
+    - title: "User research: communicating findings and deliverables"
+      url: "design/user-research/communicating-findings-and-deliverables.md"
+      summary: "Must: a legend generated from the live style for node and edge encodings inside the export, plus a parameters and provenance block"

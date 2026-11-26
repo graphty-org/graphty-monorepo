@@ -1,9 +1,12 @@
 id: mobility-epidemiologist
 name: Mobility Epidemiologist
+roster_persona: migration-flow-demographer
+tier: B
+scope: in-scope
 role: Infectious-Disease Modeler / School of Public Health
 quote: When cases appear somewhere new, I need to know which places feed it travelers and how much a travel restriction actually cut the connections.
 bio: >-
-    Dr. Amara is an infectious-disease modeler at a school of public health with a PhD in epidemiology or physics. She
+    Dr. Adaeze is an infectious-disease modeler at a school of public health with a PhD in epidemiology or physics. She
     works in R or Python on daily origin-destination matrices between administrative units -- SafeGraph-derived US
     flows at tract, county and state level, Meta Data for Good movement, airline seat matrices, and phone-record
     matrices computed behind a mobile operator's firewall (Flowminder FlowKit) -- obtained under data-use agreements.

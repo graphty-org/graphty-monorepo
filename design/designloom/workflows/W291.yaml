@@ -4,6 +4,10 @@ category: onboarding
 validated: false
 personas:
     - spreadsheet-first-network-builder
+    - investigative-journalist
+    - sociometric-network-researcher
+    - people-analytics-ona-lead
+    - correspondence-historian
 requires_capabilities:
     - data-import
     - data-validation
@@ -15,6 +19,7 @@ requires_capabilities:
     - entity-resolution-review
     - import-report
     - edge-merge-policy
+    - identifier-mapping
 suggested_components:
     - file-drop-zone
     - data-import-dialog
@@ -23,6 +28,7 @@ suggested_components:
     - data-table-panel
     - statistics-panel
     - graph-canvas
+    - attribute-table-join-dialog
 starting_state:
     data_type: Excel workbook or two CSV files (node table with Id and Label, edge table with Source and Target)
     node_count: 19-300
@@ -69,6 +75,8 @@ goal: >-
 
     **Decision Points**:
 
+    - In a workbook, which sheet holds the nodes and which the edges?
+
     - Directed or undirected for the relationship in the sheet (the default is Directed)?
 
     - What should repeated Source-Target rows mean: one edge with summed weight, or separate edges?
@@ -107,7 +115,8 @@ goal: >-
 
     **Data Flow**:
 
-    - Input: Node CSV (Id, Label, attributes) and edge CSV (Source, Target, optional Type, Weight, time)
+    - Input: Node CSV (Id, Label, attributes) and edge CSV (Source, Target, optional Type, Weight, time), or one
+    .xlsx workbook holding a node sheet and an edge sheet
 
     - Transformations: Type inference, endpoint matching, direction setting, duplicate-edge merge
 
@@ -141,6 +150,6 @@ sources:
     - title: Gephi GitHub issue 2216
       url: https://github.com/gephi/gephi/issues/2216
       summary: Reciprocal edges appearing to vanish traced to directed versus undirected confusion
-version: 1.0.0
+version: 1.1.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

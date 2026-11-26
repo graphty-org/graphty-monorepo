@@ -3,7 +3,7 @@ name: Positions to Association Networks per Period (Animal Social Networks)
 category: analysis
 validated: false
 personas:
-    - animal-social-network-researcher
+    - animal-social-network-ecologist
 requires_capabilities:
     - data-import
     - data-validation
@@ -11,7 +11,6 @@ requires_capabilities:
     - temporal-analysis
     - temporal-navigation
     - centrality-degree
-    - centrality-eigenvector
     - basic-statistics
     - comparison-view
     - visual-encoding-nodes
@@ -53,24 +52,24 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Load relocations** (5 min) - Table with id, date-time and projected coordinates; add a season or year column
+    1. **Load relocations** - Table with id, date-time and projected coordinates; add a season or year column
 
-    2. **Group in time** (2 min) - Fixes within a threshold (for example 5 minutes) count as simultaneous, absorbing GPS
+    2. **Group in time** - Fixes within a threshold (for example 5 minutes) count as simultaneous, absorbing GPS
     fix-time jitter
 
-    3. **Group or pair in space** (2 min) - Within each time group: chain rule groups within 50 meters, all pairs within
+    3. **Group or pair in space** - Within each time group: chain rule groups within 50 meters, all pairs within
     a distance, or each animal's nearest neighbor
 
-    4. **Build a network per period** (5 min) - Group-by-individual matrix, then a simple ratio index association
+    4. **Build a network per period** - Group-by-individual matrix, then a simple ratio index association
     network per year or season
 
-    5. **Randomize** (30 min to hours) - Step, daily or trajectory randomizations within each year; rebuild networks
+    5. **Randomize** - Step, daily or trajectory randomizations within each year; rebuild networks
     from each null data stream
 
-    6. **Compare** (20 min) - Strength and centrality per animal per period, observed against random; compare seasons
+    6. **Compare** - Strength and centrality per animal per period, observed against random; compare seasons
     or years
 
-    7. **Check on the map** (10 min) - Where associations happened in a period, beside the network
+    7. **Check on the map** - Where associations happened in a period, beside the network
 
 
     **Decision Points**:
@@ -118,7 +117,7 @@ goal: >-
     - Output: Per-period networks, metric table observed vs random, map-plus-network figures
 success_criteria:
     - metric: Threshold sensitivity visible
-      target: Changing time or distance threshold updates the per-period network in under a minute
+      target: Changing time or distance threshold updates the per-period network in under a minute (design goal; no source measures it)
     - metric: Map and network together
       target: User sees positions and associations for the same window in one view
     - metric: Period comparison

@@ -44,18 +44,18 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Find properties** (15 min) - Q-ids for items and P-ids for properties (P1066 student of, P737 influenced by,
+    1. **Find properties** - Q-ids for items and P-ids for properties (P1066 student of, P737 influenced by,
     P26 spouse)
 
-    2. **Query** (30 min) - Query Builder for single-subject conditions, then SPARQL in the Query Service adapting
+    2. **Query** - Query Builder for single-subject conditions, then SPARQL in the Query Service adapting
     example queries; chatbot-written queries need checking
 
-    3. **Export** (2 min) - CSV with one row per subject-property-object, Q-id columns and Label columns
+    3. **Export** - CSV with one row per subject-property-object, Q-id columns and Label columns
 
-    4. **Map columns** (10 min) - Subject Q-id to source, object Q-id to target, labels to names, property to edge
+    4. **Map columns** - Subject Q-id to source, object Q-id to target, labels to names, property to edge
     type; often done by script
 
-    5. **Visualize** (10 min) - Palladio or Gephi
+    5. **Visualize** - Palladio or Gephi
 
     6. **Re-run and merge** (later) - Wikidata changes; keep Q-ids as node ids so styles and notes survive
 
@@ -96,7 +96,7 @@ goal: >-
     - Output: Typed network with authority ids, exported CSV or GEXF
 success_criteria:
     - metric: Time from result CSV to network
-      target: Under 10 minutes without a script
+      target: Under 10 minutes without a script (design goal; no source measures it)
     - metric: Stable ids
       target: Re-importing an updated result keeps styles and notes on existing Q-ids
 sources:

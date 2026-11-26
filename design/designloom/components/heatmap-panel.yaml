@@ -6,6 +6,7 @@ status: planned
 implements_capabilities:
     - details-on-demand
 used_in_workflows:
+    - W3056
     - W22
     - W158
     - W161
@@ -26,12 +27,18 @@ used_in_workflows:
     - W410
     - W416
     - W433
-    - W442
     - W71
     - W73
     - W85
     - W87
     - W98
+    - W254
+    - W2066
+    - W2096
+    - W2097
+    - W2098
+    - W2099
+    - W3079
 dependencies: []
 props: {}
 sources: []

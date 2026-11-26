@@ -4,11 +4,18 @@ category: export
 description: Build entity-to-entity edges from shared attribute values (phone, device, address, tag id) or from a
     bipartite graph, weighting hard links above soft links, recording which shared values created each edge.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: investigative-journalism-and-osint.md section 10, requirement R11 (Should)."
 algorithms: []
 used_by_workflows:
     - W88
     - W93
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Should: Shared-attribute linking: build account-to-account (or person-to-person) edges from shared values
+      (address, phone, device, tag id), with hard/soft link weighting and connected components"
+sources:
+    - title: Investigative journalists, OSINT investigators and trust-and-safety teams (section 10, requirement R11)
+      url: design/user-research/investigative-journalism-and-osint.md
+      summary: "Should in the research (the document says: Should (driven by OSINT tag-id and address pivots; T&S
+        evidence is weak)). Covered by Designloom when researched: Not covered (component-analysis exists but no
+        projection from attribute values)"

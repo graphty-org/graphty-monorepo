@@ -4,9 +4,11 @@ category: visualization
 description: Adjacency matrix with hierarchical rows, triangularization and click-for-path, synchronized with the
     node-link view; also serves traceability matrices with empty-row gap detection.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: dependency-and-impact-analysis-engineers.md section 10, requirement R16 (Should)."
 algorithms: []
 used_by_workflows:
+    - W3114
+    - W3056
     - W155
     - W158
     - W161
@@ -20,14 +22,23 @@ used_by_workflows:
     - W322
     - W85
     - W87
+    - W2066
+    - W2096
+    - W2097
+    - W2098
+    - W2099
+    - W3079
 implemented_by_components: []
 requirements:
-    - Show the graph as an adjacency matrix heatmap reordered by a node attribute (network, module, hemisphere) with
-      block outlines and diverging color for signed weights, selection linked to the node-link view.
-    - Shaded adjacency matrix linked to the node-link view, sortable by marginal totals or module to reveal nestedness
-      and modules.
-    - Show a graph as an adjacency matrix reordered by cluster so clusters form blocks on the diagonal, linked to the
-      node-link view.
-    - Show the graph as an ordered adjacency matrix beside the node-link drawing, linked by selection.
-    - Adjacency heatmap with ordering by module or attribute and block outlines, exportable as a figure panel.
-sources: []
+    - "Should: DSM matrix view synced with the node-link view (hierarchical rows, triangularize, click for path); also
+      serves traceability matrices"
+    - "Must: Show the graph as an adjacency matrix heatmap reordered by a node attribute (network, module, hemisphere) with block outlines and diverging color for signed weights, selection linked to the node-link view."
+    - "Must: Shaded adjacency matrix linked to the node-link view, sortable by marginal totals or module to reveal nestedness and modules."
+    - "Must: Show a graph as an adjacency matrix reordered by cluster so clusters form blocks on the diagonal, linked to the node-link view."
+    - "Should: Show the graph as an ordered adjacency matrix beside the node-link drawing, linked by selection."
+    - "Must: Adjacency heatmap with ordering by module or attribute and block outlines, exportable as a figure panel."
+sources:
+    - title: "Engineers Who Analyze Dependencies: IT Services, Networks, Software and Data Lineage (section 10,
+          requirement R16)"
+      url: design/user-research/dependency-and-impact-analysis-engineers.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

@@ -1,0 +1,93 @@
+id: W3055
+name: Locate Closed Loops for Inconsistency Checks
+category: analysis
+validated: false
+personas:
+    - nma-systematic-reviewer
+    - hta-evidence-review-assessor
+starting_state:
+    data_type: the treatment network with study ids per comparison and node-splitting results from R or Stata
+    node_count: 5-40
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Find where direct and indirect evidence can disagree: every closed loop of direct comparisons, which loops come only from one multi-arm trial, and which comparisons have no loop at all.
+
+
+    **Mental Model**: "Inconsistency lives in loops." A comparison with no closed loop through it can only be estimated one way, so it cannot be checked.
+
+
+    **Task Phases**:
+
+    1. **List loops** - Triangles, quadrilaterals and larger independent loops of direct comparisons
+
+    2. **Discount multi-arm loops** - Mark loops formed only inside one multi-arm study
+
+    3. **Overlay results** - Color loops or comparisons by the inconsistency results imported from the model
+
+    4. **Report** - Which comparisons were checkable, and which loops disagreed
+
+
+    **Decision Points**:
+
+    - Which loops are informative, given multi-arm studies?
+
+    - Which disagreeing loop needs a sensitivity analysis?
+
+
+    **Information Needs**:
+
+    - Every closed loop and the studies on its edges
+
+    - Comparisons in no loop
+
+    - Imported inconsistency factors or node-splitting P values
+
+
+    **Pain Points**:
+
+    - Loops are found by eye on a crossed circle layout
+
+    - Multi-arm loops are not told apart from loops of separate trials
+
+
+    **Data Flow**:
+
+    - Input: Treatment network and imported inconsistency results
+
+    - Transformations: Loop enumeration, multi-arm marking, overlay
+
+    - Output: A list of checkable loops and a highlighted figure
+success_criteria:
+    - metric: Coverage
+      target: Every closed loop is listed with its studies
+    - metric: Multi-arm
+      target: Loops formed inside one study are marked
+sources:
+    - title: "Cochrane Handbook chapter 11"
+      url: https://www.cochrane.org/authors/handbooks-and-manuals/handbook/current/chapter-11
+      summary: "Network diagram definition, node size by participants, line thickness by trials, connectedness, closed loops, contribution matrix"
+    - title: "Chaimani et al. 2013 - Graphical tools for network meta-analysis in STATA"
+      url: https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0076654
+      summary: "networkplot with edgecolor(by bias), netweight contribution plot, ifplot over triangular and quadratic loops"
+    - title: "Harrer et al. - Doing Meta-Analysis in R, chapter 12"
+      url: https://doing-meta.guide/netwma.html
+      summary: "netmeta and gemtc tutorial: data shape, netgraph, decomp.design, netsplit, netheat"
+    - title: "Owen et al. 2019 - MetaInsight"
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6973101
+      summary: "Exclude studies and see the network before and after side by side; disconnected treatments disappear"
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z
+requires_capabilities:
+    - data-import
+    - hypergraph-data
+    - multi-arm-study-polygons
+    - closed-loop-enumeration
+    - visual-encoding-edges
+    - legend-display
+suggested_components:
+    - graph-canvas
+    - data-table-panel
+    - legend-panel
+

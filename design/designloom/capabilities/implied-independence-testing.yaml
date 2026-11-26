@@ -4,10 +4,16 @@ category: analysis
 description: Test each conditional independence the graph implies against a dataset, correct for multiple testing, and
     mark the failed node pairs on the graph.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: causal-diagrams-and-bayesian-networks.md section 10, requirement 6 (Must)."
 algorithms: []
 used_by_workflows:
     - W424
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Adjustment sets (total, direct, forced, latents excluded, live recompute), instruments, implied
+      independencies"
+sources:
+    - title: "Causal Diagram Users: DAGs, Bayesian Networks, Causal Discovery, Time-Series Causal Graphs and SEM Path
+        Diagrams (section 10, requirement 6)"
+      url: design/user-research/causal-diagrams-and-bayesian-networks.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

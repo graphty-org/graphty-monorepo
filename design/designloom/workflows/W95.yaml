@@ -3,7 +3,7 @@ name: Cryptocurrency Flow Tracing to the Exchange
 category: analysis
 validated: false
 personas:
-    - investigative-reporter
+    - investigative-journalist
     - osint-investigator
 requires_capabilities:
     - data-import
@@ -56,13 +56,13 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Seed wallets** (days) - From scam victims, sanctions lists, police reports, court records, regulator
+    1. **Seed wallets** - From scam victims, sanctions lists, police reports, court records, regulator
     complaints, test transactions and earlier leaks
 
-    2. **Look up each address** (minutes each) - In a blockchain explorer (Tronscan, Etherscan) or Arkham, using its
+    2. **Look up each address** - In a blockchain explorer (Tronscan, Etherscan) or Arkham, using its
     filters to find top counterparties; export activity as CSV; at scale, pull from explorer APIs with scripts
 
-    3. **Follow inflows and outflows** (hours to weeks) - Counterparty by counterparty; filter by amount, token and
+    3. **Follow inflows and outflows** - Counterparty by counterparty; filter by amount, token and
     date; no source gives a standard hop limit
 
     4. **Label attributed addresses** (ongoing) - Exchanges, services, sanctioned entities, each with the source of the
@@ -71,10 +71,10 @@ goal: >-
     5. **Stop at the exchange** (decision) - Activity inside a centralized exchange is off-chain; ask the exchange and
     ask regulators and police whether they know the addresses
 
-    6. **Expert confirmation** (weeks) - Outside tracing experts confirm the path; findings double-, triple- or
+    6. **Expert confirmation** - Outside tracing experts confirm the path; findings double-, triple- or
     quadruple-checked
 
-    7. **Right of reply** (days) - Send the wallet addresses to subjects early
+    7. **Right of reply** - Send the wallet addresses to subjects early
 
     8. **Publish** - No source described the format of the published flow chart
 

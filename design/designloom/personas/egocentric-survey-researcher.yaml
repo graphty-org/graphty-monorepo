@@ -1,9 +1,12 @@
 id: egocentric-survey-researcher
 name: Personal Network Health Researcher
+roster_persona: survey-network-researcher
+tier: B
+scope: in-scope
 role: Assistant Professor of Public Health or Sociology (Egocentric Network Studies)
 quote: I don't have one network, I have nine hundred tiny ones. I need one row per person for my regression, and a few pictures that show what a lonely network looks like.
 bio: >-
-    Dr. Marcus Reyes studies social support, aging and substance use through personal (ego) networks. Each respondent
+    Dr. Rafael Reyes studies social support, aging and substance use through personal (ego) networks. Each respondent
     names 5 to about 50 people (alters) with a name generator, describes each one with name interpreters (kin or not,
     age, how often they talk), and says which alters know each other. He collects this with Qualtrics using egor's
     templates or with Network Canvas, whose Architect designs the protocol and whose Interviewer lets participants draw
@@ -43,6 +46,7 @@ context:
 workflows:
     - W27
     - W29
+    - W300
 sources:
     - title: egor package vignette
       url: https://cran.r-project.org/web/packages/egor/vignettes/using_egor.html

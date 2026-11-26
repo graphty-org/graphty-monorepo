@@ -3,6 +3,7 @@ name: Regulatory SAR Output from a Graph Investigation
 category: reporting
 validated: false
 personas:
+    - aml-investigator
     - graph-deliverable-recipient
 requires_capabilities:
     - view-bookmarks
@@ -19,6 +20,7 @@ requires_capabilities:
     - provenance-tracking
     - structured-findings-export
     - deliverable-templates
+    - deliverable-handling-marking
 suggested_components:
     - graph-canvas
     - bookmark-panel
@@ -42,27 +44,32 @@ goal: >-
     regenerable for quality control, examination and continuing-activity reviews.
 
 
+    **Who**: The AML investigator does every step: she freezes the chart states, writes the narrative, builds the
+    CSV and assembles the case file, and runs the 90-day continuing-activity review. The QC reviewer, the examiner
+    and the regulator only read the result (W1018).
+
+
     **Mental Model**: "Graph facts become sentences and rows." The chart is how the investigator saw the pattern; the
     regulator reads who, what, when, where and why in words, backed by a table.
 
 
     **Task Phases**:
 
-    1. **Freeze the state** (5 min) - Save the chart state at each decision point with a caption and timestamp
+    1. **Freeze the state** - Save the chart state at each decision point with a caption and timestamp
 
-    2. **Translate the graph into the narrative** (30-90 min) - Compute per-pair sums and counts over a date window,
+    2. **Translate the graph into the narrative** - Compute per-pair sums and counts over a date window,
     path lists and shared identifiers, and write them as sentences ("accounts A, B and C received 41 cash deposits
     totaling $X and forwarded 93 percent to D")
 
-    3. **Attach the table** (15 min) - One CSV of at most 1 MB, with chosen columns, described in the narrative
+    3. **Attach the table** - One CSV of at most 1 MB, with chosen columns, described in the narrative
 
-    4. **Assemble the case file** (30 min) - Chart images, entity and transaction tables, rationale; kept five years and
+    4. **Assemble the case file** - Chart images, entity and transaction tables, rationale; kept five years and
     producible on request
 
     5. **Quality control** (varies) - A second reviewer or committee checks the narrative against the data; the chart
     must be regenerable from case data
 
-    6. **Continuing activity review** (every 90 days) - Compare counterparties and flows across the prior and new date
+    6. **Continuing activity review** - Compare counterparties and flows across the prior and new date
     ranges; file within 120 days of the prior SAR
 
 
@@ -131,6 +138,9 @@ sources:
     - title: Maltego - Five ways to export a Maltego graph for reporting
       url: https://www.maltego.com/blog/five-ways-to-export-maltego-graph-for-reporting/
       summary: Graph files plus PDF reports; 30 entities can produce a 20-page report
-version: 1.0.0
+    - title: FinCEN - Frequently asked questions regarding the FinCEN SAR
+      url: https://www.fincen.gov/resources/faqs/frequently-asked-questions-regarding-the-fincen-suspicious-activity-report-sar/
+      summary: Continuing activity reported at least every 90 days, deadline 120 calendar days after the prior related SAR; filers keep copies for five years
+version: 1.1.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

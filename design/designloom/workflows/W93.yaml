@@ -56,28 +56,28 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Seeds** (minutes) - User reports, classifier hits or a partner's tip give a small set of known-bad accounts
+    1. **Seeds** - User reports, classifier hits or a partner's tip give a small set of known-bad accounts
 
-    2. **Pull signals** (30-60 min, SQL) - Technical: shared devices, serialized email patterns, IPs within a short
+    2. **Pull signals** (SQL) - Technical: shared devices, serialized email patterns, IPs within a short
     window, phone numbers, payment methods, domain registrations, redirect chains; behavioral: near-identical content,
     shared branding
 
-    3. **Build the account-to-attribute graph** (minutes) - Project it onto accounts, weighting hard links above soft
+    3. **Build the account-to-attribute graph** - Project it onto accounts, weighting hard links above soft
     links; take connected components over shared attributes
 
-    4. **Build a coordination network** (minutes) - From four columns (object id, account id, content id, share
+    4. **Build a coordination network** - From four columns (object id, account id, content id, share
     timestamp) link accounts that shared the same object within a time window (examples of 60, 30 and 10-20 seconds),
     with a minimum participation (examples 1 and 2), keeping edges at or above a weight threshold whose default is
     the median; two platforms in one input do not by themselves establish cross-platform coordination
 
-    5. **Human review** (hours) - Inspect each cluster; split supposed networks that are really several groups linked
+    5. **Human review** - Inspect each cluster; split supposed networks that are really several groups linked
     only by mentions of common public figures or popular hashtags; check that shared attributes are not innocent
     (shared wifi, shared devices)
 
-    6. **Enforce at network level** (minutes) - Act on behavior, not content, and only on assets directly involved;
+    6. **Enforce at network level** - Act on behavior, not content, and only on assets directly involved;
     feed confirmed indicators back into detection
 
-    7. **Report** (hours) - Internal case write-up or public threat report
+    7. **Report** - Internal case write-up or public threat report
 
 
     **Decision Points**:

@@ -6,13 +6,24 @@ description: "Import that keeps time intact in five shapes: point events, interv
     column. Covers dynamic GEXF, start/end CSV, SocioPatterns t i j, SNAP src dst time lists. Shows stated interval
     semantics (inclusive or half-open, open ends, time zone, granularity) and counts of missing and invalid dates."
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: temporal-and-dynamic-networks.md section 11, requirement T1 (Must)."
 algorithms: []
 used_by_workflows:
     - W19
     - W304
     - W305
     - W307
+    - W1162
+    - W3078
+    - W3080
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: A documented time model: point events, intervals with multiple spells, snapshot series, time-varying
+      attributes (including position), and attribute-derived dates, on both nodes and edges; plus a stated position on
+      signal-derived networks (T24)"
+    - "Must: Read version-control commits as point events on developer-file edges (commit date, lines added and deleted), so a history can be windowed and replayed like any other temporal graph."
+sources:
+    - title: Temporal and Dynamic Network Data and Analysis (section 11, requirement T1)
+      url: design/user-research/temporal-and-dynamic-networks.md
+      summary: 'Must in the research. Covered by Designloom when researched: No. temporal-analysis assumes "edges with
+          timestamp attribute"; no intervals, spells, node lifetimes or dynamic attributes'

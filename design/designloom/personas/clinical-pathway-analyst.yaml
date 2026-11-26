@@ -1,5 +1,8 @@
 id: clinical-pathway-analyst
 name: Clinical Pathway Analyst
+roster_persona: process-mining-analyst
+tier: A
+scope: in-scope
 role: Health Services Researcher / Hospital Quality Improvement Analyst
 quote: Clinicians will not read a spaghetti map. Show them where patients wait and where we leave the guideline, and the data never leaves the hospital.
 bio: >-
@@ -52,10 +55,6 @@ workflows:
     - W344
     - W345
     - W346
-    - W349
-    - W353
-    - W354
-    - W356
 sources:
     - title: Munoz-Gama et al. 2022 - Process mining for healthcare, characteristics and challenges
       url: https://www.alexandria.unisg.ch/server/api/core/bitstreams/413ecf90-0787-4e40-806d-cfcdc55ec2b7/content

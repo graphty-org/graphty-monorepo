@@ -5,7 +5,7 @@ description: Select every node reachable upstream, downstream or both from chose
     way, restricted to chosen edge types and direction, stating the depth, edge types and loaded universe used (dbt
     3+x+4, Bazel rdeps, Cypher [:DEPENDS_ON*]).
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: dependency-and-impact-analysis-engineers.md section 10, requirement R1 (Must)."
 algorithms: []
 used_by_workflows:
     - W198
@@ -16,7 +16,14 @@ used_by_workflows:
     - W80
     - W84
     - W87
+    - W1132
 implemented_by_components: []
 requirements:
-    - Upstream and downstream sets of selected nodes with union and intersection across several, drivers and sinks.
-sources: []
+    - "Must: Directed upstream/downstream closure with separate depth limits each way (dbt 3+x+4), within a universe or
+      loaded subgraph shown to the user (Bazel's universe trap)"
+    - "Must: Upstream and downstream sets of selected nodes with union and intersection across several, drivers and sinks."
+sources:
+    - title: "Engineers Who Analyze Dependencies: IT Services, Networks, Software and Data Lineage (section 10,
+          requirement R1)"
+      url: design/user-research/dependency-and-impact-analysis-engineers.md
+      summary: "Must in the research. Covered by Designloom when researched: Partly"

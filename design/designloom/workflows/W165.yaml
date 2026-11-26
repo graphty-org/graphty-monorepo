@@ -52,23 +52,23 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Assemble comparable webs** (5 min) - Pad every network to one shared species list
+    1. **Assemble comparable webs** - Pad every network to one shared species list
 
-    2. **Check sampling completeness** (10 min) - Interaction accumulation curves and richness estimators per network,
+    2. **Check sampling completeness** - Interaction accumulation curves and richness estimators per network,
     noting links that are impossible (forbidden) because of phenology or size mismatch
 
-    3. **Compute null-corrected indices per network** (30 min) - Then export them to model against treatment
+    3. **Compute null-corrected indices per network** - Then export them to model against treatment
 
-    4. **Partition link turnover** (5 min) - Split dissimilarity between pairs of networks into species turnover and
+    4. **Partition link turnover** - Split dissimilarity between pairs of networks into species turnover and
     rewiring, choosing the partitioning method
 
-    5. **Choose temporal resolution** (10 min) - Pooled season versus weekly or monthly windows, since pooling makes
+    5. **Choose temporal resolution** - Pooled season versus weekly or monthly windows, since pooling makes
     many topology measures inaccurate
 
-    6. **Show side by side** (10 min) - Faceted panels with shared colors, ordering and scales, or a multilayer view
+    6. **Show side by side** - Faceted panels with shared colors, ordering and scales, or a multilayer view
     across sites or times
 
-    7. **Hand off** (10 min) - Multi-panel figure with aligned species, z-score table, beta-diversity components and a
+    7. **Hand off** - Multi-panel figure with aligned species, z-score table, beta-diversity components and a
     completeness supplement
 
 

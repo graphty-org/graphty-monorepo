@@ -3,18 +3,18 @@ name: Variant Analysis
 category: analysis
 description: List distinct case sequences with counts and a coverage curve, linked to the map for highlight and filter.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: process-mining-and-process-maps.md section 10, requirement R11 (Must)."
 algorithms: []
 used_by_workflows:
     - W340
     - W343
     - W344
-    - W350
-    - W353
-    - W354
-    - W356
+    - W346
 implemented_by_components: []
 requirements:
-    - List distinct case sequences (variants) with case counts and a coverage curve, linked to the map so a variant can
-      be highlighted or filtered, with top-k and coverage-percentage filters.
-sources: []
+    - "Must: List distinct case sequences (variants) with case counts and a coverage curve, linked to the map so a variant can be highlighted or filtered, with top-k and coverage-percentage filters."
+sources:
+    - title: "Process Mining Analysts: Process Maps, Models and Deviations from Event Logs (section 10, requirement
+          R11)"
+      url: design/user-research/process-mining-and-process-maps.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

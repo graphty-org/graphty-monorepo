@@ -3,7 +3,7 @@ name: Replace or Extend the Built-in Note Graph with a Plugin
 category: administration
 validated: false
 personas:
-    - pkm-knowledge-worker
+    - personal-knowledge-gardener
     - pkm-vault-analyst
     - pkm-developer-note-taker
 requires_capabilities:
@@ -47,11 +47,11 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Install** (2 min) - Settings > Community plugins; turn off Restricted Mode; Browse; search (for example
+    1. **Install** - Settings > Community plugins; turn off Restricted Mode; Browse; search (for example
     "Advanced Graph View"); Install; Enable. Obsidian warns that plugins run third-party code. Beta versions via the
     BRAT plugin; manual installs into a folder named for the plugin id
 
-    2. **Open the view** (seconds) - A ribbon icon or command opens the graph view; the plugin registers a view type and
+    2. **Open the view** - A ribbon icon or command opens the graph view; the plugin registers a view type and
     opens a leaf in the right sidebar or main area
 
     3. **Read the host's link graph** (automatic) - The plugin reads `metadataCache.resolvedLinks` (source path to
@@ -63,7 +63,7 @@ goal: >-
 
     5. **Follow the active note** (continuous) - Opening a note anywhere moves the camera to it and marks it
 
-    6. **Open notes back in the editor** (seconds) - Click opens the note in a pane beside the graph, or in a new tab;
+    6. **Open notes back in the editor** - Click opens the note in a pane beside the graph, or in a new tab;
     pinned positions survive rebuilds and restarts
 
     7. **Alternative: patch the core view** - Extended Graph modifies the built-in graph instead of replacing it;

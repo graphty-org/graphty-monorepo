@@ -1,0 +1,60 @@
+id: assembly-method-developer
+name: Assembler and Pipeline Developer
+roster_persona: bacterial-assembly-finisher
+tier: B
+scope: in-scope
+role: Research Software Engineer (genome and metagenome assembly)
+quote: I need the same tangle from two k-mer sizes side by side, and I need it without waiting a quarter of an hour for a layout.
+bio: >-
+    Halvard Nygaard is a research software engineer who develops and benchmarks genome and metagenome assemblers. He
+    compares graphs from different tools or k-mer sizes for the same reads, looks for the tangle where repeat
+    resolution failed, and scores graphs by contig count and dead ends. Metagenome graphs reach hundreds of thousands
+    to about a million nodes, so he cuts scope to nodes within a few steps of named nodes or to a depth range, saves
+    the reduced graph as GFA, and renders images in batch with the Bandage command line inside his pipelines.
+characteristics:
+    expertise: expert
+    time_pressure: medium
+    graph_literacy: advanced
+    domain_knowledge: expert
+motivations:
+    - Find where and why an assembly graph failed to resolve
+    - Compare graphs from two tools or k-mer sizes
+    - Keep large metagenome graphs viewable by cutting scope
+    - Render graph images in batch for benchmarks
+behaviors:
+    - Runs Bandage info on each graph before opening it
+    - Uses Around nodes scope with a distance in nodes, or a depth range
+    - Lowers layout iterations, node length per megabase and labels for large graphs
+    - Saves reduced subgraphs with Bandage reduce
+    - Calls Bandage image from pipeline scripts
+frustrations:
+    - A layout of about 1.15 million nodes took 14.5 minutes with iterations at the minimum
+    - Metagenome graphs of 100 Mb or more take minutes and gigabytes of RAM to draw
+    - No side-by-side comparison of two graphs in the viewer
+context:
+    frequency: daily
+    devices:
+        - workstation
+        - cluster
+    voluntary: true
+workflows:
+    - W1159
+sources:
+    - title: Bandage wiki - Working with very large graphs
+      url: https://github.com/rrwick/Bandage/wiki/Working-with-very-large-graphs
+      summary: 1.15 million nodes laid out in 14.5 minutes; scope, node length and label settings
+    - title: Bandage wiki - Command line
+      url: https://github.com/rrwick/Bandage/wiki/Command-line
+      summary: info, image, querypaths and reduce subcommands
+    - title: Bandage wiki - Graph scope
+      url: https://github.com/rrwick/Bandage/wiki/Graph-scope
+      summary: Around nodes with a distance in nodes, around BLAST hits, depth range
+    - title: Bandage paper (Wick et al. 2015)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4595904
+      summary: Metagenome graphs of 100 Mb or more may take minutes and gigabytes of RAM
+    - title: Unicycler paper (Wick et al. 2017)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5481147
+      summary: k-mer graphs scored by contig count and dead ends; large k-mers fragment the graph
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

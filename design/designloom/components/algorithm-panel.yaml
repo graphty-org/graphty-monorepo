@@ -15,6 +15,7 @@ implements_capabilities:
     - all-paths-finding
     - component-analysis
 used_in_workflows:
+    - W3006
     - W03
     - W04
     - W06
@@ -73,11 +74,9 @@ used_in_workflows:
     - W428
     - W430
     - W435
-    - W439
     - W44
-    - W443
-    - W444
-    - W447
+    - W434
+    - W438
     - W45
     - W48
     - W49
@@ -92,6 +91,10 @@ used_in_workflows:
     - W90
     - W91
     - W94
+    - W1054
+    - W228
+    - W2036
+    - W2037
 dependencies:
     - algorithm-card
     - select

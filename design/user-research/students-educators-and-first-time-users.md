@@ -10,7 +10,8 @@ computational network students, who work in R (statnet, igraph) or Python (Netwo
 tool, prepare the dataset and handout, and grade the result. Outside the classroom, the documented first-time users are
 community and social-media analysts, data journalists, nonprofit and public-sector staff mapping a system, and business
 analysts in Excel or Power BI; each arrives with a hand-built table, one tutorial and a question that is not yet a
-network question. This population matters to a
+network question. An adjacent population, graph theory researchers who study small exact graphs (extremal examples
+and counterexamples), is covered in sections 2.7 and 4.11. This population matters to a
 graph product because tool habits form here, the hardest usability problems (installation, import, reading a layout
 correctly) show up most clearly here, and a tool that fails is abandoned within one session.
 
@@ -71,10 +72,29 @@ Quotations below were checked against the cited page. Claims marked "inference" 
       step after visiting my home page" from an Excel file, with line width for "the strength of the relationship"
       [Pragmatic Works]; NodeXL runs inside Excel [Bonsignore et al.]. A TrustRadius reviewer used Gephi to "sell the
       clustering techniques to un-initiated and non-technical managers and executives" [TrustRadius Gephi].
+- **Graph theory and combinatorics researchers (adjacent population, not students).** The algorithm learners above
+  study graph theory; these mathematicians and computer scientists do research in it, and the graph itself is the
+  object of study: extremal graphs, counterexamples to conjectures, enumeration of graph classes. They are covered
+  here because their graphs are as small as a student's (often under 30 vertices) but their needs are the opposite:
+  exact drawings and exact invariants, many graphs at once, and no data import from tables. The field has its own
+  infrastructure. House of Graphs at Ghent University is "to the best of our knowledge the most widely used database
+  within the graph theory community" [Jooken 2025]; it holds "nearly 22 000" graphs that users found interesting and
+  offers complete lists for 27 graph classes [House of Graphs 2.0]. Its authors "consider e.g. counterexamples to
+  known conjectures and extremal graphs to be interesting" [House of Graphs 2012]. A 2025 survey treats
+  computer-assisted graph theory as a field of its own: exhaustive generation of all non-isomorphic graphs in a class,
+  searchable databases of graphs and invariants, and solver, metaheuristic and machine-learning searches for
+  counterexamples [Jooken 2025]. Repositories of graphs for this research go back to R. M. Foster's work in the
+  1930s [Graph repositories survey]. Persona in section 2.7, workflow in 4.11.
 
 **Size.** No source counts students who use graph tools per term. Sci2 reports "more than 150,000 tool users" [Zoss et
 al.]; Gephisto had "almost a thousand different users" in seven months [Gephisto]; a curriculum study analyzed 30
-network science courses [Sayama curriculum].
+network science courses [Sayama curriculum]. Graph theory research, measured by documents: zbMATH Open classifies
+5,981 documents under MSC 05C (graph theory, primary or secondary code) for 2015, 6,264 for 2020, 5,889 for 2023 and
+6,143 for 2024 [zbMATH 05C counts]; these are papers, not people, and no source says how many of them used software. The nauty
+and Traces paper, whose `geng` generator the field uses to list all graphs of a given order, had 1,063 Scopus
+citations when its repository record was last updated [nauty citations]. Neither House of Graphs paper gives a count
+of registered users [House of Graphs 2012; House of Graphs 2.0]. Inference: the computer-assisted part of the field is
+in the low thousands of researchers, a medium population by the roster's size rule, with no direct count.
 
 **How often.** SNA students use the tool intensively for two to six weeks (Rutgers: three network assignments, then a
 final project [Rutgers SCI 373]), then often never again. Algorithm learners use a visualizer for a few weeks of a
@@ -198,6 +218,42 @@ can draw" [UTD ATCM 3385].
   similarity and "wider links especially made nodes seem more similar" [Zoss et al., citing Fabrikant]. (e) She may
   never install anything: Gephi's FAQ sends beginners to Gephi Lite in the browser [Gephi FAQ].
 
+### 2.7 Graph theory researcher ("Dr. Margit Vos") -- id `graph-theory-researcher`
+
+- **Role.** Research mathematician or theoretical computer scientist working on an extremal, coloring, spectral or
+  structural question; also the PhD student who runs the searches for the group. Adjacent to this document's students
+  (section 1), not one of them.
+- **Tools today.** nauty's `geng` to generate every non-isomorphic graph of an order, piped straight into a filter
+  program rather than stored [Jooken 2025]; `pickg` and `countg` to select or count graphs by properties such as
+  vertex and edge counts or regularity [pickg manual]; `labelg` for canonical labels so isomorphism becomes string
+  comparison [RIT homework]; `plantri` for planar graphs and triangulations [plantri]; SageMath for invariants and
+  plots, which reads and writes graph6 and sparse6 [Sage graph_list]; Mathematica, whose Import "fully supports" graph6
+  [Wolfram Graph6]; House of Graphs to check whether a graph is already known and to draw it [House of Graphs 2.0];
+  TikZ, TikZiT or Ipe for the hand-placed figure in the paper [Ipe; TikZiT].
+- **Data.** Graphs as one-line strings: graph6 for any graph, sparse6 "more efficient for sparse graphs"; the Petersen
+  graph is `IsP@OkWHG` [Jooken 2025]. Files hold thousands to millions of such lines; there are 12,005,168 graphs on 10
+  vertices [Jooken 2025]. Planar graphs come in plantri's planar code, which records each vertex's neighbors "in
+  clockwise order" and so carries the embedding that graph6 and sparse6 lose [plantri guide].
+- **Goals.** Find or rule out a counterexample; see the structure of an extremal graph well enough to guess the
+  general construction (Wagner's machine-learning search gave a best graph whose "structure gives a good idea of what
+  a potential counterexample could look like" [Jooken 2025, on Wagner 2021]); check whether a graph "already appeared
+  as an 'interesting' graph in other contexts"; publish a figure and cite the graph by its House of Graphs id, which
+  "researchers sometimes mention ... in papers" [House of Graphs 2.0].
+- **Frustrations.** The generators draw nothing; their output is text. SageMath's `show_graphs` shows "a maximum of 20
+  graphs" per array and each array must be saved separately [Sage graph_list]; its interactive view is a d3
+  force layout fetched from the web, with zoom and tooltips still listed as to-do [Sage graph_plot_js]. Its planar
+  layout uses Schnyder's algorithm and its Tutte layout needs a 3-connected planar graph [Sage graph_plot]. House of
+  Graphs starts from a spring embedding "which can then still be manually fine-tuned by the user" [House of Graphs
+  2.0], and its planar embedder works best for 3-connected graphs [House of Graphs draw]. graph6 drops the embedding
+  [plantri guide], so a planar drawing has to be recomputed after every filter step.
+- **Why the population matters to graphty-element (inference).** Small, but each graph is looked at closely and the
+  needs are unusual: graph6, sparse6 and planar code import; exact, symmetric drawings (circular, shells, planar
+  straight-line, Tutte) rather than force-directed ones; every vertex labeled; exact invariants beside the drawing;
+  paging through many tiny graphs; TikZ output. graph-io reads none of these formats today (its formats are CSV, CX,
+  CX2, Cytoscape sessions, DOT, GEXF, GML, GraphML, JSON, Neo4j CSV, OBO, Pajek, SIF, XGMML and XLSX; none is graph6).
+  graphty-element already ships circular, shell, spectral and planar layouts; its planar layout is a port of NetworkX's
+  and computes its own embedding, so it cannot use the one plantri wrote. It has no Tutte layout.
+
 ## 3. Use cases (ranked)
 
 | Rank | Question answered with a graph                                                                                                                  | Who                                | Frequency                     | Stakes                                     |
@@ -216,6 +272,8 @@ can draw" [UTD ATCM 3385].
 | 12   | Find brokers and paths; compare two networks or time slices                                                                                     | SNA, coding                        | some assignments, projects    | grade                                      |
 | 13   | Prepare a dataset, a handout and a fallback for a lab                                                                                           | instructors                        | each term                     | class time lost if it fails                |
 | 14   | Grade a figure, a step list or a metrics table quickly and fairly                                                                               | instructors, TAs                   | each assignment               | fairness; AI-use checks                    |
+| 15   | Page through the graphs a generator and filter left (a few to thousands), each drawn exactly with its invariants, to find the counterexample     | graph theory researchers (2.7)     | per project                   | a conjecture stands or falls               |
+| 16   | Draw one small graph exactly (symmetric, planar, every vertex labeled) for a paper figure and cite it                                           | graph theory researchers (2.7)     | per paper                     | the published figure must be correct       |
 
 ## 4. Step-by-step workflows
 
@@ -435,6 +493,50 @@ network analysis" (4.71 against 2.86 on a 5-point scale) and kept them exploring
 felt like "passively accepting facts" and another wanted help choosing a tour; the paper does not report which
 questions novices asked first [NetworkNarratives].
 
+### 4.11 Graph theory researcher: generate, filter, inspect and draw a counterexample
+
+No source gives durations for these steps.
+
+1. **Generate.** Run `geng` for every non-isomorphic graph of order n, with constraints on edges, degree bounds and
+   connectivity [Jooken 2025], or `plantri` for planar classes with a connectivity bound [plantri]. Output is graph6 or
+   sparse6 for geng, planar code for plantri [plantri guide]. Big runs are measured in CPU-years ("around 35, 80 and
+   125 CPU-years" for three cited projects) [Jooken 2025].
+2. **Filter.** Pipe the output into a filter rather than store it ("commonly known as piping"), typically a program
+   that checks "whether there is a graph that yields a counterexample to a conjecture" [Jooken 2025]; or select by
+   properties with `pickg` [pickg manual]; deduplicate by canonical label with `labelg`, `sort` and `uniq` [RIT
+   homework].
+3. **Look at what survived.** Load the surviving graph6 lines into SageMath (`from_graph6`) and view them 20 at a time
+   in circular layout, the default because it "takes much less time to compute than the spring-layout algorithm" [Sage
+   graph_list]; or open them in Mathematica [Wolfram Graph6]. PHOEG plots whole graph sets as points by two invariants
+   and shows "all graphs corresponding to the same point" together [Jooken 2025].
+4. **Check whether it is known.** Submit the graph to House of Graphs, which checks "whether the graph (or an isomorphic
+   copy) is already in the list" [House of Graphs 2012], or search it by invariant ranges [House of Graphs 2012]. Its
+   page shows the drawings and "all computed invariant values", from 44 invariants such as chromatic number, girth and
+   treewidth [House of Graphs 2.0].
+5. **Draw it for the paper.** Paste the graph6 string into the House of Graphs drawing tool, start from the automatic
+   spring or planar embedding, adjust by hand, and export "svg, png, pdf, tikz" [House of Graphs 2.0]; or place it by
+   hand in TikZ, TikZiT or Ipe [TikZiT; Ipe]. Mark the structure the proof uses (a figure in the survey circles "a
+   maximum independent set" [Jooken 2025]).
+6. **Publish and deposit.** Upload the graph to House of Graphs ("Any interested researcher can register a (free)
+   account") and cite its id in the paper [House of Graphs 2.0].
+
+Browsing many small graphs is a different interaction from exploring one large graph (inference from steps 3 and 4):
+the reader pages through hundreds of separate drawings, compares each with its invariants, and the layout must be
+deterministic and fast rather than an animated force simulation. Planar drawings need the embedding from step 1,
+which graph6 has already discarded: plantri's guide says of graph6 that "the embedding is not represented, so this is
+not a suitable code to use if you want the embedding", while planar code lists "the neighbours of vertex v in clockwise
+order" [plantri guide].
+
+**What graphty-element would have to read (from the format definitions).** graph6, sparse6 and digraph6 files put
+"one object per line" after an optional header (`>>graph6<<`, `>>sparse6<<`, `>>digraph6<<`); a sparse6 line starts
+with `:` and a digraph6 line with `&`; an incremental sparse6 line starts with `;`, takes its vertex count from the
+previous graph and "cannot appear as the first graph in a file" [McKay formats]. Planar code is binary, begins with
+`>>planar_code<<`, and "uses characters which are not printable"; plantri also writes edge code and two human-readable
+forms [plantri guide]. A many-line file is a collection, not one graph: NetworkX's `read_graph6` returns "a list of
+graphs" when the file "contains multiple lines" [NetworkX read_graph6], and Sage's `from_graph6` returns "a list of
+Sage Graphs" [Sage graph_list]. House of Graphs reads a graph "encoded as adjacency matrix or in graph6 format" and
+downloads in "adjaceny matrix, graph6, and multicode" [House of Graphs 2.0].
+
 ## 5. Data
 
 - **Sources.** Instructor classics; repositories (SNAP, KONECT, Netzschleuder, Network Repository) [UTD ATCM 3385;
@@ -463,6 +565,11 @@ questions novices asked first [NetworkNarratives].
   directed for survey nominations, hyperlinks and mentions; two-mode memberships needing projection [Grandjean;
   Ognyanova]; geographic [Grandjean]; time slices (Warwick). Reciprocal and parallel edges are import traps [Gephi
   issue 2216]; parallel edges are "not visualized or accessible from the user interface" in Gephi [Gephi desktop].
+- **Graph theory research data (2.7).** One graph per line in graph6, sparse6 or digraph6, all printable ASCII
+  [McKay formats]; planar code from plantri, which keeps the embedding [plantri guide]; House of Graphs downloads as
+  "adjacency list, adjaceny matrix, graph6, and multicode" [House of Graphs 2.0]. Graphs are unlabeled, unweighted and
+  without attributes; the attributes that matter are computed invariants. Sizes: usually under 30 vertices, but a file
+  can hold millions of graphs (12,005,168 graphs on 10 vertices) [Jooken 2025].
 - **Sensitivity.** Class surveys are personal data about minors (4.3); Kumu's free tier is public [Kumu pricing];
   AI rules limit what may be pasted into an assistant (4.8).
 
@@ -521,6 +628,9 @@ questions novices asked first [NetworkNarratives].
 | NetworkX / igraph     | Coding courses, MOOCs                | Reproducible; full metric set                                                                           | Weight-as-distance; seeds; "basic" drawing [NetworkX docs; NetworkX drawing; dshizuka tutorial]                                                           |
 | statnet / ergm        | Graduate sociology and statistics    | ERGM, simulation, goodness of fit [statnet ERGM tutorial]                                               | Degeneracy; log-odds interpretation [Soc 8412]                                                                                                            |
 | Cytoscape + stringApp | Biology workshops                    | Gene list to network, MCL, enrichment [stringApp protocol]                                              | Install of several apps; version-dependent menus [Jensen lab exercises]                                                                                   |
+| nauty gtools, plantri | Graph theory research                | Exhaustive isomorph-free generation; piping into filters [Jooken 2025; plantri]                         | Text output only; graph6 and sparse6 drop the embedding [plantri guide]                                                                                   |
+| SageMath graphs       | Graph theory research                | graph6 and sparse6 in and out; circular, planar (Schnyder), Tutte, tree layouts [Sage graph_plot]       | 20 graphs per array, saved one array at a time [Sage graph_list]; interactive view is a web-fetched d3 force layout [Sage graph_plot_js]                 |
+| House of Graphs       | Graph theory research                | Is this graph known; 44 invariants; drawing tool with tikz export; citable ids [House of Graphs 2.0]    | Spring embedding to fine-tune by hand; planar embedder best for 3-connected graphs [House of Graphs draw]                                                 |
 
 ## 9. Requirements implied
 
@@ -558,6 +668,11 @@ design/designloom addresses it (checked by searching the capabilities, personas 
 | 27  | Warnings when a picture invites a wrong reading (hairball, distance, size)                                                                                                      | S   | Zoss et al.; NotD; Venturini et al.                                          | **Not covered**                                                                 |
 | 28  | Identifier list to network through a public interaction database                                                                                                                | S   | stringApp; Pitt; Yale                                                        | Persona `genomics-cytoscape-user` exists; see systems-biology-omics-networks.md |
 | 29  | Accessible, keyboard-operable workflow for required coursework                                                                                                                  | M   | Accommodation statements in syllabi                                          | Studio has keyboard and screen-reader personas; not tied to coursework          |
+| 30  | Import graph6, sparse6 and digraph6 files and pasted strings (one graph per line, many graphs per file), and plantri planar code with its embedding                            | M   | Jooken 2025; McKay formats; plantri guide; Sage, NetworkX, Mathematica read graph6 | **Not covered** (graph-io has no such format; `data-import` lists none of them; needs a new capability, see below) |
+| 31  | Page through a collection of many small graphs, each drawn the same way, with invariants alongside, sorted and filtered by invariant                                            | M   | Sage `show_graphs` 20 per array; PHOEG; House of Graphs search               | `graph-collection-browser` (planned) and `network-collection-small-multiples`   |
+| 32  | Exact, deterministic layouts: circular, shells, planar straight-line from a stored or computed embedding, Tutte, and a layout that shows the automorphisms                      | M   | Sage graph_plot layouts; House of Graphs planar embedder; plantri guide      | Circular: `layout-circular-chord`. Shell and planar (computed embedding) ship in graphty-element but no capability record names them; stored embedding, Tutte and symmetry layouts **not covered**; needs a new capability, see below |
+| 33  | Exact invariants beside the drawing (order, size, degree sequence, girth, diameter, chromatic and independence number, automorphism group order, spectrum)                      | S   | House of Graphs 44 invariants                                                | `basic-statistics` partly (order, size, degrees); algorithms has isomorphism search but no girth, chromatic or independence number; **not covered** |
+| 34  | Hand adjustment of an automatic drawing kept with the graph, and TikZ export of the figure                                                                                      | S   | House of Graphs drawing tool exports tikz; TikZiT; Ipe                       | `manual-layout-preservation`; `journal-figure-export` covers vector figures but not TikZ; TikZ **not covered** (the SEM and causal-DAG personas also redraw in TikZ) |
 
 **Corrections to existing records.** W14 should add an import check against source counts, an explicit "who is
 central / what groups" first analysis with plain-language explanations, undo, and a success criterion "the user can
@@ -565,7 +680,31 @@ state one valid and one invalid conclusion about the picture" (from Zoss et al.)
 unsupported product-manager bio for a documented role (section 2.6) and add the hand-built table she arrives with,
 her pre-network first question, her likely misreadings and her sharing constraint. New
 records are needed for the algorithm learner (draw, step, check), the R statistical student (round trip, model output
-as a column) and the class-survey workflow.
+as a column) and the class-survey workflow. The graph theory researcher (2.7) gets its own persona record
+`graph-theory-researcher` and workflow W2030 (section 4.11): its data shape (many unlabeled graphs in graph6), its
+steps (generate, filter, page through, check, draw) and its deliverable (an exact figure and a citable graph) match no
+other persona. It is Tier B: medium size with no direct count, per-project use, and the graph view supports a proof
+rather than being the main screen.
+
+**Capability records the graph theory researcher still needs.** W2030 links to `data-import`, `layout-circular-chord`
+and `journal-figure-export`, but none of them carries requirements 30 to 34, so the records alone would suggest the
+workflow is supported when it is not. Four capability records are needed, each linked from W2030:
+
+- **Small-graph code import** (requirement 30). A capability of its own rather than another entry in `data-import`'s
+  format list, for two reasons. A graph6 or sparse6 file is a collection, one graph per line, and the tools that read
+  it return a list of graphs [NetworkX read_graph6; Sage graph_list], while `data-import` loads one graph. Planar code
+  is binary and carries a clockwise rotation system that no table format has [plantri guide]. The other specialized
+  formats in design/designloom already have their own records (`gfa-sequence-graph-import`,
+  `biological-network-formats`), and this follows them. It should report the number of graphs read and every line that
+  failed to parse, accept a pasted string, and write graph6 back out for citation.
+- **Exact small-graph layouts** (requirement 32): shells by degree or distance, planar straight-line from the stored
+  embedding when there is one and from a computed one otherwise, Tutte's barycentric drawing for 3-connected planar
+  graphs [Sage graph_plot], and a drawing that places an automorphism's orbits symmetrically. The shell and planar
+  layouts graphty-element already ships should be named here.
+- **Exact graph invariants** (requirement 33): girth, diameter, chromatic and independence number, automorphism group
+  order and spectrum, exact rather than estimated, shown beside the drawing and usable to sort and filter a collection.
+- **TikZ figure export** (requirement 34): the drawn positions, labels and highlighted structure as a TikZ picture, as
+  House of Graphs exports [House of Graphs 2.0]; the SEM path-diagram and causal-DAG personas redraw in TikZ too.
 
 ## 10. Sources
 
@@ -659,3 +798,30 @@ as a column) and the class-survey workflow.
 - [Gephi Lite formats] https://docs.gephi.org/lite/user-manual/file-formats/
 - [Pragmatic Works] https://pragmaticworks.com/blog/power-bi-custom-visuals-force-directed-graph
 - [Studio persona] design/ui/studio/personas/class-project-student.md
+- [House of Graphs 2012] https://ar5iv.arxiv.org/html/1204.3549 -- Brinkmann, Coolsaet, Goedgebeur, Melot, "House of
+  Graphs: a database of interesting graphs"
+- [House of Graphs 2.0] https://arxiv.org/html/2210.17253 -- Coolsaet, D'hondt, Goedgebeur, "House of Graphs 2.0: a
+  database of interesting graphs and more" (2022; also https://arxiv.org/pdf/2210.17253)
+- [House of Graphs draw] https://houseofgraphs.org/draw_graph (and FAQ https://houseofgraphs.org/help)
+- [Jooken 2025] https://arxiv.org/html/2508.20825 -- "Computer-assisted graph theory: a survey" (also
+  https://arxiv.org/pdf/2508.20825)
+- [Wagner 2021] https://arxiv.org/abs/2104.14516 -- "Constructions in combinatorics via neural networks"
+- [Graph repositories survey] https://arxiv.org/abs/2006.12741 -- Swain, Bonnington, Farr, Morgan, "A survey of
+  repositories in graph theory" (2020)
+- [zbMATH 05C counts] https://api.zbmath.org/v1/document/_search?search_string=cc%3A05C%20py%3A2024 (field
+  `nr_total_results`; change `py` for other years; queried 2026-11-25)
+- [nauty citations] https://iris.uniroma1.it/handle/11573/559745 -- McKay and Piperno, "Practical graph isomorphism,
+  II", Scopus 1,063
+- [McKay formats] https://users.cecs.anu.edu.au/~bdm/data/formats.txt
+- [pickg manual] https://manpages.debian.org/testing/nauty/nauty-pickg.1
+- [RIT homework] https://www.cs.rit.edu/~spr/COURSES/CCOMP/hm2.pdf
+- [plantri] https://users.cecs.anu.edu.au/~bdm/plantri/
+- [NetworkX read_graph6] https://networkx.org/documentation/stable/reference/readwrite/generated/networkx.readwrite.graph6.read_graph6.html
+  -- "If the file contains multiple lines then a list of graphs is returned."
+- [plantri guide] https://users.cecs.anu.edu.au/~bdm/plantri/plantri-guide.txt
+- [Sage graph_list] https://doc.sagemath.org/html/en/reference/graphs/sage/graphs/graph_list.html
+- [Sage graph_plot] https://doc.sagemath.org/html/en/reference/plotting/sage/graphs/graph_plot.html
+- [Sage graph_plot_js] https://doc.sagemath.org/html/en/reference/graphs/sage/graphs/graph_plot_js.html
+- [Wolfram Graph6] https://reference.wolfram.com/language/ref/format/Graph6.html
+- [Ipe] https://ipe.otfried.org/
+- [TikZiT] https://tikzit.github.io/

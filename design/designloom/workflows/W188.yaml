@@ -68,28 +68,28 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Get the data turned on** (5+ days) - A Viva Insights admin enables behavioral insights and Advanced Analysis;
+    1. **Get the data turned on** - A Viva Insights admin enables behavioral insights and Advanced Analysis;
     processing takes five days before network queries run
 
-    2. **Connect and pseudonymize** (days) - Ingest through a pseudonymizing proxy that allowlists metadata fields and
+    2. **Connect and pseudonymize** - Ingest through a pseudonymizing proxy that allowlists metadata fields and
     replaces emails with tokens; apply the same algorithm to the HRIS export so they join; set partitions, suppression
     and opt-outs
 
-    3. **Define the interaction** (hours) - Reciprocity required; participant caps (chats with 8 or fewer, emails with 18
+    3. **Define the interaction** - Reciprocity required; participant caps (chats with 8 or fewer, emails with 18
     or fewer); minimum counts (for example at least 4 emails a month with one each way); filter automated traffic;
     separate internal and external; choose the window (30 days, 90 days, 12 months)
 
-    4. **Project group interactions** (hours) - Turn person-by-meeting, person-by-chat and multi-recipient email records
+    4. **Project group interactions** - Turn person-by-meeting, person-by-chat and multi-recipient email records
     into pairs; cap group size and weight each interaction by 1 over its recipients; optionally keep 1:1 and group
     channels as separate layers
 
-    5. **Run the query** (hours) - Person-to-person pair rows with strong and diverse tie scores and HR attributes;
+    5. **Run the query** - Person-to-person pair rows with strong and diverse tie scores and HR attributes;
     optional weekly or monthly auto-refresh
 
-    6. **Load and analyze** (hours) - Read summary tables first; Leiden or Louvain communities with a fixed resolution
+    6. **Load and analyze** - Read summary tables first; Leiden or Louvain communities with a fixed resolution
     and seed; betweenness; group-to-group collaboration time with small edges hidden; test across date ranges
 
-    7. **Aggregate before showing** (hours) - Enforce a minimum group size of at least 5; keep degree as the only
+    7. **Aggregate before showing** - Enforce a minimum group size of at least 5; keep degree as the only
     individual property; hide individual links in executive maps
 
     8. **Deliver** (recurring) - Unlabeled maps colored by workgroup, a scatter of workgroup metrics, animations of

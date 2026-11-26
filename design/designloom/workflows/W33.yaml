@@ -3,6 +3,7 @@ name: Temporal and Influence Models Beyond SAOM
 category: analysis
 validated: false
 personas:
+    - political-networks-scholar
     - sociometric-network-researcher
     - archival-affiliation-researcher
 requires_capabilities:
@@ -51,29 +52,29 @@ goal: >-
 
     **Relational events (goldfish: DyNAM and REM):**
 
-    1. **Prepare tables** (estimate: 30 min) - A node table (label, attributes) and an event table with time, sender,
+    1. **Prepare tables** - A node table (label, attributes) and an event table with time, sender,
     receiver and increment (or replace for state changes). The teaching example has 84 students and 439 phone calls,
     plus a friendship event table.
 
-    2. **Define** (estimate: 10 min) - defineNodes(), defineNetwork(nodes, directed = TRUE), linkEvents() for each event
+    2. **Define** - defineNodes(), defineNetwork(nodes, directed = TRUE), linkEvents() for each event
     table, defineDependentEvents().
 
-    3. **Estimate** (estimate: minutes to hours) - DyNAM rate (who acts next) then choice (whom they contact) with
+    3. **Estimate** - DyNAM rate (who acts next) then choice (whom they contact) with
     inertia, recip and trans effects; or REM for the tie-oriented model.
 
-    4. **Visualize** (estimate: 20 min) - The call network at the start, middle and end of the period.
+    4. **Visualize** - The call network at the start, middle and end of the period.
 
     **Temporal ERGM (btergm):**
 
-    1. **Assemble** (estimate: 1 hour) - A chronological list of networks (for example 20 yearly alliance networks among
+    1. **Assemble** - A chronological list of networks (for example 20 yearly alliance networks among
     164 countries) with time-varying covariates.
 
-    2. **Fit** (estimate: minutes to hours) - btergm(networks ~ edges + gwesp(...) + memory(...), R = 1000) with
+    2. **Fit** - btergm(networks ~ edges + gwesp(...) + memory(...), R = 1000) with
     bootstrapped intervals, or mtergm() for MCMC maximum likelihood.
 
-    3. **Check out-of-sample fit** (estimate: 20 min) - Fit on earlier years and gof(..., target = later networks).
+    3. **Check out-of-sample fit** - Fit on earlier years and gof(..., target = later networks).
 
-    4. **Figures** (estimate: 30 min) - Small multiples of yearly networks and GOF plots.
+    4. **Figures** - Small multiples of yearly networks and GOF plots.
 
     **Peer influence on an outcome:**
 

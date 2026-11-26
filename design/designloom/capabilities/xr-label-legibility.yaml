@@ -4,12 +4,18 @@ category: visualization
 description: Labels that stay readable in a headset (scaled, billboarded, shown on approach or selection) and a way to
     read a node's details up close.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: three-dimensional-and-immersive-network-analysis.md section 10, requirement R16 (Must)."
 algorithms: []
 used_by_workflows:
     - W418
     - W420
     - W421
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Label readability at a distance in XR: labels that stay legible (scaled, billboarded, shown on approach or
+      on selection) and a way to read a node's details up close"
+sources:
+    - title: Analysts Who Work With Networks in 3D and in Immersive VR or AR (section 10, requirement R16)
+      url: design/user-research/three-dimensional-and-immersive-network-analysis.md
+      summary: "Must in the research (the document says: must for XR). Covered by Designloom when researched: Not
+        covered"

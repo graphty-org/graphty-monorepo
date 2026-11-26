@@ -1,0 +1,18 @@
+id: custodial-service-boundary
+name: "Stop tracing at custodial services"
+category: analysis
+description: "Hop expansion stops at nodes labeled as a custodial service (exchange, payment processor, nested service): the outgoing history of a service deposit address is hidden by default and marked as not traceable on chain, with a warning when the labeled cluster may host a nested service. A bounded search from a seed finds the nearest node carrying a chosen label (for example exchange) within a maximum hop count and maximum node degree, and shows the path. Sources: Chainalysis on common blockchain analysis mistakes (Reactor hides outgoing history of service deposit addresses; nested services) and the GraphSense paper, arXiv 2102.13613 (automatic search for exchange entities within boundary conditions)."
+status: planned
+notes: "Research trace: law-enforcement-and-intelligence-analysts.md section 10, requirement 17a (Must)."
+algorithms: []
+used_by_workflows:
+    - W105
+implemented_by_components: []
+requirements:
+    - "Must: Expansion that stops at labeled custodial services (outgoing history of a deposit address hidden and marked
+      as not traceable on chain) and a bounded search for the nearest labeled service from a seed"
+sources:
+    - title: Law enforcement crime and intelligence analysts, and defense and national intelligence analysts (section
+        10, requirement 17a)
+      url: design/user-research/law-enforcement-and-intelligence-analysts.md
+      summary: "Must in the research. Covered by Designloom when researched: Gap"

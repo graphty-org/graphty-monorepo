@@ -1,5 +1,8 @@
 id: class-project-student
 name: Class Project Student
+roster_persona: class-project-student
+tier: A
+scope: in-scope
 role: Undergraduate in a Social Network Analysis or Digital Methods Course
 quote: The assignment says find the most important people and the groups, and export a figure. I have the lab slides and one tutorial.
 bio: >-
@@ -51,6 +54,7 @@ workflows:
     - W233
     - W234
     - W238
+    - W26
 sources:
     - title: Rutgers SC&I 373 Network Analysis syllabus (Ognyanova, 2025)
       url: https://kateto.net/teach/SCI%20373%20Network%20Analysis%20Syllabus%20-%20Ognyanova%20-%202025.pdf

@@ -1,9 +1,12 @@
 id: crypto-blockchain-investigator
 name: Crypto Blockchain Investigator
-role: Blockchain Investigator, crypto exchange financial-crimes team (formerly a police crypto unit)
+roster_persona: aml-investigator
+tier: A
+scope: in-scope
+role: Blockchain Tracing Investigator, crypto exchange financial-crimes team or a law-enforcement tax or cyber unit
 quote: Where did these coins come from, which swaps and bridges did they cross, and which exchange cashed them out? And how sure am I that this cluster is really one owner?
 bio: >-
-    Tomas Herrera traces funds on public blockchains for a crypto exchange's financial-crimes team, after several years in a
+    Javier Herrera traces funds on public blockchains for a crypto exchange's financial-crimes team, after several years in a
     police cryptocurrency unit. The tracing tool's graph (Chainalysis Reactor or TRM Forensics; Elliptic Investigator or
     Crystal elsewhere) is his main screen all day. He seeds it with an address or transaction hash from an alert, a victim
     report or a law-enforcement order, reads Bitcoin-style transactions with many inputs and outputs as transaction nodes,
@@ -48,7 +51,8 @@ context:
 workflows:
     - W120
     - W121
-    - W124
+    - W103
+    - W105
 sources:
     - title: Chainalysis Reactor product page
       url: https://www.chainalysis.com/product/reactor/
@@ -71,6 +75,30 @@ sources:
     - title: TRM Labs - January 2026 product highlights
       url: https://www.trmlabs.com/resources/blog/january-product-highlights-accelerating-investigations-with-intuitive-workflows
       summary: Add a graph address to a monitoring tool for near real-time movement alerts
-version: 1.0.0
+    - title: Chainalysis Reactor product page
+      url: https://www.chainalysis.com/chainalysis-reactor/
+      summary: Follow funds from first deposit to final cash-out; labeled service clusters; add financial entities and documents to the graph
+    - title: Chainalysis - Cross-chain investigations
+      url: https://www.chainalysis.com/blog/cross-chain-investigations/
+      summary: Every case-relevant token in a single graph with an asset selector that dims other clusters
+    - title: TRM Forensics
+      url: https://www.trmlabs.com/forensics
+      summary: Follow UTXO transactions forward or backward with a single click; shows which clustering heuristic is used (search excerpt)
+    - title: GraphSense
+      url: http://graphsense.org/
+      summary: Open-source analytics with transaction traversal, path search between two nodes, and TagPacks for attribution
+    - title: INTERPOL GraphSense Maltego transform
+      url: https://www.github.com/INTERPOL-Innovation-Centre/GraphSense-Maltego-transform
+      summary: To Cluster and To Tags transforms used by investigators inside Maltego
+    - title: Stout - Judicial scrutiny of Chainalysis (United States v. Sterlingov)
+      url: https://www.stout.com/en/insights/article/judicial-scrutiny-chainalysis
+      summary: Co-spend heuristic, over 900,000 addresses attributed to Bitcoin Fog, admissibility after Daubert hearings, defense "junk science" attack
+    - title: The Block - New tech streamlines investigations into illicit crypto use
+      url: https://www.theblock.co/news/business/2022-05-19-new-tech-streamlines-investigations-into-illicit-crypto-use-chainalysis-147856
+      summary: Reactor wash-trading graph described as a Christmas tree of multicolor transactions
+    - title: Haslhofer and Meiklejohn 2022 - Cryptocurrency forensics
+      url: https://arxiv.org/abs/2205.13882
+      summary: Change heuristic and peel chains, and their error modes
+version: 1.1.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

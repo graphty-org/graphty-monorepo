@@ -1,5 +1,8 @@
 id: emergency-contact-tracing-supervisor
 name: Emergency Contact Tracing Supervisor
+roster_persona: public-health-cluster-epidemiologist
+tier: B
+scope: in-scope
 role: Contact Tracing Pillar Lead, National Outbreak Response
 quote: Every contact seen today, every new case attached to a chain, and tell me if the chain runs through a hospital.
 bio: >-

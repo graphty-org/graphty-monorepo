@@ -59,22 +59,22 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Intake and scoping** (1 hour) - Clarify the question, units and years; the NIH Library caps basic service at 20
+    1. **Intake and scoping** - Clarify the question, units and years; the NIH Library caps basic service at 20
     staff hours per report with an 8-week turnaround
 
-    2. **Decide whether a network is needed** (15 min) - SciVal's collaboration module answers many questions with a
+    2. **Decide whether a network is needed** - SciVal's collaboration module answers many questions with a
     world map and collaborator table; a network adds structure (bridges, co-author clusters, topic structure)
 
-    3. **Export data** (1-3 hours) - Within each database's export limit, or from OpenAlex, Crossref, Europe PMC,
+    3. **Export data** - Within each database's export limit, or from OpenAlex, Crossref, Europe PMC,
     Semantic Scholar or OpenCitations APIs
 
-    4. **Clean** (4-10 hours) - Match authors to the roster by ORCID or Scopus ID, build thesauri for organization and
+    4. **Clean** - Match authors to the roster by ORCID or Scopus ID, build thesauri for organization and
     name variants, cap authors per document
 
-    5. **Map** (2-3 hours) - Organization and country co-authorship with fractional counting, author co-authorship
+    5. **Map** - Organization and country co-authorship with fractional counting, author co-authorship
     colored by internal unit, keyword co-occurrence for topics
 
-    6. **Deliver** (2-4 hours) - Summary for non-technical readers, annotated figures, top-partner table, documented
+    6. **Deliver** - Summary for non-technical readers, annotated figures, top-partner table, documented
     methods; sometimes a dashboard or interactive link
 
 
@@ -121,7 +121,7 @@ goal: >-
     - Output: Annotated maps, partner tables, plain-language summary, methods appendix, optional interactive link
 success_criteria:
     - metric: Rerun cost
-      target: The same cleaning and mapping steps applied to a new department in under an hour
+      target: The same cleaning and mapping steps applied to a new department in under an hour (design goal; no source measures it)
     - metric: Identity transparency
       target: Report states the roster match rate and flags ambiguous names
     - metric: Reader comprehension

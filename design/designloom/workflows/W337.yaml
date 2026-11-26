@@ -65,26 +65,26 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Load** (5 min) - Import the association table (long form: taxon A, taxon B, coefficient, p-value) and the node
+    1. **Load** - Import the association table (long form: taxon A, taxon B, coefficient, p-value) and the node
     table (taxon id, phylum, genus, mean abundance, prevalence); check that every edge endpoint matched a taxon
 
-    2. **Threshold** (5 min) - Keep edges with absolute coefficient at or above a cutoff (0.3 and 0.6 are conventions) and
+    2. **Threshold** - Keep edges with absolute coefficient at or above a cutoff (0.3 and 0.6 are conventions) and
     adjusted p below 0.05; see the coefficient histogram with the cutoff marked and the edge, node and component counts
     update as it moves; drop isolated taxa and note how many
 
-    3. **Encode and lay out** (10 min) - Color by phylum or module, size by degree or abundance, positive edges and
+    3. **Encode and lay out** - Color by phylum or module, size by degree or abundance, positive edges and
     negative edges in two colors, width by absolute coefficient; force-directed layout
 
-    4. **Modules and roles** (10 min) - Detect modules; compute within-module degree (Zi) and participation (Pi); flag
+    4. **Modules and roles** - Detect modules; compute within-module degree (Zi) and participation (Pi); flag
     module hubs (Zi above 2.5), connectors (Pi above 0.62) and network hubs as keystone candidates in a ranked table
 
-    5. **Sweep the cutoff** (10 min) - Re-run steps 2 and 4 at three to five cutoffs; table edges, positive-to-negative
+    5. **Sweep the cutoff** - Re-run steps 2 and 4 at three to five cutoffs; table edges, positive-to-negative
     ratio, modularity, number of modules and the keystone list at each; note which keystone taxa persist
 
-    6. **Compare conditions** (15 min) - Load the network of each condition at the same cutoff; show side by side with the
+    6. **Compare conditions** - Load the network of each condition at the same cutoff; show side by side with the
     same colors; table shared and unique edges and global properties
 
-    7. **Export** (10 min) - Figure per condition with legend, node and edge tables, the sweep table and a parameter record
+    7. **Export** - Figure per condition with legend, node and edge tables, the sweep table and a parameter record
     (inference method, cutoff, p-value correction, module method and seed)
 
 
@@ -140,7 +140,7 @@ success_criteria:
     - metric: Robustness reported
       target: Keystone list and modularity reported at three or more cutoffs
     - metric: Time from association table to compared figures
-      target: Under one hour for two conditions
+      target: Under one hour for two conditions (design goal; no source measures it)
 sources:
     - title: Matchado et al. 2021 - Network analysis methods for studying microbial communities (mini review)
       url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8131268

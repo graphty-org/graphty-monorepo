@@ -48,16 +48,16 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Open the alert** (seconds) - From the queue: title, affected assets, details pane, and the alert story tree of
+    1. **Open the alert** - From the queue: title, affected assets, details pane, and the alert story tree of
     processes and entities before and after the trigger, including other alerts from the same execution tree
 
-    2. **Walk the tree** (2-10 min) - Select entities, expand non-alert entity cards; read event-category markers
+    2. **Walk the tree** - Select entities, expand non-alert entity cards; read event-category markers
     (file, registry, network) and time elapsed between processes; read the condensed chronological timeline beside the
     tree; the time range defaults to the alert table's range
 
-    3. **Act** (1 min) - From the details pane: isolate the device, quarantine the file
+    3. **Act** - From the details pane: isolate the device, quarantine the file
 
-    4. **Classify** (1 min) - True alert with a determination, or false alert; for a line-of-business false positive,
+    4. **Classify** - True alert with a determination, or false alert; for a line-of-business false positive,
     create a suppression rule
 
     5. **Escalate to the incident graph** (as needed) - Alerts, users, devices and mailboxes as nodes; replay alerts

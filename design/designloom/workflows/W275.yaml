@@ -53,16 +53,16 @@ goal: >-
     2. **Cluster at a threshold** (in code) - `cluster_pairwise_predictions_at_threshold(df_predictions,
     threshold_match_probability=0.5)` by connected components
 
-    3. **Compute graph metrics** (5 min) - Per node degree and centrality, per edge is_bridge, per cluster size, density
+    3. **Compute graph metrics** - Per node degree and centrality, per edge is_bridge, per cluster size, density
     and centralisation
 
-    4. **Rank clusters for review** (5 min) - Largest clusters (over-merging), lowest density for their size (missed
+    4. **Rank clusters for review** - Largest clusters (over-merging), lowest density for their size (missed
     links, `lowest_density_clusters_by_size`), clusters with bridges or high edge betweenness
 
-    5. **Inspect one cluster** (3 min each) - Records as nodes, pairs as edges labeled and colored by match probability,
+    5. **Inspect one cluster** - Records as nodes, pairs as edges labeled and colored by match probability,
     bridges marked, record fields side by side
 
-    6. **Decide** (2 min each) - Raise or lower the threshold, tighten or loosen blocking rules, or send to clerical
+    6. **Decide** - Raise or lower the threshold, tighten or loosen blocking rules, or send to clerical
     review; re-cluster and repeat
 
 

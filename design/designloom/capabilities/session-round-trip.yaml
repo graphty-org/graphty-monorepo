@@ -5,7 +5,7 @@ description: Styles, thresholds, filters, layers and layout survive save and reo
     parameter record (thresholds, filters, algorithm settings) needed for a methods section, with results marked stale
     when their inputs change.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: public-health-and-molecular-epidemiology.md section 10, table row 16 (Must)."
 algorithms: []
 used_by_workflows:
     - W61
@@ -15,5 +15,10 @@ used_by_workflows:
     - W70
     - W75
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Stable session round-trip: styles, thresholds, filters and layout survive save and reopen unchanged"
+sources:
+    - title: Public Health Outbreak Investigators and Molecular Epidemiologists (section 10, table row 16)
+      url: design/user-research/public-health-and-molecular-epidemiology.md
+      summary: "Must in the research. Covered by Designloom when researched: partly
+        (session publication)"

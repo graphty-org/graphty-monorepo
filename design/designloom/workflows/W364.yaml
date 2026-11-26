@@ -123,7 +123,7 @@ goal: >-
     - Output: Custodian list and memo, graph image, communicator count table (CSV), saved searches and review batches
 success_criteria:
     - metric: Candidate identification
-      target: User can list non-custodians ranked by communication with custodians in under 10 minutes
+      target: User can list non-custodians ranked by communication with custodians in under 10 minutes (design goal; no source measures it)
     - metric: Defensibility
       target: The exported image carries the scope, caps and filters that produced it
     - metric: Bias awareness

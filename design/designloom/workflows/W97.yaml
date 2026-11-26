@@ -47,32 +47,32 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Obtain records** (days, outside the tool) - Serve legal process and request the carrier's CDR reference
+    1. **Obtain records** (outside the tool) - Serve legal process and request the carrier's CDR reference
     document (the "carrier key") and its cell-site list; for prepaid resellers also get records from the underlying
     network
 
-    2. **Clean** (30-120 min) - Columns differ per carrier. Carriers report times in the device's zone, the switch's
+    2. **Clean** - Columns differ per carrier. Carriers report times in the device's zone, the switch's
     zone, a central zone or UTC, and one CDR can mix zones; normalize to one zone. Normalize numbers with country and
     dialling codes ("+420..." vs "00420...")
 
-    3. **Start the import** (2 min) - Pick or create a saved specification for this carrier, set delimiter and header
+    3. **Start the import** - Pick or create a saved specification for this carrier, set delimiter and header
     rows, and choose an association (calling network) or timeline design
 
-    4. **Assign columns** (5 min) - Calling number to entity 1 (telephone), called number to entity 2; date, time,
+    4. **Assign columns** - Calling number to entity 1 (telephone), called number to entity 2; date, time,
     duration, type and cell ID to the link; an identity column per entity; column actions that replace or standardize
     values so matching works
 
-    5. **Set formats** (2 min) - Date and time format, and time zone, per column
+    5. **Set formats** - Date and time format, and time zone, per column
 
-    6. **Set link multiplicity** (1 min) - Multiple (every call a line), Directed (calls in one direction merged into
+    6. **Set link multiplicity** - Multiple (every call a line), Directed (calls in one direction merged into
     one line, the usual choice) or Single (one line per pair); label links with the count and the summed duration
 
-    7. **Match entities** (2 min) - Choose the properties that identify an entity so a number in two carriers' files
+    7. **Match entities** - Choose the properties that identify an entity so a number in two carriers' files
     becomes one node
 
-    8. **Save the specification** (1 min) - Store it in a shared team folder, one per carrier
+    8. **Save the specification** - Store it in a shared team folder, one per carrier
 
-    9. **Import and check** (5 min) - List items and list the most-connected entities to confirm the import looks right
+    9. **Import and check** - List items and list the most-connected entities to confirm the import looks right
 
 
     **Decision Points**:
@@ -123,7 +123,7 @@ goal: >-
     specification for the carrier
 success_criteria:
     - metric: Repeat import time
-      target: A second return from the same carrier imports through the saved mapping in under 5 minutes
+      target: A second return from the same carrier imports through the saved mapping in under 5 minutes (design goal; no source measures it)
     - metric: Identity matching
       target: The same number from two carriers' files is one node, and the analyst can see how many rows matched
     - metric: Call-level fidelity

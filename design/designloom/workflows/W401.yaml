@@ -43,17 +43,17 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Gather artifacts** (10 min) - Rooted tree, feature table, sample metadata, taxonomy, PCoA or biplot from QIIME 2
+    1. **Gather artifacts** - Rooted tree, feature table, sample metadata, taxonomy, PCoA or biplot from QIIME 2
 
-    2. **Run EMPress** (5 min) - qiime empress community-plot with tree, table, metadata, taxonomy, PCoA, filter extra
+    2. **Run EMPress** - qiime empress community-plot with tree, table, metadata, taxonomy, PCoA, filter extra
     samples, number of features 10; open the .qzv in a browser
 
-    3. **Layout** (2 min) - Tree sheared to features in the table; rectangular, circular or unrooted
+    3. **Layout** - Tree sheared to features in the table; rectangular, circular or unrooted
 
-    4. **Barplots** (10 min) - Stacked bars of each sample category's share per tip, or color- or height-graded bars
+    4. **Barplots** - Stacked bars of each sample category's share per tip, or color- or height-graded bars
     for continuous metadata (pH)
 
-    5. **Linked views** (15 min) - Click a tip or clade to highlight samples in the ordination; select samples to
+    5. **Linked views** - Click a tip or clade to highlight samples in the ordination; select samples to
     highlight tree nodes; biplot arrows highlight their features
 
 
@@ -93,7 +93,7 @@ success_criteria:
     - metric: Scale
       target: A 500,000-node tree with tip barplots stays interactive
     - metric: Two-way linking
-      target: Selection in tree or ordination highlights the other within one second
+      target: Selection in tree or ordination highlights the other within one second (design goal; no source measures it)
 sources:
     - title: EMPress (Cantrell et al. 2021)
       url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8546999

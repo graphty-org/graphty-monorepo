@@ -1,9 +1,12 @@
 id: structural-network-biologist
 name: Structural Network Biologist
+roster_persona: genomics-cytoscape-user
+tier: A
+scope: in-scope
 role: Biophysicist / Structural Biologist (Allostery and Residue Networks)
 quote: I want the residues that carry the signal from the binding site to the active site, drawn where they sit in the molecule.
 bio: >-
-    Dr. Priya Nair is a biophysicist studying allostery, mutation effects and protein-RNA communication. She starts from
+    Dr. Gita Nair is a biophysicist studying allostery, mutation effects and protein-RNA communication. She starts from
     a PDB or AlphaFold structure or a molecular dynamics trajectory and builds a residue interaction network: each amino
     acid (or nucleotide part) is a node with 3D coordinates, and each typed contact -- hydrogen bond, ionic, pi
     stacking, van der Waals -- is an edge, so the graph is a multigraph. From trajectories she adds correlation weights

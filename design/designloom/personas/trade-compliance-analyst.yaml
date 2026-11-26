@@ -1,10 +1,13 @@
 id: trade-compliance-analyst
 name: Trade Compliance Analyst
+roster_persona: supply-chain-analyst
+tier: B
+scope: in-scope
 role: Trade Compliance Manager / Forced-Labor Import Compliance Lead
 quote: CBP detained the container on Monday. I have 30 days to prove, document by document, that nothing in it touches
     Xinjiang or a listed entity -- and one missing supplier sinks the whole package.
 bio: >-
-    Nadia manages trade compliance for an importer of apparel and solar equipment, two sectors US Customs and Border
+    Laila manages trade compliance for an importer of apparel and solar equipment, two sectors US Customs and Border
     Protection prioritizes under the Uyghur Forced Labor Prevention Act. When a shipment is detained she has 30 days to
     respond or export it. Her unit of work is one shipment, not a supplier: she anchors on the entry, breaks the product
     into materials and production steps (fiber, yarn, fabric, dyeing, garment assembly; or quartzite to polysilicon to
@@ -40,7 +43,7 @@ frustrations:
     - Shipper names vary between records or are redacted, and translated names do not match
     - Each package is assembled by hand as numbered PDF exhibits with translations
     - Screening vendors return entity reports and maps, but the evidence chain has to be rebuilt for each detention
-    - The EU deforestation and forced labour regulations add different units (land-plot polygons, investigations on request) on top of the US rules
+    - The EU Forced Labour Regulation adds a different unit (investigations on request, from December 2027) on top of the US rules
 context:
     frequency: weekly
     devices:

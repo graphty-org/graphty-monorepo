@@ -5,11 +5,17 @@ description: Hold many small graphs (molecules, entity resolution clusters, comp
     labels, splits and metrics; sort, filter and sample them, show small multiples, open one, and compare it with its
     nearest graphs side by side.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: code-first-data-scientists-and-graph-ml.md section 10, table row 10 (Must)."
 algorithms: []
 used_by_workflows:
     - W273
     - W275
+    - W2030
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Many small graphs as one document: per-graph labels and splits; browse, sort, small multiples; open one;
+      compare with nearest graphs"
+sources:
+    - title: Code-First Data Scientists and Graph Machine Learning Engineers (section 10, table row 10)
+      url: design/user-research/code-first-data-scientists-and-graph-ml.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

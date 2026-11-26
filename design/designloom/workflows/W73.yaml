@@ -63,28 +63,28 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Choose the approach** (30 min) - One method works from case data directly; another works from a dated
+    1. **Choose the approach** - One method works from case data directly; another works from a dated
     phylogeny, which has to be built first
 
-    2. **Run the case-data method** (hours) - Supply sampling dates, genetic data as sequences or a tree, and
+    2. **Run the case-data method** - Supply sampling dates, genetic data as sequences or a tree, and
     generation-time and incubation-period distributions; it samples the transmission tree, infection times and
     unobserved cases as augmented data
 
-    3. **Check convergence** (30 min) - Read the trace of the sampling chain before reading any result
+    3. **Check convergence** - Read the trace of the sampling chain before reading any result
 
-    4. **Read the posterior ancestries** (1 hour) - A plot in which the size of each circle is how often that
+    4. **Read the posterior ancestries** - A plot in which the size of each circle is how often that
     individual was sampled as the infector of a given case, with the index case shown as infector zero
 
-    5. **Run the phylogeny-based method** (hours to days) - Start from a dated phylogeny whose leaves sit at sampling
+    5. **Run the phylogeny-based method** - Start from a dated phylogeny whose leaves sit at sampling
     dates; it returns who infected whom and when including unsampled intermediate hosts, a phylogeny colored by host
     so a color change marks a transmission event, a matrix of the probability of direct transmission for every pair,
     a matrix of the number of transmission steps between pairs, and a medoid tree as a single summary
 
-    6. **Draw it with the uncertainty intact** (hours) - Every edge carries a probability and a node can have several
+    6. **Draw it with the uncertainty intact** - Every edge carries a probability and a node can have several
     candidate ancestors, so the drawing needs edge opacity or width by probability and a way to show the
     alternatives rather than only the consensus parent
 
-    7. **Compare with the interviews** (hours) - Read the posterior ancestries against the contact data;
+    7. **Compare with the interviews** - Read the posterior ancestries against the contact data;
     disagreements are either a missing interview link or an unsampled case
 
 

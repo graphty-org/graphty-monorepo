@@ -51,19 +51,28 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Collect** (days) - Provider returns arrive as ZIP files of HTML, JSON, CSV, PDF, mbox and images with no
-    standard layout; public profiles are collected and preserved with OSINT tools
+    1. **Collect** - Provider returns arrive as ZIP files of HTML, JSON, CSV, PDF, mbox and images with no
+    standard layout, nested in folders and archives; public posts are found by hashtag searches in gang slang and
+    through less careful relatives' and friends' profiles, and saved as dated screenshots; agency data comes as CSV
+    or Excel from SQL Server, reports and subpoena returns
 
-    2. **Extract link types** (hours) - Account to account (messages, friends, followers), account to IP address and
+    2. **Extract link types** - Account to account (messages, friends, followers), account to IP address and
     login time, account to device, account to phone and email
 
-    3. **Link ads and accounts by shared identifiers** (30 min) - Ads joined through phone numbers (two-mode ad to
-    number data projected to ad to ad)
+    3. **Link ads, numbers and callers** - Ads and inmates' jail calls joined through shared phone numbers; in
+    ArcGIS Pro: import, link chart, generate nodes, generate ties, change layout, generate node scores
 
-    4. **Add the friend and follower graph** (30 min) - Friends used for link analysis; combined with official records,
-    network analysis can show a gang's hierarchy
+    4. **Find key nodes and listen** - Eigenvector and betweenness pick nodes; calls to those nodes are keyword
+    searched for context
 
-    5. **Join to CDRs and RMS** (30 min) - Merge into the case chart with call records and records-management data
+    5. **Add records and re-run** - Add RMS and criminal justice records; map senders and receivers from Cash App
+    returns and find bridge accounts between targets to subpoena
+
+    6. **Add friend and follower ties** - Graded like any other report; check the structure against behavior
+    rather than assuming a hierarchy (most gangs are loose subgroups joined by non-members)
+
+    7. **Reduce and hand over** - About 100 key nodes reviewed in Excel with a background line each; merge into
+    the case chart with call records and records-management data
 
 
     **Decision Points**:
@@ -71,6 +80,8 @@ goal: >-
     - Which shared identifiers are strong enough to link two accounts or ads?
 
     - Is a friend or follower tie meaningful for this gang?
+
+    - Which bridge accounts or numbers are worth a subpoena?
 
     - Which account belongs to which real person?
 
@@ -94,6 +105,11 @@ goal: >-
 
     - Accounts, phones and people need merging across sources
 
+    - Built-in link views in records systems weight every link the same and cannot group by crime type, region or
+    gang
+
+    - Members rarely use real names online, so the hard part is identifying people, not finding posts
+
 
     **Data Flow**:
 
@@ -102,8 +118,8 @@ goal: >-
     - Transformations: Parsing per provider, link-type extraction, shared-identifier projection, identity merging,
     joining with call and agency data
 
-    - Output: Multi-modal network of accounts, ads, phones and people with hierarchy and clusters, merged into the case
-    chart
+    - Output: Multi-modal network of accounts, ads, phones, payment accounts and people, a key-node list of about 100
+    entries with backgrounds and subpoena targets, merged into the case chart
 success_criteria:
     - metric: Shared-identifier linking
       target: Ads and accounts sharing a phone number, email or IP are linked with counts in one step
@@ -112,13 +128,16 @@ success_criteria:
 sources:
     - title: IACA 2024 Virtual Conference - Social Network Analysis (Harris County)
       url: https://iaca.net/assets/Training-Files/Webinars/VirtualConferences/2024VirtualConference/2024%20IACA%20SNA%20Bush.pdf
-      summary: 244.6K adult service ads linked through 13,336 phone numbers; Cash App bridge accounts
-    - title: COPS Office - Cincinnati gang network report
+      summary: 244.6K adult service ads and 13,336 phone numbers linked to jail calls; ArcGIS Pro link chart steps; key
+          nodes; Cash App bridge accounts; results reviewed in Excel at about 100 nodes
+    - title: Papachristos and Sierra-Arevalo (2018) - Policing the Connected World (COPS Office)
       url: https://portal.cops.usdoj.gov/resourcecenter/content.ashx/cops-w0859-pub.pdf
-      summary: Official records combined with social media data; network analysis showed the gang's hierarchy (search excerpt)
+      summary: Stockton co-arrest network around two gang members was "not a hierarchy" but subgroups joined by
+          non-members; warns against superimposing hierarchy
     - title: Maryland Coordination and Analysis Center - gang activity on social media
       url: https://mcac.maryland.gov/2024/01/using-gang-activity-on-social-media-to-drive-intelligence-led-policing/
-      summary: Friends used for link analysis (search excerpt)
+      summary: Hashtag searches in gang slang, dated screenshots, searching relatives' profiles; friends used for link
+          analysis
     - title: Magnet Forensics - Warrant return analysis in AXIOM
       url: https://www.magnetforensics.com/blog/warrant-return-analysis-in-magnet-axiom/
       summary: Provider returns arrive as ZIP files of HTML, JSON, CSV, PDF, mbox and images with no standard layout
@@ -128,6 +147,6 @@ sources:
     - title: PenLink - CDR analysis 101
       url: https://www.penlink.com/blog/cdr-analysis-101/
       summary: Joining call records with other case data
-version: 1.0.0
+version: 1.1.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

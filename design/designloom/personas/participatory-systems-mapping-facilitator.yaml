@@ -1,9 +1,12 @@
 id: participatory-systems-mapping-facilitator
 name: Participatory Systems Mapping Facilitator
+roster_persona: systems-mapping-facilitator
+tier: B
+scope: in-scope
 role: Evaluation Consultant / Participatory Modelling Researcher
 quote: The conversation in the room is half the output. The other half is a map they recognize and an analysis that answers their question, with every arrow traceable to who said it.
 bio: >-
-    Dr. Tom Reyes is a consultant and researcher who designs and runs mapping workshops for government departments,
+    Dr. Diego Reyes is a consultant and researcher who designs and runs mapping workshops for government departments,
     NGOs and coalitions, then digitizes and analyzes the maps. He is trained in CECAN Participatory Systems Mapping and
     system dynamics group model building, and he codes interview transcripts in NVivo. In the room he works with
     post-its and string; remotely with Miro; afterwards in PRSM or Kumu, and in Vensim when he is turning coded
@@ -54,6 +57,7 @@ workflows:
     - W202
     - W203
     - W204
+    - W317
 sources:
     - title: CECAN - Participatory Systems Mapping practical guide
       url: https://www.cecan.ac.uk/wp-content/uploads/2020/09/PSM-Workshop-method.pdf

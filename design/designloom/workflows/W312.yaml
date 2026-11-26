@@ -12,7 +12,6 @@ requires_capabilities:
     - layout-force-directed
     - animated-transitions
     - filtering
-    - anomaly-detection
     - large-graph-rendering
     - statistics-panel
     - burst-detection
@@ -25,7 +24,6 @@ suggested_components:
     - status-bar
     - filter-panel
     - statistics-panel
-    - anomaly-panel
     - layout-panel
 starting_state:
     data_type: ordered stream of add, change and delete events (nodes and edges with timestamps)
@@ -46,17 +44,17 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Connect a source** (5 min) - A script or database posts ordered mutation events (add node, add edge, change,
+    1. **Connect a source** - A script or database posts ordered mutation events (add node, add edge, change,
     delete)
 
-    2. **Choose follow or fixed** (1 min) - Window follows the latest event, or stays on a chosen range while history
+    2. **Choose follow or fixed** - Window follows the latest event, or stays on a chosen range while history
     grows behind it
 
     3. **Watch** (ongoing) - New nodes appear near their partners; settled nodes stay put; activity histogram grows
 
     4. **Filter and focus** (ongoing) - Keep active accounts, a community or a hashtag; spot bursts
 
-    5. **Freeze and save** (5 min) - Snapshot the history so far for later playback and analysis (W304, W307)
+    5. **Freeze and save** - Snapshot the history so far for later playback and analysis (W304, W307)
 
 
     **Decision Points**:

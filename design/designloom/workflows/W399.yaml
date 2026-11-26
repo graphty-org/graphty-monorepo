@@ -43,20 +43,20 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Load** (5 min) - Infer or simulate a tree sequence; load in Python in Jupyter
+    1. **Load** - Infer or simulate a tree sequence; load in Python in Jupyter
 
-    2. **Draw** (2 min) - D3ARG.from_ts(ts=ts); draw(edge_type="ortho") for full ARGs or "line" for many-child nodes;
+    2. **Draw** - D3ARG.from_ts(ts=ts); draw(edge_type="ortho") for full ARGs or "line" for many-child nodes;
     y_axis_scale = "rank", "time" or "log_time"
 
-    3. **Untangle** (10-30 min) - Force simulation with heights fixed by age and samples ordered by the first tree;
+    3. **Untangle** - Force simulation with heights fixed by age and samples ordered by the first tree;
     only x moves; drag nodes sideways to remove crossings, which pins them
 
-    4. **Explore** (15 min) - Hover a genome-bar segment to highlight that local tree; hover an edge to see the genome
+    4. **Explore** - Hover a genome-bar segment to highlight that local tree; hover an edge to see the genome
     regions it spans; draw_node() draws a subgraph around one node
 
-    5. **Style** (10 min) - set_* methods for nodes, edges, mutations and breakpoints
+    5. **Style** - set_* methods for nodes, edges, mutations and breakpoints
 
-    6. **Export** (5 min) - JSON, SVG or PNG; SVG styles may break in Illustrator
+    6. **Export** - JSON, SVG or PNG; SVG styles may break in Illustrator
 
 
     **Decision Points**:

@@ -76,27 +76,27 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Export movements** (hours, with informatics help) - Each case patient's ward location history from the
+    1. **Export movements** (with informatics help) - Each case patient's ward location history from the
     record system: one row per stay with ward, admission time and discharge time. One London investigation covered
     116 cases across five hospitals over three and a half years
 
-    2. **Derive contact edges from intervals** (minutes, once automated) - Link two patients present on the same ward
+    2. **Derive contact edges from intervals** (once automated) - Link two patients present on the same ward
     on the same day, then aggregate repeated overlaps into a weighted edge by time shared; in London this gave 96
     contact pairs among 77 of the 116 cases, 66%
 
-    3. **Break the contact network into groups** (minutes) - Community detection on the contact network; a Walktrap
+    3. **Break the contact network into groups** - Community detection on the contact network; a Walktrap
     run split that network into 12 clusters, the largest holding 45 patients with 7 subclusters, with the analysis
     and drawing done in a desktop network tool
 
-    4. **Overlay genomics and plasmids** (days, with the genomics partner) - Compare species, strain and plasmid
+    4. **Overlay genomics and plasmids** (with the genomics partner) - Compare species, strain and plasmid
     lineage on the same nodes; three plasmid lineages carrying a carbapenemase gene and a colistin resistance gene
     crossed species boundaries and correlated with patient contacts (Kendall coefficient 0.19, p = 3e-7)
 
-    5. **Pick sampling targets** (1 hour) - Weighted contacts concentrated about 72% in one hospital. A Manchester
+    5. **Pick sampling targets** - Weighted contacts concentrated about 72% in one hospital. A Manchester
     study sampled 349 wastewater sites and 1,247 patients across six wards, linking patients to sink sites through an
     anonymized ward-movement database; shower, bath, sluice and mop sites were most often positive, 101 of 349 sites
 
-    6. **Zoom out to facilities** (1 day) - For regional spread, build a facility network where an edge counts
+    6. **Zoom out to facilities** - For regional spread, build a facility network where an edge counts
     patients who visited both facilities in a window; one statewide analysis across 185 hospitals found higher degree
     centrality predicted higher carbapenem-resistant Enterobacteriaceae rates, most strongly in rural counties, and
     uses that to decide which facilities to alert and which should screen on admission

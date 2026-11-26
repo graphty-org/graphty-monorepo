@@ -1,9 +1,12 @@
 id: people-analytics-ona-lead
 name: People Analytics ONA Lead
+roster_persona: ona-practitioner
+tier: B
+scope: in-scope
 role: In-house People Analytics Lead running survey-based organizational network analysis
 quote: The executive team wants to know where the silos are before the reorg, and I promised every respondent their name stays with my team.
 bio: >-
-    Priya Natarajan leads a three-person people analytics team at a 6,000-person manufacturer. She has an I/O
+    Ritu Natarajan leads a three-person people analytics team at a 6,000-person manufacturer. She has an I/O
     psychology master's degree, writes SQL and some R, and runs two or three survey-based organizational network
     analyses (ONA) a year. Each one starts from an HRIS roster of 300 to 2,000 employees in the target unit and four or
     five relationship questions -- who you go to for information, for problem-solving advice, for decision approval,
@@ -51,6 +54,10 @@ workflows:
     - W189
     - W190
     - W192
+    - W316
+    - W291
+    - W26
+    - W29
 sources:
     - title: Polinode documentation - Surveys
       url: https://docs.polinode.com/guide/surveys.html

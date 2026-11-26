@@ -1,0 +1,24 @@
+id: procurement-data-import
+name: "Public tender data import"
+category: data
+description: "Read Open Contracting Data Standard releases and tender portal exports, flatten nested tender, bids, awards and buyer records into one bid-level table and a tender-firm two-mode graph, and report tenders missing losing bids or bid prices before any collusion screen runs (financial-crime-fraud-aml-kyc.md section 10, requirement 31)."
+status: planned
+notes: "Research trace: financial-crime-fraud-aml-kyc.md section 10, requirement 31 (Must for procurement)."
+algorithms: []
+used_by_workflows:
+    - W2072
+implemented_by_components: []
+requirements:
+    - "Must: Read Open Contracting Data Standard releases and tender portal exports"
+    - "Must: Flatten nested tender, bids, awards and buyer records into one bid-level table and a tender-firm two-mode graph"
+    - "Must: Report tenders missing losing bids or bid prices, as counts and a list, before any collusion screen runs"
+sources:
+    - title: "Open Contracting Partnership - Cardinal red flags library"
+      url: "https://www.open-contracting.org/2024/06/12/cardinal-an-open-source-library-to-calculate-public-procurement-red-flags/"
+      summary: "Computes procurement red flags from OCDS data"
+    - title: "Fazekas, Toth, Wachs and Abdou, Public procurement cartels (International Journal of Industrial Organization 2025)"
+      url: "https://unipub.lib.uni-corvinus.hu/12023/1/1-s2.0-S0167718725000943-main.pdf"
+      summary: "Cartel screens need losing bids, which many tender datasets lack"
+    - title: "Financial crime research, section 10, requirement 31"
+      url: "design/user-research/financial-crime-fraud-aml-kyc.md"
+      summary: "OCDS and tender portal import reporting tenders with missing losing bids, Must for procurement"

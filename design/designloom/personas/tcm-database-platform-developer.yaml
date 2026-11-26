@@ -1,5 +1,8 @@
 id: tcm-database-platform-developer
 name: TCM Database Platform Developer
+roster_persona: network-pharmacology-graduate-student
+tier: B
+scope: in-scope
 role: Bioinformatics Engineer maintaining a Herb-Ingredient-Target Web Resource
 quote: We have two million predicted edges. A user types a herb name and expects a readable network in the browser, with confidence on the edges and a button to take it into Cytoscape.
 bio: >-

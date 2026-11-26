@@ -4,14 +4,24 @@ category: analysis
 description: Run any built-in algorithm in sliding and cumulative windows and return a tidy table (window start, end,
     node or graph, metric, value) plus a time-series chart; compare several window lengths side by side.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: temporal-and-dynamic-networks.md section 11, requirement T9 (Must)."
 algorithms: []
 used_by_workflows:
+    - W3006
     - W19
     - W304
     - W307
     - W310
     - W311
+    - W228
+    - W2036
+    - W2072
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Metrics per window, sliding and cumulative, over any built-in algorithm (not only counts and density),
+      exported as tidy CSV"
+sources:
+    - title: Temporal and Dynamic Network Data and Analysis (section 11, requirement T9)
+      url: design/user-research/temporal-and-dynamic-networks.md
+      summary: "Must in the research. Covered by Designloom when researched: Partly (temporal-analysis lists counts,
+        density, modularity, component count)"

@@ -4,13 +4,24 @@ category: analysis
 description: Correct names, ids and attributes in the loaded graph without returning to the source spreadsheet, and
     re-import an updated source while keeping styles and notes keyed by id.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: digital-humanities-and-historical-networks.md Workflow 1 (manual coding; re-cleaning means re-importing); no numbered requirement. Its frustration: every re-clean means re-importing and re-styling. The requirements are written from that and marked Should, since five workflows need them."
 algorithms: []
 used_by_workflows:
     - W174
     - W175
     - W177
     - W182
+    - W1012
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Should: Correct a node's name, id or attribute values in the loaded graph without returning to the source
+      spreadsheet, and record each correction"
+    - "Should: Re-import an updated source while keeping styles, positions and notes keyed by id, and report which ids
+      were added, removed or changed"
+    - "Should: Export the corrections as a table that can be applied to the source, so cleaning done in the graph is
+      not lost at the next import"
+sources:
+    - title: "Digital Humanities Scholars and Historians: Correspondence, Prosopography, Kinship, Literary and
+        Archaeological Networks (Workflow 1 (manual coding; re-cleaning means re-importing); no numbered requirement)"
+      url: design/user-research/digital-humanities-and-historical-networks.md
+      summary: The need appears in this workflow of the research, but in no numbered requirement.

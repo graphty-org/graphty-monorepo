@@ -5,6 +5,7 @@ validated: false
 personas:
     - text-network-analyst
 requires_capabilities:
+    - label-overlap-removal
     - data-import
     - filtering
     - community-detection
@@ -54,23 +55,23 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Decide what a term is** (10 min) - Words minus stopwords, n-grams, noun phrases, stems or lemmas
+    1. **Decide what a term is** - Words minus stopwords, n-grams, noun phrases, stems or lemmas
 
-    2. **Decide how many** (5 min) - About 300 terms at most; tf-idf ranking for collections
+    2. **Decide how many** - About 300 terms at most; tf-idf ranking for collections
 
-    3. **Decide the unit and weight** (5 min) - Sentence, paragraph, document or a window of N words (quanteda
+    3. **Decide the unit and weight** - Sentence, paragraph, document or a window of N words (quanteda
     fcm window 5); binary or full counting; optionally PMI so rare terms that always co-occur get strong edges
 
-    4. **Build** (5-15 min) - Nocodefunctions returns a Gephi file; or quanteda fcm_select top 30 and textplot_network;
+    4. **Build** - Nocodefunctions returns a Gephi file; or quanteda fcm_select top 30 and textplot_network;
     or textnets Textnet with min_docs 2, project, disparity-filter backbone alpha 0.2-0.6, Leiden, save_graph to GML
     with a fixed seed
 
-    5. **Visualize in Gephi** (15-30 min) - Labels on, edges hidden, nodes shrunk, Modularity, color labels by
+    5. **Visualize in Gephi** - Labels on, edges hidden, nodes shrunk, Modularity, color labels by
     community, ForceAtlas2, Expansion, Label Adjust
 
-    6. **Interpret** (30+ min) - Name each cluster; go back to the documents outside Gephi to check
+    6. **Interpret** - Name each cluster; go back to the documents outside Gephi to check
 
-    7. **Export** (5 min) - PDF, PNG or SVG
+    7. **Export** - PDF, PNG or SVG
 
 
     **Decision Points**:

@@ -152,9 +152,9 @@ success_criteria:
     - metric: Evidence documented
       target: Every element on an exported chart traces to its source record and grade
 sources:
-    - title: Practical Graph Analysis Guide - Chapter 8
-      url: https://graphty.app/docs/
-      summary: Intelligence Analysis and Link Analysis Workflows
+    - title: Sparrow 1991 - The application of network analysis to criminal intelligence (Social Networks 13(3), 251-274)
+      url: https://doi.org/10.1016/0378-8733(91)90008-H
+      summary: Founding assessment of network analysis for criminal intelligence, focused on finding the vulnerabilities of criminal organizations from terrorist groups to narcotics supply networks
     - title: CACM Graph-Based Technologies for Intelligence Analysis
       url: https://cacm.acm.org/research/graph-based-technologies-for-intelligence-analysis/
       summary: Graph algorithms for security analysis with SNA metrics

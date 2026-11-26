@@ -16,6 +16,7 @@ requires_capabilities:
     - filtering
     - resolution-sweep
     - multilayer-networks
+    - seeded-runs
 suggested_components:
     - data-import-dialog
     - network-list-panel
@@ -41,25 +42,26 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Represent layers plus interlayer links** (5 min) - Import a multilayer edge list; each node is linked to its
+    1. **Represent layers plus interlayer links** - Import a multilayer edge list; each node is linked to its
     copies in other layers
 
-    2. **Choose coupling omega and resolution gamma** (minutes) - Multilayer modularity trades static structure within
+    2. **Choose coupling omega and resolution gamma** - Multilayer modularity trades static structure within
     layers against persistence across layers; sweep omega together with gamma
 
-    3. **Read communities per layer** (10 min) - Each node gets one community per layer; compute persistence and find
+    3. **Read communities per layer** - Each node gets one community per layer; compute persistence and find
     nodes that switch
 
     4. **Other analyses** (as needed) - Multilayer centrality, reducibility (can layers be merged?), multilayer motifs
 
-    5. **Show it** (5 min) - Stacked planes, or one graph with edges colored by layer
+    5. **Show it** - Stacked planes, or one graph with edges colored by layer
 
 
     **Decision Points**:
 
     - What is a layer here (relation, time window, site)?
 
-    - Which omega and gamma, and which region of the sweep is reported?
+    - Which omega and gamma, and which region of the sweep is reported? Each point of the sweep is a stochastic run, so
+    record its seed and rerun the reported points
 
     - Can some layers be merged without losing information?
 

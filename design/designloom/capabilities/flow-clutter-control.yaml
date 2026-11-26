@@ -5,7 +5,7 @@ description: Top-N flows (per viewport), thresholds, fading small flows, one-pla
     viewport-adaptive width, curved directional flows with offset two-way pairs, and optional bundling labeled as not
     routes.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: geographic-flow-and-mobility-networks.md section 10, requirement R6 (Must)."
 algorithms: []
 used_by_workflows:
     - W380
@@ -13,5 +13,11 @@ used_by_workflows:
     - W383
     - W386
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Clutter control: top-N flows, threshold, fade small flows, select a place to show only its flows, adaptive
+      thickness scaled to the viewport"
+sources:
+    - title: "Geographic Flow and Mobility Networks: Migration, Commuting, Mobility and Trade Flows on a Map (section
+        10, requirement R6)"
+      url: design/user-research/geographic-flow-and-mobility-networks.md
+      summary: "Must in the research. Covered by Designloom when researched: Partly (filtering is generic)"

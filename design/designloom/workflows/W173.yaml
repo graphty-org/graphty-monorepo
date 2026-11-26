@@ -2,6 +2,7 @@ id: W173
 name: Landscape Connectivity Graph with Graphab
 category: analysis
 validated: false
+scope: out-of-scope
 personas:
     - landscape-connectivity-planner
 requires_capabilities:
@@ -21,6 +22,7 @@ requires_capabilities:
     - export-image
     - data-export
     - geographic-layout
+    - geospatial-file-io
 suggested_components:
     - data-import-dialog
     - file-drop-zone
@@ -53,26 +55,26 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Load a land-cover raster** (5 min) - Discrete land-cover codes in a metric projection
+    1. **Load a land-cover raster** - Discrete land-cover codes in a metric projection
 
-    2. **Define habitat** (5 min) - Habitat codes, a minimum patch area in hectares, 4- or 8-connectivity, or a vector
+    2. **Define habitat** - Habitat codes, a minimum patch area in hectares, 4- or 8-connectivity, or a vector
     habitat layer; patch capacity defaults to area
 
-    3. **Assign resistance costs** (10 min) - One cost per land-cover class
+    3. **Assign resistance costs** - One cost per land-cover class
 
-    4. **Build links** (5-30 min) - Euclidean or least-cost distance, planar or complete topology, maximum cost
+    4. **Build links** - Euclidean or least-cost distance, planar or complete topology, maximum cost
 
-    5. **Build the graph** (2 min) - Optionally pruned by a distance threshold
+    5. **Build the graph** - Optionally pruned by a distance threshold
 
-    6. **Compute metrics** (5 min) - Global probability of connectivity and integral index of connectivity; local
+    6. **Compute metrics** - Global probability of connectivity and integral index of connectivity; local
     flux, betweenness and degree; distance converted to dispersal probability from a species distance and its
     probability; recompute across a range of thresholds and plot against distance
 
-    7. **Rank patches and links** (10-60 min) - Remove each patch or link and record the drop in the global metric
+    7. **Rank patches and links** - Remove each patch or link and record the drop in the global metric
     (dPC, split into area, flux and connector fractions); remove the worst items iteratively; test candidate
     restoration patches by adding them
 
-    8. **Map and export** (10 min) - Node color and link thickness on the map; export shapefile, GeoPackage or text
+    8. **Map and export** - Node color and link thickness on the map; export shapefile, GeoPackage or text
 
 
     **Decision Points**:
@@ -120,7 +122,7 @@ success_criteria:
     - metric: Geographic fidelity
       target: Patches drawn at their real coordinates over the map in every view and export
     - metric: Prioritization
-      target: A ranked list of patches by connectivity loss, visible on the map, in under 15 minutes after graph build
+      target: A ranked list of patches by connectivity loss, visible on the map, in under 15 minutes after graph build (design goal; no source measures it)
     - metric: Sensitivity
       target: Metrics shown across at least five dispersal distances without rebuilding the project
 sources:

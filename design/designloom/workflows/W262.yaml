@@ -50,20 +50,20 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Get the graph** (days, once) - SemRep predications from PubMed (130 million from 37 million citations in the
+    1. **Get the graph** (once) - SemRep predications from PubMed (130 million from 37 million citations in the
     2024 final release, after which NLM stopped maintaining the tools); needs a UMLS license
 
-    2. **Filter for precision** (hours, scripted) - SemRep precision is about 0.70; filter with a classifier (PubMedBERT
+    2. **Filter for precision** (scripted) - SemRep precision is about 0.70; filter with a classifier (PubMedBERT
     F1 0.854), leaving 131,355 nodes and 2,558,935 relations
 
-    3. **Run a discovery pattern** (10 min) - Cypher such as "drug INHIBITS a concept that CAUSES the disease, and the drug
+    3. **Run a discovery pattern** - Cypher such as "drug INHIBITS a concept that CAUSES the disease, and the drug
     does not already TREAT it"; rank drugs by the number of intermediate concepts; or learn pathways from known TREATS
     relations and apply them to a new disease
 
-    4. **Review by hand** (hours) - A physician-informatician judges plausibility edge by edge in the Neo4j Browser; of
+    4. **Review by hand** - A physician-informatician judges plausibility edge by edge in the Neo4j Browser; of
     the top 150 predictions, 99 were drug classes too general to use; one drug had 7,883 reasoning pathways
 
-    5. **KG-RAG variant** (minutes per question) - An LLM matches entity names to graph nodes, retrieves their
+    5. **KG-RAG variant** - An LLM matches entity names to graph nodes, retrieves their
     neighborhoods as sentences with provenance, keeps those above the 75th percentile of similarity to the question, and
     answers; no end-user interface is described
 

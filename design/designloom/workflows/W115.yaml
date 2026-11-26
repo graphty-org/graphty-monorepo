@@ -2,6 +2,7 @@ id: W115
 name: Reverse Engineering a Malware Sample with Control Flow and Call Graphs
 category: exploration
 validated: false
+scope: out-of-scope
 personas:
     - priya-raman
 requires_capabilities:
@@ -58,9 +59,9 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Load and auto-analyze** (minutes) - Import the sample in an isolated lab and let auto-analysis finish
+    1. **Load and auto-analyze** - Import the sample in an isolated lab and let auto-analysis finish
 
-    2. **Find a starting point** (10-30 min) - Scan imports (network, process, persistence, crypto, file) and strings
+    2. **Find a starting point** - Scan imports (network, process, persistence, crypto, file) and strings
     (URLs, registry keys, mutexes) and follow cross-references; reading from the entry point is very time-consuming
 
     3. **Read the function graph** (ongoing) - Toggle graph and text; blue normal, green taken and red not-taken edges;
@@ -70,14 +71,14 @@ goal: >-
     4. **Rename and comment** (ongoing) - Name functions and variables as behavior becomes clear; check decompiler
     output against the assembly
 
-    5. **Walk the call graph** (30-120 min) - Show a function with callers, callees and referenced strings and globals,
+    5. **Walk the call graph** - Show a function with callers, callees and referenced strings and globals,
     hover to preview code; expand one level of callees at a time to find sequences such as process injection
 
-    6. **Compare versions** (30-60 min) - List matched functions with similarity and confidence, sorted by similarity,
+    6. **Compare versions** - List matched functions with similarity and confidence, sorted by similarity,
     plus unmatched functions on each side; open a changed function's two flow graphs side by side colored identical,
     changed or missing
 
-    7. **Export** (15 min) - Write the function flow chart or call graph as GDL or DOT for the report; send indicators
+    7. **Export** - Write the function flow chart or call graph as GDL or DOT for the report; send indicators
     and behavior to threat intelligence and detection engineering
 
 

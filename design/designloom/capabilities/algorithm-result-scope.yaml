@@ -5,11 +5,16 @@ description: Every algorithm result records whether it was computed on the drawn
     subgraph results with the saved view, warns that capped or partial subgraphs may give different answers, and makes
     writing results back to the source a separate opt-in action.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: graph-database-query-and-expand-exploration.md section 10, requirement 20 (Must)."
 algorithms: []
 used_by_workflows:
     - W142
     - W148
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Every algorithm result records its scope: \"loaded subgraph\" or \"stored graph\" (with the source and
+      time)"
+sources:
+    - title: Graph Database Users Who Explore by Search, Query and Expand (section 10, requirement 20)
+      url: design/user-research/graph-database-query-and-expand-exploration.md
+      summary: Must in the research.

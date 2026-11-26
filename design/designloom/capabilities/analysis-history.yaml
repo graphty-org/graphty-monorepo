@@ -1,11 +1,14 @@
 id: analysis-history
 name: Analysis History
 category: collaboration
-description: Track the history of analysis actions for reproducibility and undo/redo capability. Record what algorithms
-    were run, what parameters were used, and what results were obtained.
+description: Keep a methods record of the analysis -- every import, filter, layout, algorithm and style step with its
+    parameters, seed, software versions and result -- that the user can browse, revisit, export as a methods text or
+    script, and replay, so a figure or finding can be reproduced and its settings travel with it. Undo and redo of
+    individual steps is undo-redo's job; this record is what they move through.
 status: planned
 algorithms: []
 used_by_workflows:
+    - W3114
     - W03
     - W07
     - W21
@@ -56,10 +59,9 @@ used_by_workflows:
     - W335
     - W336
     - W337
-    - W338
+    - W430
     - W341
     - W343
-    - W351
     - W361
     - W37
     - W377
@@ -74,13 +76,9 @@ used_by_workflows:
     - W417
     - W42
     - W425
-    - W430
     - W432
     - W433
     - W438
-    - W439
-    - W441
-    - W447
     - W50
     - W51
     - W52
@@ -96,31 +94,41 @@ used_by_workflows:
     - W75
     - W88
     - W92
+    - W1054
+    - W105
 implemented_by_components:
     - analysis-history-panel
     - session-save-dialog
 requirements:
-    - Record each analysis action with timestamp (ISO 8601 format)
-    - "Store action type: algorithm execution, filter change, selection change, view change"
-    - Store algorithm name, version, and all parameter values for algorithm actions
-    - Store computed results summary (e.g., 'Found 12 communities, modularity=0.45')
-    - Support undo to restore previous graph state (data, computed attributes, view)
-    - Support multi-level undo up to 50 actions
-    - Support redo after undo up to the most recent state
-    - Clear redo stack when new action is performed after undo
-    - Display history panel showing chronological action list
-    - Show action icon, name, timestamp, and brief result summary in history list
-    - Allow clicking any history item to preview that state without applying
-    - Allow double-clicking history item to restore graph to that state
-    - Provide 'Clear History' option with confirmation (irreversible)
-    - Export history as JSON containing all actions with parameters
-    - Export history as executable script (JavaScript/Python) for reproducibility
-    - Import history to replay analysis on same or different dataset
-    - Indicate current position in history with visual marker
-    - Display 'Modified since checkpoint' indicator when unsaved changes exist
-    - Persist history in browser storage; warn before closing with unsaved history
-    - Limit history to 1000 actions; auto-prune oldest when limit exceeded
+    - "Must: Record each step with an ISO 8601 timestamp and its type (import, filter, layout, algorithm run, style change, hand edit, selection or view change)"
+    - "Must: For every algorithm and layout run, record the method, every parameter value, the software and package versions, and the seed actually used, including the random seed drawn when none was passed (seeded-runs, layout-force-directed)"
+    - "Must: Record which edge-weight convention a run used (distance or strength, and any conversion) (weight-semantics)"
+    - "Must: Record each import's settings and counts (import log), the data source and its version, and the thresholds applied, so the whole pipeline from file to figure is in the record"
+    - "Must: Record a structured result summary for each run (for example community count, quality function and score) as values and codes; the application writes any sentence"
+    - "Must: Mark which steps an assistant or automation made, so the user can disclose them"
+    - "Must: Show the steps in order with the current position marked; preview a past state and restore it, working together with undo-redo for step-by-step undo and redo"
+    - "Must: Export the record as structured data with all parameters, as a methods paragraph or legend block (source and version, filters, algorithms, layout and seed, time window, date), and as a script that re-runs the steps"
+    - "Must: Replay a saved record on the same data or on a new version of it, reporting any step that cannot apply"
+    - "Must: Save the record inside the session file so it survives closing and reopening (session-round-trip); warn before discarding unsaved history"
+    - "Library parity: Clearing the history asks for confirmation, since it cannot be undone"
+    - "Library parity: Any cap on the number of stored steps is a design goal to be measured, not a sourced requirement"
 sources:
-    - title: W03 Iterative Analysis Cycle
-      url: https://graphty.app/docs/
-      summary: Reproducibility - analysis steps documented for replication
+    - title: Heer et al. 2008, Graphical histories for visualization
+      url: https://doi.org/10.1109/TVCG.2008.137
+      summary: History of visualization states for revisiting, comparing and sharing analysis steps; cited for this
+          record in design/user-research/data-preparation-and-import.md
+    - title: Gephi FAQ
+      url: http://gephi.org/faq/
+      summary: Gephi has no undo; students-educators-and-first-time-users.md lists undo of every step and an
+          exportable methods record (steps, settings, versions, assistant-made steps) as Musts
+    - title: igraph cluster_leiden
+      url: https://r.igraph.org/reference/cluster_leiden.html
+      summary: Its own example sets a seed "for sake of reproducibility"; the research requires every run to record
+          the seed it used (network-scientists-and-analysis-method-validity.md)
+    - title: NetworkX spring_layout
+      url: https://networkx.org/documentation/stable/reference/generated/networkx.drawing.layout.spring_layout.html
+      summary: Layouts start from random positions unless seeded, so the seed must be recorded to reproduce a drawing
+    - title: GraphSense paper
+      url: https://arxiv.org/pdf/2102.13613
+      summary: Investigators annotate nodes, export graphs and download audit logs of their interactions
+          (law-enforcement-and-intelligence-analysts.md)

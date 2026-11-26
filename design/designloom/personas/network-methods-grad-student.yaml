@@ -1,9 +1,12 @@
 id: network-methods-grad-student
 name: Network Methods PhD Student
+roster_persona: notebook-graph-data-scientist
+tier: B
+scope: in-scope
 role: PhD Student in a Social Network Analysis Course (Communication, Sociology, Anthropology)
 quote: The lab says "symmetrize the advice network". Which way? And why does UCINET want a DL file when I have a spreadsheet?
 bio: >-
-    Priya is a second-year PhD student taking a social network analysis seminar. Each week's lab asks for a script or a
+    Deepa is a second-year PhD student taking a social network analysis seminar. Each week's lab asks for a script or a
     UCINET session: density, centrality, subgroups, QAP, an ego network, a two-mode projection, and one figure colored
     by an attribute. She works on a Mac, so she runs UCINET (Windows only) through Parallels or Wine, uses NetDraw for
     pictures, follows Luke's A User's Guide to Network Analysis in R for the R labs, and uses Gephi when she wants a
@@ -40,6 +43,7 @@ context:
         - laptop
     voluntary: false
 workflows:
+    - W3114
     - W26
     - W28
     - W29

@@ -1,5 +1,8 @@
 id: protein-family-ssn-analyst
 name: Protein-Family Similarity Network Analyst
+roster_persona: phylogeographer-population-geneticist
+tier: A
+scope: in-scope
 role: Enzymologist / Structural Biochemist (or Viral Ecologist)
 quote: I raise the alignment-score threshold, re-lay out, and look again -- twenty times -- until the clusters line up with known functions. Then I pick the cluster nobody has characterized.
 bio: >-

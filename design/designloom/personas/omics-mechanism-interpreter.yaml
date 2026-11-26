@@ -1,9 +1,12 @@
 id: omics-mechanism-interpreter
 name: Omics Mechanism Interpreter
+roster_persona: genomics-cytoscape-user
+tier: A
+scope: in-scope
 role: Translational Biologist / Bench Scientist (pharma, biotech or academic institute)
 quote: I need to know which upstream regulator is switched on, which drug could switch it off, and a figure that shows it.
 bio: >-
-    Dr. Hannah Lee is a translational scientist with RNA-seq or proteomics results from a treatment, knockout or
+    Dr. Jiwon Lee is a translational scientist with RNA-seq or proteomics results from a treatment, knockout or
     disease-versus-control comparison. She does not code. She uploads a table of gene IDs with fold change and p-value to
     QIAGEN IPA (or Clarivate MetaCore or Elsevier Pathway Studio, which follow similar steps under other names), runs a
     Core Analysis with a cutoff such as p < 0.05, and reads the results tabs: canonical pathways, upstream regulators,

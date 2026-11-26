@@ -38,22 +38,22 @@ goal: >-
 
     **Task Phases**:
 
-    1. **f2 statistics** (hours) - extract_f2() from genotype files to disk; reload with f2_from_precomp()
+    1. **f2 statistics** - extract_f2() from genotype files to disk; reload with f2_from_precomp()
 
-    2. **Define a topology** (15 min) - Two-column from-to edge list; edges_to_igraph(); is_valid() checks directed,
+    2. **Define a topology** - Two-column from-to edge list; edges_to_igraph(); is_valid() checks directed,
     acyclic, at most two parents; plotly_graph() draws it; unidentifiable_edges() and highlight_unidentifiable mark
     parameters the data cannot determine
 
-    3. **Fit** (minutes) - qpgraph(f2_blocks, graph) fits drift lengths and admixture weights from 10 random starts;
+    3. **Fit** - qpgraph(f2_blocks, graph) fits drift lengths and admixture weights from 10 random starts;
     read res$edges and res$score
 
-    4. **Search** (hours) - find_graphs(f2_blocks, numadmix = 3, outpop = ..., stop_gen = 100), run many times because
+    4. **Search** - find_graphs(f2_blocks, numadmix = 3, outpop = ..., stop_gen = 100), run many times because
     it gets stuck in local optima; graph_plusone() and similar for semi-manual search
 
-    5. **Draw** (10 min) - plot_graph(res$edges) or plotly_graph() with drift lengths and admixture percentages on
+    5. **Draw** - plot_graph(res$edges) or plotly_graph() with drift lengths and admixture percentages on
     edges; plot_graph_map() on a map
 
-    6. **Compare** (1 hour) - Out-of-sample score_test; bootstrap qpgraph_resample_multi() plus compare_fits(); look
+    6. **Compare** - Out-of-sample score_test; bootstrap qpgraph_resample_multi() plus compare_fits(); look
     for features shared across good graphs
 
 

@@ -1,0 +1,94 @@
+id: W3056
+name: Rate Confidence with a Risk-of-Bias Colored Network
+category: analysis
+validated: false
+personas:
+    - nma-systematic-reviewer
+    - hta-evidence-review-assessor
+starting_state:
+    data_type: the treatment network, a risk-of-bias grade per study and the contribution matrix from R or Stata
+    node_count: 5-40
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Judge confidence in each network estimate: color comparisons and treatments by risk of bias under a stated rule, and see which direct comparisons carry the evidence for the estimate being rated.
+
+
+    **Mental Model**: "An estimate is only as good as the comparisons it flows through." A high-risk comparison matters in proportion to its contribution.
+
+
+    **Task Phases**:
+
+    1. **Grade comparisons** - Aggregate study grades to each comparison by majority, average or highest
+
+    2. **Color the network** - Green, yellow and red on edges, and the share per level on nodes
+
+    3. **Trace an estimate** - Highlight the paths feeding one estimate with their shares
+
+    4. **Record the judgment** - Keep the rule used with the figure and the rating
+
+
+    **Decision Points**:
+
+    - Majority, average or highest rule?
+
+    - Downgrade the estimate for within-study bias?
+
+
+    **Information Needs**:
+
+    - Grade per study and per comparison
+
+    - Contribution of each comparison to the estimate
+
+
+    **Pain Points**:
+
+    - Risk of bias sits in a table, not on the network
+
+    - Each tool has its own aggregation rule
+
+
+    **Data Flow**:
+
+    - Input: Network, study grades, contribution matrix
+
+    - Transformations: Grade aggregation, coloring, path highlight
+
+    - Output: A colored figure and a rating per estimate
+success_criteria:
+    - metric: Rule stated
+      target: The aggregation rule appears in the legend and export
+    - metric: Traceability
+      target: Any estimate's contributing comparisons can be highlighted
+sources:
+    - title: "Papakonstantinou et al. 2020 - CINeMA software"
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8356302/
+      summary: "Network plot colored by majority, average or highest risk of bias; contribution matrix; one outcome per project"
+    - title: "Chaimani et al. 2013 - Graphical tools for network meta-analysis in STATA"
+      url: https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0076654
+      summary: "networkplot with edgecolor(by bias), netweight contribution plot, ifplot over triangular and quadratic loops"
+    - title: "Papakonstantinou et al. 2018 - paths, flows and streams"
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6148216
+      summary: "Contribution of each direct comparison derived from evidence flow along paths in the graph"
+    - title: "Cochrane Handbook chapter 11"
+      url: https://www.cochrane.org/authors/handbooks-and-manuals/handbook/current/chapter-11
+      summary: "Network diagram definition, node size by participants, line thickness by trials, connectedness, closed loops, contribution matrix"
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z
+requires_capabilities:
+    - comparison-grade-aggregation
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - evidence-flow-paths
+    - matrix-view
+    - export-image
+suggested_components:
+    - graph-canvas
+    - heatmap-panel
+    - legend-panel
+    - visual-encoding-panel
+    - image-export-dialog
+

@@ -27,10 +27,6 @@ requires_capabilities:
     - set-to-set-paths
     - node-set-overlay-import
     - network-proximity-statistics
-    - centrality-betweenness
-    - centrality-closeness
-    - centrality-degree
-    - community-detection
 suggested_components:
     - gene-set-import-dialog
     - data-import-dialog
@@ -132,7 +128,7 @@ goal: >-
     - Output: Figure of module, targets and paths; ranked tables; parameter record
 success_criteria:
     - metric: Figure from script output
-      target: Module-and-targets figure produced in under 15 minutes without plotting code
+      target: Module-and-targets figure produced in under 15 minutes without plotting code (design goal; no source measures it)
     - metric: Evidence profile
       target: Each candidate target shows proximity, membership and tractability and safety columns
     - metric: Reproducibility

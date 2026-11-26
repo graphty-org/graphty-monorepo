@@ -58,27 +58,27 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Transform sources to KGX** (hours) - Each source becomes nodes.tsv (id, category, name, provided_by) and
+    1. **Transform sources to KGX** - Each source becomes nodes.tsv (id, category, name, provided_by) and
     edges.tsv (subject, predicate, object, primary_knowledge_source, publications); multi-valued fields use pipes, so a
     gene's category is biolink:NamedThing|biolink:BiologicalEntity|biolink:Gene. KG-OBO publishes every OBO ontology
     the same way
 
-    2. **Validate against Biolink** (15 min) - Categories come from the NamedThing hierarchy and predicates from the
+    2. **Validate against Biolink** - Categories come from the NamedThing hierarchy and predicates from the
     related_to hierarchy; querying related_to also returns narrower predicates such as positively_regulates
 
-    3. **Merge and count** (30 min) - Merge sources; check counts per category, per predicate and per
+    3. **Merge and count** - Merge sources; check counts per category, per predicate and per
     primary_knowledge_source
 
-    4. **Load an analysis graph** (10 min) - Hetionet (47,031 nodes, 2,250,197 edges) as a Neo4j dump, JSON or edge list;
+    4. **Load an analysis graph** - Hetionet (47,031 nodes, 2,250,197 edges) as a Neo4j dump, JSON or edge list;
     PrimeKG (129,375 nodes, 4,050,249 edges) as CSV or through PyKEEN's loader
 
-    5. **Metapath query** (30 min) - For example (:Compound)-[:BINDS]-(:Gene)-[:ASSOCIATES]-(:Disease) in Cypher, or het.io
+    5. **Metapath query** - For example (:Compound)-[:BINDS]-(:Gene)-[:ASSOCIATES]-(:Disease) in Cypher, or het.io
     connectivity search, which ranks metapaths by degree-weighted path count (DWPC) against permuted networks and lists
     up to 100 paths per metapath
 
-    6. **Predict links** (hours) - Train TransE, RotatE or ComplEx in PyKEEN; report MRR and Hits@k
+    6. **Predict links** - Train TransE, RotatE or ComplEx in PyKEEN; report MRR and Hits@k
 
-    7. **Inspect top predictions** (1-2 h) - For each predicted compound-disease edge pull the supporting metapaths and
+    7. **Inspect top predictions** - For each predicted compound-disease edge pull the supporting metapaths and
     paths and read them with a domain expert; done today with path tables and per-lab viewers
 
 
@@ -130,7 +130,7 @@ success_criteria:
     - metric: Merge check
       target: Counts per category, predicate and knowledge source visible right after import
     - metric: Prediction review
-      target: For a top prediction, its supporting typed paths are drawn and highlighted in under 1 minute
+      target: For a top prediction, its supporting typed paths are drawn and highlighted in under 1 minute (design goal; no source measures it)
     - metric: Typed search
       target: User finds all paths matching a metapath between a compound and a disease with a per-pattern count
 sources:

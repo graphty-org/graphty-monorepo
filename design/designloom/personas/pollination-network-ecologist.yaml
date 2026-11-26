@@ -1,9 +1,12 @@
 id: pollination-network-ecologist
 name: Pollination Network Ecologist
+roster_persona: interaction-network-ecologist
+tier: B
+scope: in-scope
 role: Postdoctoral Researcher / Field Community Ecologist
 quote: I have three seasons of transect counts from 20 sites. I need one clean two-row web per site and proof the grazed sites really are less nested than chance.
 bio: >-
-    Dr. Ana Morales is a postdoc studying how land use, grazing or restoration changes plant-pollinator networks. Her
+    Dr. Gabriela Morales is a postdoc studying how land use, grazing or restoration changes plant-pollinator networks. Her
     field crews walk transects or watch flowering plants for fixed 10-minute periods and record every visit in a
     spreadsheet: date, site, transect, plant, pollinator morphospecies, count. Weeks later a taxonomist replaces the
     morphospecies codes with names. Each season she ends up with 8 to 40 sites, each a web of 10 to 60 plants by 20 to
@@ -53,6 +56,7 @@ workflows:
     - W164
     - W165
     - W166
+    - W1042
 sources:
     - title: bipartite package - Intro2bipartite vignette (Dormann)
       url: https://cran.r-project.org/web/packages/bipartite/vignettes/Intro2bipartite.pdf

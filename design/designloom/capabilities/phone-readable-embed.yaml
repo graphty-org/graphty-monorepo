@@ -1,0 +1,22 @@
+id: phone-readable-embed
+name: "Phone-readable embed"
+category: export
+description: "Publish an embed with layout motion stopped, a fixed layout, step-by-step reveal on scroll, and labels and explanatory text outside the canvas, so a phone reader with no hover can read it."
+status: planned
+notes: "Research trace: communicating-findings-and-deliverables.md section 10, requirement R11 (Should; Must for public-sector publishers)."
+algorithms: []
+used_by_workflows:
+    - W318
+implemented_by_components: []
+requirements:
+    - "Should: Publish an embed with layout motion stopped and a fixed layout"
+    - "Should: Turn scroll-wheel zoom off in the embed, so the page scrolls"
+    - "Should: Keep labels readable at phone width and put explanatory text outside the canvas, with every fact reachable without hover"
+    - "Should: Offer keyboard navigation of nodes and edges and a tabular alternative"
+sources:
+    - title: "journalism.co.uk - How the Wall Street Journal approaches data interactives on mobile"
+      url: "https://www.journalism.co.uk/how-the-wall-street-journal-approaches-data-interactives-on-mobile/"
+      summary: "Newsroom interactives are designed for phone readers first"
+    - title: "Communicating findings, section 10, requirement R11"
+      url: "design/user-research/communicating-findings-and-deliverables.md"
+      summary: "Standalone HTML export and embeddable widget with phone-readable labels, scroll-zoom off, motion off; Should, Must for public-sector publishers"

@@ -4,11 +4,15 @@ category: analysis
 description: A service-style plugin (a REST endpoint in any language) or a Python bridge so researchers and data
     scientists can extend the element without writing JavaScript.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: developers-embedding-and-extending-graph-visualization.md section 10, table row 22 (Should)."
 algorithms: []
 used_by_workflows:
     - W289
     - W290
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Should: A no-JavaScript route for researchers (a service-style plugin or a Python bridge)"
+sources:
+    - title: Developers Who Embed Graph Visualization in Products or Extend It With Plugins (section 10, table row 22)
+      url: design/user-research/developers-embedding-and-extending-graph-visualization.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

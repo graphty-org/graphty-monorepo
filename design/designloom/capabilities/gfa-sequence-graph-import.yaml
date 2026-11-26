@@ -1,0 +1,22 @@
+id: gfa-sequence-graph-import
+name: "GFA sequence graph import and export"
+category: data
+description: "Read GFA 1.0, 1.1 and 1.2 (S segments with sequence or * plus LN, RC, KC, FC and assembler depth tags; L links with an orientation at each end and a CIGAR overlap; C, P, W and J lines) and FASTG, reporting unsupported lines; write a selected subgraph back out as GFA."
+status: planned
+notes: "Research trace: genome-assembly-and-pangenome-graphs.md section 10, table row 1 (Must)."
+algorithms: []
+used_by_workflows:
+    - W1156
+    - W1157
+    - W1158
+    - W1159
+implemented_by_components: []
+requirements:
+    - "Must: Import GFA 1.0-1.2: S (sequence or *, LN, RC, KC, FC, assembler depth tags), L (orientations, overlap), P,
+      W, J; report unsupported lines; also FASTG"
+sources:
+    - title: "Genome Assemblers, Microbial Genome Finishers and Pangenome Researchers: Assembly Graphs and Pangenome
+        Graphs (section 10, table row 1)"
+      url: design/user-research/genome-assembly-and-pangenome-graphs.md
+      summary: "Must in the research. Covered by Designloom when researched: No (graph-io reads 13 formats, none of them
+        GFA)"

@@ -5,6 +5,7 @@ validated: false
 personas:
     - text-network-analyst
 requires_capabilities:
+    - label-overlap-removal
     - data-import
     - data-preview
     - filtering
@@ -59,34 +60,34 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Prepare text** (30-120 min) - One plain-text file or a spreadsheet column; new line = paragraph, period =
+    1. **Prepare text** - One plain-text file or a spreadsheet column; new line = paragraph, period =
     sentence; heading tags define higher units (year, month, article); document variables from a separate file; remove
     duplicates, bot retweets, user names and URLs
 
-    2. **Pre-process** (5 min) - Tokenize and tag (MeCab for Japanese, Stanford for English); force-pick phrases as one
+    2. **Pre-process** - Tokenize and tag (MeCab for Japanese, Stanford for English); force-pick phrases as one
     word, force-ignore unwanted strings
 
-    3. **Choose words** (10 min) - Filter by part of speech and minimum frequency to about 60-150 words; check doubtful
+    3. **Choose words** - Filter by part of speech and minimum frequency to about 60-150 words; check doubtful
     words in a keyword-in-context concordance
 
-    4. **Build the network** (2 min) - Choose the counting unit (sentence, paragraph, heading level) and words-words or
+    4. **Build the network** - Choose the counting unit (sentence, paragraph, heading level) and words-words or
     words-variables; Jaccard for small units, Cosine or Euclid for large ones
 
-    5. **Filter edges** (3 min) - Top N edges (default 60) or a minimum Jaccard (0.1 or 0.2); read the status line of
+    5. **Filter edges** - Top N edges (default 60) or a minimum Jaccard (0.1 or 0.2); read the status line of
     drawn versus input counts, density and minimum coefficient
 
-    6. **Encode** (5 min) - Line width by strength, node size by frequency, color by community (edge betweenness,
+    6. **Encode** - Line width by strength, node size by frequency, color by community (edge betweenness,
     random walks, modularity; at most 12 colors) or by centrality; solid edges within communities, dashed between;
     optional minimum spanning tree; avoid label overlap
 
     7. **Lay out** (automatic) - Fruchterman-Reingold for words-words, Kamada-Kawai for words-variables
 
-    8. **Go back to text** (20-60 min) - Search documents for the words of each cluster and read the passages; pick
+    8. **Go back to text** - Search documents for the words of each cluster and read the passages; pick
     quotations
 
-    9. **Repeat per group or period** (15 min each) - One network per day or group; each run has its own layout
+    9. **Repeat per group or period** - One network per day or group; each run has its own layout
 
-    10. **Export** (5 min) - EMF, EPS, PDF, PNG, SVG or R source; matrices to CSV
+    10. **Export** - EMF, EPS, PDF, PNG, SVG or R source; matrices to CSV
 
 
     **Decision Points**:

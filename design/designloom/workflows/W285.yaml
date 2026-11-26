@@ -7,7 +7,6 @@ personas:
     - plugin-author-frontend-developer
 requires_capabilities:
     - layout-force-directed
-    - community-detection
     - algorithm-progress
     - computed-attributes
     - visual-encoding-nodes

@@ -7,6 +7,7 @@ personas:
     - process-mining-auditor
     - clinical-pathway-analyst
     - customer-journey-analyst
+    - process-mining-analyst
 requires_capabilities:
     - filtering
     - saved-filters
@@ -20,6 +21,8 @@ requires_capabilities:
     - process-detail-sliders
     - variant-analysis
     - case-drilldown
+    - details-on-demand
+    - comparison-view
 suggested_components:
     - graph-canvas
     - slider
@@ -30,6 +33,10 @@ suggested_components:
     - statistics-panel
     - analysis-history-panel
     - status-bar
+    - node-merge-dialog
+    - comparison-view
+    - node-details-panel
+    - badge
 starting_state:
     data_type: event log of an unstructured process (hundreds to thousands of variants)
     node_count: 30-250 activities before simplification
@@ -48,22 +55,22 @@ goal: >-
 
     **Task Phases** (in practice order):
 
-    1. **Sliders** (2 min) - Lower paths, then activities
+    1. **Sliders** - Lower paths, then activities
 
-    2. **Keep main variants** (5 min) - Variation filter, only for structured processes; then both sliders can go back
+    2. **Keep main variants** - Variation filter, only for structured processes; then both sliders can go back
     to 100 percent and the numbers add up
 
-    3. **Remove incomplete cases** (2 min) - Endpoints filter; half-finished cases otherwise look faster than they are
+    3. **Remove incomplete cases** - Endpoints filter; half-finished cases otherwise look faster than they are
 
-    4. **Split process types** (10 min) - By attribute into named data sets
+    4. **Split process types** - By attribute into named data sets
 
-    5. **Split scenarios** (5 min) - Mandatory or forbidden activity
+    5. **Split scenarios** - Mandatory or forbidden activity
 
-    6. **Trim to a phase or split by start and end points** (5 min)
+    6. **Trim to a phase or split by start and end points**
 
-    7. **Remove spider activities** (2 min) - Activities like "Send email" that connect to everything
+    7. **Remove spider activities** - Activities like "Send email" that connect to everything
 
-    8. **Milestones** (30 min, with a domain expert) - Keep 5 to 7 agreed milestones, then drill between two of them
+    8. **Milestones** (with a domain expert) - Keep 5 to 7 agreed milestones, then drill between two of them
 
 
     **Decision Points**:
@@ -130,6 +137,9 @@ sources:
     - title: ProMiSE - provenance in process mining
       url: https://ceur-ws.org/Vol-3413/paper9.pdf
       summary: Analysts often lose awareness of their current data selection
+    - title: Mennens et al. 2019 - stable process map layouts
+      url: https://diglib.eg.org/handle/10.1111/cgf13723
+      summary: One edge can produce a completely different dot layout
 version: 1.0.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

@@ -1,5 +1,8 @@
 id: graph-deliverable-recipient
 name: Graph Deliverable Recipient
+roster_persona: graph-deliverable-recipient
+tier: A
+scope: in-scope
 role: Non-operator who receives graph deliverables - program officer, executive, prosecutor, compliance reviewer, community partner, editor
 quote: I have a minute between meetings and a phone. Tell me the one thing this shows, and tell me whether I'm allowed to forward it.
 bio: >-
@@ -55,6 +58,7 @@ workflows:
     - W320
     - W321
     - W323
+    - W1018
 sources:
     - title: i2 Chart Reader
       url: https://i2group.com/i2-chart-reader

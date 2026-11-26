@@ -1,9 +1,12 @@
 id: ediscovery-case-associate
 name: eDiscovery Case-Team Associate
+roster_persona: litigation-support-analyst
+tier: B
+scope: in-scope
 role: Litigation Associate at a Large Firm, or In-House eDiscovery Counsel
 quote: Who are the key players, which custodians do we review first, and can I defend that list to the other side?
 bio: >-
-    Marcus is a litigation associate at a large firm (or, in the in-house version, eDiscovery counsel at a company)
+    Nathan is a litigation associate at a large firm (or, in the in-house version, eDiscovery counsel at a company)
     who runs early case assessment and custodian strategy. He works in Everlaw or Relativity, opens the people graph
     from a search result, and reads it to "identify the key players": who sent and received the most, who sits between
     groups, and who turns up that nobody named in interviews. He uses the graph to decide which custodians to add,

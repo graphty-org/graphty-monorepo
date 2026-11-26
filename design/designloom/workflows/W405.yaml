@@ -63,27 +63,27 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Code with comparison in mind** (weeks) - Codes per dimension, code groups, participant or demographic codes so
+    1. **Code with comparison in mind** - Codes per dimension, code groups, participant or demographic codes so
     groups can be compared later
 
-    2. **Optional: AI-assisted coding** (hours) - Write a code memo defining each code; run AI coding on a code and up to
+    2. **Optional: AI-assisted coding** - Write a code memo defining each code; run AI coding on a code and up to
     50 documents; approve or discard each suggestion; keep the model's explanation as a comment on each segment; or
     pick from model-suggested codes per highlighted segment
 
-    3. **Compute co-occurrence** (5 min) - Count segments where both codes apply under overlap, within, enclose or same
+    3. **Compute co-occurrence** - Count segments where both codes apply under overlap, within, enclose or same
     relations, or within N paragraphs, or in the same document; optionally a normalized coefficient (c-coefficient
     n12 / (n1 + n2 - n12)); flag coefficients above 1 caused by overlapping segments
 
-    4. **Drill down** (30+ min) - Click a cell or an edge to read its quotations; test AND, OR, WITHIN, FOLLOWS queries
+    4. **Drill down** - Click a cell or an edge to read its quotations; test AND, OR, WITHIN, FOLLOWS queries
 
-    5. **Visualize** (15 min) - Matrix heat map, Sankey, force-directed graph, or a concentric model with selected codes
+    5. **Visualize** - Matrix heat map, Sankey, force-directed graph, or a concentric model with selected codes
     in an inner circle and co-occurring codes outside, with a minimum co-occurrence filter, line width by frequency
     and symbol size by segment count
 
-    6. **Leave for Gephi when built-ins fail** (1-2 h) - Export the matrix, aggregate by incident or by person, size by
+    6. **Leave for Gephi when built-ins fail** - Export the matrix, aggregate by incident or by person, size by
     frequency, color by code family, ForceAtlas2, Louvain, subset by setting or attribute
 
-    7. **Validate** (hours) - Read responses next to the network; triangulate; compare subgroups
+    7. **Validate** - Read responses next to the network; triangulate; compare subgroups
 
 
     **Decision Points**:

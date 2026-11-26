@@ -64,25 +64,25 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Form a hypothesis** (15-30 min) - From threat intelligence, an ATT&CK technique or an anomaly signal, for
+    1. **Form a hypothesis** - From threat intelligence, an ATT&CK technique or an anomaly signal, for
     example "an account is authenticating to many hosts it never used before"
 
-    2. **Query** (15-60 min) - Write KQL or SPL that pulls the relevant events for a time window; the result is a table
+    2. **Query** - Write KQL or SPL that pulls the relevant events for a time window; the result is a table
 
-    3. **Turn the table into a graph** (5-15 min) - Pick entity columns (account, host, process, IP, domain); each event
+    3. **Turn the table into a graph** - Pick entity columns (account, host, process, IP, domain); each event
     links the entities it mentions (a Graphistry demo turned 5,035 Splunk events into 170 entities and 15,105 links)
 
-    4. **Aggregate and threshold** (5 min) - Collapse raw events into host-to-host or account-to-host edges with counts
+    4. **Aggregate and threshold** - Collapse raw events into host-to-host or account-to-host edges with counts
     and first and last seen; drop pairs below a minimum count; keep event type, port and logon type as edge attributes
 
-    5. **Look for the predicted shape** (30-120 min) - Fan-out, first-seen pairs, rare edges, chains in time order,
+    5. **Look for the predicted shape** - Fan-out, first-seen pairs, rare edges, chains in time order,
     paths to critical assets (in Defender XDR: predefined path scenarios with property filters, edge types, direction
     and shortest paths only)
 
     6. **Drill down** (ongoing) - From an interesting edge or node back to its raw events; corroborate with a second
     source
 
-    7. **Respond or document** (30 min) - If a threat is found, hand entities, edges and times to incident response; if
+    7. **Respond or document** - If a threat is found, hand entities, edges and times to incident response; if
     not, document the negative hunt; save the query as a parameterized template or Splunk workflow action
 
 

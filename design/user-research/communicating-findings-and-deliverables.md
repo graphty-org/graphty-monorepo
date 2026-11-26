@@ -113,6 +113,33 @@ The sibling documents already define `fraud-analyst`, `intelligence-analyst`, `n
 `ona-consultant`, `prosecution-trial-analyst`, `systems-change-strategist` and the public health, connectomics,
 cybersecurity and bibliometrics personas; this document does not redefine them.
 
+### 3.4 Who makes each deliverable, and who only reads it
+
+Grace Mwangi never operates a graph tool, so she cannot be the user of a workflow whose steps are freezing chart
+states, writing a narrative, redacting labels or re-rendering a monthly dashboard. Each production workflow below
+belongs to the analysts the sibling documents already define; the recipient appears on it only as the reader of the
+result. Her own steps -- open what arrived, read the message, check what she may do with it, follow a claim to its
+source, compare with last period -- differ from every producer's and are the same across populations, so they are a
+workflow of their own ("Reading a graph deliverable someone else made", W1018 in design/designloom/workflows) rather
+than steps folded into each producer's.
+
+| Deliverable (section)                         | Who produces it (Designloom persona id)                                                                                                                                                                                                                                       | Who reads it                                                                       |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Journal figure and network deposit (5.1)     | The genomics lab bioinformatician (`genomics-cytoscape-user`) who runs the STRING, cluster, enrich and figure protocol for her own paper, and the core facility bioinformatician (`network-biology-core-bioinformatician`) who produces figures and an NDEx deposit for each lab he serves. `publication-figure-author` is a facet of both, not a third person | Reviewers, editors, journal readers |
+| Web exports, newsroom embeds, public databases (5.6) | Newsroom embeds: the desk's graphics editor (`newsroom-graphics-editor`); at NPR a graphics editor drafted the diagram, a News Apps intern finished it in Illustrator and the two built the click-through code ([OpenNews Source](https://source.opennews.org/articles/network-diagrams-hard/)). Public entity databases: the investigation's data team (`investigative-journalist`); ICIJ's Offshore Leaks database is published by the consortium, whose Data and Research Unit editor described the need for a tool that "didn't require the intervention of any data scientist or developers" ([Neo4j](https://neo4j.com/blog/neo4j-power-behind-paradise-papers/); [ICIJ download page](https://offshoreleaks.icij.org/pages/database)). Project sites: the correspondence archive editor (`prosopography-archivist`). Notebook HTML and Streamlit apps: the notebook data scientist (`notebook-graph-data-scientist`) | The public, phone readers, other journalists and researchers who download the data |
+| SAR narrative, CSV and case file (5.3)        | The Level 2 AML investigator (`aml-investigator`) does every step, including the continuing-activity review: FinCEN asks for continuing activity to be reported at least every 90 days, due 120 days after the prior SAR, and filers keep copies five years ([FinCEN SAR FAQ](https://www.fincen.gov/resources/faqs/frequently-asked-questions-regarding-the-fincen-suspicious-activity-report-sar/)) | QC reviewer, examiner, regulator                                                   |
+| ONA readout and monthly dashboard (5.4)       | The in-house people analytics lead (`people-analytics-ona-lead`) or the external consultant (`ona-consultant`) builds and facilitates the readout; the analyst holding the Viva Insights Analyst role (`workplace-collaboration-analyst`) runs the queries and Power BI templates behind the dashboard, on de-identified data ([Microsoft Learn](https://learn.microsoft.com/en-us/viva/insights/advanced/setup-maint/user-roles)) | Executives, the HR business partner (`hr-business-partner`); managers see only aggregated insights about their own team (same source) |
+| Narrated systems map and map links (5.5)      | The foundation strategist who owns the map (`systems-change-strategist`) and the facilitator who digitizes it (`participatory-systems-mapping-facilitator`); for VOSviewer Online links, the research-impact librarian (`research-impact-librarian`) or the review author (`bibliometric-analyst`) | Boards, funders, the public, journal readers                                       |
+| Public health cluster communication (5.7)     | The HIV surveillance epidemiologist (`hiv-molecular-cluster-epidemiologist`) writes the line list, narrative and partner table; the public health laboratory's genomic epidemiologist (`phl-genomic-epidemiologist`) supplies cluster calls. CDC's review group includes "HIV prevention, surveillance, and partner services leadership and staff" ([CDC](https://www.Cdc.gov/hiv/programresources/guidance/hiv-cluster-detection-and-response-guidance/cluster-review-and-prioritization.html)) | Partner services supervisor (`dis-supervisor`) for the line list; partners and the public for aggregates only |
+| Attack-path findings and exposure trend (5.8) | Penetration tester (`dana-okafor`) for per-path findings; incident responder (`luis-ferreira`) for the hop table; threat intelligence analyst (`aiko-tanaka`) for STIX and blocklists; attack-path management owner (`marcus-lindqvist`) for the trend, which BloodHound's Posture page shows as "how your remediation efforts are reducing risk" ([BloodHound docs](https://bloodhound.specterops.io/analyze-data/bloodhound-gui/posture-page)) | Client, CISO, auditors, SOC                                                        |
+| Fixed-view connectome figure, matrix and movie (5.10) | The imaging network neuroscientist (`network-neuroscience-researcher`), the clinical connectome researcher (`clinical-connectome-researcher`), the computational network neuroscientist (`computational-network-neuroscientist`) and the EEG/MEG connectivity researcher (`eeg-meg-connectivity-researcher`) each draw the main anatomical figure of their own papers; `publication-figure-author` is a facet of each | Reviewers, editors, journal readers |
+| Recurring regenerated deliverables (5.11)     | Whoever owns the recurring product: `marcus-lindqvist` (exposure), `workplace-collaboration-analyst` (monthly dashboard), `research-impact-librarian` (institutional reports), `supply-chain-analyst` (resiliency scores), `aml-investigator` (continuing-activity review)                                                                         | Leaders and reviewers comparing periods                                            |
+
+The readers' side, sourced: Kumu viewers open a published presentation by link, private presentations carry a token
+in the URL and may add a password, and a privacy change gives the presentation a new URL
+([Kumu presentations](https://docs.kumu.io/guides/presentations)); i2 Chart Reader exists so recipients can view
+charts without the analysis tool ([i2](https://i2group.com/i2-chart-reader)).
+
 ## 4. Use cases (ranked by stakes times frequency)
 
 | #   | Question the deliverable answers                                                                                          | Who                                           | Frequency                  | Stakes                                                               |
@@ -145,7 +172,11 @@ et al., "Ten simple rules to create biological network figures for communication
 2. **Cut to the message.** Remove nodes, collapse clusters, aggregate the periphery (rule 5); split overview and
    detail panels rather than overloading channels (rule 9). In Cytoscape: filters, largest component, group/collapse.
 3. **Style for print.** Labels at least caption size (rule 4); avoid red-green, check grayscale (rule 6); no
-   unjustified 3D (rule 10). Cell Press-style widths of 85, 114 or 174 mm with 6-8 pt minimum fonts are commonly
+   unjustified 3D (rule 10). Clear overlapping labels: in Gephi, Label Adjust "slightly moves nodes where labels are
+   overlapping" ([Gephi blog](https://gephi.wordpress.com/2008/11/15/label-adjust/)) and Noverlap separates nodes but
+   "doesn't manage labels" ([plugin page](https://gephi.org/desktop/plugins/noverlap/)); Cytoscape has no automatic
+   option, so helpdesk replies suggest manual layout, zoom or label wrapping
+   ([cytoscape-helpdesk, 2016](https://groups.google.com/g/cytoscape-helpdesk/c/djlA3moVD74)). Cell Press-style widths of 85, 114 or 174 mm with 6-8 pt minimum fonts are commonly
    cited (secondary: [Manusights](https://manusights.com/blog/cell-reports-formatting-requirements)); PLOS asks for
    789-2250 px width at 300 dpi, TIFF or EPS, at most 10 MB, captions outside the file; Nature asks for vector art,
    RGB and embedded fonts, with dpi minimums that differ between its pages.
@@ -302,12 +333,21 @@ Sources: Cytoscape manual; [Gephi Lite sharing](https://docs.gephi.org/lite/user
    Plotly figures and Streamlit or Dash apps, whose interactive output "may not survive in GitHub or nbviewer"
    (code-first sibling); digital humanists build project sites in D3 or sigma.js that "often decay" (DH sibling).
 2. **Simplify for the page.** Verified subset, manual layout, background zones, scroll reveal, motion stopped, text
-   moved out of the canvas for phones (journalism sibling).
+   moved out of the canvas for phones (journalism sibling). NPR found that "the text in the diagram itself is
+   illegible" when the static graphic was scaled down to a small screen, while the explanatory text kept in HTML
+   above each step stayed readable ([OpenNews Source](https://source.opennews.org/articles/network-diagrams-hard/)).
 3. **Public database:** search plus per-entity graphs; some entities have "too many connections ... to display a
    useful graph"; inclusion "is not intended to suggest or imply" wrongdoing; data downloadable as CSVs and Neo4j
-   dumps under the Open Database License.
+   dumps under the Open Database License; ICIJ asks users to "always cite the International Consortium of
+   Investigative Journalists when using this data" ([download page](https://offshoreleaks.icij.org/pages/database)).
 4. **Check what leaks.** A web export ships the data, not just the picture; attributes hidden in the view are
    usually in the JSON. No tool documentation found warning about this beyond Gephi's and Kumu's notes.
+
+Who does these steps: steps 1, 2 and 4 for a newsroom embed are the graphics editor's (`newsroom-graphics-editor`),
+whose input has already passed fact-checking and legal review; step 3 is the investigation's data team
+(`investigative-journalist`); project sites are the archive editor's (`prosopography-archivist`) and notebook HTML
+the notebook data scientist's (`notebook-graph-data-scientist`). All four are on W318 with the recipient as reader
+(section 3.4).
 
 ### 5.7 Public health: cluster communication without network diagrams
 
@@ -343,7 +383,9 @@ BloodHound Enterprise datasheet ([PDF](https://specterops.io/wp-content/uploads/
    SOC and STIX to partners.
 4. **Continuous exposure.** BloodHound Enterprise is sold to "continuously identify every available attack path"
    (datasheet); it tracks Tier Zero exposure over time and its Posture page compares analysis runs (sibling). The
-   deliverable is a trend regenerated after every collection, not an image.
+   deliverable is a trend regenerated after every collection, not an image: wait for ingest and analysis, check
+   group and session completeness, keep the same environment, zone and severity filters, then read the per-category
+   Count and Change table (resolved paths included) and the exposure trend (section 5.11).
 
 ### 5.9 Temporal deliverables: timelines, animations and small multiples
 
@@ -357,7 +399,7 @@ render.d3movie; _R v Calland_.
   the JSON data structure", "displayed in a web browser as an interactive HTML5 SVG animation", or an htmlwidget for
   Shiny; pathpy has `export_html` (temporal sibling).
 - **Animation as video.** Gephi screen recordings uploaded to YouTube (temporal sibling); BrainNet Viewer renders a
-  12-second rotating AVI (connectomics sibling). Talks and newsroom pieces need MP4 or GIF.
+  12-second rotating AVI in about ten minutes ([PMC3701683](https://pmc.ncbi.nlm.nih.gov/articles/PMC3701683)). Talks and newsroom pieces need MP4 or GIF.
 - **Small multiples for print.** ndtv `filmstrip` and weekly slice panels in papers, sharing one layout so nodes do
   not jump between panels (temporal sibling).
 - **Parameters.** Window length, step and aggregation rule must be reported (CiteSpace captions such as "time slice
@@ -365,16 +407,42 @@ render.d3movie; _R v Calland_.
 
 ### 5.10 From 3D to a deliverable (connectomics)
 
-Sources: connectomics sibling (BrainNet Viewer and parcel-map workflows; section 8); Marai rule 10.
+Who makes it: network neuroscientists (fMRI and diffusion imaging researchers), clinical connectome researchers,
+computational network neuroscientists and EEG/MEG connectivity researchers. The connectomics sibling document
+(network-neuroscience-connectomics.md) ranks drawing "a connectome or a result subnetwork in anatomical 3D for a
+paper" as "every paper; the main figure".
+
+Sources: Xia, Wang and He, "BrainNet Viewer: a network visualization tool for human brain connectomics", PLoS ONE
+2013 ([PMC3701683](https://pmc.ncbi.nlm.nih.gov/articles/PMC3701683)); BrainNet Viewer manual v1.42, sections 6.2
+"Option" and 7.1 "Load Files & Save as Image" ([nitrc.org](https://nitrc.org/docman/view.php/504/1280/brainnet));
+nilearn `plot_connectome` reference
+([nilearn.github.io](https://nilearn.github.io/dev/modules/generated/nilearn.plotting.plot_connectome.html));
+netplotbrain paper ([PMC10312269](https://pmc.ncbi.nlm.nih.gov/articles/PMC10312269/)); Marai et al. rule 10
+([PMC6762067](https://pmc.ncbi.nlm.nih.gov/articles/PMC6762067)).
 
 1. Positions are anatomical (atlas coordinates), not a layout; they must be kept, not recomputed.
-2. BrainNet Viewer's "medium" layout renders lateral and medial views per hemisphere; parcel maps are laid out as "a
-   grid of lateral and medial views per hemisphere, one shared color bar", "often next to the ball-and-stick view of
-   the same nodes with the same colors".
-3. Export at pixel or physical size and DPI to TIFF, EPS or PNG; or a rotating movie (about ten minutes to render).
+2. Pick a fixed view layout. In BrainNet Viewer "the single view shows only one brain model", the medium view shows
+   "the lateral and medial sides of each hemisphere", and the full view shows "all sides of the brain surface"
+   (Xia et al. 2013). Parcel maps are laid out the same way, as a grid of lateral and medial views per hemisphere
+   with one shared color bar, often next to the ball-and-stick view of the same nodes in the same colors
+   (connectomics sibling, section 8).
+3. Export at size. BrainNet Viewer saves "TIFF, BMP, EPS, JPEG and PNG", and "the resolution of the output image can
+   also be modified in dots per inch (DPI)". Its movie is "a 12 second long, 30 FPS, 735x534, AVI file" that rotates
+   "at one degree per frame", and "generating these videos takes approximately 10 minutes" (Xia et al. 2013).
 4. Alongside: a matrix heatmap ordered by network or module with block outlines, a circular connectogram, and a
-   supplementary edge table with region labels.
-5. Settings are saved to an option file so figures can be regenerated in batch.
+   supplementary edge table with region labels (connectomics sibling, section 8).
+5. Save the settings. In BrainNet Viewer "the configuration in this panel can be saved as a .mat file and recalled
+   at next use or in a command line"; `BrainNet_MapCfg(...)` takes the surface, data files and that option file and
+   renders figures in batch for every subject or condition (Xia et al. 2013).
+
+The Python tools offer other fixed view grids rather than BrainNet Viewer's lateral-and-medial one. nilearn's
+`plot_connectome` draws a glass brain with `display_mode` values such as 'ortho', 'lzr' or 'lyrz' ('l' and 'r' are
+"sagittal left hemisphere only" and "sagittal right hemisphere only") and writes .png, .pdf or .svg through
+`output_file`; its reference names no medial view and no DPI setting. netplotbrain takes view letters ('L', 'R',
+'S', 'I', 'A', 'P'), where "a string of multiple letters can also be specified to generate multiple subplots" (for
+example `view='LSR'`, or a list of strings for several rows), and offers preset combinations and rotating frames;
+its paper names no medial view either. A tool serving all three groups therefore needs named camera views that can
+be chosen freely and arranged in a grid, with lateral and medial per hemisphere as one preset among several.
 
 Paper, PDF and court have no 3D medium. A 3D view becomes a deliverable only as fixed, labeled views plus an
 optional turntable video; if depth carries no data (an abstract force layout), Marai rule 10 says flatten to 2D.
@@ -388,13 +456,80 @@ chain sibling); continuing-activity SAR reviews (5.3); dependency engineers, for
 saved selector or a saved query is the shareable unit" and everything "is regenerated from source" (dependency
 sibling).
 
-1. Build the deliverable once: view, filters, styling, legend, parameters block, tables.
-2. Save it as a definition, not as pixels.
-3. Each period, load the new data and re-render with the same parameters; compare with the previous period.
-4. Publish: export the files, refresh the dashboard or update the embed.
+**How a mature tool does the comparison.** BloodHound Enterprise's Posture page is a recurring graph deliverable
+regenerated after every analysis run, and its documentation spells out what "compare with the previous period"
+takes ([Posture page](https://bloodhound.specterops.io/analyze-data/bloodhound-gui/posture-page);
+[Data Quality](https://bloodhound.specterops.io/collect-data/data-quality)):
 
-Today this is done with notebooks, BI tools or vendor dashboards; no graph-visualization tool documentation found
-that saves a deliverable as a re-renderable template against new data.
+- **Fixed scope.** Filters for environment (one Active Directory domain or Azure tenant), zone (Tier Zero by
+  default, or another zone or the Hygiene category), severity, and a date range "to compare posture trends between
+  analysis runs". For meaningful trend comparisons the page says to "use the same filter scope and similar date
+  ranges across reviews".
+- **A change table by category.** Count is "the number of findings that existed on the end date of the selected
+  range"; Change is "the calculated difference in the number of findings between the beginning and end date". Paths
+  that were fully resolved by remediation, or deprecated by the vendor, during the range still appear in the table for
+  that range. Counts are per day, so runs that cross a day boundary can shift the numbers.
+- **Trend graphs** of attack path exposure (the percentage of principals that can compromise the zone), findings,
+  active attack paths and objects in the zone, on a linear or logarithmic scale.
+- **A completeness gate.** Group Completeness and Session Completeness are "the percentage of all computers that were
+  scanned successfully", counting only enabled computers with a login in the past 14 days. The Data Quality page says
+  to "wait for ingest and analysis processing to complete before you compare counts or trends"; completeness below 100
+  percent is normal because "workstations and servers can be offline, unavailable, or inaccessible during a collection
+  run", and low completeness points to "collector permissions, collector logs, and collection scheduling". A drop in
+  exposure in a period with poor session coverage may be missing data, not remediation.
+
+**Matching the same things across periods.** A refreshed extract renames, merges, adds and drops entities, and
+every comparison depends on matching them:
+
+- Neo4j Bloom scenes "rely on node and relationship IDs in Neo4j", and the documentation warns that a database that
+  reuses ids (for example after backup and restore) can make saved scenes display incorrectly
+  ([Bloom scenes](https://neo4j.com/docs/bloom-user-guide/current/bloom-tutorial/export-data/)).
+- Institutions in bibliometric reports change names and merge. The Research Organization Registry keeps one
+  identifier through a rename, marks organizations that split, merged or closed as inactive, and links them with
+  Successor and Predecessor relationships; its search and affiliation matching return active records only by default
+  ([ROR, organization status](https://ror.org/blog/2022-12-07-handling-org-status/);
+  [ROR relationships](https://ror.org/blog/2023-02-27-parents-children-and-other-relationships-in-ror)). A
+  year-over-year institutional report must roll predecessors into successors or the merged unit appears as a new
+  entity and its parts as departures.
+- ONA practitioners keep the edge rules stable across periods and use at least three months on each side of a change
+  (ONA sibling, section 5). Viva Insights' minimum group size (default five, never lower) shows no data for a group
+  below the threshold ([Microsoft Learn](https://learn.microsoft.com/en-us/viva/insights/privacy/privacy-considerations)),
+  so a team that shrinks between periods vanishes from the dashboard; a reader can mistake suppression for a
+  departure unless the change table marks it.
+
+**Keeping positions fixed.** Maps are compared by position only when positions do not move. VOSviewer separates
+building a map (the map file carries no coordinates, VOSviewer computes them) from viewing an existing one (the map
+file carries x and y) ([VOSviewer file types](https://app.vosviewer.com/docs/file-types/map-and-network-file-type)),
+which is how science overlay maps keep one base map across years (Designloom workflow W57). Kumu maps connected to a
+Google Sheet fetch their data "on the fly each time you refresh the page", but pinning elements in place does not
+work on those maps ([Kumu](https://docs.kumu.io/guides/import/google-sheets)), so a refreshed map can be rearranged.
+
+**Graph tools that re-render a saved view.** NeoDash, the Neo4j dashboard builder, builds dashboards from reports;
+"each report will have a single Cypher query behind it", a Graph report draws the returned nodes and relationships,
+and each report's settings hold its refresh rate ([NeoDash reports](https://neo4j.com/labs/neodash/2.2/user-guide/reports/)).
+Its Graph report re-runs the query when shown ("Auto-run query") and lays the result out force-directed, freezing
+only positions a viewer drags ([NeoDash graph report](https://neo4j.com/labs/neodash/2.4/user-guide/reports/graph/)).
+BloodHound Enterprise Posture regenerates on every analysis run. Both store the query and settings, and neither, in
+its documentation, stores fixed positions or a period-to-period diff of the drawing itself. Viva Insights queries
+auto-refresh when new collaboration data arrives, only for the preset time ranges, while the Power BI report must
+still be refreshed to show the new results ([Viva auto-refresh](https://learn.microsoft.com/en-us/previous-versions/viva/insights/tutorials/query-auto-refresh)).
+
+Steps, combining these practices:
+
+1. **Build once**: view, filters, styling, legend, parameters block, tables.
+2. **Save as a definition**, not pixels: the query or import mapping, the filters and scope, the style, the
+   parameters, and the positions or the base map that must stay fixed.
+3. **Load the new period's data** and wait until import and any analysis have finished.
+4. **Check coverage before comparing**: completeness of the collection (share of expected sources or hosts that
+   reported), record counts against the previous period, and the data date. Below the agreed level, mark the period
+   as not comparable instead of reporting a change.
+5. **Match entities across periods**: by stable id; apply renames and merges (predecessor rolled into successor);
+   list new and departed items, and items hidden by a minimum group size, separately.
+6. **Re-render with the same scope and parameters**, keeping existing positions fixed and placing only new items.
+7. **Build the change table**: per category, the count at the end of the period, the change from the start, and the
+   items resolved, retired or newly appeared within the period; plus trend lines over all periods.
+8. **Publish**: export the files, refresh the dashboard or update the embed, stating the period, the data date, the
+   coverage figures and that the scope matches the previous edition.
 
 ## 6. Data at hand-off
 
@@ -510,8 +645,9 @@ Publication).
 | R21 | Label-redacted image export: hide or replace node labels and chosen attributes, verified absent from the file                                                                                                                                    | must for cyber                                                                  | Gap                                                  |
 | R22 | STIX bundle export and chronological hop-table export (time, source, target, account, evidence) for a path                                                                                                                                       | should for cyber                                                                | Gap                                                  |
 | R23 | Temporal export: video (MP4 or GIF) with fixed camera and timing; standalone animated HTML; small-multiple panels sharing one layout; timeline chart with source references per event                                                            | must for temporal and court work                                                | Gap                                                  |
-| R24 | Saved deliverable template (view, filters, style, legend, parameters, tables) that re-renders against new data, exportable on demand or on a schedule, or embedded live                                                                          | must for recurring deliverables                                                 | Gap (`report-generation` planned, unspecified)       |
+| R24 | Saved deliverable template (view, filters, style, legend, parameters, tables, fixed positions) that re-renders against new data, exportable on demand or on a schedule, or embedded live; before comparing it checks coverage, matches entities across periods (renames, merges, new, departed, suppressed), and adds a per-category change table with resolved items | must for recurring deliverables                                                 | Gap (`report-generation` planned, unspecified)       |
 | R25 | Deliverable rules up front: choose the deliverable type (journal, court 1006/107, SAR, public-health partner, public embed) and apply its constraints                                                                                            | should                                                                          | Gap                                                  |
+| R26 | Overlap-free labels in the figure: no label overlaps another label or a node, resolved at the export's physical size; labels-only placement with leader lines by default (layout kept), moving nodes as an option; short-code labels with a mapping table; unplaceable labels reported, not stacked | must for journal figures (psychometric R11, network pharmacology R10); should elsewhere | Gap (`label-overlap-removal` planned) |
 
 **Accessibility basis for R13.** The Department of Justice's ADA Title II rule (published April 24, 2024) adopted
 WCAG 2.1 Level AA for state and local government web content, including PDFs and other conventional documents, with
@@ -531,6 +667,11 @@ narratives, tables and structured exports. (c) Parameters and provenance are man
 representative audience" maps to formal review: peer review, SAR QC, opposing counsel, works councils, data sharing
 agreements. (e) W15 must distinguish one-off from recurring deliverables and cover temporal and 3D-to-print outputs.
 (f) Add personas `litigation-demonstratives-specialist`, `publication-figure-author` and `graph-deliverable-recipient`.
+(g) Every production workflow names its producers (section 3.4); `graph-deliverable-recipient` stays on them only
+as the reader, and her own steps are the separate reading workflow W1018. The facet `publication-figure-author` never
+stands alone as a producer: the journal figure (W313) names the genomics lab and core facility bioinformaticians, and
+the web export (W318) names the newsroom graphics editor, the investigation's data team, the archive editor and the
+notebook data scientist.
 
 ## 11. Sources
 
@@ -539,11 +680,15 @@ Primary sources are linked inline. Additional sources and sibling documents reli
 - https://manual.cytoscape.org/en/3.10.3/_sources/Export_Your_Data.md.txt -- Cytoscape export, web export limits, fonts.
 - https://py4cytoscape.readthedocs.io/en/latest/reference/generated/py4cytoscape.network_views.export_image.html -- scripted export.
 - https://pmc.ncbi.nlm.nih.gov/articles/PMC5679399 -- NDEx peer-review flow.
+- https://github.com/SachaEpskamp/qgraph/issues/5 -- qgraph labels overlap in tight spring layouts; answers offer HTML tooltips or more repulsion, nothing for print.
+- https://docs.yworks.com/yfiles-html/dguide/label_placement/ -- generic labeling moves only labels and cannot resolve all overlaps; integrated labeling removes them by moving nodes.
+- https://mdlutoronto.github.io/gephi-visualize-network-dataset/6-f-add-labels-and-make-final-layout-adjustments/ -- teaching sequence ends with Label Adjust, then Noverlap.
 - https://gephi.org/desktop/plugins/sigmaexporter -- Sigma.js export needs a web server.
 - https://bsaefiling.fincen.treas.gov/docs/FinCENSARElectronicFilingRequirements.pdf -- SAR attachments.
 - https://neo4j.com/docs/bloom-user-guide/current/bloom-tutorial/export-data/ -- Bloom export.
 - https://offshoreleaks.icij.org/pages/database -- data download and license.
-- https://neo4j.com/blog/neo4j-power-behind-paradise-papers/ -- shared visualizations among 382 journalists.
+- https://neo4j.com/blog/neo4j-power-behind-paradise-papers/ -- shared visualizations among 382 journalists; Data and Research Unit editor quote.
+- https://source.opennews.org/articles/network-diagrams-hard/ -- who built NPR's network diagram; illegible text on small screens.
 - https://helpcenter.flourish.studio/hc/en-us/articles/8761553784719-Network-graph-an-overview -- Flourish network inputs.
 - https://www.cdc.gov/hivpartners/php/cdr/health-department-guidance.html -- CDC cluster communication and data protection.
 - https://caselaw.findlaw.com/court/us-6th-circuit/1097222.html -- United States v. Bray, summary charts.
@@ -554,6 +699,18 @@ Primary sources are linked inline. Additional sources and sibling documents reli
 - https://www.govinfo.gov/content/pkg/FR-2026-04-20/html/2026-07663.htm -- ADA Title II compliance date extension.
 - https://www.sog.unc.edu/blogs/coates-canons/understanding-new-ada-web-accessibility-requirements-state-and-local-governments-2 -- Title II scope and exceptions.
 - https://www.access-board.gov/ict/ -- Section 508 standards.
+- https://www.fincen.gov/resources/faqs/frequently-asked-questions-regarding-the-fincen-suspicious-activity-report-sar/ -- continuing-activity timing and five-year copies.
+- https://learn.microsoft.com/en-us/viva/insights/advanced/setup-maint/user-roles -- Viva Insights Analyst and manager access.
+- https://bloodhound.specterops.io/analyze-data/bloodhound-gui/posture-page -- exposure trend for tracking remediation.
+- https://bloodhound.specterops.io/collect-data/data-quality -- completeness checks before comparing counts or trends.
+- https://neo4j.com/labs/neodash/2.2/user-guide/reports/ -- NeoDash reports: one Cypher query each, refresh rate setting.
+- https://neo4j.com/labs/neodash/2.4/user-guide/reports/graph/ -- NeoDash Graph report: auto-run query, positions frozen only after drag.
+- https://neo4j.com/docs/bloom-user-guide/current/bloom-tutorial/export-data/ -- Bloom scenes rely on database ids.
+- https://ror.org/blog/2022-12-07-handling-org-status/ -- inactive organizations, successor and predecessor links.
+- https://app.vosviewer.com/docs/file-types/map-and-network-file-type -- map files with x and y coordinates.
+- https://docs.kumu.io/guides/import/google-sheets -- sheet-connected maps refresh on load; pinning unavailable.
+- https://learn.microsoft.com/en-us/previous-versions/viva/insights/tutorials/query-auto-refresh -- Viva query auto-refresh.
+- https://www.Cdc.gov/hiv/programresources/guidance/hiv-cluster-detection-and-response-guidance/cluster-review-and-prioritization.html -- cluster review group membership.
 - Sibling documents in this folder: financial-crime-fraud-aml-kyc.md, law-enforcement-and-intelligence-analysts.md,
   public-health-and-molecular-epidemiology.md, network-neuroscience-connectomics.md, cybersecurity-graph-work.md,
   bibliometrics-and-science-mapping.md, code-first-data-scientists-and-graph-ml.md,

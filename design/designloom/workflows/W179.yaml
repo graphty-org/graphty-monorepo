@@ -49,7 +49,7 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Model objects** (days) - Object types with sub-objects such as Birth or Letter-sent, each with a date and place
+    1. **Model objects** - Object types with sub-objects such as Birth or Letter-sent, each with a date and place
 
     2. **Grade uncertainty** (ongoing) - Per field, a flag, a certainty class with "Derived from" (Primary, Secondary,
     Inference, Conjecture), or a 1-100 score that can be filtered with "at least 80"
@@ -61,10 +61,10 @@ goal: >-
 
     5. **Attach sources** (ongoing) - A source per statement; conflicting statements side by side
 
-    6. **Two-mode data** (1 hour) - Charter-witness data where frequent co-witnessing makes a real tie more probable;
+    6. **Two-mode data** - Charter-witness data where frequent co-witnessing makes a real tie more probable;
     project to person-person for metrics, keep two-mode for readers
 
-    7. **View or export** (30 min) - Geographic, social and chronological views, or export for another tool
+    7. **View or export** - Geographic, social and chronological views, or export for another tool
 
 
     **Decision Points**:

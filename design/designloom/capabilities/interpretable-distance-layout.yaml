@@ -5,11 +5,16 @@ description: "Layouts whose positions are measurements: MDS on weights with a st
     layouts with congruence, and a deterministic seeded force layout rotated to its principal axis with a chosen node
     anchored on the left, with coordinates exportable as node data."
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: psychometric-network-analysis.md section 10, requirement R9 (Should)."
 algorithms: []
 used_by_workflows:
     - W372
     - W379
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Should: Layouts whose distances mean something: MDS with a stress value, and Procrustes alignment of two layouts"
+sources:
+    - title: "Psychological Network Analysts: Symptom, Attitude and Personality Networks Estimated from Survey Items
+        (section 10, requirement R9)"
+      url: design/user-research/psychometric-network-analysis.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

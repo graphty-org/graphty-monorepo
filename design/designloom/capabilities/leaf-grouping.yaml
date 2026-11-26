@@ -4,10 +4,15 @@ category: analysis
 description: Fold same-type nodes that share the same neighbors into one group node above a size threshold, with member
     counts, and pin members out of the group.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: investigative-journalism-and-osint.md section 10, requirement R9 (Should)."
 algorithms: []
 used_by_workflows:
     - W88
+    - W1096
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Should: Grouping of same-type leaves (like Maltego collections) and pinning out of groups"
+sources:
+    - title: Investigative journalists, OSINT investigators and trust-and-safety teams (section 10, requirement R9)
+      url: design/user-research/investigative-journalism-and-osint.md
+      summary: "Should in the research. Covered by Designloom when researched: Not covered"

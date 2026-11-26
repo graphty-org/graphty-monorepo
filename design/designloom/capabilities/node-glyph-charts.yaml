@@ -5,23 +5,26 @@ description: Draw one-to-many node data as donut, pie or bar charts built from s
     node (phosphosites, time points, sample groups), and draw images such as chemical structures from SMILES or image
     URLs as node glyphs.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: systems-biology-omics-networks.md section 10, requirement 14 (Must)."
 algorithms: []
 used_by_workflows:
     - W21
     - W241
     - W242
     - W253
-    - W264
     - W390
     - W391
     - W392
     - W394
     - W395
+    - W3066
 implemented_by_components: []
 requirements:
-    - Draw nodes as pie charts over several numeric group columns (for example per-sample-group intensities), with a
-      legend.
-    - Nodes drawn as pies whose area comes from a count (linear or square-root) and slices from a composition vector,
-      with a shared legend and an overlap-free layout for very unequal node sizes.
-sources: []
+    - "Must: One-to-many node data: per-node donut, pie or bar charts from several columns"
+    - "Must: Draw nodes as pie charts over several numeric group columns (for example per-sample-group intensities), with a legend."
+    - "Must: Nodes drawn as pies whose area comes from a count (linear or square-root) and slices from a composition vector, with a shared legend and an overlap-free layout for very unequal node sizes."
+sources:
+    - title: Systems Biologists and Bench Scientists Working With Molecular Interaction Networks (section 10,
+          requirement 14)
+      url: design/user-research/systems-biology-omics-networks.md
+      summary: Must in the research.

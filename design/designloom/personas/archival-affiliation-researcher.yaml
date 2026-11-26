@@ -1,9 +1,12 @@
 id: archival-affiliation-researcher
 name: Political Scientist Working from Records and Texts
+roster_persona: survey-network-researcher
+tier: B
+scope: in-scope
 role: Political Scientist or Historical Sociologist (Cosponsorship, Interlocks, Alliances, Discourse Networks)
 quote: Every committee becomes a clique the moment I project it. I need the two-mode picture, the right weights, and a coalition map per year.
 bio: >-
-    Dr. Tomas Varga builds networks from records and coded texts rather than surveys: legislative cosponsorship, board
+    Dr. Andras Varga builds networks from records and coded texts rather than surveys: legislative cosponsorship, board
     interlocks, memberships, alliances and treaties, and statements in policy debates coded by who said what and
     whether they agreed. His data are usually two-mode (person by bill, director by board, actor by concept), weighted
     and temporal -- one network per year or per time window. He scrapes or hand-codes CSV files, works in R (igraph,
@@ -48,6 +51,8 @@ workflows:
     - W32
     - W33
     - W36
+    - W294
+    - W1138
 sources:
     - title: Fowler (2006) Connecting the Congress
       url: https://www.cambridge.org/core/journals/political-analysis/article/connecting-the-congress-a-study-of-cosponsorship-networks/B42907E13C3D1F12BBC7618C8E0EECED

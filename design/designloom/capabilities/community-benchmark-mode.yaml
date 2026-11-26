@@ -4,10 +4,14 @@ category: analysis
 description: LFR or planted-partition grids over the mixing parameter, methods scored by NMI against planted labels with
     error bars over realizations.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: network-scientists-and-analysis-method-validity.md section 9, requirement R29 (Should)."
 algorithms: []
 used_by_workflows:
     - W48
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Should: Benchmark mode: LFR or planted-partition grids, methods scored by NMI against mu with error bars"
+sources:
+    - title: Network Scientists and the Validity of Core Analysis Methods (section 9, requirement R29)
+      url: design/user-research/network-scientists-and-analysis-method-validity.md
+      summary: "Should in the research. Covered by Designloom when researched: Partly: generators emit planted labels"

@@ -45,13 +45,13 @@ goal: >-
     1. **Build the layout from mental models** (before the session) - Interviews group entities into logical and
     functional groups placed in space; the views are not geospatial
 
-    2. **Load the exercise data** (5 min) - Blue-team topology as cubes, edges for session counts, brightness for
+    2. **Load the exercise data** - Blue-team topology as cubes, edges for session counts, brightness for
     traffic volume
 
     3. **Learn and explain the topology** (no time limit) - One partner learns it and explains it to the other in the
     shared space
 
-    4. **Find the top five attacking hosts** (up to 40 min) - Walk through the space, grab nodes, rank by edge
+    4. **Find the top five attacking hosts** - Walk through the space, grab nodes, rank by edge
     brightness
 
     5. **Find lateral movement** (remaining time) - Follow sessions from attackers into internal hosts
@@ -96,7 +96,7 @@ goal: >-
     - Output: List of attacker hosts and compromised segments, team findings
 success_criteria:
     - metric: Attacker identification
-      target: Pair names the top five attacking hosts within 40 minutes
+      target: Pair names the top five attacking hosts within 40 minutes (design goal; no source measures it)
     - metric: Shared focus
       target: Each partner can see what the other selected without verbal description
     - metric: Topology recall

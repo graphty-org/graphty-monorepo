@@ -7,6 +7,8 @@ notes: "Ships: graphty/src/workspace/export/ExportDialog.tsx and DataOutput.tsx.
 implements_capabilities:
     - data-export
 used_in_workflows:
+    - W3114
+    - W3006
     - W15
     - W13
     - W16
@@ -156,18 +158,13 @@ used_in_workflows:
     - W335
     - W336
     - W337
-    - W338
+    - W430
     - W339
     - W340
     - W341
     - W344
     - W345
-    - W349
     - W35
-    - W350
-    - W351
-    - W354
-    - W355
     - W361
     - W364
     - W365
@@ -202,19 +199,13 @@ used_in_workflows:
     - W426
     - W428
     - W429
-    - W430
     - W434
     - W435
     - W436
     - W437
     - W438
-    - W439
     - W44
-    - W440
-    - W443
-    - W445
-    - W446
-    - W447
+    - W431
     - W45
     - W47
     - W48
@@ -250,6 +241,42 @@ used_in_workflows:
     - W93
     - W95
     - W96
+    - W1006
+    - W383
+    - W1042
+    - W1054
+    - W1060
+    - W1084
+    - W1090
+    - W1096
+    - W252
+    - W1120
+    - W1126
+    - W1132
+    - W1138
+    - W1139
+    - W105
+    - W228
+    - W1157
+    - W1159
+    - W2000
+    - W2006
+    - W2030
+    - W2036
+    - W2037
+    - W251
+    - W2072
+    - W2096
+    - W2097
+    - W2099
+    - W3048
+    - W3049
+    - W3050
+    - W3078
+    - W3079
+    - W3080
+    - W3102
+    - W3103
 dependencies:
     - select
     - checkbox

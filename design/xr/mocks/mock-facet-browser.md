@@ -512,7 +512,7 @@ largest node.
 ### Proof journey: gene list to expression map and clusters
 
 Stress journey 3 in the functionality inventory (a studio working file, not committed), which joins workflows W20 (expression overlay)
-and W21 (cluster annotation) in `design/designloom/workflows/`. Persona: Dr. Priya Raman, a cancer
+and W21 (cluster annotation) in `design/designloom/workflows/`. Persona: Dr. Lakshmi Raman, a cancer
 genomics postdoc (`design/designloom/personas/genomics-cytoscape-user.yaml`). She has 300
 differentially expressed genes, queried STRING on her laptop for their interactions, and has her
 RNA-seq results as a 25-column table. Apple Vision Pro, seated, paired with her laptop folder. The

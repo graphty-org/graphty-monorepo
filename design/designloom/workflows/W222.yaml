@@ -2,6 +2,7 @@ id: W222
 name: DER Hosting Capacity Across Feeders
 category: analysis
 validated: false
+scope: out-of-scope
 personas:
     - distribution-planning-engineer
 requires_capabilities:

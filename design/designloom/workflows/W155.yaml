@@ -54,18 +54,18 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Represent the group** (10 min) - Functional: average Fisher-z matrices. Structural: keep edges present in at
+    1. **Represent the group** - Functional: average Fisher-z matrices. Structural: keep edges present in at
     least a fraction of subjects, or use distance-dependent consensus, which bins candidate edges by fiber length and
     keeps the most consistent edge per bin within and between hemispheres so long connections survive
 
-    2. **Find modules** (10 min to hours) - Run Louvain many times, build an agreement matrix, threshold and
+    2. **Find modules** - Run Louvain many times, build an agreement matrix, threshold and
     re-cluster to a consensus partition; sweep the resolution gamma (for example 0 to 4 in 0.05 steps) and pick a
     stable range
 
-    3. **Find hubs** (5 min) - Participation coefficient and within-module degree z-score per node; rich club against
+    3. **Find hubs** - Participation coefficient and within-module degree z-score per node; rich club against
     random networks
 
-    4. **Visualize** (20 min) - Nodes colored by module in 3D at anatomical positions; matrix reordered by module with
+    4. **Visualize** - Nodes colored by module in 3D at anatomical positions; matrix reordered by module with
     block outlines; parcels colored by module (W159); sometimes a 2D topological layout next to the anatomical one
 
 

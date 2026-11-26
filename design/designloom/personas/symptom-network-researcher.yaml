@@ -1,9 +1,12 @@
 id: symptom-network-researcher
 name: Symptom Network Researcher
+roster_persona: symptom-network-researcher
+tier: B
+scope: in-scope
 role: Clinical Psychology PhD Student / Postdoc Estimating Symptom Networks in R
 quote: Reviewers will ask for the CS-coefficient before they read a word about my central symptom, so the stability check comes first and the pretty picture comes last.
 bio: >-
-    Lena is a third-year clinical psychology PhD student studying PTSD and depression comorbidity in a trauma clinic
+    Signe is a third-year clinical psychology PhD student studying PTSD and depression comorbidity in a trauma clinic
     sample of about 400 patients who answered 20 to 30 questionnaire items. She learned R from a methods course and
     the bootnet tutorial and attended one network psychometrics workshop. Her graphs are small (15 to 30 nodes) but
     every edge is estimated, not observed: a regularized partial correlation that is signed, weighted, sparse by
@@ -52,6 +55,7 @@ workflows:
     - W372
     - W375
     - W378
+    - W1042
 sources:
     - title: Robinaugh et al. 2020 - The network approach to psychopathology, a review of the literature 2008-2018
       url: https://pmc.ncbi.nlm.nih.gov/articles/PMC7334828

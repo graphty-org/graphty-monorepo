@@ -4,10 +4,17 @@ category: visualization
 description: Left-to-right time-ordered tree or DAG layout of a message thread, with distinctly styled inferred
     placeholder nodes for missing messages.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: ediscovery-and-legal-communication-analysis.md section 10, requirement R19 (Must)."
 algorithms: []
 used_by_workflows:
     - W362
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Time-ordered message tree layout: left-to-right by sent time, replies and forwards as branches, a DAG when
+      a message has two parents"
+sources:
+    - title: eDiscovery, litigation review and internal-investigation teams who use communication graphs (section 10,
+        requirement R19)
+      url: design/user-research/ediscovery-and-legal-communication-analysis.md
+      summary: "Must in the research. Covered by Designloom when researched: Not covered (tree layouts are not
+        time-ordered)"

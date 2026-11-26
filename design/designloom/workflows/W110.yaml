@@ -60,11 +60,11 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Record the seed** (2 min) - Defang it and note source and date
+    1. **Record the seed** - Defang it and note source and date
 
-    2. **Start a graph** (1 min) - Drop the indicator onto an empty canvas as a typed node
+    2. **Start a graph** - Drop the indicator onto an empty canvas as a typed node
 
-    3. **Expand** (repeated, 1-5 min each) - Run one relationship at a time (domain to IP, IP to other domains,
+    3. **Expand** (repeated) - Run one relationship at a time (domain to IP, IP to other domains,
     certificate hash to hosts, hash to contacted domains); cap results per expansion (Maltego Small, Balanced, Large;
     VirusTotal 40 nodes per API query; Iris up to 500 domains per certificate pivot)
 
@@ -75,10 +75,10 @@ goal: >-
     names (4 hosts), to names from public C2 profiles (68 hosts), to a structural certificate rule (92 certificates),
     to shared /24 subnets and ASNs, to a reused RDP certificate (53 hosts); keep matches as suspects until validated
 
-    6. **Prune** (5-15 min) - Bookmark or color what is believed, select by mark or type, bulk-delete the rest; roll
+    6. **Prune** - Bookmark or color what is believed, select by mark or type, bulk-delete the rest; roll
     back bad expansions
 
-    7. **Save, share, report** (30 min) - Save the graph (optionally encrypted), export PDF of bookmarked entities, a
+    7. **Save, share, report** - Save the graph (optionally encrypted), export PDF of bookmarked entities, a
     deduplicated defanged indicator feed, a STIX report bundle; hand blocklists and hunt queries to the SOC
 
 

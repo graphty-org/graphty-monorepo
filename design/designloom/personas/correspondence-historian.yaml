@@ -1,5 +1,8 @@
 id: correspondence-historian
 name: Correspondence Historian
+roster_persona: digital-humanist
+tier: B
+scope: in-scope
 role: Associate Professor of Early Modern History (solo, spreadsheet plus GUI tools)
 quote: I have four thousand letters in a spreadsheet. Show me who sat between the English circle and the continent, and let me cite every line on the figure.
 bio: >-
@@ -50,6 +53,7 @@ workflows:
     - W176
     - W178
     - W179
+    - W291
 sources:
     - title: Programming Historian - From Hermeneutics to Data to Networks (Duering)
       url: https://programminghistorian.org/en/lessons/creating-network-diagrams-from-historical-sources

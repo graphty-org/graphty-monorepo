@@ -1,9 +1,12 @@
 id: time-series-causal-discovery-analyst
 name: Time-Series Causal Discovery Analyst
+roster_persona: causal-dag-epidemiologist
+tier: B
+scope: in-scope
 role: Climate Research Scientist learning lagged causal graphs from multivariate time series
 quote: I know the Pacific index drives monsoon rain. What I need to see is at which lags, how strongly, and whether it still holds in El Nino years.
 bio: >-
-    Dr. Lena Brandt is a research scientist who studies teleconnections -- for example how a tropical sea-surface
+    Dr. Ursula Brandt is a research scientist who studies teleconnections -- for example how a tropical sea-surface
     temperature index drives monsoon rainfall at particular lags -- and ecosystem fluxes from station data. She works
     in Python with Tigramite (PCMCI, PCMCI+, LPCMCI), xarray and pandas, and uses statsmodels or R's vars package for
     Granger tests and vector autoregression when a reviewer asks for the classical approach. Her data are 4 to a few

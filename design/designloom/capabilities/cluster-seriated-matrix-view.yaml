@@ -1,0 +1,21 @@
+id: cluster-seriated-matrix-view
+name: "Clustered adjacency matrix paired with the graph"
+category: visualization
+description: "Reorder the rows and columns of an adjacency matrix by cluster so each cluster forms a block on the diagonal, color cells by cluster, mark cells of multi-cluster members, and switch between this matrix and the node-link view of the same graph and the same clustering without a second import. The matrix is the only view every consumer DNA vendor ships, and the node-link view is a separate hand-built product today."
+status: planned
+notes: "Research trace: genetic-genealogy-dna-match-networks.md section 10, table row 6 (Must)."
+algorithms: []
+used_by_workflows:
+    - W2096
+    - W2097
+    - W2098
+    - W2099
+implemented_by_components: []
+requirements:
+    - "Must: Clustered adjacency matrix of the same graph, rows and columns reordered so clusters sit on the diagonal,
+      cells colored by cluster, cells for multi-cluster members marked, switchable with the node-link view"
+sources:
+    - title: "Genetic Genealogists: DNA Shared-Match Networks and Clusters (section 10, table row 6)"
+      url: design/user-research/genetic-genealogy-dna-match-networks.md
+      summary: "Must in the research. Covered by Designloom when researched: Partial (a sortable matrix view is planned;
+        cluster seriation and the paired view are not)"

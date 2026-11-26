@@ -12,7 +12,7 @@ requires_capabilities:
     - legend-display
     - centrality-pagerank
     - statistics-panel
-    - table-to-graph-binding
+    - table-to-graph-builder
     - plugin-layout-algorithm-contract
     - precomputed-metric-columns
     - service-plugin-bridge

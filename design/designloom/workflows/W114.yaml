@@ -55,22 +55,22 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Open the queue** (5 min) - Attack paths list with paths over time, top 5 choke points, scenarios, targets and
+    1. **Open the queue** - Attack paths list with paths over time, top 5 choke points, scenarios, targets and
     entry points; filter by risk level, asset type, remediation status and time frame; or a critical issue for a toxic
     combination
 
-    2. **Read the evidence graph** (5 min) - The attack path map marks entry points, vulnerable nodes, target assets
+    2. **Read the evidence graph** - The attack path map marks entry points, vulnerable nodes, target assets
     and choke points
 
-    3. **Inspect nodes** (5-15 min) - ATT&CK tactics and techniques, risk factors and recommendations per node, and why
+    3. **Inspect nodes** - ATT&CK tactics and techniques, risk factors and recommendations per node, and why
     it is on the path; limited permissions hide parts of the path
 
-    4. **Decide which link to break** (10 min) - Separate recommendations that fix the path from ones that only lower
+    4. **Decide which link to break** - Separate recommendations that fix the path from ones that only lower
     risk
 
     5. **Assign and remediate** - Security triages and assigns; infrastructure owners fix
 
-    6. **Verify** (up to 24 h) - A resolved path can take up to a day to leave the list; ad hoc questions go to a query
+    6. **Verify** - A resolved path can take up to a day to leave the list; ad hoc questions go to a query
     explorer ("internet-exposed VMs with high-severity vulnerabilities and access to sensitive storage")
 
     7. **Kubernetes variant** - KubeHound computes attack edges such as container escape, pod exec, token brute force

@@ -23,6 +23,7 @@ requires_capabilities:
     - weight-semantics
     - constrained-k-shortest-paths
     - time-respecting-paths
+    - centrality-betweenness
 suggested_components:
     - graph-canvas
     - path-finder-dialog
@@ -58,7 +59,8 @@ goal: >-
     edge type, direction, maximum hops or time order
 
     3. **Weight Choice** - Unweighted, or a weight column whose meaning is stated: strengths (counts, volumes) must be
-    converted to distances (1/w, -log w) before path finding; distances (km, time, cost) are used as is
+    converted to distances (1/w, -log w) before path finding; distances (km, time, cost) are used as is. Gephi's
+    Shortest Path tool does no conversion: it sums the raw column that its layout read as strength
 
     4. **Path Finding** - Compute the path(s); when there is no path, learn why (disconnected, or blocked by direction,
     type or time order)
@@ -104,7 +106,8 @@ goal: >-
 
     - Showing one tied shortest path hides the alternatives
 
-    - Libraries silently read weights as distances; Gephi's shortest path ignores weights entirely
+    - Libraries silently read weights as distances; Gephi's Shortest Path tool does too, while its Modularity and
+    ForceAtlas2 read the same column as a strength, so the drawn path follows the weakest ties
 
     - Static paths over temporal data may be impossible in time order
 
@@ -140,6 +143,12 @@ sources:
     - title: Neo4j Cypher manual - shortest paths
       url: https://neo4j.com/docs/cypher-manual/current/patterns/shortest-paths/
       summary: ALL SHORTEST, SHORTEST k, typed and directed path patterns; ties cut by k are arbitrary
+    - title: Gephi ShortestPath.java (Shortest Path tool)
+      url: https://github.com/gephi/gephi/blob/master/modules/ToolsPlugin/src/main/java/org/gephi/tools/plugin/ShortestPath.java
+      summary: Runs Bellman-Ford on directed graphs and Dijkstra otherwise, summing edge weights as distances
+    - title: gephi/gephi issue 1816
+      url: https://github.com/gephi/gephi/issues/1816
+      summary: ForceAtlas2 reads weight as strength; a user reports the Shortest Path tool picks the lowest-weight route
     - title: Temporal networks (Holme and Saramaki 2012)
       url: https://arxiv.org/abs/1108.1780
       summary: Time-respecting paths; static aggregation overstates reachability

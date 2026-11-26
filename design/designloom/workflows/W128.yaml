@@ -12,10 +12,8 @@ requires_capabilities:
     - metric-histograms
     - filtering
     - component-analysis
-    - community-detection
     - anomaly-detection
     - pattern-search
-    - centrality-pagerank
     - ego-network
     - visual-encoding-nodes
     - visual-encoding-edges
@@ -35,7 +33,6 @@ suggested_components:
     - algorithm-panel
     - progress-bar
     - anomaly-panel
-    - community-panel
     - pattern-search-dialog
     - ranked-node-table
     - graph-canvas
@@ -62,21 +59,21 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Extract claims** (hours) - A provider type and period (O'Malley et al. used all Medicare home health claims
+    1. **Extract claims** - A provider type and period (O'Malley et al. used all Medicare home health claims
     2002-2016 across 306 regions)
 
-    2. **Build the bipartite graph** (15 min) - Patients to providers, one edge per patient-provider-year
+    2. **Build the bipartite graph** - Patients to providers, one edge per patient-provider-year
 
-    3. **Project to providers** (10 min) - Two providers linked when they share a patient, weighted by shared patients
+    3. **Project to providers** - Two providers linked when they share a patient, weighted by shared patients
 
-    4. **Measure sharing structure** (30 min) - A bipartite mixture index (0 to 1) rose with billing; one standard
+    4. **Measure sharing structure** - A bipartite mixture index (0 to 1) rose with billing; one standard
     deviation was associated with about 173 dollars more billing per enrollee and an 8.6 percent higher chance of a DOJ
     strike force; it may not catch newer schemes such as telemedicine fraud
 
-    5. **Search for anomalous substructures** (1 hour) - Graph-based anomaly detection over patient, provider, claim,
+    5. **Search for anomalous substructures** - Graph-based anomaly detection over patient, provider, claim,
     diagnosis and procedure graphs; referral loops; prescriber-pharmacy pairs
 
-    6. **Rank and refer** (hours) - Rank providers, look at each one's neighborhood, and write a referral with evidence
+    6. **Rank and refer** - Rank providers, look at each one's neighborhood, and write a referral with evidence
 
 
     **Decision Points**:

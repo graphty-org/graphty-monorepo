@@ -45,19 +45,19 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Tidy the session** (5 min) - Rename networks and subnetworks meaningfully, name the styles, delete dead
+    1. **Tidy the session** - Rename networks and subnetworks meaningfully, name the styles, delete dead
     ends, add text annotations and a legend to the canvas
 
-    2. **Record parameters** (5 min) - For every algorithm and import, collect the parameters (species, confidence
+    2. **Record parameters** - For every algorithm and import, collect the parameters (species, confidence
     cutoff, clustering inflation, FDR cutoff, similarity cutoff, weight attribute) into a methods paragraph
 
-    3. **Save the session** (1 min) - One file that holds every network in the collection, their attribute tables,
+    3. **Save the session** - One file that holds every network in the collection, their attribute tables,
     styles, layouts, results, filters and annotations
 
-    4. **Export deliverables** (5 min) - PNG, SVG or PDF of the figure with the legend; node and edge tables with all
+    4. **Export deliverables** - PNG, SVG or PDF of the figure with the legend; node and edge tables with all
     computed columns; a cluster or hub table; a graph file (GraphML, CX) for collaborators
 
-    5. **Share** (5 min) - Upload the network with title, description, version, authors, license and reference; keep
+    5. **Share** - Upload the network with title, description, version, authors, license and reference; keep
     it private with a reviewer link, then make it public and request a DOI on acceptance
 
 

@@ -1,0 +1,17 @@
+id: linearized-path-matrix-view
+name: "Linearized path-by-node view"
+category: visualization
+description: "A 1D view with nodes in sort order along the x axis and one row per path, colored by depth or orientation, linked to the graph view by selection."
+status: planned
+notes: "Research trace: genome-assembly-and-pangenome-graphs.md section 10, table row 13 (Could); a Could in the research, so it is built after every Must and Should."
+algorithms: []
+used_by_workflows:
+    - W1158
+implemented_by_components: []
+requirements:
+    - "Could: 1D linearized view: nodes in sort order across, paths as rows, colored by depth or orientation"
+sources:
+    - title: "Genome Assemblers, Microbial Genome Finishers and Pangenome Researchers: Assembly Graphs and Pangenome
+        Graphs (section 10, table row 13)"
+      url: design/user-research/genome-assembly-and-pangenome-graphs.md
+      summary: "Could in the research. Covered by Designloom when researched: No"

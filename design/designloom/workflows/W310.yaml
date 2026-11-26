@@ -54,18 +54,18 @@ goal: >-
     2. **Choose the window** (the key judgment) - Length, step (often one sample), shape (rectangular or tapered); there
     is no agreed length, and published tests span 20 to 150 seconds
 
-    3. **Connectivity per window** (minutes to hours, in a toolbox) - Pearson correlation by default; alternatives give
+    3. **Connectivity per window** (in a toolbox) - Pearson correlation by default; alternatives give
     different results
 
-    4. **Threshold or keep weights** (5 min) - Keep the weighted matrix, or threshold to a fixed density so windows are
+    4. **Threshold or keep weights** - Keep the weighted matrix, or threshold to a fixed density so windows are
     comparable
 
-    5. **Measure each window** (10 min) - Graph metrics per window as time series
+    5. **Measure each window** - Graph metrics per window as time series
 
-    6. **Cluster windows into states** (15 min) - k-means on windowed matrices; per-state mean matrix, dwell time and
+    6. **Cluster windows into states** - k-means on windowed matrices; per-state mean matrix, dwell time and
     transition counts
 
-    7. **Test against nulls** (hours) - Phase-randomized surrogates (250 per subject in one study); short windows add
+    7. **Test against nulls** - Phase-randomized surrogates (250 per subject in one study); short windows add
     spurious fluctuations
 
 

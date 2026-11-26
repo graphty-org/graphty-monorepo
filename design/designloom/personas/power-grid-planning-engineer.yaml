@@ -1,10 +1,13 @@
 id: power-grid-planning-engineer
 name: Power Grid Planning Engineer
+roster_persona: none
+tier: none
+scope: out-of-scope
 role: Transmission Planning Engineer at an ISO, RTO or utility
 quote: The contingency run gives me four thousand rows of violations. I need to see which outage overloads which line,
     where it is on the map, and whether my proposed upgrade actually fixes it.
 bio: >-
-    Priya is a transmission planning engineer at an independent system operator. Every year, and for every large
+    Aditi is a transmission planning engineer at an independent system operator. Every year, and for every large
     interconnection request, she runs the NERC TPL-001 planning events (P0 through P7) on base cases of 2,000 to more
     than 80,000 buses in PSS/E, with PowerWorld and PSLF as secondary tools and Python (psspy) to automate the runs. Her
     study is a contingency analysis: she defines the study area as a subsystem by area, zone, voltage range or owner in a

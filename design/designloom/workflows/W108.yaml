@@ -69,24 +69,24 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Stand up the tool** (15 min) - Install BloodHound CE (CLI pulls containers and writes a docker-compose file),
+    1. **Stand up the tool** - Install BloodHound CE (CLI pulls containers and writes a docker-compose file),
     log in and reset the generated admin password; analysis must stay on the engagement laptop
 
-    2. **Collect** (seconds to tens of minutes) - Run SharpHound from a domain-joined host with Default (groups,
+    2. **Collect** - Run SharpHound from a domain-joined host with Default (groups,
     trusts, ACLs including certificate services, OUs, GPO links, local groups, sessions), All, or DCOnly; loop session
     collection (default every 2 hours) because sessions are transient; password-protect the zip; run AzureHound for
     Entra ID
 
-    3. **Ingest** (minutes to hours) - Upload each zip through File Ingest or the upload API; split very large
+    3. **Ingest** - Upload each zip through File Ingest or the upload API; split very large
     collections or use a third-party importer when browser upload fails or non-ASCII names break parsing
 
-    4. **Mark state** (5 min) - Right-click compromised principals "Add to Owned"; review and extend the Tier Zero set;
+    4. **Mark state** - Right-click compromised principals "Add to Owned"; review and extend the Tier Zero set;
     both trigger re-analysis
 
-    5. **Run saved queries** (10 min) - Pick from prebuilt, personal and shared queries filtered by platform (AD,
+    5. **Run saved queries** - Pick from prebuilt, personal and shared queries filtered by platform (AD,
     Azure) and category; start with shortest paths to Domain Admins
 
-    6. **Pathfind** (15-60 min) - Set a start node and up to three destinations (shortest path between each consecutive
+    6. **Pathfind** - Set a start node and up to three destinations (shortest path between each consecutive
     pair, combined), reorder or reverse, and filter out edge types that cannot or will not be abused
 
     7. **Write custom Cypher** when needed - for example all shortest paths from any owned node to any high-value node;
@@ -107,7 +107,7 @@ goal: >-
 
     11. **Verify** - Re-collect, re-ingest and re-run the same queries; the path must be gone; compare analysis runs
 
-    12. **Hand off** (1-2 h) - Export JSON or images with labels hidden; write per-path findings with reproduction
+    12. **Hand off** - Export JSON or images with labels hidden; write per-path findings with reproduction
     commands
 
 
@@ -165,7 +165,7 @@ goal: >-
     - Output: Per-path findings with images and reproduction commands; exported JSON subgraphs; verified-removed path list
 success_criteria:
     - metric: Time from ingested collection to the first path from owned to Domain Admins
-      target: Under 10 minutes
+      target: Under 10 minutes (design goal; no source measures it)
     - metric: Duplicate grouping
       target: Each distinct chain to a target appears as one finding listing all affected principals
     - metric: Verification

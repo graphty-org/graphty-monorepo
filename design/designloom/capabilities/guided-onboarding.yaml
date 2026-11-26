@@ -1,8 +1,10 @@
 id: guided-onboarding
 name: Guided Onboarding
 category: interaction
-description: Guide new users through their first experience with the tool. Provide interactive hints, suggested actions,
-    and contextual help to build confidence without requiring prior graph analysis knowledge.
+description: Guide a first-time user from the table they arrive with to a first valid reading of the graph. The
+    research shows novices struggle most with framing a network question and with reading the picture, not with the
+    controls, so onboarding is a guided first analysis in plain language with free exploration kept, rather than a
+    tour of UI elements.
 status: planned
 algorithms: []
 used_by_workflows:
@@ -14,22 +16,35 @@ used_by_workflows:
 implemented_by_components:
     - onboarding-wizard
 requirements:
-    - Display welcome modal on first launch with 'Get Started' and 'Skip Tour' buttons
-    - Provide 5-7 step interactive tour highlighting key UI elements
-    - Highlight each UI element with spotlight effect (dim surrounding area)
-    - Display tooltip adjacent to highlighted element with 1-2 sentence explanation
-    - Provide 'Next', 'Back', and 'Skip' navigation within tour
-    - Suggest loading sample dataset as first action for users without data
-    - Display contextual hints (e.g., 'Try zooming with scroll wheel') on first relevant interaction
-    - Show 'What's Next?' suggestions panel after completing onboarding
-    - Allow re-launching tour from Help menu
-    - Store onboarding completion state in browser localStorage
-    - Do not show onboarding tour on subsequent visits after completion
-    - Provide 'Don't show again' checkbox for dismissible hints
-    - Complete tour in under 3 minutes for average user
-    - Ensure all tour steps are keyboard-accessible
-    - Track which tour steps users complete vs skip (for analytics)
+    - "Must: Run in the browser with no install; Gephi's own FAQ sends beginners to the browser-based Gephi Lite"
+    - "Should: Help turn the user's question into a network question; novices first ask correlation questions, and 8 of 12 named defining goals the hardest conceptual step (Hansen et al.)"
+    - "Must: Accept the raw from-to table a novice arrives with (a hand-built spreadsheet with a count column), and report what was read against the source - counts, unmatched ids, duplicates"
+    - 'Must: Offer a sample dataset with a data card for users without data, while recognizing that tutorial datasets were found "too simple" to transfer to the user''s own data'
+    - "Should: Offer a guided first analysis as a tour of roles (hubs, bridges), subgroups and overall shape, explained in plain words; guided data tours beat free exploration on what novices learned (NetworkNarratives)"
+    - 'Should: Keep free exploration available at every step and let the user choose which tour to take; some participants felt guided tours were "passively accepting facts" and one wanted help choosing a tour'
+    - "Must: Explain each metric in plain language - what it measures, what edge weight means for it, what it cannot tell"
+    - "Should: Warn when a picture invites a wrong reading (drawn distance read as similarity, a hairball, size read as importance) (Zoss et al.; Venturini et al.)"
+    - "Must: Keep the starting layout and communities reproducible (a set seed) so the picture matches a handout and the same picture appears on reopen"
+    - 'Must: Offer undo for every step; with no undo, students who hit a crash "had to start over"'
+    - "Library parity: Let the user dismiss onboarding and relaunch it later; remember dismissal per viewer"
+    - "Library parity: Make every onboarding step keyboard-operable"
+    - "Library parity: Count success when the user can state one valid and one invalid conclusion about the picture (from Zoss et al.)"
 sources:
-    - title: W14 First-Time User Onboarding
-      url: https://graphty.app/docs/
-      summary: Guided tour - like museum audio guide introducing features progressively
+    - title: Students, instructors and first-time graph users (user research)
+      url: design/user-research/students-educators-and-first-time-users.md
+      summary: Sections 2.6 and 4.10; requirements 1-5, 8, 26, 27, 29; corrections to W14
+    - title: Hansen et al., Do You Know the Way to SNA? A Process Model for Analyzing and Visualizing Social Media Data
+      url: https://www.cs.umd.edu/users/ben/papers/DerekL.2012Do.pdf
+      summary: 15 NodeXL students - goals hardest step, pictures over metrics, tutorial data too simple
+    - title: Bonsignore et al. 2009, First Steps to NetViz Nirvana
+      url: https://www.cs.umd.edu/~ben/papers/Bonsignore2009First.pdf
+      summary: Weak Excel skill the primary barrier; no undo meant starting over after a crash
+    - title: NetworkNarratives - data tours for visual network exploration and analysis
+      url: https://arxiv.org/abs/2303.06456
+      summary: Guided data tours beat free exploration for 14 novices on learning and exploration time
+    - title: Zoss et al. 2018, NetSci
+      url: https://cns.iu.edu/docs/publications/2018-NetSci-Zoss.pdf
+      summary: Novices read drawn distance and wider links as similarity
+    - title: Gephi FAQ
+      url: http://gephi.org/faq/
+      summary: Beginners are sent to Gephi Lite in the browser; Gephi has no undo

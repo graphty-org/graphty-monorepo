@@ -40,20 +40,20 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Network: import and weight** (10 min) - Import sequence, STR or binary data on Windows; optionally weight
+    1. **Network: import and weight** - Import sequence, STR or binary data on Windows; optionally weight
     characters
 
-    2. **Network: compute** (minutes to hours) - Median-Joining or Reduced Median; Star Contraction for large sets;
+    2. **Network: compute** - Median-Joining or Reduced Median; Star Contraction for large sets;
     start at epsilon 0, re-run at higher epsilon accepting longer runtimes; optional MP post-processing removes
     superfluous median vectors
 
-    3. **Network: draw** (30 min) - Population coloring and counts need the paid Publisher add-on; Network can estimate
+    3. **Network: draw** - Population coloring and counts need the paid Publisher add-on; Network can estimate
     ages of ancestral nodes
 
-    4. **TCS: compute** (5 min) - Join haplotypes until a single network or the 95% connection limit; may produce
+    4. **TCS: compute** - Join haplotypes until a single network or the 95% connection limit; may produce
     several disconnected networks
 
-    5. **tcsBU: color** (15 min) - Load TCS output in a browser, assign groups, draw pie nodes with a force layout,
+    5. **tcsBU: color** - Load TCS output in a browser, assign groups, draw pie nodes with a force layout,
     save SVG
 
 

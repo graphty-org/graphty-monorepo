@@ -6,6 +6,7 @@ status: planned
 implements_capabilities:
     - comparison-view
 used_in_workflows:
+    - W3057
     - W24
     - W25
     - W153
@@ -25,7 +26,7 @@ used_in_workflows:
     - W249
     - W259
     - W260
-    - W264
+    - W253
     - W292
     - W294
     - W295
@@ -33,13 +34,18 @@ used_in_workflows:
     - W303
     - W309
     - W33
-    - W338
+    - W430
     - W414
     - W423
-    - W430
     - W434
     - W438
     - W46
+    - W1042
+    - W1138
+    - W1139
+    - W2030
+    - W3102
+    - W3103
 dependencies: []
 props: {}
 sources: []

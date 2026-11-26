@@ -3,8 +3,12 @@ name: Multi-Value Cells and Two-Mode Tables to a Bipartite Network and Its Proje
 category: onboarding
 validated: false
 personas:
+    - political-networks-scholar
     - spreadsheet-first-network-builder
-    - bibliometric-network-analyst
+    - research-impact-librarian
+    - fraud-strategy-analyst
+    - archival-affiliation-researcher
+    - interaction-network-ecologist
 requires_capabilities:
     - data-import
     - data-validation
@@ -16,6 +20,9 @@ requires_capabilities:
     - comparison-view
     - entity-resolution-review
     - multi-value-split-and-projection
+    - hypergraph-data
+    - dynamic-hypergraph-table-import
+    - bipartite-projection
 suggested_components:
     - file-drop-zone
     - data-import-dialog
@@ -98,7 +105,8 @@ goal: >-
 
     **Data Flow**:
 
-    - Input: Record table with a multi-value cell, incidence matrix or two-column affiliation list
+    - Input: Record table with a multi-value cell, incidence matrix or two-column affiliation list; or a PAOHvis
+    table, one row per node in a hyperedge with a time slot and that slot's group and role
 
     - Transformations: Split, cluster and merge names, two-mode build with a type attribute, projection with weighting
 
@@ -135,6 +143,9 @@ sources:
     - title: PAOHvis
       url: https://aviz.fr/Research/paohvis
       summary: Hypergraph CSV where each document stays one hyperedge; 50 to 500 nodes typical
-version: 1.0.0
+    - title: PAOHvis
+      url: https://aviz.saclay.inria.fr/Research/paohvis
+      summary: CSV rows of edge_id, node_name, time_slot, then optional description, group and role
+version: 1.1.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

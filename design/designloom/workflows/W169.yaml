@@ -48,21 +48,21 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Draw the signed digraph** (30-120 min, often in a workshop with managers) - Nodes for species, groups,
+    1. **Draw the signed digraph** (often in a workshop with managers) - Nodes for species, groups,
     fishing or environmental drivers; positive and negative directed links; or derive the structure from a
     quantitative model's diet matrix by keeping links above a cutoff
 
-    2. **Add self-limitation** (1 min) - A negative self-loop on every node to stabilize the model
+    2. **Add self-limitation** - A negative self-loop on every node to stabilize the model
 
-    3. **Simulate** (5 min) - 1,000 community matrices with random magnitudes for each signed link, discarding unstable
+    3. **Simulate** - 1,000 community matrices with random magnitudes for each signed link, discarding unstable
     ones
 
-    4. **Validate** (10 min) - Mark nodes whose observed responses are known and score the share of simulations
+    4. **Validate** - Mark nodes whose observed responses are known and score the share of simulations
     matching them
 
-    5. **Press a node** (2 min) - Choose one node and the direction of the push
+    5. **Press a node** - Choose one node and the direction of the push
 
-    6. **Read the impact table** (5 min) - Per node, the share of positive and negative outcomes; call a response
+    6. **Read the impact table** - Per node, the share of positive and negative outcomes; call a response
     positive or negative when more than 60 percent agree, otherwise mixed
 
     7. **Iterate structure** (repeat) - Change links and rerun; hand off impact tables and the diagram
@@ -106,7 +106,7 @@ goal: >-
     - Output: Impact tables and bar charts, model diagram, record of model versions
 success_criteria:
     - metric: Iteration speed
-      target: A structural change and rerun completes in under one minute for a 30-node model
+      target: A structural change and rerun completes in under one minute for a 30-node model (design goal; no source measures it)
     - metric: Stakeholder readability
       target: Participants can read link signs and press results directly on the diagram
 sources:

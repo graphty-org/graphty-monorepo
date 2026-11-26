@@ -48,19 +48,19 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Pick the map** (5 min) - Search KEGG, WikiPathways or Reactome for the pathway; choose WikiPathways as a
+    1. **Pick the map** - Search KEGG, WikiPathways or Reactome for the pathway; choose WikiPathways as a
     curated "pathway" or a simplified "network"
 
-    2. **Load** (5-10 min) - KGML via KEGGscape or GPML via the WikiPathways app; Reactome in its own browser; check
+    2. **Load** - KGML via KEGGscape or GPML via the WikiPathways app; Reactome in its own browser; check
     that compartments and relations came through
 
-    3. **Join the data** (5 min) - Map gene ids (Entrez, Ensembl, KEGG ids such as hsa:7157) to map nodes; several genes
+    3. **Join the data** - Map gene ids (Entrez, Ensembl, KEGG ids such as hsa:7157) to map nodes; several genes
     can share one box
 
-    4. **Color** (5-10 min) - Fill by log fold change on a diverging scale; for several numeric columns, step through
+    4. **Color** - Fill by log fold change on a diverging scale; for several numeric columns, step through
     them as "experiments" (Reactome) or split boxes
 
-    5. **Export** (5 min) - Image with legend, keeping the curated drawing
+    5. **Export** - Image with legend, keeping the curated drawing
 
 
     **Decision Points**:

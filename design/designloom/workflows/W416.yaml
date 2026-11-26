@@ -44,16 +44,16 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Prepare data** (30 min) - Process in Seurat or Scanpy; convert with the R package cellexalvrR (expression plus
+    1. **Prepare data** - Process in Seurat or Scanpy; convert with the R package cellexalvrR (expression plus
     at least one 2D or 3D embedding)
 
-    2. **Explore embeddings** (20 min) - Grab embeddings as objects in any SteamVR headset, select cells freehand,
+    2. **Explore embeddings** - Grab embeddings as objects in any SteamVR headset, select cells freehand,
     search genes on a virtual keyboard
 
-    3. **Compute networks** (10 min) - Transcription-factor networks for selected groups (top 130 interactions by
+    3. **Compute networks** - Transcription-factor networks for selected groups (top 130 interactions by
     default) and heatmaps
 
-    4. **Capture** (5 min) - Record a fly-by camera path to MP4; save networks as images or adjacency lists
+    4. **Capture** - Record a fly-by camera path to MP4; save networks as images or adjacency lists
 
     5. **Collaborate** (optional) - Up to 16 participants, each with a local copy of the data; desktop users join as
     spectators

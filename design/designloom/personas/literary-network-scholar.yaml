@@ -1,9 +1,12 @@
 id: literary-network-scholar
 name: Literary Network Scholar and DH Instructor
+roster_persona: digital-humanist
+tier: B
+scope: in-scope
 role: Professor of English Teaching Undergraduate Digital Humanities Methods
 quote: I want my students to open a network in the browser in five minutes and then explain it, not just report the numbers.
 bio: >-
-    Prof. Aisha Okafor studies early modern drama and print and teaches an undergraduate digital humanities methods
+    Prof. Chioma Okafor studies early modern drama and print and teaches an undergraduate digital humanities methods
     course. Her research networks are character co-occurrence networks drawn from whole corpora of plays through DraCor
     and its R client rdracor (German, Shakespeare or French drama), and book-trade networks built from imprints, where
     authors, printers, publishers and booksellers are linked by the works they shared. In class she uses Palladio,
@@ -42,6 +45,7 @@ workflows:
     - W176
     - W181
     - W182
+    - W1042
 sources:
     - title: rdracor README
       url: https://archive.linux.duke.edu/cran/web/packages/rdracor/readme/README.html

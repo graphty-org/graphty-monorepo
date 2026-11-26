@@ -1,9 +1,12 @@
 id: plugin-author-data-scientist
 name: Data Scientist Porting a Metric
+roster_persona: plugin-author-data-scientist
+tier: B
+scope: in-scope
 role: Data Scientist / Python and NetworkX User Writing an Algorithm Plugin
 quote: I already have this metric in twenty lines of NetworkX. Why is getting it into the browser a week of reading?
 bio: >-
-    Marcus Webb is a data scientist on an analytics team. He has spent five years in Jupyter notebooks with pandas,
+    Ethan Webb is a data scientist on an analytics team. He has spent five years in Jupyter notebooks with pandas,
     NetworkX and scikit-learn, and he has a custom influence score, a weighted variant of PageRank tuned to his company's
     transaction graph, that he computes every week in Python. His team has adopted graphty-element for a dashboard, and
     he wants the score to appear in it as a node color and size, the same way degree and PageRank already do. He writes

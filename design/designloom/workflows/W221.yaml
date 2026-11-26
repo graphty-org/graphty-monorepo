@@ -24,6 +24,7 @@ requires_capabilities:
     - spatial-selection
     - dependency-propagation
     - cascade-simulation
+    - geospatial-file-io
 suggested_components:
     - file-drop-zone
     - data-import-dialog

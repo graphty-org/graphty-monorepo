@@ -1,0 +1,18 @@
+id: sample-membership-sets
+name: "Sample Membership Sets"
+category: data
+description: "Treat a list of sample or genome ids on a node or edge (Panaroo members and semicolon genomeIDs, resolved through the graph-level isolateNames list; PPanGGOLiN genome labels on edges) as a set attribute with a derived count, and join a per-sample metadata table (lineage, country, year, phenotype) through it, so nodes and edges can be colored, sized and filtered by count or by present in any, all or none of the samples matching a metadata condition, with per-selection tallies by metadata value."
+status: planned
+notes: "Research trace: genome-assembly-and-pangenome-graphs.md section 10, table row 17 (Must)."
+algorithms: []
+used_by_workflows:
+    - W2000
+implemented_by_components: []
+requirements:
+    - "Must: Genome membership as a set attribute on nodes and edges, with a derived genome count to color, size and
+      filter by"
+sources:
+    - title: "Genome Assemblers, Microbial Genome Finishers and Pangenome Researchers: Assembly Graphs and Pangenome
+        Graphs (section 10, table row 17)"
+      url: design/user-research/genome-assembly-and-pangenome-graphs.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

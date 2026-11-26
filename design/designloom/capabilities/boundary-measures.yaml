@@ -5,12 +5,20 @@ description: E-I index and density within and between attribute groups, brokerag
     boundary-spanner counts, Burt's constraint, effective size and efficiency, core-periphery fit, and share of ties
     external to a node's own attribute value.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: organizational-network-analysis-people-analytics.md section 9, table row 6 (Must). Core-periphery
+    fit here follows Borgatti and Everett 1999 as UCINET fits it; cliques, k-cores, factions, equivalence, blockmodels
+    and the triad census are in positional-subgroup-analysis."
 algorithms: []
 used_by_workflows:
     - W187
     - W189
     - W190
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: E-I index, density within and between groups, brokerage roles (Gould-Fernandez style) and boundary-spanner
+      counts per attribute"
+sources:
+    - title: Organizational Network Analysis and People Analytics Practitioners (section 9, table row 6)
+      url: design/user-research/organizational-network-analysis-people-analytics.md
+      summary: "Must in the research. Covered by Designloom when researched: NOT covered
+        (W04 has communities, not attribute-based boundary measures)"

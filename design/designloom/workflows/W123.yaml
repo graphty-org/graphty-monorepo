@@ -66,30 +66,30 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Collect** (20 min) - Declarations and register data: UK PSC daily JSON, Open Ownership BODS JSON (exact shares or
+    1. **Collect** - Declarations and register data: UK PSC daily JSON, Open Ownership BODS JSON (exact shares or
     min-max ranges), Orbis, D and B, OpenCorporates
 
-    2. **Build the edges** (15 min) - Owner-to-owned with share or band (PSC bands such as 25 to 50 percent), votes,
+    2. **Build the edges** - Owner-to-owned with share or band (PSC bands such as 25 to 50 percent), votes,
     control type, start and end dates and source filing
 
-    3. **Resolve duplicates** (15 min) - Merge person and company records that are the same; deduplication cut PSC person
+    3. **Resolve duplicates** - Merge person and company records that are the same; deduplication cut PSC person
     records about 5 percent and entities about 10 percent
 
-    4. **Traverse upward** (5 min) - Follow ownership up through every layer to natural persons or to the foreign entity
+    4. **Traverse upward** - Follow ownership up through every layer to natural persons or to the foreign entity
     where data stops
 
-    5. **Compute effective ownership** (5 min) - Product along paths, sum across paths, ranges for bands; flag owners at
+    5. **Compute effective ownership** - Product along paths, sum across paths, ranges for bands; flag owners at
     or above 25 percent (or a lower configured threshold such as 15 percent)
 
-    6. **Compute sanctions ownership** (5 min) - Aggregate blocked owners and propagate blocked status through
+    6. **Compute sanctions ownership** - Aggregate blocked owners and propagate blocked status through
     intermediaries at 50 percent or more; offer the UK "more than 50 percent" variant; ownership only, not control
 
-    7. **Screen people** (15 min) - Attach sanctions, politically exposed person and adverse media hits
+    7. **Screen people** - Attach sanctions, politically exposed person and adverse media hits
 
     8. **Detect change** (periodic) - Compare a new register snapshot with the last; alert when the set of qualifying
     owners or the blocked status changes (one owner rising 24 to 32 percent while another falls 40 to 20 changes the set)
 
-    9. **Hand off** (15 min) - Structure chart, qualifying owners with evidence per edge, and which rule produced each
+    9. **Hand off** - Structure chart, qualifying owners with evidence per edge, and which rule produced each
     flag
 
 

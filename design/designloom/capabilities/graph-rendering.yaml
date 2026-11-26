@@ -1,14 +1,15 @@
 id: graph-rendering
 name: Graph Rendering
 category: visualization
-description: Render graph data as a visual node-link diagram. Draw nodes as shapes and edges as lines connecting them,
-    supporting both 2D and 3D rendering modes with GPU acceleration for performance.
-status: implemented
-notes: "Ships: graphty-element (Babylon.js), graphty-element/src/meshes/."
+description: Render graph data as a node-link diagram. Draw nodes as shapes and edges as lines connecting them,
+    including directed, parallel and self-loop edges, in 2D or 3D on the same positions, with GPU acceleration so
+    whole-graph overviews stay interactive.
+status: in-progress
+notes: "Partly ships: graphty-element (Babylon.js) draws nodes in many shapes, edges with arrowheads and tails, self-loops, curved and fanned parallel edges and 2D or 3D views through style layers, with meshes in graphty-element/src/meshes/. Any requirement below that this note does not name as shipping counts as planned."
 algorithms:
-    - Instanced rendering
-    - WebGL/WebGPU shaders
-    - Mesh batching
+    - Instanced rendering (shipped)
+    - WebGL/WebGPU shaders (shipped)
+    - Mesh batching (shipped)
 used_by_workflows:
     - W02
     - W05
@@ -44,30 +45,46 @@ used_by_workflows:
     - W421
     - W422
     - W437
-    - W446
     - W63
     - W69
+    - W1156
+    - W1157
+    - W1158
+    - W2000
 implemented_by_components:
     - graph-canvas
 requirements:
-    - Render nodes as circles with configurable radius from 5-50 pixels
-    - Render nodes as squares, triangles, diamonds, or hexagons when shape encoding is active
-    - Render edges as straight lines by default
-    - Render edges as quadratic Bezier curves when multiple edges connect same node pair
-    - Support 2D rendering mode with orthographic projection
-    - Support 3D rendering mode with perspective projection and depth cues
-    - Use WebGL 2.0 for GPU-accelerated rendering with WebGPU fallback detection
-    - Maintain 60fps for graphs up to 10,000 nodes and 50,000 edges
-    - Maintain 30fps for graphs up to 50,000 nodes and 200,000 edges
-    - Use instanced rendering for nodes sharing same visual properties
-    - Batch draw calls to maximum 10 per frame for optimal performance
-    - Apply transparency (alpha 0.3-0.7) to overlapping nodes when density exceeds 100 nodes per viewport unit
-    - Render edges behind nodes (z-order) to prevent edge occlusion of node shapes
-    - Support anti-aliasing for smooth edge rendering
-    - Display 'Performance mode' indicator when rendering optimizations are active
-    - Degrade gracefully to canvas 2D when WebGL is unavailable
-    - Report 'WebGL not supported' error with browser upgrade suggestion when GPU acceleration unavailable
+    - "Must: Render nodes with a configurable size and shape (circle, square, triangle, diamond, hexagon and others) set through style layers"
+    - "Must: Render edges as straight lines by default, with direction shown by arrowheads and other end marks (tail, circle) for typed edges such as causal PAG marks (causal-diagrams must)"
+    - "Must: Draw parallel edges between the same pair as separate, distinguishable edges (curved or offset); typed multi-edges are the norm for correspondence, communication and cyber graphs (digital humanities, ediscovery R6, cybersecurity must)"
+    - "Must: Draw self-loops (ecological community matrices, causal autodependence, communication graphs)"
+    - "Must: Offer 2D, perspective 3D and orthographic 3D on the same graph with the same node positions projected, and do not assume 3D is the right default; the evidence favors 2D for speed and memory and 3D mainly for path tracing (three-dimensional-and-immersive R1)"
+    - "Must: Use GPU rendering (WebGL 2, with WebGPU chosen by detection where available) so whole-graph overviews of 10,000 to 100,000+ nodes stay interactive; developers report SVG and canvas libraries fall behind at a few thousand nodes (developers-embedding-and-extending-graph-visualization)"
+    - "Must: Keep the frame interactive at size through instancing and batching, level-of-detail for labels, and opaque rather than semi-transparent edges where the style allows; Cytoscape.js measures opaque edges as more than twice as fast"
+    - "Library parity: Draw edges behind nodes so edges do not hide node shapes"
+    - "Library parity: Anti-alias edges and node outlines"
+    - "Must: Keep node positions stable while attributes and styles change, for views that refresh in place"
+    - "Library parity: Report an error code when no supported GPU API is available, rather than failing silently or falling back without saying so"
 sources:
-    - title: Complete Graph Visualization Textbook - Chapter 7
-      url: https://graphty.app/docs/
-      summary: GPU-accelerated rendering with WebGL/WebGPU for large graphs
+    - title: Herman, Melancon and Marshall 2000, Graph visualization and navigation in information visualization
+      url: https://doi.org/10.1109/2945.841119
+      summary: Survey of node-link graph drawing and navigation
+    - title: Developers embedding and extending graph visualization (user research)
+      url: design/user-research/developers-embedding-and-extending-graph-visualization.md
+      summary: Sizes rendered (10k-100k+ overviews need WebGL or GPU), yWorks rules of thumb, keeping an embedded graph
+          fast, positions persisting while attributes change
+    - title: Three-dimensional and immersive network analysis (user research)
+      url: design/user-research/three-dimensional-and-immersive-network-analysis.md
+      summary: R1 - per-task choice of 2D, perspective 3D and orthographic 3D on the same positions
+    - title: Cytoscape.js performance documentation
+      url: https://js.cytoscape.org/#performance
+      summary: Batching, cheaper edges (opaque edges more than twice as fast), hiding labels
+    - title: Cytoscape.js WebGL preview
+      url: https://blog.js.cytoscape.org/2025/01/13/webgl-preview/
+      summary: WebGL raised 1,200 nodes and 16,000 edges from about 20 to over 100 frames per second
+    - title: yFiles large-graph performance guide
+      url: https://docs.yworks.com/yfiles-html/dguide/large_graph_performance/
+      summary: Level-of-detail rendering and large-graph tactics
+    - title: Ware and Mitchell 2008
+      url: https://scholars.unh.edu/ccom/467
+      summary: Evidence for 3D in path tracing tasks

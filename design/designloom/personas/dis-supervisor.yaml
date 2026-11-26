@@ -1,9 +1,12 @@
 id: dis-supervisor
 name: Partner Services Supervisor
+roster_persona: public-health-cluster-epidemiologist
+tier: B
+scope: in-scope
 role: Disease Intervention Specialist Supervisor and Cluster Response Lead
 quote: I do not need the picture. I need to know who in this cluster has not been interviewed yet.
 bio: >-
-    Rosa Delgado supervises a team of disease intervention specialists at a health department and leads the field side
+    Paola Delgado supervises a team of disease intervention specialists at a health department and leads the field side
     of cluster response. She attends the monthly cluster review, where the epidemiologist presents clusters, and walks
     out with field assignments. She is not a data analyst: her working surfaces are partner services records, the
     epidemiologist's line lists and her own assignment board. What she needs from a cluster is operational and
@@ -48,6 +51,8 @@ context:
 workflows:
     - W61
     - W66
+    - W319
+    - W1018
 sources:
     - title: CDC cluster review and prioritization guidance
       url: https://www.Cdc.gov/hiv/programresources/guidance/hiv-cluster-detection-and-response-guidance/cluster-review-and-prioritization.html

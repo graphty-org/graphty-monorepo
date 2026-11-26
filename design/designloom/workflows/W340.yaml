@@ -7,6 +7,7 @@ personas:
     - process-mining-auditor
     - clinical-pathway-analyst
     - customer-journey-analyst
+    - process-mining-analyst
 requires_capabilities:
     - data-import
     - data-preview
@@ -29,6 +30,9 @@ requires_capabilities:
     - variant-analysis
     - case-drilldown
     - token-replay-animation
+    - node-merging
+    - large-source-aggregation
+    - large-graph-rendering
 suggested_components:
     - file-drop-zone
     - column-mapper
@@ -46,6 +50,9 @@ suggested_components:
     - image-export-dialog
     - data-export-dialog
     - session-save-dialog
+    - range-slider
+    - visual-encoding-panel
+    - data-table-panel
 starting_state:
     data_type: event log CSV (case id, activity, start and complete timestamps, resource, role)
     node_count: 10-60 activities (608 cases and 9,119 events in the Disco tutorial)
@@ -64,31 +71,31 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Inspect and map columns** (5 min) - Preview about 1,000 rows; give each column one role (remove, case,
+    1. **Inspect and map columns** - Preview about 1,000 rows; give each column one role (remove, case,
     activity, timestamp, resource, other); accept guessed roles and timestamp patterns or override them; concatenate
     columns when no single one is the case
 
-    2. **Read the map** (10 min) - Start and end symbols, dashed arrows from start and to end, frequencies on nodes and
+    2. **Read the map** - Start and end symbols, dashed arrows from start and to end, frequencies on nodes and
     edges; find the dominant start, the main split, and activities that repeat far more than they have cases (rework)
 
-    3. **Set detail** (5 min) - Paths slider down first, then activities; every shown activity stays on a start-to-end
+    3. **Set detail** - Paths slider down first, then activities; every shown activity stays on a start-to-end
     path; remember that only at 100/100 do the numbers add up
 
-    4. **Statistics and cases** (10 min) - Case duration distribution (most cases 16-17 days, some 80-90+), variant
+    4. **Statistics and cases** - Case duration distribution (most cases 16-17 days, some 80-90+), variant
     list (top variant 88 cases, about 15 percent), each case's history as a graph or table
 
-    5. **Filter slow cases** (5 min) - Performance filter on case duration above a threshold (21 days gave 92 cases);
+    5. **Filter slow cases** - Performance filter on case duration above a threshold (21 days gave 92 cases);
     copy and filter into a named data set so the original stays intact
 
-    6. **Find the bottleneck** (10 min) - Switch to the performance view (mean or median); an activity of about 10
+    6. **Find the bottleneck** - Switch to the performance view (mean or median); an activity of about 10
     minutes followed by a wait of about 15 days is the finding; show a second metric in smaller type
 
-    7. **Animate** (5 min) - Replay cases as dots that queue on slow edges; synchronize case starts; sample large logs
+    7. **Animate** - Replay cases as dots that queue on slow edges; synchronize case starts; sample large logs
 
-    8. **Change the node attribute** (10 min) - Make role or department the node instead of activity; the map now
+    8. **Change the node attribute** - Make role or department the node instead of activity; the map now
     shows handovers between functions, ping-pong between roles and transfer delays
 
-    9. **Hand off** (10 min) - Export the map as PDF, PNG or a graph file with every metric, metric tables as CSV,
+    9. **Hand off** - Export the map as PDF, PNG or a graph file with every metric, metric tables as CSV,
     the filtered log as CSV or XES, the animation as video, and the project
 
 
@@ -140,7 +147,7 @@ goal: >-
     filtered logs and animation
 success_criteria:
     - metric: Time from CSV to first process map
-      target: Under 5 minutes
+      target: Under 5 minutes (design goal; no source measures it)
     - metric: Bottleneck located
       target: User can name the edge with the longest mean waiting time and its case count
     - metric: Numbers add up
@@ -164,6 +171,12 @@ sources:
     - title: Microsoft Power Automate Process Mining - process map
       url: https://learn.microsoft.com/en-us/power-automate/minit/process-map
       summary: Mining attribute selection (resource, region, department) recalculates the map and metrics
+    - title: Zimmermann, Zerbato and Weber - challenges of process mining analysts
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11646219/
+      summary: Distrust of slider-simplified maps reported by interviewees and survey respondents
+    - title: Mennens et al. 2019 - stable process map layouts
+      url: https://diglib.eg.org/handle/10.1111/cgf13723
+      summary: Graphviz dot often fails to keep the mental map; one edge can produce a completely different layout
 version: 1.0.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

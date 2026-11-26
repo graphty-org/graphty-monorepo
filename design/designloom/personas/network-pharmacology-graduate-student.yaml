@@ -1,5 +1,8 @@
 id: network-pharmacology-graduate-student
 name: Network Pharmacology Graduate Student
+roster_persona: network-pharmacology-graduate-student
+tier: B
+scope: in-scope
 role: Master's or PhD Student at a University of Chinese Medicine
 quote: My supervisor gave me a four-herb formula and a disease. I need the Venn, the PPI, the top ten targets and the layered network, and this time the numbers in the methods have to match the figures.
 bio: >-
@@ -54,6 +57,13 @@ workflows:
     - W430
     - W431
     - W434
+    - W432
+    - W433
+    - W435
+    - W436
+    - W437
+    - W438
+    - W1054
 sources:
     - title: Lotus leaf network pharmacology study (PMC8566053)
       url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8566053
@@ -76,6 +86,21 @@ sources:
     - title: Tencent Cloud tutorial on saving network pharmacology inputs
       url: https://cloud.tencent.com/developer/article/1666096
       summary: Advises saving downloaded data with the access date because databases move or become unreachable
+    - title: Lee et al. 2022 - review of network pharmacology methods (BMB Reports)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC9537023
+      summary: Herb databases (TCMID, TCMSP, BATMAN-TCM, SymMap), predicted targets, disease genes, STRING PPI and GO or KEGG enrichment; warns of reliance on in silico target annotations
+    - title: TCMSP - a database of systems pharmacology for drug discovery from herbal medicines
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4001360
+      summary: 499 herbs, 29,384 ingredients, 3,311 targets and twelve ADME properties; predicted targets filled by a model
+    - title: Diao et al. 2026 - census of network pharmacology results (Frontiers in Pharmacology)
+      url: https://www.frontiersin.org/journals/pharmacology/articles/10.3389/fphar.2026.1748478/full
+      summary: Quercetin a key compound in 63.2% and AKT1 a key target in 48.8% of studies; AKT1 falls to 19.6% in omics-integrated studies
+    - title: TCMDATA tutorial - network construction
+      url: https://yulab-smu.top/TCMDATA/network-construction.html
+      summary: Sankey of herb to molecule to target; force layouts on typed graphs in R
+    - title: STRING help - getting started
+      url: https://string-db.org/help/getting_started/
+      summary: Minimum interaction score medium 0.4, high 0.7, highest 0.9
 version: 1.0.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

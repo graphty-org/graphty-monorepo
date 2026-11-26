@@ -22,6 +22,8 @@ requires_capabilities:
     - null-model-ensembles
     - hub-role-analysis
     - measurement-robustness
+    - weight-semantics
+    - seeded-runs
 suggested_components:
     - ranked-node-table
     - algorithm-panel
@@ -49,28 +51,31 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Rank on several centralities** (2 min) - Degree, betweenness on distances, PageRank; look for high-betweenness,
+    1. **Rank on several centralities** - Degree, betweenness on distances, PageRank; look for high-betweenness,
     low-degree brokers that degree alone misses
 
-    2. **Normalize against modules** (3 min) - Within-module degree z-score and participation coefficient P; z >= 2.5
+    2. **Normalize against modules** - Within-module degree z-score and participation coefficient P; z >= 2.5
     marks module hubs; provincial hubs (P <= 0.30) stay in their module, connector hubs link many
 
-    3. **Normalize against collection effort** (5 min) - Check whether degree tracks how often a node was screened or
+    3. **Normalize against collection effort** - Check whether degree tracks how often a node was screened or
     studied; flag supernodes (a shared address, a bank) above a cap as likely artifacts
 
-    4. **Normalize against a null** (minutes) - Hub-to-hub connectivity (rich club) only relative to a
+    4. **Normalize against a null** - Hub-to-hub connectivity (rich club) only relative to a
     degree-preserving null
 
-    5. **State uncertainty** (2 min) - Centrality accuracy declines as data error rises; check rank stability under
+    5. **State uncertainty** - Centrality accuracy declines as data error rises; check rank stability under
     subsampling (W42)
 
-    6. **Hand off** (5 min) - A role label per hub (provincial or connector; artifact, infrastructure or genuine) with
+    6. **Hand off** - A role label per hub (provincial or connector; artifact, infrastructure or genuine) with
     its evidence
 
 
     **Decision Points**:
 
     - Which centralities answer the question (popularity, brokerage, influence)?
+
+    - Is the weight a strength or a distance? Betweenness and closeness read it as a distance, PageRank and
+    eigenvector as a strength; convert explicitly (1/w) and record the conversion
 
     - Is this node's degree a property of the system or of the measurement effort?
 
@@ -140,6 +145,12 @@ sources:
     - title: Detecting rich-club ordering (Colizza et al. 2006)
       url: https://arxiv.org/abs/physics/0602134
       summary: Rich club meaningful only against a degree-preserving null
+    - title: NetworkX betweenness_centrality
+      url: https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.centrality.betweenness_centrality.html
+      summary: Weights are used for weighted shortest paths, so they are interpreted as distances
+    - title: Gephi GraphDistance.java (betweenness and closeness)
+      url: https://github.com/gephi/gephi/blob/master/modules/StatisticsPlugin/src/main/java/org/gephi/statistics/plugin/GraphDistance.java
+      summary: Never reads edge weights; path lengths are hop counts
 version: 1.0.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

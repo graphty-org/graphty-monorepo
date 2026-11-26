@@ -47,18 +47,18 @@ goal: >-
     1. **Wrap and explain** (in code) - `Explainer(model, algorithm=GNNExplainer(epochs=200), edge_mask_type="object",
     model_config=dict(task_level="node", ...))`, then `explainer(x, edge_index, index=node_id)`
 
-    2. **Load the masks** (2 min) - Bring node_mask and edge_mask (0..1) onto the prediction's subgraph, keeping
+    2. **Load the masks** - Bring node_mask and edge_mask (0..1) onto the prediction's subgraph, keeping
     original node ids
 
-    3. **Encode importance** (3 min) - Edge opacity or width proportional to importance; node feature importance as a
+    3. **Encode importance** - Edge opacity or width proportional to importance; node feature importance as a
     top-10 bar list; for heterogeneous graphs one mask per edge type, colored by type
 
-    4. **Choose the threshold** (5 min) - Move between top-k and a hard threshold and watch the subgraph change; benchmark
+    4. **Choose the threshold** - Move between top-k and a hard threshold and watch the subgraph change; benchmark
     work recommends choosing it by grid search rather than a fixed edge count
 
     5. **Validate** (in code) - `unfaithfulness(explainer, explanation)`; remove the top edges and re-predict
 
-    6. **Hand off** (2 min) - Static PNG or PDF of a 10 to 50 edge subgraph, or a path explanation for a recommendation
+    6. **Hand off** - Static PNG or PDF of a 10 to 50 edge subgraph, or a path explanation for a recommendation
     (user, item, brand, item)
 
 

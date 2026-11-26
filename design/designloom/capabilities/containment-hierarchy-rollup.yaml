@@ -1,0 +1,20 @@
+id: containment-hierarchy-rollup
+name: "Containment Hierarchy Rollup"
+category: analysis
+description: "Roll a selected node set (for example a closure result) up a parent-child hierarchy supplied with the data, such as business capabilities from level 3 to 2 to 1 or organizational units. Count affected children per parent, flag parents left with no other supporting node (single point of realization), and show the result grouped and collapsible by the hierarchy, with expand in place."
+status: planned
+notes: "Research trace: dependency-and-impact-analysis-engineers.md section 10, requirement R35 (Should)."
+algorithms: []
+used_by_workflows:
+    - W1132
+    - W3078
+    - W3079
+implemented_by_components: []
+requirements:
+    - "Should: Roll a closure result up a supplied containment hierarchy (capability level 3 to 2 to 1, organization),
+      counting affected children per parent and flagging parents left with no other supporting node"
+sources:
+    - title: "Engineers Who Analyze Dependencies: IT Services, Networks, Software and Data Lineage (section 10,
+        requirement R35)"
+      url: design/user-research/dependency-and-impact-analysis-engineers.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

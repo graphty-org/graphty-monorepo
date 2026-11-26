@@ -62,35 +62,35 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Segment and code** (days to weeks) - One sentence or utterance per line, stanza breaks, several codes per line;
+    1. **Segment and code** - One sentence or utterance per line, stanza breaks, several codes per line;
     code locally so data are not uploaded; merge coders; measure agreement (Cohen's kappa)
 
-    2. **Optional: automated coding** (hours to days) - nCoder: write regular expressions per code, compare with human
+    2. **Optional: automated coding** - nCoder: write regular expressions per code, compare with human
     coding on about 100 training lines, inspect disagreements, refine, test on about 100 unseen lines, then code the
     whole dataset once kappa, precision, recall and Shaffer's rho are acceptable; or prompt GPT-4; or use BERTopic
     topics as codes, tuning granularity and the inclusion threshold
 
-    3. **Build the table** (30 min) - One row per line with IDs, text, metadata and at least three code columns; CSV,
+    3. **Build the table** - One row per line with IDs, text, metadata and at least three code columns; CSV,
     XLSX or Rdata
 
-    4. **Set units, conversations and window** (15 min) - Units define whose network (for example condition by
+    4. **Set units, conversations and window** - Units define whose network (for example condition by
     student); conversations define which lines may connect; moving stanza window (web default 4 lines, R example 7),
     whole conversation, infinite or threaded
 
-    5. **Group and rotate** (5 min) - Means rotation puts the group difference on the x axis; otherwise SVD; sphere
+    5. **Group and rotate** - Means rotation puts the group difference on the x axis; otherwise SVD; sphere
     normalization
 
-    6. **Model** (1 min) - Accumulate co-occurrences per unit, normalize, reduce; all networks share node positions
+    6. **Model** - Accumulate co-occurrences per unit, normalize, reduce; all networks share node positions
 
-    7. **Plot** (15 min) - Mean network per group, then the subtracted network colored by the larger side; minimum edge
+    7. **Plot** - Mean network per group, then the subtracted network colored by the larger side; minimum edge
     weight, scaling, hide unconnected codes; unit points with 95 percent confidence intervals
 
-    8. **Test** (10 min) - Welch t and Mann-Whitney with effect size; check goodness of fit (usually above 0.90);
+    8. **Test** - Welch t and Mann-Whitney with effect size; check goodness of fit (usually above 0.90);
     generate a write-up
 
-    9. **Close the interpretive loop** (hours) - Open the lines behind a unit's connection and quote them
+    9. **Close the interpretive loop** - Open the lines behind a unit's connection and quote them
 
-    10. **Compare codings** (hours) - Show human-coded and machine-coded networks on the same layout and where they
+    10. **Compare codings** - Show human-coded and machine-coded networks on the same layout and where they
     disagree
 
     11. **Reuse** - Unit positions into a regression; ordered network analysis for directed connections with self-loops

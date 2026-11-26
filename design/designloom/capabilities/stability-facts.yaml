@@ -4,11 +4,17 @@ category: analysis
 description: Attach stability values (CS-coefficient per centrality index, difference-test matrix, community assignment
     stability per node) to metrics and flag values below a user-set threshold, as neutral facts the application words.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: psychometric-network-analysis.md section 10, requirement R7 (Should)."
 algorithms: []
 used_by_workflows:
     - W371
     - W377
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Should: Stability facts beside centrality (CS-coefficient per index, difference matrix) and a flag when below a
+      threshold; the app writes the words"
+sources:
+    - title: "Psychological Network Analysts: Symptom, Attitude and Personality Networks Estimated from Survey Items
+        (section 10, requirement R7)"
+      url: design/user-research/psychometric-network-analysis.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

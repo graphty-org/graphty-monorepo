@@ -1,10 +1,13 @@
 id: distribution-planning-engineer
 name: Distribution Planning Engineer
+roster_persona: none
+tier: none
+scope: out-of-scope
 role: Distribution Planning Engineer at an investor-owned utility
 quote: My hosting capacity lives one feeder at a time, but the regulator and the solar developers ask about the whole
     territory.
 bio: >-
-    Tomas plans the medium-voltage distribution system for an investor-owned utility with thousands of radial feeders,
+    Stefan plans the medium-voltage distribution system for an investor-owned utility with thousands of radial feeders,
     each modeled with 142 to 6,001 buses. He exports feeder models from the GIS (ArcFM or ArcGIS Utility Network) into
     CYME or Synergi, allocates load from smart-meter or SCADA data, and runs EPRI's DRIVE hosting capacity method, with
     OpenDSS for research cases. For every node he gets how much distributed generation (rooftop solar, batteries, EV

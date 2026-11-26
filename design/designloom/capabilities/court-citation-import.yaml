@@ -1,0 +1,25 @@
+id: court-citation-import
+name: "Court citation network import"
+category: data
+description: "Build a directed decision-to-decision citation graph from a court database export or API (CourtListener cited/citing API or bulk file, HUDOC case-law metadata, EUR-Lex CELLAR SPARQL), keeping decision date, court, court level, jurisdiction and identifier (ECLI, CELEX, application number, reporter citation), and reporting resolved and unresolved citations as counts with the unresolved list."
+status: planned
+notes: "Research trace: ediscovery-and-legal-communication-analysis.md section 10, requirement L1 (Should)."
+algorithms: []
+used_by_workflows:
+    - W2036
+    - W2037
+implemented_by_components: []
+requirements:
+    - "Should: Build a directed decision-to-decision citation graph from a CourtListener citations API response or bulk file, HUDOC case-law metadata or a EUR-Lex CELLAR query result"
+    - "Should: Keep decision date, court, court level, jurisdiction and identifier (ECLI, CELEX, application number, reporter citation) on every decision node"
+    - "Should: Report resolved and unresolved citations as counts, and list the unresolved ones with the citing decision"
+sources:
+    - title: "CourtListener citations API (v4)"
+      url: "https://wiki.free.law/c/courtlistener/help/api/rest/v4/citations"
+      summary: "Cited and citing opinions by API, the source a court citation graph is built from"
+    - title: "Lupu and Voeten, Precedent in International Courts (British Journal of Political Science, 2012)"
+      url: "https://www.cambridge.org/core/journals/british-journal-of-political-science/article/abs/precedent-in-international-courts-a-network-analysis-of-case-citations-by-the-european-court-of-human-rights/0751B7A11AE1D9671F7C3D439E76C375"
+      summary: "A citation network of European Court of Human Rights judgments"
+    - title: "Legal and ediscovery research, section 10, requirement L1"
+      url: "design/user-research/ediscovery-and-legal-communication-analysis.md"
+      summary: "Court citation import, Should"

@@ -15,106 +15,182 @@ requires_capabilities:
     - hover-highlight
     - node-selection
     - edge-flow-animation
-    - level-of-detail-rendering
     - xr-graph-interaction
+    - framework-neutral-embedding
+    - layout-lifecycle-events
+    - stable-id-data-binding
+    - manual-layout-preservation
+    - export-image
+    - element-accessibility
+    - render-context-lifecycle
 suggested_components:
     - graph-canvas
     - zoom-controls
     - node-tooltip
     - layout-panel
 starting_state:
-    data_type: JSON nodes and links from a notes vault (links and tags) or a client dataset
-    node_count: 200-50000
+    data_type: >-
+        JSON nodes and links built from notes and their links (an Obsidian vault), from a knowledge graph an LLM or RAG
+        pipeline extracted, from a Neo4j query, or from a code base's file imports
+    node_count: 200-10000 typical (one Neo4j demo loads 5,000 relationships; one report has 4,000 nodes and 80,000
+        links); requests reach 200,000
     edge_density: sparse to moderate
     user_expertise: intermediate developer
 goal: >-
-    **Intent**: Put an explorable 3D graph, and optionally a VR or AR version of it, into a website or a host plugin
-    such as an Obsidian plugin, with custom node appearance and visible flow.
+    **Intent**: Put an explorable 3D graph into a web app, a developer tool or a host plugin (an Obsidian plugin), so
+    a reader can fly around a knowledge base, an AI memory, a database query result or a code base, click into a
+    node, and see what it connects to. Sometimes also a VR or AR version.
 
 
-    **Mental Model**: "Drop in a 3D scene and decorate it." The library owns the simulation and the camera; the
-    developer swaps meshes and labels and reaches into the scene for anything else.
+    **What gets built** (GitHub, 2026): personal knowledge-base and notes-vault viewers (obsidian-3d-graph,
+    TagsRoutes, obsidian-galaxy); 3D views of knowledge graphs that LLM and RAG tools extract (graphaura, The-Brain,
+    inferagraph); Neo4j query explorers (neo4j-3d-force-graph); code-dependency views opened from a command-line tool
+    (dep-tree). The readers are the developer, their users, or a hackathon or demo audience. Products with a paying
+    audience that use the same author's libraries (SigNoz's service map, cognee's graph view) chose the 2D package.
+
+
+    **Mental Model**: "Drop in a 3D scene, wire it to my app's state, and decorate it." The library owns the
+    simulation and the camera; the developer copies the README examples for interaction and reaches into the
+    three.js scene for anything else.
 
 
     **Task Phases**:
 
-    1. **Install** - Script tag or npm; choose 2D, 3D, VR or AR packages that share one interface
+    1. **Install and mount** - Script tag from a CDN, or npm. In Next.js or Gatsby, wrap the graph in a client-only
+    component loaded with a dynamic import with ssr false, and move the ref into that wrapper so methods such as
+    cameraPosition still work
 
-    2. **Bind data** - Pass nodes and links or a JSON URL; color automatically by a group field
+    2. **Bind data** - Pass nodes and links (often mapped from a database or LLM output). Color by a group field.
+    Size by a score, such as PageRank
 
-    3. **Camera** - Choose trackball, orbit or fly controls and an initial camera position
+    3. **First frame** - Optionally lay out before the first frame (warmupTicks, cooldownTicks 0). When the engine
+    stops, call zoomToFit to frame the settled graph
 
-    4. **Customize nodes** - Replace spheres with custom meshes or text sprites; add particles along links for flow;
-    switch to a DAG mode for trees
+    4. **Interaction loop** - On hover, highlight the node, its links and its neighbors, and show a label or HTML
+    tooltip. On click, select the node, fly the camera to it and open a side panel in the app. Double-click empty
+    space or press a button to frame the whole graph again. Keep a dragged node fixed where it was dropped
 
-    5. **Tune for size** - Warmup and cooldown ticks, pause the animation for a static view, turn off pointer
-    interaction (documented as the biggest gain)
+    5. **Live changes** - Add or remove nodes as the app's data changes, keep existing positions, and send a
+    particle along a link when something happens (emitParticle) or show particles only on highlighted links
 
-    6. **VR** - Switch to the A-Frame package and handle controllers by hand
+    6. **Customize** - Replace spheres with text sprites or custom meshes, add bloom, tune link distance and charge
+    per node type, switch to DAG mode for trees
 
-    7. **Export or share** - No documented route found
+    7. **Tune for size** - Turn off pointer interaction, pause the animation for a static view, lower node
+    resolution, hide labels at distance
+
+    8. **Capture and share** - Save a picture through the renderer's canvas (needs the right moment or blank
+    output), record the screen, or share a link to the hosted page; no camera state in the URL
+
+    9. **VR (sometimes)** - Switch to the A-Frame package and handle controllers by hand
+
+    10. **Unmount** - Remove the graph when the route changes without leaking GPU memory
 
 
     **Decision Points**:
 
-    - Which camera control mode suits the content?
+    - 2D or 3D? (well-funded products picked 2D; 3D is chosen for "explore my vault or my AI's memory")
+
+    - Lay out before the first frame, or let readers watch it build?
 
     - Labels on every node, on hover only, or by distance?
 
-    - When to freeze the simulation?
+    - When to freeze the simulation, and whether dragged nodes stay put
 
     - Is a headset mode worth the extra work?
 
 
     **Information Needs**:
 
-    - Frame rate at the target size with labels on
+    - When the layout has settled, so the view can be framed and a spinner hidden
 
-    - Whether the render loop idles when nothing changes
+    - Which node is hovered or clicked, with its neighbors, as plain data for the app's own panels
 
-    - How to select a node with a controller in VR
+    - Frame rate at the target size with labels on, and whether the render loop idles when nothing changes
+
+    - Whether the browser can render at all (WebGL available, context not lost)
 
 
     **Pain Points**:
 
-    - Text sprites on 10,000+ nodes are very slow
+    - Server-side rendering throws window or self is not defined; the dynamic-import fix breaks ref methods
+    (react-force-graph issues 155, 324, 357, 475)
 
-    - The animation loop never stops on graphs over 5,000 nodes and gets slower each time data is replaced
+    - zoomToFit from onEngineStop fires 10+ seconds after the graph shows; developers poll with setTimeout (issues
+    231, 593; dep-tree)
 
-    - No WebGPU path for 200k elements
+    - The click-to-focus camera arithmetic is copied into every app (dep-tree, graphaura)
+
+    - Text sprites on 10,000+ nodes are very slow; the animation loop never stops on graphs over 5,000 nodes and gets
+    slower each time data is replaced (3d-force-graph issues 515, 479)
+
+    - Screenshots come out blank or black; the canvas is not exposed (3d-force-graph issues 25, 68, 189, 564;
+    react-force-graph 255)
+
+    - WebGL context loss on big graphs with custom meshes, and resource leaks on unmount (issues 595, 732)
 
     - VR controller hit-testing and camera access undocumented; any React state change re-renders the VR graph
 
-    - No export or share route for a 3D view
+    - No keyboard access and no text alternative; no accessibility issue has been filed against either library
 
 
     **Data Flow**:
 
-    - Input: Nodes and links JSON
+    - Input: Nodes and links JSON from the app's own data
 
-    - Transformations: 3D force or DAG layout, custom meshes and sprites, particles on links
+    - Transformations: 3D force or DAG layout, custom meshes and sprites, particles on links, highlight sets
+    computed in the app
 
-    - Output: An embedded 3D or XR view (no documented export)
+    - Output: An embedded 3D view the app's panels react to; screenshots by hand; no saved camera or shared view
 success_criteria:
+    - metric: Time to a framed first view
+      target: The graph appears already laid out and framed, with no consumer timer or polling, within the settle
+          time of the layout
+    - metric: Focus and highlight without copied code
+      target: Click-to-focus and hover-highlight of neighbors work from options and events, with no camera
+          arithmetic or neighbor lookup written by the consumer
+    - metric: SSR-safe embed
+      target: The element can be imported in a Next.js App Router page with no dynamic import, and its methods work
+    - metric: Live update
+      target: Adding nodes keeps existing positions and frame rate does not degrade after 10 data replacements
+    - metric: Capture
+      target: One call returns a non-blank image of the current 3D view at any time
     - metric: Idle cost
       target: Zero rendering work when the simulation has settled and the camera is still
     - metric: Labeled scale
       target: Readable labels at 10,000 nodes at interactive frame rates
+    - metric: Fallback
+      target: When WebGL and WebGPU are unavailable, the page receives an error code and can show its own fallback
     - metric: XR input
       target: A controller can select a node in VR with no custom hit-testing code
 sources:
     - title: 3d-force-graph
       url: https://github.com/vasturiano/3d-force-graph
-      summary: controlType, nodeThreeObject, linkDirectionalParticles, dagMode, cooldown settings; issues 479, 491, 515
+      summary: 31 README examples including click to focus, highlight, fix after drag, dynamic data, emit particles on
+          demand, fit to canvas, pause; onEngineStop, zoomToFit, emitParticle; issues 479, 491, 515
     - title: react-force-graph
       url: https://github.com/vasturiano/react-force-graph
-      summary: 2D, 3D, VR and AR packages; issues 243, 285 and 581
+      summary: 2D, 3D, VR and AR packages; SSR issues 155, 324, 357, 475; zoomToFit issues 231, 427, 593; VR issues
+          243, 285, 581
+    - title: 3d-force-graph dependents
+      url: https://github.com/vasturiano/3d-force-graph/network/dependents
+      summary: About 4,741 dependent repositories and 92 packages (2026-11-25)
+    - title: dep-tree web view
+      url: https://github.com/gabotechs/dep-tree
+      summary: Code-dependency 3D view (react-force-graph-3d); copies the click-to-focus arithmetic and frames with
+          setTimeout(zoomToFit, 1000)
+    - title: graphaura
+      url: https://github.com/liamellison02/graphaura
+      summary: Next.js 15 AI knowledge graph with react-force-graph-3d; click flies the camera to the node
+    - title: neo4j-3d-force-graph
+      url: https://github.com/jexp/neo4j-3d-force-graph
+      summary: Neo4j queries rendered in 3D; 5,000 relationships, PageRank sizes, Louvain colors, particles
+    - title: 3d-force-graph screenshot issues
+      url: https://github.com/vasturiano/3d-force-graph/issues/564
+      summary: Black or blank images from canvas.toDataURL; also issues 25, 68 and 189
     - title: obsidian-3d-graph
       url: https://github.com/Apoo711/obsidian-3d-graph
       summary: 3D notes graph as an Obsidian plugin
-    - title: nextjs-3d-force-graph-impl
-      url: https://github.com/mohidmakhdoomi/nextjs-3d-force-graph-impl
-      summary: react-force-graph in Next.js manipulating three.js objects
-version: 1.0.0
+version: 1.1.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

@@ -4,12 +4,17 @@ category: analysis
 description: Expand a node by one relationship type with a preview of how many nodes it adds and a per-expansion cap,
     undo any earlier expansion, and bulk-prune nodes by type or mark.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: cybersecurity-graph-work.md section 10, requirement 8 (Must)."
 algorithms: []
 used_by_workflows:
     - W110
     - W111
     - W115
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Expand-on-demand with per-expansion limits, undo of expansions, bulk prune by type or mark"
+sources:
+    - title: "Cybersecurity Graph Work: Attack Paths, Threat-Intel Pivoting, Incident Response, Network, Cloud and
+        Binary Graphs (section 10, requirement 8)"
+      url: design/user-research/cybersecurity-graph-work.md
+      summary: "Must in the research. Covered by Designloom when researched: Not covered"

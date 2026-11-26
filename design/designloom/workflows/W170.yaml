@@ -3,7 +3,7 @@ name: Building, Thresholding and Drawing a Microbial Co-occurrence Network
 category: analysis
 validated: false
 personas:
-    - microbial-network-ecologist
+    - interaction-network-ecologist
 requires_capabilities:
     - data-import
     - filtering
@@ -58,26 +58,26 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Start from the abundance table** (5 min) - Taxa by samples with taxonomy and metadata
+    1. **Start from the abundance table** - Taxa by samples with taxonomy and metadata
 
-    2. **Filter** (5 min) - Keep taxa present in at least a chosen share of samples
+    2. **Filter** - Keep taxa present in at least a chosen share of samples
 
-    3. **Infer** (10-120 min, outside or inside the tool) - SparCC, SPIEC-EASI, CoNet or a correlation with
+    3. **Infer** (outside or inside the tool) - SparCC, SPIEC-EASI, CoNet or a correlation with
     normalization, producing weighted signed edges with significance
 
-    4. **Threshold** (5 min) - Absolute correlation cutoff (0.3 is common) and p-value cutoff, or a
+    4. **Threshold** - Absolute correlation cutoff (0.3 is common) and p-value cutoff, or a
     random-matrix-theory threshold, watching edge, component and module counts change
 
-    5. **Compute** (5 min) - Degree, betweenness, modularity, positive-to-negative ratio, within-module degree (Zi) and
+    5. **Compute** - Degree, betweenness, modularity, positive-to-negative ratio, within-module degree (Zi) and
     participation coefficient (Pi); module hubs Zi above 2.5 and connectors Pi above 0.62 as candidate keystone taxa
 
-    6. **Draw** (10 min) - Color by module or phylum, positive edges green or blue and negative edges red, width by
+    6. **Draw** - Color by module or phylum, positive edges green or blue and negative edges red, width by
     correlation, force-directed layout
 
-    7. **Compare conditions** (15 min) - One network per treatment; shared edges, modules and global properties side
+    7. **Compare conditions** - One network per treatment; shared edges, modules and global properties side
     by side
 
-    8. **Hand off** (10 min) - Figure per condition, property table, keystone list, with the threshold and method stated
+    8. **Hand off** - Figure per condition, property table, keystone list, with the threshold and method stated
 
 
     **Decision Points**:
@@ -126,7 +126,7 @@ goal: >-
     - Output: Per-condition network figures, property and keystone tables, comparison of conditions
 success_criteria:
     - metric: Threshold transparency
-      target: Moving the threshold updates edge, component and module counts within one second
+      target: Moving the threshold updates edge, component and module counts within one second (design goal; no source measures it)
     - metric: Sign readability
       target: Positive and negative edges distinguishable in the exported figure with a legend
     - metric: Attribute survival

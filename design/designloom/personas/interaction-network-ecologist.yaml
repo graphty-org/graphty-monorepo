@@ -1,9 +1,12 @@
 id: interaction-network-ecologist
 name: Interaction Network Ecologist
+roster_persona: interaction-network-ecologist
+tier: B
+scope: in-scope
 role: Microbial Ecologist building co-occurrence networks from amplicon data (lead variant); pollination, food-web and animal social network ecologists as variants
 quote: Change the correlation cutoff from 0.6 to 0.7 and half my keystone taxa disappear. I need to see that before a reviewer does.
 bio: >-
-    Dr. Wei Zhang is a postdoc in a soil and rhizosphere microbiology lab. Her network starts as a taxa-by-samples
+    Dr. Yan Zhang is a postdoc in a soil and rhizosphere microbiology lab. Her network starts as a taxa-by-samples
     abundance table from 16S or ITS amplicon sequencing (usually a phyloseq object in R) with taxonomy and sample
     metadata, not as a graph. She filters to prevalent taxa, infers associations with SparCC, SPIEC-EASI or NetCoMi,
     keeps the edges above a cutoff, and is left with 100 to 1,000 taxa joined by signed edges. Then she exports the edge
@@ -53,6 +56,10 @@ context:
     voluntary: true
 workflows:
     - W337
+    - W170
+    - W1042
+    - W294
+    - W37
 sources:
     - title: Goberna and Verdu 2022 - Cautionary notes on the use of co-occurrence networks in soil ecology
       url: https://www.uv.es/verducam/DamnNetworks.pdf
@@ -72,6 +79,15 @@ sources:
     - title: Example microbial co-occurrence figure conventions (PLOS ONE)
       url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10437823/figure/pone.0273890.g008
       summary: Positive and negative edges in different colors, width by correlation
+    - title: CoNet app for Cytoscape
+      url: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5089131/
+      summary: Ensemble association measures with permutation significance and multiple-testing correction
+    - title: Using CoNet with Cytoscape (practitioner blog)
+      url: https://sites.google.com/view/terrimporter/posts/using-conet-with-cytoscape
+      summary: Reports that CoNet is very memory intensive
+    - title: Microbial network interpretation review
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10989802/
+      summary: Co-occurrence edges should not be read as direct interactions
 version: 1.0.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

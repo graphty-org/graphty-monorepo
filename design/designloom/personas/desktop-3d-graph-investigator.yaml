@@ -1,5 +1,8 @@
 id: desktop-3d-graph-investigator
 name: Desktop 3D Graph Investigator
+roster_persona: osint-investigator
+tier: A
+scope: in-scope
 role: Internet-Investigation or Fraud Analyst
 quote: I don't need a headset. I need the ring of accounts on a map and a timeline, in 3D on my monitor, in time for the briefing.
 bio: >-
@@ -43,7 +46,6 @@ context:
 workflows:
     - W417
     - W419
-    - W420
 sources:
     - title: 5-minute interview with Sony Green (Kineviz)
       url: https://neo4j.com/blog/graph-visualization/5-minute-interview-with-sony-green/

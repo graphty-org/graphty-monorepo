@@ -1,0 +1,134 @@
+id: W3054
+name: Draw and Describe the Evidence Network for a Network Meta-Analysis Report
+category: reporting
+validated: false
+personas:
+    - nma-systematic-reviewer
+    - hta-indirect-comparison-analyst
+    - hta-evidence-review-assessor
+starting_state:
+    data_type: one row per trial arm (study, treatment, sample size, outcome) plus a study-level risk-of-bias table
+    node_count: 3-112
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Turn an arm-level extraction into the treatment network every NMA report must show: check it is connected, describe its geometry, and export a figure whose node size, line width and multi-arm marks are stated.
+
+
+    **Mental Model**: "Treatments are nodes, trials are bundles of edges." Each edge stands for every trial that randomized patients between two treatments, and a multi-arm trial is one study spanning several edges.
+
+
+    **Task Phases**:
+
+    1. **Load the arms** - Read the extraction table and build nodes from distinct treatments and edges from treatment pairs that share a study
+
+    2. **Check connectivity** - Confirm the network is one component, or name the subnetworks before any model is fitted
+
+    3. **Aggregate per comparison** - Count studies and participants per edge and per node
+
+    4. **Lay out** - Place treatments on a circle in a chosen order, then untangle crossings
+
+    5. **Encode** - Node size by participants, line width by studies, study counts on edges, multi-arm studies as shaded polygons
+
+    6. **Describe geometry** - Report counts, density, common comparators, studies per edge, strong edges and closed loops
+
+    7. **Export** - A journal figure with a legend naming each measure, and the geometry numbers for the text
+
+
+    **Decision Points**:
+
+    - Size nodes by participants or by number of studies, and say which?
+
+    - Width by number of studies, participants or model weight?
+
+    - Which treatment order on the circle gives the fewest crossings?
+
+
+    **Information Needs**:
+
+    - Number of subnetworks and their members
+
+    - Studies and participants per comparison and per treatment
+
+    - Which studies have three or more arms
+
+    - The seven geometry metrics
+
+
+    **Pain Points**:
+
+    - Default circle layouts cross edges
+
+    - Multi-arm trials look like separate trials unless an option is set
+
+    - No figure states what node size and line width measure
+
+    - Geometry metrics are counted by hand
+
+
+    **Data Flow**:
+
+    - Input: Trial-arm table and risk-of-bias table
+
+    - Transformations: Treatment graph with studies as groups, per-edge counts, connectivity, geometry metrics, layout
+
+    - Output: Network figure with legend, geometry numbers
+success_criteria:
+    - metric: Connectivity
+      target: Disconnected subnetworks are named before fitting
+    - metric: Encoding stated
+      target: The exported figure names the measure behind node size and line width
+    - metric: Geometry
+      target: All seven geometry metrics are reported without hand counting
+sources:
+    - title: "PRISMA-NMA checklist"
+      url: https://www.prisma-statement.org/s/PRISMA-NMA-checklist.pdf
+      summary: "Items S1, S3 and S4: methods for, a graph of, and a summary of the network geometry"
+    - title: "Cochrane Handbook chapter 11"
+      url: https://www.cochrane.org/authors/handbooks-and-manuals/handbook/current/chapter-11
+      summary: "Network diagram definition, node size by participants, line thickness by trials, connectedness, closed loops, contribution matrix"
+    - title: "netmeta netgraph reference"
+      url: https://search.r-project.org/CRAN/refmans/netmeta/html/netgraph.netmeta.html
+      summary: "Circle or eigenvector start, stress majorization, thickness by studies or weights, multi-arm polygons, 3D"
+    - title: "netmeta source, R/netgraph.netmeta.R"
+      url: https://github.com/guido-s/netmeta
+      summary: "Stress majorization from a circle or Laplacian eigenvectors; optimal circular order; multi-arm studies as colored polygons"
+    - title: "Harrer et al. - Doing Meta-Analysis in R, chapter 12"
+      url: https://doing-meta.guide/netwma.html
+      summary: "netmeta and gemtc tutorial: data shape, netgraph, decomp.design, netsplit, netheat"
+    - title: "Tonin et al. 2019 - Description of network meta-analysis geometry"
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6382117/
+      summary: "167 networks redrawn in Gephi; median 8 nodes, 10 edges, 22 studies; density, common comparators, median thickness, strong edges"
+    - title: "Jain, Li and Warner 2024 - Graphical presentations in anticancer NMAs"
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10927000/
+      summary: "441 plots in 162 NMAs; 76% circle layout; node size 58%, edge width 68%; hairball effect"
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z
+requires_capabilities:
+    - data-import
+    - table-to-graph-builder
+    - hypergraph-data
+    - multi-arm-study-polygons
+    - comparison-grade-aggregation
+    - component-analysis
+    - basic-statistics
+    - evidence-network-geometry-metrics
+    - circle-seeded-stress-layout
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - journal-figure-export
+    - analysis-provenance
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - graph-canvas
+    - layout-panel
+    - visual-encoding-panel
+    - legend-panel
+    - statistics-panel
+    - metric-card
+    - image-export-dialog
+

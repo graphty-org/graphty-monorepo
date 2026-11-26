@@ -6,15 +6,9 @@ status: planned
 implements_capabilities:
     - anomaly-detection
 used_in_workflows:
-    - W06
     - W07
-    - W12
     - W128
-    - W312
-    - W355
     - W429
-    - W65
-    - W72
 dependencies:
     - metric-card
     - badge

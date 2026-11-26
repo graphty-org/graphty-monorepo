@@ -1,9 +1,12 @@
 id: forensic-accountant
 name: Forensic Accountant
-role: Forensic Accountant and Certified Fraud Examiner, litigation support firm
+roster_persona: trial-exhibit-analyst
+tier: B
+scope: in-scope
+role: Forensic Accountant and Certified Fraud Examiner, litigation support firm (traces funds, builds trial exhibits, testifies)
 quote: The court does not ask whether money moved. It asks how much of the victim's 50,000 dollars is in that house, under the rule it accepts, with every number tied to a statement page.
 bio: >-
-    Ruth Feldman is a forensic accountant and certified fraud examiner at a litigation-support firm. Her cases arrive as
+    Miriam Feldman is a forensic accountant and certified fraud examiner at a litigation-support firm. Her cases arrive as
     boxes and PDFs of bank statements, check images, deposit tickets, wire records and signature cards from many banks,
     obtained by subpoena. She extracts them into rows with OCR tools (DocuClipper, Valid8), normalizes them into one
     template in Excel or a database (date, account, counterparty, amount, instrument, check number, memo, source page),
@@ -45,6 +48,9 @@ workflows:
     - W120
     - W121
     - W126
+    - W15
+    - W314
+    - W321
 sources:
     - title: Peterson - A Guide to the Financial Analysis of Personal and Corporate Bank Records (NW3C, 2nd ed. 1998)
       url: https://www.ojp.gov/pdffiles1/Digitization/174809NCJRS.pdf
@@ -61,6 +67,36 @@ sources:
     - title: Fifth Circuit unpublished opinion on the lowest intermediate balance rule
       url: https://www.ca5.uscourts.gov/Opinions/unpub/00/00-50358.0.wpd.pdf
       summary: Claim capped at the lowest balance after the deposit; later deposits do not restore it (read through search summary)
+    - title: Federal Rule of Evidence 1006 (Cornell LII)
+      url: https://law.cornell.edu/rules/fre/rule_1006
+      summary: Summaries of voluminous admissible writings; underlying originals must be made available
+    - title: Federal Rule of Evidence 107 and 2024 committee notes
+      url: https://www.courtrules.net/federal/evidence/rule-107
+      summary: Illustrative aids allowed unless prejudice substantially outweighs utility; not evidence; kept out of deliberations without consent or order
+    - title: United States v. Bray, 139 F.3d 1104 (6th Cir. 1998)
+      url: https://caselaw.findlaw.com/court/us-6th-circuit/1097222.html
+      summary: A Rule 1006 summary must be accurate and nonprejudicial and not annotated with the proponent's conclusions
+    - title: United States v. Fei Xie, No. 25-6034 (10th Cir. Mar. 31, 2026), unpublished
+      url: https://www.ca10.uscourts.gov/sites/ca10/files/opinions/010111410037.pdf
+      summary: Charts built from non-trial sources inadmissible under Rule 611(a); objections to red framing, size and an agency badge rejected on plain-error review
+    - title: Weintraub - trial demonstratives guidance
+      url: https://www.weintraub.com/?p=6334
+      summary: Build from the general ledger, bank records or cash flow summaries and test demonstrative evidence before trial
+    - title: R v Calland [2017] EWCA Crim 2308
+      url: https://caselaw.nationalarchives.gov.uk/ewca/crim/2017/2308
+      summary: Cell-mast locations allowed only at town level on a sequence-of-events chart
+    - title: Law Enforcement Analytic Standards, 2nd edition
+      url: https://www.azdps.gov/sites/default/files/2023-07/Law_Enforcement_Analytic_Standards_2nd_edition.pdf
+      summary: Products must clearly distinguish sources and keep opinions out of the factual portion
+    - title: RFFlow link analysis sample
+      url: https://www.rff.com/link_analysis_sample.php
+      summary: Circles for people, rectangles for businesses, solid confirmed and dotted suspected links
+    - title: IBM support - i2 Analyst's Notebook PDF truncation above Letter
+      url: https://www.ibm.com/support/pages/node/510995
+      summary: i2 8.9.5 truncated PDFs larger than Letter
+    - title: IBM support - custom paper sizes above A0
+      url: https://www.ibm.com/support/pages/node/242017
+      summary: Large-format charts need custom paper sizes set up by hand
 version: 1.0.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

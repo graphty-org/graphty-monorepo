@@ -4,6 +4,7 @@ category: onboarding
 validated: false
 personas:
     - graph-data-wrangler
+    - egocentric-survey-researcher
 requires_capabilities:
     - data-import
     - data-validation
@@ -15,6 +16,8 @@ requires_capabilities:
     - computed-attributes
     - survey-network-import
     - entity-resolution-review
+    - network-collection-small-multiples
+    - egocentric-survey-import
 suggested_components:
     - file-drop-zone
     - data-import-dialog
@@ -89,6 +92,10 @@ goal: >-
 
     **Pain Points**:
 
+    - Network Canvas nodeID belongs to a different alter in each interview; only the UUID columns combine interviews
+
+    - Per-session GraphML, or one file with a graph per session, which most tools outside Network Canvas cannot open
+
     - Wide-to-long reshaping and name matching happen in scripts or by hand
 
     - Tools treat non-response as no tie by default, biasing every metric
@@ -100,7 +107,9 @@ goal: >-
 
     **Data Flow**:
 
-    - Input: Survey export (CSV, Qualtrics), Network Canvas GraphML or CSV directory
+    - Input: Survey export (CSV, Qualtrics); Network Canvas CSV sets per session (ego, attributeList per node type,
+    edgeList per edge type, linked by networkCanvasEgoUUID) or one GraphML file per session, usually in one zip; egor
+    three-file tables (egos, alters, alter-alter edges with the ego id first)
 
     - Transformations: Wide to long, name matching, missing-respondent flags; or ego, alter, alter-alter assembly by ego
     id
@@ -127,6 +136,12 @@ sources:
     - title: Study of non-response treatment in network data (dlib.si)
       url: https://dlib.si/stream/URN:NBN:SI:DOC-ZRONLGAC/11c18f78-4757-406f-a6aa-de60f4a78124/PDF
       summary: Treating unobserved ties as zero is the most-used approach, often by default
-version: 1.0.0
+    - title: Network Canvas - Data export
+      url: https://documentation.networkcanvas.com/en/desktop/key-concepts/data-export
+      summary: CSV files per session, node type and edge type keyed by UUIDs; GraphML one file per session
+    - title: egor - three-file format
+      url: https://rdrr.io/cran/egor/src/R/read.egonet.three.files.R
+      summary: Ego, alter and alter-alter files tied by ID.vars
+version: 1.1.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

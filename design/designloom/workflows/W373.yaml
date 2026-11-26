@@ -49,23 +49,23 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Open data** (2 min) - CSV or .sav; choose Network Analysis; drag items into Variables and optionally a group
+    1. **Open data** - CSV or .sav; choose Network Analysis; drag items into Variables and optionally a group
     into Split by
 
-    2. **Choose settings** (3 min) - Estimator (EBICglasso by default), correlation method, gamma, missing-value
+    2. **Choose settings** - Estimator (EBICglasso by default), correlation method, gamma, missing-value
     handling, and for correlation networks a threshold such as Bonferroni or Holm
 
-    3. **Read outputs** (10 min) - Summary table, network plot (blue and red), centrality table and plot
+    3. **Read outputs** - Summary table, network plot (blue and red), centrality table and plot
     (betweenness, closeness, strength, expected influence; z-scores when Normalized is ticked), clustering plot,
     weights matrix
 
-    4. **Bootstrap** (minutes) - Nonparametric, case, node, parametric, person or jackknife bootstrap adds edge and
+    4. **Bootstrap** - Nonparametric, case, node, parametric, person or jackknife bootstrap adds edge and
     centrality stability plots
 
-    5. **Layout and groups** (5 min) - Spring, circle or data (x and y columns); one averaged layout for all Split-by
+    5. **Layout and groups** - Spring, circle or data (x and y columns); one averaged layout for all Split-by
     groups, savable back into the data; node colors by subscale, node shape by variable type
 
-    6. **Export** (5 min) - PNG or PDF into the manuscript; copy citations
+    6. **Export** - PNG or PDF into the manuscript; copy citations
 
 
     **Decision Points**:
@@ -113,7 +113,7 @@ goal: >-
     - Output: Network figure, centrality plot and table, stability plots, saved layout columns, exported PNG or PDF
 success_criteria:
     - metric: Time to complete figure set
-      target: About 30 minutes with no code
+      target: About 30 minutes with no code (design goal; no source measures it)
     - metric: Interpretability
       target: User can state in one sentence what each stability output shows
     - metric: Group color correctness

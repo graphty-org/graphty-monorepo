@@ -13,7 +13,6 @@ requires_capabilities:
     - filtering
     - basic-statistics
     - centrality-degree
-    - centrality-betweenness
     - clustering-coefficient
     - layout-force-directed
     - animated-transitions
@@ -59,23 +58,23 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Clean events** (30 min) - Drop self-loops, map actors to ids, convert time to a numeric unit (days)
+    1. **Clean events** - Drop self-loops, map actors to ids, convert time to a numeric unit (days)
 
-    2. **Assign durations** (15 min) - Give each point event an onset and terminus by a stated rule (fixed decay, or post
+    2. **Assign durations** - Give each point event an onset and terminus by a stated rule (fixed decay, or post
     to last reply), with censoring for events that run past the end of observation
 
-    3. **Build and subset** (10 min) - Construct the dynamic network; keep active actors (degree above 20 in one
+    3. **Build and subset** - Construct the dynamic network; keep active actors (degree above 20 in one
     tutorial) because about 450 nodes is unreadable
 
-    4. **Look** (15 min) - Extract one network per week as small multiples; optionally a 3D stack of slices or a
+    4. **Look** - Extract one network per week as small multiples; optionally a 3D stack of slices or a
     timeline of spells
 
-    5. **Metrics per window** (20 min) - Density, reciprocity, centralization and centralities in, for example, 7-day
+    5. **Metrics per window** - Density, reciprocity, centralization and centralities in, for example, 7-day
     windows stepped daily; plot as time series and export a tidy table
 
-    6. **Reachability** (10 min) - Earliest-arrival tree from a facilitator; forward reachable set sizes
+    6. **Reachability** - Earliest-arrival tree from a facilitator; forward reachable set sizes
 
-    7. **Animate** (20 min) - Positions chained from the previous slice; render an HTML player or video
+    7. **Animate** - Positions chained from the previous slice; render an HTML player or video
 
     8. **Tune slicing** (the key judgment, repeated) - Instantaneous slices show mostly isolates; short aggregation
     reveals triads and groups; overlapping windows soften change; high-turnover data needs week-long windows
@@ -128,7 +127,7 @@ goal: >-
     - Output: Tidy CSV of metrics per window, small-multiple figure, animation, reachability table, parameter record
 success_criteria:
     - metric: Parameter iteration speed
-      target: Changing window length or step updates metrics and views in under a minute, no scripting
+      target: Changing window length or step updates metrics and views in under a minute, no scripting (design goal; no source measures it)
     - metric: Metric coverage
       target: Any built-in algorithm can be run per window and exported as one tidy table
     - metric: Paper-ready output

@@ -1,5 +1,8 @@
 id: bibliometric-analyst
 name: Bibliometric Analyst
+roster_persona: bibliometric-analyst
+tier: A
+scope: in-scope
 role: Bibliometric Review Author or Research-Impact Librarian (science mapping with VOSviewer, CiteSpace and OpenAlex)
 quote: Reviewers want the co-citation map, the keyword overlay by year and the exact thresholds I used. I want to stop exporting 500 records at a time and rebuilding the map every time the thesaurus changes.
 bio: >-
@@ -56,6 +59,12 @@ context:
     voluntary: true
 workflows:
     - W335
+    - W50
+    - W51
+    - W52
+    - W53
+    - W56
+    - W317
 sources:
     - title: Protocol for bibliometric analysis in biomedicine with CiteSpace and VOSviewer (STAR Protocols, 2024)
       url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11408372/
@@ -81,6 +90,21 @@ sources:
     - title: Barbier and Jeangirard - Mapping scientific communities at scale
       url: https://arxiv.org/html/2501.10035
       summary: Ministry portal caps displayed networks at 300 nodes; hyperauthorship bloats co-authorship networks
+    - title: Issues in Science and Technology Librarianship - CiteSpace case study
+      url: https://journals.library.ualberta.ca/istl/index.php/istl/article/download/2779/2822?inline=1
+      summary: Tedious export loop, 3,561 records to 857 nodes, burst detection, unmerged citation variants
+    - title: SMU Libraries - CiteSpace for power users
+      url: https://library.smu.edu.sg/topics-insights/citespace-bibliometric-mapping-tool-power-users-reviews-business
+      summary: Numerous buttons, menus and options overwhelm all but expert users
+    - title: Taming the wild west of bibliometric reviews in education
+      url: https://link.springer.com/article/10.1007/s11092-026-09492-1
+      summary: 1,873 bibliometric reviews, 87% published 2020-2024, unreported parameters
+    - title: OpenAlex API group-by queries (run 2026-11-25)
+      url: https://api.openalex.org/works?filter=title.search:bibliometric&group_by=publication_year
+      summary: Works with "bibliometric" in the title rose from 826 (2015) to 16,959 (2025)
+    - title: Google Group thread on merging Web of Science and Scopus for VOSviewer
+      url: https://groups.google.com/g/dataanalysistraining/c/Ku4ESanxUHo
+      summary: bibliometrix merged output (KW_Merged) unreadable by VOSviewer; practitioner wrote a Python fix
 version: 1.0.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

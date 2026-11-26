@@ -5,13 +5,18 @@ description: Propagate a disruption downstream where a node fails when any requi
     alternate covers it (OR), with per-node and per-edge time buffers (inventory days, backup duration, time to severe
     impact) giving the time each downstream node fails, and weighted roll-up to terminal nodes (revenue, customers).
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: supply-chain-and-physical-infrastructure-networks.md section 10, requirement R5 (Must)."
 algorithms: []
 used_by_workflows:
     - W11
     - W215
     - W216
     - W221
+    - W1096
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Downstream propagation with AND across required inputs and OR across alternatives"
+sources:
+    - title: Supply Chain Risk Analysts and Physical Infrastructure Network Engineers (section 10, requirement R5)
+      url: design/user-research/supply-chain-and-physical-infrastructure-networks.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

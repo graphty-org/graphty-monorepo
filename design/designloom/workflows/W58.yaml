@@ -54,21 +54,21 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Data** (hours) - An OpenAlex snapshot (87 million publications, 2000-2024, in the August 2025 CWTS set) or Web
+    1. **Data** - An OpenAlex snapshot (87 million publications, 2000-2024, in the August 2025 CWTS set) or Web
     of Science; for portals, about 4 million publications in Elasticsearch with precomputed entity pairs
 
-    2. **Graph** (hours) - Extended direct citation for classification; for portal maps keep the top 2,000 links and cap
+    2. **Graph** - Extended direct citation for classification; for portal maps keep the top 2,000 links and cap
     at 300 nodes by betweenness
 
-    3. **Cluster** (hours for classification, seconds for portals) - Leiden at several resolutions for a hierarchy (the
+    3. **Cluster** - Leiden at several resolutions for a hierarchy (the
     Leiden Ranking uses 4,521 micro-fields; OpenAlex exposes 4 domains, 26 fields, 252 subfields, 4,516 topics);
     Louvain for portal maps
 
-    4. **Lay out** (seconds) - ForceAtlas2 (gravity 0.05, scaling 10) for portal maps
+    4. **Lay out** - ForceAtlas2 (gravity 0.05, scaling 10) for portal maps
 
-    5. **Label** (minutes, paid API) - Language-model labels from the 250 most cited titles per cluster
+    5. **Label** (paid API) - Language-model labels from the 250 most cited titles per cluster
 
-    6. **Publish** (minutes) - VOSviewer Online JSON embedded by iframe; field assignments feed indicators
+    6. **Publish** - VOSviewer Online JSON embedded by iframe; field assignments feed indicators
 
 
     **Decision Points**:

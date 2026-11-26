@@ -5,10 +5,21 @@ description: Keyboard walk of nodes and edges, a focus model, a built-in find-no
     generated text alternative listing nodes and edges, reduced-motion support, and a published WCAG and Section 508
     conformance statement.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: developers-embedding-and-extending-graph-visualization.md section 10, table row 12 (Must)."
 algorithms: []
 used_by_workflows:
+    - W283
     - W287
+    - W1018
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Accessibility inside the element: an overview of the graph before node-level movement; a keyboard walk that
+      follows the structure (neighbor to neighbor, along an edge, into a group and back up the same path, home); node
+      and edge announcement facts (kind, name, degree by direction, edge ends and direction) with a short and a long
+      form; a focus model with one Tab stop and an exit; a built-in find-node entry point; an element-generated
+      adjacency list or table; reduced motion and a pause for moving layouts; and a WCAG 2.1 AA and Section 508
+      conformance statement tested with NVDA, JAWS and VoiceOver"
+sources:
+    - title: Developers Who Embed Graph Visualization in Products or Extend It With Plugins (section 10, table row 12)
+      url: design/user-research/developers-embedding-and-extending-graph-visualization.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

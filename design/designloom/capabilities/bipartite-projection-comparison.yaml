@@ -1,0 +1,18 @@
+id: bipartite-projection-comparison
+name: "Bipartite and projection side by side"
+category: visualization
+description: "Show a two-mode network beside its one-mode projection with the statistics each gives (clustering both ways, share of groups whose members span categories such as party) so a reader can see what the projection hides."
+status: planned
+notes: "Research trace: academic-social-network-research.md section 10, table row 15 (Should)."
+algorithms: []
+used_by_workflows:
+    - W1138
+implemented_by_components: []
+requirements:
+    - "Should: Bipartite view beside its projection, showing what the projection hides (clustering both ways,
+      mixed-party groups)"
+sources:
+    - title: Academic Social Network Researchers (section 10, table row 15)
+      url: design/user-research/academic-social-network-research.md
+      summary: "Should in the research. Covered by Designloom when researched: NOT
+        covered"

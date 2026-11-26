@@ -1,5 +1,8 @@
 id: model-graph-and-interpretability-users
 name: Model-Graph Inspectors and Interpretability Researchers (Adjacent)
+roster_persona: none
+tier: none
+scope: out-of-scope
 role: Model Deployment and Optimization Engineer / Interpretability Researcher
 quote: My graph is the model itself. I need to expand one layer, find the operator whose error jumped after quantization, and leave the other five thousand nodes collapsed.
 bio: >-

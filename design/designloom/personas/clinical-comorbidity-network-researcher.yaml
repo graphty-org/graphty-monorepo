@@ -1,5 +1,8 @@
 id: clinical-comorbidity-network-researcher
 name: Clinical Comorbidity Network Researcher
+roster_persona: bioinformatics-researcher
+tier: B
+scope: in-scope
 role: Epidemiologist / Health Data Scientist (registries and claims)
 quote: Only aggregates leave the secure server, so the network I draw is the only thing anyone outside will ever see.
 bio: >-

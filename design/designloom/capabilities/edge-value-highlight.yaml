@@ -1,0 +1,17 @@
+id: edge-value-highlight
+name: "Edge Highlight by Value"
+category: visualization
+description: "Highlight every edge whose numeric attribute matches a typed value within a tolerance (for example a mass difference of 14.016 for a methylation), through a style layer selector, with the count of matching edges. Source: design/user-research/systems-biology-omics-networks.md section 10 requirement 35 (Should; partly covered by filtering) and section 5.13 step 4."
+status: planned
+notes: "Research trace: systems-biology-omics-networks.md section 10, requirement 35 (Should)."
+algorithms: []
+used_by_workflows:
+    - W253
+implemented_by_components: []
+requirements:
+    - "Should: Edge highlighting by an edge value, such as a given mass difference"
+sources:
+    - title: Systems Biologists and Bench Scientists Working With Molecular Interaction Networks (section 10,
+        requirement 35)
+      url: design/user-research/systems-biology-omics-networks.md
+      summary: "Should in the research. Covered by Designloom when researched: partly covered (filtering)"

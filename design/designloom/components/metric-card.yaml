@@ -8,6 +8,7 @@ implements_capabilities:
     - basic-statistics
     - selection-statistics
 used_in_workflows:
+    - W3054
     - W01
     - W109
     - W114
@@ -28,8 +29,6 @@ used_in_workflows:
     - W316
     - W342
     - W345
-    - W352
-    - W355
     - W360
     - W37
     - W407

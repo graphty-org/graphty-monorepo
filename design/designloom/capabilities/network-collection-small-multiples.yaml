@@ -4,9 +4,10 @@ category: analysis
 description: Load many separate networks (classrooms, egos, years, waves) and view them side by side with shared
     styling, a shared layout where nodes overlap, and a statistic per panel.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: academic-social-network-research.md section 10, table row 13 (Should)."
 algorithms: []
 used_by_workflows:
+    - W3057
     - W165
     - W170
     - W172
@@ -24,15 +25,20 @@ used_by_workflows:
     - W307
     - W309
     - W33
+    - W1042
+    - W300
+    - W1138
+    - W1139
+    - W2030
 implemented_by_components: []
 requirements:
-    - Show many networks or time windows side by side with aligned node positions, shared colors and shared scales;
-      beyond two-network comparison.
-    - Open many small graphs together, draw them as small multiples with shared scales, and compare per-graph metrics
-      grouped by metadata such as genre or decade.
-    - "Hold many networks over the same node set (per cell type, per condition, per cutoff): per-network centrality,
-      two-network score scatter, one node's score across all networks with absent distinct from zero, locked positions
-      and shared scales, and a difference view."
-    - Filmstrip of windows on shared positions, a time-axis (timeline) view with nodes placed at their period, and an
-      optional 3D stacked-layer view, as alternatives to animation.
-sources: []
+    - "Should: Collections of many whole networks (classrooms, years) viewed as small multiples with shared styling"
+    - "Must: Show many networks or time windows side by side with aligned node positions, shared colors and shared scales; beyond two-network comparison."
+    - "Must: Open many small graphs together, draw them as small multiples with shared scales, and compare per-graph metrics grouped by metadata such as genre or decade."
+    - "Must: Hold many networks over the same node set (per cell type, per condition, per cutoff): per-network centrality, two-network score scatter, one node's score across all networks with absent distinct from zero, locked positions and shared scales, and a difference view."
+    - "Should: Filmstrip of windows on shared positions, a time-axis (timeline) view with nodes placed at their period, and an optional 3D stacked-layer view, as alternatives to animation."
+sources:
+    - title: Academic Social Network Researchers (section 10, table row 13)
+      url: design/user-research/academic-social-network-research.md
+      summary: "Should in the research. Covered by Designloom when researched: NOT
+          covered"

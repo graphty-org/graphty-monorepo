@@ -1,9 +1,12 @@
 id: software-supply-chain-security-engineer
 name: Software Supply Chain Security Engineer
+roster_persona: dependency-impact-engineer
+tier: A
+scope: in-scope
 role: Application Security Engineer
 quote: A critical CVE just dropped. Which of our 600 repositories ship it, through what chain, and which direct dependency do the teams have to bump?
 bio: >-
-    Dana is on a five-person application security team covering 600 repositories. She lives in package dependency
+    Shira is on a five-person application security team covering 600 repositories. She lives in package dependency
     graphs: lockfiles, `npm ls --all`, `npm explain`, `mvn dependency:tree` and `gradle dependencyInsight`, plus a
     portfolio of CycloneDX and SPDX software bills of materials (SBOMs) in OWASP Dependency-Track, with Dependabot,
     Snyk or Endor Labs alerts and advisories carrying CVSS, EPSS and CISA KEV flags. When an advisory lands she
@@ -29,6 +32,7 @@ behaviors:
     - Colors nodes by severity and hop distance and distinguishes direct from transitive dependencies
     - Distinguishes the same package at several versions and checks which version the resolver selected
     - Files tickets containing the path and the fix point, and lets policy violations fail CI
+    - Joins design-phase threat modeling sessions with the development team and triages the threats generated per element of a data flow diagram
 frustrations:
     - Dependabot shows only direct dependencies; npm audit reports transitive ones only as a textual table
     - About half of real SBOMs carry no dependency edges at all
@@ -44,8 +48,7 @@ context:
 workflows:
     - W78
     - W81
-    - W84
-    - W85
+    - W117
 sources:
     - title: Google Security Blog - Understanding the impact of Apache Log4j
       url: https://security.googleblog.com/2021/12/understanding-impact-of-apache-log4j.html?m=1
@@ -71,6 +74,9 @@ sources:
     - title: Dependency-Track - Triaging policy violations
       url: https://dependencytrack.github.io/docs/next/guides/user/triaging-policy-violations/
       summary: Portfolio-wide component search and policy violations that can fail CI
-version: 1.0.0
+    - title: OWASP - Threat modeling cheat sheet
+      url: https://cheatsheetseries.owasp.org/cheatsheets/Threat_Modeling_Cheat_Sheet.html
+      summary: Threat modeling is "typically a team effort" done early in design; security teams are invited to the sessions
+version: 1.1.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

@@ -1,16 +1,14 @@
 id: centrality-degree
 name: Degree Centrality
 category: analysis
-description: Calculate degree centrality - the simplest measure of node importance based on the number of connections.
-    High-degree nodes are well-connected and may have influence through direct reach. Used in >90% of graph analysis
-    projects.
-status: implemented
-notes: "Ships: graphty-element/src/algorithms/DegreeAlgorithm.ts."
+description: "Calculate degree centrality - the number of connections a node has, the simplest measure of node importance and the one novices use most. Weighted degree is node strength, with weights read as strengths. Degree alone misses high-betweenness, low-degree brokers, so it is ranked alongside other centralities, and the result states how self-loops and parallel edges were counted."
+status: in-progress
+notes: "Partly ships: graphty-element/src/algorithms/DegreeAlgorithm.ts gives the raw degree per node, with inDegree and outDegree on a directed graph and a Direction option for the published value; parallel edges count once and isolated nodes get 0. Planned: normalized degree, weighted degree (strength) and its toggle, a recorded self-loop and parallel-edge convention, and distribution statistics (mean, median, standard deviation, skewness). Any requirement below that this note does not name as shipping counts as planned."
 algorithms:
-    - Degree centrality
+    - Degree centrality (shipped)
 used_by_workflows:
+    - W3006
     - W03
-    - W08
     - W09
     - W10
     - W17
@@ -71,9 +69,9 @@ used_by_workflows:
     - W316
     - W336
     - W337
-    - W338
+    - W430
     - W35
-    - W354
+    - W344
     - W36
     - W364
     - W370
@@ -82,19 +80,13 @@ used_by_workflows:
     - W41
     - W413
     - W43
-    - W430
     - W432
     - W434
     - W436
     - W438
-    - W439
     - W44
-    - W440
-    - W441
-    - W443
-    - W444
-    - W445
-    - W447
+    - W431
+    - W435
     - W45
     - W54
     - W59
@@ -109,25 +101,48 @@ used_by_workflows:
     - W88
     - W90
     - W98
+    - W1054
+    - W1126
+    - W1138
+    - W1139
+    - W2006
+    - W2036
+    - W3048
+    - W3049
+    - W3080
+    - W3102
+    - W3103
 implemented_by_components:
     - algorithm-card
     - algorithm-panel
 requirements:
-    - Calculate raw degree (edge count) for each node as integer
-    - Calculate normalized degree as degree / (n-1) with 4 decimal places
-    - Calculate in-degree for directed graphs as count of incoming edges
-    - Calculate out-degree for directed graphs as count of outgoing edges
-    - Calculate total degree for directed graphs as in-degree + out-degree
-    - Calculate weighted degree as sum of edge weights for weighted graphs
-    - Provide toggle between unweighted and weighted degree calculation
-    - Rank nodes by degree in descending order
-    - Display top-10 nodes by degree in results panel
-    - Store degree as node attribute named 'degree' (or 'in_degree', 'out_degree' for directed)
-    - Allow using degree for visual encoding (size, color) immediately after calculation
-    - Complete calculation within 500ms for graphs under 100,000 nodes
-    - Handle isolated nodes (degree 0) without error
-    - "Report degree distribution statistics: mean, median, std dev, skewness"
+    - "Library parity: Calculate raw degree (edge count) for each node as integer"
+    - "Must: State whether a self-loop counts once or twice and whether parallel edges count separately, and record it in the result"
+    - "Library parity: Calculate normalized degree as degree / (n-1)"
+    - "Must: Calculate in-degree for directed graphs as count of incoming edges"
+    - "Must: Calculate out-degree for directed graphs as count of outgoing edges"
+    - "Must: Calculate total degree for directed graphs as in-degree + out-degree"
+    - "Library parity: Calculate weighted degree (node strength) as sum of edge weights for weighted graphs"
+    - "Must: Read the edge weight as a strength, as declared in weight-semantics; a column declared a distance is converted first, and the result records which"
+    - "Library parity: Provide toggle between unweighted and weighted degree calculation"
+    - "Library parity: Rank nodes by degree in descending order"
+    - "Library parity: Store degree as node attribute named 'degree' (or 'in_degree', 'out_degree' for directed)"
+    - "Must: Allow using degree for visual encoding (size, color) immediately after calculation"
+    - "Library parity: Handle isolated nodes (degree 0) without error"
+    - "Library parity: Report degree distribution statistics: mean, median, std dev, skewness; questions about the distribution's shape go to degree-distribution-fit, and this record never labels a distribution power-law or scale-free"
 sources:
-    - title: Graph Analysis Textbook - Chapter 6
-      url: https://graphty.app/docs/
-      summary: Centrality and Influence - Degree centrality measures direct connectivity
+    - title: "NetworkX Graph.degree"
+      url: https://networkx.org/documentation/stable/reference/classes/generated/networkx.Graph.degree.html
+      summary: "Weighted degree is the sum of the edge weights for edges incident to that node"
+    - title: "igraph degree"
+      url: https://r.igraph.org/reference/degree.html
+      summary: "Counts self-loops by default (loops = TRUE)"
+    - title: "igraph page_rank"
+      url: https://r.igraph.org/reference/page_rank.html
+      summary: "igraph reads weights as strengths for PageRank but as distances for paths, so each weighted result must state its reading"
+    - title: "Exploring and Analyzing Network Data with Python (Programming Historian)"
+      url: https://programminghistorian.org/en/lessons/exploring-and-analyzing-network-data-with-python
+      summary: "Rank on several centralities; high-betweenness, low-degree brokers are missed by degree alone"
+    - title: "Scale-free networks are rare (Broido and Clauset 2019)"
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6399239/
+      summary: "Across 928 networks a log-normal fit at least as well as a power law for 88%; describe degree as heavy-tailed, not scale-free"

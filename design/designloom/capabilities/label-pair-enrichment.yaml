@@ -1,0 +1,19 @@
+id: label-pair-enrichment
+name: "Label-Pair Neighborhood Enrichment"
+category: analysis
+description: "For a categorical node column, count edges between every pair of labels, compare with seeded label permutations (1,000 by default in Squidpy and Giotto), return z-scores and counts as a label-by-label matrix, and select the nodes and edges behind any matrix entry (requirement 52)."
+status: planned
+notes: "Research trace: systems-biology-omics-networks.md section 10, requirement 52 (Must)."
+algorithms: []
+used_by_workflows:
+    - W2066
+implemented_by_components: []
+requirements:
+    - "Must: Label-pair enrichment over a graph: for a categorical node column, count edges per pair of labels, compare
+      with seeded label permutations, show z-scores as a heat map, and select the cells and edges behind any cell of the
+      heat map (5.18)"
+sources:
+    - title: Systems Biologists and Bench Scientists Working With Molecular Interaction Networks (section 10,
+        requirement 52)
+      url: design/user-research/systems-biology-omics-networks.md
+      summary: Must in the research.

@@ -1,9 +1,12 @@
 id: eeg-meg-connectivity-researcher
 name: EEG/MEG Connectivity Researcher
+roster_persona: network-neuroscientist
+tier: B
+scope: in-scope
 role: Cognitive or Clinical Neurophysiology Researcher
 quote: One figure is one slice of subjects by conditions by methods by frequency bands. I need to move along any of those axes without rebuilding the plot.
 bio: >-
-    Dr. Tomas Varga records 30 to 256 channel EEG or whole-head MEG and studies how brain rhythms couple between
+    Dr. Zoltan Varga records 30 to 256 channel EEG or whole-head MEG and studies how brain rhythms couple between
     regions in cognition and in clinical groups. He works in MNE-Python with mne-connectivity, and opens Brainstorm,
     FieldTrip or EEGLAB plugins when a colleague's pipeline lives there. His data is not one matrix but a stack:
     subjects x conditions x frequency bands (or every frequency bin) x connectivity methods, and for time-resolved
@@ -48,6 +51,9 @@ workflows:
     - W159
     - W161
     - W162
+    - W1042
+    - W322
+    - W417
 sources:
     - title: MNE-Connectivity label connectivity example
       url: https://mne.tools/mne-connectivity/stable/auto_examples/mne_inverse_label_connectivity.html

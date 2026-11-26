@@ -2,6 +2,7 @@ id: W273
 name: Inspect Misclassified Graphs in a Collection of Small Graphs
 category: analysis
 validated: false
+scope: deferred
 personas:
     - graph-level-gnn-developer
 requires_capabilities:
@@ -56,20 +57,20 @@ goal: >-
     2. **Train and score** (in code) - GIN or GCN with a pooling readout; ROC-AUC from the OGB Evaluator; keep
     per-graph predictions keyed by graph index
 
-    3. **Pick graphs to inspect** (10 min) - Sort test graphs by error, label or scaffold; sample a few dozen into a grid
+    3. **Pick graphs to inspect** - Sort test graphs by error, label or scaffold; sample a few dozen into a grid
     of small drawings with label, prediction and split per graph
 
     4. **Attribute** (in code) - Integrated gradients through Captum or GNNExplainer with task_level="graph" gives one
     weight per atom and per bond
 
-    5. **View one graph with its attribution** (5 min) - Atom and bond weights as a diverging color on the 2D chemical
+    5. **View one graph with its attribution** - Atom and bond weights as a diverging color on the 2D chemical
     drawing with supplied coordinates; a force layout would scramble rings and functional groups
 
-    6. **Compare with similar training graphs** (10 min) - Nearest training graphs by fingerprint (Tanimoto) or learned
+    6. **Compare with similar training graphs** - Nearest training graphs by fingerprint (Tanimoto) or learned
     graph embedding, side by side with labels: no similar training graph means out of domain; a near-identical one
     with the opposite label is a property cliff
 
-    7. **Judge and act** (5 min) - Does the highlighted substructure match a known pharmacophore or toxicophore, or an
+    7. **Judge and act** - Does the highlighted substructure match a known pharmacophore or toxicophore, or an
     artifact such as a salt fragment? Fix data, featurization or split; hand off a grid figure and a list of compound ids
 
 

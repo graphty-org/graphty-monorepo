@@ -58,22 +58,22 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Export** (30 min) - Contacts, affiliations (person to organization), reciprocal relationships, gifts and grants
+    1. **Export** - Contacts, affiliations (person to organization), reciprocal relationships, gifts and grants
     from the CRM; board data compiled from LinkedIn at 15-20 minutes per member
 
-    2. **Shape and clean** (1-2 h) - Node and edge lists, often without Source/Target headers; clean name variants
+    2. **Shape and clean** - Node and edge lists, often without Source/Target headers; clean name variants
     because CRM, LinkedIn and grant data share no identifier
 
-    3. **Load and check** (15 min) - Import; compare node and edge counts with the spreadsheet; review unmatched and
+    3. **Load and check** - Import; compare node and edge counts with the spreadsheet; review unmatched and
     duplicate names
 
-    4. **Overlay prospects** (20 min) - Join the 20-40 prospect list; look for shared employers, alma maters and board
+    4. **Overlay prospects** - Join the 20-40 prospect list; look for shared employers, alma maters and board
     seats; bipartite person-organization and funder-grantee views
 
-    5. **Ask** (30 min) - Most connected board members; two-step paths to each prospect; single points of failure
+    5. **Ask** - Most connected board members; two-step paths to each prospect; single points of failure
     (prospects reachable through one person only)
 
-    6. **Hand off** (30 min) - One slide for leadership; a list of prospect, connector and path pasted back into the CRM;
+    6. **Hand off** - One slide for leadership; a list of prospect, connector and path pasted back into the CRM;
     save for next quarter's refresh by re-import
 
 
@@ -122,7 +122,7 @@ goal: >-
     - Output: Board connection slide, prospect-connector-path table for the CRM, saved project for the next refresh
 success_criteria:
     - metric: Time from exports to first answer
-      target: Under 1 hour for a 15-member board and 30 prospects
+      target: Under 1 hour for a 15-member board and 30 prospects (design goal; no source measures it)
     - metric: Count check
       target: Imported node and edge counts match the spreadsheet or the differences are listed
     - metric: Hand-off

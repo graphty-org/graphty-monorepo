@@ -1,9 +1,12 @@
 id: epistemic-network-analyst
 name: Epistemic Network Analyst
+roster_persona: text-network-analyst
+tier: B
+scope: in-scope
 role: Learning-Sciences or Medical-Education Researcher / Quantitative Ethnographer
 quote: Novices and experts use the same six codes. The question is how they connect them, and whether the difference is real.
 bio: >-
-    Dr. Sam Okafor is a quantitative ethnographer who compares how two groups -- novices and experts, high and low
+    Dr. Emeka Okafor is a quantitative ethnographer who compares how two groups -- novices and experts, high and low
     performers, two clinical teams -- connect ideas in talk. He learned epistemic network analysis (ENA) at a workshop,
     explores models in the ENA web tool and writes papers with rENA in R. His data are one row per utterance with
     metadata and 3 to 10 binary code columns, over 10 to 50 units (students, teams, patients). He chooses units,

@@ -1,5 +1,8 @@
 id: newsroom-graphics-editor
 name: Newsroom Graphics Editor
+roster_persona: investigative-journalist
+tier: A
+scope: in-scope
 role: Graphics Reporter / Graphics Developer on a News Desk
 quote: The reporters hand me four hundred verified links. Readers will give me ten seconds on a phone. My job is the one picture in between.
 bio: >-
@@ -48,6 +51,7 @@ context:
 workflows:
     - W91
     - W92
+    - W318
 sources:
     - title: OpenNews Source - Why network diagrams are hard (Hurt 2013)
       url: https://source.opennews.org/articles/network-diagrams-hard/

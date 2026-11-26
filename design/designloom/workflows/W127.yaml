@@ -14,7 +14,6 @@ requires_capabilities:
     - visual-encoding-edges
     - legend-display
     - component-analysis
-    - centrality-pagerank
     - details-on-demand
     - tooltip-display
     - temporal-navigation
@@ -59,21 +58,21 @@ goal: >-
 
     1. **Score and refer** (automated) - A rules engine refers claims above a threshold
 
-    2. **Open the claim network** (2 min) - Claim with policies, customers, vehicles, payments and matches against
+    2. **Open the claim network** - Claim with policies, customers, vehicles, payments and matches against
     national databases and blacklists
 
-    3. **Expand to parties and their other claims** (10 min) - Look for shared addresses, phones, payout accounts (fan-in
+    3. **Expand to parties and their other claims** - Look for shared addresses, phones, payout accounts (fan-in
     of payouts), garages, credit-hire firms, solicitors and doctors; for property claims layer geography; for medical
     claims check whether providers share many patients
 
-    4. **Discount hubs** (5 min) - A garage linked to hundreds of claims gets its own check instead of linking everything
+    4. **Discount hubs** - A garage linked to hundreds of claims gets its own check instead of linking everything
 
-    5. **Check industry data** (15 min) - UK: Cifas National Fraud Database, Insurance Fraud Register, IFB hub; Zurich UK
+    5. **Check industry data** - UK: Cifas National Fraud Database, Insurance Fraud Register, IFB hub; Zurich UK
     adds Companies House and Equifax; US: ClaimSearch match reports and NICB
 
-    6. **Decide** (5 min) - Settle, or move to special fraud processing
+    6. **Decide** - Settle, or move to special fraud processing
 
-    7. **Refer** (30 min) - IFB or police (UK); state fraud division, district attorney and NICB (US)
+    7. **Refer** - IFB or police (UK); state fraud division, district attorney and NICB (US)
 
     8. **Sweep the network** (periodic) - Find other claims in the same ring, including paid ones; academically, a
     claims-parties bipartite graph ranked with BiRank seeded by known fraud

@@ -19,7 +19,6 @@ requires_capabilities:
     - comparison-view
     - export-image
     - analysis-provenance
-    - layout-reproducibility
     - partition-drawing-agreement
 suggested_components:
     - layout-panel
@@ -50,25 +49,25 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Size nodes** (1 min) - By a ranking such as degree (range about 10 to 150)
+    1. **Size nodes** - By a ranking such as degree (range about 10 to 150)
 
-    2. **Lay out** (2-10 min) - Fruchterman-Reingold until it stabilizes, then ForceAtlas2 with Prevent Overlap and
+    2. **Lay out** - Fruchterman-Reingold until it stabilizes, then ForceAtlas2 with Prevent Overlap and
     Scaling 10; LinLog and gravity 0 for clearer clusters; there is no catch-all setting; record the seed
 
-    3. **Color** (1 min) - Hue by partition (modularity class) or category; brightness for continuous variables
+    3. **Color** - Hue by partition (modularity class) or category; brightness for continuous variables
 
-    4. **Label** (1 min) - By node size above a threshold, trying more than one sizing variable
+    4. **Label** - By node size above a threshold, trying more than one sizing variable
 
-    5. **Read** (10 min) - Groups, empty space, non-circular shapes (polarization), dense regions surrounded by sparse
+    5. **Read** - Groups, empty space, non-circular shapes (polarization), dense regions surrounded by sparse
     ones (structural holes), bridges between regions; then which attributes align with poles and clusters
 
-    6. **Name clusters** (5 min) - Add "qualifying" nodes (genres, labels) after freezing the main layout (double
+    6. **Name clusters** - Add "qualifying" nodes (genres, labels) after freezing the main layout (double
     spatialization)
 
-    7. **Check against the computed partition** (3 min) - Look for visual clusters the partition splits, and
+    7. **Check against the computed partition** - Look for visual clusters the partition splits, and
     communities the drawing does not show
 
-    8. **Export** (2 min) - SVG or PDF for Inkscape (PNG resolution is poor), with legend
+    8. **Export** - SVG or PDF for Inkscape (PNG resolution is poor), with legend
 
 
     **Decision Points**:

@@ -11,7 +11,6 @@ requires_capabilities:
     - layout-force-directed
     - community-detection
     - centrality-degree
-    - centrality-betweenness
     - visual-encoding-nodes
     - visual-encoding-edges
     - path-highlighting
@@ -49,25 +48,25 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Build in Cytoscape** (15 min) - For example a stringApp STITCH query for aspirin plus enriched diseases,
+    1. **Build in Cytoscape** - For example a stringApp STITCH query for aspirin plus enriched diseases,
     tissues and pathways
 
-    2. **Send to the 3D tool** (3 min) - Choose the column that defines layers (up to 18 groups), directionality, and
+    2. **Send to the 3D tool** - Choose the column that defines layers (up to 18 groups), directionality, and
     whether to keep unassigned nodes; styles and coordinates carry over. Or upload the tab-delimited layer file
 
-    3. **Arrange layers** (5 min) - Side by side, zig-zag, star or cube; rotate, translate, scale and space each layer
+    3. **Arrange layers** - Side by side, zig-zag, star or cube; rotate, translate, scale and space each layer
 
-    4. **Lay out** (5 min) - Per layer, or one layout across several layers to align nodes and reduce inter-layer
+    4. **Lay out** - Per layer, or one layout across several layers to align nodes and reduce inter-layer
     crossings
 
-    5. **Cluster and encode** (10 min) - Louvain, Walktrap, Fast-Greedy or label propagation; up to nine edge channels
+    5. **Cluster and encode** - Louvain, Walktrap, Fast-Greedy or label propagation; up to nine edge channels
     drawn as curves; separate styling for inter-layer edges; size by centrality
 
-    6. **Highlight the story** (5 min) - Highlight a path across layers from the drug to a disease
+    6. **Highlight the story** - Highlight a path across layers from the drug to a disease
 
-    7. **Optional VR view** (2 min) - Open a static VR view in a new tab on a headset or a gyroscope phone
+    7. **Optional VR view** - Open a static VR view in a new tab on a headset or a gyroscope phone
 
-    8. **Export** (3 min) - Light theme for publication figures; a session JSON with 3D coordinates
+    8. **Export** - Light theme for publication figures; a session JSON with 3D coordinates
 
 
     **Decision Points**:
@@ -109,7 +108,7 @@ goal: >-
     - Output: Publication figure, session JSON with 3D coordinates, optional VR view
 success_criteria:
     - metric: Time from Cytoscape network to layered 3D view
-      target: Under 10 minutes
+      target: Under 10 minutes (design goal; no source measures it)
     - metric: Cross-layer path readability
       target: User can trace the highlighted path from start to end without moving into the scene
     - metric: Reopenable session

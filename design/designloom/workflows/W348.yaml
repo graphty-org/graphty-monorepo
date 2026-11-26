@@ -5,6 +5,7 @@ validated: false
 personas:
     - task-mining-analyst
     - customer-journey-analyst
+    - process-mining-analyst
 requires_capabilities:
     - data-import
     - data-validation
@@ -18,6 +19,9 @@ requires_capabilities:
     - event-log-import
     - process-map-derivation
     - conformance-overlay
+    - visual-encoding-nodes
+    - selection-statistics
+    - export-image
 suggested_components:
     - data-import-dialog
     - column-mapper
@@ -27,6 +31,10 @@ suggested_components:
     - comparison-view
     - node-details-panel
     - statistics-panel
+    - node-merge-dialog
+    - range-slider
+    - visual-encoding-panel
+    - image-export-dialog
 starting_state:
     data_type: desktop UI action recordings (task mining) or web analytics and touchpoint logs (customer journeys)
     node_count: 10-200 steps or touchpoints, from 20,000-70,000 recorded actions or millions of web events
@@ -46,25 +54,25 @@ goal: >-
 
     Task mining:
 
-    1. **Record** (days) - 2 to 7 experienced users, 20,000 to 70,000 actions, with PII masking; users pause when off
+    1. **Record** - 2 to 7 experienced users, 20,000 to 70,000 actions, with PII masking; users pause when off
     task
 
     2. **Segment and cluster** (vendor) - Cut routines out of unsegmented per-user streams; cluster screenshots of the
     same screen into steps and tasks with decision points
 
-    3. **Review steps** (hours) - Check each step's screenshots, rename and merge
+    3. **Review steps** - Check each step's screenshots, rename and merge
 
-    4. **Link to cases** (hours) - Match tasks to system-level cases; drill from a system activity into its UI actions
+    4. **Link to cases** - Match tasks to system-level cases; drill from a system activity into its UI actions
 
     Customer journey:
 
-    1. **Map data** (1 hour) - Customer or session as case, touchpoint or channel as activity
+    1. **Map data** - Customer or session as case, touchpoint or channel as activity
 
-    2. **Discover** (30 min) - Simplified map of real journeys
+    2. **Discover** - Simplified map of real journeys
 
-    3. **Check against designed journeys** (1 hour) - Share of journeys conforming to each design
+    3. **Check against designed journeys** - Share of journeys conforming to each design
 
-    4. **Slice and compare** (1 hour) - By device, campaign or landing page; before and after a designed change
+    4. **Slice and compare** - By device, campaign or landing page; before and after a designed change
 
 
     **Decision Points**:
@@ -138,6 +146,9 @@ sources:
     - title: Hansson et al. 2021 - Telenor customer journeys
       url: https://ceur-ws.org/Vol-3112/paper3.pdf
       summary: 4,934 customers; 10-25 percent deviate; SMS notification lowered deviations
+    - title: UiPath Task Mining - recorder overview
+      url: https://docs.uipath.com/task-mining/automation-cloud/latest/user-guide/recorder-client-overview.md
+      summary: Captures screenshots and metadata for every input and click, applies PII masking
 version: 1.0.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

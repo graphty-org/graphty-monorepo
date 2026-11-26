@@ -1,5 +1,5 @@
 id: W250
-name: Metabolic Flux and Metabolomics Overlay
+name: Metabolic Flux Overlay on a Curated Pathway Map
 category: analysis
 validated: false
 personas:
@@ -33,8 +33,10 @@ starting_state:
     edge_density: sparse with currency hubs
     user_expertise: advanced
 goal: >-
-    **Intent**: Show predicted fluxes or measured metabolite changes on a metabolic map, test knockouts, and see which
-    reactions carry more or less flux.
+    **Intent**: Show predicted fluxes or measured metabolite changes on a metabolic map, compare flux solutions
+    (for example before and after a knockout solved in COBRApy or Escher-FBA), and see which reactions carry more or
+    less flux. Solving the model stays in the solver; this workflow overlays its results. Metabolomics network analysis
+    without a flux model is W3102 (knowledge-driven) and W3103 (DSPC partial correlation).
 
 
     **Mental Model**: "Traffic on a road map." Reactions are roads with a direction; flux is traffic volume and its sign
@@ -43,18 +45,19 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Load the model** (5 min) - cobra.io.load_json_model, or convert SBML
+    1. **Load the model** - cobra.io.load_json_model, or convert SBML
 
-    2. **Solve** (1 min) - model.optimize(); or knock out reactions in Escher-FBA, which re-solves in the page
+    2. **Solve, outside Graphty** - model.optimize() in COBRApy, or a knockout in Escher-FBA; export the flux
+    table (out of scope: Graphty never solves the model)
 
-    3. **Load the map** (2 min) - Builder(map_name, model); maps are hand-built JSON drawings
+    3. **Load the map** - Builder(map_name, model); maps are hand-built JSON drawings
 
-    4. **Paint data** (5 min) - reaction_data from solution fluxes: width by magnitude, color by value, arrow by sign;
+    4. **Paint data** - reaction_data from solution fluxes: width by magnitude, color by value, arrow by sign;
     metabolite data as node color or size
 
-    5. **Handle currency metabolites** (10 min) - Hide, remove or duplicate water, ATP, NADH and H+
+    5. **Handle currency metabolites** - Hide, remove or duplicate water, ATP, NADH and H+
 
-    6. **Export** (2 min) - SVG
+    6. **Export** - SVG
 
 
     **Decision Points**:
@@ -92,7 +95,8 @@ goal: >-
 
     - Input: COBRA JSON or SBML model; flux solution; metabolite concentrations; map JSON or KGML
 
-    - Transformations: Optimization, knockouts, flux-to-edge mapping, currency-node handling
+    - Transformations: Flux-to-edge mapping, flux difference between two solutions, currency-node handling
+    (optimization and knockouts run in the solver)
 
     - Output: Flux map figure; changed-reaction list
 success_criteria:
@@ -101,7 +105,7 @@ success_criteria:
     - metric: Currency handling
       target: Listed currency metabolites can be hidden or duplicated in one step
     - metric: Knockout feedback
-      target: Map updates after a knockout
+      target: Loading a second flux table (the knockout solution) recolors the same map and lists changed reactions
 sources:
     - title: Escher
       url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4552468
@@ -112,9 +116,6 @@ sources:
     - title: Escher-FBA
       url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6158907
       summary: In-browser FBA and knockouts
-    - title: MetaboAnalyst network explorer
-      url: https://www.metaboanalyst.ca/MetaboAnalyst/Secure/network/MnetParamView.xhtml
-      summary: KEGG global map and DSPC networks
     - title: Currency metabolites
       url: https://arxiv.org/pdf/0806.2763
       summary: Currency metabolites removed before topology analysis

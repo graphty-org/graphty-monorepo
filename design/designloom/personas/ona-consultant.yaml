@@ -1,9 +1,12 @@
 id: ona-consultant
 name: Independent ONA Consultant
+roster_persona: ona-practitioner
+tier: B
+scope: in-scope
 role: Independent Organizational Network Analysis Consultant for change and post-merger programs
 quote: The client doesn't want a network diagram. They want to know which twelve people to put on the integration team and who needs a deputy by next quarter.
 bio: >-
-    Marcus Hale is a former strategy consultant who now runs three to six organizational network analysis engagements
+    Adrian Hale is a former strategy consultant who now runs three to six organizational network analysis engagements
     a year, mostly for change programs and post-merger integrations. Each client sends a roster of 150 to 5,000 people
     with the attributes they happen to keep (legacy company, region, function, level), and he fields a 3 to 6 question
     relationship survey through a network survey tool such as Polinode, OrgMapper or Optimice. He analyzes in UCINET or
@@ -45,6 +48,7 @@ workflows:
     - W189
     - W190
     - W192
+    - W316
 sources:
     - title: Activate Networks - The network approach to change initiatives (telecom case)
       url: https://www.slideshare.net/slideshow/the-network-approach-to-change-initiatives/26073709

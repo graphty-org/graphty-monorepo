@@ -60,28 +60,28 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Load the two-mode graph** (10 min) - Users and identifier nodes, user-uses-identifier edges, P2P transfer edges,
+    1. **Load the two-mode graph** - Users and identifier nodes, user-uses-identifier edges, P2P transfer edges,
     chargeback labels (about 241 flagged users in the Neo4j walkthrough)
 
-    2. **Inspect identifier degree** (10 min) - Histogram of accounts per identifier by type; very high-degree
+    2. **Inspect identifier degree** - Histogram of accounts per identifier by type; very high-degree
     identifiers are noise
 
-    3. **Project to users by rules** (15 min) - Link two users only under explicit rules: a shared card plus a P2P
+    3. **Project to users by rules** - Link two users only under explicit rules: a shared card plus a P2P
     transfer (6,240 edges in the walkthrough), or a card or device used by 10 or fewer accounts plus two more shared
     identifiers (5,316 edges); save the rule so it can be rerun
 
-    4. **Run weakly connected components** (5 min) - 28,203 components in the walkthrough, median size 1, largest 175
+    4. **Run weakly connected components** - 28,203 components in the walkthrough, median size 1, largest 175
 
-    5. **Propagate labels** (5 min) - Flag every account in a component with a known-fraud account; the walkthrough found
+    5. **Propagate labels** - Flag every account in a component with a known-fraud account; the walkthrough found
     452 risk accounts, 211 of them new, under 1 percent of users but 12.7 percent of P2P value
 
-    6. **Profile components** (15 min) - Size distribution, share of flagged members, value moved; open single rings to
+    6. **Profile components** - Size distribution, share of flagged members, value moved; open single rings to
     check they make sense, with the reason for every link shown
 
-    7. **Rank further candidates** (15 min) - Fraud-risk-weighted degree, then Jaccard node similarity with inverse-degree
+    7. **Rank further candidates** - Fraud-risk-weighted degree, then Jaccard node similarity with inverse-degree
     weights; look for accounts that bridge two fraud communities
 
-    8. **Hand off** (10 min) - Export ranked lists and ring membership to investigators and a candidate rule to the rule
+    8. **Hand off** - Export ranked lists and ring membership to investigators and a candidate rule to the rule
     engine; feed confirmed and cleared outcomes back as labels for the next run
 
 

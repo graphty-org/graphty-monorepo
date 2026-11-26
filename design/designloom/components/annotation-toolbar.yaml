@@ -85,6 +85,8 @@ used_in_workflows:
     - W96
     - W98
     - W99
+    - W1090
+    - W2099
 dependencies:
     - icon-button
     - color-picker

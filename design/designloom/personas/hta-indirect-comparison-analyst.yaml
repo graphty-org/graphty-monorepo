@@ -1,0 +1,53 @@
+id: hta-indirect-comparison-analyst
+name: HTA Indirect Comparison Analyst
+roster_persona: nma-systematic-reviewer
+tier: B
+scope: in-scope
+role: Market-Access Consultant Building Network Meta-Analyses for Reimbursement Submissions
+quote: Each payer asks for a different comparator set, and one excluded trial can cut my client's drug off from the network.
+bio: >-
+    Rutger Visser is a senior health economics and outcomes research consultant who builds indirect treatment comparisons for drug companies' submissions to NICE and the EU joint clinical assessment. Each payer's population, intervention, comparator and outcome set (PICO) yields its own trial list from one systematic literature review, and so its own network. He fits models in R (gemtc, multinma, netmeta) and Stata, draws the networks again in PowerPoint for the dossier, and keeps an exclusion log. His first question for every PICO is whether the client's drug connects to each requested comparator, and through which bridging trials.
+characteristics:
+    expertise: advanced
+    time_pressure: high
+    graph_literacy: novice
+    domain_knowledge: advanced
+motivations:
+    - Show that the client's drug connects to every comparator a payer requested
+    - Defend each inclusion and exclusion that changes the network
+    - Present many PICO networks that look alike so reviewers can compare them
+behaviors:
+    - Filters the review's trial list per PICO and logs every exclusion with its reason
+    - Looks for older or broader-population trials that bridge two subnetworks
+    - Redraws each network on a slide with treatments in fixed places
+frustrations:
+    - An exclusion can disconnect a comparator and nothing warns him until the model fails
+    - Networks are redrawn by hand for every PICO and every revision
+    - Evidence review groups criticize heterogeneity that the network figure never shows
+context:
+    frequency: daily
+    devices:
+        - desktop
+        - laptop
+    voluntary: false
+workflows:
+    - W3054
+    - W3057
+    - W3058
+sources:
+    - title: "ISPOR Europe 2025 - indirect comparisons in NICE submissions"
+      url: https://www.ispor.org/heor-resources/presentations-database/presentation-cti/ispor-europe-2025/poster-session-3-2/indirect-treatment-comparisons-in-health-technology-assessment-submissions-a-review-and-critique-of-best-practice
+      summary: "114 NICE appraisals with indirect comparisons, 61.4% NMA; heterogeneity concerns in 79%"
+    - title: "EUnetHTA 21 guideline on direct and indirect comparisons"
+      url: https://www.eunethta.eu/wp-content/uploads/2022/08/EUnetHTA-21-Deliverable-D4.3.2-Methodological-Guideline-on-Direct-and-indirect-comparisons-V1.0.pdf
+      summary: "Methods guidance for European assessments, including disconnected networks"
+    - title: "netmeta netconnection reference"
+      url: https://search.r-project.org/CRAN/refmans/netmeta/html/netconnection.html
+      summary: "Number of subnetworks, block-diagonal distance matrix, fitting each subnetwork separately"
+    - title: "Tonin et al. 2018 - Mapping the characteristics of NMAs on drug therapy"
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5927429/
+      summary: "365 NMAs; 78.6% drew a network and 54.8% described its geometry; WinBUGS, Stata and R shares"
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z
+

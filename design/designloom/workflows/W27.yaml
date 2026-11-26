@@ -45,14 +45,14 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Classify the missingness** (estimate: 15 min) - Actor non-response (never answered but still named by others),
+    1. **Classify the missingness** - Actor non-response (never answered but still named by others),
     item non-response, boundary misspecification, fixed-choice censoring. Excluding one actor in a toy example cut mean
     degree by 25%.
 
-    2. **Report the response rate** (estimate: 5 min) - Keep non-respondents as nodes with their incoming ties and show
+    2. **Report the response rate** - Keep non-respondents as nodes with their incoming ties and show
     them distinctly.
 
-    3. **Pick a treatment by measure** (estimate: 30 min) - Dropping non-respondents is almost always the worst option.
+    3. **Pick a treatment by measure** - Dropping non-respondents is almost always the worst option.
     Reconstruction (impute a non-respondent's outgoing tie from ties to them) is the best simple method for undirected
     data, even at 50% missing; for directed data, ignoring missingness keeps reciprocity, transitivity and
     assortativity fairly stable up to 40% missing. Probabilistic imputation (reciprocate at the observed rate, average
@@ -62,7 +62,7 @@ goal: >-
     4. **For free recall, re-collect** (outside the tool) - Prompts, read-back lists and re-interviews; adding
     interviews grew one network from 89 to 176 nodes.
 
-    5. **Run and report a sensitivity analysis** (estimate: 30 min) - Compute the key measures under each treatment and
+    5. **Run and report a sensitivity analysis** - Compute the key measures under each treatment and
     report how much they move.
 
 

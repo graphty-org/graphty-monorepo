@@ -58,14 +58,14 @@ goal: >-
 
     3. **Predictability** (in R) - mgm then predict gives R squared or normalized accuracy per node
 
-    4. **Load** (5 min) - Weights matrix, a per-edge table with the Bayes factor, a node table with predictability
+    4. **Load** - Weights matrix, a per-edge table with the Bayes factor, a node table with predictability
 
-    5. **Draw evidence** (5 min) - Three-state edge style (included, excluded, inconclusive) with a stated threshold;
+    5. **Draw evidence** - Three-state edge style (included, excluded, inconclusive) with a stated threshold;
     excluded edges drawn distinctly from inconclusive ones
 
-    6. **Draw predictability** (5 min) - A ring around each node filled to its 0-1 value
+    6. **Draw predictability** - A ring around each node filled to its 0-1 value
 
-    7. **Compare** (5 min) - Exploratory vs confirmed structure, or training vs holdout, on one layout
+    7. **Compare** - Exploratory vs confirmed structure, or training vs holdout, on one layout
 
 
     **Decision Points**:

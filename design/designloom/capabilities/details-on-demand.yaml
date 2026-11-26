@@ -1,19 +1,21 @@
 id: details-on-demand
 name: Details on Demand
 category: interaction
-description: "Show comprehensive information for selected nodes or edges in a detail panel. Display all attributes,
-    computed metrics, and related context. The fourth step of Shneiderman's mantra: overview, zoom, filter,
-    details-on-demand."
-status: implemented
-notes: "Ships: graphty/src/workspace/inspector/NodeValues.tsx."
+description: "Show comprehensive information for selected nodes or edges in a detail panel: all attributes, computed
+    metrics with the settings that produced them, the source record behind the item, neighbor counts including
+    neighbors not yet shown, and related context. Hover gives a short preview and a deliberate action opens the full
+    details. The fourth step of Shneiderman's mantra: overview, zoom, filter, details-on-demand."
+status: in-progress
+notes: "Partly ships: graphty/src/workspace/inspector/NodeValues.tsx. Planned: hidden-degree counts, drilling into the records behind a node, aggregate statistics for a multi-selection, and a pinned detail panel. Any requirement below that this note does not name as shipping counts as planned."
 algorithms: []
 used_by_workflows:
+    - W3006
+    - W3024
     - W02
     - W05
     - W06
     - W07
     - W09
-    - W12
     - W13
     - W17
     - W20
@@ -132,7 +134,6 @@ used_by_workflows:
     - W261
     - W262
     - W263
-    - W264
     - W265
     - W266
     - W267
@@ -163,7 +164,7 @@ used_by_workflows:
     - W332
     - W335
     - W336
-    - W338
+    - W430
     - W339
     - W340
     - W341
@@ -172,15 +173,7 @@ used_by_workflows:
     - W346
     - W347
     - W348
-    - W349
-    - W350
-    - W351
-    - W352
-    - W353
-    - W355
-    - W356
-    - W357
-    - W358
+    - W343
     - W359
     - W361
     - W362
@@ -228,15 +221,8 @@ used_by_workflows:
     - W436
     - W437
     - W438
-    - W439
-    - W440
-    - W441
-    - W442
-    - W443
-    - W444
-    - W445
-    - W446
-    - W447
+    - W434
+    - W435
     - W50
     - W52
     - W55
@@ -276,29 +262,88 @@ used_by_workflows:
     - W97
     - W98
     - W99
+    - W1006
+    - W1012
+    - W1013
+    - W1018
+    - W1042
+    - W1054
+    - W1060
+    - W1084
+    - W1090
+    - W1096
+    - W1120
+    - W1126
+    - W1132
+    - W1156
+    - W1157
+    - W1158
+    - W2000
+    - W2006
+    - W2030
+    - W2036
+    - W2037
+    - W251
+    - W2066
+    - W2072
+    - W2096
+    - W2099
+    - W3066
+    - W3078
+    - W3079
+    - W3080
+    - W3096
+    - W3102
+    - W3103
 implemented_by_components:
     - attribute-row
     - node-details-panel
     - data-table-panel
     - heatmap-panel
 requirements:
-    - Display detail panel within 100ms of node selection
-    - Show all node attributes as label-value pairs in detail panel
-    - Show computed metrics (degree, centrality scores, community ID) in dedicated 'Metrics' section
-    - Show neighbor count with breakdown by edge type if multiple types exist
-    - Show scrollable list of connected edges with target node label and edge attributes
-    - Show edge attributes (weight, type, timestamps) when edge is selected
-    - "Support multi-selection showing aggregate statistics: count, attribute ranges, common values"
-    - Display 'N nodes selected' header with selection summary for multi-select
-    - Provide 'Expand neighborhood' button in detail panel to trigger neighborhood expansion
-    - Provide 'Copy to clipboard' button that copies node data as JSON
-    - Provide 'Copy ID' button for quick node identifier copying
-    - Truncate long attribute values to 100 characters with 'Show more' expansion
-    - Display attribute data types (string, number, date) as subtle indicators
-    - Highlight missing/null attributes with 'Not set' placeholder
-    - Persist detail panel position and size across session
-    - Provide 'Pin' option to keep detail panel open while selecting other nodes
+    - "Library parity: Show the detail panel on selection without a noticeable delay"
+    - "Library parity: Show a short set of caption properties on hover, and the full details on a deliberate action (click or double-click)"
+    - "Library parity: Show all node attributes as label-value pairs in detail panel"
+    - "Must: Show computed metrics (degree, centrality scores, community ID) in dedicated 'Metrics' section, each with the settings that produced it (direction, weight column and whether it was read as distance or strength, self-loop and parallel-edge handling, seed and resolution where they apply)"
+    - "Must: Show the source-document reference (provenance) of a node or edge when the data carries one"
+    - "Must: Show structured attachments on nodes and edges (indicators on outcomes, rationale and assumptions on edges) when the data carries them"
+    - "Must: Let the user drill from a node or edge to the records behind it (for example each case's history in a process map)"
+    - "Must: Show neighbor count with breakdown by edge type if multiple types exist, including the count of neighbors not currently shown (hidden degree)"
+    - "Must: Report the selected or active item's id to the host application so it can open or preview the item in its own pane, and accept an active item from the host"
+    - "Library parity: Show scrollable list of connected edges with target node label and edge attributes"
+    - "Library parity: Show edge attributes (weight, type, timestamps) when edge is selected"
+    - "Must: Support multi-selection showing aggregate statistics: count, attribute ranges, common values"
+    - "Library parity: Display 'N nodes selected' header with selection summary for multi-select"
+    - "Library parity: Provide 'Expand neighborhood' button in detail panel to trigger neighborhood expansion"
+    - "Library parity: Provide 'Copy to clipboard' button that copies node data as JSON"
+    - "Library parity: Provide 'Copy ID' button for quick node identifier copying"
+    - "Library parity: Truncate long attribute values with a 'Show more' expansion"
+    - "Library parity: Display attribute data types (string, number, date) as subtle indicators"
+    - "Library parity: Highlight missing/null attributes with 'Not set' placeholder"
+    - "Library parity: Persist detail panel position and size across session"
+    - "Library parity: Provide 'Pin' option to keep detail panel open while selecting other nodes"
 sources:
     - title: Shneiderman Visual Information Seeking Mantra
       url: https://www.cs.umd.edu/~ben/papers/Shneiderman1996eyes.pdf
       summary: Overview first, zoom and filter, then details-on-demand
+    - title: Neo4j Bloom, scene interactions
+      url: https://neo4j.com/docs/bloom-user-guide/current/bloom-visual-tour/bloom-scene-interactions/
+      summary: Hover shows caption properties; double-click opens the Inspector
+    - title: Graph database query and expand exploration (workflow steps 4-5, requirement 5)
+      url: design/user-research/graph-database-query-and-expand-exploration.md
+      summary: End users click an entity and see details in a side panel; hidden-degree badges before expanding are Must
+    - title: Data preparation, import and first assessment (requirement 21)
+      url: design/user-research/data-preparation-and-import.md
+      summary: Keeping a source-document reference on every node and edge is Must
+    - title: Network scientists and analysis method validity (requirement R18)
+      url: design/user-research/network-scientists-and-analysis-method-validity.md
+      summary: Merge rule, direction, self-loops and weight reading must be shown with any result
+    - title: Personal knowledge graphs and note networks (requirement 4)
+      url: design/user-research/personal-knowledge-graphs-and-note-networks.md
+      summary: The host sets the active node and receives the clicked node's id to open or preview it in its own pane
+    - title: Systems and stakeholder mapping (requirements table)
+      url: design/user-research/systems-and-stakeholder-mapping-civic.md
+      summary: Per-node and per-edge structured attachments (indicators, rationale, assumptions) are Must-have
+    - title: Process mining and process maps (requirement R8)
+      url: design/user-research/process-mining-and-process-maps.md
+      summary: Drilling from the map to cases and each case's history is Must

@@ -26,6 +26,8 @@ requires_capabilities:
     - od-flow-import
     - flow-clutter-control
     - spatial-aggregation
+    - geospatial-file-io
+    - large-source-aggregation
 suggested_components:
     - file-drop-zone
     - data-import-dialog
@@ -41,6 +43,7 @@ suggested_components:
     - zoom-controls
     - share-dialog
     - image-export-dialog
+    - attribute-table-join-dialog
 starting_state:
     data_type: published hourly or daily OD counts between districts or H3 cells (for example Spain's open mobility data), plus a zone table with centroids
     node_count: 500-10000
@@ -58,8 +61,8 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Get zones and dates** (minutes) - Fetch the zone set (districts) and the valid date range; zone versions change
-    between data releases (Spain v1 2020-02-14 to 2021-05-09; v2 from 2022 with sociodemographics)
+    1. **Get zones and dates** (minutes) - Fetch the zone set (district polygons, delivered in a projected system,
+    ETRS89 / UTM zone 30N) and the valid date range; zone versions change between data releases (Spain v1 2020-02-14 to 2021-05-09; v2 from 2022 with sociodemographics)
 
     2. **Query lazily** (minutes) - The OD table stays on disk as a DuckDB table of 19 columns (date, hour, origin,
     destination, activity, income, age, sex, trips); one week is 135,866,524 records and three years exceed 200 GB
@@ -67,8 +70,8 @@ goal: >-
     3. **Aggregate** (minutes) - Sum trips per origin and destination per day, or per hour, which gives 24 times more
     rows
 
-    4. **Build the location table** (minutes) - Zone centroids in WGS84 as id, lon, lat; flows naming an id missing
-    from it are lost
+    4. **Build the location table** (minutes) - Reproject the zone polygons to WGS84 and reduce each to a point as id,
+    lon, lat (or load H3 cell ids directly); flows naming an id missing from it are lost
 
     5. **Clip the study area** (a decision) - A 10 km buffer around a city; keep flows with both ends inside;
     intra-zonal pairs are kept
@@ -157,6 +160,12 @@ sources:
     - title: kepler.gl - Time playback
       url: https://docs.kepler.gl/docs/user-guides/h-playback
       summary: Time filter playback for animated flows
-version: 1.0.0
+    - title: spanishoddata - spod_get_zones reference
+      url: https://ropenspain.github.io/spanishoddata/reference/spod_get_zones.html
+      summary: Zones are MULTIPOLYGON simple features in ETRS89 / UTM zone 30N
+    - title: kepler.gl - Add data to the map
+      url: https://docs.kepler.gl/docs/user-guides/b-kepler-gl-workflow/a-add-data-to-the-map
+      summary: CSV, GeoJSON, GeoArrow; WKT or GeoJSON columns become polygons; h3_id or hexagon_id columns become an H3 layer
+version: 1.1.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

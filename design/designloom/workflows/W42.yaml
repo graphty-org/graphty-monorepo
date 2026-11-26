@@ -45,21 +45,21 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Subsample** (minutes) - Delete 5 to 50% of edges or nodes at random, recompute, correlate rankings with the
+    1. **Subsample** - Delete 5 to 50% of edges or nodes at random, recompute, correlate rankings with the
     originals, repeat with recorded seeds
 
-    2. **Sweep thresholds for derived graphs** (minutes) - Report results across densities; proportional thresholds give
+    2. **Sweep thresholds for derived graphs** - Report results across densities; proportional thresholds give
     more stable metrics but confound group differences in overall connectivity; the disparity filter (alpha often 0.05)
     keeps locally significant edges in weighted one-mode graphs; projections need a bipartite null (W47)
 
-    3. **Rerun every stochastic method** (minutes) - Communities, layouts, block-model fits, simulations; report the
+    3. **Rerun every stochastic method** - Communities, layouts, block-model fits, simulations; report the
     spread
 
-    4. **Alternative representations** (minutes) - In- and out-degree, weighted and unweighted, each layer
+    4. **Alternative representations** - In- and out-degree, weighted and unweighted, each layer
 
-    5. **Alternative nulls** (minutes to hours) - Degree-preserving plus spatial or layer-preserving where relevant
+    5. **Alternative nulls** - Degree-preserving plus spatial or layer-preserving where relevant
 
-    6. **Report** (10 min) - Which results held, across what range, with seeds
+    6. **Report** - Which results held, across what range, with seeds
 
 
     **Decision Points**:

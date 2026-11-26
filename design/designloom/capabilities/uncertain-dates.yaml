@@ -4,10 +4,17 @@ category: analysis
 description: Dates as ranges with a computed best value (year only, between X and Y, relative to another dated item),
     following nodegoat's Chronology Statements; filters state whether they match on overlap or containment.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: temporal-and-dynamic-networks.md section 11, requirement T18 (Should)."
 algorithms: []
 used_by_workflows:
     - W19
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Should: Uncertain, partial and relative dates (year only, ranges, \"between X and Y\"), with nodegoat's
+      Chronology Statements as the reference model: each date is a range with a computed best value, and filters say
+      whether they match on overlap or containment"
+sources:
+    - title: Temporal and Dynamic Network Data and Analysis (section 11, requirement T18)
+      url: design/user-research/temporal-and-dynamic-networks.md
+      summary: "Should in the research (the document says: Should for digital humanities (Could elsewhere)). Covered by
+        Designloom when researched: No"

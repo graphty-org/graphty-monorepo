@@ -4,10 +4,15 @@ category: analysis
 description: Directed flow with amount, asset and time per edge, hop-by-hop following from a seed with amount and time
     filters, and accounting of how much traced value went down each branch.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: law-enforcement-and-intelligence-analysts.md section 10, requirement 19 (Must)."
 algorithms: []
 used_by_workflows:
     - W105
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Directed flow with amount, asset and time per edge, showing how traced value splits per hop"
+sources:
+    - title: Law enforcement crime and intelligence analysts, and defense and national intelligence analysts (section
+        10, requirement 19)
+      url: design/user-research/law-enforcement-and-intelligence-analysts.md
+      summary: "Must in the research. Covered by Designloom when researched: Gap"

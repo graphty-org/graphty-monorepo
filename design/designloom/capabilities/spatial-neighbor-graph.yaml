@@ -1,0 +1,19 @@
+id: spatial-neighbor-graph
+name: "Spatial Neighbor Graph Builder"
+category: analysis
+description: "Build edges from node x, y coordinates by Delaunay triangulation with a maximum edge length, k nearest neighbors, or a fixed radius, separately per section or sample column so no edge crosses sections; record the rule and parameters with the graph and report how many nodes were left without edges (systems-biology-omics-networks.md requirement 50)."
+status: planned
+notes: "Research trace: systems-biology-omics-networks.md section 10, requirement 50 (Must)."
+algorithms: []
+used_by_workflows:
+    - W2066
+implemented_by_components: []
+requirements:
+    - "Must: Build a spatial neighbor graph from node coordinates -- Delaunay with a maximum edge length, k nearest
+      neighbors, or a radius -- separately per section, with the rule and parameters recorded and a count of nodes left
+      without edges (5.18)"
+sources:
+    - title: Systems Biologists and Bench Scientists Working With Molecular Interaction Networks (section 10,
+        requirement 50)
+      url: design/user-research/systems-biology-omics-networks.md
+      summary: Must in the research.

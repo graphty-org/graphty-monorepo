@@ -51,6 +51,10 @@ used_in_workflows:
     - W74
     - W76
     - W89
+    - W252
+    - W1157
+    - W1159
+    - W2006
 dependencies:
     - slider
     - checkbox

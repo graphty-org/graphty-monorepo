@@ -1,5 +1,8 @@
 id: corpus-linguist
 name: Corpus Linguist
+roster_persona: text-network-analyst
+tier: B
+scope: in-scope
 role: Lecturer in Corpus-Based Discourse Analysis
 quote: There is no one definite set of collocates. Put the statistic, the span and the thresholds next to every graph.
 bio: >-

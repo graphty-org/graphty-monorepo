@@ -1,5 +1,8 @@
 id: distribution-control-room-operator
 name: Distribution Control Room Operator
+roster_persona: none
+tier: none
+scope: out-of-scope
 role: Distribution System Operator in an ADMS control room
 quote: The recloser locked out and four thousand customers are dark. Show me the faulted section, what I open, and which
     neighboring feeder can pick up the rest without overloading.

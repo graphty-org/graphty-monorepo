@@ -1,5 +1,8 @@
 id: receiving-party-production-analyst
 name: Receiving-Party Production Analyst
+roster_persona: litigation-support-analyst
+tier: B
+scope: in-scope
 role: Litigation-Support Analyst at a Plaintiff Firm, or Agency Staff Reviewing a Production
 quote: They sent us a load file and images. I need to know whom their custodians talked to and what they did not give us.
 bio: >-

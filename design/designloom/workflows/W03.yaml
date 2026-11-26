@@ -9,9 +9,6 @@ personas:
     - network-neuroscience-researcher
 requires_capabilities:
     - centrality-degree
-    - centrality-betweenness
-    - centrality-closeness
-    - centrality-pagerank
     - community-detection
     - filtering
     - visual-encoding-nodes
@@ -19,7 +16,6 @@ requires_capabilities:
     - view-bookmarks
     - comparison-view
     - statistics-panel
-    - centrality-eigenvector
     - algorithm-progress
     - keyboard-shortcuts
     - metric-histograms
@@ -28,6 +24,8 @@ requires_capabilities:
     - analysis-provenance
     - seeded-runs
     - measurement-robustness
+    - weight-semantics
+    - degree-distribution-fit
 suggested_components:
     - graph-canvas
     - algorithm-panel

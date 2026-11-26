@@ -24,7 +24,6 @@ requires_capabilities:
     - dependency-propagation
     - scenario-sweep
     - shared-dependency-analysis
-    - centrality-betweenness
 suggested_components:
     - file-drop-zone
     - data-import-dialog
@@ -135,9 +134,9 @@ sources:
     - title: Mungo et al., Reconstructing supply networks
       url: https://arxiv.org/pdf/2310.00446
       summary: Hidden second-tier suppliers and missing links
-    - title: Practical Graph Analysis Guide - Chapter 9
-      url: https://graphty.app/docs/
-      summary: Supply Chain Risk Assessment Workflow
+    - title: Kim, Choi, Yan and Dooley 2011 - Structural investigation of supply networks (Journal of Operations Management 29(3), 194-211)
+      url: https://doi.org/10.1016/j.jom.2010.11.001
+      summary: Applies social network analysis measures to three automotive supply networks from Choi and Hong 2002 and finds it supplements and complements case-based analysis
     - title: Cambridge Intelligence Supply Chain Management
       url: https://cambridge-intelligence.com/supply-chain-management-with-graph-analytics/
       summary: Supply chain visualization with graph analytics

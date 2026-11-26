@@ -5,7 +5,6 @@ validated: false
 personas:
     - analyst-alex
     - expert-emma
-    - fraud-analyst
     - marketing-analyst
     - network-neuroscience-researcher
 requires_capabilities:

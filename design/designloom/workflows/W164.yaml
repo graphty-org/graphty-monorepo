@@ -53,26 +53,26 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Pick a null model** (2 min) - Choose what randomization keeps fixed: row and column totals, totals plus
+    1. **Pick a null model** - Choose what randomization keeps fixed: row and column totals, totals plus
     connectance, connectance with totals loosely, or interactions drawn in proportion to resource abundance
 
-    2. **Generate replicates** (5-60 min) - Produce 1,000 randomized webs per observed web, with progress shown and a
+    2. **Generate replicates** - Produce 1,000 randomized webs per observed web, with progress shown and a
     recorded seed
 
-    3. **Compute the index on each** (5 min) - For example weighted nestedness or H2'
+    3. **Compute the index on each** - For example weighted nestedness or H2'
 
-    4. **Read the result** (2 min) - Histogram of null values with the observed value as a vertical line; z-score
+    4. **Read the result** - Histogram of null values with the observed value as a vertical line; z-score
     (observed minus null mean, divided by null standard deviation) and the share of null values more extreme (p)
 
-    5. **Null-model a whole comparison** (optional, 30 min) - Recompute a between-treatment statistic with one null
+    5. **Null-model a whole comparison** (optional) - Recompute a between-treatment statistic with one null
     per web thousands of times to get a p-value for the comparison itself
 
     6. **Resource-selection nulls** (optional) - Flag links used more or less often than resource abundance predicts
 
-    7. **Find modules** (5 min) - Run bipartite modularity, redraw the matrix in module blocks and the two-row web
+    7. **Find modules** - Run bipartite modularity, redraw the matrix in module blocks and the two-row web
     colored by module; test modularity against null webs
 
-    8. **Hand off** (5 min) - Table of observed index, null mean, null standard deviation, z and p; module membership
+    8. **Hand off** - Table of observed index, null mean, null standard deviation, z and p; module membership
     per species; a module-sorted matrix figure
 
 

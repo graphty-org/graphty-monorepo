@@ -50,25 +50,25 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Request** (days, outside the tool) - Probable-cause warrant, carrier key, a cell-site list "representative of
+    1. **Request** (outside the tool) - Probable-cause warrant, carrier key, a cell-site list "representative of
     the time period(s)", timing-advance reports (True Call, RTT, NELOS); at least 60 days for pattern analysis
 
-    2. **Normalize** (30-60 min) - Time zones (as in W97) and distance units; a band's inner edge is band number times
+    2. **Normalize** - Time zones (as in W97) and distance units; a band's inner edge is band number times
     step (LTE 78.07 m, GSM about 550 m), the outer edge one step farther
 
-    3. **Plot** (30 min) - CDR events as sector wedges (without underestimating coverage); timing-advance events as an
+    3. **Plot** - CDR events as sector wedges (without underestimating coverage); timing-advance events as an
     arc across the sector angle; intersect overlapping arcs close in time
 
-    4. **Tower and area dumps** (1-4 h) - Intersect numbers seen at several scene towers in each offense window (in the
+    4. **Tower and area dumps** - Intersect numbers seen at several scene towers in each offense window (in the
     Scarecrow case two hours before to one hour after); survivors go to the call chart (W98)
 
-    5. **Validate coverage** (field days, when needed) - Radio survey (drive test) with several devices, idle and call
+    5. **Validate coverage** (when needed) - Radio survey (drive test) with several devices, idle and call
     modes, approaches from many directions; a single-device five-minute static survey is "deeply flawed"
 
-    6. **Join back** (15 min) - Each event is a link on the association chart, a frame on the phone's theme line and a
+    6. **Join back** - Each event is a link on the association chart, a frame on the phone's theme line and a
     wedge or arc on the map, selectable in all three
 
-    7. **Report** (hours) - Drafts marked "not fully verified"; court maps verified by a second method, with legends,
+    7. **Report** - Drafts marked "not fully verified"; court maps verified by a second method, with legends,
     distance scales and true aspect ratio
 
 

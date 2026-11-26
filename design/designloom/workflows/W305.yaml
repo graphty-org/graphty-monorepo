@@ -52,28 +52,28 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Make time visible** (minutes in a self-serve tool; days when an admin must change a schema) - Mark which
+    1. **Make time visible** - Mark which
     properties are dates, which hold start and end, the unit and time zone
 
-    2. **Load events** (5 min) - Each event carries an id, a date or a start/end period, and optional value (amount,
+    2. **Load events** - Each event carries an id, a date or a start/end period, and optional value (amount,
     duration)
 
-    3. **Read the histogram** (1 min) - Activity over the case span, stacked by event type, to spot the incident and
+    3. **Read the histogram** - Activity over the case span, stacked by event type, to spot the incident and
     quiet periods
 
-    4. **Select a window** (1 min) - Drag handles, shift-drag, or type dates ("between"); out-of-window items fade
+    4. **Select a window** - Drag handles, shift-drag, or type dates ("between"); out-of-window items fade
     rather than vanish so context is kept
 
-    5. **Play** (5 min) - Slide a fixed window, grow it from the start (cumulative), or run backward; adjust speed and
+    5. **Play** - Slide a fixed window, grow it from the start (cumulative), or run backward; adjust speed and
     step
 
-    6. **"When was this active?"** (2 min) - Select a phone or account and see its events marked on the time bar;
+    6. **"When was this active?"** - Select a phone or account and see its events marked on the time bar;
     check hour-of-day and weekday patterns (pattern of life) and, for cell sites, where it was
 
-    7. **Aggregate parallel events** (2 min) - Collapse calls or transfers per pair into count, total, first and last
+    7. **Aggregate parallel events** - Collapse calls or transfers per pair into count, total, first and last
     for the window
 
-    8. **Report** (15 min) - Export the chart or a timeline chart with the window dates in the caption; record the
+    8. **Report** - Export the chart or a timeline chart with the window dates in the caption; record the
     window behind each exhibit
 
 
@@ -126,7 +126,7 @@ goal: >-
     - Output: Exhibit image or timeline chart captioned with the window, per-pair summary table, saved window bookmarks
 success_criteria:
     - metric: Time to first filtered view
-      target: Under 10 minutes from event table to a windowed, playable chart with no admin step
+      target: Under 10 minutes from event table to a windowed, playable chart with no admin step (design goal; no source measures it)
     - metric: Window transparency
       target: Every exported exhibit states its window bounds and time zone
     - metric: Activity lookup

@@ -59,25 +59,25 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Define the conversation or audience** (15 min) - A listening query (brand, category, competitor) or an
+    1. **Define the conversation or audience** - A listening query (brand, category, competitor) or an
     audience (followers of an account, people with a bio keyword)
 
-    2. **Open the network** (5 min) - Authors sized by engagement generated, edges from comments, replies and reposts,
+    2. **Open the network** - Authors sized by engagement generated, edges from comments, replies and reposts,
     clusters colored automatically; filter live by date, theme or platform; 2D or 3D for overlapping communities
 
-    3. **Segment the audience** (10 min) - Interconnectivity (Louvain over follows inside the audience) for niche,
+    3. **Segment the audience** - Interconnectivity (Louvain over follows inside the audience) for niche,
     local or professional communities, or affinity (shared accounts followed) for interests
 
-    4. **Read the map** (20 min) - Identify cluster centers and bridges; click nodes to read their posts; note dense
+    4. **Read the map** - Identify cluster centers and bridges; click nodes to read their posts; note dense
     interaction patterns that may signal coordination or paid amplification
 
-    5. **Shortlist creators** (hours, in a creator platform) - Screen by engagement rate, fake-follower score, audience
+    5. **Shortlist creators** (in a creator platform) - Screen by engagement rate, fake-follower score, audience
     demographics, fit and rates, then human review
 
-    6. **Check overlap** (15 min) - Pairwise overlap count and percentage for up to 15 creators; low overlap for reach,
+    6. **Check overlap** - Pairwise overlap count and percentage for up to 15 creators; low overlap for reach,
     high overlap for repeated exposure; overlap is not delivered reach
 
-    7. **Hand off** (30 min) - PNG, SVG or XLS export; a bespoke figure from a Gephi export; a ranked creator list with
+    7. **Hand off** - PNG, SVG or XLS export; a bespoke figure from a Gephi export; a ranked creator list with
     tiers for the campaign team
 
 

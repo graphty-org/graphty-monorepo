@@ -57,21 +57,21 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Topic correlations** (15 min) - Fit a structural topic model with K topics; threshold topic-proportion
+    1. **Topic correlations** - Fit a structural topic model with K topics; threshold topic-proportion
     correlations (cutoff 0.01) or select edges with a graphical model; plot with Fruchterman-Reingold, labels Topic #,
     vertex size per topic
 
-    2. **Topic hierarchy and distances** (15 min) - BERTopic intertopic distance map (UMAP of c-TF-IDF), Ward
+    2. **Topic hierarchy and distances** - BERTopic intertopic distance map (UMAP of c-TF-IDF), Ward
     hierarchy on 1 - cosine similarity with a color threshold, topic similarity heat map
 
-    3. **Document similarity network** (30-60 min) - Document-by-feature matrix (tf-idf, topic proportions or
+    3. **Document similarity network** - Document-by-feature matrix (tf-idf, topic proportions or
     embeddings), pairwise similarity, keep pairs above a threshold or each node's k nearest neighbors, group by
     period, export to Gephi; large runs (19,598 articles, 384 million comparisons, 16,000 edges kept) can fragment
     into many tiny clusters
 
-    4. **Refine** (hours) - Read documents per topic or cluster
+    4. **Refine** - Read documents per topic or cluster
 
-    5. **Confirm** (hours) - Test patterns with other computational methods
+    5. **Confirm** - Test patterns with other computational methods
 
 
     **Decision Points**:

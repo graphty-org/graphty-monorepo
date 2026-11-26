@@ -4,12 +4,17 @@ category: visualization
 description: Draw a class or concept hierarchy where each node appears once with all of its parents, distinguishes
     asserted and inferred parent links, and shows non-tree links such as skos:related on demand.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: knowledge-graph-engineers-and-graphrag.md section 10, table row 5 (Must)."
 algorithms: []
 used_by_workflows:
     - W134
     - W135
     - W136
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Class or concept hierarchy view that shows multiple parents and non-tree links (skos:related) together"
+sources:
+    - title: Knowledge Graph Engineers, Ontologists and GraphRAG Developers (section 10, table row 5)
+      url: design/user-research/knowledge-graph-engineers-and-graphrag.md
+      summary: "Must in the research. Covered by Designloom when researched: Partly:
+        layout-hierarchical"

@@ -26,7 +26,6 @@ requires_capabilities:
     - layout-hierarchical
     - layout-force-directed
     - path-highlighting
-    - anomaly-detection
     - annotation
     - data-export
     - export-image
@@ -52,7 +51,6 @@ suggested_components:
     - legend-panel
     - context-menu
     - annotation-toolbar
-    - anomaly-panel
     - data-table-panel
     - report-generator-dialog
     - data-export-dialog
@@ -74,7 +72,7 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Configure the outbreak** (half a day, once) - Set the follow-up period and visits per day, and edit
+    1. **Configure the outbreak** (once) - Set the follow-up period and visits per day, and edit
     reference data so each dropdown value carries an icon and a color; this is what makes the chain graph readable
     later
 
@@ -84,7 +82,7 @@ goal: >-
     3. **Model clusters as events** (as they appear) - Create each setting as an event node and link cases and
     contacts to it as exposures; the alternative is to store the setting in reference data and color the edges by it
 
-    4. **Run daily follow-up** (every day) - Generate the day's contact follow-up lists, which field teams fill in on
+    4. **Run daily follow-up** - Generate the day's contact follow-up lists, which field teams fill in on
     a mobile application, and record each visit
 
     5. **Read the chain graph** (every morning) - Filter by date and status, collapse or expand events, and color

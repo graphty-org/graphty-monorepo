@@ -29,6 +29,8 @@ requires_capabilities:
     - od-flow-import
     - flow-arithmetic
     - regionalization
+    - geospatial-file-io
+    - centrality-hits
 suggested_components:
     - data-import-dialog
     - column-mapper

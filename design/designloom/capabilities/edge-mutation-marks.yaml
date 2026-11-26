@@ -3,12 +3,17 @@ name: Edge Mutation Marks and Inferred Nodes
 category: visualization
 description: Draw integer mutation counts on edges as hatch marks or labels and show inferred (unsampled) nodes as small dots.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: phylogenetics-and-haplotype-networks.md section 10, table row 6 (Must)."
 algorithms: []
 used_by_workflows:
     - W390
     - W391
     - W392
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Integer mutation counts drawn as hatch marks or labels; inferred nodes as small dots"
+sources:
+    - title: "Evolutionary Biologists, Population Geneticists and Protein-Family Analysts: Trees, Haplotype Networks,
+        Population Graphs and Similarity Networks (section 10, table row 6)"
+      url: design/user-research/phylogenetics-and-haplotype-networks.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

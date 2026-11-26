@@ -1,9 +1,12 @@
 id: systems-change-strategist
 name: Systems Change Strategist
+roster_persona: systems-mapping-facilitator
+tier: B
+scope: in-scope
 role: Foundation Program Officer / Strategy, Learning and Evaluation Officer
 quote: I don't want another logic model. I want to see whether our grants actually touch the loops that keep this system stuck.
 bio: >-
-    Maya Okafor is a senior program officer, later a strategy, learning and evaluation officer, at a mid-size
+    Amaka Okafor is a senior program officer, later a strategy, learning and evaluation officer, at a mid-size
     foundation that has taken a "systems" approach to a field such as democracy, local news or food systems. She works
     with a developmental evaluator and a consultant who knows Kumu. Her map is built by hand over weeks of facilitated
     sessions: 30 to 80 factors that can go up or down, joined by signed arrows and knitted into 15 to 30 named
@@ -54,6 +57,7 @@ workflows:
     - W197
     - W202
     - W205
+    - W317
 sources:
     - title: Hewlett Foundation - Madison Initiative systems map launch
       url: https://hewlett.org/?p=66747

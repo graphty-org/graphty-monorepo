@@ -61,28 +61,28 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Set up periods and population** (1 hour) - Choose a before and an after period (at least three months each),
+    1. **Set up periods and population** - Choose a before and an after period (at least three months each),
     filter the population, pick up to three HR attributes for grouping
 
-    2. **Match groups across the change** (1-2 hours) - Rename or combine attribute values so before and after groups
+    2. **Match groups across the change** - Rename or combine attribute values so before and after groups
     line up ("Inventory Management" plus "Facilities" becomes "Internal services"); choose up to three focus groups
 
-    3. **Read the ranked changes** (1 hour) - New ties between existing groups, lost ties, significant changes, net new
+    3. **Read the ranked changes** - New ties between existing groups, lost ties, significant changes, net new
     groups and lost groups, ranked by absolute percent change and magnitude
 
-    4. **Check insularity** (30 min) - E-I index per group (-1 all internal, +1 all external; -0.67 is a 5:1 internal
+    4. **Check insularity** - E-I index per group (-1 all internal, +1 all external; -0.67 is a 5:1 internal
     ratio and marks silo risk; a drop of 0.1 or more flags increased insularity)
 
-    5. **Find broker groups** (30 min) - Bridging index per group; top five with arrows for groups entering or leaving
+    5. **Find broker groups** - Bridging index per group; top five with arrows for groups entering or leaving
 
-    6. **Explore side by side** (1-2 hours) - Before and after group graphs with node size as group size, segments
+    6. **Explore side by side** - Before and after group graphs with node size as group size, segments
     colored by a second attribute, edge thickness as collaboration amount, after-view edges colored for increase and
     decrease, a collapsed "Other" node, expand a group into subgroups, a matrix of change in hours or percent
 
-    7. **Explain drivers** (days, optional) - Network regression of community membership on location, rank,
+    7. **Explain drivers** (optional) - Network regression of community membership on location, rank,
     sub-function, role and legacy company, in survey and email networks
 
-    8. **Report** (hours) - Export views and matrices into the readout
+    8. **Report** - Export views and matrices into the readout
 
 
     **Decision Points**:
@@ -132,7 +132,7 @@ success_criteria:
     - metric: Group matching
       target: User can map every before group to an after group (or mark it new or lost) before comparing
     - metric: Change readability
-      target: The top five group-tie changes are identifiable within 5 minutes of loading both periods
+      target: The top five group-tie changes are identifiable within 5 minutes of loading both periods (design goal; no source measures it)
     - metric: Method transparency
       target: Every exported change metric states its aggregation rule and both period windows
 sources:

@@ -4,6 +4,7 @@ category: exploration
 validated: false
 personas:
     - biomedical-kg-ml-scientist
+    - biomedical-kg-analyst
 requires_capabilities:
     - data-import
     - search
@@ -56,18 +57,18 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Pick a pair** (1 min) - Choose source and target nodes (for example a compound and a disease) by search
+    1. **Pick a pair** - Choose source and target nodes (for example a compound and a disease) by search
 
-    2. **Read the metapath table** (5 min) - Path count and adjusted p-value against permuted networks per metapath
+    2. **Read the metapath table** - Path count and adjusted p-value against permuted networks per metapath
     (het.io/search)
 
-    3. **Open paths** (5 min) - Show up to 100 paths for a metapath as a draggable subgraph of about 10 to 60 nodes
+    3. **Open paths** - Show up to 100 paths for a metapath as a draggable subgraph of about 10 to 60 nodes
 
-    4. **Expand neighborhoods** (10 min) - In the Neo4j Browser (at most 300 nodes shown first, 100 neighbors per
+    4. **Expand neighborhoods** - In the Neo4j Browser (at most 300 nodes shown first, 100 neighbors per
     expansion) or the SPOKE Neighborhood Explorer (node and edge type filters, path length 1 or 2, a warning at 2,000
     nodes plus edges, provenance on hover, leaf nodes collapsed into groups)
 
-    5. **Explain a prediction** (10 min) - Load model edge importance (GraphMask, 0 to 1); move a threshold to make the
+    5. **Explain a prediction** - Load model edge importance (GraphMask, 0 to 1); move a threshold to make the
     explanation sparser or denser (edges above 0.5, on average 14.9 percent, keep nearly all accuracy)
 
     6. **Export** - Cytoscape JSON or SVG for papers and companion websites

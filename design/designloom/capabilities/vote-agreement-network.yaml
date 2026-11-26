@@ -1,0 +1,17 @@
+id: vote-agreement-network
+name: "Vote agreement network"
+category: analysis
+description: "Build a member-by-member agreement network from a member-by-vote table (yea, nay, absent): count or rate of agreement over shared votes per pair, tie when it passes a threshold that is fixed or set at the crossing point of same-group and cross-group agreement distributions, with the rule recorded on the network and in exports."
+status: planned
+notes: "Research trace: academic-social-network-research.md section 10, table row 16 (Should)."
+algorithms: []
+used_by_workflows:
+    - W1138
+implemented_by_components: []
+requirements:
+    - "Should: Vote-agreement network from a member-by-vote table with the threshold rule recorded on the network"
+sources:
+    - title: Academic Social Network Researchers (section 10, table row 16)
+      url: design/user-research/academic-social-network-research.md
+      summary: "Should in the research. Covered by Designloom when researched: NOT
+        covered"

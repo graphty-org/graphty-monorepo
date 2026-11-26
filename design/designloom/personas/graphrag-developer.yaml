@@ -1,5 +1,8 @@
 id: graphrag-developer
 name: GraphRAG / LLM Extraction Developer
+roster_persona: graphrag-developer
+tier: B
+scope: in-scope
 role: Applied AI Engineer building retrieval over an LLM-extracted knowledge graph
 quote: Before I pay for another indexing run I need to know whether the extraction is any good - and when the assistant
     answers wrong, which nodes and chunks it used.

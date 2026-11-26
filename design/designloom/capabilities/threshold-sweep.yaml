@@ -5,7 +5,7 @@ description: Threshold weighted graphs by absolute value, percentile/density or 
     metrics at a sequence of densities with metric-versus-density curves and area-under-curve summaries;
     weight-to-length conversion before path metrics.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: network-neuroscience-connectomics.md section 10, requirement R5 (Must)."
 algorithms: []
 used_by_workflows:
     - W153
@@ -13,15 +13,17 @@ used_by_workflows:
     - W337
     - W430
     - W438
-    - W439
-    - W447
+    - W1006
+    - W1054
+    - W2098
 implemented_by_components: []
 requirements:
-    - Load a pairwise association table (coefficient and p-value) or matrix, keep edges by absolute coefficient and
-      adjusted p cutoffs with a live histogram and counts, and re-run chosen metrics across several cutoffs into a sweep
-      table.
-    - Re-run a ranking or filter at several alternative cutoffs (STRING score, degree, centrality) and compare the
-      resulting hub lists with persistence counts.
-    - Re-runs a hub-screening rule at alternative cutoffs (such as STRING confidence or degree) and with alternative
-      centralities, then compares the resulting hub lists with a persistence count for each node.
-sources: []
+    - "Must: Edge thresholding by absolute value, percentile/density, absolute value of signed weights;
+      positive/negative split with diverging color"
+    - "Must: Load a pairwise association table (coefficient and p-value) or matrix, keep edges by absolute coefficient and adjusted p cutoffs with a live histogram and counts, and re-run chosen metrics across several cutoffs into a sweep table."
+    - "Should: Re-run a ranking or filter at several alternative cutoffs (STRING score, degree, centrality) and compare the resulting hub lists with persistence counts."
+    - "Should: Re-runs a hub-screening rule at alternative cutoffs (such as STRING confidence or degree) and with alternative centralities, then compares the resulting hub lists with a persistence count for each node."
+sources:
+    - title: "Network Neuroscientists: Structural, Functional and Cellular Connectomics (section 10, requirement R5)"
+      url: design/user-research/network-neuroscience-connectomics.md
+      summary: "Must in the research. Covered by Designloom when researched: Partially"

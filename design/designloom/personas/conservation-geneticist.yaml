@@ -1,9 +1,12 @@
 id: conservation-geneticist
 name: Agency Conservation Geneticist
+roster_persona: phylogeographer-population-geneticist
+tier: A
+scope: in-scope
 role: Conservation Geneticist in a Wildlife or Fisheries Agency Lab
 quote: Managers need to know which rookeries are separate stocks. My job is a defensible map of management units that I can update every season.
 bio: >-
-    Dana Whitfield runs the genetics lab of a wildlife or fisheries agency and advises managers on stock and population
+    Freya Whitfield runs the genetics lab of a wildlife or fisheries agency and advises managers on stock and population
     units. Her lab has accumulated thousands of samples over many years -- the loggerhead turtle study she models her
     work on used 3,434 samples from 40 rookeries and found 59 haplotypes -- and haplotype names (such as CC-A2.1) are
     shared across labs, so they must stay stable. She edits sequences in Sequencher or Geneious, builds TCS or PopART

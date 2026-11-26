@@ -3,8 +3,7 @@ name: From Alert to SAR Decision
 category: analysis
 validated: false
 personas:
-    - aml-investigator-sar-writer
-    - fraud-analyst
+    - aml-investigator
 requires_capabilities:
     - data-import
     - data-preview
@@ -74,31 +73,33 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Read the alert** (5 min) - Open the triggering transactions and the customer profile; note the scenario that
+    1. **Read the alert** - Open the triggering transactions and the customer profile; note the scenario that
     fired (cash just under 10,000 dollars, rapid in-and-out wires)
 
-    2. **Link alerts and subjects** (10 min) - Look at the 1 to 2 hop neighborhood styled by "has open alert" and "has
+    2. **Link alerts and subjects** - Look at the 1 to 2 hop neighborhood styled by "has open alert" and "has
     prior SAR"; decide whether this is one case or several and pull the related alerts in
 
-    3. **Assemble the transaction picture** (the longest step; a vendor estimate puts the whole case at about three hours)
+    3. **Assemble the transaction picture** (the longest step, a vendor estimate puts the whole case at about three hours)
     - Import 6 to 12 months for all subjects as accounts-as-nodes and transactions-as-edges; group free-text wire and ACH
     counterparty names into probable counterparties, keeping external counterparties as their own kind of node; sum
     parallel transactions per pair and direction (W120)
 
-    4. **Ask other institutions** (days) - Where money leaves to another bank, send a 314(b) request to a registered peer;
+    4. **Ask other institutions** - Where money leaves to another bank, send a 314(b) request to a registered peer;
     merge the answer's legs into the case graph with the responding bank recorded as their source. (UK firms use the
     Economic Crime and Corporate Transparency Act 2023 sharing provisions)
 
-    5. **Research subjects** (20 min) - Screening lists, company registries, adverse media; attach the hits to nodes
+    5. **Research subjects** - Screening lists, company registries, adverse media; attach the hits to nodes
 
-    6. **Test typologies** (20 min) - On the summed graph look for fan-in, fan-out, pass-through, round-tripping cycles
+    6. **Test typologies** - On the summed graph look for fan-in, fan-out, pass-through, round-tripping cycles
     and sub-threshold cash, using a histogram near the reporting threshold and a timeline
 
-    7. **Recommend** (15 min) - Write the recommendation for the second reviewer or committee, with the chart and the
+    7. **Recommend** - Write the recommendation for the second reviewer or committee, with the chart and the
     supporting tables
 
-    8. **File or document** (30 min) - Write the narrative (no attachments are accepted, so the content of the chart must
-    be described in words); or record the no-file decision; save the case state for retention
+    8. **File or document** - Write the narrative (a chart image cannot be attached, so what the chart shows must
+    be described in words); export the transaction or per-pair table as the one CSV the SAR allows (at most 1 MB, chosen
+    columns, its contents described in the narrative, because tabular data does not belong in the narrative); or record
+    the no-file decision; save the case state for retention
 
     9. **Continuing activity** (later) - At the optional 90-day review compare counterparties and flows between the
     period already reported and the new period; file again by day 120 if activity continues
@@ -113,6 +114,8 @@ goal: >-
     - Is it worth a 314(b) request, and to which bank?
 
     - Which typology, if any, does the activity match, and is there a legitimate explanation?
+
+    - Which columns and rows go into the single CSV, and does it fit in 1 MB?
 
     - File, do not file, or (UK) request a defence against money laundering, which starts a seven-working-day notice
     period?
@@ -158,13 +161,16 @@ goal: >-
     - Transformations: Counterparty name grouping, parallel-edge aggregation, date and amount filters, typology tests,
     period comparison
 
-    - Output: File or no-file decision, SAR narrative with five essential elements, chart plus tables of sums, dates and
-    paths retained as supporting documentation
+    - Output: File or no-file decision, SAR narrative with five essential elements, one CSV attachment of at most 1 MB
+    (transactions or per-pair sums with chosen columns), chart plus tables of sums, dates and paths retained as
+    supporting documentation
 success_criteria:
     - metric: Narrative support
       target: Every amount and date stated in the narrative can be regenerated from the saved case graph and its tables
     - metric: Provenance
       target: Every edge shows whether it came from own records or another institution's response
+    - metric: Attachment
+      target: The case subset exports as one CSV of at most 1 MB with the columns the investigator chose
     - metric: Continuing activity
       target: User can list new counterparties and changed totals between two date ranges in one step
 sources:
@@ -179,7 +185,10 @@ sources:
       summary: Filing obligation, deadlines and five-year retention
     - title: FinCEN - Suggestions for addressing common errors in SARs
       url: https://www.fincen.gov/resources/statutes-regulations/guidance/suggestions-addressing-common-errors-noted-suspicious
-      summary: Five essential elements; no attachments
+      summary: Five essential elements; explain why the activity is suspicious
+    - title: FinCEN SAR Filing Instructions (April 2026, version 1.0)
+      url: https://bsaefiling.fincen.gov/resources/FinCENSARFilingInstructions.pdf
+      summary: Section 6.1.6 allows one Excel-compatible CSV of at most one megabyte, described in Part V and suited to transaction records too numerous for Part V; no other attachments; no tabular data in the narrative
     - title: FinCEN - SAR supporting documentation
       url: https://www.fincen.gov/index.php/resources/statutes-regulations/guidance/suspicious-activity-report-supporting-documentation
       summary: Supporting documentation deemed filed and produced on request
@@ -198,6 +207,6 @@ sources:
     - title: POCA 2002 section 335
       url: https://www.legislation.gov.uk/ukpga/2002/29/section/335
       summary: UK defence against money laundering notice period of seven working days and 31-day moratorium
-version: 1.0.0
+version: 1.1.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

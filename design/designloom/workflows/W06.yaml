@@ -4,9 +4,10 @@ category: analysis
 validated: false
 personas:
     - fraud-analyst
-    - aml-investigator-sar-writer
+    - aml-investigator
     - insurance-siu-investigator
 requires_capabilities:
+    - case-list-triage
     - search
     - neighborhood-expansion
     - ego-network
@@ -28,8 +29,6 @@ requires_capabilities:
     - external-label-overlays
     - algorithm-progress
     - all-paths-finding
-    - anomaly-detection
-    - community-detection
     - keyboard-shortcuts
     - overview-minimap
     - pattern-search
@@ -53,8 +52,7 @@ suggested_components:
     - image-export-dialog
     - data-export-dialog
     - algorithm-panel
-    - anomaly-panel
-    - community-panel
+    - case-list-panel
     - computed-attributes-panel
     - keyboard-shortcut
     - minimap
@@ -81,21 +79,21 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Open the alert** (1 min) - Search the alerted entity by name, account or claim number and open it with its
+    1. **Open the alert** - Search the alerted entity by name, account or claim number and open it with its
     triggering transactions and profile
 
-    2. **Show the neighborhood** (2 min) - Expand 1 hop to identifiers, accounts, counterparties and claims, then a
+    2. **Show the neighborhood** - Expand 1 hop to identifiers, accounts, counterparties and claims, then a
     second hop to other customers sharing them; style nodes by open alert, prior case, prior SAR and known fraud label
 
-    3. **Discount hubs** (2 min) - Read how many accounts share each identifier; hide or flag identifiers above a cap (a
+    3. **Discount hubs** - Read how many accounts share each identifier; hide or flag identifiers above a cap (a
     public IP address, a busy garage, a bank branch) so they do not link innocent people
 
-    4. **Read the connected group** (3 min) - Take the connected component that remains, read each shared link and its
+    4. **Read the connected group** - Take the connected component that remains, read each shared link and its
     dates, check the triggering transactions on a short timeline against expected activity
 
-    5. **Decide one case or several** (1 min) - Merge connected alerts into one case or keep them apart
+    5. **Decide one case or several** - Merge connected alerts into one case or keep them apart
 
-    6. **Close or escalate** (3 min) - Record the decision with the specific links and transactions that decided it,
+    6. **Close or escalate** - Record the decision with the specific links and transactions that decided it,
     annotate the view and export the image and the table of links for the case file
 
 

@@ -46,16 +46,16 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Validate** (minutes) - Run pySHACL or Jena SHACL over data, shapes and ontology; the output is an RDF report with
+    1. **Validate** - Run pySHACL or Jena SHACL over data, shapes and ontology; the output is an RDF report with
     one result per focus node, path, shape and severity
 
-    2. **Read the report** (30+ min) - Most teams read it as text or query it with SPARQL; in a pharma omics case 5,203
+    2. **Read the report** - Most teams read it as text or query it with SPARQL; in a pharma omics case 5,203
     focus nodes violated shapes and data providers could not trace them
 
-    3. **Group and link** (15 min) - Group equivalent violations, link them to classes and shapes in a node-link view,
+    3. **Group and link** - Group equivalent violations, link them to classes and shapes in a node-link view,
     show per-class counts on the class tree, cluster focus nodes by violation profile
 
-    4. **Identify causes** (30 min) - Causes found in the case: missing object typing, two schema gaps (a constraint on a
+    4. **Identify causes** - Causes found in the case: missing object typing, two schema gaps (a constraint on a
     class but not its sibling) and one ontology gap
 
     5. **Fix and re-validate** (varies) - SPARQL UPDATE or an upstream fix; re-run validation and compare counts

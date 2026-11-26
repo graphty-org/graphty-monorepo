@@ -1,9 +1,12 @@
 id: cellular-connectomics-neuroscientist
 name: Cellular Connectomics Neuroscientist
+roster_persona: network-neuroscientist
+tier: none
+scope: deferred
 role: Circuit Neuroscientist using Electron-Microscopy Connectomes
 quote: What are the strongest upstream partners of my neuron, what transmitter do they use, and which pathways reach it from the eye?
 bio: >-
-    Dr. Aiko Brandt is a circuit neuroscientist who uses electron-microscopy (EM) wiring diagrams to plan experiments
+    Dr. Sabine Brandt is a circuit neuroscientist who uses electron-microscopy (EM) wiring diagrams to plan experiments
     on the neurons her lab records from. Fly researchers like her query FlyWire Codex and neuPrint (139,255 neurons in
     the FlyWire whole fly brain); mouse and human cortex researchers query MICrONS or H01 through CAVE in Python;
     tracing labs reconstruct their own smaller circuits in CATMAID. Her graphs are directed, synapse-weighted

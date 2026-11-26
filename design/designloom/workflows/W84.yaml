@@ -3,8 +3,7 @@ name: What Does This Change Affect in the Build Graph
 category: analysis
 validated: false
 personas:
-    - software-supply-chain-security-engineer
-    - analytics-engineer-lineage
+    - codebase-dependency-developer
 requires_capabilities:
     - data-import
     - search
@@ -36,15 +35,17 @@ suggested_components:
     - data-export-dialog
     - image-export-dialog
 starting_state:
-    data_type: build or infrastructure-as-code dependency graph (Bazel query DOT, Nx project graph JSON, terraform graph DOT) plus a list of changed files
-    node_count: 50-50,000 targets or resources (no source gives typical sizes)
+    data_type: build, module or infrastructure-as-code dependency graph (Bazel query DOT, Nx project graph JSON from `nx graph --file`, dependency-cruiser JSON, terraform graph DOT) plus a list of changed files
+    node_count: tens to thousands of projects or targets (Nx's benchmark monorepo has 253 packages and 5,566 TypeScript files; Nx describes "large monorepos with thousands of projects"); no source gives a typical size
     edge_density: sparse DAG; cycles are errors
     user_expertise: expert
 goal: >-
     **Intent**: For a commit, compute which targets, projects or infrastructure resources it affects so CI builds and
-    tests only those, and explain why each one is affected. Build, release and infrastructure-as-code engineers do this
-    on every CI run, mostly through automation; they have no dedicated persona and share the task shape of the
-    developer and data-engineer personas linked here (dbt Slim CI's `state:modified+` is the same computation).
+    tests only those, and explain why each one is affected. Developers who own a monorepo's structure, and the build,
+    release and infrastructure-as-code engineers of larger companies, do this on every CI run, mostly through
+    automation, and draw the graph when a result surprises them or a reviewer needs to see the blast radius. The
+    persona is codebase-dependency-developer. dbt Slim CI's `state:modified+` is the same computation over a data
+    lineage graph, which the analytics engineer's own pre-merge workflow covers.
 
 
     **Mental Model**: "Reverse dependencies of what changed, inside a universe I can see." The answer is only as
@@ -55,13 +56,16 @@ goal: >-
 
     1. **Get changed files** - From git, between base and head refs
 
-    2. **Compute reverse dependencies within a universe** - Bazel `rdeps(u, x)` and `rdeps(u, x, depth)`; Nx affected
+    2. **Compute reverse dependencies within a universe** - Bazel `rdeps(u, x)` and `rdeps(u, x, depth)`; Nx affected;
+    at module level, dependency-cruiser `--affected <revision>` (changed modules plus everything that can reach them)
 
     3. **Avoid the universe trap** - An inferred universe can silently shrink the result (`allrdeps(//my:target)` may
     return only the target itself)
 
     4. **Visualize when needed** - `bazel query "allpaths(...)" --output graph | dot -Tsvg`; `nx graph --affected`;
-    `--explain` writes why each task is affected
+    `--explain` writes why each task is affected; `depcruise --affected main --output-type mermaid` puts the
+    affected module graph in the pull request summary with changed modules highlighted; for a big Bazel graph, start
+    with a single path (`somepath`)
 
     5. **Infrastructure as code** - `terraform graph` emits DOT of resource ordering; `-draw-cycles` colors cycle edges;
     large graphs are grepped by module before rendering, or opened in Rover, Blast Radius or Inframap
@@ -98,7 +102,7 @@ goal: >-
 
     **Data Flow**:
 
-    - Input: Changed files, Bazel query DOT, Nx project graph and explain JSON, terraform graph DOT
+    - Input: Changed files, Bazel query DOT, Nx project graph and explain JSON, dependency-cruiser JSON, terraform graph DOT
 
     - Transformations: Bounded reverse closure within a universe, path explanation, module grouping, cycle marking
 
@@ -120,6 +124,18 @@ sources:
     - title: Nx - Affected
       url: https://nx.dev/docs/features/ci-features/affected
       summary: nx affected, nx graph --affected, --explain JSON
+    - title: dependency-cruiser - command line interface
+      url: https://github.com/sverweij/dependency-cruiser/blob/main/doc/cli.md
+      summary: --affected shows modules changed since a revision plus all modules that can reach them; mermaid output for a pull request summary
+    - title: Nx - Explore your workspace
+      url: https://nx.dev/docs/features/explore-graph
+      summary: nx graph --file writes the project graph as JSON; nx affected --graph; "Viewing the entire graph can be unmanageable even for smaller repositories"
+    - title: Nx - large-ts-monorepo benchmark
+      url: https://github.com/nrwl/large-ts-monorepo
+      summary: Benchmark project graphs of 10 to 253 packages and 220 to 5,566 TypeScript files
+    - title: Nx - The butterfly effect, a 100x faster linter
+      url: https://dev.to/nx/the-butterfly-effect-how-we-gave-the-linter-a-100x-boost-4nl9
+      summary: Nx team on "large monorepos with thousands of projects"
     - title: Terraform - graph command
       url: https://developer.hashicorp.com/terraform/cli/commands/graph
       summary: DOT of resource ordering, -type=plan, -draw-cycles

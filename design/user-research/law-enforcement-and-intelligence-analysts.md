@@ -8,7 +8,8 @@ sheriff's departments, state police, fusion centers, drug task forces (HIDTA) an
 offices; digital forensic examiners who analyze seized phones; cryptocurrency tracing investigators
 in tax, federal and cyber units; and military and national intelligence analysts doing
 counter-terrorism and targeting. Their signature work is call detail record (CDR) analysis, phone extractions, timelines,
-cell-site and license plate mapping, link charts, group disruption analysis and blockchain tracing. The
+cell-site and license plate mapping, link charts, group disruption analysis, group audits for
+violence prevention and blockchain tracing. The
 main tools are i2 Analyst's Notebook, Palantir Gotham, PenLink, Cellebrite Pathfinder, Chainalysis
 Reactor, CellHawk and Esri. What sets them apart from scientists and business analysts: the same
 pair of entities is joined by many typed, timestamped, directed links; every item carries a source
@@ -175,6 +176,9 @@ Ranked by frequency and stakes, judged from the sources cited.
 11. **Group SNA and disruption planning from intelligence logs** (5.8): profiles, removal
     simulation, replacement. Periodic; feeds enforcement priorities.
 12. **Briefing and court charts** (5.7).
+13. **Group audit and violence-prevention network analysis** (5.12): groups, their alliances and
+    conflicts, the incidents along them, and the members to invite to call-ins. Once per site, then
+    refreshed two to four times a year, with weekly shooting reviews ([Aurora][r133]).
 
 ## 5. Step-by-step workflows
 
@@ -459,45 +463,109 @@ Sources: [Home Office Research Report 89][r6] and its "How to guide" annex, [IAC
 ### 5.9 Cryptocurrency tracing from a seed address to a cash-out exchange
 
 Sources: [Chainalysis Reactor][r9], [Chainalysis cross-chain blog][r27], [TRM Forensics][r28],
-[GraphSense][r10], [INTERPOL transform][r22], [Haslhofer and Meiklejohn 2022][r29],
-[Stout on Sterlingov][r11], [Elliptic on DarkSide][r30],
-[Bracewell on exchange records](https://bracewell.com/node/54234). No vendor manual was readable;
-the order of steps is assembled from these sources.
+[TRM law-enforcement flip book][r126], [GraphSense][r10], [GraphSense paper][r128],
+[INTERPOL transform][r22], [Haslhofer and Meiklejohn 2022][r29], [Moser and Narayanan][r129],
+[Bisbee declaration][r130], [government filing in Sterlingov][r125], [Chainalysis on common
+mistakes][r127], [Stout on Sterlingov][r11], [Elliptic on DarkSide][r30],
+[Bracewell on exchange records](https://bracewell.com/node/54234).
 
-1. **Get a seed.** A ransom note's payment address, a victim's outgoing transaction, an address on
-   a seized device or in exchange records. Colonial Pipeline: 63.7 of 75 ransom bitcoin traced with a block
-   explorer and seized ([Elliptic][r30]).
-2. **Look up the cluster and its attribution.** Addresses are grouped into clusters believed to be
-   one controller. The co-spend heuristic treats addresses used as inputs to one transaction as
-   "likely controlled by the same user" ([Stout][r11]); the change heuristic assigns a payment's
-   change output to the sender ([Haslhofer and Meiklejohn][r29]); both can err (error rates in
-   financial-crime-fraud-aml-kyc.md, 5.7). GraphSense's Maltego transforms are "To Cluster" and
-   "To Tags" ([INTERPOL][r22]). Tags come in GraphSense TagPacks, public or private
-   ([GraphSense][r10]).
-3. **Expand hop by hop.** TRM's UTXO mode follows "transactions forward or backward in the chain
-   with a single click" ([TRM][r28], search excerpt); GraphSense offers "transaction traversal"
-   and "automatic search for transaction paths between two nodes" ([GraphSense][r10]). Analysts
-   restrict by amount and time (filter menus: no public source).
-4. **Handle peel chains, mixers and bridges.** A peel chain is "a set of linked transactions that
-   are all initiated by the same entity", followed by finding the change output at each step
-   ([Haslhofer and Meiklejohn][r29], search excerpt). Reactor keeps "every case-relevant token in a single graph" with an asset selector that
-   dims other clusters ([Chainalysis][r27]).
-5. **Reach a labeled service cluster** ([Reactor][r9]); an exchange deposit address is where
-   identity can be obtained.
-6. **Serve legal process on the exchange.** IRS requests to exchanges have sought "account
-   registration records, Know-Your-Customer (KYC) due diligence ... records of account activity"
-   ([Bracewell](https://bracewell.com/node/54234), search excerpt).
-7. **Add off-chain identities.** Reactor lets investigators add "financial entities and documents"
-   to the graph ([Reactor][r9]); otherwise the KYC identity moves to the i2 case chart.
-8. **Produce the court graph.** In United States v. Sterlingov (Bitcoin Fog), after Daubert
-   hearings the court held Chainalysis analytics "admissible as substantive evidence"; Reactor had
-   attributed over 900,000 addresses to the service and "undercover transactions confirmed"
-   attributions ([Stout][r11]). TRM shows "which clustering heuristic is
-   being used" for court use ([TRM][r28], search excerpt).
+No vendor publishes its end-to-end tracing exercise. The Chainalysis Reactor Certification is a
+two-day classroom course on tracing Bitcoin transactions with an exam at the end ([CRC][r132], search excerpt);
+TRM's certified-investigator course has four modules, one of them "On-Chain Investigations and Crypto
+Forensics 101", and teaches students to "trace transactions at both the address level and the
+entity level across multiple blockchains" and to "document on-chain transactional activity"
+([TRM-CI][r131]). Neither page lists its exercise steps. The order below follows the phases of
+TRM's law-enforcement guide (input the data, map the transaction network, identify third parties,
+serve legal process, then seize and charge; [TRM flip book][r126]) and the sequence a government
+filing describes in United States v. Sterlingov ([filing][r125]), with each step's detail from the
+sources named in it. Specialists in exchanges' financial-crimes teams run the same sequence and end
+in a suspicious activity report instead of a subpoena (financial-crime-fraud-aml-kyc.md, 5.7).
+
+1. **Get a seed and enter it.** A ransom note's payment address, a victim's outgoing transaction,
+   an address on a seized device or in exchange records, or an alert. TRM's guide recommends
+   getting the address electronically so it can be pasted rather than retyped ([TRM flip
+   book][r126]). Colonial Pipeline: 63.7 of 75 ransom bitcoin traced with a block explorer and
+   seized ([Elliptic][r30]).
+2. **Read the transaction structure.** On Bitcoin-style ledgers a transaction spends several
+   inputs and creates several outputs, one usually change back to the sender, so the natural graph
+   has transactions as nodes with input and output edges ([Bisbee declaration][r130]). Account-based
+   chains (Ethereum) are address-to-address transfers.
+3. **Look up the cluster and how it was formed.** Addresses are grouped into clusters believed to
+   be one controller. The co-spend heuristic treats inputs to one transaction as "likely controlled
+   by the same user" ([Stout][r11]); Chainalysis says it skips detected CoinJoin co-spends, and
+   exchange deposit addresses join the exchange's cluster because they sweep into a consolidation
+   address ([Bisbee declaration][r130]). The change heuristic assigns a payment's change output to
+   the sender ([Haslhofer and Meiklejohn][r29]). Both can err: CoinJoin and PayJoin defeat co-spend,
+   and naively merging predicted change produced "one large supercluster", a 1596 percent jump in
+   addresses ([Moser and Narayanan][r129]). GraphSense implements only co-spend and "refrains from
+   implementing any change heuristics" ([GraphSense paper][r128]). The analyst needs to see which
+   rule put each address in a cluster and to split a wrong merge back out.
+4. **Overlay attribution with its source.** Vendor labels name clusters (exchange, mixer, darknet
+   market, sanctioned entity). GraphSense's Maltego transforms are "To Cluster" and "To Tags"
+   ([INTERPOL][r22]); its tags come in TagPacks, public or private, and its dashboard lets users
+   "import additional tags" ([GraphSense][r10], [GraphSense paper][r128]).
+5. **Map the network hop by hop.** TRM's UTXO mode follows "transactions forward or backward in the
+   chain with a single click" ([TRM][r28], search excerpt). Analysts note the amount and time of each
+   hop and restrict expansion by amount and time (filter menus: no public source). TRM's guide calls
+   pass-through addresses, where funds arrive and leave quickly, a red flag ([TRM flip
+   book][r126]). GraphSense offers "automatic search for transaction paths between two nodes"
+   ([GraphSense][r10]) and automatic search "for certain types of nodes, such as entities
+   representing exchanges, within certain boundary conditions (e.g., maximum node degrees)"
+   ([GraphSense paper][r128]).
+6. **Interpret peel chains, mixers, swaps and bridges.** A peel chain is "a set of linked
+   transactions that are all initiated by the same entity", followed by finding the change output
+   at each step ([Haslhofer and Meiklejohn][r29], search excerpt). Unlabeled mixer activity can look
+   like a peel chain: in DarkSide, analysts who missed the mixer concluded the funds sat in
+   self-hosted wallets, which "may have resulted in erroneous subpoenas" ([Chainalysis][r127]).
+   Reactor "auto-interprets" swaps, bridges and mixers and keeps "every case-relevant token in a
+   single graph" with an asset selector that dims other clusters ([Reactor product
+   page](https://www.chainalysis.com/product/reactor/), [Chainalysis][r27]); TRM reports swap
+   matching across 36 EVM chains and 21 bridges ([TRM October
+   2026](https://www.trmlabs.com/forensics/whats-new-2026-10)). Each such step shows as one hop that
+   opens on demand.
+7. **Allocate commingled funds.** Where traced funds mix with others, the analyst applies a rule
+   (poison, haircut or first in first out) and states which, because the rules give very different
+   answers ([Anderson et al.](https://www.cl.cam.ac.uk/~rja14/Papers/bitcoin-redux-weis2018.pdf);
+   financial-crime-fraud-aml-kyc.md, 5.4).
+8. **Stop at the service.** Once funds reach a service's deposit address, following them further
+   on chain is meaningless: the service moves funds internally, and only it knows which deposit
+   belongs to which customer. Reactor therefore "doesn't show the outgoing transaction history for
+   individual service deposit addresses". Nested services and merchant processors receive funds at
+   addresses hosted by another business, so the labeled cluster may not be the counterparty
+   ([Chainalysis][r127]).
+9. **Document the trace.** TRM's guide recommends a screenshot of the graph to explain to
+   managers and prosecutors why legal process should be served ([TRM flip book][r126]). Vendors
+   export the graph, a transaction list and a report; TRM records each export in an audit log
+   (financial-crime-fraud-aml-kyc.md, 5.7), and GraphSense users can "annotate nodes, export graphs
+   ... and download audit logs of their interactions" ([GraphSense paper][r128]).
+10. **Serve legal process.** "Subpoenas commonly seek records pertaining to specific deposit
+    addresses or withdrawal transactions, identified by bitcoin address or transaction hash"
+    ([filing][r125]). IRS requests have sought "account registration records, Know-Your-Customer
+    (KYC) due diligence ... records of account activity"
+    ([Bracewell](https://bracewell.com/node/54234), search excerpt); TRM advises asking for more than
+    KYC files, including balances, IP and device data and linked accounts, and notes exchanges may
+    freeze funds on request ([TRM flip book][r126]).
+11. **Watch what has not moved.** Addresses still holding funds go on a watch list; TRM lets an
+    investigator add a graph address to monitoring for near real-time alerts on movement ([TRM
+    January 2026](https://www.trmlabs.com/resources/blog/january-product-highlights-accelerating-investigations-with-intuitive-workflows)).
+12. **Fold the returns back in.** The exchange's return names the account holder. Reactor lets
+    investigators add "financial entities and documents" to the graph ([Reactor][r9]); otherwise the
+    identity moves to the i2 case chart. Each return also checks the clustering: an FBI witness
+    testified that every subpoena gives "the opportunity to check that those Bitcoin addresses ...
+    were properly attributed", done "thousands of times a day throughout the FBI" ([filing][r125]).
+13. **Seize and forfeit** what remains, through the exchange or from wallets found on devices
+    ([TRM flip book][r126]).
+14. **Produce the court graph.** In Sterlingov (Bitcoin Fog), after Daubert hearings the court held
+    Chainalysis analytics "admissible as substantive evidence"; Reactor had attributed over 900,000
+    addresses to the service and "undercover transactions confirmed" attributions ([Stout][r11]). TRM
+    shows "which clustering heuristic is being used" for court use ([TRM][r28], search excerpt). The
+    exhibit shows the flow, the value per branch, the allocation rule and the heuristic and source
+    behind every attribution.
 
 Unlike CDR work, the graph lives on a vendor server and is never imported whole, nodes are
-clusters that open into addresses, and the analyst must show how much traced value went down each
-branch. Exchange-side tracing: financial-crime-fraud-aml-kyc.md 5.4 and 5.7.
+clusters that open into addresses or transactions, and the analyst must show how much traced value
+went down each branch and where on-chain tracing legitimately stops. Exchange-side tracing and
+allocation: financial-crime-fraud-aml-kyc.md 5.4 and 5.7.
 
 ### 5.10 Network analysis for targeting (military and counter-terrorism)
 
@@ -542,20 +610,193 @@ common practice not spelled out in these manuals.
 
 ### 5.11 Gang and trafficking networks from social media, ads and provider returns
 
-Sources: [IACA 2024][r2], [COPS Cincinnati report][r19], [Maryland MCAC][r31],
-[Magnet warrant returns][r18], [Maltego law enforcement][r20].
+Sources: [IACA 2024][r2] (a Harris County Sheriff's Office analyst's walkthrough, read in full),
+[Papachristos and Sierra-Arevalo 2018][r19] (a COPS Office guide, read in full), [Maryland
+MCAC][r31] (read in full), [Magnet warrant returns][r18], [Maltego law enforcement][r20],
+[PenLink][r16].
 
-1. **Collect.** Provider warrant returns "typically come in .zip files" of HTML, JSON, CSV, PDF,
-   mbox and images with no standard layout ([Magnet][r18]); Public profiles are collected by OSINT tools; Maltego sells law enforcement a
-   "capability to collect, preserve, and monitor social media intelligence" ([Maltego][r20]).
-2. **Extract link types**: account to account (messages, friends, followers), account to IP
-   address and login time, account to device, account to phone and email.
-3. **Link ads and accounts by shared identifiers.** Harris County linked 244.6K adult service ads
-   through 13,336 phone numbers ([IACA 2024][r2]).
-4. **Add the friend and follower graph.** "'Friends' can be used effectively for link analysis"
-   ([MCAC][r31], search excerpt). Cincinnati police combined official records with social media
-   data, and SNA "clearly showed the gang's hierarchy" ([COPS][r19], search excerpt).
-5. **Join to CDRs and RMS** in the case chart ([PenLink][r16]).
+The only published end-to-end walkthrough is Harris County's; it starts from records the agency
+already holds (jail calls, ads, payment returns) rather than from social media. The Harris County
+deck has a slide headed "Social Network Analysis is Not Social Media". The steps below follow it,
+with social media collection from the other sources.
+
+1. **Collect.** Provider warrant returns "typically come in .zip files that can include .html,
+   .txt, .json, .csv, .xls, .pdf, .mbox, .jpg, .png, and more", are "not in a standard format", and
+   "can be nested in folder structures and multiple archives"; Magnet supports returns from Apple,
+   Facebook, Google, Instagram and Snapchat ([Magnet][r18]). For public posts, a gang investigator
+   quoted by Maryland's fusion center searches hashtags in the gang's own slang and takes dated
+   screenshots as he goes, and notes that members rarely use real names, so "searching the
+   profiles of their family, friends and visitors who are less cautious often leads directly to
+   the suspect"; "your biggest issue will not be finding the activity, but organizing the
+   information and identifying the suspects" ([MCAC][r31]). Maltego sells a "capability to collect,
+   preserve, and monitor social media intelligence" ([Maltego][r20]). Agency data comes as CSV or
+   Excel through an ODBC connection to the agency's SQL Server, report exports, subpoena returns and
+   website exports, and the analyst must find "the primary key that can link it to other data sets"
+   ([IACA 2024][r2]).
+2. **Extract link types** (inferred from the return contents; no source publishes a schema):
+   account to account (messages, friends, followers), account to IP address and login time,
+   account to device, account to phone and email. Every link keeps its return file and record.
+3. **Link ads, numbers and callers.** Harris County holds 244.6K adult service ads that share
+   13,336 phone numbers, and links them to inmates' outbound jail calls through the numbers. One
+   example chart held "117 inmates, 22 criminal incidents, several addresses, and 33 phone numbers".
+   In ArcGIS Pro the analyst imports the table, adds a link chart, generates nodes, generates ties,
+   changes the layout and "generate[s] node scores" ([IACA 2024][r2]). This is two-mode data
+   (callers to numbers, ads to numbers) read without projecting it.
+4. **Find key nodes and listen.** Eigenvector and betweenness scores pick the nodes; the analyst
+   then keyword-searches the calls to those nodes, because "the calls can be listened to in order to
+   provide context to the node". The deck's key-node slides each give a node and its background:
+   one ad's phone number "has been called by 18 different inmates" over three years; seven inmates
+   called another in 2024 ([IACA 2024][r2]).
+5. **Add records and re-run.** "Add RMS/CJC Data and rerun analysis" (CJC is the county's criminal
+   justice records). Payment returns are added the same way: senders and receivers from Cash App
+   returns become nodes, and the chart showed "bridge" accounts between two main targets that had
+   received $60K and $55K; the bridges "can be subpoenaed and expand the network" ([IACA 2024][r2]).
+6. **Add friend and follower ties with care.** The Maryland list of considerations ends:
+   "'Friends' can be used effectively for link analysis"; it gives no method ([MCAC][r31]). A
+   friend tie needs the same grading as any other report (5.8).
+7. **Check the structure against behavior, not assumptions.** The COPS Office guide by
+   Papachristos and Sierra-Arevalo warns that
+   law enforcement often forces gangs "into a hierarchical structure with an identified leader,
+   subleaders, middle managers", although "most gangs are loosely organized groups with fluid
+   boundaries". In its Stockton example, a two-step co-arrest network around two known members of a
+   Norteno faction held 44 nodes, and none of the other 42 had been identified as gang members; one
+   non-member (person 31) held the right side of the network together, and "the network is not a
+   hierarchy" ([Papachristos and Sierra-Arevalo][r19]). The guide reports no case in which network
+   analysis revealed a gang hierarchy.
+8. **Reduce and hand over.** Harris County's funnel ends with "Results reviewed in Excel (100
+   nodes)" ([IACA 2024][r2]): a ranked list of numbers, accounts and people with a background line
+   each, the chart, and the next subpoena targets. The result joins the case chart with CDRs and
+   RMS ([PenLink][r16]).
+
+What the analyst computes: node scores (eigenvector, betweenness), shared-identifier counts per
+number, and bridges between named targets. What she draws: a multi-modal link chart (inmate,
+phone, ad, address, incident, payment account). What she hands over: a short key-node list with
+backgrounds and subpoena targets, not the whole graph.
+
+### 5.12 Group audit and network analysis for violence prevention (Group Violence Intervention)
+
+Sources: [GVI implementation guide][r134] (National Network for Safe Communities, 2015 revised
+edition, read in full; abstract at [OJP](https://ojp.gov/ncjrs/virtual-library/abstracts/group-violence-intervention-implementation-guide)),
+[Aurora problem analysis][r133] (2023, read in full), [Papachristos and Sierra-Arevalo
+2018][r19], [Sierra-Arevalo and Papachristos 2015][r135] (abstract only), [NNSC GVI page][r136],
+[Green, Horel and Papachristos 2017][r137] (abstract).
+
+Group Violence Intervention (GVI) is a focused-deterrence strategy: police, prosecutors, social
+services and community members tell violent street groups directly that violence will bring a
+response against the whole group, and offer help to members who want it ([NNSC][r136]). Before
+that, every site runs a "problem analysis" whose two primary parts are the group audit and the
+incident review ([NNSC][r136]). The analysis is done by a research team or a crime analyst
+working with police; its products are a group network diagram, a member list and an outreach and
+call-in plan, not arrest targets. The steps:
+
+1. **Assemble the room and set the rules.** Knowledgeable beat officers from every high-violence
+   district, homicide detectives, gang, vice and other specialized units, and probation and parole
+   officers; one to two days; participants are told "not to bring any official records"
+   ([guide][r134], pp. 20, 90). Tables in a U-shape around a large map, a facilitator and "at least
+   two people dedicated to capturing the information" ([guide][r134], p. 21). In Aurora, NNSC told
+   participants their contributions "would be anonymous" and the information "confidential and
+   protected under a data sharing agreement" ([Aurora][r133], p. 3).
+2. **Run the group audit.** Officers mark each group's territory on the map and give, per group:
+   name, territories, estimated number of members, standout members ("particularly influential,
+   violent, or both"), illegal activities, "beefs" with other groups, alliances, and anything else.
+   They then rate each group's level of violence and level of organization (very, somewhat, not
+   very) and name any larger affiliation such as Bloods or Crips ([guide][r134], p. 22). The sample
+   instrument also asks "Do you know what started the conflict(s)?" ([guide][r134], p. 92). A
+   group is "two or more high-rate offenders who commit crimes together" and "need not be an
+   official gang" ([guide][r134], p. 22). Cincinnati's first audit "took less than a day and
+   identified approximately 60 groups" of about 1,500 members ([guide][r134], p. 23); Aurora's found
+   "at least 36 groups comprised of approximately 1,355 individual group members", 0.34 percent of
+   the city ([Aurora][r133], pp. 2, 4). Participants' answers are "cross-checked against that of
+   every other participant" ([Papachristos and Sierra-Arevalo][r19], p. 11).
+3. **Organize the data.** The guide prescribes four products ([guide][r134], pp. 23-24, 94-95):
+   - a *group database*: group name, unique identifier, location (street segments, intersections),
+     violence level, estimated and known number of members, police district, members on probation
+     or parole, members who attended a call-in, members receiving services;
+   - an *individual database*: name, unique identifier, sex, race, date entered, group name and
+     identifier, juvenile and criminal record, probation and parole status, notified to attend a
+     call-in, attended;
+   - a *group network diagram* of "groups' alliances and conflicts";
+   - a GIS layer of group territories carrying the group variables.
+   Aurora's published audit table has one row per group with size, age range, conflicts and allies
+   ([Aurora][r133], appendix B). Its values show what the data model must hold: sizes as ranges
+   ("20-30", "50-100") or "N/A", a group marked "Non-active", an "Umbrella Group" of 100 to 200
+   that the report says is made of smaller groups, and an ally written "Group 12s" where other rows
+   say "Group 12". Each relationship is listed on a group's row, so the same tie can appear twice
+   and must be merged into one edge (inferred).
+4. **Draw the group network.** Groups are nodes and conflicts and alliances are edges. In New
+   Haven's 2012 audit of 52 groups, the diagram showed the 21 groups in conflict, "each line
+   representing a unique conflict" and node size "scaled to its degree (i.e., the number of
+   conflicts the node has)"; 8 had one conflict and 3 had more than three ([Papachristos and
+   Sierra-Arevalo][r19], p. 11). Aurora's report prints a "group Sociogram" ([Aurora][r133], p. 5);
+   the guide's example is Cincinnati's 2008 diagram, whose groups "were directly linked to nearly 70
+   percent of the city's homicides" ([guide][r134], p. 24). Sierra-Arevalo and Papachristos say audit
+   data "lends itself to use in social network analysis" and use it to "examine patterns of the
+   whole" ([ISPS][r135]).
+5. **Review the incidents.** Ideally three years of homicides, adding 18 months of nonfatal
+   shootings where a city has had fewer than 50 to 100 homicides ([guide][r134], p. 20). One slide
+   per incident shows victim name and photo, location, date and time, known suspects, incident type,
+   weapon and vehicle. For each, the room is asked whether the incident, offender and victim were
+   known, "What is the 'story' of this incident?", whether offender and victim were in a street
+   group and knew each other, and whether the incident was preceded or followed by violence
+   ([guide][r134], pp. 25-26). The aim is "what officers know about each incident, not what they can
+   prove legally". Aurora reviewed 93 incidents (50 homicides, 43 nonfatal shootings) and coded each
+   as group-member-involved "confirmed", "likely", "unknown" or not, plus 14 yes-or-no context codes
+   such as retaliation, group dispute and internal dispute ([Aurora][r133], pp. 7-11, appendix C).
+   The result counts each group's incidents by victim and suspect: Group 8 (5), then Groups 2, 5 and
+   1 (4 each). Aurora's police "described many rivalries between groups", but "very few of these
+   rivalries lead to serious violence"; the one between Group 5 and Group 8 "led to an important
+   number of shootings" ([Aurora][r133], pp. 5, 13). So conflict edges need the incidents that run
+   along them.
+6. **Identify members and review criminal histories.** Frontline officers build the member list
+   from beat books, case files, field stops and gang databases, reviewed "at the executive level for
+   reliability"; a person is listed only if officers "know that the members are actively involved in
+   a street group at that time" ([guide][r134], p. 29). The criminal-history review shows who is
+   under supervision and "can be directed to attend call-ins"; state rules on sharing records may
+   mean the police code the records and give researchers only the coded data ([guide][r134], p. 31).
+   Cincinnati's members "averaged 35 prior criminal charges each" ([guide][r134], p. 23).
+7. **Run social network analysis on people.** SNA "often begins with the names of key group players
+   identified during the group audit" and links them "to co-arrests and co-field interrogations"
+   ([guide][r134], p. 32). Arrest records are one row per person per arrest, so the analyst converts
+   "person-event format into a person-person format": two people with a common arrest get a tie
+   ([Papachristos and Sierra-Arevalo][r19], pp. 13-14). In Chicago, a roundtable named known members of
+   one group; Papachristos built a two-degree network from five years of arrests and contact cards,
+   sent the ten unknown people most strongly tied to known members back to the roundtable, and
+   "nine of the ten individuals were indeed associated with the group" ([guide][r134], pp. 96-97).
+   The same drawing before and after an enforcement action shows whether central ties were broken
+   ([guide][r134], p. 98).
+8. **Mark victims and exposure.** On East Palo Alto's co-arrest network (largest component 266 of
+   4,370 people), gunshot victims are drawn as larger red nodes and the rest gray, so "pockets of
+   victims" show. Ego networks two and three steps out show who is exposed; in a Boston study,
+   being directly tied to a gunshot victim raised one's own probability of being shot by 25 percent
+   ([Papachristos and Sierra-Arevalo][r19], pp. 14-17). In Chicago's co-arrest network of 138,163
+   people (2006 to 2014), "social contagion accounted for 63.1% of the 11 123 gunshot violence
+   episodes" ([Green et al.][r137]).
+9. **Report.** The written problem analysis has four parts: violence in the city; identified groups
+   with "a sociogram of group dynamics", a list of all groups and their size, activities, conflicts,
+   allies, territories, violence, organization and affiliation; incident statistics; and items for
+   clarification, such as groups named in the incident review but not the audit ([guide][r134],
+   p. 27). Aurora's cover reads "confidential and shall not be disclosed ... unless approved by the
+   Aurora Police Department", and its public version replaces group names with numbers ([Aurora][r133]).
+10. **Use it for outreach and call-ins, and refresh it.** The network decides "which groups should
+    be represented at the call-in to maximize message transmission" and which individuals are at
+    greatest risk ([guide][r134], p. 32); call-ins run about every four months early on, and custom
+    notifications (one-to-one visits) "interrupt 'beefs'" and prevent retaliation ([Aurora][r133],
+    p. 19). Cincinnati tracks who was invited, who attended and whether every group had a
+    representative, and runs SNA "quarterly, because as you pressure the groups, you also change
+    them" ([guide][r134], p. 30). Aurora was advised to refresh the audit "2-4 times per year" and to
+    hold weekly shooting reviews ([Aurora][r133], pp. 6, 17); New Haven's audits went from
+    semi-monthly to weekly ([Papachristos and Sierra-Arevalo][r19], p. 12). The COPS guide warns
+    that "generating a list for the sake of generating a list creates a dangerous incentive to
+    criminalize individuals on said list", and that results must be checked by people who know
+    "who a given actor in the network is or why two groups are fighting" (p. 23).
+
+How this graph differs from the person-level link chart of 5.8: the main nodes are groups, not
+people, with people attached as members and some groups inside umbrella groups; edges between
+groups are signed (alliance or conflict), undirected and reported from officers' knowledge rather
+than records; group sizes are estimated ranges; incidents attach to groups as victim side or
+suspect side with a confidence class; group territories are map areas; and the output is a
+confidential report and an outreach list that is refreshed a few times a year, not a target list.
+The person-level co-arrest network in steps 7 and 8 is a second layer seeded from the group layer.
 
 ## 6. Data
 
@@ -588,6 +829,9 @@ Sources: [IACA 2024][r2], [COPS Cincinnati report][r19], [Maryland MCAC][r31],
 - **Two-mode data** that analysts project: inmates to numbers, phones to towers, people to events
   (the activities matrix), people to group chats, ads to phone numbers.
 - **Temporal and spatial:** timestamps in mixed zones; sector wedges, timing-advance arcs, camera points.
+- **Two-level group graphs:** groups as nodes with people as members, umbrella groups containing
+  groups, and signed alliance and conflict edges between groups, each conflict carrying the
+  incidents along it (5.12).
 - **Multiplex:** criminal, drugs and social layers (5.8); Montagna Meetings and Phone Calls
   ([Zenodo](https://zenodo.org/record/3938818)); Sinaloa ties by type ([Calderoni et al. 2025][r110]).
 - **Uncertain and graded edges:** confirmed, suspected, hypothesized; heuristic cluster membership.
@@ -603,6 +847,11 @@ Sources: [IACA 2024][r2], [COPS Cincinnati report][r19], [Maryland MCAC][r31],
 | Harris County jail calls      | ~600K nodes per year; 120-156 after filtering    | same                                        |
 | Harris County trafficking ads | 244.6K ads, 13,336 phone numbers                 | same                                        |
 | Manchester gang               | 137 people, ~600 links, 424 reliable             | [Home Office][r6]                           |
+| Aurora group audit            | 36 groups, ~1,355 members; 93 incidents reviewed | [Aurora][r133]                              |
+| Cincinnati group audit        | ~60 groups, ~1,500 members                       | [GVI guide][r134]                           |
+| New Haven group audit         | 52 groups, 21 in conflict                        | [COPS 2018][r19]                            |
+| East Palo Alto co-arrest      | 4,370 people; largest component 266              | [COPS 2018][r19]                            |
+| Chicago co-arrest network     | 138,163 people, 9,773 shot (2006-2014)           | [Green et al.][r137]                        |
 | Montagna mafia                | ~100 nodes per layer, 124-256 edges              | [Zenodo](https://zenodo.org/record/3938818) |
 | Sinaloa trial                 | 188 actors                                       | [Calderoni et al.][r110]                    |
 | Nampa trafficking ring        | 59 suspects                                      | [Cellebrite][r12]                           |
@@ -631,6 +880,8 @@ size limit was found. Military network sizes: no source found.
   of confidence, and the identity of submitting agencies" (28 CFR 23.20, in [standards][r3]).
 - Palantir ALPR searches require a "search purpose (a DR or case number) ... for auditing" (LAPD).
 - UK handling codes P or C ([College of Policing APP][r111], search excerpt).
+- Group audit reports are confidential under a data-sharing agreement, participants are
+  anonymous, and the public version numbers the groups instead of naming them ([Aurora][r133]).
 - Classified data and redacted copies per clearance (i2). Data mostly stays on agency networks
   (inferred).
 
@@ -653,6 +904,12 @@ size limit was found. Military network sizes: no source found.
 - **Removal impact:** sequential or block removal by a centrality, scored by largest-component
   size, with replacement (5.8; UNODC; ATP 2-33.4 F-13).
 - **Degree-by-betweenness profiles:** gatekeeper, central, highly visible, peripheral (5.8).
+- **Group conflict degree:** number of conflicts per group, used to size nodes in the group
+  network (5.12).
+- **Person-event to person-person projection** of arrest and field-contact records, two degrees
+  out from named members, with victims marked and ego-network exposure (5.12).
+- **Incident attribution:** each incident coded as group-member-involved confirmed, likely,
+  unknown or not, and counted per group as victim side and suspect side (5.12).
 - **Matrices:** association (triangular), telephone (square, directed), activities (two-mode).
 
 ### 7.2 Interpretation and validation habits
@@ -687,7 +944,7 @@ style through conditional formatting.
 - **Deliverables:** association, toll, timeline, commodity and flow charts, cell-site maps,
   "intelligence booklets" for prosecutors ([MSHP][r1]), bulletins, high-payoff
   target lists and target spreadsheets ([ATP 2-33.4 F-11][r7]), crypto flow graphs for affidavits
-  and trial. A "network analysis might include an association matrix, a link chart, a map, a
+  and trial; group audit tables, group sociograms and call-in and notification lists (5.12). A "network analysis might include an association matrix, a link chart, a map, a
   geospatial chart, a summary, conclusions, and recommendations" ([standards][r3]).
 - **Sharing and audit:** chart files on shared drives, Chart Reader, PDF, redacted copies, shared
   stores; dated, sequence-numbered charts; technical review (SWGDE); logged search purposes.
@@ -732,6 +989,7 @@ links all weighted equally.
 | 15  | Cross-case matching of entities against earlier saved charts or stores                                                                                                                                                                                                               | should   | Gap                                                   |
 | 16  | Append to a chart: match to existing entities, keep layout and notes, highlight what is new                                                                                                                                                                                          | must     | Gap                                                   |
 | 17  | Server-backed hop expansion from a seed with amount and time filters, no full import                                                                                                                                                                                                 | must     | Partly (graph-database query and expand)              |
+| 17a | Expansion that stops at labeled custodial services (outgoing history of a deposit address hidden and marked as not traceable on chain) and a bounded search for the nearest labeled service from a seed | must | Gap |
 | 18  | Expandable and collapsible cluster nodes (cluster to addresses)                                                                                                                                                                                                                      | must     | Gap                                                   |
 | 19  | Directed flow with amount, asset and time per edge, showing how traced value splits per hop                                                                                                                                                                                          | must     | Gap                                                   |
 | 20  | Attribution tags with source and confidence, shown on nodes                                                                                                                                                                                                                          | must     | Gap                                                   |
@@ -743,6 +1001,11 @@ links all weighted equally.
 | 24  | Time-of-day histograms and entity-by-entity heat matrix                                                                                                                                                                                                                              | should   | Partly (metric-histograms)                            |
 | 25  | Offline, on-premise operation; audit log of searches and purposes                                                                                                                                                                                                                    | must     | Gap                                                   |
 | 26  | Normalization helpers for phone numbers and time zones                                                                                                                                                                                                                               | should   | Gap                                                   |
+| 27  | Group-level graph from a group audit table: one row per group with conflict and ally lists merged into one signed edge per pair, sizes as ranges, umbrella groups containing groups, people attached as members; degree of conflict per group | must | Partly (signed-edges, group-collapse) |
+| 28  | Incidents attached to groups and people as victim side or suspect side with a confirmed, likely, unknown or not class, counted per group and per conflict edge | must | Gap |
+| 29  | Seeded co-arrest network: person-event records projected to person-person ties two degrees out from named members, unknown candidates ranked for confirmation, victims marked | should | Partly (bipartite-projection, ego-network) |
+| 30  | Confidential marking on every export and a public version with group names replaced by numbers | must | Partly (deliverable-handling-marking, redacted-sharing) |
+| 31  | Compare successive audits and before/after enforcement networks | should | Partly (comparison-view, graph-diff) |
 
 Corrections to existing records:
 
@@ -812,6 +1075,19 @@ Every source is also cited inline where used. Reference-style links:
 [r122]: https://pure.coventry.ac.uk/ws/files/55114871/Post_Print.pdf
 [r123]: https://i2group.com/hubfs/i2_Infosheets_i2%20Insights_US%20Letter_Digital.pdf
 [r124]: https://leadsonline.com/cellhawk
+[r125]: https://storage.courtlistener.com/recap/gov.uscourts.dcd.232431/gov.uscourts.dcd.232431.193.0.pdf
+[r126]: https://www.trmlabs.com/guides/the-blockchain-investigators-flip-book-a-guide-for-law-enforcement
+[r127]: https://www.chainalysis.com/blog/common-blockchain-analysis-mistakes-cryptocurrency-investigations/
+[r128]: https://arxiv.org/pdf/2102.13613
+[r129]: https://arxiv.org/abs/2107.05749
+[r130]: https://storage.courtlistener.com/recap/gov.uscourts.dcd.232431/gov.uscourts.dcd.232431.149.1.pdf
+[r131]: https://www.trmlabs.com/training-and-certifications/certified-investigator
+[r132]: https://www.chainalysis.com/chainalysis-reactor-certification/
+[r133]: https://www.auroragov.org/UserFiles/Servers/Server_1881137/Image/Departments/Police/NNSC%20Aurora%20Problem%20Analysis%20Final%20Repor%20July%202023.pdf
+[r134]: https://portal.cops.usdoj.gov/resourcecenter/content.ashx/cops-p280-pub.pdf
+[r135]: https://isps.yale.edu/research/publications/isps15-08
+[r136]: https://nnscommunities.org/strategies/group-violence-intervention/
+[r137]: https://isps.yale.edu/research/publications/isps17-02
 
 ATP 2-33.4 and FM 3-24 were read in full from archived copies of the irp.fas.org PDFs. Vendor pages
 (Chainalysis, TRM, Cellebrite, PenLink, Vigilant, Maltego) are marketing, so their numbers are

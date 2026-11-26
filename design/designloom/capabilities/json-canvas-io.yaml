@@ -3,10 +3,14 @@ name: JSON Canvas import and export
 category: data
 description: Read and write JSON Canvas 1.0 keeping positions, sizes, groups, edge labels, sides and colors.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: personal-knowledge-graphs-and-note-networks.md section 9, requirement 16 (Should)."
 algorithms: []
 used_by_workflows:
     - W330
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Should: JSON Canvas import and export with positions, sizes, groups, edge labels, sides and colors kept"
+sources:
+    - title: Personal Knowledge Graphs and Note Networks (section 9, requirement 16)
+      url: design/user-research/personal-knowledge-graphs-and-note-networks.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

@@ -44,21 +44,21 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Open the page in the headset browser** (1 min) - On Vision Pro, WebXR sat behind a Safari feature flag when
+    1. **Open the page in the headset browser** - On Vision Pro, WebXR sat behind a Safari feature flag when
     natural input shipped in visionOS 1.1; the same page runs on a desktop
 
-    2. **Find the enter button** (seconds) - "Enter VR" or "Enter AR" appears only when the browser supports that mode
+    2. **Find the enter button** - "Enter VR" or "Enter AR" appears only when the browser supports that mode
 
-    3. **Grant permissions** (seconds) - Hand tracking is an optional feature the page requests and the user approves or
+    3. **Grant permissions** - Hand tracking is an optional feature the page requests and the user approves or
     declines
 
-    4. **Choose an input** (1 min) - Quest: controllers with a ray and trigger, or hands. Vision Pro: gaze-and-pinch
+    4. **Choose an input** - Quest: controllers with a ray and trigger, or hands. Vision Pro: gaze-and-pinch
     transient pointer that exists only while pinching, starting at the gaze and then following the hand
 
-    5. **Optionally switch to passthrough** (1 min) - Immersive AR needs a transparent background; the graph can be
+    5. **Optionally switch to passthrough** - Immersive AR needs a transparent background; the graph can be
     placed on a detected table or wall plane, with at most 8 persistent anchors per site
 
-    6. **Work within the standalone budget** (10-30 min) - About 5,000 triples dropped Graph2VR to about five frames per
+    6. **Work within the standalone budget** - About 5,000 triples dropped Graph2VR to about five frames per
     second; a browser VR library's large example is about 4,000 elements; query and expand rather than load everything
 
     7. **Read labels and keep sessions short** - Distant labels were the most-reported problem; 40 to 60 minute sessions

@@ -1,9 +1,12 @@
 id: spreadsheet-first-network-builder
 name: Spreadsheet-First Network Builder
+roster_persona: explorer-elena
+tier: A
+scope: in-scope
 role: Graduate Student or Nonprofit Program Officer Mapping a Coalition
 quote: I have one Excel sheet with a Partners column full of names separated by semicolons. Why won't this just turn into a map?
 bio: >-
-    Priya Raman is a master's student in public policy who also works part time as a program officer at a nonprofit.
+    Radhika Raman is a master's student in public policy who also works part time as a program officer at a nonprofit.
     For a course project and a funder report she is mapping a coalition of 50 to 300 organizations. She is comfortable
     in Excel and Google Sheets and has never written code. Her data is one sheet with one row per organization and a
     "Partners" column holding several names separated by semicolons, typed inconsistently ("Food Bank of X", "X Food

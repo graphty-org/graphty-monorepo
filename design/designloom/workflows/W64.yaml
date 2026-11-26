@@ -64,7 +64,7 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Compile inputs** (hours to days) - Case data (disease site, age, smear result, cavitation); a pairwise SNP
+    1. **Compile inputs** - Case data (disease site, age, smear result, cavitation); a pairwise SNP
     matrix, with cases that were never sequenced allowed; epidemiologic links graded definite, probable or possible
     plus user-defined shared risk factors such as homelessness; infectious-period start and end dates, estimated by
     rule when missing; and an infection-acquisition start such as birth or arrival in the country
@@ -73,21 +73,21 @@ goal: >-
     sequencing, with no epidemiologic link and no shared risk factor), those not infectious at all, those not
     infectious before the case's onset or before its acquisition start, and those under 10 years old
 
-    3. **Score** (automatic, under a minute) - Four ratings sum to a total where lower is more likely: SNP rating 0
+    3. **Score** (automatic) - Four ratings sum to a total where lower is more likely: SNP rating 0
     to 5; infectiousness, with cavitary 0, smear-positive 1 and smear-negative 5; timing 0 to 2; epidemiologic link,
     definite 0 up to none 3. Totals of 8 or more are dropped and the rest graded high, medium or low confidence. A
     parallel score without SNP data is produced for cases that were never sequenced
 
-    4. **Review and correct** (hours) - Read the ranking against the investigator's own view; agreement in one
+    4. **Review and correct** - Read the ranking against the investigator's own view; agreement in one
     validation was 145 of 181 cases (80%), and the disagreements often revealed data entry errors
 
-    5. **Test the assumptions** (30 min) - Re-run with alternative infectious-period lengths and see whether the top
+    5. **Test the assumptions** - Re-run with alternative infectious-period lengths and see whether the top
     source changes
 
-    6. **Compare shared locations** (1 hour) - Match location stay dates against each case's infectious period to
+    6. **Compare shared locations** - Match location stay dates against each case's infectious period to
     rank the venues and the location contacts worth testing
 
-    7. **Draw the inferred network** (30 min) - A directed source-to-case graph with the score on each edge, which
+    7. **Draw the inferred network** - A directed source-to-case graph with the score on each edge, which
     the ranking tool itself does not produce
 
 
@@ -148,7 +148,7 @@ success_criteria:
     - metric: Evidence retention
       target: Every arrow carries its SNP distance, graded link and score parts, readable without leaving the graph
     - metric: Ranking turnaround
-      target: A re-run after a data correction or a changed infectious-period rule completes in under a minute
+      target: A re-run after a data correction or a changed infectious-period rule completes in under a minute (design goal; no source measures it)
     - metric: Picture without a second tool
       target: The directed inferred network is produced from the ranking output, not redrawn by hand
 sources:

@@ -55,6 +55,9 @@ used_in_workflows:
     - W84
     - W85
     - W89
+    - W1090
+    - W1157
+    - W3102
 dependencies:
     - search-input
     - select

@@ -1,9 +1,12 @@
 id: trust-and-safety-investigator
 name: Trust and Safety Network Investigator
+roster_persona: osint-investigator
+tier: A
+scope: in-scope
 role: Investigator on a Platform Integrity, Deceptive-Behavior or Marketplace-Risk Team
 quote: Give me five known-bad accounts and I will find the other four hundred -- but I have to show the reviewer why each one is in the network and not just on the same coffee-shop wifi.
 bio: >-
-    Priya Nair is an investigator on a large platform's deceptive-behavior team, with four years in trust and safety
+    Tara Nair is an investigator on a large platform's deceptive-behavior team, with four years in trust and safety
     after a stint in payments fraud. Job postings for her role put SQL first, Python second and "investigations
     experience focused on network analysis" as preferred, and that is how she works: she pulls account records from
     the warehouse -- device fingerprints, IPs, emails and phone numbers, payment instruments, registration times,

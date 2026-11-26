@@ -49,13 +49,13 @@ goal: >-
     2. **Reduce** (in code or on load) - Embed at moderate dimension (for example 128), then UMAP or t-SNE to 2D;
     reducing node2vec directly to 2D does not preserve communities
 
-    3. **Color** (3 min) - Color points by true label, predicted label, Louvain community or item category (TensorBoard
+    3. **Color** - Color points by true label, predicted label, Louvain community or item category (TensorBoard
     users write a metadata TSV with those columns)
 
-    4. **Read** (10 min) - Do classes separate? Do graph communities correspond to embedding clusters? Select a focal
+    4. **Read** - Do classes separate? Do graph communities correspond to embedding clusters? Select a focal
     group in one space and see where it lands in the others (topology, latent, features)
 
-    5. **Act** (5 min) - Continue training, change hyperparameters, or open a cluster in the graph and go to node
+    5. **Act** - Continue training, change hyperparameters, or open a cluster in the graph and go to node
     diagnosis
 
 

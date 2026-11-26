@@ -1,5 +1,8 @@
 id: priya-raman
 name: Priya Raman
+roster_persona: none
+tier: none
+scope: out-of-scope
 role: Malware Analyst / Reverse Engineer
 quote: The injection sequence is three calls deep under a function called sub_401A30. Let me open one level of callees at a time without the graph turning into spaghetti.
 bio: >-

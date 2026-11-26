@@ -44,16 +44,15 @@ used_in_workflows:
     - W300
     - W301
     - W332
-    - W353
-    - W356
-    - W358
+    - W343
+    - W346
+    - W348
     - W361
     - W366
     - W367
     - W381
     - W389
     - W435
-    - W444
     - W51
     - W53
     - W54
@@ -64,6 +63,11 @@ used_in_workflows:
     - W81
     - W90
     - W97
+    - W1012
+    - W1090
+    - W1096
+    - W105
+    - W2006
 dependencies:
     - select
     - checkbox

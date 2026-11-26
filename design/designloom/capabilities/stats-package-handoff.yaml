@@ -4,12 +4,20 @@ category: analysis
 description: Export edge lists with NA dyads, ID-aligned attribute tables, event tables and node scores for R (statnet,
     RSiena, btergm, goldfish), Stata and SPSS.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: academic-social-network-research.md section 10, table row 29 (Should)."
 algorithms: []
 used_by_workflows:
     - W26
     - W30
     - W33
+    - W1138
+    - W1139
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Should: Hand-off to R (statnet, RSiena, btergm, goldfish): export edge lists with NA dyads, attribute tables,
+      event tables; display GOF output"
+sources:
+    - title: Academic Social Network Researchers (section 10, table row 29)
+      url: design/user-research/academic-social-network-research.md
+      summary: "Should in the research. Covered by Designloom when researched: NOT
+        covered"

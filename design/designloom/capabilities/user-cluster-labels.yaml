@@ -1,0 +1,23 @@
+id: user-cluster-labels
+name: "User cluster labels and notes that survive reclustering"
+category: interaction
+description: "Let a user name a cluster and attach a note, keep the label attached to its members when the clustering is rerun at another resolution (which otherwise renumbers every cluster), and show the labels in the legend, the member tables and every export. Genealogists label each cluster with an ancestral couple read from members' family trees, and lose those labels on the next modularity run."
+status: planned
+notes: "Research trace: genetic-genealogy-dna-match-networks.md section 10, requirement 'Cluster labels and notes that the user types, that survive a reclustering, and that appear in the legend and in exports' (Must)."
+algorithms: []
+used_by_workflows:
+    - W2096
+    - W2097
+    - W2099
+implemented_by_components: []
+requirements:
+    - "Must: Let a user name a cluster and attach a note"
+    - "Must: Keep the label attached to its members when the clustering is rerun at another resolution, which otherwise renumbers every cluster"
+    - "Must: Show the labels in the legend, the member tables and every export"
+sources:
+    - title: "Family Locket - 10 ways to group your DNA matches"
+      url: "https://familylocket.com/10-ways-to-group-your-dna-matches-into-genetic-networks"
+      summary: "Genealogists label each cluster with the ancestral couple it descends from"
+    - title: "Genetic genealogy research, section 10"
+      url: "design/user-research/genetic-genealogy-dna-match-networks.md"
+      summary: "User cluster labels that survive reclustering, Must"

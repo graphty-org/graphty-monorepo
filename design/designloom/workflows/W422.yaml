@@ -2,7 +2,9 @@ id: W422
 name: Browsing a Note Vault in 3D
 category: exploration
 validated: false
-personas: []
+personas:
+    - personal-knowledge-gardener
+    - pkm-developer-note-taker
 requires_capabilities:
     - data-import
     - graph-rendering
@@ -27,7 +29,7 @@ starting_state:
     user_expertise: novice
 goal: >-
     **Intent**: See a personal note vault as a 3D cloud of linked notes, rotate it to find clusters, and jump into a
-    note. This is the largest group touching a 3D network view, and it uses no headset.
+    note. This is the largest group touching a 3D network view; it uses a desktop, laptop or phone and no headset, often daily.
 
 
     **Mental Model**: "My notes as a galaxy." The view is for wandering and noticing, not for measurement.
@@ -35,14 +37,14 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Install or switch** (2 min) - Install a 3D graph plugin (Obsidian 3D Graph, desktop and mobile) or switch
+    1. **Install or switch** - Install a 3D graph plugin (Obsidian 3D Graph, desktop and mobile) or switch
     org-roam-ui to 3D
 
-    2. **Rotate, zoom and highlight** (5 min) - See links, clusters and node details
+    2. **Rotate, zoom and highlight** - See links, clusters and node details
 
-    3. **Open a note** (seconds) - Double-click opens the note in org-roam-ui
+    3. **Open a note** - Double-click opens the note in org-roam-ui
 
-    4. **Refilter** (2 min) - In Graph Styler's experimental 3D, the view is a snapshot of the global graph's visible
+    4. **Refilter** - In Graph Styler's experimental 3D, the view is a snapshot of the global graph's visible
     nodes, so after changing filters the user closes and reopens it; force, orbital hop shell and globe layouts
 
 
@@ -66,7 +68,7 @@ goal: >-
 
     - Filters do not update a snapshot view live
 
-    - Users split on whether the graph is useful at all
+    - Users split on whether the graph is useful at all; for many it is a pastime, not a tool
 
 
     **Data Flow**:
@@ -90,13 +92,13 @@ sources:
       summary: Features; desktop and mobile
     - title: Obsidian forum - Why we should encourage Obsidian's useless plug-ins
       url: https://forum.obsidian.md/t/why-we-should-encourage-obsidians-useless-plug-ins/87232
-      summary: Replies calling the graph useless and the poster's defense
+      summary: The poster cites "It's useless" comments (from Reddit) and defends a 3D graph as "a fun way to keep boredom at bay"
     - title: Obsidian forum - Graph Styler with experimental 3D
       url: https://forum.obsidian.md/t/i-made-graph-styler-to-customize-obsidian-s-graph-view-now-with-experimental-3d/119368
       summary: Snapshot behavior, force, orbital hop shell and globe layouts
     - title: org-roam-ui README (read through a search summary)
       url: https://github.com/barslmn/org-roam-ui
       summary: 3D very slow; turn off labels; favor 2D over 3D
-version: 1.0.0
+version: 1.1.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

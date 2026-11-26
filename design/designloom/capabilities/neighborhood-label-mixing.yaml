@@ -1,0 +1,20 @@
+id: neighborhood-label-mixing
+name: "Neighborhood label mixing scores"
+category: analysis
+description: "For a categorical node column such as batch, sample or cell type, score each node's graph neighborhood by how many categories it holds (graph iLISI and cLISI), report whether each label's nodes stay connected (kNN graph connectivity), and show the scores on the graph and as each cluster's category make-up."
+status: planned
+notes: "Research trace: systems-biology-omics-networks.md section 10, requirement 48 (Should)."
+algorithms: []
+used_by_workflows:
+    - W254
+    - W2066
+implemented_by_components: []
+requirements:
+    - "Should: Batch mixing on a single-cell graph: color cells or edges by batch, show each cluster's batch and sample
+      make-up, and score each cell's neighborhood by how many batches and how many labels it holds (graph iLISI and
+      cLISI) and whether each label stays connected (5.14)"
+sources:
+    - title: Systems Biologists and Bench Scientists Working With Molecular Interaction Networks (section 10,
+        requirement 48)
+      url: design/user-research/systems-biology-omics-networks.md
+      summary: Should in the research.

@@ -14,7 +14,6 @@ requires_capabilities:
     - centrality-betweenness
     - centrality-closeness
     - centrality-eigenvector
-    - centrality-pagerank
     - community-detection
     - basic-statistics
     - visual-encoding-nodes
@@ -59,23 +58,23 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Import** (5 min) - Nodes first, with latitude and longitude as numbers; then edges appended to the same
+    1. **Import** - Nodes first, with latitude and longitude as numbers; then edges appended to the same
     workspace with "create missing nodes" unchecked so unknown ids surface
 
-    2. **First look** (3 min) - Size by degree; ForceAtlas 2 with prevent overlap, or Yifan Hu
+    2. **First look** - Size by degree; ForceAtlas 2 with prevent overlap, or Yifan Hu
 
-    3. **Statistics** (5 min) - Weighted degree, network diameter (which yields betweenness and closeness),
+    3. **Statistics** - Weighted degree, network diameter (which yields betweenness and closeness),
     eigenvector, modularity with a resolution between 0.1 and 2
 
-    4. **Appearance** (5 min) - Color by betweenness, or partition by modularity class
+    4. **Appearance** - Color by betweenness, or partition by modularity class
 
-    5. **Interpretation** (hours) - Who sent the most letters; who can act as a broker; read the top 20 against the
+    5. **Interpretation** - Who sent the most letters; who can act as a broker; read the top 20 against the
     letters and archive bias
 
-    6. **Geography** (30 min) - Place nodes by latitude and longitude (GeoLayout draws no base map, so the SVG is laid
+    6. **Geography** - Place nodes by latitude and longitude (GeoLayout draws no base map, so the SVG is laid
     over a map in Inkscape; Gephi Lite 1.1 adds a map background)
 
-    7. **Preview and export** (20 min) - Curved edges, about 70 percent opacity, SVG or PDF; clean labels in Inkscape
+    7. **Preview and export** - Curved edges, about 70 percent opacity, SVG or PDF; clean labels in Inkscape
 
     8. **Web publication** (optional) - Sigma.js exporter or Retina
 
@@ -123,7 +122,7 @@ goal: >-
     - Output: SVG or PDF figure with legend, top-20 metric table, sigma.js web export
 success_criteria:
     - metric: Time from two CSVs to a sized, colored, laid-out network
-      target: Under 20 minutes
+      target: Under 20 minutes (design goal; no source measures it)
     - metric: Interpretability
       target: User can say in plain words why the top broker ranks high
     - metric: Figure readiness

@@ -1,12 +1,12 @@
 id: neighborhood-expansion
 name: Neighborhood Expansion
 category: interaction
-description: Expand the view to show neighbors of selected nodes. Start with a focused view and progressively reveal
-    more context by expanding neighborhoods. Essential for investigation workflows.
-status: implemented
-notes: "Ships: the session's expand for server-loaded nodes and graphty/src/workspace/server/NodeMenu.tsx."
+description: "Expand the view to show neighbors of selected nodes: start from a search result or a focused view and reveal context on demand (search, show context, expand on demand). Expansion is filtered (relationship type, direction, neighbor category, attribute, maximum count, most or least connected), shows each node's hidden degree before it expands, never auto-expands a hub, and reports when it shows only part of a neighborhood. Essential for investigation workflows."
+status: in-progress
+notes: "Partly ships: the session's expand for server-loaded nodes and graphty/src/workspace/server/NodeMenu.tsx. Planned: counts of undisplayed neighbors, an expansion size preview, capped expansions with paging, and an expansion history with undo. Any requirement below that this note does not name as shipping counts as planned."
 algorithms: []
 used_by_workflows:
+    - W3024
     - W06
     - W05
     - W09
@@ -57,7 +57,7 @@ used_by_workflows:
     - W259
     - W262
     - W263
-    - W264
+    - W253
     - W267
     - W268
     - W274
@@ -69,7 +69,7 @@ used_by_workflows:
     - W324
     - W327
     - W336
-    - W357
+    - W347
     - W363
     - W366
     - W409
@@ -81,7 +81,6 @@ used_by_workflows:
     - W420
     - W429
     - W437
-    - W446
     - W55
     - W66
     - W74
@@ -90,32 +89,63 @@ used_by_workflows:
     - W79
     - W80
     - W84
+    - W85
     - W87
     - W88
     - W89
     - W90
     - W93
     - W95
+    - W1013
+    - W1090
+    - W1157
+    - W1159
+    - W2037
+    - W3102
 implemented_by_components:
     - context-menu
     - ego-network-dialog
 requirements:
-    - Expand 1-hop neighbors of selected node(s) with single click/shortcut
-    - Provide N-hop expansion with configurable depth from 1 to 5 (default 1)
-    - "Display expansion preview: 'This will add N nodes and M edges' before executing"
-    - Filter expansion by edge type via checkbox selection
-    - Filter expansion by node type via checkbox selection
-    - Animate expanded nodes appearing with fade-in over 300ms
-    - Position new nodes radially around source node(s) initially
-    - Run incremental layout to integrate new nodes smoothly
-    - Provide 'Collapse' action to hide expanded nodes and return to previous state
-    - Maintain expansion history stack supporting multiple undo levels
-    - "Warn when expansion would add more than 500 nodes: 'Large expansion (N nodes). Continue?'"
-    - "Block expansion exceeding 2000 nodes with error: 'Too many nodes. Try filtering by type.'"
-    - Complete expansion within 1 second for up to 500 new nodes
-    - Highlight newly expanded nodes with temporary glow effect (fades after 2 seconds)
-    - Track expansion source for each node to support selective collapse
+    - "Must: Expand the 1-hop neighbors of the selected node(s) with a single action"
+    - "Must: Provide N-hop expansion with a caller-set depth (default 1)"
+    - "Must: Filter expansion by relationship type, direction, neighbor category and attribute, with a maximum count and an order (most or least connected)"
+    - "Must: Show each node's count of undisplayed neighbors before it is expanded"
+    - "Must: Before expanding, return how many nodes and edges the expansion would add, as numbers the application words"
+    - "Must: Above a threshold the consumer sets, open a selective expansion (types, categories, count) instead of adding everything, and never auto-expand a hub; the thresholds are options, and expansion is never refused outright"
+    - "Must: When an expansion is capped, report how many of how many neighbors are shown and offer the next page or a refinement"
+    - "Library parity: When filters match no neighbors, report that separately from a node having no more neighbors"
+    - "Must: Reveal relationships among nodes already shown"
+    - "Must: Keep the scene additive: new expansions add to the canvas, with dismiss, dismiss others and dismiss isolated nodes"
+    - "Must: Place new nodes near the node they came from and integrate them with an incremental layout that keeps existing positions stable"
+    - "Should: Mark newly added nodes briefly so the reader can see what the expansion added"
+    - "Must: Provide collapse to hide expanded nodes, an expansion history with multiple undo levels, and the expansion source of each node for selective collapse"
+    - "Must: State that algorithm results computed on a partially expanded subgraph describe the loaded subgraph, not the whole source"
+    - "Library parity: Give progress feedback on expansions that take longer than about a second"
 sources:
-    - title: W06 Fraud Ring Investigation
-      url: https://graphty.app/docs/
-      summary: Alert Contextualization - view 1-2 hop neighborhood
+    - title: "Neo4j Bloom scene interactions"
+      url: "https://neo4j.com/docs/bloom-user-guide/current/bloom-visual-tour/bloom-scene-interactions/"
+      summary: "Expand, Advanced Expansion by relationship type, direction, neighbor category and limit; reveal relationships; dismiss"
+    - title: "Linkurious user manual"
+      url: "https://doc.linkurious.com/user-manual/latest/page.html"
+      summary: "Hidden-degree badges, selective expand dialog, supernode handling"
+    - title: "Linkurious advanced settings"
+      url: "https://doc.linkurious.com/admin-manual/4.1/advanced-settings"
+      summary: "expandThreshold 50 and supernodeThreshold 10,000 are administrator settings, not fixed limits"
+    - title: "AWS Graph Explorer graph view"
+      url: "https://aws.github.io/graph-explorer/features/graph-view/"
+      summary: "Expand panel filtering by label, attribute and maximum count"
+    - title: "AWS Graph Explorer issue 2060"
+      url: "https://goodfirstissue.org/aws/graph-explorer/issues/2060"
+      summary: "Misleading 'No more neighbors to expand' when filters match nothing"
+    - title: "van Ham and Perer, Search, Show Context, Expand on Demand (2009)"
+      url: "https://dig.cmu.edu/publications/2009-doigraphs.html"
+      summary: "Bottom-up exploration of large graphs from a search result"
+    - title: "IBM MDM: explore hierarchies"
+      url: "https://www.ibm.com/docs/en/DSXDOC/wsj/mdm/explore-hierarchies.html"
+      summary: "Expands a hierarchy in pages (10 members, then more) with undo"
+    - title: "Response Times: The 3 Important Limits (Nielsen Norman Group)"
+      url: "https://www.nngroup.com/articles/response-times-3-important-limits/"
+      summary: "0.1 second feels instant, 1 second keeps the flow of thought, past 10 seconds the user needs progress feedback"
+    - title: "User research: graph database query and expand exploration"
+      url: "design/user-research/graph-database-query-and-expand-exploration.md"
+      summary: "Must: filtered incremental expand, supernode handling, visible caps, additive scene, scope of algorithm results"

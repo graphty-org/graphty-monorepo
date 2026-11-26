@@ -42,19 +42,19 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Create and preprocess** (15 min) - createCellChat(object, meta, group.by = "cell_type"); CellChatDB.human
+    1. **Create and preprocess** - createCellChat(object, meta, group.by = "cell_type"); CellChatDB.human
     (2,021 interactions in 229 pathway families originally); identifyOverExpressedGenes
 
-    2. **Infer** (10-60 min) - computeCommunProb(type = "triMean") with 100 permutations, p < 0.05;
+    2. **Infer** - computeCommunProb(type = "triMean") with 100 permutations, p < 0.05;
     filterCommunication(min.cells = 10); computeCommunProbPathway
 
-    3. **Aggregate** (1 min) - aggregateNet gives count and weight between each pair of groups
+    3. **Aggregate** - aggregateNet gives count and weight between each pair of groups
 
-    4. **Draw** (20 min) - netVisual_circle with vertex size by group size; per-sender panels keep a global maximum edge
+    4. **Draw** - netVisual_circle with vertex size by group size; per-sender panels keep a global maximum edge
     width so widths compare; per pathway netVisual_aggregate as circle, hierarchy, chord or spatial, with sources,
     targets, threshold and top-n
 
-    5. **Compare conditions** (20 min) - mergeCellChat and netVisual_diffInteraction by count or weight: red increased,
+    5. **Compare conditions** - mergeCellChat and netVisual_diffInteraction by count or weight: red increased,
     blue decreased
 
     6. **Check consensus** (optional) - LIANA runs 7 methods over 16 resources and ranks by consensus because the choice

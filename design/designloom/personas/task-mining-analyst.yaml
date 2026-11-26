@@ -1,9 +1,12 @@
 id: task-mining-analyst
 name: Task Mining Analyst
+roster_persona: process-mining-analyst
+tier: A
+scope: in-scope
 role: Automation Analyst / RPA Business Analyst
 quote: I have 50,000 clicks from five clerks. Show me the task they repeat all day, where it fits in the order-to-cash case, and whether a bot could do it.
 bio: >-
-    Priya works in an automation center of excellence and decides what to hand to software robots. Instead of system
+    Sanjana works in an automation center of excellence and decides what to hand to software robots. Instead of system
     logs she works from desktop interaction recordings: a recorder on the desktops of a few selected, experienced users
     captures every click and keystroke with a screenshot and metadata, with personal data masked. The vendor's software
     (UiPath, Celonis or Power Automate task mining) clusters screenshots of the same application and screen, merges
@@ -43,7 +46,6 @@ context:
     voluntary: true
 workflows:
     - W348
-    - W358
 sources:
     - title: UiPath Task Mining - recorder client overview
       url: https://docs.uipath.com/task-mining/automation-cloud/latest/user-guide/recorder-client-overview.md

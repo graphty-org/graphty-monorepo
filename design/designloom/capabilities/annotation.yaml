@@ -1,8 +1,9 @@
 id: annotation
 name: Visualization Annotation
 category: export
-description: Add text labels, callouts, and highlights to the visualization to explain findings. Create annotated views
-    for communication that guide the viewer's attention to key insights.
+description: Two kinds of annotation the research found -- an annotation layer on the drawing (text, arrows, callouts,
+    zones) that explains a finding and survives export, and notes attached to nodes and edges with author and date
+    that are kept as data in the project and exported with it.
 status: planned
 algorithms: []
 used_by_workflows:
@@ -92,30 +93,37 @@ used_by_workflows:
     - W96
     - W98
     - W99
+    - W1090
+    - W2099
 implemented_by_components:
     - annotation-toolbar
 requirements:
-    - Add text labels at arbitrary canvas positions via click-to-place interaction
-    - Support text label font sizes from 10px to 48px (default 14px)
-    - Support text label colors from full color palette
-    - "Support text styling: bold, italic, underline"
-    - Add callout boxes with leader lines pointing to specific nodes
-    - "Add highlight shapes: circle, rectangle, freeform polygon"
-    - Support highlight fill colors with adjustable opacity (0-100%, default 20%)
-    - Support highlight border colors and widths (1-5px)
-    - Position annotations relative to nodes (annotations move when layout changes)
-    - Position annotations at fixed canvas coordinates (annotations stay in place)
-    - Provide 'Anchor to node' vs 'Anchor to canvas' option per annotation
-    - Select annotation by clicking; show resize handles and edit controls
-    - Edit annotation text by double-clicking
-    - Delete selected annotation with Delete key or context menu
-    - Save all annotations as part of view bookmark
-    - Include annotations in image export (PNG, SVG, JPEG)
-    - Provide annotation layer toggle to show/hide all annotations
-    - "Support z-order: bring annotation forward/backward relative to graph elements"
-    - Limit text label length to 500 characters
-    - Limit annotations to 50 per view; display warning at 45
+    - "Must: Add text labels, arrows, callouts with leader lines to nodes or edges, and zones (circle, rectangle, freeform outline) to the drawing"
+    - "Library parity: Style annotations (text size, color, weight, fill and outline with opacity) through options; no source sets particular sizes or defaults"
+    - "Library parity: Anchor each annotation either to nodes or edges (it follows them when the layout changes) or to a fixed place in the view"
+    - "Library parity: Select, move, resize, edit and delete annotations with the pointer and the keyboard, and set their order relative to graph elements"
+    - "Must: Show or hide the whole annotation layer, and keep annotations with the view bookmark they belong to (view-bookmarks), so a sequence of captioned views can be presented and published in order"
+    - "Must: Include annotations in image and vector exports (PNG, SVG, PDF) as editable text where the format allows (export-image)"
+    - "Should: Offer close-up insets and a mark for claims that are not yet confirmed, for evidence-grade figures"
+    - "Must: Attach notes to nodes and edges with author and date, kept in the project file and visible in the details view"
+    - "Should: Allow structured per-item annotation (for example a rating or a code) and export annotations as CSV or with the data, keyed by the original ids (data-export)"
+    - "Library parity: Keep free-text notes distinct from provenance; source, confidence and verification status per claim belong to provenance-tracking"
+    - "Library parity: Any limit on text length or annotation count is a design goal to be measured, not a sourced requirement"
 sources:
     - title: Cambridge Intelligence Investigation Workflow
       url: https://cambridge-intelligence.com/investigation-workflow-annotations/
       summary: Annotations improve investigation workflow and reveal data narrative
+    - title: RekomGNN usage scenario
+      url: https://arxiv.org/html/2310.11562
+      summary: Analysts rate questionable recommendations item by item and export the annotations as CSV
+          (code-first-data-scientists-and-graph-ml.md); communicating-findings-and-deliverables.md separately makes an
+          exportable annotation layer of text, arrows, callouts and zones a must (R9)
+    - title: GraphSense paper
+      url: https://arxiv.org/pdf/2102.13613
+      summary:
+          Investigators annotate nodes, export graphs and download audit logs (law-enforcement-and-intelligence-analysts.md);
+          investigative-journalism-and-osint.md R17 makes dated, authored notes on nodes and edges a Must
+    - title: Obsidian forum, How do you use the graph view
+      url: https://forum.obsidian.md/t/how-do-you-use-the-graph-view/
+      summary: Graph views are shared as screenshots, sometimes annotated in a separate drawing app
+          (personal-knowledge-graphs-and-note-networks.md)

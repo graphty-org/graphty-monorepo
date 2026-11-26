@@ -41,23 +41,23 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Create** (seconds) - "Canvas: Create new canvas" or right-click a folder > New canvas; saved as a .canvas file in
+    1. **Create** - "Canvas: Create new canvas" or right-click a folder > New canvas; saved as a .canvas file in
     JSON Canvas format
 
-    2. **Add cards** (1-10 min) - Double-click for a text card; "Add note from vault" or drag notes in; add media or web
+    2. **Add cards** - Double-click for a text card; "Add note from vault" or drag notes in; add media or web
     pages; drag a folder to add all its files
 
-    3. **Connect** (seconds each) - Drag from a card edge's circle to another card; dropping in empty space creates a new
+    3. **Connect** - Drag from a card edge's circle to another card; dropping in empty space creates a new
     card
 
-    4. **Label** (seconds each) - Double-click the line, type the relation ("causes", "contradicts"), Escape
+    4. **Label** - Double-click the line, type the relation ("causes", "contradicts"), Escape
 
-    5. **Group** (seconds) - Select cards > right-click > Create group; rename the group
+    5. **Group** - Select cards > right-click > Create group; rename the group
 
-    6. **Promote** (seconds) - Right-click a text card > "Convert to file..." so it becomes a note that appears in
+    6. **Promote** - Right-click a text card > "Convert to file..." so it becomes a note that appears in
     backlinks
 
-    7. **Link back** (seconds) - Embed the canvas in a note; file cards create links from the canvas to notes, but the
+    7. **Link back** - Embed the canvas in a note; file cards create links from the canvas to notes, but the
     arrows between cards never reach the link index, backlinks or graph view
 
 

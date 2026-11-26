@@ -52,19 +52,19 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Define the cohort** (hours) - Start each hire at their first outbound activity; match a tenured comparison
+    1. **Define the cohort** - Start each hire at their first outbound activity; match a tenured comparison
     group on organizational group, job function, manager status, location and team size
 
-    2. **Build weekly ego networks** (hours) - For 24 weeks, per channel, compute network size (distinct contacts),
+    2. **Build weekly ego networks** - For 24 weeks, per channel, compute network size (distinct contacts),
     intensity (sum of weights) and structural diversity (components left after removing the ego)
 
-    3. **Model the gap** (days) - Mixed-effects regressions of each measure on tenure; report cohort curves, never
+    3. **Model the gap** - Mixed-effects regressions of each measure on tenure; report cohort curves, never
     individual rankings
 
-    4. **Join outcomes** (days) - Join to performance ratings and attrition; look for network factors that predict
+    4. **Join outcomes** - Join to performance ratings and attrition; look for network factors that predict
     leaving
 
-    5. **Design onboarding ramps** (weeks) - Build introductions and onboarding steps around the factors found
+    5. **Design onboarding ramps** - Build introductions and onboarding steps around the factors found
 
 
     **Decision Points**:

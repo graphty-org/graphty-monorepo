@@ -22,6 +22,7 @@ requires_capabilities:
     - flow-arithmetic
     - flow-clutter-control
     - spatial-aggregation
+    - geospatial-file-io
 suggested_components:
     - data-import-dialog
     - column-mapper
@@ -35,6 +36,7 @@ suggested_components:
     - graph-canvas
     - image-export-dialog
     - data-export-dialog
+    - attribute-table-join-dialog
 starting_state:
     data_type: long-form commuting OD table by mode between small zones plus zone centroids (for example 2.4 million rows over 7,201 zones)
     node_count: 1000-8000
@@ -59,7 +61,8 @@ goal: >-
 
     3. **Merge directions** - Sum A to B and B to A, because overlapping one-way lines hide each other
 
-    4. **Make lines** - Join both ends to zone centroids, after checking for ids that match no zone
+    4. **Make lines** - Join both ends to zones by code (a polygon or point layer), placing each at a point inside its
+    zone, after checking for ids that match no zone
 
     5. **Filter** - London has 352,654 lines; keeping inter-zonal flows of 20 or more leaves 28,879 lines (8.19 percent
     of lines, 55.7 percent of trips); about 20,000 lines plot quickly; the Propensity to Cycle Tool keeps pairs under
@@ -134,6 +137,9 @@ sources:
     - title: TRMG2 model wiki - Tools
       url: https://www.github.com/Triangle-Modeling-and-Analytics/TRMG2/wiki/6-Tools
       summary: All-zone desire maps are hard to read; aggregation to districts
-version: 1.0.0
+    - title: stplanr - od2line reference
+      url: https://docs.ropensci.org/stplanr/reference/od2line.html
+      summary: Matches the first two flow columns to the first column of a polygon or point zone layer
+version: 1.1.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

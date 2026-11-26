@@ -34,22 +34,22 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Write the criteria** (1 day) - Popularity and maintenance, documentation quality rated 1 to 5, whether the
+    1. **Write the criteria** - Popularity and maintenance, documentation quality rated 1 to 5, whether the
     library depends on the DOM (so work can move to Web Workers), whether its styling can express the product's own
     style language
 
-    2. **Shortlist by license** (1 hour) - BSD and MIT open source (D3, vis.js, sigma.js, G6, react-force-graph) versus
+    2. **Shortlist by license** - BSD and MIT open source (D3, vis.js, sigma.js, G6, react-force-graph) versus
     commercial annual subscriptions with unpublished prices (KeyLines, Ogma)
 
-    3. **Benchmark with your own data** (days) - Time to first render and time to settle at 10k nodes and edges; compare
+    3. **Benchmark with your own data** - Time to first render and time to settle at 10k nodes and edges; compare
     with rules of thumb (SVG about 2k nodes, Canvas about 5k, WebGL about 10k) and frame rate under interaction
 
-    4. **Check fit** (1 day) - Framework story, published TypeScript types, algorithms included, 3D
+    4. **Check fit** - Framework story, published TypeScript types, algorithms included, 3D
 
-    5. **Security, deployment and accessibility review** (days) - Strict Content Security Policy, offline install,
+    5. **Security, deployment and accessibility review** - Strict Content Security Policy, offline install,
     WCAG and Section 508; often done late, by the customer
 
-    6. **Decide build, buy or write your own** (1 day) - Weigh license cost against development time
+    6. **Decide build, buy or write your own** - Weigh license cost against development time
 
 
     **Decision Points**:
@@ -97,7 +97,7 @@ success_criteria:
     - metric: Evidence available without a prototype
       target: Benchmarks, CSP policy, accessibility statement, license and framework recipes are all published
     - metric: Benchmark reproducibility
-      target: An evaluator can rerun the published benchmark on their own data in under an hour
+      target: An evaluator can rerun the published benchmark on their own data in under an hour (design goal; no source measures it)
 sources:
     - title: Cylynx - A comparison of JavaScript graph network visualisation libraries
       url: https://dev.to/timlrx/a-comparison-of-javascript-graph-network-visualisation-libraries-34a8

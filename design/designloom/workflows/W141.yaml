@@ -47,22 +47,22 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Capture the context** (5 min) - Run the query with local or global search and save the context data and the
+    1. **Capture the context** - Run the query with local or global search and save the context data and the
     entity, relationship, report and source ids the answer cites
 
-    2. **Join ids to tables** (15 min) - Today done by hand in pandas: match cited ids to rows in entities,
+    2. **Join ids to tables** - Today done by hand in pandas: match cited ids to rows in entities,
     relationships, community_reports and text_units
 
-    3. **Highlight the used subgraph** (5 min) - Show the cited entities and relationships in the graph with their
+    3. **Highlight the used subgraph** - Show the cited entities and relationships in the graph with their
     neighbors; mark the communities whose reports were used
 
-    4. **Check community reports** (10 min) - Read the report text for each used community and compare with the member
+    4. **Check community reports** - Read the report text for each used community and compare with the member
     entities; check whether community levels nest as expected
 
-    5. **Trace to chunks** (10 min) - From each suspect entity or relationship, open the text units and documents that
+    5. **Trace to chunks** - From each suspect entity or relationship, open the text units and documents that
     produced it and compare with the claim in the answer
 
-    6. **Classify the fault** (5 min) - Missing or wrong extraction, merged or split entity, unfaithful report, or
+    6. **Classify the fault** - Missing or wrong extraction, merged or split entity, unfaithful report, or
     retrieval that picked the wrong context; record it with the query
 
 
@@ -106,7 +106,7 @@ goal: >-
     - Output: A fault classification per query and a fix (prompt, merge, re-index or retrieval setting)
 success_criteria:
     - metric: Trace time
-      target: From a wrong answer to the cited subgraph and source chunks in under 5 minutes
+      target: From a wrong answer to the cited subgraph and source chunks in under 5 minutes (design goal; no source measures it)
     - metric: Fault classification
       target: Each traced query is labeled extraction, summarization or retrieval with evidence
 sources:

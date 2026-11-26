@@ -1,9 +1,12 @@
 id: plugin-author-domain-researcher
 name: Researcher Writing a One-Off Plugin
+roster_persona: plugin-author-domain-researcher
+tier: B
+scope: in-scope
 role: Bioinformatics Researcher Writing a Custom Score or a Lab File Reader
 quote: I copied the example, changed three lines, and got an error I couldn't parse. I went back to Cytoscape.
 bio: >-
-    Dr. Tomasz Kowalczyk is a staff scientist in a systems biology lab. His lab's interaction screens produce a
+    Dr. Piotr Kowalczyk is a staff scientist in a systems biology lab. His lab's interaction screens produce a
     tab-separated file with its own column conventions (bait, prey, a confidence score and a replicate count), and the
     lab has its own "essentiality score" that combines degree with experimental knock-out data. He writes R and a little
     Python for analysis, and JavaScript only by copying and editing examples he finds in documentation. He will spend

@@ -1,11 +1,14 @@
 id: agent-memory-developer
 name: Agent-Memory Developer
+roster_persona: graphrag-developer
+tier: B
+scope: in-scope
 role: LLM Application Engineer (temporal knowledge graph memory)
 quote:
     The agent told the customer the old address. I need to see what its memory believed last Tuesday and which message
     changed it.
 bio: >-
-    Tomas Lindqvist builds a customer-support agent whose long-term memory is a Graphiti temporal knowledge graph
+    Henrik Lindqvist builds a customer-support agent whose long-term memory is a Graphiti temporal knowledge graph
     stored in Neo4j (FalkorDB and Neptune are the other supported backends). Messages and JSON events become episode
     nodes; an LLM extracts entities and fact edges from them; each fact edge carries when it was true in the world
     (valid_at, invalid_at), when the system recorded and expired it (created_at, expired_at) and the episodes that

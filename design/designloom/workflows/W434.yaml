@@ -23,6 +23,8 @@ requires_capabilities:
     - bipartite-projection
     - layout-tiered-by-attribute
     - set-operations
+    - layout-force-directed
+    - details-on-demand
 suggested_components:
     - data-import-dialog
     - data-table-panel
@@ -36,6 +38,9 @@ suggested_components:
     - legend-panel
     - graph-canvas
     - data-export-dialog
+    - attribute-table-join-dialog
+    - algorithm-panel
+    - image-export-dialog
 starting_state:
     data_type: compound-target network with a herb attribute per compound; target-pathway membership table; pathway-disease table
     node_count: 100-300 targets; one-mode projections up to 280 nodes

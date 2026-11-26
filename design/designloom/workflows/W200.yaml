@@ -56,17 +56,17 @@ goal: >-
     1. **Prepare** (before fieldwork) - Guiding question, link types each with a color (money red, command black, advice
     green, information blue), a shared definition of influence, goal codes; pre-test
 
-    2. **Interview** (1-2 h each, on paper) - Name actors on cards (colored by group); draw one link type at a time,
+    2. **Interview** (on paper) - Name actors on cards (colored by group); draw one link type at a time,
     starting with the least common, with two-headed arrows for exchange; build influence towers and read them back;
     mark goal codes, more than one per actor allowed; discuss surprises
 
-    3. **Digitize** (30-60 min per map) - Enter actors with group, tower height and goal codes; enter links per type
+    3. **Digitize** - Enter actors with group, tower height and goal codes; enter links per type
     (one matrix per link type, or an edge list with a type column); several typed links between one pair
 
-    4. **Draw** (15 min) - Size nodes by tower height; color edges by link type; show goal codes as badges; filter to one
+    4. **Draw** - Size nodes by tower height; color edges by link type; show goal codes as badges; filter to one
     link type
 
-    5. **Compare** (1-2 h) - One map per interviewee; reconcile actor names; compare towers and link patterns across
+    5. **Compare** - One map per interviewee; reconcile actor names; compare towers and link patterns across
     interviewees; ask why a well-linked actor is not influential
 
 
@@ -114,7 +114,7 @@ goal: >-
     - Output: Digitized map per interviewee, comparison across interviewees, figures for the study report
 success_criteria:
     - metric: Digitizing time per map
-      target: Under 30 minutes for a 25-actor, 4-link-type map
+      target: Under 30 minutes for a 25-actor, 4-link-type map (design goal; no source measures it)
     - metric: Link type fidelity
       target: Every typed link between a pair remains separately visible and filterable
     - metric: Comparison

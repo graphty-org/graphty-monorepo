@@ -4,11 +4,18 @@ category: analysis
 description: Community detection on directed weighted flows that handles self-loops and can require contiguous regions,
     with self-containment statistics per region and a place-to-region lookup export.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: geographic-flow-and-mobility-networks.md section 10, requirement R10 (Should)."
 algorithms: []
 used_by_workflows:
     - W384
     - W387
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Should: Community detection that accepts directed weighted flows with self-loops and can require contiguous
+      regions; show regions as filled areas on the map"
+sources:
+    - title: "Geographic Flow and Mobility Networks: Migration, Commuting, Mobility and Trade Flows on a Map (section
+        10, requirement R10)"
+      url: design/user-research/geographic-flow-and-mobility-networks.md
+      summary: "Should in the research. Covered by Designloom when researched: Partly (community-detection exists; no
+        self-loop or contiguity handling)"

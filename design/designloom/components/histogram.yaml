@@ -10,7 +10,6 @@ implements_capabilities:
 used_in_workflows:
     - W01
     - W03
-    - W12
     - W23
     - W06
     - W10
@@ -59,7 +58,6 @@ used_in_workflows:
     - W335
     - W337
     - W340
-    - W350
     - W359
     - W366
     - W37
@@ -71,8 +69,7 @@ used_in_workflows:
     - W42
     - W425
     - W432
-    - W441
-    - W442
+    - W433
     - W49
     - W56
     - W61
@@ -84,6 +81,15 @@ used_in_workflows:
     - W73
     - W75
     - W86
+    - W1042
+    - W1060
+    - W1126
+    - W1156
+    - W1159
+    - W2000
+    - W2036
+    - W3048
+    - W3050
 dependencies: []
 props:
     data: number[] - Values to histogram

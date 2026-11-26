@@ -1,5 +1,8 @@
 id: multilayer-network-3d-biologist
 name: Multilayer Network 3D Biologist
+roster_persona: biomedical-kg-analyst
+tier: B
+scope: in-scope
 role: Bioinformatician on a Drug-Repurposing Project
 quote: Proteins, processes and drugs are different kinds of things. Put them on separate layers and let me trace the drug's path through them.
 bio: >-

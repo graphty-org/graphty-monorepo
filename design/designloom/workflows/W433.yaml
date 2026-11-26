@@ -4,6 +4,7 @@ category: analysis
 validated: false
 personas:
     - herbal-formula-mechanism-lead
+    - network-pharmacology-graduate-student
 requires_capabilities:
     - data-import
     - data-validation
@@ -20,6 +21,11 @@ requires_capabilities:
     - export-image
     - data-export
     - similarity-graph-construction
+    - saved-filters
+    - layout-hierarchical
+    - metric-histograms
+    - tooltip-display
+    - layout-tiered-by-attribute
 suggested_components:
     - data-import-dialog
     - column-mapper
@@ -33,6 +39,9 @@ suggested_components:
     - analysis-history-panel
     - graph-canvas
     - image-export-dialog
+    - data-preview-table
+    - histogram
+    - node-tooltip
 starting_state:
     data_type: Spearman correlation and p-value matrices of differential taxa against differential metabolites, plus a compound-target network from the standard pipeline
     node_count: 20-150 taxa and metabolites, plus 100-400 compounds and targets

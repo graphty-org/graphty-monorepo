@@ -5,6 +5,7 @@ validated: false
 personas:
     - process-mining-consultant
     - process-mining-auditor
+    - process-mining-analyst
 requires_capabilities:
     - data-import
     - layout-hierarchical
@@ -20,6 +21,8 @@ requires_capabilities:
     - process-map-derivation
     - process-detail-sliders
     - object-centric-process-map
+    - computed-attributes
+    - large-graph-rendering
 suggested_components:
     - graph-canvas
     - slider
@@ -30,6 +33,10 @@ suggested_components:
     - node-details-panel
     - comparison-view
     - report-generator-dialog
+    - range-slider
+    - visual-encoding-panel
+    - legend-item
+    - computed-attributes-panel
 starting_state:
     data_type: object-centric data model (object types, event types, relationships) over SAP or CRM data
     node_count: 20-60 activities across 3-8 object types, millions of events
@@ -51,17 +58,17 @@ goal: >-
     1. **Enable a process** (data engineer) - Turn on object types, event types and relationships from a catalog;
     the platform shows object types as nodes and relationships as lines
 
-    2. **Build an event log around a lead object** (30 min) - Pick the lead object, select events with filters, set the
+    2. **Build an event log around a lead object** - Pick the lead object, select events with filters, set the
     activity column, order attributes carefully (concatenated attributes can create unwanted variants), preview
 
-    3. **Explore the multi-object map** (30 min) - Shared activities once; event counts per object type with colored
+    3. **Explore the multi-object map** - Shared activities once; event counts per object type with colored
     markers; one global slider and one slider per object type; adding an event may pull in others to keep it connected
 
-    4. **Pick KPIs** (15 min) - Case frequency, activity frequency, throughput time, variants, or custom KPIs
+    4. **Pick KPIs** - Case frequency, activity frequency, throughput time, variants, or custom KPIs
 
     5. **Check adherence** - Against a target model (W345)
 
-    6. **Deliver** (hours) - KPI views and dashboards for the business, monitoring and actions
+    6. **Deliver** - KPI views and dashboards for the business, monitoring and actions
 
 
     **Decision Points**:
@@ -134,6 +141,9 @@ sources:
     - title: Celonis community - Is Celonis becoming too complicated
       url: https://community.celonis.com/general-q-a-10/is-celonis-becoming-too-complicated-4854
       summary: Many setup steps before a basic map; maps of little value without dashboards
+    - title: van den Elzen et al. 2025 - visualization in process mining case studies
+      url: https://eprints.whiterose.ac.uk/id/eprint/225747/9/1-s2.0-S0306437925000444-main.pdf
+      summary: Object-centric maps encode type only by hue
 version: 1.0.0
 created_at: 2026-11-25T00:00:00.000Z
 updated_at: 2026-11-25T00:00:00.000Z

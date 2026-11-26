@@ -1,5 +1,8 @@
 id: analyst-alex
 name: Analyst Alex
+roster_persona: analyst-alex
+tier: B
+scope: in-scope
 role: Research Data Analyst (Digital Scholarship or Computational Social Science Lab)
 quote: I need to find the groups and the important people and explain them to colleagues who have never heard of modularity -- and I'd like the groups to be the same tomorrow.
 bio: >-
@@ -59,7 +62,6 @@ workflows:
     - W03
     - W04
     - W05
-    - W12
     - W15
     - W17
     - W18

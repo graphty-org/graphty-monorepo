@@ -1,9 +1,12 @@
 id: intelligence-analyst
 name: Intelligence Analyst
+roster_persona: intelligence-analyst
+tier: A
+scope: in-scope
 role: Counter-Terrorism and Military Intelligence Analyst
 quote: A central figure is not always the leader, and a link chart is a freeze-frame unless I pair it with a timeline.
 bio: >-
-    Marcus spent a decade in military intelligence -- first as an all-source analyst in a brigade and then a division
+    Grant spent a decade in military intelligence -- first as an all-source analyst in a brigade and then a division
     intelligence section, then in a targeting cell -- before moving to a civilian counter-terrorism role. He works under
     public doctrine (Army ATP 2-33.4 and FM 3-24) even where his systems are classified. His data is multi-source
     reporting, biometrics, forensics and captured media (DOMEX), personality files, communications metadata, and travel
@@ -55,7 +58,6 @@ context:
         - desktop
     voluntary: false
 workflows:
-    - W01
     - W05
     - W09
     - W15
@@ -65,6 +67,7 @@ workflows:
     - W106
     - W305
     - W308
+    - W143
 sources:
     - title: Army ATP 2-33.4 Intelligence Analysis (2020)
       url: https://irp.fas.org/doddir/army/atp2-33-4.pdf

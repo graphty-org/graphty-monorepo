@@ -3,7 +3,7 @@ name: Bibliographic Export to Co-Authorship or Co-Occurrence Map
 category: analysis
 validated: false
 personas:
-    - bibliometric-network-analyst
+    - research-impact-librarian
 requires_capabilities:
     - data-import
     - data-validation

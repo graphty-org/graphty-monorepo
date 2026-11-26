@@ -1,0 +1,102 @@
+id: W2038
+name: Court-by-Time Citation Map of a Case Search Result
+category: exploration
+validated: false
+personas:
+    - case-law-research-attorney
+    - legal-citation-network-scholar
+requires_capabilities:
+    - embedded-host-view
+    - attribute-axis-layout
+    - layout-tiered-by-attribute
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - typed-edge-filtering
+    - hover-highlight
+    - tooltip-display
+    - node-selection
+    - linked-views-selection
+    - legend-display
+    - export-image
+suggested_components:
+    - graph-canvas
+    - node-tooltip
+    - legend-panel
+    - filter-chip
+    - node-details-panel
+    - image-export-dialog
+starting_state:
+    data_type: The top results of a case-law search with decision date, court, court level and citation count, and the citations among them with a treatment value
+    node_count: 25-100 decisions (Ravel View maps the top 75)
+    edge_density: sparse, directed
+    user_expertise: novice
+goal: >-
+    **Intent**: See a case search result as a map of which court decided each case and when, which cases the others
+    rely on, and where later courts treated a case negatively, to decide what to read first.
+
+
+    **Mental Model**: "The court ladder over time." Higher courts sit higher, time runs left to right, big circles are
+    much-cited, and red lines are trouble.
+
+
+    **Task Phases**:
+
+    1. **Open the map** - From the search result list, switch to the map of the top results
+
+    2. **Read the layout** - Decision date across, court level as bands from the top court down, circle size by
+    citation count
+
+    3. **Read treatment** - Color citation lines by treatment (followed, distinguished, overruled); show only negative
+    treatment when checking a case
+
+    4. **Inspect** - Hover a line to read the citing sentence; click a case to bring it to the top of the host's
+    result list
+
+    5. **Save** - Export the map image for a research memo
+
+
+    **Decision Points**:
+
+    - Which central case to read first?
+
+    - Is a negative line a real problem for the case or a distinction on other facts?
+
+
+    **Information Needs**:
+
+    - Court, date and citation count of each case on hover
+
+    - Treatment and citing sentence of each line
+
+    - How many results the map shows out of the full search
+
+
+    **Pain Points**:
+
+    - Only the top results are mapped
+
+    - Treatment color alone does not say why a court disagreed
+
+
+    **Data Flow**:
+
+    - Input: Search result records and citations with treatment, supplied by the host research service
+
+    - Transformations: Date-by-court-level placement, treatment-typed edges
+
+    - Output: Selected case passed back to the host list, map image
+success_criteria:
+    - metric: Court level readable
+      target: Every case sits in the band of its court level without overlap between bands
+    - metric: Host link
+      target: Clicking a case selects it in the host's result list
+sources:
+    - title: LexisNexis launches Ravel View in Lexis Advance (2018)
+      url: https://www.lexisnexis.com/community/pressroom/b/news/posts/lexisnexis-launches-data-visualization-to-enhance-its-flagship-online-legal-research-platform-lexis-advance
+      summary: Top 75 results, circle size by citations, Supreme Court at the top of the vertical axis, Shepard's treatment colors
+    - title: Ravel View how-to guide
+      url: https://www.lexisnexis.com/pdf/lexis-advance/Ravel-View-How-To-Literature.pdf
+      summary: Not the default view; hover a link for citing language; click a case to move it to the top of the list (search excerpt)
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

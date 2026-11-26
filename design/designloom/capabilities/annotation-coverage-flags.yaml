@@ -1,0 +1,26 @@
+id: annotation-coverage-flags
+name: Annotation coverage beside scores
+category: analysis
+description: Show, per node, how many edges the source database records for it and how many of those neighbors were
+    measured, and flag nodes below a chosen count, so a score resting on few known relationships, or a hub that is
+    only well studied, is visible as such.
+status: planned
+notes: "Research trace: systems-biology-omics-networks.md section 10, requirement 57 (Should); extends requirement 17."
+algorithms: []
+used_by_workflows:
+    - W3066
+implemented_by_components: []
+requirements:
+    - "Should: Per node, known edges in the source database and how many targets were measured, with a flag below a
+      chosen count"
+sources:
+    - title: Systems Biologists and Bench Scientists Working With Molecular Interaction Networks (section 5.2, 7.4 and
+        section 10, requirement 57)
+      url: design/user-research/systems-biology-omics-networks.md
+      summary: "Should in the research. Covered by Designloom when researched: not covered"
+    - title: Needham et al. 2019 - Illuminating the dark phosphoproteome (Science Signaling)
+      url: https://pubmed.ncbi.nlm.nih.gov/30670635/
+      summary: Kinases are known for fewer than 5% of the phosphoproteome
+    - title: Hernandez-Armenta et al. 2017 - Benchmarking substrate-based kinase activity inference
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5870625
+      summary: Kinases with fewer quantified substrates are predicted worse

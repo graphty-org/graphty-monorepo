@@ -1,9 +1,12 @@
 id: notebook-graph-data-scientist
 name: Notebook Graph Data Scientist
+roster_persona: notebook-graph-data-scientist
+tier: B
+scope: in-scope
 role: Senior Data Scientist / Product Analytics or Risk Team, Python or R
 quote: I built the graph from a DataFrame in five lines. Now I need to see whether it is one blob, a few hubs or something real, without leaving the notebook.
 bio: >-
-    Priya is a senior data scientist on a product analytics or risk team with five-plus years of pandas, scikit-learn
+    Kavya is a senior data scientist on a product analytics or risk team with five-plus years of pandas, scikit-learn
     and Jupyter. Her graphs are never files: she builds them from tables of transactions, messages, co-purchases or
     co-authorships (10^3 to 10^6 rows) with `nx.from_pandas_edgelist`, attaches node attributes from a second table, and
     computes degree, PageRank, sampled betweenness and Louvain communities with NetworkX. When NetworkX is too slow she
@@ -32,6 +35,7 @@ behaviors:
     - Stringifies list and dict attributes with json.dumps before write_gexf or write_graphml because the writers reject them
     - Switches representation (matrix, arc, circos, hive plots grouped by an attribute) when the node-link drawing is a hairball
     - At warehouse scale aggregates in Spark (component sizes, top-k), extracts one piece and continues in pandas
+    - Saves pipeline output as Parquet edge and node tables (to_parquet, DuckDB COPY, Spark) and expects a viewer to open them with column types intact
     - Returns to the data cleaning step when a hub turns out to be a test account or default merchant id
 frustrations:
     - Hairballs that communicate only that the graph is complex
@@ -51,6 +55,8 @@ workflows:
     - W266
     - W270
     - W274
+    - W1120
+    - W318
 sources:
     - title: Network Analysis Made Simple - Visualizing graphs
       url: https://ericmjl.github.io/Network-Analysis-Made-Simple/01-introduction/03-viz

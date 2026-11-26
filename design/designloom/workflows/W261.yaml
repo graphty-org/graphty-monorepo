@@ -2,6 +2,7 @@ id: W261
 name: Pharmacovigilance Co-reporting Networks
 category: analysis
 validated: false
+scope: deferred
 personas:
     - pharmacovigilance-network-analyst
 requires_capabilities:
@@ -53,22 +54,22 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Extract reports** (hours) - Download FAERS quarterly files (not the dashboard) and remove duplicates; select a
+    1. **Extract reports** - Download FAERS quarterly files (not the dashboard) and remove duplicates; select a
     cohort (7,082 COVID-19 reports from 2020 in Fusaroli 2021)
 
-    2. **Group terms** (30 min) - Map Preferred Terms to their primary High-Level Terms (387 HLTs); drop non-specific
+    2. **Group terms** - Map Preferred Terms to their primary High-Level Terms (387 HLTs); drop non-specific
     System Organ Classes such as Investigations
 
-    3. **Disproportionality** (1 hour) - Reporting odds ratio with at least 3 cases and a 95 percent interval above 1 (54
+    3. **Disproportionality** - Reporting odds ratio with at least 3 cases and a 95 percent interval above 1 (54
     signals); others use PRR, IC or EBGM, or add bipartite network features to the signal score
 
-    4. **Build the event-event network** (1 hour) - Nodes are HLTs with at least 10 cases; edges are partial correlations
+    4. **Build the event-event network** - Nodes are HLTs with at least 10 cases; edges are partial correlations
     of co-reporting pruned by LASSO (Ising model): 136 nodes and 87 links
 
-    5. **Detect communities** (15 min) - Louvain (13 clusters); check assortativity by disproportionality and by organ
+    5. **Detect communities** - Louvain (13 clusters); check assortativity by disproportionality and by organ
     class
 
-    6. **Review clusters** (1-2 hours) - Clinical plausibility and reporting bias
+    6. **Review clusters** - Clinical plausibility and reporting bias
 
     7. **Publish** - Interactive visNetwork page filterable by significant ROR; static figures for the paper
 

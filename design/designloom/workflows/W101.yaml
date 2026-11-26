@@ -39,21 +39,21 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Set targets and window** (5 min) - Target plates and a date-time range
+    1. **Set targets and window** - Target plates and a date-time range
 
-    2. **Define an encounter** (2 min) - Read at the same camera within a time tolerance (i2 uses plus or minus 10
+    2. **Define an encounter** - Read at the same camera within a time tolerance (i2 uses plus or minus 10
     seconds)
 
-    3. **Set a minimum count** (1 min) - At least N encounters; 2 means the vehicle "has been in convoy with a target
+    3. **Set a minimum count** - At least N encounters; 2 means the vehicle "has been in convoy with a target
     vehicle on more than one occasion"
 
-    4. **Review candidates** (30 min) - Vehicles "previously unknown, but ... identified traveling with known or
+    4. **Review candidates** - Vehicles "previously unknown, but ... identified traveling with known or
     suspected criminals"; enrich with registration (make, model, color)
 
-    5. **Chart co-occurrence** (10 min) - Target to companion links weighted by encounter count; pass companions to
+    5. **Chart co-occurrence** - Target to companion links weighted by encounter count; pass companions to
     W98 and W99
 
-    6. **Sanity-check chance meetings** (15 min) - A convoy should be judged relative to background traffic, because
+    6. **Sanity-check chance meetings** - A convoy should be judged relative to background traffic, because
     vehicles meet by chance on busy roads
 
 

@@ -586,7 +586,7 @@ the difference is the case pass doing the opening queries and Next case replayin
 
 ### W24 Condition Comparison: tumor versus normal
 
-Persona: Dr. Priya Raman, a postdoc in a cancer genomics lab (`genomics-cytoscape-user`), a strong
+Persona: Dr. Lakshmi Raman, a postdoc in a cancer genomics lab (`genomics-cytoscape-user`), a strong
 biologist and not a graph theorist. Two co-expression networks from her lab's RNA-seq, tumor (1,800
 genes, 9,412 edges) and normal (1,650 genes, 8,105 edges), keyed by gene symbol, each with logFC and
 adjusted p-value columns and a gene description; a figure due Friday. Quest 3, hands, seated,
@@ -740,7 +740,7 @@ until the link returns ("Laptop link lost -- 2 files waiting").
   section.
 - **Controls:** Close case, a release, a verb. 3 acts.
 
-**After the headset. Leaves the headset:** Priya places the figure in her manuscript on the
+**After the headset. Leaves the headset:** Lakshmi places the figure in her manuscript on the
 laptop. Writing the paper is laptop work; graphty's part ends at a print-ready figure with its
 legend, a table with the columns she chose and a methods record she can paste.
 
@@ -939,7 +939,7 @@ precomputed states for its engines; if the build runs long, it is cut before the
 ### Round 1
 
 Four reviews: structure and fit with the owner's intent (`reviews/r1-findings-inbox-1.md`), the VR
-interaction lens (`-2`), Dr. Priya Raman walking W24 (`-3`), and build feasibility (`-4`). No
+interaction lens (`-2`), Dr. Lakshmi Raman walking W24 (`-3`), and build feasibility (`-4`). No
 severity 4. Severity 3 findings and what was done:
 
 **Structure and fit**
@@ -997,7 +997,7 @@ severity 4. Severity 3 findings and what was done:
 - No rule for cards that arrive mid-work. Fixed: new cards always queue behind the current card,
   and the stack's order is frozen while a pinch is on it.
 
-**Dr. Priya Raman walking W24**
+**Dr. Lakshmi Raman walking W24**
 
 - Cards about tumor alone blocked the comparison. Fixed: "Compare two files" on the Start card
   loads both, asks for the key once, and makes the difference findings the automatic pass;

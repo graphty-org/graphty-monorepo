@@ -1,0 +1,20 @@
+id: bidirected-edge-model
+name: "Bidirected edges and strand views"
+category: data
+description: "An edge records which end (start or end) of each node it joins and is drawn at that end; the graph can be shown with each node and its reverse complement merged into one drawn node, or both drawn with direction marks."
+status: planned
+notes: "Research trace: genome-assembly-and-pangenome-graphs.md section 10, table row 2 (Must)."
+algorithms: []
+used_by_workflows:
+    - W1156
+    - W1157
+    - W1158
+    - W1159
+implemented_by_components: []
+requirements:
+    - "Must: Bidirected edge model: an edge records which end of each node it joins; drawn at that end"
+sources:
+    - title: "Genome Assemblers, Microbial Genome Finishers and Pangenome Researchers: Assembly Graphs and Pangenome
+        Graphs (section 10, table row 2)"
+      url: design/user-research/genome-assembly-and-pangenome-graphs.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

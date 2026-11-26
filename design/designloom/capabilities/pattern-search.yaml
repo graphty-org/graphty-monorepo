@@ -1,8 +1,11 @@
 id: pattern-search
 name: Subgraph Pattern Search
 category: analysis
-description: Search for specific structural patterns (motifs) in the graph. Define a pattern template and find all
-    matching subgraphs. Essential for threat hunting, fraud detection, and motif analysis.
+description: Find every place a small typed pattern occurs in the graph -- a fraud typology (fan-in, fan-out,
+    pass-through, a cycle), an attack-path shape, a typed metapath between two nodes, a shared-identifier ring -- and
+    show the matches. Users rarely draw patterns from scratch; a curator saves them as parameterized templates or
+    search phrases that analysts run with one click. Counting a motif says nothing on its own; whether it is more
+    common than chance depends on a null model that preserves the structure that is not the hypothesis.
 status: planned
 algorithms:
     - Subgraph isomorphism
@@ -30,32 +33,44 @@ used_by_workflows:
     - W336
     - W34
     - W341
-    - W351
-    - W357
+    - W347
     - W420
     - W69
     - W78
 implemented_by_components:
     - pattern-search-dialog
 requirements:
-    - Define pattern as a small graph template with 2-10 nodes and their connections
-    - Support node type constraints in pattern (e.g., 'this node must be type Person')
-    - Support edge type constraints in pattern (e.g., 'this edge must be type KNOWS')
-    - Support node attribute constraints using comparison operators (e.g., 'degree > 5')
-    - Find all subgraphs matching the pattern using VF2 algorithm
-    - Display match count before showing individual matches
-    - Limit displayed matches to configurable maximum (default 50)
-    - Rank matches by optional relevance criteria (e.g., sum of node centralities)
-    - Highlight matched subgraph nodes and edges in main graph view
-    - Allow clicking match to center view on that subgraph
-    - Save pattern definitions for reuse with user-specified name
-    - Load previously saved patterns from pattern library
-    - "Provide pre-built patterns: triangle, star-3, chain-3, square, clique-4"
-    - Support approximate matching with configurable similarity threshold (0.8-1.0)
-    - Complete exact search within 10 seconds for patterns up to 5 nodes in graphs under 10,000 nodes
-    - Report 'No matches found' when pattern does not exist in graph
-    - Report 'Search timeout' with partial results after 30 seconds
+    - "Library parity: Define a pattern as a small graph of node and edge placeholders with type, direction and attribute constraints (comparison operators on attributes, including amounts and timestamps)"
+    - "Must: Support variable-length steps with a bounded hop range, and time-ordered steps (each edge later than the last)"
+    - "Must: Support typed metapath search between two given nodes, returning path counts per pattern with a per-pattern cap"
+    - "Must: Save a pattern as a named, parameterized template whose typed inputs (a node, a node set, an edge, a value) are filled at run time; share, export and import templates as data"
+    - "Library parity: Ship templates for common typologies -- fan-in, fan-out, pass-through, cycles, shared-identifier rings -- as data an application can show, replace or extend"
+    - "Must: Report the total match count, and whether results were capped, before showing matches; never silently truncate"
+    - "Must: Record the scope of every run -- the loaded graph or a stored graph behind it -- with the result"
+    - "Library parity: Highlight each match through a style layer scoped to the match, list matches, and center the view on one when it is selected"
+    - "Library parity: Rank matches by a chosen attribute or score"
+    - "Library parity: Report progress, allow cancel, and return partial results flagged as partial when a run is stopped"
+    - 'Library parity: Report "no match" as a result code, distinct from an error or a cancelled run'
+    - "Must: For motif significance, compare counts with a degree-preserving randomized ensemble (or a null the user chooses) and report observed count, null mean, null standard deviation and z, with the seeds used"
 sources:
-    - title: W07 Threat Hunting
-      url: https://graphty.app/docs/
-      summary: Pattern Translation - convert hypothesis into graph query/pattern
+    - title: Linkurious, top 10 query templates (graph database exploration research, S9)
+      url: https://linkurious.com/blog/top-10-query-templates-to-accelerate-your-investigations/
+      summary: Investigation templates with typed parameters that business users run without writing queries
+    - title: Neo4j Bloom advanced search phrases (graph database exploration research, S8)
+      url: https://neo4j.com/docs/bloom-user-guide/current/bloom-tutorial/search-phrases-advanced/
+      summary: Parameterized search phrases as saved patterns; caps that hide result size confuse users
+    - title: BloodHound Cypher search (cybersecurity research)
+      url: https://bloodhound.specterops.io/analyze-data/explore/cypher-search
+      summary: Saved, categorized pattern queries shared and exported as JSON; threat hunting runs saved patterns
+    - title: Altman et al. 2023, realistic synthetic financial transactions for AML (financial crime research, section 7.2)
+      url: https://arxiv.org/html/2306.16424v1
+      summary: Laundering typologies as graph motifs (fan-in, fan-out, cycles and others) over a directed temporal
+          multigraph; typology motif templates are a Should
+    - title: User research -- knowledge graph engineers and GraphRAG
+      url: design/user-research/knowledge-graph-engineers-and-graphrag.md
+      summary: Typed-path (metapath) search between two nodes with path counts and a per-pattern cap is a Must for
+          biomedical knowledge graphs
+    - title: Artzy-Randrup et al. 2004, comment on network motifs (network scientists research, Workflow A)
+      url: https://www.marcottelab.org/users/CH391L/Handouts/Networkmotifcomment1.pdf
+      summary: A network with no motif-selecting rule produced the same "significant" motifs, so the null must preserve
+          non-hypothesis structure

@@ -11,8 +11,6 @@ requires_capabilities:
     - basic-statistics
     - centrality-degree
     - centrality-betweenness
-    - centrality-closeness
-    - centrality-eigenvector
     - removal-impact-analysis
     - comparison-view
     - link-prediction
@@ -53,26 +51,26 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Seed and sweep** (days) - Choose seeds (five gang-linked individuals) and a window (six months); code everyone
+    1. **Seed and sweep** - Choose seeds (five gang-linked individuals) and a window (six months); code everyone
     the logs mention and the relation type; sweep again (the study stopped after two sweeps)
 
-    2. **Filter by grade** (15 min) - Keep reliable links (about 600 cut to 424 on the 5x5x5 scale), knowing that
+    2. **Filter by grade** - Keep reliable links (about 600 cut to 424 on the 5x5x5 scale), knowing that
     untested intelligence may be the most operationally important
 
-    3. **Load** (30 min) - Import the coded list (the study used UCINET via a script, then NodeXL; Harris County used
+    3. **Load** - Import the coded list (the study used UCINET via a script, then NodeXL; Harris County used
     a CSV-to-link-chart path, then added RMS, court and call data and re-ran)
 
-    4. **Measure each link type, then overlay** (30 min) - Size, components, density and centrality per sub-network
+    4. **Measure each link type, then overlay** - Size, components, density and centrality per sub-network
     (all, gang, criminal, drugs, social, drugs plus social); Manchester's three drug components were "actually
     connected via other social links"
 
-    5. **Profile people** (15 min) - Degree against betweenness into gatekeeper, central, highly visible and
+    5. **Profile people** - Degree against betweenness into gatekeeper, central, highly visible and
     peripheral (Manchester: 3, 7, 10 and 117 of 137)
 
-    6. **Match profile to action** (30 min) - Fragment through gatekeepers or central people; spread or gather
+    6. **Match profile to action** - Fragment through gatekeepers or central people; spread or gather
     information through central and highly visible people; aim prevention at peripheral people
 
-    7. **Simulate removal** (30 min) - Rank by a centrality; remove one at a time (an arrest), re-ranking what remains,
+    7. **Simulate removal** - Rank by a centrality; remove one at a time (an arrest), re-ranking what remains,
     or in blocks (a raid); track the largest connected component after each step
 
     8. **Model replacement** (judgment) - Orphaned actors recruit same-role replacements; a non-criminal tie may turn
@@ -81,7 +79,7 @@ goal: >-
     9. **Allow for missing data** (judgment) - Wiretaps run at most 40 days and leaders avoid phones; research tests
     ranking stability and predicts missing links; in practice the checks are grading and officer review
 
-    10. **Validate and report** (hours) - Review with officers who know the group; do not scale nodes by tie strength
+    10. **Validate and report** - Review with officers who know the group; do not scale nodes by tie strength
     when intelligence accuracy is limited; weigh profiles alongside diagrams and operational experience
 
 

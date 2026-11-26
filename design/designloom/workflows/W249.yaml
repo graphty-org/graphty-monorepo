@@ -48,23 +48,23 @@ goal: >-
 
     **Task Phases**:
 
-    1. **pySCENIC regulons** (1-2 h) - GRNBoost2 scores every TF-target pair; keep top targets per TF; motif pruning
+    1. **pySCENIC regulons** - GRNBoost2 scores every TF-target pair; keep top targets per TF; motif pruning
     gives regulons such as SPIB(+); AUCell scores cells; results usually shown as heat maps and UMAPs
 
-    2. **SCENIC+ eGRN** (30 min) - create_nx_tables picks eRegulons and returns TF2R, R2G and TF2G edge tables;
+    2. **SCENIC+ eGRN** - create_nx_tables picks eRegulons and returns TF2R, R2G and TF2G edge tables;
     fold-change columns added; create_nx_graph with a concentric layout (regions on a circle, genes inward, TFs near
     their regions); export_to_cytoscape keeps positions but no style
 
-    3. **CellOracle per-cluster GRNs** (about 30 min) - get_links fits a regularized regression per gene per cluster (24
+    3. **CellOracle per-cluster GRNs** - get_links fits a regularized regression per gene per cluster (24
     clusters x 1,850 genes); filter_links(p = 0.001, threshold_number = 2000)
 
-    4. **Scores** (5 min) - get_network_score: degree (all, in, out), degree centrality, betweenness, eigenvector per
+    4. **Scores** - get_network_score: degree (all, in, out), degree centrality, betweenness, eigenvector per
     gene per cluster; degree distribution per cluster
 
-    5. **Compare** (20 min) - plot_scores_as_rank per cluster; plot_score_comparison_2D for two clusters at the 98th
+    5. **Compare** - plot_scores_as_rank per cluster; plot_score_comparison_2D for two clusters at the 98th
     percentile; plot_score_per_cluster for one gene across all clusters, missing where it has no edges
 
-    6. **Perturb** (30 min) - simulate_shift with a gene set to zero, n_propagation 3; transition probabilities and
+    6. **Perturb** - simulate_shift with a gene set to zero, n_propagation 3; transition probabilities and
     vector fields on the embedding beside a randomized-GRN control
 
     7. **Other tools** (varies) - Pando draws a GRN UMAP with activating edges orange and inhibitory gray and a tree

@@ -5,7 +5,10 @@ validated: false
 personas:
     - sociometric-network-researcher
     - network-methods-grad-student
+    - people-analytics-ona-lead
+    - class-project-student
 requires_capabilities:
+    - positional-subgroup-analysis
     - data-import
     - data-validation
     - data-preview
@@ -15,9 +18,6 @@ requires_capabilities:
     - basic-statistics
     - statistics-panel
     - centrality-degree
-    - centrality-betweenness
-    - centrality-closeness
-    - centrality-eigenvector
     - community-detection
     - layout-force-directed
     - analysis-history
@@ -57,31 +57,32 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Design the instrument** (estimate: days, outside the tool) - Define the boundary (classroom, school, firm),
+    1. **Design the instrument** (outside the tool) - Define the boundary (classroom, school, firm),
     roster versus free recall, nomination cap, one relation or several, valued or binary. Caps censor degree.
 
-    2. **Export and recode IDs** (estimate: 30-120 min) - Survey output is wide: friend1..friend10 columns of roster IDs
+    2. **Export and recode IDs** - Survey output is wide: friend1..friend10 columns of roster IDs
     or typed names. Recode off-roster codes (Add Health uses 99999999 for "goes to sample school - not on list" and
     88888888 for the sister school); match typed partial names by hand and keep unconfirmed ones as their own nodes.
 
-    3. **Reshape to an edge list or matrix** (estimate: 15 min) - Wide to long (ego, alter, value); in UCINET paste into
+    3. **Reshape to an edge list or matrix** - Wide to long (ego, alter, value); in UCINET paste into
     the matrix spreadsheet or import a DL text file (dl n=..., format = edgelist1, labels embedded, data); in R
     network(edgelist, matrix.type = "edgelist") or graph_from_data_frame().
 
-    4. **Attach attributes** (estimate: 15 min) - Join a separate actor-by-variable table by ID; check that ID order and
+    4. **Attach attributes** - Join a separate actor-by-variable table by ID; check that ID order and
     coverage match exactly.
 
-    5. **Transform** (estimate: 15 min) - Symmetrize by maximum (any tie), minimum (reciprocated only), average, sum,
+    5. **Transform** - Symmetrize by maximum (any tie), minimum (reciprocated only), average, sum,
     lower or upper; dichotomize at a stated cutoff; transpose "seeks advice from" into "gives advice to"; remove
     isolates; extract the main component; join or unpack relations. Each is a reported decision.
 
-    6. **Mark missing data** (estimate: 10 min) - Keep non-respondents as nodes and code their unobserved outgoing dyads
+    6. **Mark missing data** - Keep non-respondents as nodes and code their unobserved outgoing dyads
     as missing rather than zero (see W27).
 
-    7. **First look and descriptives** (estimate: 20 min) - Spring-embedder layout; cohesion (density, reciprocity,
-    transitivity, components), multiple centrality measures with centralization, core-periphery and subgroups.
+    7. **First look and descriptives** - Spring-embedder layout; cohesion (density, reciprocity,
+    transitivity, components), multiple centrality measures with centralization, core-periphery and subgroups
+    (k-cores, cliques, factions; positions and blockmodels in W3114).
 
-    8. **Hand off** (estimate: 5 min) - Export node-level scores and the cleaned edge list to Stata, SPSS or R.
+    8. **Hand off** - Export node-level scores and the cleaned edge list to Stata, SPSS or R.
 
 
     **Decision Points**:

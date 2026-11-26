@@ -51,19 +51,19 @@ goal: >-
     1. **Record genealogies** (outside the tool) - In the field or from archives: individuals with sex, parent-child
     links, marriages.
 
-    2. **Load** (estimate: 10 min) - Into Puck, or download a peer-reviewed dataset from Kinsources, an open-access
+    2. **Load** - Into Puck, or download a peer-reviewed dataset from Kinsources, an open-access
     repository of kinship data in which Puck is integrated. (Puck's accepted file formats were not verified.)
 
-    3. **Check completeness** (estimate: 10 min) - Individuals without recorded parents and missing spouses; 24.8% of
+    3. **Check completeness** - Individuals without recorded parents and missing spouses; 24.8% of
     individuals in the Kinsources aggregate have no recorded parent.
 
-    4. **Run a matrimonial census** (estimate: 30 min) - Puck's purpose is a complete census of marriage circuits in a
+    4. **Run a matrimonial census** - Puck's purpose is a complete census of marriage circuits in a
     kinship network, which earlier tools lacked.
 
-    5. **Lay out by generation** (estimate: 15 min) - With no generation field, infer generations from parent-child
+    5. **Lay out by generation** - With no generation field, infer generations from parent-child
     direction; one study layered networks with Graphviz into up to 40 pseudogenerations.
 
-    6. **Compare societies** (estimate: 1 hour) - Degree, components, assortativity and distances across datasets (one
+    6. **Compare societies** - Degree, components, assortativity and distances across datasets (one
     2026 study analyzed 105 Kinsources datasets, 17 to about 50,000 individuals).
 
 

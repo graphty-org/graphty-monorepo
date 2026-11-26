@@ -3,7 +3,7 @@ name: Search, Expand and Path-Find in a Consortium Leak Graph
 category: exploration
 validated: false
 personas:
-    - investigative-reporter
+    - investigative-journalist
 requires_capabilities:
     - search
     - neighborhood-expansion
@@ -58,26 +58,26 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Search one name** (1 min) - Type a name; fuzzy matching surfaces spelling variants and transliterations
+    1. **Search one name** - Type a name; fuzzy matching surfaces spelling variants and transliterations
     ("Joaquin Loera" surfaced "Joaquin Guzman Loera")
 
-    2. **Batch search** (2 min) - Upload a CSV of names (for example a country's politicians) and get a CSV of hits
+    2. **Batch search** - Upload a CSV of names (for example a country's politicians) and get a CSV of hits
 
-    3. **Expand** (5 min) - Open a hit and expand to its officers, entities, intermediaries and address; expand again
+    3. **Expand** - Open a hit and expand to its officers, entities, intermediaries and address; expand again
     for the second degree
 
-    4. **Find the path** (1 min) - One-click shortest path between two names (a head of state to a company in three
+    4. **Find the path** - One-click shortest path between two names (a head of state to a company in three
     steps), optionally restricted to relationship types and a hop limit (the public guide allows up to 10 hops over
     officer, intermediary and registered-address edges)
 
-    5. **Ask harder questions** (technical reporters, 15-60 min) - Companies a person controls directly and through
+    5. **Ask harder questions** (technical reporters) - Companies a person controls directly and through
     variable-length chains; intermediaries ranked by linked companies; officer pairs who repeatedly share entities
     while excluding generic nominee names; fuzzy address search; PageRank
 
-    6. **Judge each hit** (hours per name) - Real person or namesake? Is the link current (inactivation dates)? Is a
+    6. **Judge each hit** - Real person or namesake? Is the link current (inactivation dates)? Is a
     nominee service the explanation? Add links the data does not contain (family ties) from reporting
 
-    7. **Share and save** (5 min) - Share the visualization with partner reporters; save the documents behind each
+    7. **Share and save** - Share the visualization with partner reporters; save the documents behind each
     step for the fact-check
 
     8. **Publish** (later) - Embed a view in the article; later the public database, where every page disclaims that

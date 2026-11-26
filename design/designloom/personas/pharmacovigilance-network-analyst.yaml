@@ -1,5 +1,8 @@
 id: pharmacovigilance-network-analyst
 name: Pharmacovigilance Network Analyst
+roster_persona: bioinformatics-researcher
+tier: none
+scope: deferred
 role: Drug Safety Scientist / Academic Pharmacologist
 quote: Two thousand Preferred Terms is noise. Grouped into high-level terms and clustered, it starts to look like a syndrome.
 bio: >-

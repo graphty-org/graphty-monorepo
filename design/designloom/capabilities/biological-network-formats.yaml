@@ -5,13 +5,20 @@ description: Import SIF and extended SIF with interaction types, PSI-MITAB 2.5-2
     3.0 with a choice to collapse multi-edges, KGML and GPML with curated coordinates and relation subtypes, SBML (fbc,
     qual), COBRA and Escher JSON, and BioPAX.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: data-preparation-and-import.md section 9, requirement 15 (Should)."
 algorithms: []
 used_by_workflows:
     - W241
     - W243
     - W244
     - W250
+    - W1162
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Should: Readers for PSI-MITAB, KGML, UCINET DL, delimited matrices, WoS/Scopus/BibTeX/RIS, RDF, SharpHound JSON,
+      STIX bundles"
+sources:
+    - title: Data Preparation, Import and First Assessment Across All Graph Users (section 9, requirement 15)
+      url: design/user-research/data-preparation-and-import.md
+      summary: "Should in the research. Covered by Designloom when researched: Planned: biological-network-formats,
+        survey-network-import, matrix-import, bibliographic-record-import, rdf-import, security-format-import"

@@ -1,0 +1,19 @@
+id: shared-clusters-across-samples
+name: "Shared clusters across samples"
+category: analysis
+description: "Pool per-sample networks that carry a sample and subject column, count samples and subjects per cluster, mark clusters shared by at least N samples or subjects (public clusters), test cluster or sequence frequency against a binary sample condition (for example Fisher's exact test) and flag enriched clusters, and open one cluster to see its members per sample and time point."
+status: planned
+notes: "Research trace: systems-biology-omics-networks.md section 10, requirement 46 (Should)."
+algorithms: []
+used_by_workflows:
+    - W1060
+implemented_by_components: []
+requirements:
+    - "Should: Shared clusters across samples: pool per-sample networks, count samples and subjects per cluster, flag
+      clusters enriched in one condition, and draw 10^5-10^6 clones"
+sources:
+    - title: Systems Biologists and Bench Scientists Working With Molecular Interaction Networks (section 10,
+        requirement 46)
+      url: design/user-research/systems-biology-omics-networks.md
+      summary: "Should in the research. Covered by Designloom when researched: partly covered (component-browser,
+        large-graph-rendering)"

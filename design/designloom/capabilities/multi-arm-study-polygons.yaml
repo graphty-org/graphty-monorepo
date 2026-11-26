@@ -1,0 +1,18 @@
+id: multi-arm-study-polygons
+name: "Multi-arm studies drawn as shaded polygons"
+category: visualization
+description: "Draw each study that compares three or more treatments as one shaded polygon over its treatment nodes, colored per study or per design, so a three-arm trial reads as one study and not as three two-arm trials. netmeta (multiarm, col.multiarm) and pcnetmeta (multi.show) offer it as an option; without it every network figure misreports multi-arm evidence."
+status: planned
+notes: "Research trace: network-meta-analysis-evidence-networks.md section 10, table row 2."
+algorithms: []
+used_by_workflows:
+    - W3054
+    - W3055
+implemented_by_components: []
+requirements:
+    - "Must: Draw multi-arm studies as shaded polygons over their treatments, distinct from two-arm trials"
+sources:
+    - title: "Network Meta-Analysis Authors: Treatment Evidence Networks (section 10, table row 2)"
+      url: design/user-research/network-meta-analysis-evidence-networks.md
+      summary: "Must in the research"
+

@@ -1,19 +1,18 @@
 id: centrality-eigenvector
 name: Eigenvector Centrality
 category: analysis
-description: Calculate eigenvector centrality - a node's importance is proportional to the importance of its neighbors.
-    Connections to well-connected nodes matter more. Captures prestige and influence in undirected networks.
-status: implemented
-notes: "Ships: graphty-element/src/algorithms/EigenvectorCentralityAlgorithm.ts."
+description: Calculate eigenvector centrality (Bonacich) - a node's score is proportional to the sum of its neighbors'
+    scores, so ties to well-connected nodes count more. The score is defined within one connected component and is
+    undefined on a directed acyclic graph; libraries differ in normalization and direction, so the result states the
+    conventions it used.
+status: in-progress
+notes: "Partly ships: graphty-element/src/algorithms/EigenvectorCentralityAlgorithm.ts runs power iteration with Max Iterations, tolerance, Normalized and a Direction Mode (in, out or total), refuses a non-converged run with E_NOT_CONVERGED, and reports iterations. It reads no edge weight. Planned: max-equals-1 and unit Euclidean normalizations (today the normalized option is min-max), weights read as strengths, the giant-component rule with a code, and a code for directed acyclic graphs. Any requirement below that this note does not name as shipping counts as planned."
 algorithms:
-    - Eigenvector centrality
-    - Power iteration for dominant eigenvector
+    - Eigenvector centrality (shipped)
+    - Power iteration for dominant eigenvector (shipped)
 used_by_workflows:
     - W09
-    - W10
-    - W03
     - W23
-    - W104
     - W107
     - W142
     - W172
@@ -26,34 +25,36 @@ used_by_workflows:
     - W209
     - W235
     - W249
-    - W26
-    - W311
     - W364
     - W387
     - W430
-    - W438
-    - W439
-    - W447
     - W66
+    - W228
 implemented_by_components:
     - algorithm-card
     - algorithm-panel
 requirements:
-    - Calculate eigenvector centrality using power iteration method
-    - Provide convergence threshold parameter adjustable from 1e-4 to 1e-8 (default 1e-6)
-    - Provide maximum iterations parameter adjustable from 100 to 10000 (default 1000)
-    - Normalize result so maximum eigenvector centrality equals 1.0
-    - Store result with 6 decimal places precision
-    - Handle disconnected graphs by computing for largest connected component only
-    - "Display warning when graph is disconnected: 'Computed for giant component only (N nodes)'"
-    - Report 'Did not converge' warning if max iterations reached without convergence
-    - Report actual number of iterations used
-    - Complete calculation within 5 seconds for graphs under 50,000 nodes
-    - Rank nodes by eigenvector centrality in descending order
-    - Display top-10 nodes by eigenvector centrality in results panel
-    - Store result as node attribute named 'eigenvector'
-    - Handle graphs with multiple components by assigning 0 to nodes outside giant component
+    - "Library parity: Calculate eigenvector centrality using power iteration method"
+    - "Library parity: Expose convergence tolerance and maximum iterations as options with documented defaults, and record the values used in the result"
+    - "Library parity: Return a non-convergence error code with the iteration count reached, never a silently partial result"
+    - "Library parity: Report the number of iterations used"
+    - "Library parity: Normalize so the maximum score equals 1.0 and record the normalization in the result; offer unit Euclidean norm as an option, since NetworkX uses it, so results can be matched against NetworkX"
+    - "Must: For directed graphs use the left dominant eigenvector (centrality flows in from in-neighbors) and record the direction in the result"
+    - "Must: Read the edge weight as a strength, as declared in weight-semantics; a column declared a distance is converted first, and the result records the column and the conversion used"
+    - "Must: On a disconnected graph compute on the giant component, assign 0 to nodes outside it, and return a code with the giant component's node count (the application writes the words)"
+    - "Library parity: On a directed acyclic graph return a code saying the score is undefined, rather than all zeros"
+    - "Library parity: Rank nodes by eigenvector centrality in descending order"
+    - "Library parity: Store result as node attribute named 'eigenvector'"
 sources:
-    - title: Graph Analysis Textbook - Chapter 6
-      url: https://graphty.app/docs/
-      summary: Eigenvector centrality captures prestige through neighbor importance
+    - title: Bonacich 1972, Factoring and weighting approaches to status scores and clique identification
+      url: https://doi.org/10.1080/0022250X.1972.9989806
+      summary: Origin of eigenvector centrality as a status score
+    - title: Bonacich 1987, Power and centrality - a family of measures
+      url: https://doi.org/10.1086/228631
+      summary: Generalizes eigenvector centrality
+    - title: NetworkX eigenvector_centrality
+      url: https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.centrality.eigenvector_centrality.html
+      summary: Unit Euclidean norm, left dominant eigenvector for directed graphs, weight read as connection strength
+    - title: igraph eigen_centrality
+      url: https://r.igraph.org/reference/eigen_centrality.html
+      summary: On a disconnected graph all but one component score zero; on a DAG all scores are zero

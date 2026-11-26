@@ -45,21 +45,21 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Concordance factors** (hours of compute) - Concatenated tree, single-locus trees, then gCF and sCF in IQ-TREE
+    1. **Concordance factors** - Concatenated tree, single-locus trees, then gCF and sCF in IQ-TREE
     against the concatenated reference; read "bootstrap / gCF / sCF" per branch and plot gCF against sCF from the stat
     table
 
-    2. **Conflict pies** (30 min) - PhyParts over all gene trees; per-branch pies of concordant (blue), top alternative
+    2. **Conflict pies** - PhyParts over all gene trees; per-branch pies of concordant (blue), top alternative
     (green), other conflict (red) and uninformative (grey), counts above and below
 
-    3. **Overlay** (15 min) - DensiTree overlays hundreds of gene or bootstrap trees; consensus summarizes them
+    3. **Overlay** - DensiTree overlays hundreds of gene or bootstrap trees; consensus summarizes them
 
-    4. **Tanglegram** (20 min) - Two trees in Dendroscope with crossing minimization and unequal taxon sets, or
+    4. **Tanglegram** - Two trees in Dendroscope with crossing minimization and unequal taxon sets, or
     phytools cophylo; eMPRess for host-parasite reconciliation
 
-    5. **Distances** (10 min) - TreeDist generalized Robinson-Foulds; MapTrees for tree space
+    5. **Distances** - TreeDist generalized Robinson-Foulds; MapTrees for tree space
 
-    6. **Split network** (15 min) - SplitsTree: alignment to p-distances to Neighbor-Net; the saved provenance graph
+    6. **Split network** - SplitsTree: alignment to p-distances to Neighbor-Net; the saved provenance graph
     reapplies to new data
 
 

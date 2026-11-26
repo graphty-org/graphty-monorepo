@@ -1,9 +1,12 @@
 id: network-topology-engineer
 name: Network Topology Engineer
+roster_persona: dependency-impact-engineer
+tier: A
+scope: in-scope
 role: Network Engineer (campus and data center)
 quote: The same twenty switches are three different graphs -- cables, VLANs and routes -- and during an outage I need the right one in front of me.
 bio: >-
-    Sam runs a campus network and two data centers. NetBox is his source of truth for devices, cables, sites, racks,
+    Kai runs a campus network and two data centers. NetBox is his source of truth for devices, cables, sites, racks,
     prefixes and VRFs, and he automates with Python, Netmiko and Nornir. He discovers topology from SNMP and CDP/LLDP
     neighbor tables, infers cabling, and renders per-site diagrams with netbox-topology-views or NextBox UI, dragging
     devices into place and saving the positions, then exports to draw.io or PNG for the documentation set. During an

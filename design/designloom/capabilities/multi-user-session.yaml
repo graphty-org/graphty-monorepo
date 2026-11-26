@@ -4,12 +4,17 @@ category: export
 description: Host and join a session with shared selection and pointing, desktop spectators, and data that need not
     leave each participant's machine.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: three-dimensional-and-immersive-network-analysis.md section 10, requirement R13 (Should)."
 algorithms: []
 used_by_workflows:
     - W415
     - W416
     - W421
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Should: Multi-user sessions: host and join, shared selection state, desktop spectators, data that need not leave
+      each machine"
+sources:
+    - title: Analysts Who Work With Networks in 3D and in Immersive VR or AR (section 10, requirement R13)
+      url: design/user-research/three-dimensional-and-immersive-network-analysis.md
+      summary: "Should in the research. Covered by Designloom when researched: Not covered"

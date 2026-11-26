@@ -40,21 +40,21 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Activate a thought** (seconds) - Click it; it moves to the center and becomes the active thought; linked
+    1. **Activate a thought** - Click it; it moves to the center and becomes the active thought; linked
     thoughts arrange around it by relationship
 
-    2. **Add a child** (seconds) - With a thought active, add a new thought below it
+    2. **Add a child** - With a thought active, add a new thought below it
 
-    3. **Add a parent** (seconds) - Add a broader thought above; a thought may have several parents
+    3. **Add a parent** - Add a broader thought above; a thought may have several parents
 
-    4. **Add a jump** (seconds) - Link a related thought that is neither parent nor child; jumps sit to the left
+    4. **Add a jump** - Link a related thought that is neither parent nor child; jumps sit to the left
 
     5. **See siblings** (automatic) - Children sharing a parent are derived, not created, and sit to the right
 
-    6. **Move on** (seconds, continuous) - Click any neighbor to make it active; the view redraws; links in the note
+    6. **Move on** (continuous) - Click any neighbor to make it active; the view redraws; links in the note
     footer act the same; unlinked mentions can be converted to links
 
-    7. **Find the way back** (seconds) - Past-thought trail; pins for current hot topics; search; backlinks to where the
+    7. **Find the way back** - Past-thought trail; pins for current hot topics; search; backlinks to where the
     active thought is referenced
 
 

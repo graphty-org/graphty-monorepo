@@ -49,24 +49,24 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Sketch the model** (30 min) - In Neo4j Data Importer add nodes with CamelCase labels mapped to CSV files and
+    1. **Sketch the model** - In Neo4j Data Importer add nodes with CamelCase labels mapped to CSV files and
     drag relationships named in SNAKE_CASE; or draw in arrows.app, export JSON and load it with Runway's
     DataModel.from_arrows, checking it with model.visualize()
 
-    2. **Generate and run ingestion** (10-60 min) - Runway's IngestionGenerator writes LOAD CSV Cypher without an LLM; paste
+    2. **Generate and run ingestion** - Runway's IngestionGenerator writes LOAD CSV Cypher without an LLM; paste
     and run it in Neo4j Browser, or let Data Importer run the import
 
-    3. **Compare loaded schema with the model** (10 min) - CALL db.schema.visualization() returns one virtual node per
+    3. **Compare loaded schema with the model** - CALL db.schema.visualization() returns one virtual node per
     label and virtual relationships per start-end pair; it is estimated from statistics and can show relationships that
     do not exist (Cypher 25 accepts estimate false to scan); db.schema.nodeTypeProperties() shows mandatory properties
     per label. Compare this picture with the sketch
 
-    4. **Check counts** (10 min) - Nodes per label and relationships per type against source row counts; spot-check a
+    4. **Check counts** - Nodes per label and relationships per type against source row counts; spot-check a
     few samples per label in Browser or Bloom
 
-    5. **Diff against the last rebuild** (10 min) - Count changes per label and type; investigate jumps
+    5. **Diff against the last rebuild** - Count changes per label and type; investigate jumps
 
-    6. **Re-apply the invalidation list** (5 min) - Links reviewers marked wrong must be removed again after each rebuild;
+    6. **Re-apply the invalidation list** - Links reviewers marked wrong must be removed again after each rebuild;
     no tool support was found, so teams keep the list in their ETL
 
     7. **Entity resolution over structured records** - Cluster review with record-level evidence (Senzing, Splink, Zingg)
@@ -121,7 +121,7 @@ goal: >-
     - Output: A verified graph, a schema diagram for stakeholders, a count-diff report, an updated invalidation list
 success_criteria:
     - metric: Schema check
-      target: User sees intended model vs loaded schema with differences marked in under 2 minutes
+      target: User sees intended model vs loaded schema with differences marked in under 2 minutes (design goal; no source measures it)
     - metric: Rebuild diff
       target: Every label and relationship type shows its count change since the last rebuild
     - metric: Invalidation durability

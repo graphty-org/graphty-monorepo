@@ -3,7 +3,7 @@ name: Reporter's Spreadsheet to a Network Without Code
 category: analysis
 validated: false
 personas:
-    - investigative-reporter
+    - investigative-journalist
     - newsroom-graphics-editor
 requires_capabilities:
     - data-import
@@ -58,25 +58,25 @@ goal: >-
     1. **Define the relationship** (before collecting) - Board seat, shareholding, donation, family; one relationship
     type per column value
 
-    2. **Build two sheets** (hours of reporting) - Nodes (id, label, type, attributes) and connections (source, target,
+    2. **Build two sheets** - Nodes (id, label, type, attributes) and connections (source, target,
     type, weight); a Gephi edge CSV needs Source and Target and an optional Type, and without Type every edge is
     treated as directed, so check that direction matches the subject
 
-    3. **Import** (5 min) - Gephi: import the edges table and copy Id to Label; Kumu: paste a shared Google Sheet link
+    3. **Import** - Gephi: import the edges table and copy Id to Label; Kumu: paste a shared Google Sheet link
     that refreshes on reload (a publicly editable sheet would leak the investigation); Oligrapher: draw a small power
     map by hand
 
-    4. **Lay out** (2 min) - Fruchterman-Reingold or ForceAtlas2; an unfiltered network is a hairball
+    4. **Lay out** - Fruchterman-Reingold or ForceAtlas2; an unfiltered network is a hairball
 
-    5. **Filter** (5 min) - Range filter on edge weight (the class keeps Senate pairs that voted together at least 0.67
+    5. **Filter** - Range filter on edge weight (the class keeps Senate pairs that voted together at least 0.67
     of the time); make sure tables and exports follow the filter ("visible graph only")
 
-    6. **Measure and encode** (10 min) - Betweenness, average degree, modularity; size by betweenness, color by party
+    6. **Measure and encode** - Betweenness, average degree, modularity; size by betweenness, color by party
     or community; remember that starting the collection from one person makes that person look central
 
-    7. **Export** (5 min) - SVG or PDF for print, or JSON of the visible graph for a web page
+    7. **Export** - SVG or PDF for print, or JSON of the visible graph for a web page
 
-    8. **Or go straight to a reader chart** (20 min) - Flourish Points sheet (id, group) and Links sheet (source,
+    8. **Or go straight to a reader chart** - Flourish Points sheet (id, group) and Links sheet (source,
     target, value); arrows off for undirected data; reduce maximum link width when all weights are 1; title, source
     footer and popups; embed
 
@@ -125,7 +125,7 @@ goal: >-
     - Output: SVG or PDF figure, filtered node and edge tables, web-ready JSON or an embeddable chart
 success_criteria:
     - metric: Sheet to readable network
-      target: Under 15 minutes from two sheets to a laid-out, filtered, colored network
+      target: Under 15 minutes from two sheets to a laid-out, filtered, colored network (design goal; no source measures it)
     - metric: Direction correctness
       target: User sees and can set whether imported edges are directed before analysis
     - metric: Filter parity

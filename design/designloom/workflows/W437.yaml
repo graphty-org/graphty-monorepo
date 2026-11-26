@@ -4,6 +4,7 @@ category: exploration
 validated: false
 personas:
     - tcm-database-platform-developer
+    - network-pharmacology-graduate-student
 requires_capabilities:
     - graph-rendering
     - progressive-loading
@@ -24,6 +25,7 @@ requires_capabilities:
     - export-image
     - data-export
     - provenance-tracking
+    - embeddable-query-viewer
 suggested_components:
     - graph-canvas
     - progressive-loader

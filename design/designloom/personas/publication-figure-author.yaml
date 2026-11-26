@@ -1,5 +1,8 @@
 id: publication-figure-author
 name: Publication Figure Author
+roster_persona: publication-figure-author
+tier: facet
+scope: in-scope
 role: Staff Scientist / Core Analyst who prepares network figures and supplementary network deposits for journals
 quote: The figure has to survive being shrunk to an 85 mm column, and the reviewer will ask what threshold I used.
 bio: >-

@@ -14,7 +14,6 @@ requires_capabilities:
     - basic-statistics
     - degree-analysis
     - centrality-degree
-    - centrality-betweenness
     - community-detection
     - component-analysis
     - metric-histograms

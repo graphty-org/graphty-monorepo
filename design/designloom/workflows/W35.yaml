@@ -12,7 +12,6 @@ requires_capabilities:
     - annotation
     - filtering
     - centrality-degree
-    - centrality-betweenness
     - export-image
     - data-export
     - multiplex-relations
@@ -48,21 +47,21 @@ goal: >-
     command, funding, advice, information), define "influence" and the goals to code; pre-test. Ask interviewees for
     one to two hours.
 
-    2. **Who is involved?** (estimate: 15 min) - The interviewee names actors; each goes on a card on a large sheet.
+    2. **Who is involved?** - The interviewee names actors; each goes on a card on a large sheet.
 
-    3. **How are they linked?** (estimate: 30 min) - Draw arrows one link type at a time, each in its own color, starting
+    3. **How are they linked?** - Draw arrows one link type at a time, each in its own color, starting
     with the rarest type.
 
-    4. **How influential?** (estimate: 15 min) - Stack tower pieces under each actor ("the more influence an actor has
+    4. **How influential?** - Stack tower pieces under each actor ("the more influence an actor has
     the higher the tower"); ties allowed; zero stays on the ground. The interviewer reads the towers back, the
     interviewee adjusts, and heights are written on the map.
 
-    5. **What are their goals?** (estimate: 10 min) - Mark each actor with goal codes (for example D for development, P
+    5. **What are their goals?** - Mark each actor with goal codes (for example D for development, P
     for protection).
 
-    6. **Discuss** (estimate: 15 min) - Sources of influence and conflicts, recorded by a note taker.
+    6. **Discuss** - Sources of influence and conflicts, recorded by a note taker.
 
-    7. **Digitize** (estimate: 1 hour per map) - One matrix per link type into UCINET, or redraw in VisuaLyzer with node
+    7. **Digitize** - One matrix per link type into UCINET, or redraw in VisuaLyzer with node
     size showing tower height.
 
 

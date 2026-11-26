@@ -49,21 +49,21 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Build the map** (5 min) - Load an enrichment table (g:Profiler, GSEA, or generic) and its gene-set file; set
+    1. **Build the map** - Load an enrichment table (g:Profiler, GSEA, or generic) and its gene-set file; set
     the FDR q-value cutoff (0.01 to 0.05) and the similarity cutoff (Jaccard, overlap, or combined, typically 0.375);
     node size is gene-set size, node color is enrichment direction or FDR, edge width is overlap
 
-    2. **Explore** (10 min) - Search a gene and highlight every pathway containing it; click a node to see its genes;
+    2. **Explore** - Search a gene and highlight every pathway containing it; click a node to see its genes;
     sort the node table by FDR or NES; when an expression matrix is present, show a heat map of the genes in the
     selected pathways
 
-    3. **Tune** (5 min) - Slide the node q-value and edge similarity cutoffs to thin the map; re-run layout; separate
+    3. **Tune** - Slide the node q-value and edge similarity cutoffs to thin the map; re-run layout; separate
     up-regulated (positive NES) and down-regulated pathways into two halves of the canvas
 
-    4. **Name the themes** (10 min) - Cluster the map, auto-label each cluster from the most frequent words in its
+    4. **Name the themes** - Cluster the map, auto-label each cluster from the most frequent words in its
     pathway names, rename by hand, collapse clusters into single theme nodes for the summary figure
 
-    5. **Publish** (5 min) - Export the figure as PDF or SVG with a legend; record the creation parameters (q cutoff,
+    5. **Publish** - Export the figure as PDF or SVG with a legend; record the creation parameters (q cutoff,
     similarity metric and cutoff) for the methods section
 
 
@@ -126,7 +126,7 @@ goal: >-
     by q-value and similarity uses the generic filter builder.
 success_criteria:
     - metric: Map built
-      target: Enrichment table and gene-set file load with correct node and edge encodings in under 10 minutes
+      target: Enrichment table and gene-set file load with correct node and edge encodings in under 10 minutes (design goal; no source measures it)
     - metric: Themes named
       target: Every cluster of >= 3 pathways carries a label
     - metric: Parameters recorded

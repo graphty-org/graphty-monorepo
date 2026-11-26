@@ -3,12 +3,16 @@ name: Reveal Relationships
 category: analysis
 description: Fetch and draw the relationships among nodes already on the canvas, without adding new nodes.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: graph-database-query-and-expand-exploration.md section 10, requirement 8 (Must)."
 algorithms: []
 used_by_workflows:
-    - W02
+    - W3024
     - W142
     - W147
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Reveal relationships among nodes already shown"
+sources:
+    - title: Graph Database Users Who Explore by Search, Query and Expand (section 10, requirement 8)
+      url: design/user-research/graph-database-query-and-expand-exploration.md
+      summary: Must in the research.

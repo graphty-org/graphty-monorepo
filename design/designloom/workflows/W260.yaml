@@ -56,22 +56,22 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Extract and code** (days, secure environment) - Diagnoses per patient with dates (for example 14.9 years for 6.2
+    1. **Extract and code** (secure environment) - Diagnoses per patient with dates (for example 14.9 years for 6.2
     million Danish patients), ICD-10 rounded to three characters
 
-    2. **Pair statistics** (hours, scripted) - Count ordered pairs within a window (five years; 1,194,343 pairs);
+    2. **Pair statistics** (scripted) - Count ordered pairs within a window (five years; 1,194,343 pairs);
     relative risk against matched comparison groups with Bonferroni-corrected binomial tests (62,821 significant); test
     direction (4,014 directional pairs). Alternative: relative risk and phi from claims (32.3 million Medicare claims,
     13 million people), one network per measure
 
-    3. **Trajectories** (1 hour, scripted) - Chain directional pairs into three- and four-step trajectories with at least
+    3. **Trajectories** (scripted) - Chain directional pairs into three- and four-step trajectories with at least
     20 patients (1,171 trajectories)
 
-    4. **Cluster** (30 min) - Jaccard similarity between diagnoses, MCL clustering (15 clusters)
+    4. **Cluster** - Jaccard similarity between diagnoses, MCL clustering (15 clusters)
 
     5. **Export aggregates** (review) - Check minimum patient counts before data leaves the secure environment
 
-    6. **Draw** (1-2 hours today, custom code) - Comorbidity network thresholded for display (for example RR > 20, phi >
+    6. **Draw** (custom code) - Comorbidity network thresholded for display (for example RR > 20, phi >
     0.06), colored by ICD chapter, sized by prevalence; each trajectory cluster drawn with time left to right, directed
     edges, width proportional to patient count
 

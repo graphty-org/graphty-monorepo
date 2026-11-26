@@ -63,14 +63,14 @@ goal: >-
     2. **Run and generate cases** (scheduled, hourly by default in Linkurious) - Each case carries the target entity, the
     matching subgraph and attribute columns (amount, count, score); hits on the same target are merged
 
-    3. **Sort and assign** (5 min per batch) - Sort the case list by score, amount or age; assign cases; scores from
+    3. **Sort and assign** - Sort the case list by score, amount or age; assign cases; scores from
     heavy-tailed measures are shown as rank, log or within-group scores, not raw z-scores
 
-    4. **Open a case** (5-20 min) - Draw the case subgraph: the target, its 1 to 2 hop neighborhood, parallel transactions
+    4. **Open a case** - Draw the case subgraph: the target, its 1 to 2 hop neighborhood, parallel transactions
     summed, styled by open alert, prior case or label; discount identifiers shared by very many entities; expand only
     where needed
 
-    5. **Decide** (2-5 min) - Confirm or dismiss with a comment naming the link or transaction that decided it; the status
+    5. **Decide** - Confirm or dismiss with a comment naming the link or transaction that decided it; the status
     change and note go into the case history; escalate confirmed cases (to a SAR decision, an incident or a block)
 
     6. **Feed back** (weekly, by the rule owner) - Confirmed and dismissed outcomes become labels for the next seeded

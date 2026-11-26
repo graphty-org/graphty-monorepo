@@ -36,7 +36,6 @@ used_in_workflows:
     - W253
     - W258
     - W263
-    - W264
     - W276
     - W318
     - W361
@@ -55,6 +54,12 @@ used_in_workflows:
     - W78
     - W89
     - W90
+    - W1012
+    - W1090
+    - W1096
+    - W1157
+    - W2037
+    - W3102
 dependencies:
     - search-input
     - search-result-item

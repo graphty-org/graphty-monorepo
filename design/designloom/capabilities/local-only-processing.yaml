@@ -6,7 +6,7 @@ description: Run the whole analysis in the browser with nothing uploaded, and st
     the choice between local processing and a streaming server is a data-sensitivity decision made before a performance
     one.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: public-health-and-molecular-epidemiology.md section 10, table row 1 (Must)."
 algorithms: []
 used_by_workflows:
     - W108
@@ -27,11 +27,17 @@ used_by_workflows:
     - W89
     - W90
     - W92
+    - W1084
+    - W1096
 implemented_by_components: []
 requirements:
-    - Work fully offline with no network calls for data, state that guarantee, and save encrypted projects for sensitive
-      unpublished investigations.
-    - All import, analysis and export run on the user's machine with no data sent to a server, and work offline, for
-      engagement and incident data that cannot leave the environment.
-    - Guarantee that imported text and transcripts are processed in the browser and never uploaded.
-sources: []
+    - "Must: Runs fully offline and processes locally in the browser, with nothing uploaded; a visible statement of
+      where data goes"
+    - "Must: Work fully offline with no network calls for data, state that guarantee, and save encrypted projects for sensitive unpublished investigations."
+    - "Must: All import, analysis and export run on the user's machine with no data sent to a server, and work offline, for engagement and incident data that cannot leave the environment."
+    - "Must: Guarantee that imported text and transcripts are processed in the browser and never uploaded."
+sources:
+    - title: Public Health Outbreak Investigators and Molecular Epidemiologists (section 10, table row 1)
+      url: design/user-research/public-health-and-molecular-epidemiology.md
+      summary: "Must in the research. Covered by Designloom when researched: NOT covered
+          explicitly"

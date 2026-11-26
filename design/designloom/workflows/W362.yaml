@@ -47,7 +47,7 @@ goal: >-
     1. **Threading has run** (analyst, once) - Email threading writes a thread group, a sort id, an inclusive flag
     and a duplicate spare flag on every email
 
-    2. **Open the pane** (seconds) - From the open email in the viewer; the whole thread group draws with the open
+    2. **Open the pane** - From the open email in the viewer; the whole thread group draws with the open
     email outlined and larger
 
     3. **Read the layout** - Earliest on the left; Reply All before Forward and Reply branches, which go downward;
@@ -113,7 +113,7 @@ goal: >-
     coding across the thread
 success_criteria:
     - metric: Time to identify messages that must be read
-      target: Under 10 seconds for a thread of 30 messages
+      target: Under 10 seconds for a thread of 30 messages (design goal; no source measures it)
     - metric: Branch coding
       target: A whole branch, with its attachments and duplicates, selected in two clicks
     - metric: Conflict visibility

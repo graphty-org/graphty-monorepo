@@ -6,10 +6,17 @@ description: "Compute indirect ownership over a weighted ownership hierarchy und
     sanctions ownership (aggregate blocked owners, propagate full stakes through blocked intermediaries at 50 percent or
     more, with a 'more than 50 percent' option), handling cycles; each flag names the rule that produced it."
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: financial-crime-fraud-aml-kyc.md section 10, requirement 9 (Must)."
 algorithms: []
 used_by_workflows:
     - W123
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Ownership graph with two documented rules: effective ownership (product and sum, interval arithmetic for
+      bands, configurable threshold) and sanctions ownership (aggregate, propagate full stakes through blocked
+      intermediaries, 50 percent or more; \"more than 50 percent\" option), each flag naming its rule; cycle handling"
+sources:
+    - title: "Financial crime investigators: fraud rings, anti-money-laundering, beneficial ownership, crypto tracing
+        and insurance fraud (section 10, requirement 9)"
+      url: design/user-research/financial-crime-fraud-aml-kyc.md
+      summary: Must in the research.

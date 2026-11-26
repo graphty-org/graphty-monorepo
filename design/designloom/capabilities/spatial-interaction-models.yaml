@@ -4,10 +4,16 @@ category: analysis
 description: Fit gravity (unconstrained, singly or doubly constrained) and radiation models or an adjusted-flow null
     model, compute expected flows and residuals per pair, and color flows by residual sign.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: geographic-flow-and-mobility-networks.md section 10, requirement R11 (Should)."
 algorithms: []
 used_by_workflows:
     - W385
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Should: Expected-flow models (gravity singly or doubly constrained, radiation, adjusted-flow null model) and
+      residual coloring"
+sources:
+    - title: "Geographic Flow and Mobility Networks: Migration, Commuting, Mobility and Trade Flows on a Map (section
+        10, requirement R11)"
+      url: design/user-research/geographic-flow-and-mobility-networks.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

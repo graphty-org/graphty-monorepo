@@ -5,13 +5,24 @@ description: Give point events a user-set lifetime or decay (kept separate from 
     into windows with length, step and overlap, and aggregate parallel events per pair per window (count, sum, first,
     last) so styles and algorithms use the aggregate.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: temporal-and-dynamic-networks.md section 11, requirement T4 (Must)."
 algorithms: []
 used_by_workflows:
     - W19
     - W304
     - W305
     - W307
+    - W113
+    - W228
+    - W3048
+    - W3049
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Event-to-interval conversion with a user-set duration or decay (for example 30 minutes) for true point
+      events only, kept separate from the start + duration mapping; interval-to-window binning with window length, step,
+      and overlap"
+sources:
+    - title: Temporal and Dynamic Network Data and Analysis (section 11, requirement T4)
+      url: design/user-research/temporal-and-dynamic-networks.md
+      summary: "Must in the research. Covered by Designloom when researched: Partly (temporal-analysis has window size
+        and step; no duration/decay)"

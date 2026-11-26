@@ -1,5 +1,8 @@
 id: prosecution-trial-analyst
 name: Prosecution Trial Analyst
+roster_persona: trial-exhibit-analyst
+tier: B
+scope: in-scope
 role: Trial and Investigative Analyst, District Attorney's Office or Federal Task Force
 quote: Every line on this exhibit has to point to a record the defense already has, and I need a second version ready in case the judge strikes eleven of them.
 bio: >-

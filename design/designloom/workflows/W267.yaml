@@ -48,20 +48,20 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Bring in the scored output** (5 min) - Load the interaction graph and the model's scores produced elsewhere
+    1. **Bring in the scored output** - Load the interaction graph and the model's scores produced elsewhere
     (PyG LightGCN `logits.topk(k)`, or Neo4j GDS FastRP plus kNN written as SIMILAR relationships with a score)
 
-    2. **Open the seed** (2 min) - Extract the seed user's neighborhood: the user, items in their history, top-N
+    2. **Open the seed** - Extract the seed user's neighborhood: the user, items in their history, top-N
     recommended items with predicted probability, and item attributes (category, popularity, centrality, community)
 
-    3. **Connect history to recommendation** (5 min) - For each recommended item show the shortest path, the shared
+    3. **Connect history to recommendation** - For each recommended item show the shortest path, the shared
     neighbors or the explainer edges linking it to the user's history; encode probability as size or color and item
     type as shape or color
 
-    4. **Judge** (5 min) - Is this a popularity artifact? Does it come from a distant but feature-similar node? Is the
+    4. **Judge** - Is this a popularity artifact? Does it come from a distant but feature-similar node? Is the
     item already consumed (a leakage or filtering bug)?
 
-    5. **Rate and export** (3 min) - Star-rate questionable recommendations, export ratings as CSV with user and item
+    5. **Rate and export** - Star-rate questionable recommendations, export ratings as CSV with user and item
     ids intact, take them back into training or filtering code
 
 
@@ -108,7 +108,7 @@ goal: >-
     - Output: Ratings CSV keyed by user and item id; a picture for stakeholders
 success_criteria:
     - metric: Time from opening a seed user to a recorded judgment (hypothesis)
-      target: Under 5 minutes per user
+      target: Under 5 minutes per user (design goal; no source measures it)
     - metric: Ratings export
       target: Exported ratings carry the original user and item ids
 sources:

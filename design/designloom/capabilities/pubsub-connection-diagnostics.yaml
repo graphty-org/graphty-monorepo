@@ -1,0 +1,31 @@
+id: pubsub-connection-diagnostics
+name: Publish and Subscribe Connection Diagnostics
+category: analysis
+description: >-
+    For a two-mode publish and subscribe graph (process to channel to process, such as ROS nodes and topics), mark the
+    channels that have no publisher or no subscriber, and mark the publisher and subscriber pairs that cannot connect
+    (different message types, incompatible quality-of-service settings) or carry no messages, with the reason as a
+    neutral { code, params } fact the application can show on hover. In ROS 2 an incompatible requested and offered
+    QoS pair makes no connection and passes no messages, and rqt_graph draws no sign of it; separate tools such as
+    connection_inspector exist only to mark such links.
+status: planned
+notes: "Research trace: dependency-and-impact-analysis-engineers.md section 10, requirement R42 (Should)."
+algorithms: []
+used_by_workflows:
+    - W3096
+implemented_by_components: []
+requirements:
+    - "Should: Two-mode publish and subscribe graph (process to channel to process): mark channels with no publisher or
+      no subscriber, and mark endpoint pairs that are incompatible (message type, QoS) or carry no messages, with the
+      reason on hover"
+sources:
+    - title: "Engineers Who Analyze Dependencies: IT Services, Networks, Software and Data Lineage (section 10,
+        requirement R42)"
+      url: design/user-research/dependency-and-impact-analysis-engineers.md
+      summary: "Should in the research. Covered by Designloom when researched: No"
+    - title: ROS 2 documentation - Quality of Service settings
+      url: https://github.com/ros2/ros2_documentation/blob/jazzy/source/Concepts/Intermediate/About-Quality-of-Service-Settings.rst
+      summary: Incompatible requested and offered QoS profiles make no connection, and no messages are passed
+    - title: connection_inspector (ROS index)
+      url: https://index.ros.org/r/connection_inspector/
+      summary: Marks each connection healthy, QoS incompatible (Request-vs-Offered), type mismatch or dead (0 Hz), with a plain-language reason

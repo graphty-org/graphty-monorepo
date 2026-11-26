@@ -3,10 +3,19 @@ name: Group-in-a-Box layout
 category: visualization
 description: Treemap rectangles per community with a layout inside each box, as NodeXL draws topic networks.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: social-media-disinformation-and-marketing.md section 10, Should-have 25 (Group-in-a-Box layout) and Workflow 1 (NodeXL)."
 algorithms: []
 used_by_workflows:
     - W207
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Should: Place each community or category group in its own treemap box sized by its node count, with a layout run inside each box"
+    - "Should: Accept the grouping from community detection or from a node column"
+    - "Could: Offer the box arrangements of the later NodeXL work (croissant-doughnut, force-directed boxes) for graphs with many links between groups"
+sources:
+    - title: "Rodrigues et al., Group-in-a-Box Layout for Multi-faceted Analysis of Communities (IEEE SocialCom 2011)"
+      url: "https://researchr.org/publication/RodriguesMSSH11"
+      summary: "Treemap boxes per cluster sized by vertex count, each with its own layout; implemented in NodeXL"
+    - title: "Social media research, section 10, Should-have 25"
+      url: "design/user-research/social-media-disinformation-and-marketing.md"
+      summary: "Group-in-a-Box layout, Should"

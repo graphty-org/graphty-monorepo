@@ -46,20 +46,20 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Inputs** (10 min) - Per-subject matrices in a folder (alphanumeric order, so names must be zero-padded) or
+    1. **Inputs** - Per-subject matrices in a folder (alphanumeric order, so names must be zero-padded) or
     one array; design matrix with covariates; contrast such as [1 -1]; test (one sample, t-test, F-test); node
     coordinates, which are required to display a result
 
-    2. **Primary threshold** (10 min, iterated) - Threshold the per-edge t-statistic; liberal values find extended
+    2. **Primary threshold** (iterated) - Threshold the per-edge t-statistic; liberal values find extended
     but weak effects, conservative ones focal strong effects; in the bundled example 2.5 gives a component too dense
     to interpret and 3.5 finds nothing
 
-    3. **Permutation settings** (2 min) - 5,000 permutations, FWER 0.05, NBS or FDR, component size by extent or
+    3. **Permutation settings** - 5,000 permutations, FWER 0.05, NBS or FDR, component size by extent or
     intensity
 
-    4. **Run and read** (minutes) - Component p-value; view only if a component is significant
+    4. **Run and read** - Component p-value; view only if a component is significant
 
-    5. **Figure and table** (20 min) - Write the component as edge and node files and draw it in 3D (W152); edge table
+    5. **Figure and table** - Write the component as edge and node files and draw it in 3D (W152); edge table
     with region labels and t-values; often a circular connectogram grouped by lobe or network
 
 

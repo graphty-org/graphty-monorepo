@@ -1,9 +1,12 @@
 id: network-biology-core-bioinformatician
 name: Network Biology Core Bioinformatician
+roster_persona: genomics-cytoscape-user
+tier: A
+scope: in-scope
 role: Staff Bioinformatician, Genomics or Proteomics Core Facility
 quote: I run the same STRING, cluster, enrich, figure pipeline for thirty labs a year. It has to be one script, and the PI has to open the result without installing anything.
 bio: >-
-    Sam Okafor is a staff bioinformatician in a core facility. Every week a different lab hands over a gene list, a
+    Chinedu Okafor is a staff bioinformatician in a core facility. Every week a different lab hands over a gene list, a
     proteomics table or a sample series, and he runs the same pipeline: build an interaction network, cluster it, run
     enrichment, rank hubs and produce figures and tables. For sample series of 15 or more he runs WGCNA co-expression
     analysis. He scripts Cytoscape from R with RCy3 or from Python with py4cytoscape, uses STRINGdb and igraph headless
@@ -53,6 +56,8 @@ workflows:
     - W246
     - W247
     - W252
+    - W313
+    - W3066
 sources:
     - title: RCy3 - Overview vignette
       url: https://bioconductor.org/packages/release/bioc/vignettes/RCy3/inst/doc/Overview-of-RCy3.html

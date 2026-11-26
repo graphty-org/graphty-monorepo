@@ -6,7 +6,7 @@ personas:
     - temporal-network-researcher
     - bibliometric-evolution-analyst
     - social-media-dynamics-researcher
-    - animal-social-network-researcher
+    - animal-social-network-ecologist
 requires_capabilities:
     - community-detection
     - community-profiling
@@ -52,20 +52,20 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Detect communities per snapshot** (5 min) - Same algorithm and parameters for every period
+    1. **Detect communities per snapshot** - Same algorithm and parameters for every period
 
-    2. **Match across steps** (5 min) - Match each community to its predecessor by overlap with a threshold (0.1 by
+    2. **Match across steps** - Match each community to its predecessor by overlap with a threshold (0.1 by
     default in Greene et al.'s tracker); label births, deaths, merges and splits
 
-    3. **Test significance** (10-30 min) - Bootstrap the networks (for example 1,000 resamples); keep nodes co-clustered
+    3. **Test significance** - Bootstrap the networks (for example 1,000 resamples); keep nodes co-clustered
     in 95 percent of runs as each community's significant core
 
-    4. **Draw the flow** (5 min) - Alluvial diagram of membership across periods
+    4. **Draw the flow** - Alluvial diagram of membership across periods
 
-    5. **Two-period diff** (5 min) - On one union layout, color edges only-in-first, only-in-second and in-both; rank
+    5. **Two-period diff** - On one union layout, color edges only-in-first, only-in-second and in-both; rank
     nodes by rewiring score
 
-    6. **Report** (15 min) - Alluvial figure, births/deaths/merges/splits table, rewiring ranks, diff figure with legend
+    6. **Report** - Alluvial figure, births/deaths/merges/splits table, rewiring ranks, diff figure with legend
 
 
     **Decision Points**:

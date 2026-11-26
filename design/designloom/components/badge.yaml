@@ -6,13 +6,15 @@ status: implemented
 notes: "Ships: Mantine Badge, Mantine through compact-mantine, used across graphty/src."
 implements_capabilities: []
 used_in_workflows:
+    - W3024
     - W02
     - W111
     - W143
-    - W353
+    - W343
     - W362
     - W371
     - W376
+    - W1013
 dependencies: []
 props:
     label: string - Badge text

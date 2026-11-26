@@ -1,9 +1,12 @@
 id: sre-incident-responder
 name: SRE Incident Responder
+roster_persona: dependency-impact-engineer
+tier: A
+scope: in-scope
 role: Senior Site Reliability Engineer
 quote: The checkout service is paging. Tell me in two minutes whether it is the cause or a victim, and who owns the thing that actually broke.
 bio: >-
-    Priya is a senior site reliability engineer on call for a payments platform of about 300 services running on
+    Rhea is a senior site reliability engineer on call for a payments platform of about 300 services running on
     Kubernetes. When a page arrives she opens the alerting service on a trace-derived service map (Datadog Service Map
     and Dependency Map Navigator, Grafana Tempo service graphs, Kiali or AWS X-Ray), scopes it to the environment and
     the time window around onset, and walks from unhealthy node to unhealthy callee until she finds the dependency

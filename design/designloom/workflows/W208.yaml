@@ -6,6 +6,7 @@ personas:
     - communication-network-scholar
     - coordination-detection-scientist
 requires_capabilities:
+    - label-overlap-removal
     - data-import
     - data-validation
     - data-preview
@@ -67,31 +68,31 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Collect** (hours to months) - Keyword collection over a period (Starbird: nine months, 248,719 posts from
+    1. **Collect** - Keyword collection over a period (Starbird: nine months, 248,719 posts from
     160,217 accounts); today Communalytic, 4CAT with Zeeschuimer browser capture, Bluesky Jetstream or the X pay-per-use
     API
 
-    2. **Build the edge list** (15 min) - Choose one relation (repost, mention, reply or quote) and its direction, weight
+    2. **Build the edge list** - Choose one relation (repost, mention, reply or quote) and its direction, weight
     repeats; convert the post table to a graph (Table2Net or a script); keep 64-bit IDs as text
 
-    3. **Reduce** (5 min) - Keep accounts with degree greater than one (160,217 down to 22,020 in Starbird's case);
+    3. **Reduce** - Keep accounts with degree greater than one (160,217 down to 22,020 in Starbird's case);
     for co-hashtag networks delete the query hashtags and apply frequency and degree range filters
 
-    4. **Lay out** (10-30 min) - ForceAtlas2 with scaling, gravity and LinLog adjusted, run until stable, then prevent
+    4. **Lay out** - ForceAtlas2 with scaling, gravity and LinLog adjusted, run until stable, then prevent
     overlap; OpenOrd then Yifan Hu for very large graphs
 
-    5. **Detect communities** (2 min) - Louvain modularity with a resolution setting (0.1 to 2 suggested), or Infomap
+    5. **Detect communities** - Louvain modularity with a resolution setting (0.1 to 2 suggested), or Infomap
     (about a thousand communities, two of which held 91.7 percent of nodes)
 
-    6. **Encode** (5 min) - Color by community, size by in-degree or repost count, labels only for top accounts
+    6. **Encode** - Color by community, size by in-degree or repost count, labels only for top accounts
 
-    7. **Label clusters** (30 min) - Per cluster: top 10 hashtags in account bios, top 5 most-reposted accounts, top 10
+    7. **Label clusters** - Per cluster: top 10 hashtags in account bios, top 5 most-reposted accounts, top 10
     most-followed accounts; read the left- or right-leaning identity from them
 
-    8. **Overlay external lists** (10 min) - Match a known list (2,752 Internet Research Agency accounts, of which 29
+    8. **Overlay external lists** - Match a known list (2,752 Internet Research Agency accounts, of which 29
     were active) and show where they sit
 
-    9. **Interpret and publish** (30 min) - Annotate figures, state that the map is not conclusive, export a static
+    9. **Interpret and publish** - Annotate figures, state that the map is not conclusive, export a static
     image, or host GEXF for Gephi Lite or Retina so readers can explore
 
 

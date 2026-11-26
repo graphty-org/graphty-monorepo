@@ -4,7 +4,7 @@ category: visualization
 description: A display mode that hides labels and identifying attributes for screen sharing and briefings, distinct from
     the underlying data, so a confidential investigation can be discussed without exposing identifiers.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: public-health-and-molecular-epidemiology.md section 10, table row 17 (Must)."
 algorithms: []
 used_by_workflows:
     - W185
@@ -18,11 +18,18 @@ used_by_workflows:
     - W66
     - W71
     - W72
+    - W2096
+    - W2097
+    - W2099
 implemented_by_components: []
 requirements:
-    - Hide or anonymize nodes flagged as living or restricted in every view and export with one setting.
-    - Replace handles and names of private individuals with stable pseudonyms in exported figures and data.
-    - Hide or replace node labels and chosen attributes in exported images and files, verified absent from the output
-      file; also field stripping before a web export is published.
-    - Display mode that replaces names with stable pseudonyms everywhere, including exports.
-sources: []
+    - "Must: A de-identified mode that hides labels and identifying attributes for screen sharing, distinct from the
+      underlying data"
+    - "Should: Hide or anonymize nodes flagged as living or restricted in every view and export with one setting."
+    - "Should: Replace handles and names of private individuals with stable pseudonyms in exported figures and data."
+    - "Must: Hide or replace node labels and chosen attributes in exported images and files, verified absent from the output file; also field stripping before a web export is published."
+    - "Should: Display mode that replaces names with stable pseudonyms everywhere, including exports."
+sources:
+    - title: Public Health Outbreak Investigators and Molecular Epidemiologists (section 10, table row 17)
+      url: design/user-research/public-health-and-molecular-epidemiology.md
+      summary: "Must in the research. Covered by Designloom when researched: NOT covered"

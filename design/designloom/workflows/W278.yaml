@@ -45,29 +45,29 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Install** (minutes to weeks) - `npm install` an open-source library and its React wrapper (pinning the peer
+    1. **Install** - `npm install` an open-source library and its React wrapper (pinning the peer
     library), or for a commercial toolkit a sales contact, a downloaded tarball and a license file in the source tree
 
-    2. **Give it a box** (10 min) - A container with an explicit width and height; in Next.js load it with
+    2. **Give it a box** - A container with an explicit width and height; in Next.js load it with
     `next/dynamic` and `ssr: false` or WebGL code crashes on `window`
 
-    3. **Map data to the library's model** (hours to days) - Decide which backend fields become ids, labels and style
+    3. **Map data to the library's model** - Decide which backend fields become ids, labels and style
     inputs; Cytoscape.js wants `{data: {id, source, target}}`, sigma a graphology Graph, ReGraph an items object keyed by
     id, yFiles node and edge sources; ids must be stable across fetches or expand-merge duplicates nodes
 
-    4. **Positions** (hours) - Run a named layout, assign x and y and run ForceAtlas2 in a worker, or let the toolkit
+    4. **Positions** - Run a named layout, assign x and y and run ForceAtlas2 in a worker, or let the toolkit
     lay out and report positions back
 
-    5. **Style** (hours) - Stylesheet with data mappings, reducers and shader programs, or per-item props; type to color,
+    5. **Style** - Stylesheet with data mappings, reducers and shader programs, or per-item props; type to color,
     score to size, icons and badges
 
-    6. **Events** (hours) - Tap and hover handlers through a ref with manual removal on unmount, or hook-managed
+    6. **Events** - Tap and hover handlers through a ref with manual removal on unmount, or hook-managed
     listeners; selection pushed into the app's store
 
-    7. **Product chrome** (days) - Search box, properties panel bound to the selection, zoom controls, legend, layout
+    7. **Product chrome** - Search box, properties panel bound to the selection, zoom controls, legend, layout
     switcher
 
-    8. **Lifecycle** (hours) - One instance kept in a ref, incoming elements diffed, layout re-run only for new
+    8. **Lifecycle** - One instance kept in a ref, incoming elements diffed, layout re-run only for new
     elements, renderer destroyed on unmount
 
 
@@ -115,7 +115,7 @@ goal: >-
     - Output: A mounted, styled, interactive graph component and the product screen around it
 success_criteria:
     - metric: Install to clickable, styled graph
-      target: Under one hour, in about 15 lines of author code
+      target: Under one hour, in about 15 lines of author code (design goal; no source measures it)
     - metric: Update correctness
       target: Re-binding data with existing ids adds no duplicates and moves no existing node
     - metric: Clean unmount

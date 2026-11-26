@@ -1,5 +1,8 @@
 id: biomedical-kg-analyst
 name: Biomedical Knowledge Graph Builder-Analyst
+roster_persona: biomedical-kg-analyst
+tier: B
+scope: in-scope
 role: Translational Bioinformatician (drug repurposing, Biolink/KGX graphs)
 quote:
     A ranked list of predicted drugs means nothing to the clinician until I can show the typed paths that support each
@@ -45,6 +48,7 @@ context:
 workflows:
     - W138
     - W140
+    - W263
 sources:
     - title: KGX format specification
       url: https://biolink.github.io/kgx/kgx_format.html

@@ -1,5 +1,8 @@
 id: customer-journey-analyst
 name: Customer Journey Analyst
+roster_persona: process-mining-analyst
+tier: A
+scope: in-scope
 role: CX Analyst / Customer Journey Analyst
 quote: We designed four journeys. I want to see the journeys customers actually take, how many follow the design, and which device or campaign sends them off it.
 bio: >-
@@ -43,7 +46,6 @@ workflows:
     - W343
     - W345
     - W348
-    - W358
 sources:
     - title: Weijs and Caron - customer journey mining with Google Analytics 4 and Celonis (ICSOFT 2022)
       url: https://scitepress.org/PublishedPapers/2022/112639/pdf/index.html

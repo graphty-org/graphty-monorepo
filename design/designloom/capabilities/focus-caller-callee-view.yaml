@@ -4,11 +4,17 @@ category: visualization
 description: Center one node with its callers on one side and callees on the other, and step to a neighbor to re-center,
     keeping health overlays visible.
 status: planned
-notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+notes: "Research trace: dependency-and-impact-analysis-engineers.md section 10, requirement R4 (Must)."
 algorithms: []
 used_by_workflows:
     - W76
     - W80
+    - W3096
 implemented_by_components: []
-requirements: []
-sources: []
+requirements:
+    - "Must: Focus view: callers on one side, callees on the other, step to re-center"
+sources:
+    - title: "Engineers Who Analyze Dependencies: IT Services, Networks, Software and Data Lineage (section 10,
+        requirement R4)"
+      url: design/user-research/dependency-and-impact-analysis-engineers.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

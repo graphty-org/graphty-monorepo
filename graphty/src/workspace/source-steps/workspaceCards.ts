@@ -7,6 +7,7 @@ import {
     DEFAULT_BRANCH_PALETTE,
     type GraphSession,
     type SourceDraft,
+    type SourceDraftMadeCounts,
     type SourceDraftMarkCounts,
     type SourceJoinSide,
     type SourceKey,
@@ -82,6 +83,21 @@ export function stepsOf(all: readonly SourceStepRow[], steps: readonly SourceSte
         }
         return places;
     });
+}
+
+/**
+ * What a card's whole join does: every step it wrote and the sources it added for itself.
+ * @param draft - the open draft
+ * @param steps - the card's steps
+ * @returns the counts, or null once the draft is closed
+ */
+export function cardReach(draft: SourceDraft, steps: readonly SourceStepRow[]): SourceDraftMadeCounts | null {
+    try {
+        return draft.preview().made(stepsOf(draft.steps(), steps));
+    } catch {
+        // A draft Done or Cancel closed, drawn once more on its way out.
+        return null;
+    }
 }
 
 /**

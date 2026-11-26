@@ -3783,6 +3783,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             cells: READ,
             marks: READ,
             ids: READ,
+            made: READ,
         },
     },
     {

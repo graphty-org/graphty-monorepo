@@ -531,6 +531,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
                 "questions",
                 "marks",
                 "ids",
+                "made",
             ],
         },
         { root: "VisibilityApi", members: ["held"] },

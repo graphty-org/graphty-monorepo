@@ -6,7 +6,7 @@
  */
 
 import type { EdgeId, NodeId } from "../../../catalog/types";
-import type { SourceDraftMarkCounts } from "../../types";
+import type { SourceDraftMadeCounts, SourceDraftMarkCounts } from "../../types";
 import { nodeId } from "./build";
 import type { DraftMarks, DraftState } from "./draft";
 import { drillElements } from "./drill";
@@ -150,4 +150,58 @@ export function markCounts(state: DraftState, marks: DraftMarks): SourceDraftMar
             ...changed(marks.edges),
         },
     };
+}
+
+/**
+ * How many elements some steps of a draft make, each counted once however many of the steps reach it:
+ * the nodes and edges they add, and those they fold rows into. An element a step adds counts as added
+ * when the commit adds it, or when the graph holds it already and none of the steps folds rows into it:
+ * what a committed join still makes. One a later step merges into a node the graph holds is not added.
+ * @param state - The draft.
+ * @param marks - What the commit does to each element.
+ * @param steps - The steps' places; a place the draft does not hold makes nothing.
+ * @returns The counts.
+ */
+export function madeCounts(state: DraftState, marks: DraftMarks, steps: readonly number[]): SourceDraftMadeCounts {
+    const built = buildOf(state.value, state.copies);
+    const ids = nodeIdsOf(built);
+    const reached = (buckets: readonly string[]): Set<string> => {
+        const out = new Set<string>();
+        for (const step of new Set(steps)) {
+            for (const ref of stepRefs(state, { step, buckets })) {
+                const id = "space" in ref ? nodeIdOf(built, ids, ref) : builtEdgeOf(built, ref);
+                if (id !== undefined) {
+                    out.add(String(id));
+                }
+            }
+        }
+        return out;
+    };
+    const added = (made: ReadonlySet<string>, folded: ReadonlySet<string>, of: ReadonlyMap<string, string>): number =>
+        [...made].filter((id) => {
+            const mark = of.get(id);
+            return mark === "new" || ((mark === "unchanged" || mark === "changed") && !folded.has(id));
+        }).length;
+    const merged = reached(["merged"]);
+    const mergedEdges = reached(["mergedEdges"]);
+    return {
+        nodes: { new: added(reached(["newNodes", "keptNew"]), merged, marks.nodes), merged: merged.size },
+        edges: { new: added(reached(["newEdges"]), mergedEdges, marks.edges), merged: mergedEdges.size },
+    };
+}
+
+/**
+ * The built edge id an edge reference names, through the aliases of edges merged since.
+ * @param built - The build.
+ * @param ref - The reference.
+ * @param ref.load - Its load.
+ * @param ref.key - Its key.
+ * @returns The id, or undefined when the build holds no such edge.
+ */
+function builtEdgeOf(
+    built: ReturnType<typeof buildOf>,
+    ref: { readonly load: string; readonly key: string },
+): string | undefined {
+    const at = `${ref.load}\u0001${ref.key}`;
+    return built.edges.has(at) ? at : built.edgeAliases.get(at);
 }

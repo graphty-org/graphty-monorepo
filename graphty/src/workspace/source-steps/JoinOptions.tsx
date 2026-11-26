@@ -2,6 +2,7 @@ import { ComboInput, ControlSection, SegmentedControl } from "@graphty/compact-m
 import type {
     GraphSession,
     SourceDraft,
+    SourceDraftMadeCounts,
     SourceJoinOutcome,
     SourceJoinSide,
     SourceStepPatch,
@@ -14,7 +15,15 @@ import { directions, NO_MATCH_WORDS, sameEnds } from "./cardWords";
 import { edgeTypeChoices } from "./join";
 import { type CardLine, type CardResult, DEFAULT_RESULT, directionOf, noMatchOf, noMatchWays } from "./joinCards";
 import { Pick } from "./Pick";
-import { BUCKET_WORDS, bucketCount, counted, JOIN_WORDS, OVER_CAP_WORDS, WORKSPACE_WORDS } from "./words";
+import {
+    BUCKET_WORDS,
+    bucketCount,
+    type BucketWords,
+    counted,
+    JOIN_WORDS,
+    OVER_CAP_WORDS,
+    WORKSPACE_WORDS,
+} from "./words";
 import { DifferRow, ReduceRow } from "./WorkspaceParts";
 
 /**
@@ -612,16 +621,41 @@ export function Options(props: OptionProps): React.JSX.Element {
 }
 
 /**
- * A step's counts, each a button that lists what it counts in the table.
+ * The counts of what a join adds to the graph or folds into its edges, which a card reads off its whole join, by
+ * the step counts each is. The nodes a merge matched stay its step's: they need not be nodes the graph holds.
+ */
+const EFFECTS: readonly (readonly ["nodes" | "edges", "merged" | "new", readonly string[]])[] = [
+    ["nodes", "new", ["keptNew", "newNodes"]],
+    ["edges", "new", ["newEdges"]],
+    ["edges", "merged", ["mergedEdges"]],
+];
+
+/** The words of each effect a card's word list leaves out: a merge card's new edges. */
+const EFFECT_WORDS: Readonly<Record<string, BucketWords>> = {
+    "nodes.new": BUCKET_WORDS.merge[1],
+    "edges.new": { id: "newEdges", one: "new edge", many: "new edges" },
+    "edges.merged": { id: "mergedEdges", one: "edge merged", many: "edges merged" },
+};
+
+/**
+ * A card's counts, each a button that lists what it counts in the table. What the join does to the graph is
+ * counted over the card's whole join, every step it wrote and the sources it added for itself, so it agrees
+ * with the key; a count no one step lists is not a button.
  * @param props - Component props
  * @param props.step - the card's step
+ * @param props.reach - what the card's whole join does; null once the draft is closed
  * @param props.onShow - lists one count's rows
  * @returns the counts
  */
 export function StepCounts({
     step,
+    reach,
     onShow,
-}: Readonly<{ step: SourceStepRow; onShow: (bucket: string) => void }>): React.JSX.Element | null {
+}: Readonly<{
+    step: SourceStepRow;
+    reach: SourceDraftMadeCounts | null;
+    onShow: (bucket: string) => void;
+}>): React.JSX.Element | null {
     const { buckets } = step;
     if (buckets === null) {
         return null;
@@ -629,6 +663,8 @@ export function StepCounts({
     const links = step.link?.nodes === undefined ? "links" : "nodeLinks";
     const made = step.link === null ? "edge" : links;
     const words = BUCKET_WORDS[step.op === "join.merge" ? "merge" : made];
+    const effectOf = (id: string): (typeof EFFECTS)[number] | undefined =>
+        EFFECTS.find(([, , ids]) => ids.includes(id));
     const show = (id: string, text: string): React.JSX.Element => (
         <UnstyledButton
             key={id}
@@ -640,12 +676,21 @@ export function StepCounts({
             {text}
         </UnstyledButton>
     );
+    const item = (each: BucketWords): React.JSX.Element | null => {
+        const own = bucketCount(buckets, each.id);
+        const effect = effectOf(each.id);
+        const count = effect === undefined || reach === null ? own : reach[effect[0]][effect[1]];
+        if (count === 0) {
+            return null;
+        }
+        const text = counted(count, each);
+        return count === own ? show(each.id, text) : <span key={each.id}>{text}</span>;
+    };
+    const listed = new Set(words.map((each) => effectOf(each.id)));
+    const more = EFFECTS.flatMap((effect) => (listed.has(effect) ? [] : [EFFECT_WORDS[`${effect[0]}.${effect[1]}`]]));
     return (
         <Group gap={12} wrap="wrap" className="jw-counts">
-            {words.map((each) => {
-                const count = bucketCount(buckets, each.id);
-                return count === 0 ? null : show(each.id, counted(count, each));
-            })}
+            {[...words, ...more].map((each) => item(each))}
             {step.link === null || buckets.hub.length === 0
                 ? null
                 : show("hub", counted(buckets.hub.length, OVER_CAP_WORDS))}

@@ -38,6 +38,7 @@ import { DELETE_KEY } from "./keys";
 import { KeyWords } from "./KeyWords";
 import { Pick, type PickChoice, type PickGroup } from "./Pick";
 import { JOIN_WORDS, moreWords, WORKSPACE_WORDS } from "./words";
+import { cardReach } from "./workspaceCards";
 
 /** New nodes, as a side list offers it. */
 const NEW_VALUE = "new";
@@ -493,6 +494,7 @@ export function JoinCardBody(props: JoinCardBodyProps): React.JSX.Element {
             {step === null ? null : (
                 <StepCounts
                     step={step}
+                    reach={cardReach(draft, card.steps)}
                     onShow={(bucket) => {
                         props.onShowRows(step.index, bucket);
                     }}

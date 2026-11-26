@@ -7915,6 +7915,18 @@ export interface SourceDraftIds {
 }
 
 // @public
+export interface SourceDraftMadeCounts {
+    readonly edges: {
+        readonly new: number;
+        readonly merged: number;
+    };
+    readonly nodes: {
+        readonly new: number;
+        readonly merged: number;
+    };
+}
+
+// @public
 export interface SourceDraftMarkCounts {
     readonly edges: {
         readonly merged: number;
@@ -7953,6 +7965,8 @@ export interface SourceDraftPreview {
         readonly refs: readonly SourceElementRef[];
     }): SourceDraftIds;
     readonly issues: readonly SourceDraftPreviewIssue[];
+    // @beta
+    made(steps: readonly number[]): SourceDraftMadeCounts;
     // @beta
     readonly marks: SourceDraftMarkCounts;
     readonly nodes: SourceDraftPreviewChanges;

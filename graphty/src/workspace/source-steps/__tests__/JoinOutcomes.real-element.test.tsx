@@ -479,6 +479,37 @@ const CASES: readonly Case[] = [
     },
 ];
 
+/**
+ * The number the key above the graph gives one of its items.
+ * @param modal - the workspace.
+ * @param label - the item's label, such as "nodes new".
+ * @returns the number.
+ */
+function keyCount(modal: HTMLElement, label: string): number {
+    const item = [...modal.querySelectorAll("[aria-label]")].find((each) =>
+        new RegExp(`^${label} \\d+$`).test(each.getAttribute("aria-label") ?? ""),
+    );
+    return Number(item?.getAttribute("aria-label")?.split(" ").at(-1) ?? 0);
+}
+
+/**
+ * Checks that the open card counts the new nodes and new edges the key counts: one card is the whole join.
+ * @param modal - the workspace, with one card written.
+ */
+async function countsAgree(modal: HTMLElement): Promise<void> {
+    await waitFor(() => {
+        const counts = modal.querySelector(".jw-counts")?.textContent ?? "";
+        for (const [label, one, many] of [
+            ["nodes new", "new node", "new nodes"],
+            ["edges new", "new edge", "new edges"],
+        ] as const) {
+            const n = keyCount(modal, label);
+            const said = counts.match(new RegExp(`(\\d+) (${many}|${one})(?![a-z])`))?.[1];
+            assert.strictEqual(Number(said ?? 0), n, `the card's ${many} and the key's ${label}: ${counts}`);
+        }
+    });
+}
+
 describe("a join card's ways to join (source-steps)", () => {
     it.each(CASES)("$name", async ({ loaded = [], waiting = [], matches, ways, pick, lines, steps = 1, makes }) => {
         const { session, modal } = await opened(loaded, waiting);
@@ -495,6 +526,7 @@ describe("a join card's ways to join (source-steps)", () => {
             assert.lengthOf(joinsOf(session), steps);
         });
         assert.deepStrictEqual(after(session), makes);
+        await countsAgree(modal);
         assert.deepStrictEqual(joinLines(modal), lines);
         // One undo takes the whole card's join back and leaves its lines.
         await userEvent.click(within(modal).getByRole("button", { name: /^Undo/ }));

@@ -29,6 +29,7 @@ import {
 import {
     type DrawnIds,
     idsOfRefs,
+    madeCounts,
     markCounts,
     type StepBuckets,
     stepRefs,
@@ -784,6 +785,7 @@ export class SourceDraftHandle implements SourceDraft {
             const data = previewOf(this.base, this.state, context);
             // The internal counts are the public ones; the public types name their spellings.
             const { base, state } = this;
+            const drawn = draftMarks(base, state);
             // The drill-down reads the state the preview describes; kept off the enumerable data.
             const questions = openQuestions(state).map(({ space, count, of, source, sources }) => ({
                 code: "W_SPACE_OVERLAP" as const,
@@ -795,7 +797,8 @@ export class SourceDraftHandle implements SourceDraft {
                     rows: { value: (q: DrillQueryArg) => drillRows(base, state, q) },
                     elements: { value: (q: DrillQueryArg) => drillElements(state, q) },
                     cells: { value: (q: CellQueryArg) => drillCells(state, q) },
-                    marks: { value: Object.freeze(markCounts(state, draftMarks(base, state))), enumerable: true },
+                    marks: { value: Object.freeze(markCounts(state, drawn)), enumerable: true },
+                    made: { value: (steps: readonly number[]) => madeCounts(state, drawn, steps) },
                     ids: {
                         value: (q: DrillQueryArg | { readonly refs: readonly SourceElementRef[] }) =>
                             this.idsOf("refs" in q ? q.refs : drillElements(state, q)),

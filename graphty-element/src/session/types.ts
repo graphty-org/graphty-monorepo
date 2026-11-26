@@ -4889,6 +4889,18 @@ export interface SourceDraftPreview {
      */
     readonly marks: SourceDraftMarkCounts;
     /**
+     * How many elements some steps make, each counted once however many of the steps reach it: the
+     * nodes and edges they add and those they fold rows into. What a join written as several steps,
+     * with the staged sources it adds for itself, makes as a whole; for steps that are all new to the
+     * draft it agrees with `marks`.
+     * Experimental: may change or be removed in a minor release.
+     * @param steps - The steps' places, as `draft.steps()` lists them; a place the draft does not
+     *   hold makes nothing.
+     * @returns The counts.
+     * @beta
+     */
+    made(steps: readonly number[]): SourceDraftMadeCounts;
+    /**
      * The session ids of draft elements, on the side drawn now: what `element.zoomToNodes` frames
      * and `selection` selects. An element not drawn on that side is left out.
      * @param query - A step's count, as `elements` takes it, or element references.
@@ -4935,6 +4947,27 @@ export interface SourceDraftMarkCounts {
         readonly removed: number;
         /** Edges the commit gives other values; absent for none. */
         readonly changed?: number;
+    };
+}
+
+/**
+ * How many elements some steps of a draft make, as `preview.made` counts them.
+ * @experimental source-steps
+ */
+export interface SourceDraftMadeCounts {
+    /** The nodes. */
+    readonly nodes: {
+        /** Nodes the steps add. */
+        readonly new: number;
+        /** Nodes the steps merge a row or a node into. */
+        readonly merged: number;
+    };
+    /** The edges. */
+    readonly edges: {
+        /** Edges the steps add. */
+        readonly new: number;
+        /** Edges the steps fold a row into. */
+        readonly merged: number;
     };
 }
 

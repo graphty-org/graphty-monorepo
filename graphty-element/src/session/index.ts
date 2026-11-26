@@ -234,6 +234,7 @@ export type {
     SourceDraftColumn,
     SourceDraftElementsQuery,
     SourceDraftIds,
+    SourceDraftMadeCounts,
     SourceDraftMarkCounts,
     SourceDraftOptions,
     SourceDraftPreview,

@@ -261,7 +261,7 @@ export const RULE_WORDS: Readonly<Record<SourceClashRule, string>> = {
 };
 
 /** A step's count as a card lists it: its words for one and for several. */
-interface BucketWords {
+export interface BucketWords {
     readonly id: SourceStepNumberBucket;
     readonly one: string;
     readonly many: string;

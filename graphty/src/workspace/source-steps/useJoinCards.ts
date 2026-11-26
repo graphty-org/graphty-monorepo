@@ -21,17 +21,15 @@ import {
     type Ignoring,
     ignoringOf,
     type JoinCardView,
+    joinOf,
     keyOfSteps,
     linesOfStep,
     matchOf,
     newCard,
     offeredOutcomes,
     type OpenCard,
-    outcomeKey,
     outcomesOf,
     type ReaderCard,
-    remember,
-    rememberedOf,
     removeSteps,
     resultOf,
     sameMatches,
@@ -86,15 +84,10 @@ export interface JoinCards {
  * What the draft's join cards match and make.
  * @param draft - the open draft
  * @param mine - the reader's cards
- * @param kept - the cards written in this session
  * @returns them
  */
-function keysNow(
-    draft: SourceDraft,
-    mine: readonly ReaderCard[],
-    kept: ReturnType<typeof rememberedOf>,
-): ReadonlySet<string> {
-    return new Set(cardsOf(draft, mine, kept).flatMap(({ steps }) => (steps.length === 0 ? [] : [keyOfSteps(steps)])));
+function keysNow(draft: SourceDraft, mine: readonly ReaderCard[]): ReadonlySet<string> {
+    return new Set(cardsOf(draft, mine).flatMap(({ steps }) => (steps.length === 0 ? [] : [keyOfSteps(steps)])));
 }
 
 /**
@@ -159,8 +152,7 @@ export function useJoinCards(
     // on reload: fresh: in flight: the refusal each card last met, drawn on it
     const [errors, setErrors] = useState<JoinCards["errors"]>({});
 
-    const kept = rememberedOf(session);
-    const cards = cardsOf(draft, mine, kept);
+    const cards = cardsOf(draft, mine);
     const asked = new Set(draft.preview().questions.map((question) => question.params.source));
     const addSteps = ownAdds(session, draft, asked);
     const openAdd = addSteps.find((step) => addCardId(step.index) === open);
@@ -173,13 +165,10 @@ export function useJoinCards(
     }, [session, draft, version, selected?.id, selected?.lines]);
     const openCard: OpenCard | undefined =
         selected === undefined || openLines === null ? undefined : { ...selected, lines: openLines };
-    const picked = kept.findLast(
-        (each) => openCard !== undefined && JSON.stringify(each.sigs) === keyOfSteps(openCard.steps),
-    )?.outcome;
     const outcomes = useMemo(
-        () => (openCard === undefined ? [] : outcomesOf(draft, openCard.lines, openCard, openCard.steps, picked)),
+        () => (openCard === undefined ? [] : outcomesOf(draft, openCard.lines, openCard, openCard.steps)),
         // eslint-disable-next-line react-hooks/exhaustive-deps -- as above
-        [draft, version, openLines, openCard?.ignoreCase, openCard?.ignoreSpaces, openCard?.step?.index, picked],
+        [draft, version, openLines, openCard?.ignoreCase, openCard?.ignoreSpaces, openCard?.step?.index],
     );
     const suggestions = useMemo(
         () => (openLines === null ? [] : suggestionsOf(draft, openLines)),
@@ -229,14 +218,20 @@ export function useJoinCards(
         calm(card.id);
         calm(next.id);
         try {
-            const rows = writeOutcome(draft, card.steps, outcome, result, next);
+            const rows = writeOutcome(
+                draft,
+                card.steps,
+                outcome,
+                result,
+                next,
+                joinOf(card.steps, next.lines, outcome),
+            );
             // An outcome of some of the lines leaves the others out.
             const whole = wholeLines(next.lines);
             const lines = next.lines.filter(
                 (line) => matchOf(line) === null || outcome.uses.includes(whole.indexOf(line)),
             );
             const sigs = rows.map((row) => sigOf(row));
-            remember(session, { sigs, lines, outcome: outcomeKey(outcome) });
             save({ ...next, lines, at: rows.at(0)?.index ?? null, written: [...next.written, { sigs, lines }] });
         } catch (error) {
             // What was picked stays on the card, beside why it was refused.
@@ -309,18 +304,18 @@ export function useJoinCards(
         }
         const next = afterRemoval(mine, id, (card?.steps.length ?? 0) > 0);
         setMine(next);
-        const rest = cardsOf(draft, next, kept);
+        const rest = cardsOf(draft, next);
         const at = cards.findIndex((each) => each.id === id);
         select(rest[Math.min(Math.max(at, 0), rest.length - 1)]?.id ?? null);
     };
     const move = (make: () => boolean): void => {
-        const before = cardsOf(draft, mine, kept);
+        const before = cardsOf(draft, mine);
         if (!make()) {
             return;
         }
-        const next = afterMove(mine, before, keysNow(draft, mine, kept));
+        const next = afterMove(mine, before, keysNow(draft, mine));
         setMine(next);
-        const after = cardsOf(draft, next, kept);
+        const after = cardsOf(draft, next);
         if (openAdd === undefined && !after.some((card) => card.id === open)) {
             const reborn = after.find((card) => !before.some((other) => other.id === card.id));
             setOpen((reborn ?? after.at(-1))?.id ?? null);

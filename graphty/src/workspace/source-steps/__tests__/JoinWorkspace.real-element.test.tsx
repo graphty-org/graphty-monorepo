@@ -410,7 +410,7 @@ describe("the join workspace (source-steps)", () => {
         await pickSources(modal, "people", "entries");
         await userEvent.click(within(modal).getByRole("button", { name: "Expand entries rows" }));
         // A reserved space.
-        await userEvent.fill(within(modal).getByRole("combobox", { name: "Space" }), "graph:x");
+        await userEvent.fill(within(modal).getByRole("combobox", { name: "Same nodes as" }), "graph:x");
         await userEvent.keyboard("{Enter}");
         await within(modal).findByRole("alert");
         assert.isNull(store.get().notice, "no notice behind the modal");
@@ -420,7 +420,7 @@ describe("the join workspace (source-steps)", () => {
         const { modal } = await opened();
         await pickSources(modal, "people", "entries");
         await userEvent.click(within(modal).getByRole("button", { name: "Expand entries rows" }));
-        await userEvent.fill(within(modal).getByRole("combobox", { name: "Space" }), "person");
+        await userEvent.fill(within(modal).getByRole("combobox", { name: "Same nodes as" }), "person");
         await userEvent.keyboard("{Enter}");
         await pickFields(modal, "badge", "badge");
         assert.notInclude(waysToJoin(modal), NODE);

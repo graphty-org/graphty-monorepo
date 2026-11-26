@@ -24,9 +24,12 @@ export const STAGED_WORDS = {
     file: "File",
     rows: "Rows",
     rowsAre: "Rows are",
-    key: "Key",
-    space: "Space",
-    unset: "unset",
+    key: "Node id",
+    /** The source whose nodes these rows' ids name: a row with the same id is the same node. */
+    space: "Same nodes as",
+    /** What an end's ids name: the nodes of a source. */
+    endSpace: "nodes of",
+    unset: "None",
     distinct: "Distinct",
     repeats: "Repeats",
     type: "Type",

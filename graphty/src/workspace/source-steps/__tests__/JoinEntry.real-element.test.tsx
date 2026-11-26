@@ -129,7 +129,7 @@ describe("the doors into the join workspace (source-steps)", () => {
         await within(modal).findByRole("radio", { name: "Node per entries row, linked to people", checked: true });
     });
 
-    it("a card of three sources is one line, its first two named and +1, its whole name on hover and to a reader", async () => {
+    it("a card of three sources is one line naming all three, cut by an ellipsis only where it does not fit, never a count", async () => {
         const { session } = await foundingProject();
         drop("doors.csv", "door,name\nD1,North\nD2,South");
         await screen.findByRole("listitem", { name: "doors.csv" });
@@ -153,13 +153,46 @@ describe("the doors into the join workspace (source-steps)", () => {
         const place = await screen.findByRole("region", { name: "Data place" });
         const grid = await within(place).findByRole("grid", { name: "Joins" });
         assert.deepStrictEqual(joinLines(place), ["people + entries + doors"], "one line, in the order picked");
-        assert.strictEqual(grid.querySelector(".cm-page-name")?.textContent, "people + entries");
-        assert.include(grid.textContent ?? "", "+1");
+        assert.strictEqual(grid.querySelector(".cm-page-name")?.textContent, "people + entries + doors");
+        assert.notMatch(grid.textContent ?? "", /\+\d/, "no count stands in for a name");
         const cell = within(grid).getByRole("gridcell", { name: "people + entries + doors" });
         await userEvent.click(cell);
         const again = await screen.findByRole("dialog", { name: "Join" });
         assert.deepStrictEqual(joinLines(again), ["people + entries + doors"], "it reopens as that one card");
         await within(again).findByRole("radio", { name: fields, checked: true });
+    });
+
+    it("a card of three sources stays one card in the order picked after a save and a reopen", async () => {
+        const { session } = await foundingProject();
+        drop("doors.csv", "door,name\nD1,North\nD2,South");
+        await screen.findByRole("listitem", { name: "doors.csv" });
+        const modal = await openJoins();
+        // Picked entries first: the name keeps that order, not the order loaded.
+        await pickSources(modal, "entries", "people");
+        await pickFields(modal, "badge", "badge");
+        await addMatch(modal, 2, ["entries", "door"], ["doors", "door"]);
+        const fields = "Fields of entries and doors on people";
+        await joinAs(modal, fields);
+        await waitFor(() => {
+            assert.deepStrictEqual(joinLines(modal), ["entries + people + doors"]);
+        });
+        await done(modal);
+        const { text } = await session.project.save();
+        await session.project.open(text, { discard: true });
+        const place = await screen.findByRole("region", { name: "Data place" });
+        await waitFor(() => {
+            assert.deepStrictEqual(joinLines(place), ["entries + people + doors"], "one line, in the order picked");
+        });
+        const grid = await within(place).findByRole("grid", { name: "Joins" });
+        await userEvent.click(within(grid).getByRole("gridcell", { name: "entries + people + doors" }));
+        const again = await screen.findByRole("dialog", { name: "Join" });
+        assert.deepStrictEqual(joinLines(again), ["entries + people + doors"], "it reopens as that one card");
+        await within(again).findByRole("radio", { name: fields, checked: true });
+        assert.strictEqual(
+            within(again).getByRole<HTMLInputElement>("combobox", { name: "Match 2 source 2" }).value,
+            "doors",
+            "both of its matches",
+        );
     });
 
     it("its menu's Remove opens the workspace with the join taken out, and Done takes it out in one step", async () => {

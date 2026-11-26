@@ -7,7 +7,7 @@ import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { namingLines, rowNames, sourceNames } from "./cardWords";
 import { openJoinWorkspace } from "./join";
-import { isJoin, keyOfSteps, rememberedOf, stepCardId, stepGroups } from "./joinCards";
+import { isJoin, linesOfJoin, stepCardId, stepGroups } from "./joinCards";
 import { JoinList, type JoinListRow } from "./JoinList";
 import { WORKSPACE_WORDS } from "./words";
 
@@ -23,19 +23,17 @@ import { WORKSPACE_WORDS } from "./words";
 export function JoinRow({ session }: Readonly<{ session: GraphSession }>): React.JSX.Element {
     const { store } = useWorkspace();
     const all = session.data.steps();
-    const kept = rememberedOf(session);
-    // One line per card: the steps one card wrote together are one join.
+    // One line per card: the steps one join wrote are one, named in the order its sources were picked.
     const groups = stepGroups(
         all.filter((step) => isJoin(step)),
-        kept.map((each) => each.sigs),
+        [],
     );
     const names = rowNames(
         session,
         sourceNames(session),
-        groups.map((group) => {
-            const lines = kept.findLast((each) => JSON.stringify(each.sigs) === keyOfSteps(group))?.lines ?? null;
-            return namingLines(session, all, { lines, step: group[0] });
-        }),
+        groups.map(([step]) =>
+            namingLines(session, all, { lines: step.join === undefined ? null : linesOfJoin(step.join), step }),
+        ),
     );
     const joins = groups.map(([step]) => step);
     const rows = joins.map((step, at): JoinListRow => {

@@ -95,7 +95,7 @@ describe("a second source arrives staged (source-steps)", () => {
         const entry = await stage("buildings.csv", BUILDINGS);
         assert.strictEqual(session.data.nodes().length, 3, "a staged source draws nothing");
         assert.strictEqual(
-            within(entry).getByRole<HTMLInputElement>("combobox", { name: "Key" }).value,
+            within(entry).getByRole<HTMLInputElement>("combobox", { name: "Node id" }).value,
             "door",
             "keyed by its door column, as a first source would be",
         );
@@ -153,7 +153,7 @@ describe("a second source arrives staged (source-steps)", () => {
         await screen.findByRole("listitem", { name: "visitors.csv" });
         const modal = await workspace();
         const settings = await readAs(modal, "visitors");
-        await choose(settings, "Key", "badge");
+        await choose(settings, "Node id", "badge");
         const type = within(settings).getByRole("combobox", { name: "Type" });
         await userEvent.click(type);
         await userEvent.keyboard("person{Enter}");
@@ -206,7 +206,7 @@ describe("a second source arrives staged (source-steps)", () => {
         const modal = await workspace();
         const settings = await readAs(modal, "visitors");
         assert.strictEqual(
-            within(settings).getByRole<HTMLInputElement>("combobox", { name: "Space" }).value,
+            within(settings).getByRole<HTMLInputElement>("combobox", { name: "Same nodes as" }).value,
             "",
             "the saved Space is only a proposal",
         );
@@ -413,7 +413,7 @@ describe("a second source arrives staged (source-steps)", () => {
         drop("buildings.csv", BUILDINGS);
         await screen.findByRole("listitem", { name: "buildings.csv" });
         const settings = await readAs(await workspace(), "buildings");
-        const space = within(settings).getByRole("combobox", { name: "Space" });
+        const space = within(settings).getByRole("combobox", { name: "Same nodes as" });
         await userEvent.click(space);
         await userEvent.keyboard("{Control>}{ArrowDown}{/Control}");
         const names = (await screen.findAllByRole("option")).map((option) => option.textContent ?? "");
@@ -422,6 +422,21 @@ describe("a second source arrives staged (source-steps)", () => {
             names.some((name) => name.startsWith("source:")),
             `no internal id: ${names.join(", ")}`,
         );
+    });
+
+    it("labels a waiting source's rows in plain words on the workspace card: no Key, Space or unset", async () => {
+        await withPeopleDropped();
+        drop("buildings.csv", BUILDINGS);
+        await screen.findByRole("listitem", { name: "buildings.csv" });
+        const settings = await readAs(await workspace(), "buildings");
+        const boxes = within(settings).getAllByRole<HTMLInputElement>("combobox");
+        const shown = [
+            ...boxes.flatMap((box) => [box.getAttribute("aria-label") ?? "", box.placeholder]),
+            settings.textContent ?? "",
+        ].join(" | ");
+        for (const word of [/\bKey\b/, /\bSpace\b/, /\bunset\b/]) {
+            assert.notMatch(shown, word, shown);
+        }
     });
 
     it("fits Rows are's three choices inside the staged entry at the default panel width", async () => {

@@ -1,5 +1,5 @@
 import { ControlSection, PageList, type PageListItem } from "@graphty/compact-mantine";
-import { ActionIcon, ColorSwatch, Group, Tooltip, VisuallyHidden } from "@mantine/core";
+import { ActionIcon, ColorSwatch, Group, Tooltip } from "@mantine/core";
 import React from "react";
 
 import { GLYPHS } from "../glyphs";
@@ -16,37 +16,6 @@ export interface JoinListRow {
     /** Its color in the preview, while each card has one. */
     readonly color?: string;
     readonly menu?: PageListItem["menu"];
-}
-
-/** How many of a card's sources a line names before it counts the rest. */
-const NAMED = 2;
-
-/**
- * A card's line: its first sources, then how many more, which a hover names; the whole name is the
- * row's accessible name.
- * @param name - the card's whole name, its sources joined by " + "
- * @param color - its color, if it has one
- * @returns the line's name and the value after it
- */
-function lineOf(name: string, color: string | undefined): Pick<PageListItem, "name" | "value"> {
-    const swatch = color === undefined ? null : <ColorSwatch size={10} color={color} />;
-    const parts = name.split(" + ");
-    if (parts.length <= NAMED) {
-        return { name, value: swatch ?? undefined };
-    }
-    const rest = parts.slice(NAMED);
-    return {
-        name: parts.slice(0, NAMED).join(" + "),
-        value: (
-            <Group gap={4} wrap="nowrap" component="span">
-                <VisuallyHidden data-rest="">{` + ${rest.join(" + ")}`}</VisuallyHidden>
-                <Tooltip label={name}>
-                    <span aria-hidden>{`+${String(rest.length)}`}</span>
-                </Tooltip>
-                {swatch}
-            </Group>
-        ),
-    };
 }
 
 /**
@@ -93,7 +62,13 @@ export function JoinList({
             {rows.length === 0 ? null : (
                 <PageList
                     label={WORKSPACE_WORDS.joins}
-                    items={rows.map(({ id, name, color, menu }) => ({ id, menu, ...lineOf(name, color) }))}
+                    items={rows.map(({ id, name, color, menu }) => ({
+                        id,
+                        menu,
+                        // The whole name, cut by an ellipsis only where it does not fit.
+                        name,
+                        value: color === undefined ? undefined : <ColorSwatch size={10} color={color} />,
+                    }))}
                     current={current}
                     onCurrentChange={onSelect}
                 />

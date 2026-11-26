@@ -18,7 +18,7 @@ import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { commitWorkspace } from "./actions";
 import { nameOf, namingLines, rowNames, sideChoices, type SourceNames, sourceNames, spaceName } from "./cardWords";
 import { JoinCardBody, RemoveButton } from "./JoinCard";
-import { cardsOf, isHalf, type JoinCardView, type OpenCard, rememberedOf, removeSteps } from "./joinCards";
+import { cardsOf, isHalf, type JoinCardView, type OpenCard, removeSteps } from "./joinCards";
 import { JoinHead, JoinKey } from "./JoinHead";
 import { JoinList, type JoinListRow } from "./JoinList";
 import { JoinPane, type Picked, type RowsView, type TableShows } from "./JoinPane";
@@ -168,9 +168,7 @@ function useCardColors(
     version: unknown,
 ): void {
     useEffect(() => {
-        if (!colors) {
-            return undefined;
-        }
+        // Styled draws the reader's own look; what the join changes is marked in both.
         const all = draft.steps();
         const steps = cards.flatMap((card, at) =>
             stepsOf(all, card.steps).map((step) => ({ step, color: colorOf(at) })),
@@ -179,7 +177,7 @@ function useCardColors(
             merged: MERGED_COLOR,
             new: NEW_COLOR,
             removed: REMOVED_COLOR,
-            steps,
+            ...(colors ? { steps } : {}),
             ...(marked.length > 0 ? { mark: { refs: marked } } : {}),
         });
         return () => {
@@ -746,9 +744,7 @@ function JoinWorkspace({
             const out = opening
                 .preview()
                 .steps.find((step) => step.committed !== null && step.committed === how.without);
-            const group = cardsOf(opening, [], rememberedOf(session)).find((card) =>
-                card.steps.some((step) => step.index === out?.index),
-            );
+            const group = cardsOf(opening, []).find((card) => card.steps.some((step) => step.index === out?.index));
             if (group !== undefined) {
                 // The join's card goes whole: every step it wrote.
                 opening.batch(() => {

@@ -26,7 +26,6 @@ import {
     NO_END,
     type OpenCard,
     type ReaderCard,
-    rememberedOf,
     sameMatches,
     sameSide,
     sideOfSpace,
@@ -116,7 +115,7 @@ export function firstCards(
     how: JoinWorkspaceOpen,
     adopted: boolean,
 ): { readonly mine: readonly ReaderCard[]; readonly open: string | null } {
-    const made = cardsOf(draft, [], rememberedOf(session));
+    const made = cardsOf(draft, []);
     const held = draft.preview().steps.find((step) => step.committed === how.step);
     if (how.step !== undefined && held !== undefined) {
         return { mine: [], open: stepCardId(held.index) };

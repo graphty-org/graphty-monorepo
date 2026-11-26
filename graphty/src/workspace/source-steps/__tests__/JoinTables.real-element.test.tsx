@@ -339,6 +339,26 @@ describe("the join workspace's preview (source-steps)", () => {
         assert.strictEqual(session.styles.explain({ node: "E0" }).merged["node.borderStyle"], "dashed", "a new node");
     });
 
+    it("marks what a join changes in Styled too: a new node's border and a new edge dashed over the reader's own look", async () => {
+        const { session, modal } = await opened();
+        await pickSources(modal, "people", "entries");
+        await pickFields(modal, "badge", "badge");
+        await joinAs(modal, "Node per entries row, linked to people");
+        await newest(session, (step) => step.act !== null, "joined");
+        await userEvent.click(within(modal).getByText("Styled", { exact: true }));
+        await waitFor(() => {
+            assert.isNotNull(session.styles.shownDraft, "the draft is still drawn with its marks");
+        });
+        await session.styles.settled();
+        assert.isUndefined(session.styles.shownDraft?.steps, "no card colors");
+        assert.strictEqual(session.styles.explain({ node: "E0" }).merged["node.borderStyle"], "dashed", "a new node");
+        const edge = session.data.edges().find((each) => String(each.source) === "E0" || String(each.target) === "E0");
+        if (edge === undefined) {
+            throw new Error("the join made no edge to E0");
+        }
+        assert.strictEqual(session.styles.explain({ edge: edge.id }).merged["edge.style"], "dash", "a new edge");
+    });
+
     it("keeps the reader's camera while a join is made, and frames again only for new nodes out of view", async () => {
         const { session, modal } = await opened();
         await atRest();

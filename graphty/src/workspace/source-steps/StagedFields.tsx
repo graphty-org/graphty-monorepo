@@ -360,10 +360,10 @@ export function StagedRows({
                                       </StagedRow>
                                       <StagedRow full>
                                           <Text size="xs" truncate>
-                                              {`${label} ${STAGED_WORDS.space.toLowerCase()}`}
+                                              {`${label} ${STAGED_WORDS.endSpace}`}
                                           </Text>
                                           <NamePicker
-                                              name={`${label} ${STAGED_WORDS.space.toLowerCase()}`}
+                                              name={`${label} ${STAGED_WORDS.endSpace}`}
                                               choices={spaces}
                                               value={space}
                                               placeholder={STAGED_WORDS.unset}

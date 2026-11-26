@@ -16,6 +16,7 @@ import type {
     SourceJoinMatch,
     SourceJoinOutcome,
     SourceJoinSide,
+    SourceJoinTag,
     SourceKey,
     SourceMatchCounts,
     SourceSideField,
@@ -120,42 +121,6 @@ export interface Written {
     readonly lines: readonly CardLine[];
 }
 
-/** A card as it was last written in this session, which a card reopened on its steps reads back. */
-export interface Remembered extends Written {
-    /** The way to join picked, by `outcomeKey`. */
-    readonly outcome: string;
-}
-
-/**
- * The cards written in each session. A way to join of several acts writes several steps, and the
- * element reads a step back as one join of its own: the steps a card wrote are kept together here, and
- * the order its sources were picked in, which no step holds.
- * Temporary, for a graphty-element gap: `draft.steps()` and `joinOutcomes({ step })` cannot say which
- * steps one way to join wrote, nor the order its ends were picked in, so a project reopened from a file
- * reads such a card back as one card per step, in load order. Once the element reads back the steps one
- * outcome wrote as one join, this goes.
- */
-const REMEMBERED = new WeakMap<GraphSession, Remembered[]>();
-
-/**
- * The cards written in a session, oldest first.
- * @param session - The element's session.
- * @returns Them.
- */
-export function rememberedOf(session: GraphSession): readonly Remembered[] {
-    return REMEMBERED.get(session) ?? [];
-}
-
-/**
- * Keeps a card as written.
- * @param session - The element's session.
- * @param card - The card.
- */
-export function remember(session: GraphSession, card: Remembered): void {
-    const key = JSON.stringify(card.sigs);
-    REMEMBERED.set(session, [...rememberedOf(session).filter((each) => JSON.stringify(each.sigs) !== key), card]);
-}
-
 /** One card as the workspace draws it. */
 export interface JoinCardView extends Ignoring {
     readonly id: string;
@@ -232,9 +197,9 @@ export function keyOfSteps(steps: readonly SourceStepRow[]): string {
 }
 
 /**
- * The join steps as cards draw them: one step each, but the steps one card wrote together stay one.
+ * The join steps as cards draw them: one step each, but the steps one join wrote stay one.
  * @param rows - The join steps, in order.
- * @param together - What the steps of each card written together match and make.
+ * @param together - What the steps of each card written together in this opening match and make.
  * @returns The steps of each card, in order.
  */
 export function stepGroups(
@@ -247,6 +212,15 @@ export function stepGroups(
             return [];
         }
         const free = rows.filter((each) => !used.has(each.index));
+        // The steps one join wrote, as the element reads them back.
+        const id = row.join?.id;
+        if (id !== undefined) {
+            const group = free.filter((each) => each.join?.id === id);
+            for (const each of group) {
+                used.add(each.index);
+            }
+            return [group];
+        }
         const find = (sig: string): SourceStepRow[] => free.filter((each) => sigOf(each) === sig).slice(0, 1);
         const sig = sigOf(row);
         const kept = together.find(
@@ -264,19 +238,14 @@ export function stepGroups(
  * The cards of a draft's join steps, in step order, then the cards with no step.
  * @param draft - The open draft.
  * @param mine - The reader's cards.
- * @param kept - The cards written in this session.
  * @returns The cards.
  */
-export function cardsOf(
-    draft: SourceDraft,
-    mine: readonly ReaderCard[],
-    kept: readonly Remembered[] = [],
-): JoinCardView[] {
+export function cardsOf(draft: SourceDraft, mine: readonly ReaderCard[]): JoinCardView[] {
     const rows = draft.steps().filter((row) => isJoin(row));
-    const groups = stepGroups(rows, [
-        ...mine.flatMap((card) => card.written.map((each) => each.sigs)),
-        ...kept.map((each) => each.sigs),
-    ]);
+    const groups = stepGroups(
+        rows,
+        mine.flatMap((card) => card.written.map((each) => each.sigs)),
+    );
     const keys = new Map(groups.map((group) => [group[0].index, keyOfSteps(group)]));
     const wrote = (card: ReaderCard, key: string | undefined): Written | undefined =>
         card.written.findLast((each) => JSON.stringify(each.sigs) === key);
@@ -299,8 +268,9 @@ export function cardsOf(
             ignoreSpaces: (row.act ?? row.link)?.ignoreSpaces === true,
         };
         if (card === undefined) {
-            // Reopened: as the reader last wrote it, else as its step reads back.
-            const lines = kept.findLast((each) => JSON.stringify(each.sigs) === key)?.lines ?? null;
+            // Reopened: as its join was written, else as its step reads back.
+            const lines =
+                row.join === undefined ? null : linesOfJoin(row.join, (side) => keyOf(draft, side, row.index));
             return { id: stepCardId(row.index), step: row, steps: group, lines, chosen: {}, ...on };
         }
         const was = wrote(card, key)?.lines ?? card.lines;
@@ -497,6 +467,26 @@ export function linesOfStep(session: GraphSession, draft: SourceDraft, row: Sour
 }
 
 /**
+ * A join's lines as it was written: its matches in the order given.
+ * @param join - The join, as its steps read it back.
+ * @param key - A side's key field, for an end that names none.
+ * @returns The lines.
+ */
+export function linesOfJoin(
+    join: SourceJoinTag,
+    key: (side: SourceJoinSide) => string | null = () => null,
+): readonly CardLine[] {
+    const endOf = (ref: SourceJoinField): CardEnd => {
+        const side: SourceJoinSide = ref.source === undefined ? { space: ref.space } : { source: ref.source };
+        return { side, field: ref.field ?? key(side) };
+    };
+    return join.matches.map(({ a, b }) => ({
+        a: endOf(a),
+        b: "new" in b ? { ...NO_END, isNew: true as const } : endOf(b),
+    }));
+}
+
+/**
  * The key field of a side.
  * @param draft - The open draft.
  * @param side - The side.
@@ -561,14 +551,45 @@ export function outcomesOf(
     const step = steps.at(0) ?? null;
     const found = offeredOutcomes(draft, lines, on, step);
     if (steps.length > 1) {
-        // The element reads one step back as its own join: a card of several is on the way it was written.
+        // The element reads one step back as its own join: a card of several is on the way it was
+        // written, which a reopened card finds by the acts its steps are.
+        const written = found.find((each) => writes(each, steps));
+        const way = picked ?? (written === undefined ? undefined : outcomeKey(written));
         return found.map(({ current: _current, ...each }) =>
-            outcomeKey(each) === picked ? { ...each, current: true as const } : each,
+            outcomeKey(each) === way ? { ...each, current: true as const } : each,
         );
     }
     return step === null || found.some((each) => each.current === true)
         ? found
         : [...found, ...draft.joinOutcomes({ step: step.index }).outcomes.filter((each) => each.current === true)];
+}
+
+/**
+ * Whether an outcome's acts are the steps, one by one: each the same act, reading the same field.
+ * @param outcome - The outcome.
+ * @param steps - The steps.
+ * @returns True when they are.
+ */
+function writes(outcome: SourceJoinOutcome, steps: readonly SourceStepRow[]): boolean {
+    return (
+        outcome.acts.length === steps.length &&
+        outcome.acts.every((act, at) => {
+            const row = steps[at];
+            switch (act.act) {
+                case "merge":
+                case "connect":
+                    return (
+                        row.act?.act === act.act &&
+                        row.act.from.source === act.options.from.source &&
+                        row.act.from.field === act.options.from.field
+                    );
+                case "link":
+                    return row.link !== null && row.source === act.options.source;
+                default:
+                    return row.extract !== null && row.source === act.source;
+            }
+        })
+    );
 }
 
 /**
@@ -1002,6 +1023,33 @@ function actWith(act: SourceJoinAct, c: Choices): SourceJoinAct {
 }
 
 /**
+ * An act that writes its steps as one join.
+ * @param act - The act.
+ * @param join - The join.
+ * @returns The act.
+ */
+function withJoin(act: SourceJoinAct, join: SourceJoinTag): SourceJoinAct {
+    return { ...act, options: { ...act.options, join } } as SourceJoinAct;
+}
+
+/**
+ * The join a card's steps are written as: the one they are already, else a new one, with the matches
+ * its outcome uses in the order picked.
+ * @param steps - The steps the card is.
+ * @param lines - Its lines.
+ * @param outcome - The outcome it writes.
+ * @returns The join.
+ */
+export function joinOf(
+    steps: readonly SourceStepRow[],
+    lines: readonly CardLine[],
+    outcome: SourceJoinOutcome,
+): SourceJoinTag {
+    const matches = lines.flatMap((line) => matchOf(line) ?? []).filter((_, at) => outcome.uses.includes(at));
+    return { id: steps.at(0)?.join?.id ?? crypto.randomUUID(), matches };
+}
+
+/**
  * Make an act on a draft.
  * @param draft - The open draft.
  * @param act - The act.
@@ -1045,6 +1093,7 @@ export function removeSteps(draft: SourceDraft, steps: readonly SourceStepRow[])
  * @param outcome - The outcome.
  * @param result - The card's options.
  * @param on - How it compares values.
+ * @param join - The join its steps are written as: the card's matches, in the order picked.
  * @returns The steps it is now, in order.
  */
 export function writeOutcome(
@@ -1053,9 +1102,10 @@ export function writeOutcome(
     outcome: SourceJoinOutcome,
     result: CardResult,
     on: Ignoring,
+    join: SourceJoinTag,
 ): readonly SourceStepRow[] {
     const step = steps.at(0) ?? null;
-    const acts = outcome.acts.map((act) => actWith(act, { outcome, result, on, step }));
+    const acts = outcome.acts.map((act) => withJoin(actWith(act, { outcome, result, on, step }), join));
     const [only] = acts;
     if (step !== null && steps.length === 1 && acts.length === 1) {
         const before = draft.steps().length;

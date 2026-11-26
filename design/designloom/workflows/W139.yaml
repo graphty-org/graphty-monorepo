@@ -1,0 +1,116 @@
+id: W139
+name: Query Wikidata and View the Result as a Graph
+category: exploration
+validated: false
+personas:
+    - public-kg-explorer
+requires_capabilities:
+    - data-import
+    - data-preview
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - layout-force-directed
+    - filtering
+    - search
+    - details-on-demand
+    - tooltip-display
+    - view-bookmarks
+    - export-image
+    - rdf-import
+    - query-result-import
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - visual-encoding-panel
+    - graph-canvas
+    - filter-panel
+    - node-tooltip
+    - node-details-panel
+    - share-dialog
+    - image-export-dialog
+starting_state:
+    data_type: SPARQL SELECT result (JSON or CSV) with item, label, image, color, size and edge-label columns, or a CONSTRUCT graph
+    node_count: 10-5000
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Turn a SPARQL query result from Wikidata (or another public endpoint) into a readable network, iterate on
+    the query until the picture answers the question, and share it by link.
+
+
+    **Mental Model**: "Each row is a star." In the Wikidata graph view the first item in a row points to every other item
+    in the same row; shaping the columns shapes the network.
+
+
+    **Task Phases**:
+
+    1. **Write SPARQL** - In the query service editor; since May 2025 scholarly articles sit behind a separate
+    endpoint
+
+    2. **Shape the columns** - Item columns become nodes; optional columns give a label, a Commons image, ?rgb
+    color, a number for node size and ?edgeLabel
+
+    3. **Switch the view** - Add #defaultView:Graph at the top, or choose Graph from the results menu; Map,
+    Timeline, Tree and Bubble chart are the other views
+
+    4. **Iterate** - Change filters and LIMIT until the picture is readable
+
+    5. **Share** - Copy the bookmarkable URL, generate a short URL, or embed the view in an iframe
+
+
+    **Decision Points**:
+
+    - Which variable is the row's center and which are its spokes?
+
+    - How large a LIMIT stays readable?
+
+    - Which column drives color and size?
+
+
+    **Information Needs**:
+
+    - Labels instead of Q-ids, with the item's Wikidata link on demand
+
+    - Mapping from result columns to nodes, edges and visual channels
+
+    - Node and edge counts as the query changes
+
+
+    **Pain Points**:
+
+    - The graph is built only from the shape of each row; any other mapping means rewriting the query
+
+    - Large results become unreadable, and the only control is a smaller LIMIT
+
+    - Loading a saved SPARQL result or a CONSTRUCT graph into another tool needs a conversion script
+
+
+    **Data Flow**:
+
+    - Input: SPARQL SELECT JSON or CSV, or a CONSTRUCT graph in Turtle or JSON-LD
+
+    - Transformations: Column-to-node and column-to-edge mapping, visual channel mapping, layout
+
+    - Output: A shareable view link, an embedded view, an exported image
+success_criteria:
+    - metric: Load a saved result
+      target: A saved SELECT JSON or CSV becomes a graph in under 2 minutes without rewriting the query (design goal; no source measures it)
+    - metric: Mapping control
+      target: User chooses which columns are nodes and edges, beyond the row-star rule
+    - metric: Sharing
+      target: The view can be reopened by a colleague from a link or file
+sources:
+    - title: Wikidata Query Service user manual
+      url: https://www.mediawiki.org/wiki/Wikidata_Query_Service/User_Manual
+      summary: Editor, bookmarkable and short URLs, embedding
+    - title: Wikidata result views
+      url: https://www.wikidata.org/wiki/Wikidata:SPARQL_query_service/Wikidata_Query_Help/Result_Views
+      summary: Graph view row rule and optional label, image, rgb, size and edgeLabel columns
+    - title: Wikidata graph split
+      url: https://www.wikidata.org/wiki/User:TiagoLubiana/Graph_Split_Documentation_Updates
+      summary: Scholarly articles on a separate endpoint since 2025
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

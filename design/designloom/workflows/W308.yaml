@@ -1,0 +1,140 @@
+id: W308
+name: Time-Respecting Path Checks
+category: analysis
+validated: false
+personas:
+    - intelligence-analyst
+    - temporal-network-researcher
+requires_capabilities:
+    - temporal-analysis
+    - temporal-navigation
+    - shortest-path
+    - all-paths-finding
+    - path-highlighting
+    - node-selection
+    - details-on-demand
+    - filtering
+    - data-validation
+    - report-generation
+    - data-export
+    - time-respecting-paths
+    - temporal-validity-checks
+suggested_components:
+    - graph-canvas
+    - path-finder-dialog
+    - temporal-controls
+    - node-details-panel
+    - data-preview-table
+    - filter-panel
+    - report-generator-dialog
+    - data-export-dialog
+starting_state:
+    data_type: timestamped events between entities (transactions, logons, contacts, messages), optionally with amounts or exposure windows
+    node_count: 10-100000 entities
+    edge_density: sparse, many events per pair
+    user_expertise: intermediate+
+goal: >-
+    **Intent**: Answer "could A have reached B given the order of events?" -- trace money forward through later
+    transfers, follow a login chain from a compromised host, check that a transmission link respects onset and
+    exposure windows, or measure how fast information could spread. A static shortest path can show routes that never
+    happened; an impossible path in a court exhibit or an outbreak report is a serious error.
+
+
+    **Mental Model**: "Follow the clock." A path is only real if every hop happens after the previous one, and not too
+    long after.
+
+
+    **Task Phases**:
+
+    1. **Pick the start** - An alerted account, a compromised host, an index case, a facilitator; and a start
+    time
+
+    2. **Set the waiting limit** - A domain parameter: 24 hours between logins (matched to maximum session
+    length), an incubation range, a delta between messages; plus optional attribute constraints such as each transfer
+    within 80 to 100 percent of the previous amount
+
+    3. **Search** - Forward (where could it go?) or backward (where could it have come from?), respecting
+    order; or find ordered cycles of 3 to 6 transfers
+
+    4. **Read the result** - Reachable set, earliest arrival time, latency and hop count per target
+
+    5. **Compare with the static view** - Show which static paths are impossible in time
+
+    6. **Check validity** - Flag links that violate order (infector died before infectee was exposed) and export
+    them
+
+    7. **Report** - The path as an ordered, timestamped list for a court exhibit, incident timeline or outbreak
+    report
+
+
+    **Decision Points**:
+
+    - Forward or backward search?
+
+    - What maximum waiting time is defensible in this domain?
+
+    - Strict or non-strict ordering for events with equal timestamps?
+
+    - Which attribute constraints (amount tolerance) apply per hop?
+
+
+    **Information Needs**:
+
+    - Each hop's timestamp and the wait since the previous hop
+
+    - Reachable set size compared with the static reachable set
+
+    - List of order-violating links with the reason
+
+    - The waiting limit and constraints stated on the exported list
+
+
+    **Pain Points**:
+
+    - No time-respecting path function in NetworkX, igraph, Gephi, KeyLines, Linkurious, Bloom or i2 documentation
+    reviewed; users write Cypher, Python or R
+
+    - Exhaustive causal path extraction does not finish on real data; tools resort to sampling roots
+
+    - Static path tools happily return impossible paths
+
+    - The waiting limit is a judgment that must be justified and reported
+
+
+    **Data Flow**:
+
+    - Input: Event list with source, target, time (and duration, amount or exposure window)
+
+    - Transformations: Ordered path search with waiting limit and per-hop constraints, reachability, latency, order
+    validity checks
+
+    - Output: Highlighted path on the graph, ordered timestamped path table, reachable set, flagged-link CSV
+success_criteria:
+    - metric: No impossible paths
+      target: Every reported path respects event order and the stated waiting limit
+    - metric: Exhibit readiness
+      target: Path exported as an ordered list with timestamps, waits and the parameters used
+    - metric: Static comparison
+      target: User can see how many static paths are impossible in time
+sources:
+    - title: Neo4j transaction ring use case
+      url: https://neo4j.com/developer/industry-use-cases/finserv/retail-banking/transaction-ring/
+      summary: Cypher quantified path pattern with increasing dates and 0.80 to 1.00 amount ratio per hop
+    - title: Hopper - modeling and detecting lateral movement (USENIX Security 2021, arXiv 2105.13442)
+      url: https://arxiv.org/abs/2105.13442
+      summary: Login graph from 780 million logins; causal path search with a 24-hour window
+    - title: Chainchecker (PMC7894960)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC7894960/
+      summary: Exposure windows from incubation ranges; flags inconsistent transmission links and exports them
+    - title: pathpy temporal networks tutorial
+      url: https://ingoscholtes.github.io/csh2018-tutorial/4_temporal_networks.html
+      summary: Time-unfolded DAG with delta; exhaustive extraction interrupted, sampling of roots
+    - title: tsna vignette (CRAN)
+      url: https://cran.r-project.org/web/packages/tsna/vignettes/tsna_vignette.html
+      summary: tPath earliest-arrival paths and forward reachable sets
+    - title: Holme and Saramaki 2012 (arXiv 1108.1780)
+      url: https://arxiv.org/abs/1108.1780
+      summary: Latency as the shortest time within which i can reach j
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

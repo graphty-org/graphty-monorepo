@@ -1,0 +1,153 @@
+id: W217
+name: Building and Querying a Multi-Tier Supply Graph
+category: analysis
+validated: false
+personas:
+    - supply-chain-analyst
+    - trade-compliance-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - node-merging
+    - link-prediction
+    - degree-analysis
+    - neighborhood-expansion
+    - pattern-search
+    - filtering
+    - layout-hierarchical
+    - visual-encoding-edges
+    - details-on-demand
+    - search
+    - data-export
+    - multilayer-networks
+    - provenance-tracking
+    - shared-dependency-analysis
+    - watch-list-proximity
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - network-merge-dialog
+    - node-merge-dialog
+    - link-prediction-panel
+    - pattern-search-dialog
+    - graph-canvas
+    - search-panel
+    - filter-panel
+    - node-details-panel
+    - data-table-panel
+    - data-export-dialog
+starting_state:
+    data_type: internal BOM and sourcing records plus bills of lading and corporate ownership records
+    node_count: 1000-500000
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Extend the known tier-1 supplier network into tiers 2 and beyond using trade records and ownership
+    data, then ask the questions that need the deeper graph: which inputs are single-sourced, which tier-1 suppliers
+    share a hidden tier-2 source, and what is downstream of a flagged entity.
+
+
+    **Mental Model**: "Grow the map one tier at a time from evidence, and keep track of what is guessed or unknown."
+    Trade links and ownership links are two kinds of edge over one set of companies.
+
+
+    **Task Phases**:
+
+    1. **Load the internal backbone** - BOMs, part-to-site sourcing and plant-to-product records keyed by part number,
+    supplier site and tariff code; add bought sub-tier links (for example Bloomberg SPLC) or survey links
+
+    2. **Pull trade records** - US import bills of lading (shipper, consignee, free-text description, ports, weight,
+    container; no HS code and no value); other countries' customs records for deeper tiers
+
+    3. **Infer the next tier** - Treat each tier-1 site as a consignee, collect its shippers, keep those whose goods are
+    plausible inputs, repeat upstream
+
+    4. **Resolve entities** - Merge spelling variants of the same shipper while keeping every source name; handle
+    redacted names and "to order" bills with a blank consignee
+
+    5. **Add the ownership layer** - Parent, subsidiary, shareholder and director edges beside trade edges
+
+    6. **Mark what is unknown** - A missing edge is unknown, not absent; optionally predict likely hidden links
+
+    7. **Query** - Count suppliers per input to find single-sourced inputs; intersect upstream sets of tier-1 suppliers
+    to find shared hidden tier-2 sources; take the downstream closure from a flagged node to products
+
+    8. **Read results** - Tier lists, entity reports and maps
+
+
+    **Decision Points**:
+
+    - Which shippers are plausible inputs for this consignee?
+
+    - Are two spellings the same company?
+
+    - How many tiers to extend before evidence runs out?
+
+    - Which predicted links are credible enough to act on?
+
+
+    **Information Needs**:
+
+    - Source and confidence of every edge (internal, survey, bill of lading, vendor, predicted)
+
+    - All source spellings behind a merged entity
+
+    - Tier of each node relative to the company
+
+    - Upstream set overlap between chosen suppliers
+
+
+    **Pain Points**:
+
+    - Only 10 to 15 percent of US-import shippers and consignees link to a corporate identifier; 20 to 35 percent of
+    records lack a shipper ID
+
+    - Firms may redact their names on manifests for two years at a time
+
+    - Bills of lading cover sea freight only and carry no HS code or value
+
+    - Commercial datasets cover a very small fraction of links
+
+    - No independent step-by-step tutorial found; inference and ownership steps rest on vendor descriptions
+
+
+    **Data Flow**:
+
+    - Input: ERP/PLM BOM and sourcing tables, bills of lading, foreign customs records, corporate registries
+
+    - Transformations: Tier-by-tier consignee-to-shipper expansion, entity resolution, ownership layer join, unknown-edge
+    marking, single-source counts, upstream set intersection, downstream closure
+
+    - Output: Multi-tier trade-plus-ownership graph with per-edge provenance, single-source list, shared-dependency list
+success_criteria:
+    - metric: Provenance coverage
+      target: Every edge names its source and confidence
+    - metric: Shared dependency discovery
+      target: Shared tier-2 sources between any chosen tier-1 suppliers listed in one query
+    - metric: Merge reversibility
+      target: Every merged entity keeps its source spellings and can be split again
+sources:
+    - title: Flaaen et al., Bill of Lading Data in International Trade Research (Federal Reserve FEDS 2021-066)
+      url: https://www.federalreserve.gov/econres/feds/files/2021066pap.pdf
+      summary: Bill of lading fields, sea-only coverage, 10-15 percent corporate ID linkage, redactions, 60 percent of consignees with one shipper
+    - title: Mungo et al., Reconstructing supply networks
+      url: https://arxiv.org/pdf/2310.00446
+      summary: Datasets cover a small fraction of links; hidden second-tier suppliers; link prediction
+    - title: Sayari forced labor screening (vendor)
+      url: https://sayari.com/enterprise/forced-labor-screening/
+      summary: Vendor description of tracing trade backward and linking HS-level manifests to ownership networks
+    - title: Sourcemap bill of materials n-tier mapping (vendor)
+      url: https://www.sourcemap.com/technology/bill-of-materials-n-tier-mapping
+      summary: BOM API ingesting part, site and tariff code records
+    - title: Neo4j supply chain demo
+      url: https://neo4j.com/developer/demos/supply_chain-demo/
+      summary: Single-sourced raw materials found by counting suppliers per input
+    - title: Bloomberg, finding value in supply chain data
+      url: https://www.bloomberg.com/professional/insights/data/finding-value-in-supply-chain-data
+      summary: SPLC covers 800,000+ supplier relationships
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

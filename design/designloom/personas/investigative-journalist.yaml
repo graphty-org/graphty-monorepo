@@ -1,0 +1,88 @@
+id: investigative-journalist
+name: Investigative Journalist
+roster_persona: investigative-journalist
+tier: A
+scope: in-scope
+role: Reporter on a cross-border leaked-records collaboration
+quote: Type the minister's name, show me every spelling of it, and tell me how he connects to that shell company in two clicks.
+bio: >-
+    Daniel Okafor is a reporter on a cross-border investigation of leaked corporate records, like the International
+    Consortium of Investigative Journalists' Panama Papers, Paradise Papers and Pandora Papers projects. The Panama
+    Papers graph held around 950,000 nodes and 1.2 million edges extracted from 11.5 million files, stored in Neo4j and
+    explored through Linkurious (later Bloom inside ICIJ's Datashare). Daniel is not very technical and writes no
+    queries. He alternates between full-text document search and the graph: type a politician's or company's name, pick
+    among fuzzy-matched variants, expand to officers, intermediaries and addresses, ask for the shortest path between
+    two people, and save or embed a small graph in the published story. Everything happens behind private logins with
+    two-factor authentication.
+characteristics:
+    expertise: novice
+    time_pressure: high
+    graph_literacy: none
+    domain_knowledge: advanced
+motivations:
+    - Find every entity tied to a person of public interest, under all spellings of the name
+    - Establish whether and how two people are connected, with evidence he can cite
+    - Publish a small, readable graph alongside the story
+    - Share leads safely with colleagues in other countries
+behaviors:
+    - Starts from a name typed in a search box, never from an overview
+    - Reviews fuzzy-matched name variants and duplicates before expanding
+    - Expands entity to officers, intermediaries and addresses one hop at a time
+    - Selects two people and runs shortest path with one click
+    - Moves back and forth between the graph and the source documents
+    - Saves small visualizations and embeds a graph in the published article
+frustrations:
+    - Name variants and duplicate entities split one person across several nodes
+    - Not knowing what was left out of a capped search or expand result
+    - Hubs such as registered-agent addresses connect to tens of thousands of entities
+context:
+    frequency: as-needed
+    devices:
+        - laptop
+    voluntary: true
+workflows:
+    - W3024
+    - W143
+    - W89
+    - W90
+    - W91
+    - W92
+    - W95
+    - W1084
+    - W291
+    - W1090
+    - W318
+sources:
+    - title: How ICIJ used Neo4j to unravel the Panama Papers
+      url: https://neo4j.com/blog/cypher-and-gql/icij-neo4j-unravel-panama-papers
+      summary: About 950,000 nodes and 1.2 million edges from 11.5 million files; Linkurious front end; reporters not tech-savvy; fuzzy search, shortest path
+    - title: Neo4j power behind the Paradise Papers
+      url: https://neo4j.com/blog/fraud-detection/neo4j-power-behind-paradise-papers/
+      summary: ICIJ reused the graph approach for the Paradise Papers
+    - title: ICIJ Offshore Leaks database
+      url: https://offshoreleaks.icij.org/pages/database
+      summary: Public database of more than 810,000 offshore entities, browsed as ego networks
+    - title: Neo4j blog - ICIJ, Neo4j and Linkurious unravel the Panama Papers (Cabra 2016)
+      url: https://neo4j.com/blog/icij-neo4j-unravel-panama-papers/
+      summary: 370+ journalists, three developers, fuzzy name search, batch CSV search, one-click shortest path for non-technical reporters
+    - title: ICIJ - Frequently asked questions about the Pandora Papers
+      url: https://www.icij.org/investigations/pandora-papers/frequently-asked-questions-about-the-pandora-papers-and-icij/
+      summary: 600+ journalists in 117 countries; only politicians who passed verification criteria were counted
+    - title: Linkurious ICIJ case summary on the Neo4j site
+      url: https://neo4j.com/?p=49297
+      summary: Linkurious chosen because most journalists will not write SQL or Cypher queries
+    - title: Peter Aldhous - NICAR 2016 Gephi class
+      url: https://paldhous.github.io/NICAR/2016/gephi.html
+      summary: The one-session conference class reporters take - spreadsheet import, layout, range filter, betweenness
+    - title: Online Journalism Blog - A journalist's introduction to network analysis (2020)
+      url: https://onlinejournalismblog.com/2020/06/08/a-journalists-introduction-to-network-analysis/
+      summary: Defines degree, betweenness and eigenvector in one sentence each; names Gephi, Kumu and Flourish as reporter tools
+    - title: Neo4j sandbox - Panama Papers example queries
+      url: https://guides.neo4j.com/sandbox/icij-offshoreleaks/panama-papers-examples.html
+      summary: The Cypher technical reporters write - control through variable-length paths, intermediaries ranked by companies, officer pairs sharing entities
+    - title: Open Ownership - What graph visualisation teaches us about beneficial ownership
+      url: https://www.openownership.org/en/blog/what-graph-visualisation-teaches-us-about-beneficial-ownership/
+      summary: Registry data has no unique person ids, so one person appears as several; ceased relationships greyed out
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,23 @@
+id: linked-timeline-view
+name: Linked Timeline View
+category: visualization
+description: A timeline with one theme line per entity, event frames on or between lines and a time bar, whose selection
+    and filtering stay in sync with the graph view and a map view.
+status: planned
+notes: "Research trace: law-enforcement-and-intelligence-analysts.md section 10, requirement 4 (Must)."
+algorithms: []
+used_by_workflows:
+    - W100
+    - W102
+    - W106
+    - W368
+    - W99
+implemented_by_components: []
+requirements:
+    - "Must: Linked timeline: theme line per entity, event frames, time bar, synced selection"
+    - "Should: People-fact-issue-document multipartite graph linked to a timeline and filtered by issue or person."
+sources:
+    - title: Law enforcement crime and intelligence analysts, and defense and national intelligence analysts (section
+          10, requirement 4)
+      url: design/user-research/law-enforcement-and-intelligence-analysts.md
+      summary: "Must in the research. Covered by Designloom when researched: Gap"

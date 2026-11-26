@@ -1,0 +1,54 @@
+id: network-design-analyst
+name: Supply Chain Network Design Analyst
+roster_persona: supply-chain-analyst
+tier: B
+scope: in-scope
+role: Supply Chain Network Design Analyst at a consumer goods manufacturer
+quote: First I prove the model reproduces last year's costs. Only then do I ask what happens if we close the Memphis DC.
+bio: >-
+    Brian models the company's distribution network -- plants, distribution centers, customers and the lanes between
+    them -- in a network design tool such as Coupa Supply Chain Modeler (formerly LLamasoft), Optilogic Cosmic Frog or
+    anyLogistix. He fills tables of locations, products, demand, lanes and rates, facility costs and capacities, and
+    sourcing rules from last year's shipments using SQL and Python. He builds a baseline that reproduces last year's
+    costs, an optimized baseline that follows the rules that should have been in place, and then what-if scenarios
+    where each facility is included, excluded or left for the optimizer to consider. He compares the best solutions on
+    cost and service, stress-tests them with simulated disruptions, and presents maps of flows and cost tables in
+    PowerPoint to leadership deciding on capital projects.
+characteristics:
+    expertise: advanced
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Build a baseline leadership trusts because it reproduces last year's costs
+    - Quantify savings and risk of opening, closing or resizing facilities
+    - Compare many scenarios on one page
+    - Show flows on a map so leaders see what moves where
+behaviors:
+    - Fills location, product, demand, lane and rule tables, then validates the baseline against actual costs
+    - Creates an optimized baseline as the new starting point
+    - Sets each facility to include, exclude or consider per scenario, and runs greenfield analyses
+    - Compares the ten best solutions on profit and cost side by side
+    - Draws lanes on a map with width by flow volume
+    - Stress-tests chosen designs with simulated disruptions
+frustrations:
+    - Cost data is the toughest to get, and its absence shows up only after the baseline is built
+    - Location codes differ across systems
+    - Scenario results end up in separate spreadsheets that are hard to compare
+context:
+    frequency: weekly
+    devices:
+        - desktop
+    voluntary: true
+workflows:
+    - W224
+sources:
+    - title: Watson, network design baseline models (SCDigest)
+      url: https://www.scdigest.com/EXPERTS/DrWatson_14-07-08.php?cid=8252
+      summary: Baseline validates last year's costs; optimized baseline follows the rules that should have been in place
+    - title: Watson, cost data in network design (SCDigest)
+      url: https://www.scdigest.com/experts/DrWatson_17-02-21.php?cid=11984
+      summary: Cost data is the toughest to get and missing data appears after the baseline is built (read via search summary)
+    - title: anyLogistix network optimization tutorial
+      url: https://anylogistix.help/tutorial/tutorial-n-optimization.html
+      summary: Include, exclude or consider per facility, comparison of the best solutions, routes drawn on a map

@@ -1,12 +1,20 @@
 id: visual-encoding-nodes
 name: Node Visual Encoding
 category: visualization
-description: Map node attributes to visual properties (color, size, shape, label) to encode information visually.
-    Support categorical encoding with color palettes and quantitative encoding with size or color gradients.
-status: implemented
-notes: "Ships: style layers on session.styles, edited in graphty/src/workspace/style/BindingPopover.tsx."
+description: Map node attributes and computed values to visual properties (color, size, shape, border, opacity,
+    label) through rule-based style layers saved with the view. The near-universal recipe across the research is size by
+    a ranking (degree, citations, shared cM) and color by a partition or category -- hue for categories, brightness for
+    continuous values (Venturini, Jacomy and Jensen) -- with labels shown above a size threshold and an automatic legend.
+    Published figures must survive grayscale printing and color-vision deficiency, so color is never the only cue, and
+    uniform sizing is the default unless a stated measure is encoded.
+status: in-progress
+notes: "Partly ships: style layers on session.styles, edited in graphty/src/workspace/style/BindingPopover.tsx. Planned: highlighting nodes whose community disagrees with their place in the layout, and a grayscale check for print. Any requirement below that this note does not name as shipping counts as planned."
 algorithms: []
 used_by_workflows:
+    - W3057
+    - W3056
+    - W3054
+    - W3006
     - W02
     - W03
     - W04
@@ -14,7 +22,6 @@ used_by_workflows:
     - W08
     - W10
     - W11
-    - W12
     - W15
     - W17
     - W20
@@ -22,6 +29,333 @@ used_by_workflows:
     - W22
     - W23
     - W24
+    - W103
+    - W104
+    - W105
+    - W106
+    - W108
+    - W110
+    - W111
+    - W112
+    - W113
+    - W114
+    - W116
+    - W117
+    - W118
+    - W119
+    - W120
+    - W122
+    - W123
+    - W124
+    - W125
+    - W127
+    - W128
+    - W129
+    - W132
+    - W134
+    - W135
+    - W137
+    - W138
+    - W139
+    - W14
+    - W140
+    - W141
+    - W142
+    - W143
+    - W145
+    - W150
+    - W152
+    - W154
+    - W155
+    - W156
+    - W157
+    - W158
+    - W159
+    - W16
+    - W160
+    - W161
+    - W162
+    - W163
+    - W164
+    - W165
+    - W166
+    - W167
+    - W168
+    - W169
+    - W170
+    - W171
+    - W172
+    - W173
+    - W175
+    - W176
+    - W177
+    - W179
+    - W182
+    - W186
+    - W187
+    - W188
+    - W189
+    - W190
+    - W192
+    - W193
+    - W194
+    - W195
+    - W196
+    - W197
+    - W198
+    - W199
+    - W200
+    - W201
+    - W203
+    - W205
+    - W206
+    - W207
+    - W208
+    - W209
+    - W210
+    - W211
+    - W212
+    - W213
+    - W214
+    - W215
+    - W216
+    - W218
+    - W219
+    - W220
+    - W221
+    - W222
+    - W223
+    - W224
+    - W226
+    - W227
+    - W228
+    - W229
+    - W231
+    - W233
+    - W234
+    - W235
+    - W236
+    - W237
+    - W240
+    - W241
+    - W242
+    - W243
+    - W244
+    - W247
+    - W248
+    - W249
+    - W250
+    - W251
+    - W252
+    - W253
+    - W254
+    - W255
+    - W256
+    - W257
+    - W258
+    - W259
+    - W260
+    - W261
+    - W262
+    - W263
+    - W265
+    - W266
+    - W267
+    - W268
+    - W269
+    - W27
+    - W270
+    - W271
+    - W272
+    - W273
+    - W274
+    - W275
+    - W276
+    - W278
+    - W279
+    - W28
+    - W280
+    - W281
+    - W282
+    - W283
+    - W285
+    - W289
+    - W29
+    - W290
+    - W294
+    - W297
+    - W30
+    - W306
+    - W309
+    - W31
+    - W311
+    - W313
+    - W314
+    - W316
+    - W317
+    - W32
+    - W322
+    - W324
+    - W327
+    - W33
+    - W330
+    - W331
+    - W333
+    - W334
+    - W335
+    - W336
+    - W337
+    - W430
+    - W34
+    - W340
+    - W342
+    - W344
+    - W345
+    - W346
+    - W347
+    - W35
+    - W348
+    - W36
+    - W360
+    - W362
+    - W363
+    - W364
+    - W365
+    - W368
+    - W370
+    - W371
+    - W372
+    - W373
+    - W374
+    - W375
+    - W376
+    - W377
+    - W378
+    - W379
+    - W38
+    - W380
+    - W381
+    - W382
+    - W383
+    - W384
+    - W387
+    - W389
+    - W390
+    - W391
+    - W392
+    - W393
+    - W394
+    - W395
+    - W396
+    - W397
+    - W398
+    - W399
+    - W400
+    - W401
+    - W402
+    - W403
+    - W404
+    - W405
+    - W406
+    - W407
+    - W408
+    - W409
+    - W41
+    - W410
+    - W411
+    - W413
+    - W415
+    - W419
+    - W421
+    - W423
+    - W424
+    - W426
+    - W427
+    - W428
+    - W429
+    - W43
+    - W431
+    - W432
+    - W433
+    - W434
+    - W435
+    - W436
+    - W437
+    - W44
+    - W438
+    - W49
+    - W50
+    - W51
+    - W52
+    - W53
+    - W54
+    - W55
+    - W56
+    - W57
+    - W58
+    - W59
+    - W60
+    - W61
+    - W62
+    - W63
+    - W64
+    - W65
+    - W66
+    - W67
+    - W68
+    - W69
+    - W70
+    - W71
+    - W72
+    - W73
+    - W74
+    - W75
+    - W76
+    - W77
+    - W78
+    - W79
+    - W80
+    - W81
+    - W82
+    - W83
+    - W84
+    - W85
+    - W86
+    - W87
+    - W88
+    - W90
+    - W91
+    - W92
+    - W93
+    - W94
+    - W95
+    - W1006
+    - W1012
+    - W1042
+    - W1054
+    - W1060
+    - W1084
+    - W1120
+    - W1126
+    - W1132
+    - W1138
+    - W1156
+    - W1157
+    - W1158
+    - W2000
+    - W2006
+    - W2036
+    - W2037
+    - W2038
+    - W2066
+    - W2072
+    - W2096
+    - W3048
+    - W3066
+    - W3078
+    - W3080
+    - W3102
+    - W3103
 implemented_by_components:
     - color-picker
     - legend-panel
@@ -29,24 +363,39 @@ implemented_by_components:
     - gradient-editor
     - node-chart-overlay
 requirements:
-    - Map categorical attribute to color palette with maximum 7 distinct colors
-    - Use ColorBrewer qualitative palette as default categorical color scheme
-    - Provide 3 alternative colorblind-safe palettes (deuteranopia, protanopia, tritanopia)
-    - Map quantitative attribute to node size using square-root scaling for perceptual accuracy
-    - "Provide node size range parameter: minimum 10px to maximum 80px (default 10-50px)"
-    - "Map categorical attribute to shape: circle (default), square, triangle-up, triangle-down, diamond, hexagon"
-    - Support maximum 6 distinct shapes for shape encoding
-    - Support combining color and size encodings simultaneously on same nodes
-    - Support combining color and shape encodings simultaneously on same nodes
-    - Display node label inside node when node radius exceeds 25px
-    - Display node label below node when node radius is under 25px
-    - Truncate labels longer than 15 characters with ellipsis in graph view
-    - Show full label on hover regardless of truncation
-    - "Provide label visibility options: all, selected-only, none, or above-threshold-size"
-    - Generate legend automatically when any encoding is applied
-    - Apply encoding changes to all nodes within 300ms
-    - Preserve encoding settings when switching between graphs in same session
+    - "Must: Map a categorical attribute or a partition (community, cluster, type) to color; the palette is a consumer option, and colorblind-safe palettes that avoid red-green pairs are offered"
+    - "Library parity: When a category has more values than a palette can keep distinguishable, offer grouping the rest or another channel (shape, label, on-hover detail) instead of cycling colors"
+    - "Library parity: Map a continuous attribute to a sequential or diverging color scale, by brightness or lightness rather than hue"
+    - "Must: Map a numeric attribute or any computed ranking to size, with a consumer-set range and a linear, square-root (area) or log scale"
+    - "Must: Default to uniform node size unless a stated measure is encoded"
+    - "Must: Map a categorical attribute to shape, and allow color, size, shape and border encodings on the same nodes"
+    - "Must: Keep color from being the only cue for a category or state (WCAG 1.4.1) and offer a grayscale check for print"
+    - "Must: Offer label visibility modes: all, selected only, none, and above a size or ranking threshold; also short labels with full text in the legend or on hover"
+    - "Must: Keep the labels a mode shows from overlapping each other or other nodes; placement, leader lines and the choice between moving labels only or nodes too belong to label-overlap-removal"
+    - "Must: Let rule-based color groups (by query or by attribute) be saved with the view"
+    - "Should: Highlight nodes whose computed community disagrees with where the layout places them, so a reader does not read a visual cluster as a computed one"
+    - "Must: Generate a legend from the live style for every encoding, stating the attribute and its endpoints"
+    - "Library parity: Apply encoding changes interactively on large graphs, with progress feedback for anything slower than about one second"
 sources:
-    - title: Complete Graph Visualization Textbook - Chapter 3
-      url: https://graphty.app/docs/
-      summary: Visual encoding principles and Cleveland-McGill hierarchy
+    - title: Munzner 2014, Visualization Analysis and Design
+      url: https://doi.org/10.1201/b17511
+      summary: Channels ranked by effectiveness; hue for categories, magnitude channels for ordered values
+    - title: Venturini, Jacomy and Jensen, What do we see when we look at networks
+      url: https://arxiv.org/abs/1905.02202
+      summary: Size by a ranking, hue for categories and brightness for continuous variables, label by size threshold;
+          visual clusters versus computed communities
+    - title: Marai et al., Ten simple rules to create biological network figures for communication
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6762067
+      summary: Avoid red-green, check grayscale, labels at caption size
+    - title: WCAG 2.2, Understanding 1.4.1 Use of Color
+      url: https://www.w3.org/WAI/WCAG22/Understanding/use-of-color.html
+      summary: Color must not be the only visual means of conveying information
+    - title: American Political Science Review, preparing your materials
+      url: https://www.cambridge.org/core/journals/american-political-science-review/information/author-instructions/preparing-your-materials
+      summary: Figures must be readable in grayscale
+    - title: qgraph manual
+      url: https://cran.r-project.org/web/packages/qgraph/qgraph.pdf
+      summary: Short node labels with a legend of full item text (nodeNames) and colors by group
+    - title: Nielsen Norman Group, Response times, the 3 important limits
+      url: https://www.nngroup.com/articles/response-times-3-important-limits/
+      summary: 1 second keeps the flow of thought; past that, show progress

@@ -9,6 +9,13 @@ implements_capabilities:
 used_in_workflows:
     - W05
     - W07
+    - W142
+    - W143
+    - W146
+    - W276
+    - W420
+    - W55
+    - W89
 dependencies:
     - icon
     - badge

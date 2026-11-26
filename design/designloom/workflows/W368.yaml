@@ -1,0 +1,111 @@
+id: W368
+name: Fact Extraction and Chronologies with a People-Fact-Issue Graph
+category: reporting
+validated: false
+personas:
+    - ediscovery-case-associate
+    - internal-investigations-counsel
+requires_capabilities:
+    - data-import
+    - temporal-analysis
+    - temporal-navigation
+    - filtering
+    - search
+    - node-selection
+    - visual-encoding-nodes
+    - legend-display
+    - details-on-demand
+    - report-generation
+    - data-export
+    - linked-timeline-view
+suggested_components:
+    - data-import-dialog
+    - data-table-panel
+    - temporal-controls
+    - graph-canvas
+    - filter-panel
+    - node-details-panel
+    - legend-panel
+    - report-generator-dialog
+starting_state:
+    data_type: generated fact table (fact date, name, type, issues, associated people and organizations, citation, helpful or harmful, score 1-4)
+    node_count: up to thousands of facts from 5,000 documents per extraction job
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Organize the facts that generative extraction pulls from documents into a chronology grouped by
+    issue, and use the people tied to each fact for witness summaries and deposition outlines (Relativity aiR for
+    Case Strategy, generally available January 2026).
+
+
+    **Mental Model**: "People, facts and issues on a timeline." Each fact links a date, an issue, the people involved
+    and the source document; a witness's outline is every fact that names them.
+
+
+    **Task Phases**:
+
+    1. **Set up the case** - Create a fact chronology; enter key people with aliases, roles and affiliations; describe
+    what the case is trying to prove
+
+    2. **Run extraction** - Up to 5,000 documents per job; each fact gets a primary date, name, type, related issues,
+    associated people and organizations, a document summary and a citation; tagged helpful or harmful and scored 1 to
+    4 with a rationale; duplicate facts consolidated
+
+    3. **Review the chronology** - A timeline that groups facts by issue; filter by issue or person
+
+    4. **Generate witness summaries and deposition outlines** - A witness must appear in a fact's people field for
+    the fact to be used
+
+
+    **Decision Points**:
+
+    - Which aliases must be listed so loosely similar name variants are not missed?
+
+    - Which facts are reliable enough for the outline?
+
+    - Which people are tied to which issues, and when?
+
+
+    **Information Needs**:
+
+    - Facts per person and per issue over time
+
+    - Citation to the source text for every fact
+
+    - People who appear in many facts but were not listed as key people
+
+
+    **Pain Points**:
+
+    - Loosely similar name variants missed unless given as aliases
+
+    - A witness left out of a fact's people field silently drops that fact from their outline
+
+    - No source shows whether this structure replaces the communication graph for "who are the key players"
+
+
+    **Data Flow**:
+
+    - Input: Fact table with people, issues, dates and document citations
+
+    - Transformations: Multipartite people-fact-issue-document graph linked to a timeline, filtering by issue or person
+
+    - Output: Chronology, witness summaries, deposition outlines
+success_criteria:
+    - metric: Person view
+      target: Every fact naming a person, ordered by date with citations, in one view
+    - metric: Alias coverage
+      target: Facts naming an alias of a key person are attributed to that person
+sources:
+    - title: LawNext - Relativity launches aiR for Case Strategy (January 2026)
+      url: https://www.lawnext.com/2026/01/relativity-launches-air-for-case-strategy-to-extract-and-organize-key-facts-using-generative-ai.html
+      summary: General availability, 5,000 documents per job, fact fields and scoring
+    - title: Relativity - Creating a fact chronology (search excerpt; page not directly readable)
+      url: https://help.relativity.com/RelativityOne/Content/Relativity/aiR_for_Case_Strategy/Creating_a_fact_chronology.htm
+      summary: People and aliases with roles, what you are trying to prove, timeline grouped by issue
+    - title: Relativity - Creating witness summaries and deposition outlines (search excerpt; page not directly readable)
+      url: https://help.relativity.com/RelativityOne/Content/Relativity/aiR_for_Case_Strategy/Creating_witness_summaries_and_deposition_outlines.htm
+      summary: A witness must appear in a fact's entities field for the fact to be used
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

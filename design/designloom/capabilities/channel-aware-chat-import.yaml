@@ -1,0 +1,18 @@
+id: channel-aware-chat-import
+name: Channel-Aware Chat Import
+category: data
+description: Import chat channels without drawing header membership as a clique; weight edges by messages exchanged
+    within time slices.
+status: planned
+notes: "Research trace: ediscovery-and-legal-communication-analysis.md section 10, requirement R15 (Should)."
+algorithms: []
+used_by_workflows:
+    - W369
+implemented_by_components: []
+requirements:
+    - "Should: Channel-aware chat import: no clique by default; weight by messages"
+sources:
+    - title: eDiscovery, litigation review and internal-investigation teams who use communication graphs (section 10,
+          requirement R15)
+      url: design/user-research/ediscovery-and-legal-communication-analysis.md
+      summary: "Should in the research. Covered by Designloom when researched: Not covered"

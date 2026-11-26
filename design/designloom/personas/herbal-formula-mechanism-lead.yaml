@@ -1,0 +1,83 @@
+id: herbal-formula-mechanism-lead
+name: Herbal Formula Mechanism Lead
+roster_persona: network-pharmacology-graduate-student
+tier: B
+scope: in-scope
+role: Principal Investigator of a TCM Pharmacology Lab and Attending Physician
+quote: Every student's network ends at quercetin and AKT1. Show me which of these compounds we actually measured in serum, and redo everything downstream when the LC-MS list arrives.
+bio: >-
+    Professor Zhao runs a TCM pharmacology lab at a university hospital, supervises eight graduate students, reviews for
+    two journals and has had a computational-only manuscript rejected. He now insists on "precision network
+    pharmacology": UPLC-Q-TOF-MS of the decoction and of dosed-animal serum before any target prediction, measured
+    disease genes from GEO or the lab's own RNA-seq instead of GeneCards keywords, docking into a known binding site,
+    and at least one target validated by western blot or qPCR. His students run the database pipeline; he decides the
+    formula, the disease and which hub gets the bench budget. He uses R (limma, WGCNA, glmnet) and TCMNPAS, a
+    Shiny platform for constituent lookup, enrichment, network proximity, batch docking and prescription mining. The
+    lab also mines hospital prescriptions for a senior physician's core herbs, builds gut microbiome and metabolome
+    correlation networks for gut and metabolic disease, and compares the herbs within a formula to explain why they are
+    combined. His networks carry measured columns: fold change and adjusted p on targets, detected-or-not on compounds,
+    model AUC and Mendelian randomization odds ratios on hubs. He knows the field's homogeneity problem from the
+    published census: quercetin is a key compound in 63.2% of studies reporting compounds and AKT1 a key target in
+    48.8%, falling to 19.6% when omics data are integrated.
+characteristics:
+    expertise: expert
+    time_pressure: medium
+    graph_literacy: intermediate
+    domain_knowledge: expert
+motivations:
+    - Show a mechanism specific to his formula rather than the generic quercetin-AKT1-AGE-RAGE result
+    - Publish papers that survive Journal of Ethnopharmacology and Phytomedicine review
+    - Rerun the analysis when a database updates or when the compound list is replaced by serum data
+    - Decide which hub gets the lab's validation budget on measured, not merely predicted, support
+    - Rationalize why a formula combines its herbs and which other diseases it could treat
+behaviors:
+    - Profiles the decoction and dosed-rat serum by UPLC-Q-TOF-MS and feeds only absorbed prototypes and metabolites to target prediction
+    - Replaces GeneCards lists with DEGs from GEO (limma, optional ComBat, WGCNA modules) and chooses hubs with LASSO or Mendelian randomization
+    - Overlays fold change on targets and detection on compounds, then filters the network to measured-supported paths
+    - Adds 16S sequencing and untargeted metabolomics to an animal study and correlates differential taxa with metabolites
+    - Compares per-herb compound and target sets and projects target-pathway networks to one-mode for repositioning
+    - Has students mine hospital prescriptions into weighted herb co-occurrence networks and extracts the core formula by k-core
+    - Asks students to report database versions and access dates after losing a former student's network
+frustrations:
+    - Students' networks converge on the same compounds, targets and pathways regardless of formula
+    - A figure does not show which nodes were measured and which were only listed in a database
+    - A former student's network cannot be reproduced because nobody recorded the database version or thresholds
+    - He cannot show a reviewer that a high-degree target is not merely a well-studied protein
+    - Replacing the compound list with serum data means redoing every downstream network, count and figure by hand
+    - LC-MS, GEO, metabolomics and microbiome results are joined to the network by hand in Excel
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W430
+    - W432
+    - W433
+    - W434
+    - W435
+    - W436
+    - W438
+sources:
+    - title: Zhai et al. 2025, precision network pharmacology (PMC11725223)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11725223
+      summary: Argues for measured chemistry and in vivo exposure before prediction; ADME filters ignore abundance, processing and decoction
+    - title: Diao et al. 2026, census of network pharmacology results (Frontiers in Pharmacology)
+      url: https://www.frontiersin.org/journals/pharmacology/articles/10.3389/fphar.2026.1748478/full
+      summary: Quercetin key in 63.2% and AKT1 in 48.8% of studies; AKT1 falls from 54.9% to 19.6% with omics integration; recommends in vivo exposure as the primary criterion
+    - title: Guanyu Zhixie Granule multi-omics study (PMC11149358)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11149358/
+      summary: UPLC-Q-TOF-MS, GEO DEGs, STRING >= 0.9, serum metabolomics and 16S joined to the network, RT-qPCR validation
+    - title: Qinghuo Rougan Formula for uveitis (Frontiers in Molecular Biosciences 2025)
+      url: https://www.frontiersin.org/journals/molecular-biosciences/articles/10.3389/fmolb.2025.1632027/full
+      summary: GEO DEGs, WGCNA module, degree and betweenness cutoffs for six hubs, LASSO with AUC 0.900 to choose among them
+    - title: TCMNPAS platform (PMC10958928)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10958928
+      summary: R/Shiny constituent lookup, enrichment, network proximity, batch docking, prescription mining and network views
+    - title: Xijiao Dihuang Tang serum pharmacochemistry (PMC8845118)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8845118/
+      summary: 67 extract peaks and 60 serum constituents feeding a 398-node, 985-edge compound-target network
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

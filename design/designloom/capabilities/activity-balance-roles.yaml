@@ -1,0 +1,20 @@
+id: activity-balance-roles
+name: Activity-Balance Role Classification
+category: analysis
+description: Classify nodes into roles from the balance of directed out and in activity (for example engager, catalyst,
+    responder, broadcaster, observer) with adjustable thresholds, and measure concentration of reach among the
+    top-ranked nodes.
+status: planned
+notes: "Research trace: organizational-network-analysis-people-analytics.md section 9, table row 24 (Could); a Could in the research, so it is built after every Must and Should."
+algorithms: []
+used_by_workflows:
+    - W195
+implemented_by_components: []
+requirements:
+    - "Could: Activity-balance role classification from directed in and out counts, and concentration of reach among
+      top-ranked nodes"
+sources:
+    - title: Organizational Network Analysis and People Analytics Practitioners (section 9, table row 24)
+      url: design/user-research/organizational-network-analysis-people-analytics.md
+      summary: "Could in the research. Covered by Designloom when researched: NOT
+          covered"

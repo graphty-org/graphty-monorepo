@@ -1,0 +1,123 @@
+id: W330
+name: Canvas Mapping with Obsidian Canvas and JSON Canvas
+category: analysis
+validated: false
+personas:
+    - pkm-canvas-mapper
+requires_capabilities:
+    - annotation
+    - node-selection
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - zoom-pan
+    - data-import
+    - data-export
+    - export-image
+    - manual-layout-preservation
+    - typed-edge-filtering
+    - json-canvas-io
+suggested_components:
+    - graph-canvas
+    - annotation-toolbar
+    - context-menu
+    - color-picker
+    - text-input
+    - zoom-controls
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: JSON Canvas file (text, file, link and group cards with positions and sizes; labeled, sided edges)
+    node_count: 30-200 cards per canvas
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Lay out ideas by hand on an infinite canvas: cards placed where they mean something, labeled arrows,
+    and groups as regions. The canvas is a node-link graph whose positions belong to the author.
+
+
+    **Mental Model**: "A whiteboard of my notes." Position, region and arrow label carry meaning; nothing should move
+    unless the author moves it.
+
+
+    **Task Phases**:
+
+    1. **Create** - "Canvas: Create new canvas" or right-click a folder > New canvas; saved as a .canvas file in
+    JSON Canvas format
+
+    2. **Add cards** - Double-click for a text card; "Add note from vault" or drag notes in; add media or web
+    pages; drag a folder to add all its files
+
+    3. **Connect** - Drag from a card edge's circle to another card; dropping in empty space creates a new
+    card
+
+    4. **Label** - Double-click the line, type the relation ("causes", "contradicts"), Escape
+
+    5. **Group** - Select cards > right-click > Create group; rename the group
+
+    6. **Promote** - Right-click a text card > "Convert to file..." so it becomes a note that appears in
+    backlinks
+
+    7. **Link back** - Embed the canvas in a note; file cards create links from the canvas to notes, but the
+    arrows between cards never reach the link index, backlinks or graph view
+
+
+    **Decision Points**:
+
+    - Text card or real note?
+
+    - Which relation label for this arrow?
+
+    - Group by region or by color?
+
+
+    **Information Needs**:
+
+    - Which canvases a note appears on
+
+    - Arrow labels readable at any zoom
+
+    - The note behind a file card on hover
+
+
+    **Pain Points**:
+
+    - Canvas arrows are not links and are invisible to backlinks and the graph view
+
+    - No view mixes hand-placed cards with automatic layout of everything else
+
+    - Force-directed graphs discard the author's positions
+
+
+    **Data Flow**:
+
+    - Input: JSON Canvas 1.0 (top-level nodes and edges; nodes with id, type, x, y, width, height, color; file nodes with
+    file and subpath; group nodes with label; edges with fromNode, toNode, fromSide, toSide, fromEnd, toEnd, color,
+    label; colors hex or presets 1 to 6)
+
+    - Transformations: Hand placement, grouping, labeling; promotion of text cards to notes
+
+    - Output: Saved .canvas file; canvases embedded in notes; screenshots; new notes from promoted cards
+success_criteria:
+    - metric: Position fidelity
+      target: Round-tripping a canvas keeps every position, size, group, edge label, side and color
+    - metric: Canvas edges as graph edges
+      target: Hand-drawn arrows can be shown and filtered as their own edge kind beside written links
+sources:
+    - title: Obsidian Help - Canvas
+      url: https://obsidian.md/help/plugins/canvas
+      summary: Create, add cards, connect, label, group, Convert to file, embed
+    - title: JSON Canvas 1.0 specification
+      url: https://jsoncanvas.org/spec/1.0/
+      summary: Node and edge fields, sides, ends, colors
+    - title: Obsidian blog - JSON Canvas
+      url: https://obsidian.md/blog/json-canvas/
+      summary: Open MIT-licensed format published March 2024
+    - title: JSON Canvas - Apps
+      url: https://jsoncanvas.org/docs/apps/
+      summary: Supporting apps including Obsidian, Kinopio, Flowchart Fun, OrgPad and a Heptabase converter
+    - title: Obsidian quirks - Canvas file links
+      url: https://saberzero1.github.io/obsidian-extended-metadatacache/obsidian-quirks/canvas-file-links
+      summary: Edge connections between cards do not appear in resolvedLinks
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

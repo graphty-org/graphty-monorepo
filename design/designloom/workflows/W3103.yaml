@@ -1,0 +1,138 @@
+id: W3103
+name: Metabolite Concentration Table to a DSPC Partial Correlation Network
+category: analysis
+validated: false
+personas:
+    - metabolomics-network-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - identifier-mapping
+    - partial-correlation-network
+    - interactive-threshold
+    - signed-edges
+    - component-browser
+    - centrality-degree
+    - gene-set-enrichment
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - details-on-demand
+    - analysis-provenance
+    - export-image
+    - data-export
+suggested_components:
+    - data-import-dialog
+    - data-preview-table
+    - range-slider
+    - network-list-panel
+    - ranked-node-table
+    - enrichment-results-table
+    - node-details-panel
+    - visual-encoding-panel
+    - legend-panel
+    - graph-canvas
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: Samples-by-metabolites concentration table (compound names, HMDB or KEGG ids, unknown features allowed);
+        the network is inferred from it, so every pair of features is a candidate edge with a partial correlation and a
+        p-value
+    node_count: tens to a few hundred features (151 metabolites in the KORA example, 192 in a mouse study, 140 in SWAN)
+    edge_density: dense before filtering; the default view keeps the top 20% of edges by p-value, or the top 100 when
+        there are more than 1,000
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Find which metabolites move together across samples, directly rather than through a third metabolite,
+    and use those links to group known compounds and suggest identities for unknown ones.
+
+
+    **Mental Model**: "Who moves with whom, once the others are held fixed." An edge is a partial correlation; red
+    means up together, blue means one up and one down; thicker means stronger.
+
+
+    **Task Phases**:
+
+    1. **Upload** - Concentration table with samples in rows or columns; compound names, HMDB or KEGG ids, or
+    unknowns; or a Metabolomics Workbench study id
+
+    2. **Integrity check** - Missing values reported (0.9% in the tutorial data) and replaced by half the minimum
+    positive value by default
+
+    3. **Normalize** - For example no sample normalization, log transformation and auto-scaling; compare density and
+    box plots before and after
+
+    4. **Compute DSPC** - Partial correlation coefficient and p-value for every pair of features
+
+    5. **Filter** - Correlation filters on p-value and coefficient range; the default shows only the top edges by
+    p-value; subnetworks of three or more nodes are listed
+
+    6. **Explore** - Open each subnetwork; edge thickness by strength; turn on edge color by sign; unmapped
+    compounds marked; enrichment on selected nodes
+
+    7. **Export** - SIF per subnetwork for Cytoscape, network image, PDF report of the analysis
+
+
+    **Decision Points**:
+
+    - Which normalization and scaling?
+
+    - Keep the default top-edge cut, or set a p-value and coefficient threshold?
+
+    - Which subnetwork to read first?
+
+    - Do unknown features that link to a known class look like members of it?
+
+
+    **Information Needs**:
+
+    - Feature and sample counts, and missing-value share
+
+    - Edge coefficient, sign and p-value
+
+    - The edge cut applied and how many edges it removed
+
+    - Subnetwork list with sizes
+
+
+    **Pain Points**:
+
+    - The drawn network depends on a top-edge cut the user did not set
+
+    - DSPC relies on the true network being sparse relative to the sample size; with few samples, fewer edges are
+    recovered
+
+    - Unknown features have no identifiers to link out to
+
+
+    **Data Flow**:
+
+    - Input: Concentration table, optional sample metadata
+
+    - Transformations: Missing-value imputation, normalization, DSPC, p-value and coefficient filters, subnetwork
+    listing
+
+    - Output: Signed weighted network image, SIF subnetworks, PDF report
+success_criteria:
+    - metric: Cut visible
+      target: The edge filter in force, and the edges it removed, shown with the network and recorded in exports
+    - metric: Sign readable
+      target: Positive and negative partial correlations distinguished and in the legend
+    - metric: Threshold feedback
+      target: Moving the p-value or coefficient filter updates edge and subnetwork counts live
+sources:
+    - title: MetaboAnalyst Network Explorer Tutorial II (Chang and Xia 2020)
+      url: https://api2.xialab.ca/api/download/metaboanalyst/tutorial9.pdf
+      summary: Upload, integrity check, normalization, DSPC, correlation filters, default top-edge cut, SIF download, KORA example
+    - title: MetaboAnalyst 5.0 Network Explorer tutorial (2022)
+      url: https://api2.xialab.ca/api/download/metaboanalyst/6_Network_Explorer.pdf
+      summary: Metabolomics Workbench import, DSPC also in the Statistical Analysis module, PDF report
+    - title: Basu et al. 2017 - DSPC
+      url: https://doi.org/10.1093/bioinformatics/btx012
+      summary: Sparsity assumption; 151 x 1,020 KORA, 192 x 71 NOD mouse and 140-metabolite SWAN networks; adjusted p cuts
+    - title: Pang et al. 2021 - MetaboAnalyst 5.0
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8265181
+      summary: DSPC networks via graphical LASSO; node size by degree, edge thickness by correlation
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

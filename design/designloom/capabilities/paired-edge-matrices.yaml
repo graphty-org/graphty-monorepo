@@ -1,0 +1,20 @@
+id: paired-edge-matrices
+name: Paired Edge Matrices
+category: analysis
+description: Keep two aligned values per edge (weight and tract length or delay) from two matrices, with subset edits
+    (set, scale, remove between selected and unselected nodes) applied consistently.
+status: planned
+notes: "Research trace: network-neuroscience-connectomics.md section 10, requirement R30 (Should)."
+algorithms: []
+used_by_workflows:
+    - W155
+    - W158
+implemented_by_components: []
+requirements:
+    - "Should: Two matrices per graph (weight and length or delay) kept aligned, with edits on node subsets applied to
+      both"
+sources:
+    - title: "Network Neuroscientists: Structural, Functional and Cellular Connectomics (section 10, requirement R30)"
+      url: design/user-research/network-neuroscience-connectomics.md
+      summary: "Should in the research. Covered by Designloom when researched: Not
+          covered"

@@ -1,0 +1,151 @@
+id: W241
+name: AP-MS Hit List to an Interactor Figure
+category: analysis
+validated: false
+personas:
+    - proteomics-bench-scientist
+    - network-biology-core-bioinformatician
+requires_capabilities:
+    - data-import
+    - data-validation
+    - node-merging
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-force-directed
+    - community-detection
+    - annotation
+    - filtering
+    - export-image
+    - data-export
+    - multiplex-relations
+    - identifier-mapping
+    - biological-network-formats
+    - node-glyph-charts
+    - gene-set-enrichment
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - network-merge-dialog
+    - visual-encoding-panel
+    - node-chart-overlay
+    - legend-panel
+    - annotation-toolbar
+    - graph-canvas
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: scored bait-prey table (one row per pair) plus known prey-prey interactions from STRING
+    node_count: 20-500 (BioPlex-scale interactomes reach 118,162 edges)
+    edge_density: sparse
+    user_expertise: novice to intermediate
+goal: >-
+    **Intent**: Turn an affinity purification mass spectrometry (AP-MS) result -- one to a dozen bait proteins and their
+    scored prey proteins -- into one figure that shows each bait's interactors, which interactions were already known,
+    which are new, and which complexes the preys form.
+
+
+    **Mental Model**: "My bait's neighborhood, with known biology drawn in." Bait to prey edges are what the experiment
+    measured, and they have a direction of design; STRING edges between preys are background knowledge. The two kinds of
+    edge must stay visibly different.
+
+
+    **Task Phases**:
+
+    1. **Pre-process** (core facility) - CRAPome contaminant filter, SAINT, MiST or CompPASS scoring and a score
+    threshold; the result is one row per bait-prey pair with a score
+
+    2. **Import** (5 min) - Bait as source, prey as target, score on the edge; watch for preys that appear under several
+    baits, where some tools keep only the last value
+
+    3. **Add known interactions among preys** - Query STRING with the prey list at a very high confidence (0.999
+    in the Cytoscape protocol) with no added interactors, and confirm ambiguous name matches
+
+    4. **Merge** (5 min) - Join the AP-MS network and the STRING network on UniProt accession versus STRING query term
+    so each protein is one node and each edge keeps its provenance
+
+    5. **Style** (20-30 min) - Force-directed layout; baits in a distinct color; node fill on a cell-line or abundance
+    score; edge width on AP-MS score; AP-MS edges green, STRING edges gray; outline complexes as hulls
+
+    6. **Enrich and chart** (15 min) - STRING enrichment at FDR 0.05; donut or pie charts on nodes for membership in the
+    top terms
+
+    7. **Export** - Session, PNG or SVG with legend, NDEx upload, and CX2, GraphML, XGMML or SIF for
+    collaborators
+
+
+    **Decision Points**:
+
+    - Which scoring method and threshold separate real preys from contaminants (decided by the core, but must be
+    recorded)?
+
+    - What STRING confidence for prey-prey edges: 0.999 to keep only near-certain complexes, or lower to see more?
+
+    - Which identifier is the merge key on each side, and what happens to rows that do not match?
+
+    - Show complexes as hulls, as clusters, or as donut charts of enriched terms?
+
+    - Keep preys shared by several baits as one node, with one edge per bait?
+
+
+    **Information Needs**:
+
+    - Count of preys per bait and preys shared between baits
+
+    - Merge report: matched, unmatched and ambiguous identifiers per side
+
+    - Edge provenance (AP-MS, STRING, both) as an edge attribute with its own legend entry
+
+    - AP-MS score and STRING evidence for any clicked edge
+
+    - Enriched terms with FDR and the member preys
+
+
+    **Pain Points**:
+
+    - The STRING website cannot color by the user's own data, so the bench version stops at an uncolored STRING picture
+
+    - A prey reported under several baits keeps only one value on import
+
+    - Bait to prey direction is lost when the data goes through BioGRID TAB 3.0, which has no bait or prey roles
+
+    - Complexes are drawn by hand as hulls in a drawing program
+
+    - Chart overlays are configured by typing an enhancedGraphics expression into a table column
+
+
+    **Data Flow**:
+
+    - Input: Bait-prey table (CSV or TSV) with scores; prey list sent to STRING; optional per-protein abundance or
+    cell-line scores
+
+    - Transformations: Directed bait-prey edge import, STRING retrieval among preys, keyed merge with edge provenance,
+    styling, enrichment, node charts
+
+    - Output: Merged interactor network with provenance-colored edges, figure with legend, enrichment table, NDEx link
+success_criteria:
+    - metric: Time from scored table to interactor figure
+      target: Under 45 minutes for a bench scientist without coding (design goal; no source measures it)
+    - metric: Provenance visible
+      target: Every edge is identifiable as AP-MS, STRING or both, in the figure legend
+    - metric: No silent loss
+      target: Merge and import report how many preys matched and keep one edge per bait-prey pair
+sources:
+    - title: Cytoscape tutorial - AP-MS network analysis
+      url: https://cytoscape.org/cytoscape-tutorials/protocols/AP-MS-network-analysis/
+      summary: Import, STRING at 0.999, merge, styling, enrichment donuts and export, with step times
+    - title: Morris et al. 2014 - AP-MS and network analysis
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4332878
+      summary: CRAPome, SAINT, MiST and CompPASS pre-processing
+    - title: Ten simple rules for creating biological network figures
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6762067
+      summary: Complexes and groups shown as enclosing hulls
+    - title: SARS-CoV-2 interactome example
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC9904289
+      summary: 332 high-confidence interactions
+    - title: BioPlex 3.0
+      url: https://pubmed.ncbi.nlm.nih.gov/33961781/
+      summary: 118,162 interactions in a large AP-MS interactome
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

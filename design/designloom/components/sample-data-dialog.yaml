@@ -8,6 +8,14 @@ implements_capabilities:
     - sample-datasets
 used_in_workflows:
     - W14
+    - W171
+    - W181
+    - W231
+    - W239
+    - W271
+    - W280
+    - W37
+    - W48
 dependencies:
     - button
     - badge

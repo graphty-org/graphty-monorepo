@@ -1,0 +1,19 @@
+id: neighborhood-composition-clustering
+name: "Neighborhood Composition Clustering"
+category: analysis
+description: "For each node, compute the label fractions among its k nearest neighbors or graph neighbors within n hops, cluster the profiles (k-means or Leiden, seeded) into recurrent neighborhoods written as a node column, and give a neighborhood-by-label composition table (requirement 53; Schurch et al. 2020 cellular neighborhoods)."
+status: planned
+notes: "Research trace: systems-biology-omics-networks.md section 10, requirement 53 (Should)."
+algorithms: []
+used_by_workflows:
+    - W2066
+implemented_by_components: []
+requirements:
+    - "Should: Neighborhood composition clustering: per node, the label fractions among its k nearest neighbors or
+      within n hops, clustered (k-means or Leiden) into recurrent neighborhoods painted on the nodes, with a
+      neighborhood x label composition table (5.18)"
+sources:
+    - title: Systems Biologists and Bench Scientists Working With Molecular Interaction Networks (section 10,
+          requirement 53)
+      url: design/user-research/systems-biology-omics-networks.md
+      summary: Should in the research.

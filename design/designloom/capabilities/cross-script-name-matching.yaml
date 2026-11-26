@@ -1,0 +1,23 @@
+id: cross-script-name-matching
+name: "Cross-script company name matching"
+category: analysis
+description: "Match one company across its Chinese legal name, pinyin, English trade names, former names and misspelled shipping-record names, keeping every variant with the record it came from and marking machine-translated names as such, with reversible merges."
+status: planned
+notes: "Research trace: investigative-journalism-and-osint.md section 10, requirement R23 (Should)."
+algorithms: []
+used_by_workflows:
+    - W1090
+    - W230
+implemented_by_components: []
+requirements:
+    - "Should: Downstream trade trace: build trade links from shipment-record rows (shipper, consignee, date, product,
+      quantity), aggregated per pair with count and date range; follow them downstream from a chosen source, keeping
+      only hops whose product fits the next production stage; carry ownership edges in the same graph; match Chinese,
+      English and misspelled names with each variant's record kept (with R10); show redacted and forwarder endpoints as
+      unknown nodes; export a link annex with records and a per-company response status"
+sources:
+    - title: Investigative journalists, OSINT investigators and trust-and-safety teams (section 10, requirement R23)
+      url: design/user-research/investigative-journalism-and-osint.md
+      summary: "Should in the research. Covered by Designloom when researched: Partly: W230 covers the importer's
+          upstream trace (watch-list-proximity, tracing-package-export); W1090 records this trace; stage filtering and
+          cross-script name matching are not covered"

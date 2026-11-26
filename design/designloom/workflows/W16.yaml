@@ -1,110 +1,154 @@
 id: W16
-name: Graph-Based Recommendation
+name: Qualitative Review of a Graph Recommender's Output
 category: analysis
 validated: false
 personas:
     - ml-engineer-recsys
 requires_capabilities:
-    - link-prediction
-    - shortest-path
-    - clustering-coefficient
     - data-import
-    - data-export
+    - data-validation
+    - metric-histograms
     - filtering
+    - ego-network
+    - shortest-path
+    - path-highlighting
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - details-on-demand
+    - data-preview
+    - annotation
+    - data-export
+    - model-output-overlay
+    - typed-heterogeneous-graphs
+    - clustering-coefficient
+    - link-prediction
     - statistics-panel
 suggested_components:
-    - graph-canvas
     - data-import-dialog
-    - data-export-dialog
+    - column-mapper
+    - histogram
     - filter-panel
-    - statistics-panel
+    - data-table-panel
+    - ego-network-dialog
+    - graph-canvas
+    - path-finder-dialog
+    - node-details-panel
+    - legend-panel
+    - annotation-toolbar
+    - data-export-dialog
     - link-prediction-panel
+    - statistics-panel
 starting_state:
-    data_type: user-item interaction data
-    node_count: 10000-10000000
+    data_type: user-item interaction graph (bipartite or heterogeneous) plus externally scored recommendations (user, item, probability, rank, optional explanation edges)
+    node_count: 20-500 per seed user viewed; source graph 10^4 to 10^9 never drawn whole
     edge_density: very sparse
     user_expertise: expert
 goal: >-
-    **Intent**: Build a recommendation system that leverages graph structure to suggest relevant items to users. User
-    wants to go beyond simple collaborative filtering by using network topology.
+    **Intent**: Before a recommender ships, review its output qualitatively across a deliberately chosen set of users:
+    are the recommendations sensible, and where are the popularity artifacts, leakage and filtering bugs? This is the one
+    step of recommender work with evidence of happening in a visual tool, because there is no ground truth beyond the
+    graph itself.
 
 
-    **Mental Model**: "Six degrees of separation" - finding items through indirect connections. If you like what your
-    friends like, and their friends like similar things, we can follow the graph to find recommendations.
+    **Mental Model**: "Grade a sample of cases." Building, training, scoring and deploying happen in code; the review
+    loads the scored output beside the interaction graph, picks seed users across strata, reads each seed's
+    neighborhood, and records a judgment that goes back to the training code.
 
 
     **Task Phases**:
 
-    1. **Graph Construction** - Build user-item bipartite graph from interaction data
+    1. **Load the scored output** - Interaction edges, item catalog and the model's recommendations (user, item,
+    probability, rank, optional explainer edges), mapping tensor indices back to user and item ids
 
-    2. **Feature Engineering** - Compute graph features (common neighbors, path lengths, embeddings)
+    2. **See the distribution** - Probability histograms brushed by item type and popularity; aggregate views
+    only, never a drawing of the whole graph
 
-    3. **Similarity Computation** - Calculate user-user and item-item similarities via graph metrics
+    3. **Sample seed users** - Heavy, cold-start and complaint users and a sample stratified by predicted
+    probability, because aggregation can obscure trends and outliers
 
-    4. **Recommendation Generation** - Score unconnected user-item pairs, rank by relevance
+    4. **Inspect each seed** - History, top-N items with probability, item attributes, and the shortest path,
+    shared neighbors or explainer edges between history and each recommendation (see W267 for the per-seed steps)
 
-    5. **Evaluation** - Measure precision, recall, coverage, diversity, serendipity
+    5. **Rate** - Star-rate questionable recommendations with a note (popularity artifact, already consumed,
+    distant but feature-similar)
 
-    6. **Deployment** - Integrate into production system
+    6. **Export** - Ratings and notes as CSV with original ids, into training or filtering code
 
 
     **Decision Points**:
 
-    - Which interactions to include (views, clicks, purchases)?
+    - Which strata of users to sample, and how many per stratum?
 
-    - User-based or item-based approach?
+    - Is a pattern across seeds a model problem, a filtering bug or data leakage?
 
-    - What graph features are most predictive?
-
-    - How to balance accuracy vs. diversity vs. serendipity?
-
-    - How to handle cold-start (new users/items)?
+    - Is the model ready to go to an online test?
 
 
     **Information Needs**:
 
-    - User-item interaction data with timestamps
+    - Probability distribution by item type and popularity
 
-    - Item attributes for content-based augmentation
+    - Seed user list with strata and review status
 
-    - Graph metrics (common neighbors, Jaccard, Adamic-Adar)
+    - Per seed: history, top-N, probabilities, item attributes, connecting paths or shared neighbors
 
-    - Evaluation metrics by segment
-
-    - A/B test results
+    - Whether a recommended item is already in the user's history
 
 
     **Pain Points**:
 
-    - Sparse interaction graphs (most user-item pairs have no data)
+    - The input graph is too large to examine and did not help validity assessments
 
-    - Cold-start problem for new users/items
+    - Hop distance alone misleads because the model also uses features
 
-    - Scalability of graph computations
+    - Heterogeneous explanations cannot be drawn with PyG's built-in helper
 
-    - Balancing relevance with novelty
+    - Time leakage from future edges unless filtering is meticulous
 
-    - Filter bubbles (only recommending similar items)
+    - Annotations must leave the tool as CSV to be used in existing workflows
 
 
     **Data Flow**:
 
-    - Input: User interaction logs + item catalog
+    - Input: Interaction log, item catalog, scored recommendations, optional explanation edges
 
-    - Transformations: Graph construction, feature extraction, similarity scoring, ranking
+    - Transformations: Id mapping, distribution views, stratified seed sampling, per-seed neighborhood extraction
 
-    - Output: Top-N recommendations per user + evaluation metrics
+    - Output: Ratings CSV keyed by user and item id; a go or no-go note for the model
+
+
+    **Correction note**: This record replaces an earlier version that put graph construction, feature engineering,
+    similarity computation, recommendation generation and deployment in the viewer and cited an unpublished guide. Those
+    steps happen in code (PyG HeteroData and LightGCN, Neo4j GDS FastRP and kNN), Neo4j Bloom exposes no similarity or
+    link prediction, and no source shows a viewer taking part in deployment. Heuristic link prediction is not needed
+    here: scores come from the model under review.
 success_criteria:
-    - metric: Recommendation quality
-      target: Precision@10 > baseline
-    - metric: Coverage
-      target: Recommendations span item catalog
-    - metric: Business impact
-      target: Improved engagement/conversion metrics
+    - metric: Time from opening a seed user to a recorded judgment (hypothesis)
+      target: Under 5 minutes per user (design goal; no source measures it)
+    - metric: Ratings export
+      target: Exported ratings carry the original user and item ids
+    - metric: Stratified coverage
+      target: Each chosen stratum of users has at least one reviewed seed
 sources:
-    - title: Practical Graph Analysis Guide - Chapter 11
-      url: https://graphty.app/docs/
-      summary: Graph-Based Recommendation Workflow
-version: 1.0.0
+    - title: RekomGNN
+      url: https://arxiv.org/html/2310.11562
+      summary: No ground truth beyond the graph; seed users, probability histograms brushed by item type, star ratings exported as CSV; input graph too large to examine
+    - title: PyG LightGCN example
+      url: https://github.com/pyg-team/pytorch_geometric/blob/master/examples/lightgcn.py
+      summary: Generation by logits.topk(k) and Precision@20 and Recall@20 each epoch, in code
+    - title: Neo4j GDS client - FastRP and kNN tutorial
+      url: https://neo4j.com/docs/graph-data-science-client/current/tutorials/fastrp-and-knn/
+      summary: Every step in Python, checked with Cypher, no viewer
+    - title: Neo4j Bloom - GDS integration
+      url: https://neo4j.com/docs/bloom-user-guide/current/bloom-tutorial/gds-integration/
+      summary: Bloom exposes centrality and community algorithms only, no similarity or link prediction
+    - title: neo4j-viz GDS integration
+      url: https://neo4j.com/docs/python-graph-visualization/current/integration/gds/
+      summary: Notebook rendering samples above 10,000 nodes
+    - title: NVIDIA - How distributed training works
+      url: https://docs.nvidia.com/sdgm/how-distributed-training-works
+      summary: Training on future edges without meticulous time filtering
+version: 2.0.0
 created_at: 2026-01-16T16:42:38.607Z
-updated_at: 2026-01-16T16:42:38.607Z
+updated_at: 2026-11-25T00:00:00.000Z

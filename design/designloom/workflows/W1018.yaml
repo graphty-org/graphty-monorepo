@@ -1,0 +1,153 @@
+id: W1018
+name: Reading a Graph Deliverable Someone Else Made
+category: reporting
+validated: false
+personas:
+    - graph-deliverable-recipient
+    - hr-business-partner
+    - dis-supervisor
+requires_capabilities:
+    - deep-links
+    - private-share-link
+    - redacted-sharing
+    - legend-display
+    - guided-presentation
+    - view-bookmarks
+    - details-on-demand
+    - provenance-tracking
+    - comparison-view
+    - element-accessibility
+    - zoom-pan
+    - viewer-only-mode
+    - deliverable-handling-marking
+    - accessible-graph-overview
+suggested_components:
+    - graph-canvas
+    - legend-panel
+    - bookmark-panel
+    - node-details-panel
+    - data-table-panel
+    - comparison-view
+    - zoom-controls
+starting_state:
+    data_type: a finished deliverable made by someone else - a shared link or embed, a PDF or printout, a slide deck, a dashboard, a line list or an aggregate table
+    node_count: 0-500 visible (aggregate deliverables show no nodes at all)
+    edge_density: any
+    user_expertise: novice
+goal: >-
+    **Intent**: Open a graph deliverable that an analyst made, understand its one message, know what may be done
+    with it, check a surprising element against its source, and see what changed since the last version - without
+    operating a graph tool and often on a phone or a black-and-white printout.
+
+
+    **Who**: Readers who never build the graph: an executive or HR business partner reading an organizational
+    network readout or dashboard, a partner services supervisor reading a cluster line list, a compliance reviewer
+    reading a SAR case file, a client or CISO reading attack-path findings, a funder or board member opening a
+    narrated systems map. The analysts who make these deliverables follow W315, W316, W317, W319, W320 and W323.
+
+
+    **Mental Model**: "Tell me the one thing, and whether I may pass it on." The words on the page (title, caption,
+    legend, finding sentence) carry the message; the picture, when there is one, supports them.
+
+
+    **Task Phases**:
+
+    1. **Open what arrived** - A link (sometimes carrying an access token or a password), an embed, a PDF, a
+    printout, a deck or a dashboard tile; usually on a phone or between meetings; no install and no account
+
+    2. **Read the message first** - Title, finding sentence, legend and caveats before the network itself;
+    with no hover or tooltips on a phone or on paper, anything not printed on the artifact is lost
+
+    3. **Check what she may do with it** - The audience it was made for, its handling restriction (a
+    restricted SAR case file, an access-limited line list, an ONA readout shown only above a minimum group size),
+    whether it may be forwarded, printed or shown
+
+    4. **Follow a claim to its source** (when something surprises) - Open one element's details, record or exhibit
+    reference, or ask the producer
+
+    5. **Compare with the last version** (recurring deliverables) - Same view, same parameters, a newer data date;
+    what was added, removed or changed
+
+    6. **Act or pass it on** (varies) - Assign field work, hold a one-on-one, approve a filing, fund a strategy,
+    forward to a colleague within the allowed audience
+
+
+    **Decision Points**:
+
+    - Is this the current version, or has the link changed since it was sent?
+
+    - May I forward, print or show this, and to whom?
+
+    - Is this element backed by a source, or is it the producer's inference?
+
+    - Did the picture change because the data changed, or because the view did?
+
+
+    **Information Needs**:
+
+    - The finding in words, the legend and the caveats on the artifact itself
+
+    - The intended audience and handling restriction of the deliverable
+
+    - The data date and the parameters behind it
+
+    - Source references for any element she questions
+
+    - Differences from the previous period's version
+
+
+    **Pain Points**:
+
+    - Static exports lose the tooltips that carried the details
+
+    - Color encodings do not survive grayscale printing
+
+    - Dense graphs are unreadable on a phone, where there is no hover
+
+    - Changing a presentation's privacy gives it a new URL, so links already sent stop working
+
+    - Links and web exports can expose more data than the view shows
+
+    - Deliverables that need the producer's software to open
+
+
+    **Data Flow**:
+
+    - Input: A deliverable made by an analyst (link, embed, file, printout, dashboard)
+
+    - Transformations: None by the reader beyond navigation - reading, stepping through saved views, opening an
+    element's details, comparing two periods
+
+    - Output: A decision or action, and sometimes a forward to a colleague within the allowed audience
+success_criteria:
+    - metric: Time to the message
+      target: The reader states the deliverable's finding within one minute, on a phone or a grayscale printout (design goal; no source measures it)
+    - metric: Handling clarity
+      target: The audience and forwarding restriction are visible on the deliverable itself without asking the producer
+    - metric: No tool needed
+      target: The deliverable opens in a browser, PDF reader or slide viewer with no install and no account
+sources:
+    - title: i2 Chart Reader
+      url: https://i2group.com/i2-chart-reader
+      summary: A free viewer for recipients to show, search and print charts without the analysis tool
+    - title: Kumu docs - Presentations
+      url: https://docs.kumu.io/guides/presentations
+      summary: Viewers open a published presentation by link; private presentations carry a token in the URL, can add a password, and changing privacy gives a new URL
+    - title: Microsoft Learn - Roles in Viva Insights
+      url: https://learn.microsoft.com/en-us/viva/insights/advanced/setup-maint/user-roles
+      summary: Managers see aggregated insights about their own team only; analysts work on de-identified data
+    - title: CDC - HIV cluster review and prioritization
+      url: https://www.Cdc.gov/hiv/programresources/guidance/hiv-cluster-detection-and-response-guidance/cluster-review-and-prioritization.html
+      summary: Line lists are access-limited; molecular network diagrams are to be avoided when communicating with partners
+    - title: ICD 208 - Maximizing the utility of analytic products
+      url: https://www.dni.gov/files/documents/ICD/ICD-208-Maximizing-the-Utility-of-Analytic-Products-2017-01-09.pdf
+      summary: Products customers can readily find, access, use and pass along
+    - title: Cambridge Intelligence - Intelligence dissemination with PDF exports
+      url: https://cambridge-intelligence.com/intelligence-dissemination-with-pdf-exports/
+      summary: Static exports lose interactivity and color may not survive grayscale printing
+    - title: journalism.co.uk - How the Wall Street Journal approaches data interactives on mobile
+      url: https://www.journalism.co.uk/how-the-wall-street-journal-approaches-data-interactives-on-mobile/
+      summary: Small screens cannot rely on tooltips or hover
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

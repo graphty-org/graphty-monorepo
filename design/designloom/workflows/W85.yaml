@@ -1,0 +1,176 @@
+id: W85
+name: Find and Remove Dependency Cycles and Layer Violations
+category: analysis
+validated: false
+personas:
+    - codebase-dependency-developer
+requires_capabilities:
+    - data-import
+    - dependency-format-import
+    - neighborhood-expansion
+    - component-analysis
+    - all-paths-finding
+    - path-highlighting
+    - filtering
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - layout-hierarchical
+    - details-on-demand
+    - group-collapse
+    - cycle-detection
+    - matrix-view
+suggested_components:
+    - file-drop-zone
+    - graph-canvas
+    - heatmap-panel
+    - cluster-collapse-control
+    - path-finder-dialog
+    - node-details-panel
+    - ranked-node-table
+    - legend-panel
+starting_state:
+    data_type: code dependency graph with nested containment (package, folder, module; or assembly, namespace, class) and import counts, from dependency-cruiser JSON or DOT, madge JSON or DOT, Nx project graph JSON, import-linter DOT, NDepend, Lattix or jQAssistant
+    node_count: tens to thousands of modules or projects (dependency-cruiser's own sample run reports 454 modules and 1,078 dependencies; Nx's benchmark monorepo has 253 packages and 5,566 TypeScript files); no source gives a typical size
+    edge_density: moderate, with counts rolled up per containment level
+    user_expertise: expert
+goal: >-
+    **Intent**: Find dependency cycles and layer violations in a codebase, decide which dependency to cut, and enforce
+    the rule in CI so new ones fail the build. The persona is codebase-dependency-developer: the senior developer or
+    architect who owns a codebase's structure. In JavaScript and TypeScript the work starts from a rule file and a CI
+    failure, not from a picture; in .NET and Java shops with NDepend or Lattix it often starts from a dependency
+    structure matrix (DSM).
+
+
+    **Mental Model**: "Layers should point one way." A cycle of N components is really one super-component; the
+    lightest edge in the cycle is usually the one to cut.
+
+
+    **Task Phases, JavaScript and TypeScript (dependency-cruiser, madge, Nx)** (no source gives per-step durations):
+
+    1. **Write the rules** - `forbidden` rules in `.dependency-cruiser.js`, such as no circular imports, no import from
+    a higher layer, no orphans; or Nx project tags with `depConstraints`, where a forbidden project import is a lint
+    error
+
+    2. **Baseline what exists** - `depcruise src --baseline` records today's violations in
+    `.dependency-cruiser-known-violations.json` and prints new, same and stale counts; `--baseline-mode shrink-only`
+    later only removes fixed ones
+
+    3. **Enforce in CI** - `depcruise --output-type err --ignore-known src` prints nothing and exits 0 when clean,
+    otherwise prints the violating dependencies and exits with the number of error-level violations; known ones are
+    hidden with a count
+
+    4. **Draw the overview** - Collapse to folders or packages: `--output-type ddot`, `archi`, or `--collapse <depth or
+    pattern>`, rendered with Graphviz, or `mermaid` and `d2`; `nx graph` for projects; `madge --circular --image
+    graph.svg` draws only the circular part, cyclic modules in red
+
+    5. **Drill into one module** - `--focus <pattern>` shows a module with its direct dependencies and dependents
+    (`--focus-depth` widens it), `--reaches <pattern>` shows everything that can reach it, `--highlight <pattern>`
+    marks matching modules in the full graph, `madge --depends <module>` lists dependents
+
+    6. **Decide and fix** - Choose the edge to cut, refactor, and run `--baseline` again so the fixed violation leaves the
+    baseline
+
+
+    **Task Phases, other ecosystems**:
+
+    - **Java** - ArchUnit `slices().matching("..myapp.(*)..").should().beFreeOfCycles()` and `layeredArchitecture()`
+    rules run as unit tests; `FreezingArchRule.freeze(...)` records existing violations so later runs report only new
+    ones and the store shrinks as they are fixed
+
+    - **Python** - import-linter contracts (forbidden, layers, independence, acyclic siblings) run with `lint-imports`;
+    `import-linter explore mypackage` opens a browser graph of a package's children with drill-down, import totals per
+    arrow, module counts per node and "cycle breakers", a minimal set of dependencies whose removal makes the graph
+    acyclic, drawn dashed
+
+    - **.NET with a DSM (NDepend, Lattix)** - Load the containment hierarchy as matrix rows and columns with coupling
+    counts; triangularize so cycles show as cells above the diagonal; read mutual-use cells and cycle blocks; click a
+    cell for the path graph, shown as nested boxes with expand and collapse; NDepend cycle rules fail CI
+
+
+    **Decision Points**:
+
+    - Which rule to enforce, and at error or warning severity?
+
+    - Which existing violations to accept into the baseline?
+
+    - Which strongly connected group matters most, and which edge in it is cheapest to cut?
+
+
+    **Information Needs**:
+
+    - Strongly connected components with member counts, and the cycle drawn as a path, not only listed as text
+
+    - Import count per edge, rolled up per folder, package or namespace
+
+    - Rule violations marked on the graph, with known (baselined) and new ones distinguished
+
+    - A minimal cycle-breaking edge set
+
+    - Focus on one module with its neighbors, and everything that can reach it
+
+
+    **Pain Points**:
+
+    - The full graph is unreadable; Nx: "Viewing the entire graph can be unmanageable even for smaller repositories"
+
+    - Graphviz output is a static picture, so each new question is a new command
+
+    - Rule failures are a text list of edges; the cycle they form must be drawn separately
+
+    - Node-link views hit scaling problems that a matrix avoids (Lattix)
+
+    - Generated and third-party code inflate the graph
+
+
+    **Data Flow**:
+
+    - Input: dependency-cruiser JSON or DOT, madge JSON or DOT, Nx project graph JSON, import-linter DOT, NDepend, Lattix or jQAssistant output, a known-violations baseline
+
+    - Transformations: Containment roll-up, strongly connected components, cycle-breaker selection, focus and reaches
+    closures, matrix triangularization, path explanation
+
+    - Output: List of cycles and violations, chosen cut edges, rules and an updated baseline
+success_criteria:
+    - metric: Cycles found
+      target: Every strongly connected group is listed and collapsible as one unit
+    - metric: Cut decision
+      target: User can see the weight of each edge in a cycle and pick the lightest
+    - metric: Rule violations
+      target: Violations from a rule run show on the graph, with baselined and new ones told apart
+sources:
+    - title: NDepend - Dependency Structure Matrix
+      url: https://www.ndepend.com/docs/dependency-structure-matrix-dsm
+      summary: Hierarchical rows, triangularize, black cells for mutual use, cycles as super-components, click a cell for the path graph
+    - title: NDepend - Dependency graph
+      url: https://www.ndepend.com/docs/visual-studio-dependency-graph
+      summary: Nested parent boxes with expand and collapse; callers, callees and entangled elements colored
+    - title: NDepend - Dependency cycles
+      url: https://www.ndepend.com/features/dependency-cycles
+      summary: Cycle rules that fail CI
+    - title: Lattix DSM paper (OOPSLA 2005)
+      url: https://groups.csail.mit.edu/sdg/pubs/2005/oopsla05-dsm.pdf
+      summary: A DSM appears to overcome scaling problems of node-link views
+    - title: dependency-cruiser - command line interface
+      url: https://github.com/sverweij/dependency-cruiser/blob/main/doc/cli.md
+      summary: err reporter exit codes; ddot, archi, mermaid, d2 output; --focus, --reaches, --affected, --highlight, --collapse; --baseline, --baseline-mode shrink-only, --ignore-known
+    - title: madge
+      url: https://github.com/pahen/madge
+      summary: --circular lists circular imports; --image draws the graph with circular modules red; --depends lists dependents
+    - title: Nx - Explore your workspace
+      url: https://nx.dev/docs/features/explore-graph
+      summary: nx graph, --focus, group by folder; "Viewing the entire graph can be unmanageable even for smaller repositories"
+    - title: Nx - Enforce module boundaries
+      url: https://nx.dev/docs/features/enforce-module-boundaries
+      summary: Project tags and depConstraints; violations are lint errors
+    - title: ArchUnit user guide
+      url: https://www.archunit.org/userguide/html/000_Index.html
+      summary: beFreeOfCycles, layeredArchitecture; FreezingArchRule reports only new violations
+    - title: Import Linter - Interactive UI
+      url: https://import-linter.readthedocs.io/en/stable/ui/
+      summary: explore command; drill-down, import totals, module counts, cycle breakers; drawgraph DOT
+    - title: Import Linter - Contract types
+      url: https://import-linter.readthedocs.io/en/stable/contract_types/
+      summary: Forbidden, layers, independence, acyclic siblings
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

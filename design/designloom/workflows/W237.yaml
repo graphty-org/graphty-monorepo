@@ -1,0 +1,125 @@
+id: W237
+name: Biology Lab - Gene List to a Clustered, Enriched Protein Network (Cytoscape and STRING)
+category: analysis
+validated: false
+personas:
+    - network-analysis-instructor
+requires_capabilities:
+    - data-import
+    - data-validation
+    - component-analysis
+    - community-detection
+    - visual-encoding-nodes
+    - legend-display
+    - layout-force-directed
+    - details-on-demand
+    - export-image
+    - data-export
+suggested_components:
+    - gene-set-import-dialog
+    - attribute-table-join-dialog
+    - data-table-panel
+    - visual-encoding-panel
+    - gradient-editor
+    - legend-panel
+    - community-panel
+    - enrichment-results-table
+    - graph-canvas
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: identifier list (UniProt accessions or gene symbols) plus fold changes and p-values
+    node_count: 50-600
+    edge_density: sparse
+    user_expertise: novice
+goal: >-
+    **Intent**: In a two-hour campus workshop or a course lab, take biology students with no programming from a list of
+    protein identifiers to a clustered, colored and functionally enriched interaction network, following the official
+    stringApp tutorials. The full research version of this flow is W20; this record captures the classroom form, where
+    install and menu drift are the main risks.
+
+
+    **Mental Model**: "Put my list on the map of known interactions." The interaction database supplies the edges; the
+    experiment supplies the colors; clusters are candidate pathways.
+
+
+    **Task Phases**:
+
+    1. **Install beforehand** - Cytoscape plus stringApp, clusterMaker2 and other apps
+
+    2. **Query STRING** - Paste an identifier list (the exercise uses 541 UniProt accessions), choose organism and number
+    of extra interactors
+
+    3. **Import data** - Fold changes and p-values keyed on the query term
+
+    4. **Map color** - Log ratio to a diverging color gradient
+
+    5. **Cluster** - MCL with inflation 4
+
+    6. **Enrich** - Retrieve functional enrichment per network or cluster
+
+    7. **Export** - Figures and enrichment tables
+
+
+    **Decision Points**:
+
+    - Organism and confidence cutoff
+
+    - How many extra interactors to add
+
+    - MCL inflation value
+
+    - Which enrichment categories to report
+
+
+    **Information Needs**:
+
+    - Identifiers matched versus not found by the database
+
+    - Join match counts for the data table
+
+    - Cluster membership and per-cluster enrichment
+
+
+    **Pain Points**:
+
+    - Installing several apps before class
+
+    - Version-dependent menus break the handout
+
+    - Students "struggled with fully understanding network measures"
+
+    - The data unit is an identifier list, not an edge list; tools that expect graph files fail here
+
+
+    **Data Flow**:
+
+    - Input: Identifier list, organism, data table with fold change and p-value
+
+    - Transformations: Interaction retrieval, key-column join, continuous color mapping, MCL clustering, enrichment
+
+    - Output: Colored clustered network figure, enrichment tables
+success_criteria:
+    - metric: Lab completion
+      target: Students reach an enriched, colored network inside a two-hour workshop with no installs
+    - metric: Match transparency
+      target: Student can state how many identifiers were found and how many data rows joined
+sources:
+    - title: Cytoscape stringApp protocol
+      url: https://cytoscape.org/cytoscape-tutorials/protocols/stringApp/
+      summary: STRING query, data import keyed on query term, color mapping, MCL clustering, functional enrichment
+    - title: JensenLab stringApp exercises
+      url: https://jensenlab.org/training/stringapp/
+      summary: 541 UniProt accessions, organism and extra interactors, version-dependent menus
+    - title: Pitt - Gene expression and network visualization using Cytoscape
+      url: https://calendar.pitt.edu/event/gene-expression-and-network-visualization-using-cytoscape-su26
+      summary: Two-hour workshop for experimental biologists without programming
+    - title: Yale - Protein interaction network analysis and visualization
+      url: https://ysph.yale.edu/event/functional-analysis-of-omics-data-part-3-protein-interaction-network-analysis-and-visualization/
+      summary: Workshop with STRING and Cytoscape, apps installed beforehand
+    - title: Network of the Day (Connections, 2026)
+      url: https://reference-global.com/article/10.2478/connections-2026-0005?tab=article
+      summary: UVA Networks in Biology course of 26 students struggled with network measures
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

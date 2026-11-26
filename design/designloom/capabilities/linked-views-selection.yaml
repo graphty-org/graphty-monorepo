@@ -1,0 +1,37 @@
+id: linked-views-selection
+name: Linked Views Over One Selection
+category: visualization
+description: Network, tree, map, timeline, epidemic curve, interval (Gantt) and table views over the same data, where a
+    selection made in any one view applies to all of them, including lasso selection on a map or a tree.
+status: planned
+notes: "Research trace: public-health-and-molecular-epidemiology.md section 10, table row 18 (Must)."
+algorithms: []
+used_by_workflows:
+    - W210
+    - W213
+    - W215
+    - W228
+    - W396
+    - W397
+    - W401
+    - W63
+    - W67
+    - W68
+    - W71
+    - W72
+    - W254
+    - W1158
+    - W2038
+    - W2066
+implemented_by_components: []
+requirements:
+    - "Must: Linked views over the same selection: network, tree, map, timeline, epi curve and table, with a selection
+      in one applying to all"
+    - "Must: Charts of node or edge attributes (creation date, followers, language, activity over time) where selecting a bar selects nodes and a graph selection updates the charts."
+    - "Should: Scatter plot of two node attributes (for example impact versus spend, success rate versus count) linked to graph selection."
+    - "Should: A scatter plot of an ordination (PCA, PCoA, spectral embedding) linked to the graph or tree, with selection flowing both ways."
+sources:
+    - title: Public Health Outbreak Investigators and Molecular Epidemiologists (section 10, table row 18)
+      url: design/user-research/public-health-and-molecular-epidemiology.md
+      summary: "Must in the research. Covered by Designloom when researched: partly
+          (existing views are not linked this way)"

@@ -1,0 +1,16 @@
+id: motif-census
+name: Motif Census
+category: analysis
+description: 3- and 4-node subgraph counts with z-scores against a chosen null.
+status: planned
+notes: "Research trace: network-scientists-and-analysis-method-validity.md section 9, requirement R9 (Should)."
+algorithms: []
+used_by_workflows:
+    - W37
+implemented_by_components: []
+requirements:
+    - "Should: Motif census (3- and 4-node) with z-scores against a chosen null"
+sources:
+    - title: Network Scientists and the Validity of Core Analysis Methods (section 9, requirement R9)
+      url: design/user-research/network-scientists-and-analysis-method-validity.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

@@ -1,0 +1,42 @@
+id: version-control-history-import
+name: Version-Control History Import
+category: data
+description: "Import a git history (a git log with per-file change counts, or the commit and edit tables that mining
+    tools such as git2net, TNM and code-maat write) as a time-stamped two-mode graph of developers and files, one edge
+    per author-file change with the commit, date, lines added and deleted, and ticket IDs parsed from the message.
+    Merge author aliases (several names and emails for one person) through a .mailmap file, an identity table or a
+    reviewed match list, flag bots, follow renames, and exclude paths such as vendored or generated code. Report how
+    many identities were merged and which commits were dropped."
+status: planned
+notes: "Research trace: dependency-and-impact-analysis-engineers.md section 10, requirement R37 (Must)."
+algorithms: []
+used_by_workflows:
+    - W3078
+    - W3079
+    - W3080
+implemented_by_components: []
+requirements:
+    - "Must: Import a git log (numstat or name-status) or a mining tool's commit and edit tables as a temporal
+      developer-file graph; merge author aliases through .mailmap or a supplied identity table with the merges shown
+      and reversible; flag bots; follow renames; exclude path patterns; keep commit, date, churn and ticket ID on each
+      edge"
+sources:
+    - title: code-maat (Adam Tornhill)
+      url: https://github.com/adamtornhill/code-maat
+      summary:
+          "Input is git log --all --numstat --date=short --pretty=format:'--%h--%ad--%aN' --no-renames --after=DATE,
+          with pathspec exclusions such as vendor/*"
+    - title: gitmailmap - map author and committer names and emails
+      url: https://git-scm.com/docs/gitmailmap
+      summary: .mailmap maps alternate names and emails to one canonical identity; used by git log, shortlog and blame
+    - title: "gambit: an open source name disambiguation tool for version control systems (Gote and Zingg, MSR 2021)"
+      url: https://arxiv.org/abs/2103.05666v1
+      summary: Rule-based disambiguation from name and email only; F1 0.985 on manually disambiguated GNOME GTK data
+    - title: SortingHat (GrimoireLab) - ICSE 2019 demonstration
+      url: https://2019.icse-conferences.org/details/icse-2019-Demonstrations/13/SortingHat-Wizardry-on-Software-Project-Members
+      summary: Tracks unique identities of project members and their organization enrollments; without it researchers
+          merge identities with ad hoc scripts or by hand
+    - title: CodeScene - Knowledge distribution
+      url: https://codescene.io/docs/guides/social/knowledge-distribution.html
+      summary: Knowledge is calculated per committer name; developers are mapped to teams and marked as ex-developers in
+          configuration

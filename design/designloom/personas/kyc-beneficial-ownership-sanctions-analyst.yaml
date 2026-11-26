@@ -1,0 +1,81 @@
+id: kyc-beneficial-ownership-sanctions-analyst
+name: KYC, Beneficial Ownership and Sanctions Analyst
+roster_persona: aml-investigator
+tier: A
+scope: in-scope
+role: Corporate KYC / Enhanced Due Diligence and Sanctions Analyst, international bank
+quote: Two questions, two different rules. Who owns 25 percent or more after you multiply down the chain, and do blocked people own 50 percent or more once you add them up?
+bio: >-
+    Zofia Novak onboards and reviews corporate customers for an international bank. For each complex customer she has to
+    unpick the ownership and control chain, often through nominees, trusts and several jurisdictions, from declarations and
+    from Orbis or Dun and Bradstreet reports, the UK Companies House register of people with significant control (PSC),
+    OpenCorporates and Open Ownership data, and Sayari at larger banks. She builds owner-to-owned edges carrying a share or a
+    band (PSC reports bands such as 25 to 50 percent), voting rights, control type, dates and the source filing, resolves
+    duplicate people and companies, and answers two separate questions. For customer due diligence she multiplies along each
+    path and adds across paths to find every natural person with 25 percent or more. For sanctions she applies the OFAC 50
+    Percent Rule, which aggregates blocked owners and passes a stake through in full once an intermediary is itself blocked,
+    so a chain that multiplies to 25 percent can still block the customer. When the vendor chart is wrong she redraws it in
+    PowerPoint or Visio. Her output is a structure chart, the list of qualifying owners with evidence for every edge, and
+    which rule produced each flag; on periodic review she needs to know whether either answer changed.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Find every natural person who owns or controls 25 percent or more (or 15 percent for higher-risk categories under the EU rules)
+    - Decide separately, under the right rule, whether the customer is blocked because sanctioned persons own 50 percent or more in aggregate
+    - Document the evidence for every ownership edge so a reviewer or regulator can check it
+    - Notice when a change in the register alters the set of qualifying owners or the blocked status, not just a percentage
+behaviors:
+    - Collects declarations and registry data (PSC JSON, Open Ownership BODS JSON, Orbis, D and B, OpenCorporates)
+    - Records each edge with share or band, votes, control type, start and end dates and the source filing
+    - Merges duplicate person and company records, since registries have no shared person identifier
+    - Traverses upward through many layers until it reaches natural people or a foreign entity where the chain stops
+    - Multiplies percentages along each path and sums across paths for effective ownership; uses ranges when only bands are known
+    - Applies the sanctions ownership rule separately, propagating blocked status through intermediaries
+    - Screens each person for sanctions, politically exposed person status and adverse media and attaches the hits
+    - Redraws the structure chart by hand when vendor charts disagree or are wrong
+frustrations:
+    - Bands instead of exact percentages, so the arithmetic needs ranges and inferred totals can exceed 100 percent
+    - Duplicate person records across registries
+    - Chains that stop at a foreign entity with no register data
+    - Circular ownership with no agreed formula
+    - Data vendors that disagree with each other
+    - Tools that give one percentage when the two rules need different arithmetic
+    - Graph tools whose expense and learning curve keep them out of reach
+context:
+    frequency: daily
+    devices:
+        - desktop
+    voluntary: false
+workflows:
+    - W123
+sources:
+    - title: Capitex - KYC analyst posting
+      url: https://apply.workable.com/capitex/jobs/view/A1643B1944.md
+      summary: Asks analysts to unpick ownership and control chains, including nominee, trust and multi-jurisdictional arrangements
+    - title: FinCEN - Customer due diligence rule FAQs
+      url: https://www.fincen.gov/resources/statutes-and-regulations/cdd-rule-faqs
+      summary: Beneficial owners at 25 percent ownership plus one control person
+    - title: Strise - UBO mapping under AMLR
+      url: https://strise.ai/guides/ubo-mapping-amlr
+      summary: Indirect ownership summed across paths (24 plus 40 = 64 percent); EU AMLR threshold 25 percent, lowerable to 15
+    - title: OFAC FAQ 401 - the 50 Percent Rule
+      url: https://ofac.treasury.gov/faqs/401
+      summary: Blocked if owned 50 percent or more in the aggregate by blocked persons; stakes pass through blocked intermediaries in full
+    - title: Neo4j - Corporate KYC, can you see when the owners change?
+      url: https://neo4j.com/blog/financial-services/corporate-kyc-can-you-see-when-the-owners-change/
+      summary: Path products (80 x 60 x 60 = 28.8 percent) and change detection when one owner rises and another falls
+    - title: Open Ownership - Insights from the UK PSC register, data analysis challenges
+      url: https://www.openownership.org/en/publications/insights-from-the-united-kingdoms-people-with-significant-control-register/6-challenges-and-best-practices-in-data-analysis/
+      summary: Deduplication cut person records about 5 percent and entities about 10 percent
+    - title: Open Ownership - What graph visualisation teaches us about beneficial ownership
+      url: https://www.openownership.org/en/blog/what-graph-visualisation-teaches-us-about-beneficial-ownership/
+      summary: Graph tools liked but their expense and steep learning curve excluded many users
+    - title: Dun and Bradstreet - Beneficial ownership white paper
+      url: https://www.dnb.co.uk/content/dam/english/business-trends/db-4981-beneficial-ownership-whitepaper.pdf
+      summary: Inferred ownership totals can exceed 100 percent
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

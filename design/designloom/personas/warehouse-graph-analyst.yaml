@@ -1,0 +1,77 @@
+id: warehouse-graph-analyst
+name: Warehouse Graph Analyst
+roster_persona: graph-database-developer
+tier: A
+scope: in-scope
+role: SQL Analyst / Analytics Engineer querying a graph defined over warehouse tables
+quote: The transfers are already in BigQuery. I just want the accounts two to five hops from this one, drawn, without copying anything into another database.
+bio: >-
+    Aisha Rahman is an analytics engineer on a security, fraud or marketing data team whose data lives in BigQuery, a
+    Microsoft Fabric lakehouse, Spanner or Oracle Database. She is fluent in SQL and new to graph query languages. She
+    never installs a graph database: she declares which existing tables are nodes and which are edges (CREATE PROPERTY
+    GRAPH in BigQuery or Spanner, a form in Fabric, a SQL property graph in Oracle, a schema mapping in PuppyGraph) and
+    queries them in GQL or SQL/PGQ. Her questions are the multi-hop ones that are awkward in SQL: transfer chains of 2 to
+    5 hops, linked identities, attack paths through permissions. She reads results in BigQuery Studio, Spanner Studio, a
+    Colab notebook or Fabric's query builder, where a result draws only if it returns whole graph elements, and where
+    the drawing is cut by bytes (2 MB in a notebook, 10 MB in Spanner Studio, 64 MB in Fabric) rather than by node count.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Answer multi-hop questions without moving data out of the warehouse or paying to store it twice
+    - Keep the warehouse's row and column security on the graph results
+    - See transfer chains, identity links or attack paths drawn, not as nested JSON
+    - Hand the result to colleagues or a downstream tool
+behaviors:
+    - Writes CREATE PROPERTY GRAPH DDL mapping node tables and edge tables with key and reference columns, or uses Fabric's Add node / Add edge form
+    - Checks the schema view to see node and edge types and how they connect
+    - Returns TO_JSON(p) of whole paths, or vertex and edge ids in Oracle GRAPH_TABLE, so the result draws
+    - Uses Fabric's no-code query builder (add a node, pick edges, add a filter) before trying GQL by hand
+    - Narrows the query when the drawing is cut at the byte cap
+    - Moves results into a notebook to process them with SQL and Python
+frustrations:
+    - A property-only result shows as a table, not a graph; separate nodes and edges can drop elements
+    - Notebook drawings are cut at 2 MB and Spanner Studio at 10 MB, with partial drawing
+    - Fabric cannot export graph results or connect Power BI to a graph, and truncates above 64 MB with no continuation
+    - Display choices in Spanner Studio last only for the session
+    - A schema change in Fabric forces a reload that "may take several hours" on large graphs
+context:
+    frequency: weekly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W147
+    - W148
+    - W151
+sources:
+    - title: BigQuery Graph overview
+      url: https://docs.cloud.google.com/bigquery/docs/graph-overview
+      summary: Logical layer over existing tables, no replication, underlying security applies
+    - title: BigQuery Graph visualization
+      url: https://docs.cloud.google.com/bigquery/docs/graph-visualization
+      summary: TO_JSON paths required to draw; 2 MB notebook cap; console has no hard limit
+    - title: BigQuery Graph general availability announcement
+      url: https://cloud.google.com/blog/products/data-analytics/bigquery-graph-connecting-data-and-ai-at-scale/
+      summary: GA 2026-08-31; Thales, Yahoo and Workerbee use cases; CREATE PROPERTY GRAPH over federated tables
+    - title: Spanner Studio graph visualizations
+      url: https://docs.cloud.google.com/spanner/docs/graph/work-with-visualizations
+      summary: SAFE_TO_JSON, 10 MB cap, layouts, expand by direction or edge type, session-only display settings
+    - title: Microsoft Fabric graph quickstart
+      url: https://learn.microsoft.com/fabric/graph/quickstart
+      summary: Graph model built with Get data, Add node and Add edge over lakehouse tables
+    - title: Microsoft Fabric graph limitations
+      url: https://learn.microsoft.com/en-us/fabric/graph/limitations
+      summary: About 2 billion elements, 64 MB truncation, no export, no Power BI connection, reload on schema change
+    - title: Oracle Graph Explorer for SQL property graphs
+      url: https://docs.oracle.com/en/database/oracle/property-graph/26.2/spgdg/querying-and-visualizing-sql-property-graphs.html
+      summary: GRAPH_TABLE queries must return vertex or edge ids; SELECT only
+    - title: Spanner Graph customers
+      url: https://cloud.google.com/blog/products/databases/customers-see-real-world-success-with-multi-model-spanner/
+      summary: DANA anti-money laundering, Palo Alto Networks access graph
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

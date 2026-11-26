@@ -1,0 +1,21 @@
+id: sequence-length-node-geometry
+name: "Node length from sequence length"
+category: visualization
+description: "Draw nodes as elongated shapes whose length is proportional to their sequence length in bases, with a scale setting, a minimum length and a log option, and width or color from depth."
+status: planned
+notes: "Research trace: genome-assembly-and-pangenome-graphs.md section 10, table row 3 (Must)."
+algorithms: []
+used_by_workflows:
+    - W1156
+    - W1158
+    - W1159
+implemented_by_components: []
+requirements:
+    - "Must: Node geometry from sequence length: elongated nodes whose length is proportional to bp, with a minimum, a
+      scale setting and a log option; width or color from depth"
+sources:
+    - title: "Genome Assemblers, Microbial Genome Finishers and Pangenome Researchers: Assembly Graphs and Pangenome
+          Graphs (section 10, table row 3)"
+      url: design/user-research/genome-assembly-and-pangenome-graphs.md
+      summary: "Must in the research. Covered by Designloom when researched: No (node size exists; length-along-a-curve
+          does not)"

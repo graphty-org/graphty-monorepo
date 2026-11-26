@@ -1,39 +1,136 @@
 id: node-merging
 name: Node Merging
 category: data
-description: Combine multiple selected nodes into a single node, consolidating their edges and attributes, for data
-    cleaning or abstraction purposes.
-status: implemented
-notes: "Ships: SessionDataApi.mergeNodes (graphty-element/src/session/commands/data.ts)."
+description: "Combine nodes that represent the same real-world entity into one node, consolidating their edges and attributes, for data cleaning and entity resolution. A merge is a reversible judgement: the source records and every source value are kept, the merge can be undone later (unmerge), and a 'not a match' decision is remembered so the pair is not proposed again."
+status: in-progress
+notes: "Partly ships: SessionDataApi.mergeNodes (graphty-element/src/session/commands/data.ts). Planned: unmerge from kept source records, a merge preview, a decision log with not-a-match pairs, and batch merge from candidate groups. Any requirement below that this note does not name as shipping counts as planned."
 algorithms: []
 used_by_workflows:
     - W09
     - W13
     - W22
     - W24
+    - W102
+    - W106
+    - W107
+    - W110
+    - W118
+    - W123
+    - W124
+    - W125
+    - W126
+    - W130
+    - W132
+    - W156
+    - W157
+    - W163
+    - W167
+    - W171
+    - W174
+    - W18
+    - W180
+    - W182
+    - W189
+    - W199
+    - W200
+    - W204
+    - W205
+    - W206
+    - W214
+    - W217
+    - W227
+    - W228
+    - W230
+    - W233
+    - W234
+    - W241
+    - W250
+    - W260
+    - W261
+    - W263
+    - W265
+    - W277
+    - W281
+    - W291
+    - W292
+    - W293
+    - W294
+    - W297
+    - W300
+    - W301
+    - W332
+    - W343
+    - W348
+    - W340
+    - W346
+    - W361
+    - W365
+    - W366
+    - W367
+    - W381
+    - W382
+    - W386
+    - W389
+    - W402
+    - W419
+    - W435
+    - W51
+    - W53
+    - W54
+    - W59
+    - W61
+    - W63
+    - W70
+    - W75
+    - W81
+    - W88
+    - W90
+    - W97
+    - W1012
+    - W1090
+    - W1096
+    - W105
+    - W2006
 implemented_by_components:
     - node-merge-dialog
     - cluster-collapse-control
 requirements:
-    - Allow selection of 2 or more nodes for merge operation
-    - "Specify attribute conflict resolution: keep-first, keep-last, concatenate, or sum (numeric)"
-    - Transfer all edges from merged nodes to the resulting node
-    - Preserve original edge attributes during transfer
-    - "Handle duplicate edges with options: keep-all, keep-first, sum-weights, or remove-duplicates"
-    - Remove self-loops created when merged nodes were connected to each other
-    - Support undo operation to restore original nodes and edges within session
-    - Display merge preview showing resulting node attributes and edge count
-    - Require explicit confirmation before executing merge
-    - Log merge operations with timestamp, source nodes, and result node ID
-    - Support batch merge based on attribute matching (e.g., nodes with identical 'name' attribute)
-    - Display batch merge preview with count of merge groups before execution
-    - Complete single merge operation within 500ms for graphs under 10,000 nodes
-    - Report 'Cannot merge' error when fewer than 2 nodes are selected
-    - Disable merge option when graph is in read-only mode
+    - "Library parity: Merge two or more selected nodes; return an error code when fewer than two are selected"
+    - "Must: Resolve attribute conflicts per attribute: keep first, keep last, prefer a chosen source, combine into a list, or a numeric aggregate (sum, min, max, average)"
+    - "Must: Keep every source value of each attribute with the winning value, the rule that chose it, and any manual pin or override"
+    - "Library parity: Transfer all edges of the merged nodes to the resulting node, keeping their attributes"
+    - "Must: Choose what happens to parallel edges the merge creates: keep them as multi-edges, or merge them with a count, sum, average, minimum, maximum, first or last"
+    - "Library parity: Choose whether edges between the merged nodes become self-loops or are removed, and report which was done"
+    - "Must: Unmerge: restore the original nodes, edges and values from the kept source records at any later time, not only through session undo"
+    - "Must: Record merge, not-a-match and unmerge decisions with who made them and when; not-a-match pairs are not proposed again"
+    - "Library parity: Preview a merge before it runs: the resulting attribute values, the edge count, and whether it would also join the entities' relationships"
+    - "Must: A merge is always an explicit action, never applied automatically"
+    - "Must: Batch merge from candidate groups (identical key attribute, or near-duplicates by fingerprint, n-gram or phonetic match), reviewed group by group with each candidate's neighbors and source text, with the number of groups shown first"
+    - "Must: Keep a merge log that can be exported and re-applied after the data is rebuilt"
+    - "Must: Optionally show the source records behind a merged node as a cluster around it, colored by source system"
+    - "Library parity: Disable merging when the graph is read-only"
 sources:
-    - title: Entity Resolution in Knowledge Graphs
-      url: https://arxiv.org/abs/2003.08791
-      summary: Merging duplicate entities representing the same real-world thing
-    - title: Neo4j APOC Merge Nodes
-      url: https://neo4j.com/labs/apoc/
-      summary: Node merging pattern in graph databases
+    - title: "APOC apoc.refactor.mergeNodes"
+      url: "https://neo4j.com/docs/apoc/current/overview/apoc.refactor/apoc.refactor.mergeNodes/"
+      summary: "Node merge in Neo4j: properties overwrite, discard or combine; relationship merge and self-relationship options"
+    - title: "Reltio: how a data steward views and manages profiles"
+      url: "https://community.reltio.com/blogs/terence-kirk/2021/06/25/how-a-data-steward-uses-reltio-to-view-and-manage"
+      summary: "Merge, not a match, escalate, and unmerge a wrong merge in the sources view"
+    - title: "Reltio Sources perspective"
+      url: "https://docs.reltio.com/explore/get-your-bearings-in-reltio/hub/profiles/profile-perspectives/sources-perspective"
+      summary: "Per-attribute winning value, winner source system, rule type, and pin or ignore of source values"
+    - title: "Tamr golden records"
+      url: "https://docs.tamr.com/new/docs/overview-golden-records"
+      summary: "Per-attribute consolidation rules and value overrides"
+    - title: "OpenSanctions data structure FAQ"
+      url: "https://www.opensanctions.org/faq/data-structure/wikidata-ids/"
+      summary: "Entity resolution as a graph of entity ids with positive and negative judgements; every source statement kept"
+    - title: "Gephi EdgeMergeStrategy"
+      url: "https://gephi.org/gephi/0.9.2/apidocs/org/gephi/io/importer/api/EdgeMergeStrategy.html"
+      summary: "Parallel-edge merge strategies SUM, AVG, MAX, MIN, FIRST, LAST and NO_MERGE"
+    - title: "User research: investigative journalism and OSINT"
+      url: "design/user-research/investigative-journalism-and-osint.md"
+      summary: "Must: entity resolution with reversible judgements, merge and un-merge, never losing source records"
+    - title: "User research: knowledge graph engineers and GraphRAG"
+      url: "design/user-research/knowledge-graph-engineers-and-graphrag.md"
+      summary: "Must: duplicate-candidate review with neighbors and source text, and a merge log that re-applies after a rebuild"

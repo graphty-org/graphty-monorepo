@@ -1,0 +1,70 @@
+id: graph-theory-researcher
+name: Graph Theory Researcher
+roster_persona: graph-theory-researcher
+tier: B
+scope: in-scope
+role: Research Mathematician Studying Extremal Graphs and Counterexamples
+quote: geng and my filter left 312 graphs on 11 vertices. I need to see each one drawn properly, with its invariants, and find the one that breaks the conjecture.
+bio: >-
+    Dr. Margit Vos is a research mathematician in a combinatorics group, working on extremal, coloring and spectral
+    questions, with a PhD student who runs the searches. Her graphs are tiny, usually under 30 vertices, but there are
+    many of them: nauty's geng lists every non-isomorphic graph of an order, a filter program keeps the few that might
+    break a conjecture, and the survivors arrive as graph6 strings, one per line. She reads them in SageMath twenty
+    drawings at a time, checks on House of Graphs whether a candidate is already known, and draws the final graph by
+    hand in TikZ for the paper. The drawing must be exact and symmetric with every vertex labeled, because the figure
+    is part of the proof, and she cites the graph by its House of Graphs id.
+characteristics:
+    expertise: expert
+    time_pressure: low
+    graph_literacy: expert
+    domain_knowledge: expert
+motivations:
+    - Find a counterexample to a conjecture, or be sure none exists up to a given order
+    - See the structure of an extremal graph well enough to guess the general construction
+    - Check whether a graph "already appeared as an 'interesting' graph in other contexts"
+    - Publish an exact, symmetric figure and a citable graph id
+behaviors:
+    - Generates graphs with geng or plantri and pipes them straight into a filter instead of storing them
+    - Selects and counts graphs by properties with pickg and countg, and deduplicates by canonical label
+    - Loads graph6 strings into SageMath and views them in circular layout, twenty per array
+    - Searches House of Graphs by invariant ranges and submits a graph to see whether it is known
+    - Starts from an automatic spring or planar embedding and fine-tunes vertex positions by hand
+    - Exports the figure as TikZ or redraws it in TikZiT or Ipe
+    - Uploads the graph to House of Graphs and cites its id in the paper
+frustrations:
+    - The generators print text and draw nothing
+    - SageMath shows at most 20 graphs per array, and each array must be saved separately
+    - Force-directed drawings hide the symmetry the proof depends on
+    - graph6 and sparse6 drop the planar embedding, so planar drawings are recomputed after every filter
+    - The House of Graphs planar embedder works best for 3-connected graphs
+    - Graph tools for networks import tables, not graph6 strings
+context:
+    frequency: weekly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W2030
+sources:
+    - title: Computer-assisted graph theory, a survey (Jooken, 2025)
+      url: https://arxiv.org/html/2508.20825
+      summary: Exhaustive generation with geng and plantri, piping into filters, graph6 and sparse6, House of Graphs as the most widely used database, PHOEG, 12,005,168 graphs on 10 vertices
+    - title: House of Graphs 2.0, a database of interesting graphs and more (Coolsaet, D'hondt, Goedgebeur, 2022)
+      url: https://arxiv.org/html/2210.17253
+      summary: Nearly 22,000 graphs, 27 graph classes, 44 invariants, drawing tool with spring embedding and tikz export, ids cited in papers, free accounts
+    - title: House of Graphs, a database of interesting graphs (Brinkmann, Coolsaet, Goedgebeur, Melot)
+      url: https://ar5iv.arxiv.org/html/1204.3549
+      summary: Counterexamples and extremal graphs count as interesting; search by invariant range or by submitting a graph
+    - title: SageMath graph_list reference
+      url: https://doc.sagemath.org/html/en/reference/graphs/sage/graphs/graph_list.html
+      summary: from_graph6 and from_sparse6; show_graphs shows at most 20 graphs per array in circular layout by default
+    - title: plantri guide
+      url: https://users.cecs.anu.edu.au/~bdm/plantri/plantri-guide.txt
+      summary: Planar code keeps the clockwise neighbor order; graph6 and sparse6 do not represent the embedding
+    - title: zbMATH Open API, documents classified 05C
+      url: https://api.zbmath.org/v1/document/_search?search_string=cc%3A05C%20py%3A2024
+      summary: 6,143 graph theory documents for 2024 and about 6,000 a year since 2015 (papers, not people)
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

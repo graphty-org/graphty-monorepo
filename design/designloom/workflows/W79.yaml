@@ -1,0 +1,137 @@
+id: W79
+name: Pre-Merge Impact on a Lineage Graph
+category: analysis
+validated: false
+personas:
+    - analytics-engineer-lineage
+requires_capabilities:
+    - data-import
+    - search
+    - node-selection
+    - neighborhood-expansion
+    - removal-impact-analysis
+    - filtering
+    - saved-filters
+    - layout-hierarchical
+    - visual-encoding-nodes
+    - legend-display
+    - details-on-demand
+    - large-graph-rendering
+    - progressive-loading
+    - data-export
+    - group-collapse
+    - directed-closure
+    - graph-diff
+    - dependency-format-import
+suggested_components:
+    - data-import-dialog
+    - search-input
+    - graph-canvas
+    - layout-panel
+    - filter-panel
+    - filter-chip
+    - cluster-collapse-control
+    - node-details-panel
+    - data-table-panel
+    - data-export-dialog
+starting_state:
+    data_type: dbt manifest.json (parent_map, child_map, exposures) and catalog.json, or OpenLineage/DataHub lineage with column facets
+    node_count: 500-5,000 models, plus their columns
+    edge_density: sparse DAG, layered by convention (sources, staging, intermediate, marts, exposures)
+    user_expertise: expert
+goal: >-
+    **Intent**: Before merging a change to a data model, know which downstream models, columns, dashboards and owners
+    it affects, and build and test only that set.
+
+
+    **Mental Model**: "Everything to the right of my model." Lineage reads left to right, sources to dashboards; the
+    impact set is the downstream closure, narrowed to the columns that really change.
+
+
+    **Task Phases** (no source gives per-step durations):
+
+    1. **Open lineage on the model** - Focus option: upstream and downstream, only downstream, or only upstream
+
+    2. **Select the downstream closure** - Selector such as `my_model+` (all descendants), `my_model+1` (one degree),
+    `3+my_model+4` (bounded both ways) or `@my_model` (adds ancestors of all descendants); combine with tags
+
+    3. **Apply lenses** - Resource type, materialization, layer, test status
+
+    4. **Narrow to columns** - Open the table to columns; mark passthrough, rename and transformed; keep only the
+    downstream columns of the changed column
+
+    5. **Check exposures and owners** - Dashboards and ML features at the end of the closure, with owners; export as CSV
+
+    6. **Run CI on the closure** - Build `state:modified+`, prune unaffected descendants, diff values
+
+    7. **Decide** - Breaking, partial or non-breaking; split the pull request; notify owners with the impact list
+
+
+    **Decision Points**:
+
+    - How deep downstream matters (one degree versus the whole closure)?
+
+    - Is the column change passthrough, rename or transformation?
+
+    - Breaking or non-breaking? Split the pull request?
+
+
+    **Information Needs**:
+
+    - The closure with the selector and depth used stated
+
+    - Column-level edges with transformation type
+
+    - Exposures and owners at the leaves
+
+    - Gaps where lineage could not be parsed (Python models, hard-coded names)
+
+
+    **Pain Points**:
+
+    - Large DAGs might not render; a 58 MB manifest crashed the stock lineage view
+
+    - DataHub defaults to one degree and caps CSV export at 10,000 rows
+
+    - Column lineage gaps look like "no dependency"
+
+
+    **Data Flow**:
+
+    - Input: dbt manifest.json and catalog.json; OpenLineage events with column-lineage facets; DataHub GraphQL
+
+    - Transformations: Bounded downstream closure, attribute lenses, table-to-column expansion, owner join
+
+    - Output: Impact list in the pull request description, CI selection, owner notifications
+success_criteria:
+    - metric: Large manifest
+      target: A manifest of thousands of models opens without crashing and the closure renders left to right
+    - metric: Column precision
+      target: User can list only the downstream columns of the changed column
+    - metric: Hand-off
+      target: Impact list with owners exports as CSV with no row cap
+sources:
+    - title: dbt - Graph operators
+      url: https://docs.getdbt.com/reference/node-selection/graph-operators
+      summary: Plus, n-plus and at operators for bounded closures
+    - title: dbt - Explore projects
+      url: https://docs.getdbt.com/docs/explore/explore-projects
+      summary: Lineage focus options; large DAGs might not render
+    - title: dbt - Column-level lineage
+      url: https://docs.getdbt.com/docs/explore/column-level-lineage
+      summary: Column evolution marks passthrough, rename and transformed
+    - title: DataHub - Impact analysis
+      url: https://docs.datahub.com/docs/act-on-metadata/impact-analysis
+      summary: Degree default 1, facet filters, CSV export with owners capped at 10,000 rows
+    - title: dbt-guard on PyPI
+      url: https://pypi.org/project/dbt-guard/
+      summary: Prunes unaffected descendants with a breadth-first traversal of child_map
+    - title: Atlan - Download and export lineage
+      url: https://docs.atlan.com/product/capabilities/lineage/how-tos/download-and-export-lineage
+      summary: Lineage export for impact lists
+    - title: Dagster - dbt docs on React
+      url: https://www.dagster.io/blog/dbt-docs-on-react
+      summary: 58 MB manifest crashed the stock lineage graph
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

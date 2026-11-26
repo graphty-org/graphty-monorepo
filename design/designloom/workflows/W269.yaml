@@ -1,0 +1,126 @@
+id: W269
+name: View an Explainer Subgraph
+category: analysis
+validated: false
+personas:
+    - gnn-model-debugger
+    - ml-engineer-recsys
+requires_capabilities:
+    - data-import
+    - ego-network
+    - visual-encoding-edges
+    - visual-encoding-nodes
+    - filtering
+    - legend-display
+    - path-highlighting
+    - details-on-demand
+    - metric-histograms
+    - export-image
+    - model-output-overlay
+    - typed-heterogeneous-graphs
+    - cumulative-weight-pruning
+suggested_components:
+    - data-import-dialog
+    - graph-canvas
+    - visual-encoding-panel
+    - range-slider
+    - histogram
+    - legend-panel
+    - node-details-panel
+    - image-export-dialog
+starting_state:
+    data_type: one prediction's computation subgraph with per-edge and per-node importance masks (values 0 to 1) from an explainer
+    node_count: 10-50
+    edge_density: moderate
+    user_expertise: expert
+goal: >-
+    **Intent**: See which edges and node features an explainer says mattered for one prediction, choose a sensible
+    threshold, and check that the explanation is faithful before using it in a report.
+
+
+    **Mental Model**: "Highlight what the model used." The explanation is a mask over the prediction's neighborhood;
+    importance becomes edge opacity or width, and a threshold decides how much of the subgraph is shown.
+
+
+    **Task Phases**:
+
+    1. **Wrap and explain** (in code) - `Explainer(model, algorithm=GNNExplainer(epochs=200), edge_mask_type="object",
+    model_config=dict(task_level="node", ...))`, then `explainer(x, edge_index, index=node_id)`
+
+    2. **Load the masks** - Bring node_mask and edge_mask (0..1) onto the prediction's subgraph, keeping
+    original node ids
+
+    3. **Encode importance** - Edge opacity or width proportional to importance; node feature importance as a
+    top-10 bar list; for heterogeneous graphs one mask per edge type, colored by type
+
+    4. **Choose the threshold** - Move between top-k and a hard threshold and watch the subgraph change; benchmark
+    work recommends choosing it by grid search rather than a fixed edge count
+
+    5. **Validate** (in code) - `unfaithfulness(explainer, explanation)`; remove the top edges and re-predict
+
+    6. **Hand off** - Static PNG or PDF of a 10 to 50 edge subgraph, or a path explanation for a recommendation
+    (user, item, brand, item)
+
+
+    **Decision Points**:
+
+    - Top-k or hard threshold, and at what value?
+
+    - Is the explanation faithful enough to report?
+
+    - Show the explanation as a subgraph or as a path?
+
+
+    **Information Needs**:
+
+    - Distribution of edge importance, so the threshold can be set from data
+
+    - Edge importance visible on every edge, not only the kept ones
+
+    - Edge type for heterogeneous graphs
+
+    - Feature importance for the explained node
+
+    - The explained node and its prediction marked clearly
+
+
+    **Pain Points**:
+
+    - PyG's visualize_graph is static and does not support heterogeneous explanations
+
+    - Explainer pictures are sensitive to the threshold (GNNExplainer recall from 0.52 to 0.97 between 6 and 20 edges)
+
+    - Explanations can be unfaithful, so a picture alone can mislead
+
+
+    **Data Flow**:
+
+    - Input: Subgraph edges, node and edge masks, node feature importance, prediction
+
+    - Transformations: Importance-to-opacity mapping, thresholding, per-edge-type coloring
+
+    - Output: Figure for a report; chosen threshold recorded in the experiment log
+success_criteria:
+    - metric: Threshold choice
+      target: User sees how the subgraph changes across thresholds before committing to one
+    - metric: Heterogeneous support
+      target: Per-edge-type masks drawn without custom plotting code
+sources:
+    - title: PyG explain tutorial
+      url: https://pytorch-geometric.readthedocs.io/en/2.5.2/tutorial/explain.html
+      summary: Explainer API, node_mask and edge_mask, visualize_feature_importance and visualize_graph, unfaithfulness metric
+    - title: DGL HeteroGNNExplainer
+      url: https://www.dgl.ai/dgl_docs/generated/dgl.nn.pytorch.explain.HeteroGNNExplainer.html
+      summary: Per-edge-type masks for heterogeneous graphs
+    - title: Evaluating explainability for GNNs
+      url: https://arxiv.org/pdf/2111.12984
+      summary: Threshold sensitivity; choose threshold by grid search
+    - title: PaGE-Link path explanations
+      url: https://arxiv.org/pdf/2302.12465
+      summary: Path-based explanations for link prediction and recommendation
+    - title: PyG issue 9112
+      url: https://www.github.com/pyg-team/pytorch_geometric/issues/9112
+      summary: Heterogeneous visualize_graph still a roadmap item
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

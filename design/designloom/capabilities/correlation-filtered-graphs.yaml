@@ -1,0 +1,31 @@
+id: correlation-filtered-graphs
+name: Correlation-Filtered Graphs from Time Series
+category: analysis
+description: "From a node-by-time table of values (daily closing prices of N assets), compute returns (log price
+    differences), a correlation matrix per rolling window (window length and step in rows, Pearson by default with
+    rank or other estimators selectable), turn each correlation into a distance (sqrt(2(1 - rho)) by default, so 0 is
+    perfect correlation and 2 perfect anti-correlation), and filter each window's complete graph to a minimum spanning
+    tree (N - 1 edges), a planar maximally filtered graph (3(N - 2) edges, containing the tree) or a threshold graph,
+    keeping the correlation and the distance on every kept edge. Per window it reports normalized tree length, the
+    central vertex (by degree or a chosen rule), each node's level from it and the mean occupation layer, so the series
+    can be plotted over time and compared; the node set stays fixed across windows."
+status: planned
+notes: "Research trace: supply-chain-and-physical-infrastructure-networks.md section 10, requirement R51 (Should), and section 5.19 (asset correlation networks)."
+algorithms: []
+used_by_workflows:
+    - W3006
+implemented_by_components: []
+requirements:
+    - "Should: From a node-by-time value table compute returns and a correlation matrix per rolling window, with window length, step and estimator as options"
+    - "Should: Turn each correlation into a distance (sqrt(2(1 - rho)) by default) and filter each window to a minimum spanning tree, a planar maximally filtered graph or a threshold graph, keeping correlation and distance on every kept edge"
+    - "Should: Report per window the normalized tree length, the central vertex and each node's level from it, with the node set fixed across windows"
+sources:
+    - title: Mantegna, Hierarchical structure in financial markets (European Physical Journal B 11, 1999)
+      url: https://arxiv.org/abs/cond-mat/9802256
+      summary: Minimum spanning tree from correlations of daily log price differences yields an economic taxonomy
+    - title: Onnela et al., Dynamics of market correlations (Physical Review E 68, 056110, 2003)
+      url: https://arxiv.org/abs/cond-mat/0302546
+      summary: Dynamic asset trees over rolling windows; central vertex and mean occupation layer; low layer in crashes
+    - title: Tumminello, Aste, Di Matteo and Mantegna, A tool for filtering information in complex systems (PNAS 2005)
+      url: https://api.openalex.org/works/doi:10.1073/pnas.0500298102
+      summary: Planar maximally filtered graph, which keeps the minimum spanning tree and more links

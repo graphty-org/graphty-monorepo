@@ -1,0 +1,152 @@
+id: W2096
+name: Unknown Parent from Shared-Match Clusters
+category: analysis
+validated: false
+personas:
+    - unknown-parentage-search-angel
+starting_state:
+    data_type: a client's DNA match list with shared centimorgans, plus the shared-match pairs among the top few hundred matches
+    node_count: 200-3,000
+    edge_density: moderate
+    user_expertise: novice
+goal: >-
+    **Intent**: Identify an unknown parent or grandparent from a DNA tester's match network. The clusters of matches
+    that belong to the unknown side are labeled as far as the matches' own trees allow, and the match that connects two
+    unknown clusters is read as a descendant of both ancestral couples, which names the missing parent's parents.
+
+
+    **Mental Model**: "Matches who match each other share an ancestor." Each cluster is one family line; the line that
+    cannot be labeled is the one being searched for; a person standing between two unlabeled clusters descends from
+    both.
+
+
+    **Task Phases**:
+
+    1. **Separate the known side** - Label the clusters belonging to a known parent from known relatives, or
+    start from the vendor's own parental split, and treat the remainder as the unknown side
+
+    2. **Label what can be labeled** - For each unknown cluster, read members' trees and public records for a
+    surname or place several members share
+
+    3. **Place a mystery match by its pattern** - The match is related to the members of one cluster and not
+    another, which assigns it to a line before any tree is built
+
+    4. **Find the meeting point** - A match or small group joining two unknown clusters is a candidate
+    descendant of both couples; in a matrix this shows as cells shared between two clusters
+
+    5. **Score candidate placements** - Build the candidate tree and compare hypotheses against each known
+    match's shared centimorgans, where an impossible amount rules a placement out
+
+    6. **Hand it back** - Show the client the cluster figure and the reasoning, with the matches'
+    names replaced by initials or identifiers
+
+
+    **Decision Points**:
+
+    - Which clusters belong to the known parent, and which are the unknown side?
+
+    - Which cluster does each unlabeled match belong to, and does any match belong to two?
+
+    - Is a match that links two clusters a double descendant, or just a close relative of the tester?
+
+    - Which candidate placement survives every match's shared centimorgans?
+
+
+    **Information Needs**:
+
+    - Every cluster a given match belongs to, not only the first one
+
+    - Each match's shared centimorgans with the tester, beside its cluster membership
+
+    - Which matches have trees, and the surnames those trees contain
+
+    - The connections between two clusters, counted rather than guessed from the picture
+
+    - A view that hides names when the figure is shared
+
+
+    **Pain Points**:
+
+    - Full shared-match lists need a paid subscription; three are shown without one
+
+    - A match that belongs to two clusters is listed under one, so membership is rebuilt in a spreadsheet by hand
+
+    - The vendor's grid appears only for a cluster of 100 matches or fewer, and clusters are recomputed on each visit
+
+    - Clusters from two vendors cannot be put in one picture
+
+    - No tool de-identifies a figure, although every node is a living person
+
+
+    **Data Flow**:
+
+    - Input: Match list with shared centimorgans; shared-match pairs; the client's known side if any
+
+    - Transformations: Cluster the shared-match graph, label clusters from external trees, find nodes bridging two
+    clusters, score hypotheses by shared centimorgans
+
+    - Output: Labeled clusters with the unknown side named, a candidate couple, a de-identified figure and the
+    reasoning
+success_criteria:
+    - metric: Cluster membership completeness
+      target: Every cluster a match belongs to is visible without a side spreadsheet
+    - metric: Bridge identification
+      target: The matches connecting two clusters can be listed, not just seen
+    - metric: Shareable figure
+      target: Names can be replaced by initials or identifiers in the view and in every export
+sources:
+    - title: Your DNA Guide - MyHeritage AutoClusters
+      url: https://www.yourdnaguide.com/ydgblog/myheritage-autoclusters
+      summary: Labeling clusters from known matches; placing a mystery match by what it shares and does not share
+    - title: DNA Explained - How to use Ancestry's new match clusters
+      url: https://dna-explained.com/2025/07/10/how-to-use-ancestrys-new-match-clusters-and-what-they-mean/
+      summary: Parental tabs, grey cells for people in two clusters, grid only to 100 matches, a multi-cluster match listed once, no export
+    - title: DNA Painter - What Are the Odds FAQ
+      url: https://dnapainter.com/help/wato-faq
+      summary: Hypotheses scored from shared centimorgans; 0.00% as statistically impossible; endogamy caveat
+    - title: DNA Explained - ThruLines and shared matches now require a subscription
+      url: https://dna-explained.com/2024/02/05/ancestrys-thrulines-and-shared-matches-now-require-a-subscription/
+      summary: Three shared matches without a subscription
+    - title: Adoption.com - What you need to know about using a search angel
+      url: https://adoption.com/what-you-need-to-know-about-using-a-search-angel
+      summary: Volunteer search angels working cases for adoptees and donor-conceived people
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z
+requires_capabilities:
+    - shared-match-pair-import
+    - ego-exclusion
+    - attribute-band-filter
+    - overlapping-cluster-membership
+    - cluster-seriated-matrix-view
+    - user-cluster-labels
+    - inter-cluster-link-counts
+    - data-import
+    - filtering
+    - community-detection
+    - community-profiling
+    - cluster-labeling
+    - cluster-identity-across-runs
+    - matrix-view
+    - layout-force-directed
+    - visual-encoding-nodes
+    - legend-display
+    - selection-statistics
+    - details-on-demand
+    - de-identified-display
+    - export-by-cluster
+    - export-image
+    - probabilistic-inference
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - range-slider
+    - community-panel
+    - cluster-table
+    - heatmap-panel
+    - visual-encoding-panel
+    - legend-panel
+    - graph-canvas
+    - data-export-dialog
+    - image-export-dialog

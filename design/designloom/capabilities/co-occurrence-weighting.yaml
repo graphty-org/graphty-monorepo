@@ -1,0 +1,25 @@
+id: co-occurrence-weighting
+name: Co-occurrence and Association Weighting
+category: analysis
+description: Normalize co-occurrence link weights by association strength, Jaccard, Salton cosine, inclusion,
+    equivalence or none before layout and clustering.
+status: planned
+notes: "Research trace: bibliometrics-and-science-mapping.md section 10, requirement 7 (Must)."
+algorithms: []
+used_by_workflows:
+    - W403
+    - W404
+    - W405
+    - W409
+    - W50
+    - W51
+    - W53
+    - W2072
+implemented_by_components: []
+requirements:
+    - "Must: Link normalization: association strength, Jaccard, Salton, inclusion, equivalence, none"
+    - "Must: Edge weights from count, binary or full counting, Jaccard, cosine, association strength, PMI, c-coefficient, and collocation statistics such as logDice, MI, log-likelihood and directional Delta P."
+sources:
+    - title: Bibliometrics and Science Mapping (section 10, requirement 7)
+      url: design/user-research/bibliometrics-and-science-mapping.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

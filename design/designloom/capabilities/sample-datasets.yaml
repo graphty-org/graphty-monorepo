@@ -1,30 +1,52 @@
 id: sample-datasets
 name: Sample Datasets
 category: data
-description: Provide built-in example datasets that users can load to learn the tool or test features without needing
-    their own data. Include datasets of varying sizes and domains with documentation explaining what each contains.
-status: implemented
-notes: "Ships: graph-samples and graphty/src/workspace/start/SamplesDialog.tsx."
+description: Provide example datasets that users can load in one step to learn the tool, teach a class or test a
+    feature without their own data. They are the classic teaching networks that course handouts use, plus larger
+    graphs at the sizes coding projects work with, each with a data card saying what a node and an edge mean, where the
+    data came from and under what license.
+status: in-progress
+notes: "Partly ships: graph-samples and graphty/src/workspace/start/SamplesDialog.tsx. Planned: a data card for every dataset and instructor starting states that stay valid across versions. Any requirement below that this note does not name as shipping counts as planned."
 algorithms: []
 used_by_workflows:
     - W14
+    - W171
+    - W181
+    - W231
+    - W239
+    - W271
+    - W280
+    - W286
+    - W37
+    - W48
 implemented_by_components:
     - sample-data-dialog
 requirements:
-    - Include 'Karate Club' dataset (34 nodes, 78 edges) for tutorials
-    - Include 'Les Misérables' character co-occurrence (77 nodes, 254 edges) for exploration
-    - Include 'Facebook Ego Network' sample (500-1000 nodes) for medium-scale testing
-    - Include 'Citation Network' sample (10,000+ nodes) for scalability demonstration
-    - "Include at least one dataset from each domain: social, biological, infrastructure, citation"
-    - Provide 2-3 sentence description for each dataset explaining context and source
-    - Document expected insights or patterns discoverable in each dataset
-    - Pre-compute basic metrics (node count, edge count, density, average degree) for instant display
-    - Load sample dataset within 1 second via one-click action
-    - Credit original data source with link to source documentation
-    - Include dataset with temporal attributes for time-based analysis demos
-    - Include dataset with categorical node types for visual encoding demos
-    - Ensure all sample datasets are freely redistributable (open license)
+    - "Must: Include the classic teaching datasets course handouts use: Zachary's karate club (34 members, 78 edges), Les Miserables character co-occurrence, the Quakers network (119 nodes, 174 edges), political books and the Florentine families"
+    - "Library parity: Include larger graphs at coding-project scale (10^3 to 10^5 nodes), such as SNAP ego-Facebook (4,039 nodes, 88,234 edges)"
+    - "Must: Give every dataset a data card -- what a node and an edge mean, whether edges are directed or weighted and what a weight measures, how the data was collected, the original source with a citation and link, its license and version"
+    - "Must: Show node and edge counts on the data card, and make them match what actually loads"
+    - "Library parity: Cover the data shapes the tool supports: directed and undirected, weighted, two-mode, temporal, and categorical node attributes for visual-encoding exercises"
+    - "Library parity: Include synthetic graphs with a planted partition (from the seeded graph-samples generators) where a known answer is needed, recording the generator, its parameters and seed"
+    - "Library parity: Load a dataset with one action; since datasets download on demand, show progress and a clear error when the download fails"
+    - "Should: Let an instructor pair a dataset with a saved starting state that stays valid across tool versions"
+    - "Library parity: Ensure all sample datasets are freely redistributable (open license)"
 sources:
-    - title: W14 First-Time User Onboarding
-      url: https://graphty.app/docs/
-      summary: Should I try sample data first to learn the tool?
+    - title: UCI Network Data Repository, Zachary karate club
+      url: https://networkdata.ics.uci.edu/netdata/html/zacharyKarate.html
+      summary: 34 members and 78 edges; the standard first dataset in course handouts
+    - title: Programming Historian, exploring and analyzing network data with Python
+      url: https://programminghistorian.org/en/lessons/exploring-and-analyzing-network-data-with-python
+      summary: The Quakers network, 119 nodes and 174 edges, used in teaching labs
+    - title: UBC Library, Gephi hands-on activity
+      url: https://ubc-library-rc.github.io/gephi-palladio/content/05_Gephi_hands_on_activity.html
+      summary: Les Miserables as a teaching dataset
+    - title: Miriam Posner, network analysis with Flourish
+      url: https://miriamposner.com/classes/dh201w21/tutorials-guides/network-analysis/flourish-graph
+      summary: Political books as a classroom dataset
+    - title: SNAP ego-Facebook
+      url: https://snap.stanford.edu/data/ego-Facebook.html
+      summary: 4,039 nodes and 88,234 edges; a typical coding-project dataset
+    - title: Netzschleuder network catalog (IT:U project page)
+      url: https://it-u.at/en/research/research-groups/complex-systems-and-network-science/projects/netzschleuder/
+      summary: Network scientists load datasets by name and record what an edge means and how it was sampled

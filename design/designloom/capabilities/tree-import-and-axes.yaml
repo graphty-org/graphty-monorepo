@@ -1,0 +1,29 @@
+id: tree-import-and-axes
+name: Phylogenetic Tree Import and Axis Switching
+category: data
+description: Import rooted trees (Newick, Nexus, tree-plus-metadata bundles, mutation-annotated trees) and draw them
+    with a switchable divergence axis and time axis, rectangular, radial, unrooted and clock layouts, internal-node date
+    confidence, mutations on branches, and subtree re-rooting with history.
+status: planned
+notes: "Research trace: public-health-and-molecular-epidemiology.md section 10, table row 5 (Must)."
+algorithms: []
+used_by_workflows:
+    - W393
+    - W394
+    - W395
+    - W400
+    - W401
+    - W63
+    - W67
+    - W68
+    - W69
+    - W1162
+implemented_by_components: []
+requirements:
+    - "Must: Import of trees: Newick, Nexus, Auspice JSON, and large mutation-annotated trees; rooted hierarchical
+      layouts with a time axis and a divergence axis, switchable"
+    - "Must: Import Newick, NEXUS (TRANSLATE blocks, BEAST [&key=value] comments, multi-tree files), phyloXML and extended Newick with gamma on hybrid edges; declare whether inner node labels are names or support values."
+sources:
+    - title: Public Health Outbreak Investigators and Molecular Epidemiologists (section 10, table row 5)
+      url: design/user-research/public-health-and-molecular-epidemiology.md
+      summary: "Must in the research. Covered by Designloom when researched: NOT covered"

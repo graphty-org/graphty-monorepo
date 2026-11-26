@@ -7,6 +7,30 @@ notes: "Ships: Slider, compact-mantine/src/components/Slider.tsx."
 implements_capabilities: []
 used_in_workflows:
     - W22
+    - W161
+    - W166
+    - W245
+    - W247
+    - W263
+    - W265
+    - W324
+    - W327
+    - W340
+    - W342
+    - W343
+    - W345
+    - W347
+    - W370
+    - W386
+    - W411
+    - W42
+    - W420
+    - W428
+    - W44
+    - W48
+    - W62
+    - W1126
+    - W2098
 dependencies: []
 props:
     value: number | [number, number] - Current value(s)

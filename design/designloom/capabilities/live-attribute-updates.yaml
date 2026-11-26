@@ -1,0 +1,18 @@
+id: live-attribute-updates
+name: Live Attribute Updates
+category: analysis
+description: Streaming or periodic updates to node and edge stats, colors and widths many times a minute without moving
+    nodes or restarting layout, with pause and resume of updates.
+status: planned
+notes: "Research trace: developers-embedding-and-extending-graph-visualization.md section 10, table row 4 (Must)."
+algorithms: []
+used_by_workflows:
+    - W282
+implemented_by_components: []
+requirements:
+    - "Must: Streaming or periodic attribute updates (stats, colors, widths) applied many times a minute without moving
+      nodes or restarting layout; pause and resume of updates"
+sources:
+    - title: Developers Who Embed Graph Visualization in Products or Extend It With Plugins (section 10, table row 4)
+      url: design/user-research/developers-embedding-and-extending-graph-visualization.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

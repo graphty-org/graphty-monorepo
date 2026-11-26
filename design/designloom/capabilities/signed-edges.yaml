@@ -1,0 +1,43 @@
+id: signed-edges
+name: Signed Edges
+category: analysis
+description: Agreement and disagreement (positive and negative) ties kept distinct in styling and measures, with
+    qualifier-based projection to congruence and conflict networks, normalization and time windows.
+status: planned
+notes: "Research trace: academic-social-network-research.md section 10, table row 23 (Should)."
+algorithms: []
+used_by_workflows:
+    - W169
+    - W170
+    - W171
+    - W197
+    - W198
+    - W199
+    - W204
+    - W243
+    - W244
+    - W259
+    - W32
+    - W370
+    - W371
+    - W372
+    - W374
+    - W375
+    - W376
+    - W1139
+    - W2006
+    - W3103
+implemented_by_components: []
+requirements:
+    - "Should: Signed edges (agree or disagree, conflict) with distinct styling, and qualifier-based projection to
+      congruence and conflict networks with normalization and time windows"
+    - "Must: Distinct styling and filtering for positive and negative edges, self-loops, and probability-weighted predicted versus observed edges."
+    - "Must: Edge polarity (same or opposite direction) drawn as end labels or dashed lines, delay marks, and sign plus weight semantics on scales of 1-5, weak/medium/strong or -1 to 1."
+    - "Must: Treat edge sign (activation or inhibition) and direction as first-class: arrow versus T-bar styling, color by sign, in- and out-degree, directed and k-shortest paths, sign-consistent path checks, and analyses that state whether they treated the graph as directed."
+    - "Must: Render activation and inhibition edges (arrow and bar ends) with direction, and two simultaneous node-state layers (observed value and predicted activity) with a legend; optionally propagate a simulated perturbation downstream."
+    - "Must: Encode positive and negative edge weights with a colorblind-safe preset (blue and red), a non-color cue for negatives (dashed), width and saturation by absolute weight against a user-set maximum, a hide-below threshold that does not move the layout, and a cut point; the settings used are exposed as facts for a caption."
+sources:
+    - title: Academic Social Network Researchers (section 10, table row 23)
+      url: design/user-research/academic-social-network-research.md
+      summary: "Should in the research. Covered by Designloom when researched: NOT
+          covered"

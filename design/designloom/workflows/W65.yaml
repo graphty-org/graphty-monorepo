@@ -1,0 +1,169 @@
+id: W65
+name: Monitoring Cluster Growth Over Time
+category: analysis
+validated: false
+personas:
+    - hiv-molecular-cluster-epidemiologist
+requires_capabilities:
+    - data-import
+    - computed-attributes
+    - component-analysis
+    - comparison-view
+    - temporal-analysis
+    - temporal-navigation
+    - filtering
+    - saved-filters
+    - selection-statistics
+    - basic-statistics
+    - statistics-panel
+    - metric-histograms
+    - visual-encoding-nodes
+    - legend-display
+    - layout-force-directed
+    - analysis-history
+    - view-bookmarks
+    - data-export
+    - export-image
+    - report-generation
+    - cluster-identity-across-runs
+    - session-round-trip
+suggested_components:
+    - data-import-dialog
+    - computed-attributes-panel
+    - cluster-table
+    - comparison-view
+    - temporal-controls
+    - filter-panel
+    - statistics-panel
+    - metric-card
+    - histogram
+    - graph-canvas
+    - legend-panel
+    - bookmark-panel
+    - analysis-history-panel
+    - report-generator-dialog
+    - data-export-dialog
+starting_state:
+    data_type: monthly reruns of a thresholded genetic network with diagnosis dates, plus the previous run's cluster assignment
+    node_count: 1000-50000
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Tell which clusters are growing, and how fast relative to their size, by comparing this month's
+    network against previous months. Growth is the operational trigger: a retrospective analysis of 65,736 people
+    found that cluster-level schemes based on past growth outperformed individual-level schemes at predicting next
+    year's cases, which is why the question is "which cluster grew" and not "which cluster is biggest".
+
+
+    **Mental Model**: "Same clusters, new month." Clusters must keep their identity across runs or growth cannot be
+    counted at all. Each cluster then carries a count of members diagnosed in the last 3, 6 or 12 months, and the
+    list that matters is the one sorted by recent growth relative to size.
+
+
+    **Task Phases**:
+
+    1. **Re-run with the previous run's identities** (automatic) - Feed the prior run's result back in so clusters
+    keep their names, matching nodes by person or by sequence; restrict to a date window when comparing periods
+
+    2. **Count growth per cluster** - New members in the last 12 months, and also 3 and 6 months, as a
+    count and as a share of cluster size
+
+    3. **Rank and flag** - Sort clusters by recent growth relative to size, flag those that crossed a
+    program threshold, and mark clusters that are newly detected rather than grown
+
+    4. **Automate the cycle where possible** (setup once) - One national program's system queries its
+    drug-resistance database hourly, rebuilds the phylogeny, applies a minimum cluster size of 5, and generates a
+    monthly report from a template; it caught a cluster of 11 new cases in three months, 8 of them with transmitted
+    resistance
+
+    5. **Run a non-genetic detector alongside** (monthly) - A time and space alert fires when a county's 12-month
+    diagnoses exceed the prior 3-year mean by more than 2 standard deviations and by more than 2 cases; an
+    evaluation of 2018-2021 found many short-lived alerts
+
+    6. **Show the growth** - Per-cluster epi curves, playback over diagnosis date, and a "grown since last
+    report" list for the review meeting
+
+    7. **Explain a change in the method** (as needed) - A phylogenetic clustering method found 76% more clustered
+    cases across 18 monthly datasets than distance-only clustering, so the method itself changes the counts
+
+
+    **Decision Points**:
+
+    - Which window counts as recent growth: 3, 6 or 12 months
+
+    - Whether a cluster that merged with another is one grown cluster or a new one, and what to call it
+
+    - Whether growth is real or reflects more testing, a reporting change or a late batch of sequences
+
+    - Whether a short-lived space-time alert deserves a response or a note
+
+    - Whether to change clustering method, knowing it will change every historical count
+
+
+    **Information Needs**:
+
+    - Stable cluster identity across runs, with merges and splits reported explicitly
+
+    - Growth count and growth relative to size, per cluster, per window
+
+    - A difference view against the previous run: members added, members newly sequenced, clusters merged
+
+    - Per-cluster epi curves on a common axis
+
+    - Which clusters crossed a priority definition this month and which fell below it
+
+    - The record of which run, threshold and method produced each number
+
+
+    **Pain Points**:
+
+    - Renumbered clusters make growth uncountable, and the fix is to carry the previous run forward every time
+
+    - A merge between two monitored clusters breaks the comparison and has to be explained in words
+
+    - Late-arriving sequences change last month's answer, so the history is not stable either
+
+    - Many alerts are short-lived, so a detector without a triage rule generates work rather than information
+
+    - Reports are assembled by hand from several tools each month
+
+    - Distance-only and phylogenetic clustering disagree substantially, and switching invalidates the trend
+
+
+    **Data Flow**:
+
+    - Input: This month's sequences and attributes, the previous run's network and cluster assignment, diagnosis
+    dates, and county-level case counts for the space-time detector
+
+    - Transformations: Network rebuild with carried-forward cluster identities, per-cluster new-member counts over 3,
+    6 and 12 months, growth relative to size, merge and split detection, a county-level mean and standard deviation
+    comparison
+
+    - Output: A ranked growth list, a difference report against the previous run, per-cluster epi curves, and a
+    monthly report
+success_criteria:
+    - metric: Identity stability
+      target: A cluster keeps its name across runs, with merges and splits named rather than silently renumbered
+    - metric: Growth clarity
+      target: Every cluster shows new members in the window and growth relative to size in one table
+    - metric: Month-to-month comparison
+      target: The user can see exactly what changed since the previous run without re-deriving it
+sources:
+    - title: Wertheim et al., growth of HIV transmission clusters predicts future cases (Journal of Infectious Diseases 2018)
+      url: https://doi.org/10.1093/infdis/jiy431
+      summary: Retrospective analysis of 65,736 people in New York City; cluster-level schemes using past growth outperformed individual-level schemes at predicting next-year cases
+    - title: Automated HIV cluster monitoring in British Columbia
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4853759
+      summary: Hourly database queries, phylogeny rebuild, minimum cluster size of 5, templated monthly reports to public health officers, and a detected cluster of 11 new cases in three months with 8 carrying transmitted resistance
+    - title: hivclustering
+      url: https://github.com/veg/hivclustering
+      summary: Carrying a previous run's clusters forward so identities persist, and date-window restriction
+    - title: An automated bioinformatics pipeline to monitor HIV data in real time (Rhode Island)
+      url: https://www.news-medical.net/news/20230315/An-automated-bioinformatics-pipeline-to-monitor-HIV-data-in-real-time.aspx
+      summary: 18 monthly datasets; phylogenetic methods found 76% more clustered cases than distance-only clustering
+    - title: Evaluation of time-space HIV cluster alerts, 2018-2021 (JAIDS abstract)
+      url: https://pubmed.ncbi.nlm.nih.gov/41198093/
+      summary: The county-level alert rule of more than 2 standard deviations above the prior 3-year mean and more than 2 cases, and the finding of many short-lived alerts
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

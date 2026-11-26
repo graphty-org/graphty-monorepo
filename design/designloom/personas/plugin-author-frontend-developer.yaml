@@ -1,5 +1,8 @@
 id: plugin-author-frontend-developer
 name: Front-End Developer Integrating the Element
+roster_persona: plugin-author-frontend-developer
+tier: B
+scope: in-scope
 role: Front-End Web Developer Adding a Palette, Camera or Logger for a Product Team
 quote: I don't need to know what betweenness is. I need our brand colors on it and our logs in Datadog by Thursday.
 bio: >-
@@ -9,7 +12,11 @@ bio: >-
     element is a component with props, events and slots. Her tickets are integration work: make the graph use the
     company's color tokens, give product a "fit to selection" camera button, and send the element's warnings and
     errors to the company's telemetry service with the user's session id attached. She judges a library by how quickly
-    its types and docs let her do that, and she reads the `.d.ts` before she reads the guide.
+    its types and docs let her do that, and she reads the `.d.ts` before she reads the guide. In practice most of what
+    she calls a plugin is configuration and event wiring: a palette is a style rule, and the extensions she actually
+    installs in other libraries are UI widgets such as tooltips, context menus, minimaps, lasso selection and map
+    underlays, or a custom node renderer (G6 lets a React component be a node). She may well work in Angular or Vue
+    rather than React, in which case the element is a custom element she binds by DOM property and CustomEvent.
 characteristics:
     expertise: expert
     time_pressure: high
@@ -39,6 +46,9 @@ frustrations:
     - Global registries with no way to scope a plugin to one element instance on a page
     - Options schemas duplicated in three places (types, JSON schema, runtime validation)
     - Errors thrown at render time instead of at registration time
+    - Commercial toolkits that require obfuscating the library inside her bundle and never shipping source maps
+    - Components that stop working after a six-week watermark period when a commercial license lapses
+    - Wrappers whose event listeners are not cleaned up on unmount, and frameworks that pass objects as string attributes to custom elements
 knows:
     - TypeScript, npm packaging, ESM, Vite, Vitest and browser APIs in depth
     - Web components, custom events and design tokens
@@ -48,15 +58,22 @@ refuses_to_learn:
     - Babylon.js, scene graphs or 3D camera maths beyond a bounding box and a direction
     - Anything the element's docs describe only in its own design documents
 first_plugin: >-
-    A palette built from the company's design-token colors, then a telemetry logger that forwards warnings and errors
-    with the session id, then a "fit to selection" camera view.
+    Most likely a tooltip, context menu or custom node renderer bound to product data; then a palette built from the
+    company's design-token colors (a style rule rather than a plugin), a telemetry logger that forwards warnings and
+    errors with the session id, and a "fit to selection" camera view.
 context:
     frequency: daily
     devices:
         - desktop
         - laptop
     voluntary: false
-workflows: []
+workflows:
+    - W278
+    - W279
+    - W285
+    - W286
+    - W287
+    - W288
 sources:
     - title: State of JavaScript 2024 - Usage
       url: https://2024.stateofjs.com/en-US/usage/
@@ -67,3 +84,30 @@ sources:
     - title: OpenTelemetry JavaScript - Logs
       url: https://opentelemetry.io/docs/languages/js/
       summary: The telemetry integration shape a front-end developer expects a log destination to plug into
+    - title: Cytoscape.js - Extensions
+      url: https://js.cytoscape.org/#extensions
+      summary: 73 listed extensions, mostly UI widgets (context menus, popper tooltips, minimaps, lasso, map underlays)
+    - title: AntV G6 - Custom plugin
+      url: https://g6.antv.antgroup.com/en/manual/plugin/custom-plugin
+      summary: BasePlugin class for tooltips, minimaps and toolbars
+    - title: AntV G6 - React node
+      url: https://g6.antv.antgroup.com/en/manual/element/node/react-node
+      summary: g6-extension-react lets a React component render a node
+    - title: Ogma - React tutorial
+      url: https://doc.linkurious.com/ogma/latest/tutorials/react/
+      summary: Commercial toolkit documents React, Angular and Vue integrations
+    - title: Vue - Vue and Web Components
+      url: https://vuejs.org/guide/extras/web-components.html
+      summary: isCustomElement, property versus attribute binding, CustomEvent detail
+    - title: ReGraph - Getting started
+      url: https://developers.cambridge-intelligence.com/docs/regraph/getting-started
+      summary: Tarball install; the library must be obfuscated in the bundle and source maps never shipped
+    - title: Cambridge Intelligence - ReGraph license renewal
+      url: https://cambridge-intelligence.com/regraph-license-renewal
+      summary: Components stop working after a six-week watermark period when a license expires
+    - title: react-cytoscapejs issue 28
+      url: https://github.com/plotly/react-cytoscapejs/issues/28
+      summary: Listener cleanup is undocumented
+version: 1.1.0
+created_at: 2026-09-28T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

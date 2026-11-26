@@ -1,0 +1,18 @@
+id: relation-type-vocabulary
+name: Relation Type Vocabulary
+category: analysis
+description: A user-edited list of edge relation types with name, labels, direction, symmetric, asymmetric or transitive
+    property and line style; changing a type restyles all its edges; edges carry comments and authors.
+status: planned
+notes: "Research trace: text-and-qualitative-data-networks.md section 10, requirement 4 (Must)."
+algorithms: []
+used_by_workflows:
+    - W406
+implemented_by_components: []
+requirements:
+    - "Must: A relation-type vocabulary the user edits: name, direction, symmetric or asymmetric, transitive, line style
+      and color; changing a type restyles all its edges"
+sources:
+    - title: Text and Qualitative Data Networks (section 10, requirement 4)
+      url: design/user-research/text-and-qualitative-data-networks.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

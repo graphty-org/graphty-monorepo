@@ -1,0 +1,31 @@
+id: shared-fixed-layout
+name: Shared fixed layout across networks
+category: export
+description: Reuse one layout (computed from averaged weights or supplied coordinates) across two to N networks on the
+    same node set, shown side by side with synced view, with a common or per-panel maximum edge weight.
+status: planned
+notes: "Research trace: psychometric-network-analysis.md section 10, requirement R4 (Must)."
+algorithms: []
+used_by_workflows:
+    - W3058
+    - W3057
+    - W372
+    - W374
+    - W375
+    - W377
+    - W379
+    - W403
+    - W405
+    - W407
+    - W1006
+    - W1138
+implemented_by_components: []
+requirements:
+    - "Must: One fixed layout reused across 2 to N networks on the same node set (averaged weights or supplied
+      coordinates), side by side and synced; includes an empirical against typical (median) structure pair"
+    - "Must: Show several weighted networks over the same node set (groups, periods, human versus model coding) with identical node positions, and a subtracted network colored by the larger side."
+sources:
+    - title: "Psychological Network Analysts: Symptom, Attitude and Personality Networks Estimated from Survey Items
+          (section 10, requirement R4)"
+      url: design/user-research/psychometric-network-analysis.md
+      summary: "Must in the research. Covered by Designloom when researched: No (W24 open)"

@@ -7,6 +7,41 @@ implements_capabilities:
     - node-merging
 used_in_workflows:
     - W22
+    - W105
+    - W113
+    - W115
+    - W124
+    - W188
+    - W189
+    - W193
+    - W212
+    - W254
+    - W260
+    - W261
+    - W263
+    - W265
+    - W276
+    - W281
+    - W284
+    - W313
+    - W343
+    - W348
+    - W393
+    - W421
+    - W426
+    - W47
+    - W71
+    - W72
+    - W77
+    - W79
+    - W82
+    - W85
+    - W87
+    - W88
+    - W1096
+    - W1132
+    - W2099
+    - W3096
 dependencies: []
 props: {}
 sources: []

@@ -1,0 +1,93 @@
+id: interaction-network-ecologist
+name: Interaction Network Ecologist
+roster_persona: interaction-network-ecologist
+tier: B
+scope: in-scope
+role: Microbial Ecologist building co-occurrence networks from amplicon data (lead variant); pollination, food-web and animal social network ecologists as variants
+quote: Change the correlation cutoff from 0.6 to 0.7 and half my keystone taxa disappear. I need to see that before a reviewer does.
+bio: >-
+    Dr. Yan Zhang is a postdoc in a soil and rhizosphere microbiology lab. Her network starts as a taxa-by-samples
+    abundance table from 16S or ITS amplicon sequencing (usually a phyloseq object in R) with taxonomy and sample
+    metadata, not as a graph. She filters to prevalent taxa, infers associations with SparCC, SPIEC-EASI or NetCoMi,
+    keeps the edges above a cutoff, and is left with 100 to 1,000 taxa joined by signed edges. Then she exports the edge
+    list to Gephi or Cytoscape to compute modules and degree, color taxa by phylum or module, draw positive edges green
+    and negative edges red, and pick "keystone" taxa by within-module degree and among-module connectivity. Each paper
+    compares two to six conditions (treatment versus control, bulk soil versus rhizosphere). This lead variant is
+    the largest part of the ecology population: 2022-2024 works citing Gephi, igraph and Cytoscape name microbial terms
+    far more often than pollination or food webs, and 31 of 36 sampled Gephi-citing plant, soil and pollution papers were
+    microbiome studies. Variants: pollination ecologists with a plant-by-pollinator matrix and the bipartite R package,
+    food-web ecologists with directed trophic matrices, and animal social network ecologists with group-by-individual
+    data. Her graph literacy is moderate and protocol-driven; her statistics are strong; she works in R first and
+    opens a GUI to draw and check.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Show which taxa associate with which, and how the association network changes between conditions
+    - Name candidate keystone and hub taxa that justify follow-up experiments
+    - Report network properties (modularity, positive-to-negative ratio, connectance) that survive reasonable changes to the cutoff
+    - Produce a figure per condition that a reviewer can read, with module and phylum colors and signed edges
+    - Avoid the reviewer critique that co-occurrence networks are a "mere pictorial tool"
+behaviors:
+    - Starts from an abundance table and metadata, filters rare taxa by prevalence, and infers associations in R
+    - Picks a correlation cutoff (often 0.6 or 0.3 by convention) and a p-value cutoff, sometimes random matrix theory in MENAP or iNAP
+    - Exports an edge list with weight and sign and a node table keyed on the taxon id to Gephi or Cytoscape
+    - Runs modularity, colors by module or phylum, sizes by degree, draws positive and negative edges in different colors
+    - Computes within-module degree (Zi) and participation (Pi) to classify module hubs, connectors and network hubs
+    - Builds one network per condition and compares edge overlap and global properties in a table
+    - Rarely reruns the network at a second cutoff because the tool chain makes it slow
+goals:
+    - Load the association table and choose and sweep the cutoff in the same place the network is drawn
+    - See how node and network properties move across cutoffs and against a null model
+    - Compare conditions side by side with the same encoding
+frustrations:
+    - The cutoff is "often left to the user" and changes the result, but sweeping it means rebuilding everything
+    - Sparse tables with many zeros inflate correlations and create spurious structure
+    - Round trips between R, Gephi and Cytoscape with an id column that must match exactly
+    - Keystone claims from a single network with no robustness check
+    - Methods sections that cannot be reproduced because parameters were not recorded
+context:
+    frequency: monthly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W337
+    - W170
+    - W1042
+    - W294
+    - W37
+sources:
+    - title: Goberna and Verdu 2022 - Cautionary notes on the use of co-occurrence networks in soil ecology
+      url: https://www.uv.es/verducam/DamnNetworks.pdf
+      summary: Exponential growth of soil network papers; networks used as a pictorial tool; sample-size guidance
+    - title: Matchado et al. 2021 - Network analysis methods for studying microbial communities (mini review)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8131268
+      summary: The cutoff choice "is often left to the user"; MENAP offers automated selection by random matrix theory; SPIEC-EASI uses StARS
+    - title: Connor, Barberan and Clauset 2017 - Using null models to infer microbial co-occurrence networks (PLOS ONE)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5426617
+      summary: Sparsity, the correlation function and thresholds can create spurious patterns; network properties change nonlinearly with the threshold
+    - title: NetCoMi - network construction and comparison for microbiome data
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8293835
+      summary: netConstruct wraps many association measures; netCompare and diffnet compare conditions
+    - title: SpiecEasi vignette
+      url: https://bioconductor.statistik.tu-dortmund.de/packages/3.24/bioc/vignettes/SpiecEasi/inst/doc/SpiecEasi.html
+      summary: spiec.easi with StARS selection; abs(cor) >= 0.3 described as an arbitrary cutoff
+    - title: Example microbial co-occurrence figure conventions (PLOS ONE)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10437823/figure/pone.0273890.g008
+      summary: Positive and negative edges in different colors, width by correlation
+    - title: CoNet app for Cytoscape
+      url: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5089131/
+      summary: Ensemble association measures with permutation significance and multiple-testing correction
+    - title: Using CoNet with Cytoscape (practitioner blog)
+      url: https://sites.google.com/view/terrimporter/posts/using-conet-with-cytoscape
+      summary: Reports that CoNet is very memory intensive
+    - title: Microbial network interpretation review
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10989802/
+      summary: Co-occurrence edges should not be read as direct interactions
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

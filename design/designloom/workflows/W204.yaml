@@ -1,0 +1,134 @@
+id: W204
+name: Interview-to-Causal-Map Coding with Provenance
+category: analysis
+validated: false
+personas:
+    - participatory-systems-mapping-facilitator
+    - fcm-participatory-modeller
+requires_capabilities:
+    - data-import
+    - data-validation
+    - node-merging
+    - visual-encoding-edges
+    - details-on-demand
+    - annotation
+    - filtering
+    - pattern-search
+    - centrality-degree
+    - analysis-history
+    - comparison-view
+    - data-export
+    - export-image
+    - signed-edges
+    - structured-item-fields
+    - feedback-loops
+    - multi-map-merge
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - graph-canvas
+    - node-details-panel
+    - node-merge-dialog
+    - visual-encoding-panel
+    - filter-panel
+    - pattern-search-dialog
+    - analysis-history-panel
+    - comparison-view
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: coded causal claims from interview transcripts (cause, effect, polarity, quote, source, coder), typically from NVivo or a spreadsheet
+    node_count: 45-133 variables per theme map
+    edge_density: sparse to medium
+    user_expertise: expert
+goal: >-
+    **Intent**: Turn interview transcripts into causal loop diagrams where every arrow traces back to the passages that
+    support it: code causal claims, build microstructures per interview, merge them per theme over several rounds with a
+    second modeller, report variables and loops, and validate with stakeholders.
+
+
+    **Mental Model**: "Every arrow is a claim with evidence." The map is a summary of coded quotes; its strength comes
+    from how many sources say the same thing.
+
+
+    **Task Phases**:
+
+    1. **Interview and code** (outside the tool) - Open and axial coding in NVivo; variables grouped
+    by stakeholder group and theme
+
+    2. **Import claims** - One row per claim: cause, effect, polarity, quote, transcript id, coder; repeated
+    claims become one edge with many sources
+
+    3. **Build microstructures** - One small map per interview or theme
+
+    4. **Merge** (3 iterations between modellers) - Merge variables that mean the same thing, reversibly, keeping their
+    original labels and sources; disagreements logged
+
+    5. **Find loops and report** - Variables, microstructures and loops per map (TRUUD reported 55-133 variables
+    and 0-8 loops); edge width by count of sources
+
+    6. **Validate** (workshop) - Group model building sessions check the merged map
+
+
+    **Decision Points**:
+
+    - Is a text passage really a causal claim? (Text search for causal phrases gave about half false positives)
+
+    - Which variables to merge, and can the merge be undone?
+
+    - What count of sources is enough to show an arrow?
+
+    - Which loops survive validation?
+
+
+    **Information Needs**:
+
+    - For any edge: all quotes, their transcripts and coders, and the count of sources
+
+    - Edges filtered by minimum source count or by stakeholder group
+
+    - History of merges and who made them
+
+    - Loops through a chosen variable
+
+
+    **Pain Points**:
+
+    - Coding takes about three days per transcript
+
+    - Provenance lost when the map is redrawn in a diagram tool
+
+    - Irreversible merges that discard which source said what
+
+    - Two coders reconciling in separate files
+
+
+    **Data Flow**:
+
+    - Input: Claims table (CSV or XLSX) exported from NVivo or a coding spreadsheet
+
+    - Transformations: Claims aggregated into edges with source lists and counts, reversible node merges, filtering by
+    count and group, cycle finding
+
+    - Output: Causal loop diagram per theme with traceable arrows, variable and loop counts, claims table with merge
+    decisions
+success_criteria:
+    - metric: Traceability
+      target: Every edge opens to its supporting quotes and transcript ids
+    - metric: Reversible merges
+      target: Any variable merge can be undone with its sources restored
+    - metric: Evidence filter
+      target: User can hide edges supported by fewer than N sources in one action
+sources:
+    - title: Eker and Zimmermann 2016 - Systems 4(3):28
+      url: https://discovery.ucl.ac.uk/id/eprint/1507957/1/eker_systems-04-00028-v2.pdf
+      summary: 16 interviews, 21 hours, NVivo open and axial coding, causal relationships linked to passages
+    - title: Newberry and Carhart 2024 - System Dynamics Review
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC7616860/
+      summary: TRUUD maps of 55-133 variables and 0-8 loops; three merge iterations between modellers; semi-automated search with 49% false positives; 3 days per transcript
+    - title: Causal Map app - About
+      url: https://causalmap.app/about/
+      summary: Codes each causal claim in narrative text as a link and analyzes the claims network
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,17 @@
+id: clusterability-diagnostic
+name: "Clusterability and background-density diagnostic"
+category: analysis
+description: "Before any clustering, report whether the network can separate at all: overall edge density among the filtered nodes, the share of nodes that fall into no cluster at the current thresholds, and the resulting cluster count and sizes as a threshold moves. Testers from endogamous communities are told by the literature that clustering will not work for them but have no way to see it in their own data except one Windows-only tool's check."
+status: planned
+notes: "Research trace: genetic-genealogy-dna-match-networks.md section 10, table row 10 (Should)."
+algorithms: []
+used_by_workflows:
+    - W2098
+implemented_by_components: []
+requirements:
+    - "Should: A density diagnostic that says up front whether clustering will separate anything (share of matches in no
+      cluster, background edge density), so an endogamous tester is told before investing a week"
+sources:
+    - title: "Genetic Genealogists: DNA Shared-Match Networks and Clusters (section 10, table row 10)"
+      url: design/user-research/genetic-genealogy-dna-match-networks.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

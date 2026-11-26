@@ -3,7 +3,8 @@
  *
  * Making a directed graph undirected builds a second graph over every edge: about 180 ms at one
  * million edges, paid in the load's first layout pass. The fixed layout reads only where each
- * node's data puts it, so it must never pay for that graph; a layout that reads edges still gets it.
+ * node's data puts it, and a placing layout (random, grid, circular, spiral) reads only how many nodes
+ * there are, so neither must pay for that graph; a layout that reads edges still gets it.
  */
 import "../../src/layout";
 
@@ -15,7 +16,7 @@ import { fakeEdge, fakeNode } from "../helpers/layout-fakes";
 
 /**
  * Lay out a directed three-node path whose nodes carry data positions, as an element's graph.
- * @param type - the layout
+ * @param type - the layout (grid is two-dimensional and takes no `dim`)
  * @returns how many times the graph was made undirected, and each node's position
  */
 function layOut(type: string): { undirectedCalls: number; positions: number[][] } {
@@ -46,7 +47,7 @@ function layOut(type: string): { undirectedCalls: number; positions: number[][] 
     );
     const edges = [fakeEdge(nodes[0], nodes[1]), fakeEdge(nodes[1], nodes[2])];
 
-    const engine = LayoutEngine.get(type, { dim: 2 });
+    const engine = LayoutEngine.get(type, type === "grid" ? {} : { dim: 2 });
     assert.isNotNull(engine, `"${type}" is registered`);
     layoutEngineInternals.addNodes(engine, nodes);
     layoutEngineInternals.addEdges(engine, edges);
@@ -70,8 +71,16 @@ describe("the undirected graph is built on demand", () => {
         ]);
     });
 
+    for (const type of ["random", "grid", "circular", "spiral"]) {
+        it(`is never built for the ${type} layout, which reads only how many nodes there are`, () => {
+            const { undirectedCalls, positions } = layOut(type);
+            assert.strictEqual(undirectedCalls, 0);
+            assert.lengthOf(positions, 3);
+        });
+    }
+
     it("is built once for a layout that reads the edges", () => {
-        const { undirectedCalls, positions } = layOut("circular");
+        const { undirectedCalls, positions } = layOut("spectral");
         assert.strictEqual(undirectedCalls, 1);
         assert.lengthOf(positions, 3);
     });

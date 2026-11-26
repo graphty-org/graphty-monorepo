@@ -6,8 +6,10 @@ import { describe, it } from "node:test";
 
 import {
     acceptedRows,
+    approvedEntries,
     FLOOR_MS,
     judge,
+    OWNER_LOGIN,
     pinned,
     pool,
     roundOrder,
@@ -103,5 +105,36 @@ describe("load-time", () => {
         assert.equal(judge([session("a", 1500 * 1.25, 1350 * 1.25)], reference, accepted).regressions, 1, "beyond it");
         assert.equal(judge([session("a", 1500, 1350)], reference).regressions, 1, "without the entry");
         assert.throws(() => acceptedRows([{ ...entry, reason: "" }], has(true, false)), /needs row, commit/);
+    });
+
+    // #10077: an entry counts only with the owner's comment naming its row, so an agent cannot accept its own slowdown.
+    it("honours an accepted entry only with the owner's approval comment naming its row", async () => {
+        const url = "https://github.com/graphty-org/graphty-monorepo/issues/5#issuecomment-42";
+        const entry = { row: "app/graph settled", commit: "abc1234", ratio: 1.5, reason: "r", approval: url };
+        const comment = (login, body) => async (id) => {
+            assert.equal(id, "42");
+            return { user: { login }, body };
+        };
+        const good = comment(OWNER_LOGIN, "I accept the app/graph settled slowdown");
+        assert.deepEqual(await approvedEntries([entry], good), { approved: [entry], rejected: [] });
+        const prUrl = { ...entry, approval: url.replace("issues", "pull") };
+        assert.equal((await approvedEntries([prUrl], good)).approved.length, 1, "a pull request comment");
+
+        const dropped = async (e, fetch) => {
+            const { approved, rejected } = await approvedEntries([e], fetch);
+            assert.equal(approved.length, 0);
+            return rejected[0];
+        };
+        assert.match(await dropped(entry, comment("graphty-agent", "app/graph settled")), /by graphty-agent, not/);
+        assert.match(await dropped(entry, comment(OWNER_LOGIN, "looks fine")), /does not name the row/);
+        const never = async () => assert.fail("no fetch without a valid approval");
+        const missing = { ...entry, approval: undefined };
+        assert.match(await dropped(missing, never), /^ignored "app\/graph settled" \(commit abc1234\): approval must/);
+        const elsewhere = { ...entry, approval: "https://github.com/someone/fork/issues/5#issuecomment-42" };
+        assert.match(await dropped(elsewhere, never), /approval must/);
+        const apiDown = async () => {
+            throw new Error("GitHub API: 500");
+        };
+        await assert.rejects(approvedEntries([entry], apiDown), /500/, "an API error fails, never accepts");
     });
 });

@@ -1076,6 +1076,12 @@ export class Edge {
      */
     private unbuiltEnd(end: "source" | "target"): number {
         const manager = this.context.getDataManager();
+        // every row has its `Node` (always, on "objects"): no id lookup, which a placed edge asked up to eight times a
+        // frame
+        if (dataManagerInternals.unbuiltCount(manager) === 0) {
+            return INVALID_INDEX;
+        }
+
         const row = dataManagerInternals.rowOf(manager, end === "source" ? this.srcId : this.dstId);
         return dataManagerInternals.unbuiltAt(manager, row) === undefined ? INVALID_INDEX : row;
     }

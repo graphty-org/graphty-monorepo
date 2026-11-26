@@ -110,4 +110,37 @@ describe("the join a step was written as", () => {
             "no match names the source taken out",
         );
     });
+
+    it("a source taken out takes the join's step whose own match was on it", async () => {
+        const { session, accounts, ids, watch } = await opened();
+        const join: SourceJoinTag = {
+            id: "join-4",
+            matches: [
+                { a: { source: watch, field: "value" }, b: { source: ids, field: "phone" } },
+                { a: { source: ids, field: "account_id" }, b: { source: accounts } },
+            ],
+        };
+        const draft = session.data.draft();
+        draft.merge({ from: { source: ids, field: "account_id" }, into: { source: accounts }, join });
+        // as the app writes it: on the phones the identifiers merged onto the accounts
+        draft.merge({
+            from: { source: watch, field: "value" },
+            into: { space: `source:${accounts}`, field: "phone" },
+            join,
+        });
+        await draft.commit();
+
+        const again = session.data.draft();
+        again.removeSource(ids, { adds: "remove" });
+        assert.deepStrictEqual(
+            again
+                .steps()
+                .filter((row) => row.op !== "join.add")
+                .map((row) => [row.op, row.source]),
+            [],
+            "the watchlist matched the identifiers' phones: with them gone it matches nothing",
+        );
+        again.dispose();
+        session.dispose();
+    });
 });

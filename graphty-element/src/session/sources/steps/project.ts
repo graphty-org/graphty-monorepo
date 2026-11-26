@@ -617,7 +617,7 @@ function madeSpaces(step: Step, src: StepsSource | undefined): readonly (string 
  */
 function withoutSource(prior: SourceSteps, id: string, adds: "keep" | "remove" = "keep"): SourceSteps {
     const sources = Object.fromEntries(Object.entries(prior.sources).filter(([each]) => each !== id));
-    const reading = (step: Step): boolean => stepSources(step, prior).includes(id);
+    const reading = (step: Step): boolean => stepSources(step, prior).includes(id) || matchedOn(step, id);
     const bare: SourceSteps = {
         ...prior,
         sources,
@@ -658,6 +658,26 @@ function withoutSource(prior: SourceSteps, id: string, adds: "keep" | "remove" =
         }
     }
     return { ...value, steps: value.steps.map((step) => withoutMatchesOf(step, id)) };
+}
+
+/**
+ * Whether a step's own match in its join (the one on the field it reads) was on a source's field:
+ * a value it matched on another source's column, carried onto the nodes, which nothing carries
+ * once that source is gone.
+ * @param step - The step.
+ * @param id - The source.
+ * @returns True when it was.
+ */
+function matchedOn(step: Step, id: string): boolean {
+    const join = "join" in step ? step.join : undefined;
+    const field = "read" in step && "key" in step.read ? step.read.key : undefined;
+    if (join === undefined || field === undefined || step.source === id) {
+        return false;
+    }
+    const mine = (side: SourceJoinMatch["a"] | SourceJoinMatch["b"]): boolean =>
+        "source" in side && side.source === step.source && side.field === field;
+    const on = (side: SourceJoinMatch["a"] | SourceJoinMatch["b"]): boolean => "source" in side && side.source === id;
+    return join.matches.some((match) => (mine(match.a) && on(match.b)) || (mine(match.b) && on(match.a)));
 }
 
 /**

@@ -26,7 +26,7 @@
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const MIN = 60 * 1000;
@@ -73,7 +73,7 @@ const writeLedger = (root, commitments) => {
     mkdirSync(join(root, "tmp", "commitments"), { recursive: true });
     const tmp = `${ledgerPath(root)}.${process.pid}`;
     writeFileSync(tmp, `${JSON.stringify({ commitments }, null, 1)}\n`);
-    renameSync(tmp, ledgerPath(root));
+    renameSync(tmp, ledgerPath(root)); // ponytail: no lock; two sessions adding in the same instant can lose one
 };
 
 /**
@@ -103,7 +103,9 @@ export function add(root, what, backing, session, now = Date.now()) {
     if (error) throw new Error(error);
     const all = readLedger(root);
     const id = `c${now.toString(36)}${all.length.toString(36)}`;
-    const entry = { id, what, backing, session: session ?? null, at: new Date(now).toISOString() };
+    // a file backing is stored absolute: the CLI and the hook run from different directories
+    const stored = backing.startsWith("file:") ? `file:${resolve(backing.slice(5))}` : backing;
+    const entry = { id, what, backing: stored, session: session ?? null, at: new Date(now).toISOString() };
     writeLedger(root, [...all, entry]);
     return entry;
 }
@@ -169,7 +171,7 @@ const fresh = (at, now, limit, path) => {
     return now - at < limit ? yes(`${path} written ${age} min ago`) : no(`${path} unchanged for ${age} min`);
 };
 
-// One check per backing kind: (ref, root, now, own, hook) => { live, why }.
+// One check per backing kind: (ref, root, now, own, hook, entry) => { live, why }.
 const CHECKS = {
     task: (ref, _root, _now, own, hook) => {
         if (!own) return unknown("only its own session can see its tasks");
@@ -191,12 +193,15 @@ const CHECKS = {
         if (alive === null) return unknown("no servherd here");
         return alive ? yes(`servherd ${ref} running`) : no(`servherd ${ref} stopped`);
     },
-    pr: (ref, root) => {
+    pr: (ref, root, _now, _own, _hook, c) => {
         const status = readJson(join(root, "tmp", "pr-status", "status.json"));
         if (!status) return unknown("no tmp/pr-status/status.json");
         const pr = status.pullRequests?.find((p) => p.number === Number(ref));
+        if (!pr && Date.parse(status.fetchedAt) < Date.parse(c.at))
+            return unknown(`PR ${ref} is newer than the PR status`);
         if (!pr) return no(`PR ${ref} is merged or closed: mark it done`);
-        if (pr.state === "FAILURE") return no(`PR ${ref} is red: nothing will merge it until someone fixes it`);
+        if (pr.state === "FAILURE" || pr.state === "ERROR")
+            return no(`PR ${ref} is red: nothing will merge it until someone fixes it`);
         return yes(`PR ${ref} ${String(pr.state ?? "open").toLowerCase()}`);
     },
     issue: (ref, root, now) => {
@@ -220,7 +225,7 @@ export function liveness(c, root, now = Date.now(), hook = null) {
     if (c.backing === "next") return no("not started");
     const [kind, ref] = c.backing.split(/:(.*)/s);
     const check = CHECKS[kind];
-    return check ? check(ref, root, now, hook?.session_id === c.session, hook) : unknown("unknown backing");
+    return check ? check(ref, root, now, hook?.session_id === c.session, hook, c) : unknown("unknown backing");
 }
 
 /**

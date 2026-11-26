@@ -48,6 +48,8 @@ describe("claude-promise-hook", () => {
         assert.equal(decide(fixture("backed-promise"), checkout()), null);
         const bare = { ...fixture("backed-promise"), background_tasks: [] };
         assert.match(decide(bare, checkout()), /I'll report back/);
+        const curly = { ...bare, last_assistant_message: "I\u2019ll check back later." };
+        assert.match(decide(curly, checkout()), /check back/, "a curly apostrophe");
     });
 
     it("counts a live ledger commitment as backing", () => {
@@ -59,16 +61,23 @@ describe("claude-promise-hook", () => {
 
     it("blocks stale commitments: a red PR, a merged PR, a finished task; allows owner and other sessions' entries", () => {
         const input = fixture("stale-backing");
-        const root = checkout({ prs: [{ number: 10139, state: "FAILURE" }] });
+        const root = checkout({
+            prs: [
+                { number: 10139, state: "FAILURE" },
+                { number: 10140, state: "ERROR" },
+            ],
+        });
         add(root, "PR 10139 auto-merges", "pr:10139", input.session_id);
         add(root, "PR 10129 auto-merges", "pr:10129", input.session_id);
         add(root, "merge agent", "task:gone1", input.session_id);
         add(root, "owner picks the name", "owner", input.session_id);
         add(root, "someone else's", "pr:1", "other-session");
+        add(root, "errored PR", "pr:10140", input.session_id);
         const reason = decide(input, root);
         assert.match(reason, /PR 10139 is red/);
         assert.match(reason, /PR 10129 is merged or closed/);
         assert.match(reason, /task gone1 is gone/);
+        assert.match(reason, /PR 10140 is red/);
         assert.doesNotMatch(reason, /owner picks|someone else/);
     });
 
@@ -80,6 +89,16 @@ describe("claude-promise-hook", () => {
         assert.equal(decide(busy, root), null);
         const nothing = { ...fixture("idle-wait"), last_assistant_message: "Pushed; waiting for CI on PR 10129." };
         assert.equal(decide(nothing, root), null);
+        const line = "idle: startable 3 -- start jobs";
+        const verdict = { at: Date.now(), session: "loop-session", idle: true, reason: "start jobs", line };
+        mkdirSync(join(root, "tmp", "issue-round"), { recursive: true });
+        writeFileSync(join(root, "tmp", "issue-round", "idle.json"), JSON.stringify(verdict));
+        assert.equal(decide(nothing, root), null, "another session's idle verdict");
+        writeFileSync(
+            join(root, "tmp", "issue-round", "idle.json"),
+            JSON.stringify({ ...verdict, session: nothing.session_id }),
+        );
+        assert.match(decide(nothing, root), /issue-round: idle: startable 3/);
         add(root, "fix issue 10176", "next", nothing.session_id);
         assert.match(decide(nothing, root), /fix issue 10176/);
     });
@@ -137,6 +156,18 @@ describe("commitments", () => {
         assert.match(bad.out, /STALE: PR 5 is merged or closed/);
         assert.equal(cli(["done", id], root, env).code, 0);
         assert.match(cli(["check"], root, env).out, /1 open, 0 stale/);
+    });
+
+    it("does not call a PR newer than the PR status merged, and stores file paths absolute", () => {
+        const root = checkout();
+        writeFileSync(
+            join(root, "tmp", "pr-status", "status.json"),
+            JSON.stringify({ fetchedAt: new Date(Date.now() - MIN).toISOString(), pullRequests: [] }),
+        );
+        const c = add(root, "new PR", "pr:77", "s");
+        assert.equal(liveness(c, root).live, null);
+        assert.equal(liveness(c, root, Date.now(), null).why, "PR 77 is newer than the PR status");
+        assert.match(add(root, "log", "file:tmp/x.log", "s").backing, /^file:\/.*\/tmp\/x\.log$/);
     });
 
     it("judges pid, file, round and issue backings", () => {

@@ -55,6 +55,7 @@ const REMAINING =
  */
 export function ownWords(text) {
     return String(text ?? "")
+        .replaceAll("\u2019", "'")
         .replaceAll(/```[\s\S]*?(```|$)/g, " ")
         .replaceAll(/`[^`\n]*`/g, " ")
         .replaceAll(/"[^"\n]*"/g, " ")
@@ -134,11 +135,14 @@ const promiseReason = (words, tasks, crons, liveCount, root, now) => {
     );
 };
 
-const waitReason = (words, tasks, mine, root, now) => {
+const waitReason = (words, tasks, mine, session, root, now) => {
     if (!WAITING.test(words) || tasks.some((t) => /agent|workflow/i.test(String(t.type)))) return null;
     const verdict = readJson(join(root, "tmp", "issue-round", "idle.json"));
     const startable =
-        verdict?.idle === true && now - verdict.at < VERDICT_MS && !String(verdict.reason).startsWith("starved");
+        verdict?.idle === true &&
+        verdict.session === session &&
+        now - verdict.at < VERDICT_MS &&
+        !String(verdict.reason).startsWith("starved");
     const open = [
         ...mine.filter((c) => c.backing === "next").map((c) => `${c.id} "${c.what}"`),
         ...(startable ? [`issue-round: ${verdict.line}`] : []),
@@ -172,7 +176,7 @@ export function decide(input, root, now = Date.now()) {
     return (
         staleReason(checked) ??
         promiseReason(words, tasks, crons, liveCount, root, now) ??
-        waitReason(words, tasks, mine, root, now)
+        waitReason(words, tasks, mine, session, root, now)
     );
 }
 

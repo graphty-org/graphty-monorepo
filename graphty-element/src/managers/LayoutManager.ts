@@ -548,6 +548,10 @@ export const layoutManagerInternals = {} as {
     holdDraft(manager: LayoutManager, ids: ReadonlySet<NodeIdType> | null, wake: boolean): void;
     /** Where the next nodes of these ids start; see `LayoutManager.seedPlaces`. */
     seedPlaces(manager: LayoutManager, places: ReadonlyMap<NodeIdType, Place>): void;
+    /** The nodes a draft's preview holds, or null; see `LayoutManager.holdDraft`. */
+    draftHeld(manager: LayoutManager): ReadonlySet<NodeIdType> | null;
+    /** Put some of a held preview's other nodes somewhere and hold them there; see `LayoutManager.holdDraftAt`. */
+    holdDraftAt(manager: LayoutManager, places: ReadonlyMap<NodeIdType, Place>): void;
     /** The styles the manager reads now; see `LayoutManager.updateStyles`. */
     styles(manager: LayoutManager): Styles;
     /** Install an engine, or none, as a standalone test's stand-in for a build. */
@@ -735,6 +739,10 @@ export class LayoutManager implements Manager {
         };
         layoutManagerInternals.seedPlaces = (manager, places) => {
             manager.seedPlaces(places);
+        };
+        layoutManagerInternals.draftHeld = (manager) => manager.draftHeld;
+        layoutManagerInternals.holdDraftAt = (manager, places) => {
+            manager.holdDraftAt(places);
         };
         layoutManagerInternals.setEngine = (manager, engine) => {
             manager.engine = engine;
@@ -2955,6 +2963,20 @@ export class LayoutManager implements Manager {
             this.layoutEngine?.wakeForLift();
             this.running = true;
         }
+    }
+
+    /**
+     * Put some nodes a held preview does not hold where they are given, and hold them there too: a node the
+     * draft adds, moved off one the graph holds, is not laid back over it. A later `holdDraft` lets them go.
+     * @param places - The places by id.
+     */
+    private holdDraftAt(places: ReadonlyMap<NodeIdType, Place>): void {
+        if (this.draftHeld === null || places.size === 0) {
+            return;
+        }
+
+        this.seeds = new Map([...this.seeds, ...places]);
+        this.holdDraft(new Set([...this.draftHeld, ...places.keys()]), true);
     }
 
     /**

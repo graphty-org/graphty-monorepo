@@ -110,6 +110,93 @@ const ZOOM_STEP_FACTOR = 1.25;
  */
 const MAP_CLEARANCE = 1e-4;
 
+/** Screen pixels a held draft preview keeps between a node the draft adds and any other node. */
+const DRAFT_SPREAD_GAP = 2;
+
+/**
+ * Above this many comparisons of a node the draft adds with another node, a held preview leaves the nodes it
+ * adds where the layout put them.
+ */
+const DRAFT_SPREAD_LIMIT = 4_000_000;
+
+/** How many times a node the draft adds is pushed off the nodes it is drawn over, at most. */
+const DRAFT_SPREAD_ROUNDS = 4;
+
+/** A move on screen, in pixels. */
+interface ScreenMove {
+    x: number;
+    y: number;
+}
+
+/** A spot on screen, and how far it reaches. */
+interface ScreenDisc {
+    readonly x: number;
+    readonly y: number;
+    readonly radius: number;
+}
+
+/**
+ * How far to move a disc on screen so it is drawn over none of some others, with a gap between.
+ * @param disc - The disc.
+ * @param others - The others.
+ * @returns The move, or null when it is drawn over none.
+ */
+function pushOff(disc: ScreenDisc, others: readonly ScreenDisc[]): ScreenMove | null {
+    const now = { x: disc.x, y: disc.y };
+    for (let round = 0; round < DRAFT_SPREAD_ROUNDS; round++) {
+        const push = { x: 0, y: 0 };
+        for (const other of others) {
+            addPush(push, { ...now, radius: disc.radius }, other);
+        }
+
+        if (push.x === 0 && push.y === 0) {
+            break;
+        }
+
+        now.x += push.x;
+        now.y += push.y;
+    }
+
+    return now.x === disc.x && now.y === disc.y ? null : { x: now.x - disc.x, y: now.y - disc.y };
+}
+
+/**
+ * Add to a push what moves one disc off another, with a gap between; nothing when they are apart.
+ * @param push - The push so far.
+ * @param disc - The disc moved.
+ * @param other - The other.
+ */
+function addPush(push: ScreenMove, disc: ScreenDisc, other: ScreenDisc): void {
+    const dx = disc.x - other.x;
+    const dy = disc.y - other.y;
+    const apart = Math.hypot(dx, dy);
+    const short = disc.radius + other.radius + DRAFT_SPREAD_GAP - apart;
+    if (short <= 0) {
+        return;
+    }
+
+    // Right on top of it: any way out will do.
+    const centred = apart < 1e-6;
+    push.x += centred ? short : (dx / apart) * short;
+    push.y += centred ? 0 : (dy / apart) * short;
+}
+
+/**
+ * The amounts of two screen moves that add up to a third.
+ * @param one - The first move.
+ * @param two - The second move.
+ * @param sum - The move wanted.
+ * @returns The amounts, or null when the two moves are one direction.
+ */
+function solve2(one: ScreenMove, two: ScreenMove, sum: ScreenMove): { a: number; b: number } | null {
+    const det = one.x * two.y - two.x * one.y;
+    if (Math.abs(det) < 1e-9) {
+        return null;
+    }
+
+    return { a: (sum.x * two.y - two.x * sum.y) / det, b: (one.x * sum.y - sum.x * one.y) / det };
+}
+
 import { measureBounds } from "./camera/bounds.js";
 import { fullInsets } from "./camera/insets.js";
 import { cameraRefusal, stateProblem } from "./camera/mode.js";
@@ -1814,6 +1901,7 @@ export class Graph implements GraphContext {
         // way to the array, a new snapshot reloads the layout without starting it.
         this.layoutManager.onRest = () => {
             dispatcherOf(this.session).arrangement.rest();
+            this.#spreadDraftNodes();
         };
         this.layoutManager.onMotion = (motion) => {
             this.session.layoutMotion(motion);
@@ -7906,6 +7994,58 @@ export class Graph implements GraphContext {
         }
 
         return { x, y, visible: shown && inDepth && onScreen, radius, bounds };
+    }
+
+    /**
+     * Under a held draft preview at rest, push each node the draft adds off every node the graph holds that it
+     * is drawn over, on screen, and hold it there: the layout keeps nodes apart in the world, and in 3D one can still sit right
+     * behind another, where the reader cannot see that it is there.
+     */
+    #spreadDraftNodes(): void {
+        const held = layoutManagerInternals.draftHeld(this.layoutManager);
+        const camera = this.scene.activeCamera;
+        if (held === null || !camera) {
+            return;
+        }
+
+        const spots = [...this.drawnNodeSpots()].filter((spot) => spot.at.visible);
+        const fresh = spots.filter((spot) => !held.has(spot.id));
+        const kept = spots.filter((spot) => held.has(spot.id)).map((spot) => spot.at);
+        // ponytail: every new node against every held one, O(new x held); DRAFT_SPREAD_LIMIT bounds it.
+        if (fresh.length === 0 || fresh.length * kept.length > DRAFT_SPREAD_LIMIT) {
+            return;
+        }
+
+        // A move on screen, in the world: along the camera's right and up at the node, as they land on screen.
+        const view = camera.getViewMatrix().m;
+        const right = new Vector3(view[0], view[4], view[8]);
+        const up = new Vector3(view[1], view[5], view[9]);
+        const toLocal = this.scene.getTransformNodeByName("graph-root")?.computeWorldMatrix(true).clone().invert();
+        const places = new Map<string | number, { x: number; y: number; z: number }>();
+        for (const node of fresh) {
+            const push = pushOff(node.at, kept);
+            if (push === null) {
+                continue;
+            }
+
+            const from = this.worldToScreen(node.centre);
+            const onRight = this.worldToScreen(node.centre.add(right));
+            const onUp = this.worldToScreen(node.centre.add(up));
+            const along = solve2(
+                { x: onRight.x - from.x, y: onRight.y - from.y },
+                { x: onUp.x - from.x, y: onUp.y - from.y },
+                push,
+            );
+            if (along === null) {
+                continue;
+            }
+
+            const world = node.centre.add(right.scale(along.a)).add(up.scale(along.b));
+            const local = toLocal === undefined ? world : Vector3.TransformCoordinates(world, toLocal);
+            places.set(node.id, { x: local.x, y: local.y, z: local.z });
+        }
+
+        layoutManagerInternals.holdDraftAt(this.layoutManager, places);
     }
 
     /**

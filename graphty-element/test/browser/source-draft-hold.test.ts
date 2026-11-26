@@ -160,6 +160,38 @@ describe("a source draft's preview held still", () => {
         assert.isNull(d.graph.getLayoutManager().layoutEngine?.holdMask ?? null, "and the hold ends");
     });
 
+    test("a node the draft adds is not left drawn over a node the graph holds", async () => {
+        const d = await drawn();
+        d.draft.add(d.visits);
+        // V0 starts just in front of P0 along the camera's line of sight, so the repulsion between them,
+        // along that line, would leave it drawn over P0.
+        const camera = d.graph.scene.activeCamera?.position;
+        const p0 = places(d.graph, ["P0"]).get("P0");
+        assert.isDefined(camera);
+        assert.isDefined(p0);
+        if (camera === undefined || p0 === undefined) {
+            return;
+        }
+        const toward = [camera.x - p0[0], camera.y - p0[1], camera.z - p0[2]];
+        const length = Math.hypot(...toward);
+        const [x, y, z] = p0.map((v, i) => v + (toward[i] / length) * 0.5);
+        layoutManagerInternals.seedPlaces(d.graph.getLayoutManager(), new Map([["V0", { x, y, z }]]));
+        await d.draft.display(true, { hold: true });
+        await d.graph.waitForStableFrame();
+        const visit = d.graph.nodeScreenPosition("V0");
+        const person = d.graph.nodeScreenPosition("P0");
+        assert.isDefined(visit);
+        assert.isDefined(person);
+        if (visit === undefined || person === undefined) {
+            return;
+        }
+        assert.isAtLeast(
+            Math.hypot(visit.x - person.x, visit.y - person.y),
+            visit.radius + person.radius,
+            "V0 is drawn clear of P0",
+        );
+    });
+
     test("without hold the layout runs over the whole of After, as over any graph", async () => {
         const d = await drawn();
         const was = places(d.graph, PEOPLE);

@@ -661,6 +661,29 @@ function pairKey(a: NodeIdType, b: NodeIdType): string {
 }
 
 /**
+ * The rows of every edge joining two node rows in either direction (a self-loop's when they are one), read from a
+ * snapshot's arcs.
+ * @param snapshot - The snapshot.
+ * @param u - One node's row.
+ * @param v - The other's.
+ * @returns The edge rows.
+ */
+function snapshotRowsBetween(snapshot: GraphSnapshot, u: number, v: number): Set<number> {
+    const rows = new Set<number>();
+    for (const [from, to] of [
+        [u, v],
+        [v, u],
+    ]) {
+        const [lo, hi] = snapshot.arcsBetween(from, to);
+        for (let arc = lo; arc < hi; arc++) {
+            rows.add(snapshot.arcToEdge[arc]);
+        }
+    }
+
+    return rows;
+}
+
+/**
  * A map of render objects (`Node`s or `Edge`s) by id that also answers for the rows stored under
  * `"batched"` with no render object yet: it counts and finds them, and builds a row's object the
  * first time it is read, or every missing one when it is walked. The object is kept, so the same
@@ -3903,22 +3926,11 @@ export class DataManager implements Manager {
      * @returns The count.
      */
     private edgesJoining(u: number, v: number): number {
-        const rows = new Set<number>();
         if (this.store.builderRelease.released) {
-            const snapshot = this.getSnapshot();
-            for (const [from, to] of [
-                [u, v],
-                [v, u],
-            ]) {
-                const [lo, hi] = snapshot.arcsBetween(from, to);
-                for (let arc = lo; arc < hi; arc++) {
-                    rows.add(snapshot.arcToEdge[arc]);
-                }
-            }
-
-            return rows.size;
+            return snapshotRowsBetween(this.getSnapshot(), u, v).size;
         }
 
+        const rows = new Set<number>();
         const { builder } = this.store;
         for (const [from, to] of [
             [u, v],
@@ -4095,19 +4107,7 @@ export class DataManager implements Manager {
             return [];
         }
 
-        const rows = new Set<number>();
-        for (const [from, to] of u === v
-            ? [[u, v]]
-            : [
-                  [u, v],
-                  [v, u],
-              ]) {
-            const [lo, hi] = snapshot.arcsBetween(from, to);
-            for (let arc = lo; arc < hi; arc++) {
-                rows.add(snapshot.arcToEdge[arc]);
-            }
-        }
-
+        const rows = snapshotRowsBetween(snapshot, u, v);
         const built: Edge[] = [];
         const unbuilt: number[] = [];
         for (const row of rows) {

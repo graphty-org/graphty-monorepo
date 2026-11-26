@@ -350,8 +350,10 @@ export function GraphSettingsV2(): React.JSX.Element | null {
                                     "lighting",
                                     "Lighting",
                                     "R8",
-                                    // Four choices: grouped buttons, not a drop-down (owner's input rules).
+                                    // Four choices: grouped buttons, not a drop-down (owner's input rules). Stacked, as
+                                    // a Location's are: side by side on the sidebar row "Headlight" is cut to "Headligh".
                                     <SegmentsLine
+                                        vertical
                                         label="Lighting"
                                         options={LIGHTING_VALUES.map((value) => ({
                                             value,

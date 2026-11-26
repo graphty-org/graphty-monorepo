@@ -140,8 +140,9 @@ export const LABEL_RUBRIC: LabelRubric = {
     main: [
         { field: "enabled", name: "Show" },
         { field: "font", name: "Font", rule: "R13" },
-        // Bold, Italic, Underline and Strikethrough as a text editor's toggles (owner, 2026-11-23); Bold writes the
-        // weight, its one control (owner, 2026-11-24: one path to any control): no Weight number beside it.
+        // Bold, Italic, Underline and Strikethrough as a text editor's toggles (owner, 2026-11-23). Bold flips the weight
+        // between regular and bold; any other weight is the Letters group's Weight (owner, 2026-11-24: every style
+        // graphty-element has is editable), as a glyph's is.
         { field: "weight", name: "Style", rule: "R7t", toggles: ["italic", "underline", "strikethrough"] },
         { field: "location", name: "Location", rule: "R2" },
     ],
@@ -185,6 +186,7 @@ export const LABEL_RUBRIC: LabelRubric = {
             heading: "Letters",
             lines: [
                 { field: "size", name: "Unit", fullName: "Size unit", rule: "R8f", unit: SIZE_UNIT },
+                { field: "weight", name: "Weight", rule: "R5b" },
                 { field: "opacity", name: "Opacity" },
                 { field: "lineHeight", name: "Line height" },
                 { field: "rotation", name: "Rotation" },

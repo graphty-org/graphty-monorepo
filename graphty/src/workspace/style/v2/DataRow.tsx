@@ -82,8 +82,10 @@ type Find = "next" | "undrawn" | "missing";
 const NEW_GRAPH: DataEntry = { graph: { over: "edges", measure: "count" } };
 
 /**
- * The row's entries picker: a multi-pick of the node's columns and results, kept as a draft and written once on
- * Done (one undo step); Escape writes nothing. "Fixed" turns the thing back into fixed values; a Record's "Text"
+ * The row's entries picker: adds entries, a multi-pick of the node's columns and results not yet in the list, kept
+ * as a draft and written after the entries there on Done (one undo step); Escape writes nothing. It only adds: an
+ * entry's own Field picker changes which field it reads and its minus removes it, so each has one path (owner,
+ * 2026-11-25: "there should only be one path to any control"). "Fixed" turns the thing back into fixed values; a Record's "Text"
  * adds a fixed text entry and keeps the list open; "Calculate..." writes the draft with a new Graph value after it
  * and opens that value's Calculate pop-over.
  * @param props - Component props
@@ -115,17 +117,24 @@ function DataPicker({
 }>): React.JSX.Element {
     const { store } = useWorkspace();
     const spec = specOf(ctx, channel);
+    // The entries picked to add, not yet written.
     const [draft, setDraft] = useState<readonly DataEntry[] | null>(null);
-    const entries = draft ?? spec?.entries ?? [];
+    const held = spec?.entries ?? [];
+    const added = draft ?? [];
+    const entries = [...held, ...added];
+    // The columns and patterns already listed; a Graph value, Text or Value is never one of the picker's fields.
+    const inList = new Set(
+        held.filter((entry) => "field" in entry || "pattern" in entry).map((entry, at) => entryId(entry, at)),
+    );
     const record = channel === "node.recordData";
     return (
         <DataFieldPicker
             multiple
             defaultOpened={picking}
             label={`${title} data`}
-            fields={fieldsFor(ctx.session, channel, entries)}
-            values={entries.map((entry, at) => entryId(entry, at))}
-            shown={shownEntries(ctx, entries)}
+            fields={fieldsFor(ctx.session, channel, added).filter((field) => !inList.has(field.id))}
+            values={added.map((entry, at) => entryId(entry, at))}
+            shown={shownEntries(ctx, held)}
             actions={[
                 { id: "fixed", label: FIXED },
                 ...(record ? [{ id: "text", label: "Text", keepsOpen: true }] : []),
@@ -133,14 +142,14 @@ function DataPicker({
             ]}
             actionValue={spec === undefined && draft === null ? "fixed" : undefined}
             onChange={(checked) => {
-                setDraft(draftAfter(entries, checked));
+                setDraft(draftAfter(added, checked));
             }}
             onMatch={(query, except) => {
-                setDraft([...entries, except ? { pattern: query, except: true } : { pattern: query }]);
+                setDraft([...added, except ? { pattern: query, except: true } : { pattern: query }]);
             }}
             onAction={(id) => {
                 if (id === "text") {
-                    setDraft([...entries, { text: "Text" }]);
+                    setDraft([...added, { text: "Text" }]);
                     return;
                 }
                 setDraft(null);
@@ -157,8 +166,8 @@ function DataPicker({
                 }
             }}
             onDone={() => {
-                if (draft !== null) {
-                    writeSpec(ctx, channel, { ...spec, entries: draft }).catch(failed(store, title));
+                if (draft !== null && draft.length > 0) {
+                    writeSpec(ctx, channel, { ...spec, entries }).catch(failed(store, title));
                 }
                 setDraft(null);
             }}

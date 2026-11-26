@@ -753,7 +753,8 @@ export class RowScan {
         direction.scaleInPlace(1 / stretch);
 
         let best: RowHit | null = null;
-        for (const { row, near } of this.candidates(origin, direction).sort((a, b) => a.near - b.near)) {
+        const sorted = this.candidates(origin, direction).sort((a, b) => a.near - b.near);
+        for (const { row, near } of sorted) {
             if (best !== null && near / stretch > best.distance + STOP_PAST_BEST * (1 + Math.abs(best.distance))) {
                 break;
             }
@@ -764,6 +765,55 @@ export class RowScan {
                 (best === null || hit.distance < best.distance || (hit.distance === best.distance && row < best.row))
             ) {
                 best = { row, distance: hit.distance, point: hit.pickedPoint };
+            }
+        }
+
+        return best === null ? null : this.drawnLaterRow(best, sorted, stretch, root, rayFor);
+    }
+
+    /**
+     * {@link drawnLaterOver} among the rows: the hit of a row a file draws later (a higher `shape.drawOrder`, read off
+     * its source mesh) inside the slab of the nearest row, or the nearest row itself. Only a nearest row with a draw
+     * order looks again.
+     * @param nearest - The nearest row hit.
+     * @param sorted - The rows the ray reaches, nearest bound first.
+     * @param stretch - How the rows' space stretches the ray.
+     * @param root - {@link RowScan.rootMatrix}.
+     * @param rayFor - The ray Babylon would test a mesh with this world matrix against.
+     * @returns The hit to answer with.
+     */
+    private drawnLaterRow(
+        nearest: RowHit,
+        sorted: readonly { row: number; near: number }[],
+        stretch: number,
+        root: Matrix,
+        rayFor: (world: Matrix) => Ray,
+    ): RowHit {
+        const shape = this.shapeAt(nearest.row);
+        let order = drawOrderOf(shape?.drawnSourceMesh ?? null);
+        if (shape === undefined || order === undefined) {
+            return nearest;
+        }
+
+        const { m } = this.rowWorld(nearest.row, root, shape);
+        const depth = Math.hypot(m[8], m[9], m[10]);
+        const slab = 2 * shape.drawnSourceMesh.getBoundingInfo().boundingBox.extendSize.z * depth;
+        let best = nearest;
+        for (const { row, near } of sorted) {
+            if (near / stretch > nearest.distance + slab) {
+                break;
+            }
+
+            const drawn = this.shapeAt(row);
+            const rowOrder = drawOrderOf(drawn?.drawnSourceMesh ?? null);
+            if (rowOrder === undefined || rowOrder <= order) {
+                continue;
+            }
+
+            const hit = this.narrow(row, root, rayFor, drawn);
+            if (hit?.hit === true && hit.distance - nearest.distance <= slab) {
+                best = { row, distance: hit.distance, point: hit.pickedPoint };
+                order = rowOrder;
             }
         }
 

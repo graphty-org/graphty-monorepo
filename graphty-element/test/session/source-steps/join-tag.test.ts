@@ -77,4 +77,37 @@ describe("the join a step was written as", () => {
         });
         assert.deepStrictEqual(draft.steps()[at]?.join, join);
     });
+
+    it("a source taken out leaves the join's other steps without its matches", async () => {
+        const { session, accounts, ids, watch } = await opened();
+        const join: SourceJoinTag = {
+            id: "join-3",
+            matches: [
+                { a: { source: watch, field: "value" }, b: { source: ids, field: "phone" } },
+                { a: { source: ids, field: "account_id" }, b: { source: accounts } },
+            ],
+        };
+        const draft = session.data.draft();
+        draft.merge({ from: { source: ids, field: "account_id" }, into: { source: accounts }, join });
+        draft.merge({ from: { source: watch, field: "value" }, into: { source: ids, field: "phone" }, join });
+        await draft.commit();
+
+        const again = session.data.draft();
+        again.removeSource(watch, { adds: "remove" });
+        const left = again.steps().filter((row) => row.op !== "join.add");
+        assert.deepStrictEqual(
+            left.map((row) => row.join),
+            [{ id: "join-3", matches: [join.matches[1]] }],
+            "only the match the step still makes",
+        );
+        await again.commit();
+        const named = session.data
+            .steps()
+            .flatMap((row) => row.join?.matches ?? [])
+            .flatMap((match) => [match.a, match.b]);
+        assert.isFalse(
+            named.some((side) => "source" in side && side.source === watch),
+            "no match names the source taken out",
+        );
+    });
 });

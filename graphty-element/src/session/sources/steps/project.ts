@@ -13,7 +13,14 @@
 
 import type { EdgeId, NodeId } from "../../../catalog/types";
 import { GraphtyError } from "../../../errors/GraphtyError";
-import type { JoinRecord, JoinReduce, SourceExtractOptions, SourceLinkOptions, SourceStepAct } from "../../types";
+import type {
+    JoinRecord,
+    JoinReduce,
+    SourceExtractOptions,
+    SourceJoinMatch,
+    SourceLinkOptions,
+    SourceStepAct,
+} from "../../types";
 import { applyAct, extractOf, movedAfter, type StepsAct, withoutAddsOf, withoutStepAndAdds } from "./acts";
 import {
     build,
@@ -650,7 +657,29 @@ function withoutSource(prior: SourceSteps, id: string, adds: "keep" | "remove" =
             value = withoutStepAndAdds(value, at);
         }
     }
-    return value;
+    return { ...value, steps: value.steps.map((step) => withoutMatchesOf(step, id)) };
+}
+
+/**
+ * A step whose join no longer names a source: the join's matches reading it go, and a join left
+ * with none goes too, so the join reads as what its steps still make.
+ * @param step - The step.
+ * @param id - The source taken out.
+ * @returns The step, as it was when its join never named the source.
+ */
+function withoutMatchesOf(step: Step, id: string): Step {
+    const join = "join" in step ? step.join : undefined;
+    if (join === undefined) {
+        return step;
+    }
+    const names = (side: SourceJoinMatch["a"] | SourceJoinMatch["b"]): boolean =>
+        "source" in side && side.source === id;
+    const matches = join.matches.filter((match) => !names(match.a) && !names(match.b));
+    if (matches.length === join.matches.length) {
+        return step;
+    }
+    const { join: _gone, ...rest } = step;
+    return matches.length === 0 ? rest : { ...rest, join: { ...join, matches } };
 }
 
 /**

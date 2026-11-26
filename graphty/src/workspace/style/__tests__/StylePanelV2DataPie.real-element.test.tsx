@@ -216,15 +216,17 @@ describe("Style panel v2's data entries", () => {
         await userEvent.click(await screen.findByRole("combobox", { name: "Node pie data" }));
         const list = await screen.findByRole("listbox", { name: "Node pie data" });
         await userEvent.click(within(list).getByRole("option", { name: "Calculate..." }));
+        // Calculate opened from the picker is a draft: nothing is written and no undo step is added until Done.
+        const steps = session.history.position;
         const calculate = await beside("Calculate");
         await userEvent.click(within(calculate).getByText("Neighbors"));
-        await waitFor(() => {
-            const spec = written(session, layer, "node.pieData") as { entries: { graph?: { over: string } }[] };
-            assert.strictEqual(spec.entries[0].graph?.over, "neighbors");
-        });
         await userEvent.click(within(await beside("Calculate")).getByRole("combobox", { name: "Group by" }));
         const fields = await screen.findByRole("listbox", { name: "Group by" });
         await userEvent.click(within(fields).getByRole("option", { name: /^community\b/ }));
+        await session.styles.settled();
+        assert.isUndefined(written(session, layer, "node.pieData"), "nothing is written before Done");
+        assert.strictEqual(session.history.position, steps, "no undo step before Done");
+        await userEvent.click(within(await beside("Calculate")).getByRole("button", { name: "Done" }));
         await waitFor(() => {
             assert.deepEqual(written(session, layer, "node.pieData"), {
                 entries: [
@@ -238,8 +240,27 @@ describe("Style panel v2's data entries", () => {
                 ],
             });
         });
+        assert.strictEqual(session.history.position, steps + 1, "Done is one undo step");
         const merged = session.styles.explain({ node: "a" }).merged as Record<string, unknown>;
         assert.strictEqual(merged["node.pieSizes"], "0.5 0.5", "one blue neighbor, one red");
+    });
+
+    it("drops a Calculate opened from the picker on Escape, writing nothing", async () => {
+        const { session, layer } = await withAnimals();
+        const tab = await openStyle("Key people");
+        await plus(sectionOf(tab, "node-fill"), "fill", "Pie");
+        await userEvent.click(await screen.findByRole("combobox", { name: "Node pie data" }));
+        const list = await screen.findByRole("listbox", { name: "Node pie data" });
+        const steps = session.history.position;
+        await userEvent.click(within(list).getByRole("option", { name: "Calculate..." }));
+        await userEvent.click(within(await beside("Calculate")).getByText("Neighbors"));
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(document.querySelector('[data-beside-pop="Calculate"]'), "Calculate closed");
+        });
+        await session.styles.settled();
+        assert.isUndefined(written(session, layer, "node.pieData"), "Escape writes nothing");
+        assert.strictEqual(session.history.position, steps, "and adds no undo step");
     });
 
     it('opens an entry from its "...", renames a category from Colors, and draws a ring from its No values', async () => {

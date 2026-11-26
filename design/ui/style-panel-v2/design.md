@@ -661,7 +661,8 @@ thing's groups when it has more than one, and each opens a new pop-over.
   from the Models gallery), and a value mapped to none keeps the fallback shape. A value of the data is never
   fetched as a web address unless it is mapped to one. A pie's, chart's or record's
   entry is chosen on its line under the row (its field, Graph value, value or text) and nowhere else: its Entry
-  pop-over holds its kind and its other settings, and a new Graph value's Calculate opens from that line.
+  pop-over holds its kind and its other settings. "Calculate..." in the entries picker opens a new Graph value's
+  Calculate as a draft: it writes nothing until its Done (one undo step), and Escape or a click outside drops it.
 - **No button group opens menus (2026-11-24).** Picking a grouped button or a tab writes its value at once: it
   never opens a menu, a list, a picker or a pop-over. A choice that needs a pick (a model, a picture, a shader) is
   an entry in a drop-down, whose list may open the picker. The rules test clicks every grouped button in the

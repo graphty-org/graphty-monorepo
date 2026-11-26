@@ -410,7 +410,7 @@ The codes this format's import report can hold. They are also exported as `CSV_I
 - `E_CSV_UNCLOSED_QUOTE` (error): A quoted field is never closed. The import stops.
 - `E_CSV_QUOTE` (error): There is text after a closing quote, such as `"a"b`. Inside a quoted field, write a quote as two quotes. The import stops.
 - `W_CSV_NO_DATA_ROWS` (warning): A header and no data rows.
-- `W_DUPLICATE_NODE` (warning): A node table row repeating an id.
+- `W_DUPLICATE_NODE` (warning): A node table row repeating an id. Its values overwrite the earlier row's; when the id column was guessed from the values (`unnamed: "nodes"`), the row is left out instead, the first row's values stand, and the issue's `params.record` holds the row left out, by column name.
 - `W_ID_MERGED` (warning): Two different id cells became the same number because `ids` is "number", so their nodes were merged.
 - `W_CSV_COLUMN_MISSING` (warning): An explicitly named weight column the file does not have.
 - `W_ROLE_TAKEN` (warning): You read into a graph builder that already has an id, label or position attribute, so this file's one is kept as a plain attribute.

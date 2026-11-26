@@ -10,7 +10,6 @@ import { LabelsProvider } from "@graphty/compact-mantine";
 import {
     type Channel,
     type ChannelDescriptor,
-    type LabelLookId,
     MAIN_LABEL_ID,
     writeChannelList,
 } from "@graphty/graphty-element/catalog";
@@ -275,26 +274,6 @@ interface ThingRowOf {
     readonly entry?: { readonly id: string; readonly n: number };
 }
 
-/** What parts a "+" item's thing from the look it adds a label in: `label#card`. */
-const LOOK_SEP = "#";
-
-/**
- * The "+" items that add a label in a look (E196): Card, Dark, Pill and Callout after Label, as Label is offered.
- * @param ctx - the row.
- * @param label - Label's own "+" item.
- * @returns the items.
- */
-function lookOptions(ctx: RowContext, label: AddOption): AddOption[] {
-    const looks = kindGroupOf(ctx.side, "label")?.members.flatMap((member) =>
-        member.look === undefined || member.look.id === PLAIN_LOOK ? [] : [member],
-    );
-    return (looks ?? []).map((member) => ({
-        ...label,
-        key: `${label.key}${LOOK_SEP}${member.look?.id ?? ""}`,
-        label: member.plainName,
-    }));
-}
-
 /** What a waiting further label's key starts with: `label:@<id>`. */
 const ENTRY_WAIT = "label:@";
 
@@ -514,10 +493,11 @@ function ThingSection({
     // Things "+" added that the row does not set yet, waiting for their first value. Kept while the Node and Edge tabs
     // switch (which draws the sections anew), so a row "+" added and left empty stays until it is removed.
     const waitKey = `${ctx.row.join(",")}:${ctx.side}:${part.id}`;
-    const [waiting, setWaiting] = useState<readonly string[]>(() => WAITING.get(waitKey) ?? []);
+    const kept = waitingOf(ctx.session);
+    const [waiting, setWaiting] = useState<readonly string[]>(() => kept.get(waitKey) ?? []);
     useEffect(() => {
-        WAITING.set(waitKey, waiting);
-    }, [waitKey, waiting]);
+        kept.set(waitKey, waiting);
+    }, [kept, waitKey, waiting]);
     const [menu, setMenu] = useState(false);
     // The thing "+" just added whose pop-over or picker opens at once (a list, an image).
     const [opening, setOpening] = useState<string | undefined>(undefined);
@@ -567,10 +547,9 @@ function ThingSection({
             }),
         ),
     ];
-    // Label's "+" also adds a label in each look but the plain one, which Label adds (E196): never a Glyph.
-    const plus = groups.map((group) =>
-        group.flatMap((option) => (option.key === "label" ? [option, ...lookOptions(ctx, option)] : [option])),
-    );
+    // Card, Dark, Pill and Callout are presets of a label (owner, 2026-11-24), picked on its pop-over's Preset line,
+    // never items of "+": "+" adds a Label.
+    const plus = groups.map((group) => [...group]);
     // Above them, apart, the further labels already drawn: the row's own and those a layer beneath draws, to restyle
     // here (E263, E265). Each has a pencil, as it edits a label rather than adding one, and picking it opens its
     // pop-over.
@@ -600,7 +579,7 @@ function ThingSection({
     const fail = (error: unknown): void => {
         store.set({ notice: { message: failureWords("Label", "added", error), error: true } });
     };
-    const addsEntry = (thing: ThingSpec | undefined, look: LabelLookId | undefined): boolean => {
+    const addsEntry = (thing: ThingSpec | undefined): boolean => {
         if (thing?.id !== "label" || !shown.some((each) => each.thing === thing)) {
             return false;
         }
@@ -610,19 +589,8 @@ function ThingSection({
             return false;
         }
         setWaiting((now) => [...now, `${ENTRY_WAIT}${entry}`]);
-        // Its look is written at once, so its row shows its look while it waits for its source. A plain Label names
-        // the plain look: a further label naming none draws in the main label's, whatever that later becomes.
-        writeEntry(ctx, entry, { style: { look: look ?? PLAIN_LOOK } }).catch(fail);
-        return true;
-    };
-    // The first label in a look: its look is written, and its row waits for its source as Label's does.
-    const addsLook = (look: LabelLookId | undefined): boolean => {
-        const { style } = TEXT_THINGS[ctx.side].label;
-        if (look === undefined) {
-            return false;
-        }
-        setWaiting((now) => (now.includes("label") ? now : [...now, "label"]));
-        writeIn(ctx, style, { value: { look } }).catch(fail);
+        // A further Label names the plain preset: one naming none draws in the main label's, whatever that becomes.
+        writeEntry(ctx, entry, { style: { look: PLAIN_LOOK } }).catch(fail);
         return true;
     };
     // A label already drawn: its pop-over opens (the main label's on its row), and one a layer beneath draws gets
@@ -648,9 +616,8 @@ function ThingSection({
             editDrawn(id);
             return;
         }
-        const [thingId, look] = id.split(LOOK_SEP) as [string, LabelLookId | undefined];
-        const found = things.flat().find((each) => each.thing.id === thingId);
-        if (addsEntry(found?.thing, look) || addsLook(look)) {
+        const found = things.flat().find((each) => each.thing.id === id);
+        if (addsEntry(found?.thing)) {
             return;
         }
         const { free, main } = plusTarget(ctx, found, shown, waiting);
@@ -775,8 +742,26 @@ function ThingSection({
     );
 }
 
-/** Each section's waiting things, by row, kind and section, kept across the sections being drawn anew. */
-const WAITING = new Map<string, readonly string[]>();
+/**
+ * Each section's waiting things, by row, kind and section, kept across the sections being drawn anew. Kept per
+ * session: another project's layers reuse the same ids, and must not find this project's waiting rows.
+ */
+const WAITING = new WeakMap<object, Map<string, readonly string[]>>();
+
+/**
+ * A session's waiting things.
+ * @param session - the session.
+ * @returns its map, made on first use.
+ */
+function waitingOf(session: object): Map<string, readonly string[]> {
+    const found = WAITING.get(session);
+    if (found !== undefined) {
+        return found;
+    }
+    const made = new Map<string, readonly string[]>();
+    WAITING.set(session, made);
+    return made;
+}
 
 /**
  * One kind's Style panel v2 body: see the file header.

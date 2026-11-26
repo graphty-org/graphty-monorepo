@@ -246,7 +246,7 @@ export function settingsName(title: string | RegExp): RegExp {
  * basic Shape row draws one in the panel). A kind drawn as tabs or grouped buttons has no list: see `pickKind`.
  * @param row - the row (or a section holding one row with that settings button).
  * @param title - the row's name with its kind ("Node shape"), or its settings button's name.
- * @param name - the line's name: "Kind", "End" or "Look".
+ * @param name - the line's name: "Kind", "End" or "Preset".
  * @returns the open list.
  */
 export async function openKind(row: HTMLElement, title: string | RegExp, name = "Kind"): Promise<HTMLElement> {
@@ -328,7 +328,7 @@ export async function pickKind(row: HTMLElement, title: string | RegExp, kind: s
  * @returns the name.
  */
 function kindName(scope: HTMLElement): string {
-    return ["Kind", "End"].find((name) => within(scope).queryByRole("combobox", { name }) !== null) ?? "Look";
+    return ["Kind", "End"].find((name) => within(scope).queryByRole("combobox", { name }) !== null) ?? "Preset";
 }
 
 /**

@@ -93,17 +93,19 @@ Plate (Behind or Over), edge Arrow (Target, Source, Middle to target, Middle to 
 (Target or Source) and edge Outline (Under line or Over line). Tooltip and External label are kind groups too,
 whose kinds are the label looks. A kind group that holds one row per kind (Plate, Arrow, End caption, Outline)
 is one "+" item that adds the first free kind in that order, so a second "+" Arrow gives a Source arrow beside
-the Target one. Label is "many", so its kinds may repeat: its "+" lists each look as its own item (below), and
-each adds a new Label row of that kind. Glyph is never a "+" item: it is reached only from a Label row's Switch
+the Target one. Label is "many": its one "+" item adds a further Label row each time, and its
+preset is picked in its pop-over (below). Glyph is never a "+" item: it is reached only from a Label row's Switch
 to (E275, E276). A row's kind is changed from its Switch to (5).
 
-**A label's look is its kind** (E196: "the toggle between "Plain" and "Card" label must be removed and replaced
-with `+` having label or card"). There is no look select. The Label kinds Text, Card, Dark, Pill and Callout are
-graphty-element's label looks (`look` unset, `card`, `dark`, `pill`, `callout`); Glyph draws a character instead
-of text and has no look. The Text section's "+" offers each look directly: "Label" adds a Text label (`look`
-unset), "Card" a Card label, and so on, so the reader picks label or card from "+" (E196); Switch to changes a
-look afterwards. Tooltip, External label and End caption carry the same looks as kinds, Plain first (End
-caption's Switch to lists its ends, a divider, then its looks); "+" adds them Plain.
+**A label's look is a preset** (owner, 2026-11-24: "card, dark, pill, and callout are just presets. add a presets
+dropdown to the first level popout for labels"; this replaces E196's looks as "+" items). The Text section's "+"
+offers Label alone. The label's first pop-over has a Preset drop-down under its Text / Glyph tabs: Default, Card,
+Dark, Pill, Callout (graphty-element's `look`: `default`, `card`, `dark`, `pill`, `callout`), five choices that are
+a drop-down because the owner asked for one. Picking a preset writes `look` and nothing else, one undo step; the
+reader's own edits stay. A further label, a Tooltip, an External label and an End caption have the same Preset
+line. Glyph draws a character instead of text and has no preset line. The row is still named by its preset
+("Card"). Not built yet from tmp/formatted-string/final-design.md section 1: the Clear edits button and moving
+loose fields into an "Other settings" group.
 
 ### 2.4 Thing row
 
@@ -565,7 +567,8 @@ thing's groups when it has more than one, and each opens a new pop-over.
 - **Every input has a value.** An unset input shows its default: the value graphty-element would draw there
   (what the layers beneath draw, else graphty-element's default), in the normal text color. Never an empty
   field, a placeholder-only field, or a segment line with nothing selected. The minus still shows only when the
-  layer sets the value.
+  layer sets the value. A search box (a picker's "Find field", the panel's "Find a setting") holds no value of
+  the layer: it filters a list, so it starts empty with its placeholder (team decision, 2026-11-25).
 - **Slot order.** Every line reads `[control] [link or ...] [-]`, its name above it: the link or settings button right after
   its control on the same line, the minus the right-most icon. A list's "+" sits before the minus.
 - **Hover.** The link and settings buttons are hidden until the line is hovered, and also shown while focus is
@@ -616,8 +619,8 @@ thing's groups when it has more than one, and each opens a new pop-over.
 - **Drop-downs of fewer than six (2026-11-24).** Fewer than six exclusive options are grouped buttons wherever
   their words fit the line (a Finish's Shading: Smooth, Flat, Unlit, across the sidebar row under its name);
   where the words do not fit, icons, when every option has a common-knowledge icon. Three stay drop-downs, each
-  for its reason: a text's **Look** (Default, Card, Dark, Pill, Callout: about 260 px of words on a 200 px line,
-  and no common-knowledge icon for a card, a pill or a callout); an arrow's **End** (Target, Source, Middle to
+  for its reason: a label's **Preset** (the owner asked for a drop-down; Default, Card, Dark, Pill, Callout: about
+  260 px of words on a 200 px line, and no common-knowledge icon for a card, a pill or a callout); an arrow's **End** (Target, Source, Middle to
   target, Middle to source: "Middle to target" alone fills the line, and no common-knowledge icon for a middle
   end); an edge's **Force curves** (Barnes-Hut, ForceAtlas2: the names of two methods, about 180 px on a 176 px
   row, with no icon). A font is the font picker, not a drop-down.

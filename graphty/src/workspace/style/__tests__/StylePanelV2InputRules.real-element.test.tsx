@@ -144,8 +144,8 @@ const KNOWN_EDITED_TWICE: readonly string[] = [];
 
 /**
  * Pop-overs with a drop-down of fewer than six options, each kept with its reason recorded in design.md ("Drop-downs
- * of fewer than six"): a text's Look (five looks whose words do not fit grouped buttons on a 200 px line, and no
- * common-knowledge icon for a card, a pill or a callout); an arrow's End (four ends, "Middle to target" too long, no
+ * of fewer than six"): a label's Preset (the owner asked for a drop-down; five presets whose words do not fit
+ * grouped buttons on a 200 px line, and no common-knowledge icon for a card, a pill or a callout); an arrow's End (four ends, "Middle to target" too long, no
  * common-knowledge icon for a middle end); an edge's Force curves (Barnes-Hut and ForceAtlas2, names of methods too
  * long for buttons on the 176 px row, with no icon).
  */

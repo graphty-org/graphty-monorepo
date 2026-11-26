@@ -322,8 +322,8 @@ describe("Style panel v2's Text section", () => {
             return found;
         });
         assert.isTrue(within(strip).getByRole<HTMLInputElement>("radio", { name: "Text" }).checked, "Text is picked");
-        const look = await within(pop).findByRole("combobox", { name: "Look" });
-        assert.strictEqual(look.closest(".ws-member")?.querySelector(".cm-legend-text")?.textContent, "Look");
+        const look = await within(pop).findByRole("combobox", { name: "Preset" });
+        assert.strictEqual(look.closest(".ws-member")?.querySelector(".cm-legend-text")?.textContent, "Preset");
     });
 
     it("a Label with no source yet reads No words, never an empty source (owner's input rules)", async () => {

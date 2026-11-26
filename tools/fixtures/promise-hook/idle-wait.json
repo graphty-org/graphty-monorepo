@@ -1,0 +1,15 @@
+{
+    "session_id": "a67d7fa8-0000-4000-8000-000000000001",
+    "hook_event_name": "Stop",
+    "stop_hook_active": false,
+    "last_assistant_message": "Pushed; waiting for CI on PR 10129.\n\nRemaining: issues 10176 and 10177.",
+    "background_tasks": [
+        {
+            "id": "bw1",
+            "type": "shell",
+            "status": "running",
+            "description": "wait for checks"
+        }
+    ],
+    "session_crons": []
+}

@@ -93,6 +93,11 @@
                         "type": "command",
                         "command": "node \"$CLAUDE_PROJECT_DIR/tools/issue-round-idle-hook.mjs\"",
                         "timeout": 5
+                    },
+                    {
+                        "type": "command",
+                        "command": "node \"$CLAUDE_PROJECT_DIR/tools/claude-promise-hook.mjs\"",
+                        "timeout": 5
                     }
                 ]
             }

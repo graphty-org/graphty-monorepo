@@ -395,6 +395,10 @@ session, `/loop` included (tools/README.md, "Where a change takes effect").
 - Tell the owner when work is done locally, never only after CI or the merge (owner, 2026-11-14): once it is
   committed and its local checks pass, say what changed. A mock, story or new behavior he can see gets a running
   local URL and an `ACTION NEEDED` line to review it.
+- A promise of later work needs something running to keep it (a background agent, workflow or command, a cron, a
+  live round), recorded with `node tools/commitments.mjs add`; else say nothing is scheduled. Never end a turn only
+  to wait on CI or a PR: start the next independent item first. A Stop hook enforces both (tools/README.md,
+  "Promises").
 - Every session shares graphty-agent's 5,000 GitHub requests an hour: ask about many pull requests in one GraphQL
   query, read pull request status from the broker's `tmp/pr-status/status.json`, poll every 5 minutes or slower,
   and on a 403 rate limit stop and wait. A prompt that starts an agent which talks to GitHub carries these rules.

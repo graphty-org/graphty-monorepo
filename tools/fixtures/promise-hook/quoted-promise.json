@@ -1,0 +1,8 @@
+{
+    "session_id": "a67d7fa8-0000-4000-8000-000000000001",
+    "hook_event_name": "Stop",
+    "stop_hook_active": false,
+    "last_assistant_message": "The reply that caused this was:\n\n```\nthe routine that starts issue work will pick them up\n```\n\nThe hook now blocks that sentence.",
+    "background_tasks": [],
+    "session_crons": []
+}

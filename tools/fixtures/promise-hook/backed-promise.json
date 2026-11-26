@@ -1,0 +1,15 @@
+{
+    "session_id": "a67d7fa8-0000-4000-8000-000000000001",
+    "hook_event_name": "Stop",
+    "stop_hook_active": false,
+    "last_assistant_message": "Started the merge of master into the style branch. I'll report back when the background agent finishes.",
+    "background_tasks": [
+        {
+            "id": "a1b2c3",
+            "type": "agent",
+            "status": "running",
+            "description": "merge master into style branch"
+        }
+    ],
+    "session_crons": []
+}

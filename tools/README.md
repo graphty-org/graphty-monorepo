@@ -150,6 +150,8 @@ The `tools/` directory holds the build, test, CI and pipeline scripts. The ones 
 | `worktree-cleanup.mjs`              | Removes finished worktrees that pass every safety check (never by age); runs every 15 minutes under servherd                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `workspace-sync.mjs`                | Keeps the main checkout following master: under a lock, merges origin/master when `git merge-tree` says it is clean, aborts on any failure, records `tmp/workspace-sync.json`; `issue-groups.mjs check --fix` runs it every round                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `issue-round-idle-hook.mjs`         | Claude Code Stop hook: blocks the issue-round session while jobs are startable or a sink starves it, when it wrote no idle verdict in 35 minutes, and any round session whose /loop is 6 days old (with the CronCreate to renew it)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `claude-promise-hook.mjs`           | Claude Code Stop hook: blocks a reply that promises later work nothing running will keep, stale commitments, and ending a turn to wait on CI while work is open ("Promises")                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `commitments.mjs`                   | The commitments ledger (tmp/commitments/ledger.json): add, done, list and check promises of later work and what keeps each ("Promises")                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `loop-record-hook.mjs`              | Claude Code PostToolUse hook on CronCreate and CronDelete: records a round's /loop job in `tmp/<round>/loop-created`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
 ### Secret Scan and Secret Files
@@ -438,6 +440,41 @@ Several agents often work in this repository at once. They share one disk and on
   sleeps: a wait longer than about five minutes drops the prompt cache, so the next turn re-reads
   the whole conversation at full price. A subagent opens its own pull request with `tools/pr-open.sh`
   (it returns in seconds) and stops; it never waits for CI. A prompt that starts an agent carries this rule.
+
+### Promises
+
+Two habits cost the owner the most: a reply that says work will happen later ("the routine will pick them up",
+"when it merges I'll open the app's change") while nothing is running that will do it, and a turn that ends only to
+wait on CI while other work could start. `tools/claude-promise-hook.mjs`, a Stop hook in `.claude/settings.json`,
+blocks both, once per reply and at most once per 10 minutes per session, and never a subagent or a hook
+continuation.
+
+- **A promise needs a backer.** Before ending a reply that promises later work, start what will do it: a background
+  Agent, Workflow or Bash command, `CronCreate` or `ScheduleWakeup`, or `/loop 30m /issue-round`. Any running
+  background task of the session counts. A promise that names issue-round, pipeline-round or "the routine" needs
+  that round to have run in the last 75 minutes (`tmp/<round>/last-round`). Otherwise say plainly that nothing is
+  scheduled, with an `ACTION NEEDED` line if only the owner can do it.
+- **Record what outlives the turn** in the ledger, `tmp/commitments/ledger.json` in the main checkout:
+
+    ```sh
+    node tools/commitments.mjs add "merge master into the style branch" task:<task id>
+    node tools/commitments.mjs add "PR 10129 auto-merges" pr:10129
+    node tools/commitments.mjs add "fix issue 10176" next        # unblocked, not started yet
+    node tools/commitments.mjs list                              # this session's open entries
+    node tools/commitments.mjs check [--all] [--refresh]         # exit 1 when one is stale
+    node tools/commitments.mjs done <id>
+    ```
+
+    A backing is `task:<id>`, `pid:<n>`, `file:<path>` (written in the last 30 minutes), `cron:<id>`,
+    `round:<issue-round|pipeline-round>`, `servherd:<name>`, `pr:<n>` (open and not red, from
+    `tmp/pr-status/status.json`), `issue:<n>` (labeled in-progress; `check --refresh` reads GitHub once), `owner`, or
+    `todo`. Entries belong to `$CLAUDE_CODE_SESSION_ID` unless `--session` says otherwise. The hook blocks a session
+    while one of its entries is stale (a red or merged PR, a finished task): re-back it or mark it done.
+
+- **Wait in parallel.** A reply that ends to wait on CI, a PR, a merge or an agent is blocked when no background
+  agent or workflow is running and work is open: a `todo` entry, a fresh issue-round idle verdict with startable
+  jobs, or a reply that lists what remains. Start the next independent item in a background subagent, then stop.
+- Every block is logged in `tmp/promise-hook/log.jsonl`; review it for false alarms and fix the patterns.
 
 ### The GitHub API budget
 

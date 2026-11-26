@@ -6167,6 +6167,7 @@ export class Graph implements GraphContext {
         // Under "batched" it waits for the first object row's mesh: until a mesh has an action,
         // Babylon runs no pick on a move (design/rendering/row-renderer.md 4.4).
         const nodeRoster = nodePointerRosterOf(this.scene);
+        nodeRoster.hoverWhileDragging = () => this.styles.config.behavior.camera.hoverWhileDragging;
         if (!this.#batchesDraw()) {
             nodeActionManagerOf(this.scene);
         }

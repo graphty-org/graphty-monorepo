@@ -9,6 +9,7 @@ import { modelName, useModelPicture } from "../canvas/models";
 import { stylePanelV2On } from "../features";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { FieldHint } from "./fieldHint";
 import { ModelsPopover } from "./ModelsPopover";
 import { ValueListbox, type ValueSection } from "./parts/ValueListbox";
 import { ScrubSlots } from "./scrubSlots";
@@ -339,6 +340,7 @@ function ChoiceValueField(props: KindFieldProps): React.JSX.Element {
         sections,
         counts,
     } = props;
+    const hint = React.useContext(FieldHint);
     if (listbox !== undefined && descriptor.accepts === "enum" && model === undefined) {
         return (
             <ValueListbox
@@ -393,6 +395,7 @@ function ChoiceValueField(props: KindFieldProps): React.JSX.Element {
     }
     return (
         <PanelField
+            title={hint}
             label={name}
             kind="select"
             width="fill"
@@ -441,6 +444,7 @@ function TextValueField(props: KindFieldProps): React.JSX.Element {
             key={mixed ? "mixed-field" : words}
             kind="text"
             width="fill"
+            title={React.useContext(FieldHint)}
             label={label}
             defaultValue={start}
             placeholder={unsetWords === undefined ? placeholder : undefined}

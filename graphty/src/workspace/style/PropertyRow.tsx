@@ -22,6 +22,7 @@ import { count } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { BindingPopover } from "./BindingPopover";
 import { BulkBinding, type LayerSequence } from "./BulkBinding";
+import { FieldHint } from "./fieldHint";
 import { useAssetLine } from "./ModelField";
 import type { ValueSection } from "./parts/ValueListbox";
 import {
@@ -1059,6 +1060,7 @@ function TextValue({
             key={text}
             kind="text"
             width="fill"
+            title={React.useContext(FieldHint)}
             label={name}
             defaultValue={text}
             onBlur={(event) => {
@@ -1619,7 +1621,7 @@ export function Field({
                     title={thing?.hint}
                     data-notes={notes.length === 0 ? undefined : notes.join(" ")}
                 >
-                    {control}
+                    <FieldHint.Provider value={thing?.hint}>{control}</FieldHint.Provider>
                 </div>
                 {/* `[link or ...] [-]`: right after the control, the minus right-most (design "Input rules"). */}
                 <span className="ws-slot ws-vary">{thing?.slot ?? shownVary}</span>

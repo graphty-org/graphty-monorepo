@@ -5,11 +5,14 @@
  * ProgramSamples.real-element.test.tsx checks the app's drawing. program-samples.test.ts holds graph-io's reading
  * of these files to their own values.
  */
+// graph-io's published entries, not its source: graphty-element and the graphty app import this file, and a relative
+// import of src/ puts all of graph-io's source (and the sources' neo4j-driver and rxjs types) into their type-aware
+// lint, which ran ESLint's workers out of heap (#10142).
+import { createRegistry } from "@graphty/graph-io";
+import { extractPositions } from "@graphty/graph-io/positions";
+import { resolveStyles } from "@graphty/graph-io/styles";
 import { assert } from "vitest";
 
-import { createRegistry } from "../../src/index.js";
-import { extractPositions } from "../../src/positions/index.js";
-import { resolveStyles } from "../../src/styles/index.js";
 import type SAMPLES from "../corpus/programs/samples.json";
 import type { ArrowClass, LineStyle, ShapeClass } from "../fidelity/scene.js";
 

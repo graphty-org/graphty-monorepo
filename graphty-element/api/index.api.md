@@ -9709,6 +9709,8 @@ export class UpdateManager implements Manager {
     // @internal
     rowsRenumbered(): void;
     saveFraming(): () => void;
+    // @internal
+    spreadDraft: (() => void) | null;
     stepFrames(count: number): void;
     stopAutoZoomToFit(): void;
     syncStyles(budgetMs?: number): void;

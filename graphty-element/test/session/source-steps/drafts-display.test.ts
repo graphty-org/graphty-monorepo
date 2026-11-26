@@ -405,10 +405,12 @@ describe("source-steps drafts: drawing a draft", () => {
             session.styles.explain({ node: "A-9" }).merged["node.onTop"],
             "a new node is drawn on top in 3D too, where the edges meeting it would cover it",
         );
-        assert.notStrictEqual(
-            session.styles.explain({ node: "A-1" }).merged["node.onTop"],
-            true,
-            "a merged one is not",
+        // The graph the reader already has stays in sight over what a join adds, however many new nodes it adds.
+        assert.isTrue(session.styles.explain({ node: "A-1" }).merged["node.onTop"], "a merged node is on top too");
+        assert.isAbove(
+            Number(session.styles.explain({ node: "A-1" }).merged["node.drawOrder"]),
+            Number(session.styles.explain({ node: "A-9" }).merged["node.drawOrder"]),
+            "a node the graph holds is drawn in front of a new one",
         );
         assert.notStrictEqual(
             session.styles.explain({ node: "A-9" }).merged["node.sizeSpace"],

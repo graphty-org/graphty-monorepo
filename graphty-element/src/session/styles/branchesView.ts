@@ -283,7 +283,13 @@ const MARK_SCREEN_WIDTH = 3;
 const NEW_FILL = "#FFFFFF";
 
 /** A new node's draw order among other ordered nodes in 2D; `node.onTop` keeps it in front of the edges in 3D too. */
-const NEW_DRAW_ORDER = 100;
+const NEW_DRAW_ORDER = 50;
+
+/**
+ * A node the graph holds already: on top and in front of every new one, so the graph the reader has stays in sight
+ * however many nodes a join adds over it.
+ */
+const HELD_LOOK = { "node.onTop": true, "node.drawOrder": 100 } as const;
 
 /**
  * What a new node gets in a color: a dashed border round a hollow node, drawn in front of the edges.
@@ -443,6 +449,13 @@ export function draftLayers(
         ...(view.untouched === undefined
             ? []
             : idLayers("Untouched", ids({ untouched: true }), untouchedLook(view.untouched))),
+        {
+            name: "Held",
+            target: "node",
+            // every node, the cheapest selector: the New layer above draws a new node behind again
+            selector: { match: "everything" },
+            set: HELD_LOOK,
+        },
         { name: "Merged", target: "node", selector: marked("merged"), set: mergedLook(view.merged) },
         { name: "Merged", target: "edge", selector: marked("merged"), set: mergedEdgeLook(view.merged) },
         {

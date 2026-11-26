@@ -5505,17 +5505,26 @@ export class UpdateManager implements Manager {
     holdsMesh(node: Node): void {
         this.heldMeshes.set(node, true);
         this.sceneChanged = true;
-        // Before every render, a frame of the loop's or one drawn by hand: the loop's own pass does
-        // not run for a frame drawn by hand, and a consumer's change asks for no frame.
+        this.watchHandDrawnFrames();
+    }
+
+    /**
+     * Before every render, a frame of the loop's or one drawn by hand: the loop's own pass does not
+     * run for a frame drawn by hand, and a consumer's change asks for no frame. So a read mesh shown,
+     * hidden or moved, or a camera moved while the list is frozen, thaws it here. A frozen list
+     * recomputes no world matrix (`skipEvaluateActiveMeshes`), so a camera turned and drawn by hand
+     * drew every billboard, an outline's ring among them, at the old camera's angle.
+     */
+    private watchHandDrawnFrames(): void {
         this.watchingHeld ??= this.graphContext.getScene().onBeforeRenderObservable.add(() => {
-            if (this.heldMeshesChanged()) {
+            if (this.heldMeshesChanged() || (this.activeMeshesFrozen && this.cameraMoved())) {
                 this.sceneChanged = true;
                 this.thawActiveMeshes();
             }
         });
     }
 
-    /** What watches the read meshes, once a mesh has been read ({@link UpdateManager.holdsMesh}). */
+    /** What watches frames drawn by hand, once one could draw a stale list ({@link UpdateManager.watchHandDrawnFrames}). */
     private watchingHeld: Nullable<Observer<Scene>> = null;
 
     /**
@@ -5708,6 +5717,7 @@ export class UpdateManager implements Manager {
             // AND NO WORLD MATRIX IS RECOMPUTED WHILE FROZEN (`skipEvaluateActiveMeshes`). Babylon otherwise still
             // recomputes every listed mesh's world matrix each frame, about 15 ms a frame at 99,000 nodes, for a list
             // that is only frozen while nothing moves: whatever moves thaws it first (issue #10116).
+            this.watchHandDrawnFrames();
             const request = ++this.freezeRequest;
             scene.freezeActiveMeshes(true, () => {
                 if (request !== this.freezeRequest) {

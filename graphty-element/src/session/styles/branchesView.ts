@@ -251,6 +251,29 @@ function mergedLook(color: string): LayerSpec["set"] {
 }
 
 /**
+ * The ring of a node two listed steps merge, wider than one step's, so a later step that reaches only some of the
+ * nodes an earlier one merged (a watchlist after the identifiers) shows which, even in the same color.
+ */
+const MERGED_AGAIN_SCALE = 2;
+
+/**
+ * The nodes more than one of some steps merge.
+ * @param merged - Each step's merged elements, or null for none.
+ * @returns The nodes, as ids for {@link idLayers}.
+ */
+function mergedAgain(merged: readonly ({ readonly nodes: readonly NodeId[] } | null)[]): {
+    nodes: NodeId[];
+    edges: EdgeId[];
+} {
+    const seen = new Set<NodeId>();
+    const again = new Set<NodeId>();
+    for (const node of merged.flatMap((ids) => ids?.nodes ?? [])) {
+        (seen.has(node) ? again : seen).add(node);
+    }
+    return { nodes: [...again], edges: [] };
+}
+
+/**
  * A draft mark's border width in screen pixels: a border in node units is a pixel wide on a graph framed whole, and
  * a new node then looks like every other.
  */
@@ -259,7 +282,7 @@ const MARK_SCREEN_WIDTH = 3;
 /** A new node's fill: hollow, so it reads apart from the filled nodes where the edges it brings meet. */
 const NEW_FILL = "#FFFFFF";
 
-/** A new node's draw order: in front of the edges, which otherwise bury a node they all meet. */
+/** A new node's draw order among other ordered nodes in 2D; `node.onTop` keeps it in front of the edges in 3D too. */
 const NEW_DRAW_ORDER = 100;
 
 /**
@@ -271,6 +294,7 @@ function newNodeLook(color: string): LayerSpec["set"] {
     return {
         "node.color": NEW_FILL,
         "node.drawOrder": NEW_DRAW_ORDER,
+        "node.onTop": true,
         "node.borderColor": color,
         "node.borderStyle": "dashed",
         "node.borderWidth": 0.1,
@@ -327,7 +351,7 @@ function untouchedLook(color: string): LayerSpec["set"] {
  * The layers a draft view (`styles.showDraft`) draws, bottom first: the rest faint when asked, a
  * ring on each node the commit would merge and each edge it would fold a row into in that color, a
  * dashed border on each node it would add, and each edge it would add drawn dashed, read from `graphty.draft`; a dotted border on the untouched nodes;
- * each listed step's in its own color over those; what it would remove dashed and dimmed; the marked elements at full strength; the ghosts
+ * each listed step's in its own color over those, a node two listed steps merge ringed wider; what it would remove dashed and dimmed; the marked elements at full strength; the ghosts
  * drawn faint as under a branches view.
  * @param view - The colors.
  * @param stack - The stack as project state holds it now.
@@ -393,6 +417,11 @@ export function draftLayers(
             ),
         );
     }
+    specs.push(
+        ...idLayers("Merged", mergedAgain((view.steps ?? []).map(({ step }) => ids({ step, buckets: ["merged"] }))), {
+            "node.haloScale": MERGED_AGAIN_SCALE,
+        }),
+    );
     if (view.removed !== undefined) {
         specs.push(...removedLayers(view.removed));
     }

@@ -615,8 +615,9 @@ export interface StylesApi {
      * Draw a displayed source draft's join preview (`draft.display(true)`, under the `source-steps`
      * experiment): every layer of the stack is suspended (kept, listed, and not an undo step), as a
      * branches view suspends it; a ring is drawn on each node the commit would merge, a dashed
-     * border on each node it would add, and each edge it would add is drawn dashed, read from
-     * `graphty.draft`; with `removed`, what it would remove is marked while Before shows. The selection ring and the hover mark stay. It shares the one view with
+     * border round a hollow node, in front of the edges, on each node it would add, and each edge it
+     * would add is drawn dashed, read from `graphty.draft`; with `steps`, a node two listed steps
+     * merge gets a wider ring; with `removed`, what it would remove is marked while Before shows. The selection ring and the hover mark stay. It shares the one view with
      * `showBranches`: either call replaces the other's view, whose `end()` then does nothing. Not
      * a layer, not saved, and not a branches view (`showingBranches` stays false).
      * Experimental: may change or be removed in a minor release.

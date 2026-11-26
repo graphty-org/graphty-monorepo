@@ -328,3 +328,27 @@
 .dp[data-tabs] .dp-filter:is(:hover, :has(:focus-visible), :has([data-expanded])) .dp-filter-more {
     opacity: 1;
 }
+
+/* A waiting load's row in the server form (WaitingLoads in server/ServerForm.tsx). */
+.dp-source {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 28px;
+    padding-inline: 4px;
+    border-radius: 4px;
+}
+
+.dp-source-icon {
+    display: inline-flex;
+    flex: none;
+    color: var(--mantine-color-dimmed);
+}
+
+.dp-source-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

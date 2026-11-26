@@ -401,6 +401,15 @@ describe("source-steps drafts: drawing a draft", () => {
             0,
             "a new node is drawn in front of the edges",
         );
+        assert.isTrue(
+            session.styles.explain({ node: "A-9" }).merged["node.onTop"],
+            "a new node is drawn on top in 3D too, where the edges meeting it would cover it",
+        );
+        assert.notStrictEqual(
+            session.styles.explain({ node: "A-1" }).merged["node.onTop"],
+            true,
+            "a merged one is not",
+        );
         assert.isFalse(session.styles.showingBranches, "not a branches view");
         assert.strictEqual(session.styles.list(), layers, "the layer list is unchanged");
         assert.strictEqual(session.history.steps.length, steps, "no undo step");

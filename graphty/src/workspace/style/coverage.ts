@@ -69,6 +69,7 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.planar": NOT_PLACED,
     "node.zIndex": NOT_PLACED,
     "node.drawOrder": NOT_PLACED,
+    "node.onTop": NOT_PLACED,
     "node.borderColor": NOT_PLACED,
     "node.borderWidth": NOT_PLACED,
     "node.borderStyle": NOT_PLACED,

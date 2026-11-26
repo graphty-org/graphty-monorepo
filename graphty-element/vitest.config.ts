@@ -104,6 +104,8 @@ const MINIMUM_WORK_TESTS = [
     "test/browser/label-texture-uploads-once.test.ts",
     "test/browser/branches-view-scaling.test.ts",
     "test/browser/edges-follow-running-layout.test.ts",
+    "test/browser/edges-follow-through-a-transition.test.ts",
+    "test/browser/edges-follow-steps-mid-layout.test.ts",
 ];
 
 /**

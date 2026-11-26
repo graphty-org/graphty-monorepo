@@ -8,6 +8,13 @@ implements_capabilities:
     - link-prediction
 used_in_workflows:
     - W16
+    - W119
+    - W140
+    - W171
+    - W217
+    - W263
+    - W334
+    - W55
 dependencies:
     - slider
     - button

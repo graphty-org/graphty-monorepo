@@ -1,0 +1,20 @@
+id: map-time-sync
+name: Map View Synced to Time Window
+category: visualization
+description: "A map view that honors the time window: positions and events outside the window hidden or faded,
+    time-varying positions (cell sites, GPS fixes) move as the window plays, shown beside the network."
+status: planned
+notes: "Research trace: temporal-and-dynamic-networks.md section 11, requirement T23 (Should)."
+algorithms: []
+used_by_workflows:
+    - W305
+    - W311
+implemented_by_components: []
+requirements:
+    - "Should: Map view honors the time window: positions and events outside the window are hidden or faded, and
+      time-varying positions move as the window plays"
+sources:
+    - title: Temporal and Dynamic Network Data and Analysis (section 11, requirement T23)
+      url: design/user-research/temporal-and-dynamic-networks.md
+      summary: "Should in the research (the document says: Should for investigators and animal ecologists). Covered by
+          Designloom when researched: No"

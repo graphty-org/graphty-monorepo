@@ -96,6 +96,11 @@ class CountingEdge {
         this.updates += 1;
         this.placed = true;
     }
+
+    /** A selection change places the edge again; nothing is cached here to measure again. */
+    invalidatePositionCache(): void {
+        // Nothing cached.
+    }
 }
 
 /** The renderer over a session, and what it counts. */
@@ -148,6 +153,8 @@ async function sceneOf(overrides: Partial<ViewMasks> = {}): Promise<Scene> {
         nodeVersion: 0,
         edgeVersion: 0,
         drawHeld: false,
+        // The edge pass holds the store's direction setting while it places edges; this graph has no setting to hold.
+        store: { withSettingHeld: <T>(work: () => T): T => work() },
         supportPoints: {
             update: () => false,
             hasEdges: false,

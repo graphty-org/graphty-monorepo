@@ -42,7 +42,11 @@ node graphty/acceptance/run.mjs --only t39a,t46 # routes whose id starts with on
 node graphty/acceptance/run.mjs --workers 1     # one browser
 node graphty/acceptance/run.mjs --list          # the routes and their checks; runs nothing
 node graphty/acceptance/run.mjs --dist <dir>    # another build of the app
+node graphty/acceptance/run.mjs --features cosmograph  # the app opened with an experiment on: tmp/dry-run-cosmograph/
 ```
+
+`--features` opens the app with experiments on (`?features=...`). With `cosmograph` on, graphty-element draws
+with its batched render path, so the same routes walk that path too.
 
 `pnpm run check:quick --with-dry-run` runs the quick check, then builds the app and runs every route. When the
 quick check would run whole test shards (a change to root files), `pnpm exec nx run graphty:build` then
@@ -72,6 +76,53 @@ started while those are busy waits for them, and its report says how long.
 A route takes 2 to 6 seconds once its browser is up. The routes are spread over the browsers as
 each frees up.
 
+## On both render paths
+
+graphty-element draws a graph one of two ways: its default render path, one mesh per node and edge,
+and the batched path, which draws every node and edge from tables on the GPU. The app switches to the
+batched path only with its `cosmograph` experiment on (`?features=cosmograph`). The dry run, the canvas
+test below and the selection workspace's test all take `--features` to open the app with experiments
+on, and `compare-reports.mjs` puts two runs side by side: it prints each route or scenario whose result
+differs, with both reasons, and exits 1 when one does. A route that passes on the default path and fails
+on the batched one is a defect in graphty-element's batched path, fixed there.
+
+```bash
+node graphty/acceptance/run.mjs                          # tmp/dry-run/report.json
+node graphty/acceptance/run.mjs --features cosmograph    # tmp/dry-run-cosmograph/report.json
+node graphty/acceptance/compare-reports.mjs tmp/dry-run/report.json tmp/dry-run-cosmograph/report.json
+```
+
+`pnpm run check:quick --with-dry-run` does all of it: the routes both ways and compared, the canvas test
+both ways, and the selection workspace's test both ways (in Chromium) and compared. With the app built,
+the whole walk takes about ten minutes, most of it the selection workspace's matrix, so it runs before a
+pull request that reaches the app or graphty-element's batched path, not on every one.
+
+### Pointing at the canvas: `canvas-uat.mjs`
+
+A route may only click and type (the guard below), so pointing at what the element drew has its own
+test, `canvas-uat.mjs`. It walks the same build in the dry run's browser (on the
+NVIDIA card, holding a browser slot and the GPU slot), moves and clicks the real mouse, and reads
+graphty-element's public API in the page (`nodeScreenPosition`, `elementAt`, `session.selection`):
+
+```bash
+node graphty/acceptance/canvas-uat.mjs                          # the default render path: tmp/canvas-uat/
+node graphty/acceptance/canvas-uat.mjs --features cosmograph    # the batched render path: tmp/canvas-uat-cosmograph/
+node graphty/acceptance/canvas-uat.mjs --only c02               # scenarios whose id starts with this
+node graphty/acceptance/compare-reports.mjs tmp/canvas-uat/report.json tmp/canvas-uat-cosmograph/report.json
+```
+
+- `c01-point-at-nodes-and-an-edge`: hovers and clicks Valjean, Javert and Fantine in Les Miserables,
+  then an edge between its two nodes, and checks the hovered node and the selection after each.
+- `c02-edges-follow-an-animating-layout`: in the karate club, changes the layout to Circle with a glide,
+  and on every frame the nodes move checks that pointing between each edge's two drawn nodes finds that
+  edge or a node, as a hover or click there would.
+- `c03-edges-follow-a-running-force-layout`: the same while ForceAtlas2 runs.
+
+`elementAt` measures a straight edge from its two nodes' drawn centers, so the last two check picking
+during motion; a line drawn behind its moving nodes shows only in the canvas's pixels, which
+graphty-element's own in-motion tests read. It takes about 20 seconds a path, keeps each scenario's last
+screen beside its report, and exits 1 when a check failed.
+
 ## The selection workspace's acceptance test
 
 `selection-workspace-uat.mjs` tests the selection workspace, one screen in depth, where a route walks
@@ -86,7 +137,12 @@ tools/with-browser.sh node graphty/acceptance/selection-workspace-uat.mjs --url 
 tools/with-browser.sh node graphty/acceptance/selection-workspace-uat.mjs --dist graphty/dist --browser webkit
 tools/with-browser.sh node graphty/acceptance/selection-workspace-uat.mjs --url <url> --only m012,settings   # some scenarios, by id or words
 node graphty/acceptance/selection-workspace-uat.mjs --list                                                   # the matrix, nothing run
+tools/with-browser.sh node graphty/acceptance/selection-workspace-uat.mjs --dist graphty/dist --browser chromium \
+    --features cosmograph --report tmp/sw-batched.json                                                       # on the batched render path
 ```
+
+`--features` opens the app with experiments on (`cosmograph` draws with the batched render path), and
+`--report <file>` writes every scenario's result as JSON, for `compare-reports.mjs` beside a run without.
 
 It drives real clicks, drags and keys over a pairwise matrix of card kinds, verbs, starts, card shapes,
 entry points, datasets, edits and ways of leaving, then named scenarios (a slider's exact ends, settings
@@ -96,6 +152,30 @@ the drawing and what is saved. The matrix's rows run as a reader who prefers red
 is drawn once its layout settles, which is most of a row's CPU on a software GPU); the named scenarios
 keep every transition. It prints a table of results, exits 1 when a scenario failed, and keeps a
 failed scenario's screenshot under `--out` (default `tmp/selection-workspace-uat`).
+
+## Every route ends with a reload
+
+Once a route's checks pass, the runner reloads the page the way Safari brings back a background tab it
+ended: it waits for graphty-element's autosave to keep the work, empties session storage and
+`window.name`, reloads, and waits for the same screen. The screen is `screen-fingerprint.mjs`: open
+dialogs, lists and named regions, pressed buttons, selected tabs, tree items and options, the current
+item, expanded sections, and the values of the fields inside what is open. A menu or a picker's list held
+open over the page is left out: a reload closes it as a click elsewhere does. Anything gone or changed fails
+the route. The real-element tests' `reload()` (`src/test/reload.tsx`) reads the same fingerprint.
+
+A route with a loss that cannot be fixed yet names it, with the open issue that tracks it:
+
+```js
+reloadLoses: [{ what: "expanded: Fill", issue: 1234 }],
+```
+
+The run refuses to start when such an issue is closed, so an excuse cannot outlive its bug.
+
+The `reload-sweep` route (`reload-sweep.mjs`) needs no list at all: it opens a sample, adds a layer named
+"test", then clicks every enabled control it finds by role (button, tab, tree item, menu item, option,
+switch), and every control that click brought up, reloading after each. It fails once, listing every
+control whose reload changed the screen. It never clicks a control whose name says it opens, closes,
+deletes, saves, exports or undoes something.
 
 ## Adding a route
 
@@ -165,6 +245,8 @@ correctly and the drawing is still wrong is outside what the dry run can see.
 | `edgeLook(channel)`  | Each edge's drawn value: `"edge.color"`, `"edge.width"`                                              |
 | `nodes()`, `edges()` | Every record: its `id` and its columns                                                               |
 | `layers()`           | The style layers' names                                                                              |
+| `selection()`        | `{ hovered, nodes, edges }`: the node under the pointer and what is selected, as ids                 |
+| `recorded()`         | What the walk recorded in the page (`globalThis.acceptanceRecord`), for what happened mid-walk       |
 | `page`               | The page, for what is on screen: `g.page.getByRole("group", { name: "Highest" })`                    |
 
 The readers live in `readers.mjs`. Check the outcome itself, not that something happened: "exactly

@@ -1,0 +1,77 @@
+id: medicinal-chemistry-sar-analyst
+name: Medicinal Chemistry SAR Analyst
+roster_persona: biomedical-kg-analyst
+tier: B
+scope: in-scope
+role: Medicinal or Computational Chemist (lead optimization and hit triage)
+quote: Show me the molecules, not dots. Which small change bought a hundredfold in potency?
+bio: >-
+    Dr. Pavel Novak is a medicinal or computational chemist on a lead-optimization or hit-triage team. He has a series of
+    a few hundred to tens of thousands of tested compounds (SMILES or SDF with IDs and an activity column such as Ki or
+    IC50, converted to pKi or pIC50) from ChEMBL or the company assay database, and must decide which structural changes
+    to make next. Most of the time he reads compounds as tables and scatter plots in DataWarrior or KNIME; network views
+    are a minority use. When he does use one it is a chemical space network (edges where fingerprint similarity passes a
+    threshold), an activity cliff network (edges between near-identical pairs with a 100-fold potency gap) or a scaffold
+    tree (compounds under the ring systems they share), with nodes drawn as 2D structures and colored by potency. He
+    reads structures fluently and thinks in R-groups and scaffolds, but has low graph literacy; cheminformatician
+    colleagues script RDKit, NetworkX and ScaffoldGraph for him. He also opens GNPS molecular networks when a natural
+    products collaborator shares one. Network tools are secondary for him: DataWarrior, Scaffold Hunter and Cytoscape
+    with chemViz2 are the competitors.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: basic
+    domain_knowledge: advanced
+motivations:
+    - Find the chemical series that carry activity
+    - Spot activity cliffs where a small change gives a large potency jump
+    - Get an R-group table for the series worth pursuing
+    - Pick the next compounds to make
+behaviors:
+    - Pulls one target's compounds from ChEMBL or the assay database, averages duplicates and converts to pKi
+    - Computes pairwise Tanimoto similarity and picks a threshold by the edge density it produces (2 to 10 percent), not by a chemical rule
+    - Colors nodes by pKi in one-unit bins and redraws a component with each node replaced by its 2D structure
+    - Collapses cliff networks into matched molecular series and opens a selected series as an R-group table
+    - Walks a scaffold tree from enriched basic frameworks to decorated ones and down to molecules, checking inactives
+    - Uses DataWarrior's similarity map sized by SALI when a node-link drawing gets too dense
+goals:
+    - Series and cliffs identified
+    - R-group tables handed to the project team
+    - A compound network figure with structures and potency colors
+frustrations:
+    - Large cliff networks are difficult to navigate and dense clusters are essentially impossible to analyze interactively
+    - The similarity threshold changes the network's shape and has no obvious right value
+    - Structure images become unreadable beyond about 40 compounds per view
+    - Workflow tools lack an intuitive view of chemical space
+context:
+    frequency: monthly
+    devices:
+        - desktop
+    voluntary: true
+workflows:
+    - W265
+sources:
+    - title: Scalfani, Patel and Fernandez 2022 - Visualizing chemical space networks with RDKit and NetworkX
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC9798653/
+      summary: Open tutorial; 404 compounds, Tanimoto 0.68 for about 10 percent density, pKi color bins, structure-image nodes
+    - title: Hu and Bajorath 2020 - Activity cliff networks
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC7367913
+      summary: Matched molecular pair cliffs with delta pKi >= 2; reduction to matched molecular series; dense clusters hard to analyze
+    - title: Manelfi et al. 2021 - Molecular Anatomy
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8299179
+      summary: Scaffold frameworks scored by enrichment factor and navigated in Cytoscape with a hierarchical layout
+    - title: ScaffoldGraph
+      url: https://github.com/UCLCheminformatics/ScaffoldGraph
+      summary: Scaffold networks and trees from SMILES or SDF; 150,000 molecules in about 15 minutes
+    - title: DataWarrior chemistry help
+      url: https://openmolecules.org/help/chemistry.html
+      summary: Similarity and activity cliff analysis with SALI marker sizing; R-group decomposition
+    - title: chemViz2 for Cytoscape
+      url: https://www.rbvi.ucsf.edu/cytoscape/chemViz2/
+      summary: Create Similarity Network and Paint Structures on nodes
+    - title: Scaffold Hunter
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5425364
+      summary: Radial scaffold tree colored by property; workflow tools lack an intuitive chemical space view
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -66,6 +66,7 @@ export const STYLE_PROPERTIES: {
         ["labelWrapWidth", "number"],
         ["labelWrapTrailingSpace", "boolean"],
         ["labelWrapSkipEndSpace", "boolean"],
+        ["labelWrapUnkerned", "boolean"],
         ["labelWrapEllipsis", "boolean"],
         ["labelWrapAnywhere", "boolean"],
         ["labelWrapSpaceCount", "number"],

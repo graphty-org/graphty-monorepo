@@ -145,6 +145,7 @@ The `tools/` directory holds the build, test, CI and pipeline scripts. The ones 
 | `check-working-graph.mjs`           | The ratchet on readers that ignore the working graph: `graphty-element/working-graph-whole-readers.json`, the session readers that read the whole graph by the owner's agreement, may only shrink and every row names its case. `graphty-element/test/contracts/working-graph-readers.test.ts` reads the same file and proves every other reader reads the view                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `visual-preview.sh`                 | `<pr>`: captures a pull request's screenshots on this machine, so the owner can review them before CI's capture lands                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `claude-no-foreground-wait.mjs`     | Claude Code hook that refuses a foreground Bash wait (sleep loops, `watch`, `tail -f`, ...); run waits in the background                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `claude-no-questions-in-rounds.mjs` | Claude Code hook that refuses AskUserQuestion in a session running issue-round or pipeline-round, so a question never stops the loop                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `claude-owner-credential-guard.mjs` | Claude Code hook that refuses tool calls reading or using the owner's credentials                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `worktree-cleanup.mjs`              | Removes finished worktrees that pass every safety check (never by age); runs every 15 minutes under servherd                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `workspace-sync.mjs`                | Keeps the main checkout following master: under a lock, merges origin/master when `git merge-tree` says it is clean, aborts on any failure, records `tmp/workspace-sync.json`; `issue-groups.mjs check --fix` runs it every round                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
@@ -263,9 +264,9 @@ section). The packages without a CLAUDE.md:
 ### Coverage Thresholds
 
 At least 80% lines, functions and statements and 75% branches in every package; graph-format, graph-io,
-graph-samples, babylonjs-map, cytoscape-extensions, algorithms, layout, remote-logger and webgpu-graph-algorithms
-require 90% in all four. Every package is moving to 90 (issue #3043); a package's thresholds rise to 90 in the pull
-request that brings it there.
+graph-samples, babylonjs-map, babylonjs-models, cytoscape-extensions, algorithms, layout, remote-logger,
+webgpu-graph-algorithms and visual-review require 90% in all four. Every package is moving to 90 (issue #3043); a
+package's thresholds rise to 90 in the pull request that brings it there.
 
 ## Testing
 
@@ -349,6 +350,26 @@ closes or its entry expires (14 days at most).
 - **A consistent failure still blocks.** A test that fails on the retry too fails CI unless it is already
   quarantined. Never re-run hoping for a pass when a non-quarantined test failed: fix it.
 - `GRAPHTY_TEST_QUARANTINE=0` switches it off, for debugging only.
+
+## Load-time check
+
+The full run's Performance Benchmarks job times the graphty app's landing page and `<graphty-element>`'s load for the
+candidate and for what nightly.graphty.app serves, alternately on the same runner (`tools/load-time.mjs`, issue
+#9876). A row fails only when the candidate's median and minimum are both over x1.2 and 33 ms slower than nightly's,
+so a slower runner never fails it. `benchmarks/results/load-time.json` keeps the history per CPU model, for trends
+only.
+
+- **A red row is a slowdown since nightly.** Find the change and fix it. Never raise the threshold.
+- **Only the owner accepts a slowdown**, in `benchmarks/load-time-accepted.json` (an owner-only file; agents never
+  edit it), one entry per row: `{ "row": "app/graph settled", "commit": "<sha>", "ratio": 1.3, "reason": "..." }`,
+  the commit being the change or its merge. The row then passes, marked `accepted` with the reason, while the candidate contains the commit and
+  nightly does not, and only within x1.2 of nightly x the ratio. Once nightly holds the commit the entry stops
+  applying and can be deleted. This replaces re-pinning the results file.
+- **An entry counts only with the owner's proof**: its required `approval` field is the URL of a comment on an issue or
+  pull request of this repository (`.../issues/N#issuecomment-ID` or `.../pull/N#issuecomment-ID`) written by
+  `apowers313` and naming the row. The check reads the comment from the GitHub API on every run; an entry without one,
+  or whose comment is by someone else or does not name the row, is ignored with a message, and an API error fails the
+  check. Agents post as graphty-agent, so they cannot approve their own slowdown, and the owner never merges for it.
 
 ## Storybook
 
@@ -455,6 +476,25 @@ requests an hour, shared by everything acting as it. Until the limit resets, eve
 - **On a 403 "rate limit exceeded", stop and wait.** `gh api rate_limit` costs nothing and shows the reset
   time; when calls fail while it reports requests left (the secondary limit), retry every 10 minutes.
 - A prompt that starts an agent which talks to GitHub carries these rules.
+
+## Cloud routes
+
+Our cloud bills twice ran 5 to 10 times their estimates (2026-11): the estimates counted bytes stored, not rows
+read per call. So every new or changed route on a Cloudflare Worker or the AWS health API ships with:
+
+- **Its cap**, enforced in the service: a hard daily limit on requests and on the billed operations it causes (D1
+  rows, R2 Class A and B operations, DynamoDB reads and writes), set in config (`wrangler.toml` vars, or
+  `tools/pipeline-health/config/slas.json`). Past it the route answers 429. A Worker with only crons has no public
+  URL (`workers_dev = false`) instead.
+- **Its usage counter**: the cap's own count, cheap enough not to be a cost of its own (batched, never one storage
+  write per request), and a line on the health dashboard's measured usage.
+- **A rows-per-call bound**: every query has a `LIMIT` or reads by key, and its test checks the plan or the count.
+- **A caller that fails open on 429**: it carries on without the service (a cache miss, a skipped post), once, with
+  no retry loop.
+
+A cost estimate for a route states its calls per day and rows (or operations) per call, and multiplies them.
+`tools/nx-cache-worker/test/index.test.mjs` and `tools/release-scheduler/test/index.test.mjs` fail when a counted
+operation has no cap in `wrangler.toml`, or when the scheduler gains a URL or a cron.
 
 ## Design Documents
 

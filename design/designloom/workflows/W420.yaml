@@ -1,0 +1,115 @@
+id: W420
+name: Query-and-Expand Exploration of a Knowledge Graph in VR (Graph2VR)
+category: exploration
+validated: false
+personas:
+    - public-kg-explorer
+    - knowledge-engineer
+requires_capabilities:
+    - search
+    - neighborhood-expansion
+    - progressive-loading
+    - node-selection
+    - layout-force-directed
+    - layout-hierarchical
+    - details-on-demand
+    - pattern-search
+    - data-import
+    - immersive-xr-session
+    - xr-label-legibility
+suggested_components:
+    - search-input
+    - search-result-item
+    - context-menu
+    - slider
+    - graph-canvas
+    - layout-panel
+    - node-details-panel
+    - pattern-search-dialog
+starting_state:
+    data_type: SPARQL endpoint (local Virtuoso or public DBpedia) or N-Triples files
+    node_count: grows from one node; about 5,000 triples is the published standalone limit
+    edge_density: sparse, typed directed predicates
+    user_expertise: advanced
+goal: >-
+    **Intent**: Explore a linked-data knowledge graph in a headset by searching for a resource and expanding it one
+    predicate at a time, then build a query from what was found.
+
+
+    **Mental Model**: "Pull the thread you care about." The graph is too big to load; the user grows the part they need.
+
+
+    **Task Phases**:
+
+    1. **Put on the headset** - Standalone Quest 2 or a PC-tethered Vive; the app opens on the configured
+    endpoint, with others to switch to
+
+    2. **Start** - From a search result, or load an N-Triples file that adds to the scene; a saved state
+    replaces the scene
+
+    3. **Expand a node** (repeated) - A menu lists its incoming or outgoing predicates, grouped, each with its triple
+    count; choosing one adds up to 25 linked nodes by default, adjustable with a slider in fixed steps
+
+    4. **Pin** (as needed) - Take nodes out of the layout while still dragging them by hand
+
+    5. **Switch layouts** (as needed) - 3D force-directed, a simple 2D arrangement, a hierarchical view and a class
+    hierarchy
+
+    6. **Build a query visually** - Participants asked for undo, a query-building wizard, OPTIONAL and UNION,
+    and export of the query to a browser
+
+
+    **Decision Points**:
+
+    - Which predicate to expand next, given its triple count?
+
+    - How many linked nodes to add in one step?
+
+    - When to pin a node to keep it in place?
+
+
+    **Information Needs**:
+
+    - Per-predicate counts before expanding
+
+    - Readable labels for nodes and predicates at a distance
+
+    - The query that corresponds to what is on screen
+
+
+    **Pain Points**:
+
+    - Distant labels unreadable at headset resolution
+
+    - Flying too fast; dizziness or tiredness in 40 to 60 minute sessions
+
+    - No undo; the query cannot be taken to a browser
+
+    - Small filtered graphs showed no benefit from VR; malformed RDF exports and unlabeled identifiers had to be fixed first
+
+
+    **Data Flow**:
+
+    - Input: SPARQL endpoint or N-Triples files, saved states
+
+    - Transformations: Search, predicate expansion with limits, pinning, layout switching, visual query building
+
+    - Output: Saved state, a query (requested)
+success_criteria:
+    - metric: Expansion control
+      target: User sees counts before expanding and never adds more nodes than chosen
+    - metric: Frame rate
+      target: Stays comfortable as the graph grows toward the device budget
+sources:
+    - title: Graph2VR (Database journal)
+      url: https://academic.oup.com/database/article/7613396
+      summary: Design, expand-by-predicate with counts and a 25-node default, pinning, layouts, 34-participant evaluation
+    - title: Graph2VR repository
+      url: https://github.com/molgenis/Graph2VR
+      summary: Source and configuration of endpoints
+    - title: Kellmann et al. 2025 - Graph2VR with life-science knowledge graphs (Database journal)
+      url: https://academic.oup.com/database/article/doi/10.1093/database/baaf008/8138548
+      summary: Domain experts with bioinformatics knowledge, paired with a developer at the controls; cohort metadata, rare-disease variants, drug ontologies; about 5,000 nodes on a GTX 1060 and 17,000 at 14 fps on an RTX 4090
+version: 1.1.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

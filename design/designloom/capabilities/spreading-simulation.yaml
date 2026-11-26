@@ -1,0 +1,19 @@
+id: spreading-simulation
+name: Spreading Simulation
+category: analysis
+description: SI, SIR, SIS, threshold and cascade models with parameters, initial-node choice, many seeded realizations,
+    prevalence and final-size curves with spread, null comparison, and per-node replay of one run.
+status: planned
+notes: "Research trace: network-scientists-and-analysis-method-validity.md section 9, requirement R26 (Should)."
+algorithms: []
+used_by_workflows:
+    - W44
+    - W3050
+implemented_by_components: []
+requirements:
+    - "Should: Spreading simulation: SI, SIR, SIS, threshold and cascade models with parameters, seed-node choice, many
+      seeded realizations, prevalence curves with spread, a degree-preserving null comparison, animation of one run"
+sources:
+    - title: Network Scientists and the Validity of Core Analysis Methods (section 9, requirement R26)
+      url: design/user-research/network-scientists-and-analysis-method-validity.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

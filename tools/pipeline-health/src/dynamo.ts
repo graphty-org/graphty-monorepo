@@ -33,6 +33,21 @@ function conditionOf(
     return c.orNotExists ? `(#c ${op} :c OR attribute_not_exists(#c))` : `#c ${op} :c`;
 }
 
+/**
+ * Read capacity units this module's gets and queries consumed, for the public reads' daily budget (readMeter in
+ * model/raw.ts): a handler takes what its request spent with takeReadUnits().
+ */
+let readUnits = 0;
+/**
+ * The read units consumed since the last call.
+ * @returns the units, 0 when none
+ */
+export function takeReadUnits(): number {
+    const n = readUnits;
+    readUnits = 0;
+    return n;
+}
+
 const RETRY = new Set(["TransactionConflict", "ThrottlingError", "ProvisionedThroughputExceeded"]);
 const keyOf = (k: Key): Key => ({ pk: k.pk, sk: k.sk });
 const idOf = (k: Key): string => `${k.pk}\u0000${k.sk}`;
@@ -52,8 +67,14 @@ export function dynamoStore(
     return {
         async get(key) {
             const r = await client.send(
-                new GetCommand({ TableName: tableName, Key: keyOf(key), ConsistentRead: true }),
+                new GetCommand({
+                    TableName: tableName,
+                    Key: keyOf(key),
+                    ConsistentRead: true,
+                    ReturnConsumedCapacity: "TOTAL",
+                }),
             );
+            readUnits += r.ConsumedCapacity?.CapacityUnits ?? 0;
             return r.Item as Item | undefined;
         },
 
@@ -109,11 +130,13 @@ export function dynamoStore(
                         // a newest-first read is the results plan's history (handlers/results.ts): half the read cost
                         ConsistentRead: range.newest === undefined,
                         ExclusiveStartKey: start,
+                        ReturnConsumedCapacity: "TOTAL",
                         ...(range.newest === undefined
                             ? {}
                             : { ScanIndexForward: false, Limit: range.newest - out.length }),
                     }),
                 );
+                readUnits += r.ConsumedCapacity?.CapacityUnits ?? 0;
                 out.push(...((r.Items ?? []) as Item[]));
                 start = r.LastEvaluatedKey;
             } while (start && (range.newest === undefined || out.length < range.newest));

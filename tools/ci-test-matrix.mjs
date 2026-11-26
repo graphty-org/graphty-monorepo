@@ -41,14 +41,14 @@
  * SHARDS is also exported: tools/run-tests.sh imports it to run a shard locally with the exact
  * command CI runs, so the two cannot drift. Importing the file runs nothing.
  *
- * A shard's "local" field is what the pre-push gate (tools/prepush-tests.mjs) does with it; CI
- * ignores it and runs every shard of an affected package:
+ * A shard's "local" field is what a run on this machine does with it (tools/test-changed.mjs and
+ * tools/test-select-mutate.mjs skip "never"); CI ignores it and runs every shard of an affected package:
  *   "always" (the default)  run it whenever its package is affected
  *   "when-paths-change"     run it only when the push changes a file the shard tests: a test file
  *                           its vitest command selects (with its own --shard slice), a setup or
  *                           config file of those vitest projects, or a path in "local-paths"
  *                           (repo-relative; a trailing "/" means everything under it, test files
- *                           of the other shards excepted). The gate asks vitest for the first two.
+ *                           of the other shards excepted).
  *   "never"                 never run it locally
  */
 
@@ -240,7 +240,7 @@ const OFF_SHARDS = [
     // cytoscape-extensions - single shard (Node.js, headless Cytoscape); resolves the graphty packages through their dist.
     // --exclude-task-dependencies: its coverage target depends on build and ^build, and nx replays a cached build by
     // deleting that package's dist and copying it back, so the shard briefly removed graph-format/dist (and the rest)
-    // while the shards beside it in the pre-push gate were reading them (issue #2859: graphty's Vite dependency scan
+    // while shards running beside it on the same checkout were reading them (issue #2859: graphty's Vite dependency scan
     // failed on it, reloaded the browser page and lost a test file). The build step before the tests made them already.
     {
         shard: "cytoscape-extensions",
@@ -264,6 +264,15 @@ const OFF_SHARDS = [
         package: "cytoscape-extensions",
         "test-command":
             "cd cytoscape-extensions && pnpm exec vitest run --config vitest.storybook.config.ts --project=storybook",
+        "needs-browser": true,
+    },
+    // babylonjs-models' stories: every play function run as a test, the only browser tests of the package (its own
+    // unit tests run in Node). No coverage: graphty-element's browser tests measure the Babylon.js half.
+    {
+        shard: "babylonjs-models-storybook",
+        package: "babylonjs-models",
+        "test-command":
+            "cd babylonjs-models && pnpm exec vitest run --config vitest.storybook.config.ts --project=storybook",
         "needs-browser": true,
     },
     // algorithms - two shards (default and browser separated to avoid worker timeout)
@@ -312,7 +321,7 @@ const OFF_SHARDS = [
     // part's time is its real-element files, run one at a time (about 20 minutes each by 2026-11-09), so
     // graphty/test/story-shards.ts splits those by time rather than by vitest's path hash, which once gave
     // graphty-4 25 minutes of them and ran it into its deadline (#6373). Each part writes its coverage
-    // to its own .coverage-parts/<shard> (COVERAGE_DIR), so the parts' reports stay apart in the pre-push gate too; "coverage-file" says
+    // to its own .coverage-parts/<shard> (COVERAGE_DIR), so the parts' reports stay apart when they run side by side; "coverage-file" says
     // where for the upload. The On twins (tools/features-on.mjs) exist only under GRAPHTY_FEATURES_ON=1, which
     // these commands never set. The projects are named one by one because vitest runs a project that any one
     // --project matches, so a second "!name" would select the project the first one left out.
@@ -432,7 +441,7 @@ const OFF_SHARDS = [
         // Minutes of three engines for a change a pull request rarely makes: the 6-hour full run tests it
         // (design/ci/channels-pipeline/merging.md 4.1), never a pull request.
         "full-run-only": true,
-        // Never in the pre-push gate: it launches three engines for minutes, and WebKit needs system
+        // Never in a local run: it launches three engines for minutes, and WebKit needs system
         // packages a workstation may lack. Run it by hand with tools/run-tests.sh graphty-element-lifecycle.
         local: "never",
     },
@@ -474,7 +483,7 @@ const OFF_SHARDS = [
     ...Array.from({ length: ELEMENT_BROWSER_PARTS }, (_, i) => i + 1).map((n) => ({
         shard: `graphty-element-forced-batched-${n}`,
         package: "graphty-element",
-        "test-command": `cd graphty-element && pnpm exec vitest run --project=forced-batched --shard=${n}/${ELEMENT_BROWSER_PARTS} ${ELEMENT_REPORTERS}`,
+        "test-command": `cd graphty-element && pnpm exec vitest run --project=forced-batched --project=minimum-work-batched --shard=${n}/${ELEMENT_BROWSER_PARTS} ${ELEMENT_REPORTERS}`,
         "needs-browser": true,
         "pack-whole": false,
         // every oracle's rasterized PNG (about 48 MB, the fidelity slices' cached pull), since a glob of the
@@ -494,11 +503,26 @@ const OFF_SHARDS = [
     // all three engines in one job (tools/test-select.mjs parityBins(), #9274; a story added by a fix turned the full
     // run red, #9259). "story-ms": a story's three loads on that engine, with the run's start shared out: the full
     // run's Run tests step over its 391 stories (run 44799180458, 2026-11-20: 847, 1,443 and 409 s).
-    {
-        shard: "graphty-element-batched-webgpu",
+    // "batched-webgpu" is split in two (vitest --shard, by file count): as one job it ran 22 to 25 minutes of its
+    // 26-minute deadline (full runs 45337267625 and 45503798998), and with three more files and a runner a quarter
+    // slower it reached the deadline (#10085). On that slow runner each part holds about 12.5 minutes of files.
+    ...[1, 2].map((n) => ({
+        shard: `graphty-element-batched-webgpu-${n}`,
         package: "graphty-element",
-        "test-command": String.raw`cd graphty-element && GRAPHTY_BROWSER_GPU=swiftshader-unthrottled pnpm exec vitest run --project=forced-batched $(grep -rlE 'GRAPHTY_BROWSER_GPU|navigator\.gpu' test/browser test/interactions --include='*.test.ts' | grep -v '\.bench\.') ${ELEMENT_REPORTERS}`,
+        "test-command": String.raw`cd graphty-element && GRAPHTY_BROWSER_GPU=swiftshader-unthrottled pnpm exec vitest run --project=forced-batched --shard=${n}/2 $(grep -rlE 'GRAPHTY_BROWSER_GPU|navigator\.gpu' test/browser test/interactions --include='*.test.ts' | grep -v '\.bench\.') ${ELEMENT_REPORTERS}`,
         "needs-browser": true,
+        "full-run-only": true,
+        local: "never",
+    })),
+    // Hover, click and edges in motion in WebKit on both render paths (the "interactions-webkit" project: pick-parity's
+    // at-rest cases and edges-follow's ngraph and glide cases, with Playwright's mouse). Pictures alone are compared
+    // in WebKit by render-parity-webkit; this is where a WebKit-only pick or edge-follow failure shows. Full run only.
+    {
+        shard: "graphty-element-interactions-webkit",
+        package: "graphty-element",
+        "test-command": `cd graphty-element && pnpm run test:interactions-webkit ${ELEMENT_REPORTERS}`,
+        "needs-browser": true,
+        browsers: "chromium webkit",
         "full-run-only": true,
         local: "never",
     },
@@ -761,8 +785,8 @@ export function groupEntry(name, members) {
 
 /**
  * A shard's command as CI's test job runs it: through tools/results/run-group.mjs, which runs it through the
- * quarantine wrapper (tools/test-quarantine.mjs runShard()) as the pre-push gate does, so a flaky or quarantined
- * test fails neither (the checkout's tools/test-quarantine.json; the failed test files are run once more), and
+ * quarantine wrapper (tools/test-quarantine.mjs runShard()), so a flaky or quarantined
+ * test does not fail the shard (the checkout's tools/test-quarantine.json; the failed test files are run once more), and
  * then writes one record per try to the results store when RESULTS_URL is set. On unless
  * GRAPHTY_TEST_QUARANTINE=0, which CI does not set: then the wrapper only runs the command.
  * @param shard a SHARDS entry

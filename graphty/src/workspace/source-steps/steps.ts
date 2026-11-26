@@ -35,18 +35,13 @@ function busy(workspace: WorkspaceStore, session: GraphSession, retry: () => Pro
 }
 
 /**
- * The card's Repeats for a step's: an aggregate reads as Count or List when every column is
- * reduced that way, else the row the step keeps.
+ * The card's Repeats for a step's: the step's `repeated`, when it is one the card offers.
  * @param act - the step's act.
  * @returns the card's choice.
  */
 function repeatsOf(act: SourceStepAct): JoinRepeats {
-    const ways = new Set(Object.values(act.aggregate ?? {}));
-    const [way] = ways;
-    if (ways.size === 1 && (way === "count" || way === "list")) {
-        return way;
-    }
-    return act.repeated === "last" ? "last" : "first";
+    const { repeated } = act;
+    return repeated === "last" || repeated === "count" || repeated === "list" ? repeated : "first";
 }
 
 /**

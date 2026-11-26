@@ -1,0 +1,64 @@
+id: multilayer-network-3d-biologist
+name: Multilayer Network 3D Biologist
+roster_persona: biomedical-kg-analyst
+tier: B
+scope: in-scope
+role: Bioinformatician on a Drug-Repurposing Project
+quote: Proteins, processes and drugs are different kinds of things. Put them on separate layers and let me trace the drug's path through them.
+bio: >-
+    Dr. Eleni Kostas is a bioinformatician on a drug-repurposing project. She uses Cytoscape and stringApp every day,
+    but her story crosses kinds of entities: proteins, complexes, biological processes, viral proteins and drugs. She
+    sends networks from Cytoscape to Arena3Dweb through its Cytoscape app, choosing the column that defines layers, or
+    uploads a tab-delimited file of node, layer, connected node, connected layer and an optional weight. Published
+    examples run from 64 to about 1,600 nodes and the online service caps at 5,000. She arranges layers side by side,
+    zig-zag, star or cube, runs a layout per layer or across layers, clusters, sizes nodes by centrality, and highlights
+    one drug's path across layers for a "story-telling" figure. Occasionally she opens the static VR view on a phone or
+    a headset to show a collaborator. She saves a JSON session with 3D coordinates so a coauthor can reopen it.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: intermediate
+    domain_knowledge: advanced
+motivations:
+    - Show how a drug reaches a disease through proteins and processes in one figure
+    - Keep entity types visually separate without losing the edges between them
+    - Reuse the Cytoscape styling and coordinates she already built
+    - Give a coauthor a session file that reopens exactly as she left it
+behaviors:
+    - Builds the starting network in Cytoscape (for example a STITCH query for aspirin plus enriched diseases, tissues and pathways)
+    - Picks a node attribute as the layer column (up to 18 groups) and decides whether to keep unassigned nodes
+    - Rotates, translates, scales and spaces each layer by hand
+    - Runs one layout across several layers to align nodes and reduce inter-layer crossings
+    - Clusters with Louvain, Walktrap, Fast-Greedy or label propagation and sizes nodes by centrality
+    - Styles inter-layer edges separately from intra-layer edges and uses several edge channels as curves
+    - Switches to a light theme for publication figures and saves a JSON session
+frustrations:
+    - Inter-layer edges are hard to follow; in VR studies people put their head at an edge's start to see where it ends
+    - The VR view is static and only in the web version
+    - The 5,000-node online cap and a reported browser memory leak
+    - Nodes left unassigned when the layer column is empty
+    - Comparing layers is easier in 2D than in 3D, but she must build both
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+        - mobile
+    voluntary: true
+workflows:
+    - W413
+    - W417
+    - W418
+sources:
+    - title: Karatzas et al. 2021 - Arena3Dweb, interactive 3D visualization of multilayered networks
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8128064
+      summary: Input format, layer arrangements, per-layer and cross-layer layouts, 5,000-node cap, memory leak
+    - title: Kokoli et al. 2023 - Arena3Dweb update and Cytoscape app
+      url: https://escholarship.org/uc/item/19w7c52r
+      summary: Cytoscape bridge, up to 18 layer groups, edge channels, static VR view, light theme, JSON session
+    - title: Feyer et al. 2023 - multilayer network exploration in VR
+      url: https://arxiv.org/pdf/2307.10674
+      summary: 3D better for cross-layer paths in small networks, 2D better for layer comparison; participants wanted note-taking
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

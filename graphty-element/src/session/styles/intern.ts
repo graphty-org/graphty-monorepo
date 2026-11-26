@@ -368,6 +368,8 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.chartData": "content",
     "node.recordData": "content",
     "edge.labels": "content",
+    "edge.tooltip": "content",
+    "edge.tooltipStyle": "content",
     // A label field lands in its label style's column and is drawn with it.
     "node.labelColor": "content",
     "node.labelSize": "content",
@@ -378,6 +380,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.labelWrapWidth": "content",
     "node.labelWrapTrailingSpace": "content",
     "node.labelWrapSkipEndSpace": "content",
+    "node.labelWrapUnkerned": "content",
     "node.labelWrapEllipsis": "content",
     "node.labelWrapAnywhere": "content",
     "node.labelWrapSpaceCount": "content",
@@ -430,6 +433,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.labelWrapWidth": "content",
     "edge.labelWrapTrailingSpace": "content",
     "edge.labelWrapSkipEndSpace": "content",
+    "edge.labelWrapUnkerned": "content",
     "edge.labelWrapEllipsis": "content",
     "edge.labelWrapAnywhere": "content",
     "edge.labelWrapSpaceCount": "content",
@@ -440,6 +444,9 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.labelOnTop": "content",
     "edge.labelRotation": "content",
     "edge.labelBackground": "content",
+    "edge.tooltipSize": "content",
+    "edge.tooltipColor": "content",
+    "edge.tooltipBackground": "content",
     "edge.labelOutline": "content",
     "edge.labelOutlineWidth": "content",
     "edge.labelBorder": "content",
@@ -564,11 +571,6 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.xlabelLocation": "content",
     "edge.xlabelOffsetX": "content",
     "edge.xlabelOffsetY": "content",
-    "edge.tooltip": "content",
-    "edge.tooltipStyle": "content",
-    "edge.tooltipSize": "content",
-    "edge.tooltipColor": "content",
-    "edge.tooltipBackground": "content",
 });
 
 /**

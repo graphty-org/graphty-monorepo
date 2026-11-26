@@ -1,0 +1,20 @@
+id: shared-match-pair-import
+name: "Shared-match two-table import with vendor presets"
+category: data
+description: "Import a graph from two tables at once: a node table of DNA matches (identifier, display name, shared centimorgans, segments, predicted relationship, side, tree flag) and a pair table of matches who share DNA with each other, with per-vendor column presets (Ancestry, 23andMe, MyHeritage, FamilyTreeDNA, GEDmatch, DNAGedcom m_/icw_ files) so no header has to be renamed by hand before import. Today's tutorials require renaming matchid and icwid to source and target in a spreadsheet before Gephi will read the files."
+status: planned
+notes: "Research trace: genetic-genealogy-dna-match-networks.md section 10, table row 1 (Must)."
+algorithms: []
+used_by_workflows:
+    - W2096
+    - W2097
+    - W2099
+implemented_by_components: []
+requirements:
+    - "Must: Import two tables as one graph: a node table (matches, with shared cM) and a pair table (in-common-with),
+      with per-vendor column presets so headers need no renaming"
+sources:
+    - title: "Genetic Genealogists: DNA Shared-Match Networks and Clusters (section 10, table row 1)"
+      url: design/user-research/genetic-genealogy-dna-match-networks.md
+      summary: "Must in the research. Covered by Designloom when researched: Partial (columnar table import and a column
+          mapper exist; a two-table match import with vendor presets does not)"

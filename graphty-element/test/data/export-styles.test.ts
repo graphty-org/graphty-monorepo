@@ -55,6 +55,22 @@ async function chain(): Promise<GraphSession> {
     return session;
 }
 
+/** Node `n7` and the edges of kind `a` drawn hidden. */
+const HIDDEN: readonly LayerSpec[] = [
+    {
+        name: "hidden node",
+        target: "node",
+        selector: { match: "expression", where: "data.w == `8`" },
+        set: { "node.visible": false },
+    },
+    {
+        name: "hidden edge",
+        target: "edge",
+        selector: { match: "expression", where: "data.kind == 'a'" },
+        set: { "edge.visible": false },
+    },
+];
+
 /** A stack covering every kind of layer a file keeps as a layer, edge and node layers interleaved. */
 const STACK: readonly LayerSpec[] = [
     { name: "fixed", target: "node", selector: { match: "everything" }, set: { "node.color": "#ff8800" } },
@@ -127,7 +143,7 @@ const STACK: readonly LayerSpec[] = [
 ];
 
 /**
- * The chain with the stack above and node `n7` and edge `n2 -> n3` hidden.
+ * The chain with the stack above and node `n7` and the edges of kind `a` drawn hidden.
  * @returns The session.
  */
 async function styled(): Promise<GraphSession> {
@@ -136,13 +152,11 @@ async function styled(): Promise<GraphSession> {
         await session.styles.add(spec);
     }
 
-    await session.visibility.set({
-        kind: "all",
-        of: [
-            { kind: "not", of: { kind: "expression", where: "data.w == `8`" } },
-            { kind: "not", of: { kind: "edges", where: "data.source == 'n2'" } },
-        ],
-    });
+    // Hidden by style: a file's `visible: false` is a look, drawn hidden and kept in the graph (issue #9949).
+    for (const spec of HIDDEN) {
+        await session.styles.add(spec);
+    }
+
     return session;
 }
 

@@ -1,0 +1,169 @@
+id: W55
+name: Seed-based Literature Discovery, Snowballing and Citation Drill-down
+category: exploration
+validated: false
+personas:
+    - literature-discovery-researcher
+    - scientometrics-analyst
+requires_capabilities:
+    - data-import
+    - search
+    - neighborhood-expansion
+    - ego-network
+    - node-selection
+    - centrality-pagerank
+    - link-prediction
+    - community-detection
+    - visual-encoding-nodes
+    - details-on-demand
+    - tooltip-display
+    - saved-filters
+    - view-bookmarks
+    - data-export
+    - bibliographic-record-import
+    - attribute-axis-layout
+    - seed-expansion-and-screening
+suggested_components:
+    - search-input
+    - search-panel
+    - search-result-item
+    - ego-network-dialog
+    - graph-canvas
+    - node-details-panel
+    - node-tooltip
+    - ranked-node-table
+    - link-prediction-panel
+    - layout-panel
+    - visual-encoding-panel
+    - legend-panel
+    - bookmark-panel
+    - data-export-dialog
+starting_state:
+    data_type: One to ten seed papers (DOI, title or BibTeX) expanded through a scholarly API such as OpenAlex, Crossref or Semantic Scholar
+    node_count: a few dozen to a few hundred shown; 10,000-20,000 in a two-hop candidate set
+    edge_density: sparse
+    user_expertise: novice
+goal: >-
+    **Intent**: Start from a few known papers and find what else to read: similar papers, the seminal older papers they
+    share, the newer papers that build on them, and clusters of related work; keep a growing collection and export it
+    to a reference manager. For a systematic review, the same expansion is a decision process: snowball backward and
+    forward one iteration at a time, record an include or exclude decision for each candidate, and stop when an
+    iteration finds nothing new.
+
+
+    **Mental Model**: "Pull the thread." Each paper's references and citations are threads to pull; the graph shows where
+    threads converge. What an edge and a position mean differs by tool: similarity distance in Connected Papers,
+    attribute axes (year by citations) in Litmaps, ranked tables in Inciteful.
+
+
+    **Task Phases**:
+
+    1. **Enter seeds** - DOI, title, URL or a BibTeX or Zotero library; several seeds at once
+
+    2. **Expand** - Collect references and citations one or two hops out (Inciteful collects 10,000-20,000 papers
+    two hops out and stops at one hop above 150,000); compute similarity from co-citation and bibliographic coupling
+
+    3. **Read the graph** - Similarity graph (node size citations, color year, distance similarity) or an
+    attribute-axis map (x year, y citations; switch to momentum, connectivity or similarity); clusters of related work
+
+    4. **Read ranked lists** - Prior works (older papers most cited by the set, often seminal), derivative works
+    (newer papers citing many in the set, often surveys), PageRank and similarity tables
+
+    5. **Grow the collection** (iterated, weekly) - Click a node to make it a seed, or add papers from the lists; the
+    graph updates as the collection grows
+
+    6. **Export and monitor** - BibTeX or RIS into Zotero; rerun the expansion later and flag new papers
+
+    7. **Systematic variant: snowball** - For each included paper, screen references and citing papers
+    by title, context, abstract and full text; record include or exclude and the stage; one iteration at a time until
+    no new papers; report counts in the PRISMA flow diagram
+
+
+    **Decision Points**:
+
+    - Which seeds are diverse enough to cover every community of the topic?
+
+    - Which candidate is relevant enough to add to the collection, or to include in the review?
+
+    - When to stop expanding (saturation)?
+
+    - Which axis or similarity measure answers the current question (find reviews, find recent influential papers, find
+    subtopics)?
+
+
+    **Information Needs**:
+
+    - For each candidate: title, year, venue, citation count, abstract, and why it was suggested (cites which seeds, is
+    cited by which)
+
+    - Which candidates are already in the collection or already screened
+
+    - Counts per iteration and stage (examined, excluded by reason, included)
+
+    - How similarity is computed, in plain terms
+
+
+    **Pain Points**:
+
+    - Graph quotas (5 graphs a month, 2 maps with 100 articles) on free accounts
+
+    - Static graphs rebuilt from scratch as the collection grows
+
+    - Opaque similarity formulas and coverage gaps in the underlying database
+
+    - No place to log screening decisions next to the graph, so the log lives in a spreadsheet
+
+    - A tool redesign removed the network view users relied on
+
+
+    **Data Flow**:
+
+    - Input: Seed identifiers; reference and citation lists from a scholarly API
+
+    - Transformations: One- or two-hop citation expansion, co-citation and coupling similarity, PageRank, clustering,
+    attribute-axis or force layout, per-candidate decision log
+
+    - Output: Growing collection exported as BibTeX or RIS, screening log with counts per iteration, saved map to rerun
+success_criteria:
+    - metric: Time from seed to first useful suggestion
+      target: Under 2 minutes (design goal; no source measures it)
+    - metric: Incremental growth
+      target: Adding a seed extends the current graph in place without losing positions or prior decisions
+    - metric: Traceability
+      target: Every included paper shows which seed and iteration found it; PRISMA counts export as a table
+    - metric: Explainability
+      target: Each suggestion states which seeds it cites or is cited by
+sources:
+    - title: Connected Papers launch post
+      url: https://medium.com/connectedpapers/announcing-connected-papers-a-visual-tool-for-researchers-to-find-and-explore-academic-papers-89146a54c7d4
+      summary: Similarity from co-citation and coupling over about 50,000 analyzed papers; papers that never cite each other sit together
+    - title: HKUST library - Connected Papers
+      url: https://library.hkust.edu.hk/sc/connected-papers
+      summary: Node size, color and distance meanings; prior and derivative works lists; BibTeX export
+    - title: Connected Papers - premium accounts and multi-origin graphs
+      url: https://connectedpapers.substack.com/p/announcing-premium-accounts-multi-22-07-28
+      summary: 5 free graphs a month; multi-origin graphs
+    - title: Litmaps help - visualization and axes
+      url: https://docs.litmaps.com/en/articles/9181490-use-and-edit-litmaps-visualization
+      summary: Switchable axes and the purpose of each combination; dragged papers keep positions
+    - title: Litmaps help - Monitor
+      url: https://docs.litmaps.com/en/articles/9126249-monitor-get-alerts-for-important-research
+      summary: Scheduled reruns that email new papers
+    - title: Trinity University - ResearchRabbit papers
+      url: https://libguides.trinity.edu/researchrabbit/papers
+      summary: Collection-driven loop with similar, earlier and later work
+    - title: Inciteful - paper discovery explained
+      url: https://incitefulmed.com/academic/help/paper-disovery-explained
+      summary: Two-hop graph of 10,000-20,000 papers, PageRank and similarity tables with editable SQL
+    - title: Wohlin - Guidelines for snowballing in systematic literature studies
+      url: https://www.wohlin.eu/ease14.pdf
+      summary: Iterative backward and forward snowballing with per-stage decisions until saturation
+    - title: PRISMA 2020 and PRISMA-S common questions
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC9014944
+      summary: Citation searching counts in the flow diagram
+    - title: van Eck and Waltman - CitNetExplorer
+      url: https://arxiv.org/pdf/1404.5322
+      summary: Expert variant drilling down from millions of publications to about 100 by predecessors and successors
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

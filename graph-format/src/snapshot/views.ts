@@ -300,14 +300,25 @@ export function computeEdgeList(snapshot: GraphSnapshot): EdgeListView {
             }
         }
     }
-    let edgeWeights: F32 | null = null;
-    if (weights !== null) {
-        edgeWeights = new Float32Array(edgeCount);
-        for (let e = 0; e < edgeCount; e++) {
-            edgeWeights[e] = weights[edgeToArc[e]];
-        }
+    return edgeListViewOf(snapshot, src, dst, edgeWeightsOf(weights, edgeToArc, edgeCount));
+}
+
+/**
+ * Each edge's weight, gathered from the arc that holds it in its declared orientation.
+ * @param weights - the arc weights, or null when unweighted
+ * @param edgeToArc - the edge-to-arc permutation
+ * @param edgeCount - the edge count
+ * @returns the per-edge weights, or null when unweighted
+ */
+export function edgeWeightsOf(weights: F32 | null, edgeToArc: U32, edgeCount: number): F32 | null {
+    if (weights === null) {
+        return null;
     }
-    return edgeListViewOf(snapshot, src, dst, edgeWeights);
+    const edgeWeights = new Float32Array(edgeCount);
+    for (let e = 0; e < edgeCount; e++) {
+        edgeWeights[e] = weights[edgeToArc[e]];
+    }
+    return edgeWeights;
 }
 
 /**

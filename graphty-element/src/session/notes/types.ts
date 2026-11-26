@@ -311,6 +311,15 @@ export interface NotesApi {
     authors(): readonly string[];
     /** @returns The distinct tags of the session's notes, in the order of their first note. */
     tags(): readonly string[];
+    /**
+     * The form a note saves a target in, which a reload or another session resolves again: an edge
+     * named by its session id becomes its ends plus the file's edge id (or its position among the
+     * edges joining them); any other target comes back as given. Use it to keep a target across a
+     * page load, as a note being written is kept.
+     * @param target - The target, as `add` takes it.
+     * @returns The saved form, or undefined when it names an edge the graph does not hold.
+     */
+    savedTarget(target: NoteTargetInput): NoteTarget | undefined;
     /** @returns How many notes, and how many distinct nodes and edges in the graph have at least one. */
     counts(): {
         /** How many notes. */

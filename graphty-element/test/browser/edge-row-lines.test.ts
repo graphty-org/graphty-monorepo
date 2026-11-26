@@ -1,7 +1,8 @@
 /**
  * @file Under `renderPath: "batched"` an edge row with no `Edge` is drawn from its paint as a straight line
- * pulled from its two nodes' rows (`EdgeRowLines`), the picture the `Edge`'s own pulled line draws; a paint only
- * an `Edge` draws (a cap, a dash, a curve) is refused. The `"objects"` path has none. Stage 27 (lazy `Edge`) of
+ * pulled from its two nodes' rows (`EdgeRowLines`), the picture the `Edge`'s own pulled line draws, and a lone curve
+ * with no head as the `Edge`'s pulled curve draws it (issue #10046); a paint only an `Edge` draws (a tail, a zigzag, a
+ * raised route) is refused. The `"objects"` path has none. Stage 27 (lazy `Edge`) of
  * design/rendering/row-renderer.md.
  */
 
@@ -98,14 +99,48 @@ describe("an edge row with no Edge", () => {
         assert.equal(lines.count, 0);
     });
 
+    it("draws a lone curve as the Edge's pulled curve draws it", async () => {
+        const drawn = await loaded("batched", [{ src: 0, dst: 1 }]);
+        await drawn.session.styles.add({
+            name: "curves",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.curvature": true },
+        } as never);
+        await operationQueueOf(drawn.graph).waitForCompletion();
+        await drawn.waitForStableFrame();
+        const edge = edgeBetween(drawn.graph, 0, 1);
+        assert.isDefined(edge);
+        assert.isTrue(edge.isPulled, "the Edge's own curve is pulled");
+        const paint = drawn.graph.getStylePainter().edgePaint(edge.index);
+        assert.isNotNull(paint);
+        assert.isTrue(paint.style.line?.bezier, "the paint is a curve");
+        const want = await readCanvas(drawn.graph);
+        document.body.replaceChildren();
+
+        const bare = await loaded("batched", []);
+        const lines = bare.graph.getEdgeRowLines();
+        assert.isNotNull(lines);
+        assert.isTrue(lines.paintRow(0, rowOf(bare, 0), rowOf(bare, 1), paint), "a lone curve is drawn");
+        await bare.waitForStableFrame();
+        assert.deepEqual(lines.shownCurveRows(), [0], "drawn as a curve");
+        assert.equal(overBar(want, await readCanvas(bare.graph)), 0, "the same picture");
+
+        lines.unpaintRow(0);
+        assert.equal(lines.count, 0);
+        assert.deepEqual(lines.shownCurveRows(), [], "its curve is handed back");
+    });
+
     it("is refused for a paint only an Edge draws", async () => {
         const element = await loaded("batched", []);
         const lines = element.graph.getEdgeRowLines();
         assert.isNotNull(lines);
         const refused: EdgePaint["style"][] = [
-            { line: { color: "#ff0000" }, arrowHead: { type: "normal" } },
-            { line: { type: "dash" } },
-            { line: { bezier: true } },
+            { line: { color: "#ff0000" }, arrowTail: { type: "normal" } },
+            { line: { color: "#ff0000" }, arrowHead: { type: "normal", stack: "normal" } },
+            { line: { type: "zigzag" } },
+            { line: { bezier: true, route: "arc" } },
+            { line: { bezier: true, arcRadius: 1 } },
             { line: { width: 0 } },
             { line: { nodeGap: 1 } },
             { line: { animationSpeed: 1 } },
@@ -268,6 +303,19 @@ async function lazyLoaded(
     return element;
 }
 
+/**
+ * Draw every edge as a zigzag: a look only an `Edge` draws (pattern elements, `PatternedLineMesh`).
+ * @param element - The element.
+ */
+async function zigzag(element: Graphty): Promise<void> {
+    await element.session.styles.add({
+        name: "zigzag",
+        target: "edge",
+        selector: { match: "everything" },
+        set: { "edge.style": "zigzag" },
+    } as never);
+}
+
 // The frame's paint loop draws an edge stored with no `Edge` as a row line, and builds its `Edge` only for what a
 // row line does not draw.
 describe("an edge stored with no Edge", () => {
@@ -316,11 +364,11 @@ describe("an edge stored with no Edge", () => {
         scene.render();
         const read = engine.readPixels(0, 0, engine.getRenderWidth(), engine.getRenderHeight());
         engine.endFrame();
-        assert.equal(overBar(want, { pixels: (await read) as Uint8Array }), 0, "the same picture");
+        assert.equal(overBar(want, { ...want, pixels: (await read) as Uint8Array }), 0, "the same picture");
     });
 
     it("builds its Edge for a paint only an Edge draws", async () => {
-        const element = await lazyLoaded([{ src: 0, dst: 1 }], false);
+        const element = await lazyLoaded([{ src: 0, dst: 1 }], true, { before: zigzag });
         const lines = element.graph.getEdgeRowLines();
         assert.isNotNull(lines);
         assert.equal(lines.count, 0);
@@ -662,7 +710,8 @@ describe("an edge loaded with no switch", () => {
                 { src: 1, dst: 2 },
                 { src: 2, dst: 3 },
             ],
-            false,
+            true,
+            { before: zigzag },
         );
         const built = dataManagerInternals.edgesBuilt(element.graph.getDataManager());
         assert.equal(built, 3);

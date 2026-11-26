@@ -22,7 +22,7 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import type { Edge } from "../../src/Edge";
 import { ON_TOP_RENDERING_GROUP } from "../../src/meshes/RichTextLabel";
-import type { EdgeIdTarget } from "../../src/render/EdgeIdTarget";
+import type { EdgeCandidates, EdgeIdTarget } from "../../src/render/EdgeIdTarget";
 import { ID_NONE, ID_OBJECT, type IdPick, type NodeIdTarget } from "../../src/render/NodeIdTarget";
 import {
     edgePickWork,
@@ -540,7 +540,7 @@ describe("the edge test", () => {
             undefined,
             "with no target the ends are measured",
         );
-        let near: Edge[] | Promise<Edge[]> | null = null;
+        let near: EdgeCandidates | Promise<EdgeCandidates> | null = null;
         const target = { candidates: () => near } as unknown as EdgeIdTarget;
         useEdgeIdTarget(scene, target);
         const rowsBefore = edgePickWork.fromRows;
@@ -555,12 +555,12 @@ describe("the edge test", () => {
             "rows",
             "a target not ready walks all",
         );
-        near = [loose];
+        near = { edges: [loose], rows: [] };
         assert.isUndefined(
             hoverEdgeAt(scene, () => edges, CX, CY, toScreen),
             "only the edges near the point",
         );
-        near = Promise.resolve([fromRows]);
+        near = Promise.resolve({ edges: [fromRows], rows: [] });
         assert.strictEqual(await hoverEdgeAt(scene, () => edges, CX, CY, toScreen), "rows", "once read back");
 
         useEdgeIdTarget(scene, null);

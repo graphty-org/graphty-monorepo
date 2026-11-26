@@ -1,8 +1,7 @@
 /**
  * test-slots.mjs -- a machine-wide limit on how many test runs execute at once (issue #1316).
  *
- * Several sessions share one dev machine. Each pre-push gate runs several vitest shards side by side,
- * and agents run test suites of their own besides, so the machine ran two to four times more test
+ * Several sessions share one dev machine, each running test suites of its own, so the machine ran two to four times more test
  * work than it has cores and tests whose own work is a large part of their time limit failed at
  * random. Every vitest run therefore takes one of GRAPHTY_TEST_SLOTS slots before its tests start
  * (default: one per 8 of the machine's cores, at least 2 -- 4 on a 32-thread machine, whatever CPU
@@ -21,7 +20,7 @@
  *    in every package waits for a slot without anyone remembering to. Watch mode (an interactive
  *    developer) does not take one.
  *  - As a command wrapper: `node tools/test-slots.mjs <command...>` holds one slot for the whole
- *    command (tools/prepush-tests.mjs wraps each shard in it), so a command's several vitest runs
+ *    command, so a command's several vitest runs
  *    share one slot and its wait does not count against its time limit.
  *  - In process: a script that runs tests under a time limit of its own (webgpu-graph-algorithms'
  *    scripts/run-browser-project.js) awaits acquire() before it starts the clock and passes HELD on.
@@ -29,8 +28,8 @@
  * The GPU slot: `node tools/test-slots.mjs --gpu <command...>` holds the one machine-wide GPU slot
  * (<main checkout>/tmp/gpu-slots; this machine has one NVIDIA card) for the whole command INSTEAD of
  * a test slot, and marks the command's environment HELD so its vitest runs take no test slot either.
- * tools/prepush.sh runs its NVIDIA step that way, beside the CPU test shards: it waits on the card
- * for most of its run and uses under one core, so it should not keep a CPU test slot from them.
+ * A run on the NVIDIA card goes that way, beside the CPU test shards: it waits on the card for most
+ * of its run and uses under one core, so it should not keep a CPU test slot from them.
  *
  * The lint slot: `node tools/test-slots.mjs --lint <command...>` holds the one machine-wide lint slot
  * (<main checkout>/tmp/lint-slots) in its own queue, beside the test slots. graphty-element's lint
@@ -203,16 +202,36 @@ export function workerShare(env = process.env, cores = cpus().length, usable = a
 }
 
 /**
- * This run's own Vite cache directory when it runs as one shard of the pre-push gate, which runs
- * several shards of one package side by side in one checkout (tools/prepush-tests.mjs names each in
- * GRAPHTY_TEST_SHARD). Sharing one cache, every shard that finds it stale re-optimizes it at once
- * and deletes the chunks the others are loading (issue #3319). Set it as a vitest config's
- * `cacheDir`, at the root and on every inline project that does not extend the root.
+ * This run's own Vite cache directory, so runs side by side in one checkout never share one. Every
+ * browser config sets `optimizeDeps.force`, so each run deletes and re-bundles its dependencies when it
+ * starts; in one shared directory a second run starting deleted the chunks the first was still loading,
+ * and the first run's next test file failed with "Failed to fetch dynamically imported module"
+ * (issues #3319, #9956). With GRAPHTY_TEST_SHARD set it is that shard's directory; otherwise it is this
+ * process's, and the directories of runs no longer alive are removed here (not on exit: vitest already
+ * holds ten exit listeners, and an eleventh prints a MaxListenersExceededWarning). `force` re-bundles every run anyway, so a directory of its own costs nothing. Set it as a vitest
+ * config's `cacheDir`, at the root and on every inline project that does not extend the root.
  * @param env the environment (GRAPHTY_TEST_SHARD)
- * @returns node_modules/.vite/shard-<shard>, or undefined (Vite's own default) outside a gate shard
+ * @param pid this run's process
+ * @returns node_modules/.vite/shard-<shard>, or the absolute path of node_modules/.vite/run-<pid>
  */
-export function shardCacheDir(env = process.env) {
-    return env.GRAPHTY_TEST_SHARD ? `node_modules/.vite/shard-${env.GRAPHTY_TEST_SHARD}` : undefined;
+export function shardCacheDir(env = process.env, pid = process.pid) {
+    if (env.GRAPHTY_TEST_SHARD) {
+        return `node_modules/.vite/shard-${env.GRAPHTY_TEST_SHARD}`;
+    }
+    const parent = join(process.cwd(), "node_modules/.vite");
+    let names = [];
+    try {
+        names = readdirSync(parent);
+    } catch {
+        // No cache yet.
+    }
+    for (const name of names) {
+        const owner = /^run-(\d+)$/.exec(name)?.[1];
+        if (owner !== undefined && !alive({ pid: Number(owner), start: null })) {
+            rmSync(join(parent, name), { recursive: true, force: true });
+        }
+    }
+    return join(parent, `run-${pid}`);
 }
 
 /**

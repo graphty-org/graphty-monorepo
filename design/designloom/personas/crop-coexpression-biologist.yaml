@@ -1,0 +1,83 @@
+id: crop-coexpression-biologist
+name: Crop Co-expression Biologist
+roster_persona: genomics-cytoscape-user
+tier: A
+scope: in-scope
+role: Plant Molecular Biologist / Crop Geneticist (Stress Transcriptomics)
+quote: My wheat genes have TraesCS ids from one genome release, the GO terms come from another, and half my hub genes are only named because they have an Arabidopsis ortholog.
+bio: >-
+    Dr. Halima Duarte is a plant molecular biologist at an agricultural university studying drought and heat tolerance in
+    wheat, with side projects on sugarcane and maize. She runs RNA-seq on 18 to 36 samples (varieties by treatments by
+    replicates), maps reads to a reference genome release or assembles transcripts de novo when the crop has none, and
+    builds WGCNA co-expression networks of tens of thousands of genes. She correlates modules with traits, picks a
+    handful of hub genes and draws the module in Cytoscape for the paper. Her genomes are often polyploid and
+    non-model; her gene ids belong to one genome release (TraesCS, Zm00001eb, Sspon) or to her own assembly (Unigene,
+    MSTRG); her GO annotation is copied across releases or borrowed from Arabidopsis and rice orthologs; and STRING
+    covers some of her species and not others. She codes in R, follows the WGCNA tutorial closely, and runs enrichment
+    in agriGO or PlantRegMap.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: low
+    domain_knowledge: expert
+motivations:
+    - Find the co-expression modules that track a stress-tolerance trait and the hub genes worth validating or breeding for
+    - Name hub genes a reader recognizes, usually through their Arabidopsis or rice ortholog
+    - Run enrichment that works for a crop, with a background that matches the genes she measured
+    - Draw the trait module as a figure even when it holds thousands of genes
+    - Keep her gene ids valid when the genome annotation is updated
+behaviors:
+    - Maps reads to a reference such as IWGSC RefSeq v1.0 with v1.1 gene models, or assembles de novo for a crop with no reference
+    - Runs WGCNA blockwiseModules at the power the tutorial's scale-free fit suggests (10 to 16) and gets 20 to 80 modules
+    - Picks hubs by degree after keeping the top edges, by a weight cutoff, or by differential expression when the top-degree genes are not differentially expressed
+    - Copies GO terms across annotation releases by sequence identity, or borrows them from Arabidopsis orthologs
+    - Runs GO enrichment in agriGO or PlantRegMap with the filtered gene set as background
+    - Queries STRING with Arabidopsis orthologs when her crop is missing or poorly covered
+    - Exports modules with exportNetworkToCytoscape and sizes nodes by degree in Cytoscape
+frustrations:
+    - Gene ids and annotation belong to different genome releases and must be converted by hand
+    - Borrowed annotation covers only the genes with an ortholog, and the figure does not say how many that is
+    - Modules of about 2,000 genes or more do not load in Cytoscape and stay in R
+    - STRING has no entry for sugarcane, bamboo, birch or oil palm
+    - Every paper uses a different hub rule, so hub lists are hard to compare
+context:
+    frequency: monthly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W23
+    - W247
+    - W1126
+sources:
+    - title: Wheat landrace early drought co-expression network (Frontiers in Plant Science 2023)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10326901/
+      summary: 84,888 genes, 28 samples, power 16, 81 modules up to 19,380 genes; GO copied from RefSeq v1.0 to v1.1; agriGO; Cytoscape struggled with large modules
+    - title: Sugarcane drought co-expression hub genes
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10406934
+      summary: Sspon and MSTRG ids, power 10, top 100 edges, five highest-degree hubs, Cytoscape 3.7.2
+    - title: Sugarcane drought resistance hub genes (de novo transcriptome)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC12636891/
+      summary: Unigene ids, 132-gene module figure at weight above 0.25, BLAST and DIAMOND annotation, no PPI
+    - title: Wheat landrace heat stress hub genes (Frontiers in Plant Science)
+      url: https://doi.org/10.3389/fpls.2023.1252885
+      summary: Hub genes named with TraesCS...02G ids
+    - title: Wheat landrace thermotolerance hub genes (The Plant Journal 2023)
+      url: https://doi.org/10.1111/tpj.16248
+      summary: Hub genes named with TraesCS...01G ids
+    - title: PlantTFDB 4.0 (Nucleic Acids Research 2017)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5210657
+      summary: GO annotation for 165 species by orthology-based projection, coverage raised 9.1 times on average
+    - title: STRING v12.0 species list
+      url: https://stringdb-downloads.org/download/species.v12.0.txt
+      summary: Wheat, maize, rice and soybean listed as core; barley, sorghum, cotton as periphery; sugarcane absent
+    - title: CDPK gene family network with STRING via Arabidopsis
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11577866/
+      summary: Gene-family interaction network built in STRING with Arabidopsis as the reference plant, drawn in Cytoscape
+    - title: Ensembl Plants maize annotation
+      url: https://plants.ensembl.org/Zea_mays/Info/Annotation/
+      summary: B73 v4 gene models mapped to the v5 assembly through the ID History Converter
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

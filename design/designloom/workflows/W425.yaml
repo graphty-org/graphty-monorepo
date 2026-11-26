@@ -1,0 +1,158 @@
+id: W425
+name: Learn Causal Structure from Tabular Data with Tiers, Bootstrap and Averaging
+category: analysis
+validated: false
+personas:
+    - causal-discovery-researcher
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - algorithm-progress
+    - layout-hierarchical
+    - visual-encoding-edges
+    - filtering
+    - metric-histograms
+    - comparison-view
+    - details-on-demand
+    - legend-display
+    - analysis-history
+    - export-image
+    - data-export
+    - uncertainty-encoding
+    - causal-edge-marks
+    - structure-learning
+    - causal-model-formats
+suggested_components:
+    - data-import-dialog
+    - data-preview-table
+    - algorithm-panel
+    - progress-bar
+    - graph-canvas
+    - range-slider
+    - histogram
+    - data-table-panel
+    - comparison-view
+    - legend-panel
+    - analysis-history-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: tabular cohort or survey data (mixed types, several waves) plus background knowledge as tiers and forbidden or required arcs
+    node_count: 14-36 variables
+    edge_density: sparse to moderate
+    user_expertise: expert
+goal: >-
+    **Intent**: Learn a directed causal graph from data that respects the time order of measurement waves, measure how
+    stable each arc and each direction is across bootstrap resamples, average to one network above a threshold, and
+    compare it across algorithms, packages and subgroups.
+
+
+    **Mental Model**: "Which arrows survive resampling, and which directions are a coin flip?" The learned graph is a
+    distribution over graphs; the figure must show strength and direction confidence, not a single forced answer.
+
+
+    **Task Phases**:
+
+    1. **Prepare data** - Variables, waves and data type (Gaussian, discrete, conditional Gaussian); multiple imputation
+    or test-wise deletion for 1% to 60% missingness; the useR! example has 143 patients and 17 variables, the cohort
+    guide 5,000 rows and 34 variables in six tiers
+
+    2. **Encode knowledge** - Tiers (no later wave causes an earlier one) and forbidden or required arcs (bnlearn
+    tiers2blacklist plus a whitelist, tpc tiers, Tetrad's Knowledge box); Tetrad produced no output on the cohort
+    example without knowledge
+
+    3. **Learn** - Hill-climbing with whitelist and blacklist, or PC at alpha 0.01 with stable skeleton, majority-rule
+    orientation and conflict resolution; output is a DAG or a CPDAG or PAG with undirected or circle-marked edges
+
+    4. **Bootstrap** - 100 to 200 resamples give each pair a strength (arc frequency) and a direction (orientation
+    frequency given the arc); Tetrad shows an edge table and ensemble modes (highest, majority, preserved, threshold)
+
+    5. **Threshold** - Read the strength ECDF with its automatic threshold (0.585 in useR!) and raise it (0.85);
+    published rules include more than 50 of 100 runs, or 85% presence and 50% direction
+
+    6. **Average and plot** - averaged.network at the threshold; list undirected arcs; strength.plot with thickness by
+    strength and dashed arcs below threshold
+
+    7. **Compare** - Side-by-side graphs, true, false and missing arcs, structural Hamming distance and structural
+    intervention distance across packages, algorithms and subgroups (HBSC: SHD 143, SID 906 between genders)
+
+    8. **Use the graph** - Fit parameters, cross-validate, query, estimate intervention effects
+
+
+    **Decision Points**:
+
+    - Which algorithm and test fit the data types and missingness?
+
+    - Which tiers and required or forbidden arcs are defensible background knowledge?
+
+    - What strength and direction thresholds to publish?
+
+    - When packages disagree on an orientation, which one to report and how to show the disagreement?
+
+
+    **Information Needs**:
+
+    - Per-arc strength and direction frequency, on the edge and in a sortable table
+
+    - The distribution of arc strengths with the current threshold marked
+
+    - Which edges are directed, undirected, bidirected or circle-marked, visible without checking the adjacency matrix
+
+    - Tiers drawn as time bands so the background knowledge is visible in the figure
+
+    - Differences between two learned graphs (added, removed, reversed arcs) and their SHD
+
+
+    **Pain Points**:
+
+    - Packages disagree; p-value-based orientation conflict resolution has no theoretical justification
+
+    - Endpoint types are ambiguous in plots; users verify them in the adjacency matrix
+
+    - Static Graphviz plots: every threshold change means re-plotting
+
+    - Tetrad searches took 24 to 36 hours on 24 variables over two waves and missed required edges
+
+
+    **Data Flow**:
+
+    - Input: CSV or data frame of variables; tier assignment; blacklist and whitelist of arcs
+
+    - Transformations: Structure search, bootstrap resampling, arc strength and direction frequencies, thresholding,
+    model averaging, graph comparison
+
+    - Output: Averaged network with strength-encoded edges, arc table (from, to, strength, direction), comparison
+    figures, SHD and SID, graph file for downstream fitting
+success_criteria:
+    - metric: Threshold exploration
+      target: Changing the strength threshold updates the drawn graph without re-running or re-plotting
+    - metric: Endpoint clarity
+      target: User can identify every undirected, bidirected and circle-marked edge from the figure alone
+    - metric: Comparison
+      target: Added, removed and reversed arcs between two graphs are visible in one view with SHD reported
+sources:
+    - title: bnlearn useR! 2019 tutorial
+      url: https://www.bnlearn.com/examples/useR19-tutorial/
+      summary: 143 patients and 17 variables, boot.strength with 200 resamples, ECDF threshold 0.585 raised to 0.85
+    - title: bnlearn strength.plot example
+      url: https://www.bnlearn.com/examples/strength-plot/
+      summary: Thickness by strength, dashed arcs below threshold
+    - title: Causal discovery with cohort data
+      url: https://arxiv.org/html/2108.13395v3
+      summary: Six tiers, pcalg options, adjacency-matrix checks, Tetrad 24-36 hours and missed required edges
+    - title: HBSC causal discovery tutorial
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC12904928/
+      summary: Edges kept in more than 50 of 100 runs; SHD 143 and SID 906 between genders
+    - title: Tetrad manual - bootstrapping
+      url: https://tetrad-manual.readthedocs.io/en/latest/tetrad-interface/detail-callouts/detail-bootstrapping.html
+      summary: Edge and orientation frequency table and ensemble display modes
+    - title: Tetrad manual - knowledge box
+      url: https://tetrad-manual.readthedocs.io/en/latest/tetrad-interface/box-by-box/knowledge-box.html
+      summary: Tiers and required or forbidden edges
+    - title: CausalNex tutorial
+      url: https://causalnex.readthedocs.io/en/0.4.2/03_tutorial/03_tutorial.html
+      summary: Python variant with NOTEARS, threshold pruning and tabu edges
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,66 @@
+id: hospital-infection-preventionist
+name: Hospital Infection Preventionist
+roster_persona: public-health-cluster-epidemiologist
+tier: B
+scope: in-scope
+role: Infection Preventionist and Healthcare Epidemiologist, Hospital Group
+quote: Which of these patients were on the same ward on the same day, and which sink do I swab first?
+bio: >-
+    Efua Mensah investigates clusters of carbapenemase-producing Enterobacterales, Clostridioides difficile, Candida
+    auris and vancomycin-resistant Enterococcus across wards, and with the health department across facilities. Her raw
+    material is an electronic health record export of patient admission, discharge and transfer history, one row per
+    stay per ward with start and end times, joined to microbiology results and to a genomics partner's trees and
+    plasmid analyses. The analysis and the drawing are usually done in Cytoscape, either by her or by the partner.
+    Scale is modest in nodes and awkward in structure: a London investigation covered 116 cases across five hospitals
+    over three and a half years and produced 96 contact pairs among 77 of them, and a Manchester study of the same
+    organism class sampled 349 wastewater sites and 1,247 patients across six wards. Her decisions are concrete: which
+    patients overlapped where and when, which wards and which sink or drain sites to sample, and which facilities to
+    alert when a patient has moved on.
+characteristics:
+    expertise: intermediate
+    time_pressure: high
+    graph_literacy: beginner
+    domain_knowledge: advanced
+motivations:
+    - Find the ward and the week where transmission actually happened, not just the list of positive patients
+    - Decide where to sample the environment with a limited number of swabs
+    - Alert the facilities a colonized patient has visited, before the next admission
+    - Show the group an explanation of the cluster that survives questioning
+    - Catch spread that crosses species boundaries, which a single-species outbreak definition would discard
+behaviors:
+    - Starts from interval data: one row per stay with a ward, an admission time and a discharge time
+    - Derives contact edges from overlap, linking two patients present on the same ward on the same day, then aggregates repeated overlaps into a weighted edge by time shared
+    - Runs community detection on the contact network to break it into investigable groups (a Walktrap run split 96 contact pairs into 12 clusters, the largest holding 45 patients with 7 subclusters)
+    - Overlays species, strain and plasmid lineage on the same nodes rather than drawing a separate picture per organism
+    - Reads weighted contact concentration to pick a hospital and a ward to sample (one hospital held about 72% of weighted contacts)
+    - Links patients to environmental sites through an anonymized ward-movement database
+    - Builds a facility-level network for regional spread, where an edge counts patients who visited both facilities in a window
+    - Works with the health department and a genomics partner, so files move between three organizations
+frustrations:
+    - A conventional same-species outbreak definition caught only 5 of 116 cases, and 57 of 96 contact episodes involved two different species
+    - Ward overlap is a time calculation that spreadsheets make painful and most network tools do not do at all
+    - The genomics partner returns a tree; she needs it on the same nodes as the ward contacts
+    - Environmental results arrive as site lists (shower, bath, sluice, mop sites were the most often positive, 101 of 349) with no link to patients except through movement data
+    - Desktop network software is not something she or her team can use unaided, so the picture depends on whoever has it installed
+    - Patient movement data is identifiable, so nothing can be uploaded to a hosted service
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: false
+workflows:
+    - W71
+sources:
+    - title: Wan et al., plasmid-level analysis of an IMP-producing Enterobacterales outbreak (Journal of Infectious Diseases 2024)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11272044/
+      summary: 116 cases across five hospitals, same-ward same-day contact edges giving 96 pairs among 77 cases, Walktrap into 12 clusters in Cytoscape 3.10.1, three plasmid lineages crossing species, only 5 of 116 cases meeting the conventional definition
+    - title: Wastewater site sampling and patient linkage for carbapenemase-producing organisms (JAC-Antimicrobial Resistance 2024)
+      url: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC11369815/
+      summary: 349 wastewater sites and 1,247 patients across six wards, patients linked to sites through an anonymized ward-movement database, 101 of 349 sites positive
+    - title: Ray et al., patient-sharing networks between healthcare facilities (Clinical Infectious Diseases 2016)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8376187
+      summary: A facility network built from a quarter of statewide discharge data across 185 hospitals; higher degree centrality predicted higher carbapenem-resistant Enterobacteriaceae rates, used to decide which facilities to alert
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

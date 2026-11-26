@@ -84,8 +84,9 @@ export class CircularLayout extends SnapshotLayoutEngine {
      * @returns the coordinates, in scene units
      */
     protected compute(input: SnapshotLayoutInput): F32 {
+        // reads only the node count: the stored graph has the same rows, and is not made undirected for it
         return sceneUnits(
-            circular(input.graph, {
+            circular(input.stored, {
                 scale: this.config.scale,
                 center: this.config.center ?? undefined,
                 dim: layoutDim(this.config.dim),

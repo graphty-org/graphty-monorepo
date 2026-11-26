@@ -274,6 +274,11 @@ export interface LabelStyle {
      */
     wrapSkipEndSpace?: boolean;
     /**
+     * Whether a line is measured against `wrapWidth` without kerning between its letters, as Java measures
+     * text (Cytoscape desktop). Unset or false, kerned, as the canvas draws text.
+     */
+    wrapUnkerned?: boolean;
+    /**
      * Whether a line wider than `wrapWidth` is cut to fit, with an ellipsis after the letters kept, in place of
      * wrapping onto more lines (Cytoscape.js `text-wrap: ellipsis`). Unset or false, it wraps.
      */
@@ -618,6 +623,7 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     wrapWidth: 0,
     wrapTrailingSpace: 0,
     wrapSkipEndSpace: 0,
+    wrapUnkerned: 0,
     wrapEllipsis: 0,
     wrapAnywhere: 0,
     wrapSpaceCount: 0,
@@ -724,6 +730,7 @@ export const RICH_TEXT_KEYS = {
     wrapWidth: "wrapWidth",
     wrapTrailingSpace: "wrapTrailingSpace",
     wrapSkipEndSpace: "wrapSkipEndSpace",
+    wrapUnkerned: "wrapUnkerned",
     wrapEllipsis: "wrapEllipsis",
     wrapAnywhere: "wrapAnywhere",
     wrapSpaceCount: "wrapSpaceCount",
@@ -1094,6 +1101,7 @@ const FIELD_ROWS = {
     wrapWidth: num("Wrap Width", { min: 0 }),
     wrapTrailingSpace: flag("Wrap Trailing Space"),
     wrapSkipEndSpace: flag("Wrap Skip End Space"),
+    wrapUnkerned: flag("Wrap Unkerned"),
     wrapEllipsis: flag("Wrap Ellipsis"),
     wrapAnywhere: flag("Wrap Anywhere"),
     wrapSpaceCount: num("Wrap Space Count", { min: 0 }),

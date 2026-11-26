@@ -13,6 +13,7 @@ import type { CommandContext } from "../commands/registry";
 import { baseName } from "../data-page/words";
 import { focusMainHeading } from "../frame/focus";
 import { keptName, keptPlace, newProjectId, startOpening, stashedPlace, type WorkspaceStore } from "../state/store";
+import { lostReferences } from "./restoreCheck";
 import { reopenedSentence, reopenedTabSentence } from "./words";
 
 /** The key graphty-element keeps the workspace's work under. */
@@ -89,6 +90,7 @@ function reopen(
                 const opened = report.name ?? (shown === undefined ? dataName(session) : null) ?? name;
                 store.set((now) => ({ project: now.project && { ...now.project, name: opened } }));
                 after(opened, place);
+                store.set((now) => lostReferences(now, session));
             },
             ...(focus === undefined ? {} : { focus }),
         }),
@@ -121,7 +123,23 @@ export function reopenOwn(store: WorkspaceStore, entry: AutosaveEntry): void {
     reopen(
         store,
         entry,
-        (name) => {
+        (name, stashed) => {
+            // Safari can end a background tab and load it again with this tab's session storage
+            // emptied (issue #9655): the place then comes back from the one stashed with the work.
+            if (Object.keys(where).length === 0) {
+                // A reader who went somewhere while the work reopened (from the Graph place it
+                // opens on) stays there, with no workspace reopened over it.
+                const now = store.get();
+                const moved = now.page !== "panels" || now.place !== "graph" || now.inspected !== null;
+                const stays = {
+                    page: now.page,
+                    place: now.place,
+                    inspected: now.inspected,
+                    selectionWorkspace: now.selectionWorkspace,
+                };
+                store.set({ ...stashed, ...(moved ? stays : {}), announcement: reopenedTabSentence(name) });
+                return;
+            }
             // The row is put back once the data is in, so it exists; a reader who went somewhere
             // meanwhile (a rail click while the work reopened) stays there.
             const { page, place, inspected } = store.get();

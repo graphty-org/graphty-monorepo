@@ -1,0 +1,78 @@
+id: zettelkasten-writer
+name: Zettelkasten Writer
+roster_persona: personal-knowledge-gardener
+tier: A
+scope: in-scope
+role: Independent Essayist practicing the Zettelkasten (slip-box) method
+quote: Don't make a link you can't explain. Then show me the paths those links make.
+bio: >-
+    Hugo is an independent essayist who follows Niklas Luhmann's slip-box method in Obsidian. He writes atomic permanent
+    notes, gathers them into structure notes (Maps of Content) under a single "Home" note, and links deliberately: every
+    link must be one he can explain. His 2,000 to 10,000 notes average three or more links each, and he records typed
+    relations in frontmatter (`up:`, `parent::`) with the Breadcrumbs and ExcaliBrain plugins so he can walk up, down and
+    sideways. Unwritten ideas live as "TK" placeholder links to notes that do not yet exist. He keeps a local graph at
+    depth 2 to 3 in the sidebar, colors the global graph by note type (MOC, permanent, literature, status) to judge the
+    "health" of the archive, and uses Juggl workspaces for essay projects. He is opinionated about graph views: the
+    force layout hides the sequence of his notes (Folgezettel), hubs dominate every drawing, and excluding a hub also
+    cuts every path that ran through it.
+characteristics:
+    expertise: advanced
+    time_pressure: low
+    graph_literacy: moderate
+    domain_knowledge: expert
+motivations:
+    - Find second-order connections between ideas that share a concept but are not yet linked
+    - Judge the health of the archive at a glance by coloring structure notes, permanent notes and status
+    - Decide which note to write next from placeholder links and thin areas
+    - Navigate typed hierarchies (up, down, next, previous) as easily as plain links
+behaviors:
+    - Links every new permanent note to at least one structure note and to the notes it argues with
+    - Writes typed relations in frontmatter and reads them through Breadcrumbs or ExcaliBrain rather than the core graph
+    - Keeps placeholder links to unwritten notes as a to-write list and wants them visible as distinct nodes
+    - Colors the global graph by note type and hides attachments and tags when judging structure
+    - Expands the local graph past depth 3 when exploring sparse regions, and hits the depth 5 ceiling
+frustrations:
+    - Excluding hub notes "also cuts off anything they might form a path to"
+    - Local graph depth stops at 5 while sparse graphs need 7 to 9
+    - Tag nodes stop traversal, so notes sharing a tag never appear in the local graph at any depth
+    - Note sequence (Folgezettel) is invisible in a force-directed layout
+    - Typed relations live in a separate plugin view instead of the visual graph
+context:
+    frequency: daily
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W324
+    - W326
+    - W327
+    - W329
+sources:
+    - title: Zettelkasten.de - Cartographing the Folgezettel debate
+      url: https://zettelkasten.de/posts/catographing-folgezettel-debate/
+      summary: Same notes built three ways; local graphs suit Folgezettel, global graphs suit structure notes
+    - title: Obsidian forum - Academic note-taking with the Zettelkasten method (Obsidian and Zotero)
+      url: https://forum.obsidian.md/t/academic-note-taking-and-making-system-with-the-zettelkasten-method-obsidian-zotero/64941/2
+      summary: '"Don''t make a link you can''t explain"; literature notes feed permanent notes gathered in MOCs via an up-MOC property'
+    - title: Obsidian forum - In what ways can we form useful relationships between notes?
+      url: https://forum.obsidian.md/t/in-what-ways-can-we-form-useful-relationships-between-notes-long-read/702
+      summary: Long discussion of typed relationships between notes in a slip-box
+    - title: Obsidian forum - Improved filtering of local graph
+      url: https://forum.obsidian.md/t/improved-filtering-of-local-graph/35937
+      summary: Hub exclusion cuts paths; users want only paths reaching a target within k steps
+    - title: Obsidian forum - Two ways of using the graph as a tool for thought
+      url: https://forum.obsidian.md/t/two-ways-of-using-the-graph-as-a-tool-for-thought/6028
+      summary: Incoming, outgoing and neighbor link toggles; placeholder "TK" notes for ideas still to write
+    - title: Obsidian forum - Increase the depth of the local graph
+      url: https://forum.obsidian.md/t/increase-the-depth-of-the-local-graph/32146
+      summary: Depth capped at 5; users with sparse graphs ask for 7 to 9
+    - title: Local Graph Tag Links plugin
+      url: https://community.obsidian.md/plugins/local-graph-tag-links
+      summary: Tag nodes stop local-graph traversal; plugin lets notes sharing a tag appear
+    - title: Breadcrumbs plugin
+      url: https://dev.obsidianstats.com/plugins/breadcrumbs
+      summary: Typed up/down/next/previous hierarchy links; about 258,000 downloads
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

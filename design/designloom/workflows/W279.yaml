@@ -1,0 +1,138 @@
+id: W279
+name: Embedding Without React - Plain HTML, Angular, Vue and Host Plugins
+category: onboarding
+validated: false
+personas:
+    - plugin-author-frontend-developer
+    - plugin-author-data-scientist
+    - observability-service-map-engineer
+    - 3d-graph-embedder
+requires_capabilities:
+    - graph-rendering
+    - data-import
+    - data-validation
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - node-selection
+    - layout-force-directed
+    - fixed-node-positions
+    - framework-neutral-embedding
+    - table-to-graph-builder
+suggested_components:
+    - graph-canvas
+    - column-mapper
+    - data-preview-table
+    - node-tooltip
+    - legend-panel
+starting_state:
+    data_type: plain JSON node and link arrays, or a fixed table (source column, target column, optional weight measure) handed over by a host
+    node_count: 20-2000
+    edge_density: sparse to moderate
+    user_expertise: intermediate to expert developer
+goal: >-
+    **Intent**: Get a graph onto a page that is not a React app -- a plain HTML page, an Angular or Vue product, or a
+    plugin of another host such as a Power BI custom visual, a Grafana panel, a Streamlit component, a Jupyter widget or
+    an Obsidian plugin -- where the data usually arrives as a table, not a graph.
+
+
+    **Mental Model**: "A custom element is just a tag." Simple options are attributes, rich data is a DOM property,
+    and everything the graph does comes back as a DOM event with a `detail` payload.
+
+
+    **Task Phases**:
+
+    1. **Plain HTML** - Add a script tag from a CDN or an ES module import; extensions auto-register when the
+    library global exists
+
+    2. **Vue** - Mark the tag as a custom element with `compilerOptions.isCustomElement`; pass objects and
+    arrays as properties (`.prop` or the `.` shorthand) because attributes are always strings; read events from
+    `event.detail`
+
+    3. **Angular or React 19** - Bind properties and native events; both pass Custom Elements Everywhere's
+    property and event tests, earlier React versions are not listed
+
+    4. **Host plugin** - Receive the host's fixed table shape: two dimensions and one measure in Power
+    BI, `nodes` and `edges` frames in Grafana, Python lists or NetworkX graphs in Streamlit and Jupyter
+
+    5. **Write the adapter** - Turn table rows into nodes and edges, de-duplicate node ids that appear in both
+    source and target columns, sum or carry the weight measure
+
+    6. **Pin and persist** - Let users drag and pin nodes and keep positions across host refreshes
+
+
+    **Decision Points**:
+
+    - Script tag, ES module or bundled package?
+
+    - Which columns are source, target and weight, and are node attributes in a second table?
+
+    - Does the host re-send the whole table on every refresh?
+
+
+    **Information Needs**:
+
+    - A recipe per framework showing property binding and event names
+
+    - The table-to-graph rule: how node ids are derived and de-duplicated, and how weights aggregate
+
+    - Whether the import is safe in a server-rendered or sandboxed host
+
+
+    **Pain Points**:
+
+    - Frameworks that set rich data as a string attribute and silently break the element
+
+    - Every host plugin author rewrites the same rows-to-graph adapter
+
+    - Power BI's Network Navigator does not sum weights into node sizes and has not been released since 2018
+
+    - Users of host visuals ask how to nail nodes in place in a force-directed graph
+
+    - pyvis output stops loading above about 1,000 nodes in Streamlit
+
+
+    **Data Flow**:
+
+    - Input: JSON arrays, an edge-list table with optional weight, data frames, or NetworkX graphs
+
+    - Transformations: Row-to-node and row-to-edge mapping with id de-duplication; property binding; event wiring
+
+    - Output: A graph rendered inside the host page or host plugin, with events flowing back to the host
+success_criteria:
+    - metric: Framework coverage
+      target: The same element works from plain HTML, Vue, Angular and React 19 with only documented binding syntax
+    - metric: Table to graph
+      target: A source-target-weight table renders with no adapter code written by the developer
+    - metric: Positions across refresh
+      target: Pinned nodes stay put when the host re-sends its data
+sources:
+    - title: Vue - Vue and Web Components
+      url: https://vuejs.org/guide/extras/web-components.html
+      summary: isCustomElement, the in-check for property versus attribute, attributes are always strings, CustomEvent detail
+    - title: Custom Elements Everywhere
+      url: https://custom-elements-everywhere.com/
+      summary: Angular and React 19 score 100 percent; React 19 uses a runtime heuristic to choose property or attribute
+    - title: 3d-force-graph
+      url: https://github.com/vasturiano/3d-force-graph
+      summary: Script-tag install from jsDelivr
+    - title: Power BI Force-Directed Graph visual
+      url: https://github.com/microsoft/PowerBI-visuals-ForceGraph
+      summary: Ideally two dimensions and one measure for the weight; D3 force layout; draggable nodes
+    - title: SQLServerCentral - Power BI network visualizations
+      url: https://www.sqlservercentral.com/blogs/power-bi-with-different-network-visualizations
+      summary: Network Navigator uses Source and Target columns; weights do not sum into node sizes; unreleased since 2018
+    - title: Fabric community - Nailing down nodes in a force-directed graph
+      url: https://community.fabric.microsoft.com/t5/Desktop/Nailing-down-nodes-in-a-force-directed-graph/m-p/488179
+      summary: Request to pin nodes (title only; page returned 403)
+    - title: Grafana - Node graph panel
+      url: https://grafana.com/docs/grafana/latest/panels-visualizations/visualizations/node-graph/
+      summary: Panels detect node graphs from frames named nodes and edges
+    - title: streamlit-agraph
+      url: https://github.com/ChrisDelClea/streamlit-agraph
+      summary: Python Node and Edge lists passed to a vis.js component
+    - title: Streamlit forum - pyvis large network
+      url: https://discuss.streamlit.io/t/streamlit-pyvis-error-when-displaying-large-network/28501
+      summary: pyvis stops loading above about 1,000 nodes
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

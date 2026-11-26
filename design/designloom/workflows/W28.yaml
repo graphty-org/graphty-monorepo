@@ -1,0 +1,153 @@
+id: W28
+name: Two-Mode Affiliation Data -- Projection, Weighting and Bipartite Analysis
+category: analysis
+validated: false
+personas:
+    - political-networks-scholar
+    - archival-affiliation-researcher
+    - network-methods-grad-student
+requires_capabilities:
+    - data-import
+    - data-preview
+    - layout-hierarchical
+    - layout-force-directed
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - computed-attributes
+    - centrality-degree
+    - clustering-coefficient
+    - community-detection
+    - comparison-view
+    - basic-statistics
+    - statistics-panel
+    - data-export
+    - bipartite-projection
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - layout-panel
+    - visual-encoding-panel
+    - legend-panel
+    - comparison-view
+    - statistics-panel
+    - ranked-node-table
+    - graph-canvas
+    - data-export-dialog
+starting_state:
+    data_type: actor-by-event incidence matrix, two-column affiliation edge list, or two-mode Pajek .net
+    node_count: 32-300000
+    edge_density: sparse
+    user_expertise: intermediate+
+goal: >-
+    **Intent**: Analyze data where people belong to groups (women at events, legislators on bills, directors on boards)
+    either as a bipartite network or as a projection onto one mode, with a defensible weight and without mistaking
+    projection artifacts for findings.
+
+
+    **Mental Model**: "Two kinds of nodes, and ties only between kinds." A projection is a derived view: two actors are
+    tied because they share a group, and every group becomes a clique.
+
+
+    **Task Phases**:
+
+    1. **Store** - Actor-by-event incidence matrix, a UCINET node list, or a two-column edge list.
+    Pajek .net files declare the total vertex count and the size of the first mode. Classic example: Davis's Southern
+    Women, 18 women by 14 events.
+
+    2. **Look at it as bipartite first** - Two-mode layout with the modes distinguished by shape or
+    color (NetDraw opens two-mode data directly); density is edges / (N x M).
+
+    3. **Project if the question is about one mode** - Cross-products or minimums (UCINET Data >
+    Affiliations); A times A-transpose with the diagonal zeroed; Pajek Net > Transform > 2-mode to 1-mode.
+
+    4. **Choose a weight** - Binary, sum (shared groups) or Newman (each shared group weighted by
+    1/(Np - 1)); or turn shared-group weights into distances (Fowler's connectedness score).
+
+    5. **Watch for artifacts** - Projection inflates clustering (one co-authorship network: two-mode
+    coefficient 0.28 versus 0.36 one-mode) and structural-hole measures; compare two-mode and one-mode values.
+
+    6. **Or analyze bipartite directly** - Two-mode centrality and clustering, bipartite communities,
+    correspondence analysis, two-mode ERGM, bipartite backbones.
+
+
+    **Decision Points**:
+
+    - Is the research question about one mode, or about the affiliation itself?
+
+    - Binary, sum or Newman weights for the projection?
+
+    - Keep very large groups (which create huge cliques) or down-weight or drop them?
+
+    - Report two-mode or one-mode clustering?
+
+
+    **Information Needs**:
+
+    - Mode sizes and two-mode density
+
+    - Degree distribution per mode (groups per actor, actors per group)
+
+    - Projected edge weights under each weighting rule, side by side
+
+    - Clustering and other measures computed on both the two-mode and the projected network
+
+
+    **Pain Points**:
+
+    - Projections turn every group into a clique and inflate clustering and constraint
+
+    - Little guidance on choosing a weight
+
+    - Partial two-mode support across tools (the R network package's Pajek reader cannot read 2-mode files)
+
+    - Menu paths for projection that changed between tool versions
+
+
+    **Data Flow**:
+
+    - Input: Incidence matrix (CSV or Excel), two-column edge list, UCINET node list, or two-mode Pajek .net
+
+    - Transformations: Mode assignment, bipartite layout, projection with a chosen weight, two-mode and one-mode measures
+
+    - Output: Bipartite figure, weighted one-mode network, comparison table of two-mode and projected measures
+success_criteria:
+    - metric: Projection transparency
+      target: User can state which weighting rule produced the projected network
+    - metric: Artifact awareness
+      target: Two-mode and projected clustering are both available for the same data
+sources:
+    - title: Hanneman and Riddle, chapter 6
+      url: https://faculty.ucr.edu/~hanneman/nettext/C6_Working_with_data.html
+      summary: UCINET Data > Affiliations with cross-products or minimums
+    - title: tnet two-mode projection
+      url: https://toreopsahl.com/tnet/two-mode-networks/projection/
+      summary: projecting_tm with binary, sum and Newman weights
+    - title: Opsahl (2013) Triadic closure in two-mode networks
+      url: https://arxiv.org/abs/1006.0887v2
+      summary: Projection inflates clustering
+    - title: tnet structural holes in two-mode networks
+      url: https://toreopsahl.com/tnet/two-mode-networks/structural-holes/
+      summary: Structural holes measures on projections are inflated
+    - title: Two-mode versus one-mode clustering on a co-authorship network
+      url: https://arxiv.org/pdf/2102.03270
+      summary: Two-mode coefficient 0.28 versus 0.36 one-mode
+    - title: Borgatti and Everett (1997) Network analysis of 2-mode data
+      url: https://www.bebr.ufl.edu/sites/default/files/Borgatti%20and%20Everett%20-%201997%20-%20Network%20analysis%20of%202-mode%20data.pdf
+      summary: Two-mode methods; Davis Southern Women 18 by 14
+    - title: SOCIOL208 two-mode course notes
+      url: https://olizardo.github.io/SOCIOL208/tm-basic.html
+      summary: Incidence matrices, two-mode density, bipartite analysis in igraph
+    - title: Pajek help
+      url: https://www.artsrn.ualberta.ca/ccewiki/index.php/Pajek_help
+      summary: Two-mode .net header declaring the first mode size
+    - title: Fowler (2006) Connecting the Congress
+      url: https://www.cambridge.org/core/journals/political-analysis/article/connecting-the-congress-a-study-of-cosponsorship-networks/B42907E13C3D1F12BBC7618C8E0EECED
+      summary: 280,000 bills; shared-bill weights turned into a connectedness score
+    - title: R-help thread on Pajek 2-mode to 1-mode
+      url: https://stat.ethz.ch/pipermail/r-help/2008-May/161805.html
+      summary: Pajek projection menu path
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

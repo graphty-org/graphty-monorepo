@@ -72,7 +72,6 @@ describe("a file's styles translate the same whatever program the source names",
                     layers: out.layers,
                     node: [...out.columns.node],
                     edge: [...out.columns.edge],
-                    hidden: out.hidden,
                     sceneScale: out.sceneScale,
                 };
             };

@@ -1,0 +1,150 @@
+id: W54
+name: Institutional Collaboration Report
+category: reporting
+validated: false
+personas:
+    - research-impact-librarian
+    - research-portfolio-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - node-merging
+    - filtering
+    - community-detection
+    - centrality-betweenness
+    - centrality-degree
+    - layout-force-directed
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - annotation
+    - statistics-panel
+    - report-generation
+    - export-image
+    - data-export
+    - analysis-provenance
+    - bibliographic-record-import
+    - record-projection
+    - thesaurus-cleaning
+suggested_components:
+    - data-import-dialog
+    - attribute-table-join-dialog
+    - node-merge-dialog
+    - data-table-panel
+    - filter-panel
+    - community-panel
+    - ranked-node-table
+    - visual-encoding-panel
+    - legend-panel
+    - annotation-toolbar
+    - graph-canvas
+    - statistics-panel
+    - report-generator-dialog
+    - image-export-dialog
+    - share-dialog
+starting_state:
+    data_type: A department's or center's publications for 5-10 years plus a staff roster with ORCID or Scopus Author IDs
+    node_count: hundreds to a few thousand records; 50-300 organizations or authors shown
+    edge_density: sparse to medium
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Answer a leadership question such as "who do we collaborate with?" or "which of our groups bridge to
+    which partners?" with organization, country and author co-authorship maps and a short report for a non-technical
+    audience, inside a fixed staff-hour budget.
+
+
+    **Mental Model**: "A briefing, not a paper." The dean wants an answer and a picture; the librarian wants a method
+    that holds up and that can be rerun for the next department.
+
+
+    **Task Phases**:
+
+    1. **Intake and scoping** - Clarify the question, units and years; the NIH Library caps basic service at 20
+    staff hours per report with an 8-week turnaround
+
+    2. **Decide whether a network is needed** - SciVal's collaboration module answers many questions with a
+    world map and collaborator table; a network adds structure (bridges, co-author clusters, topic structure)
+
+    3. **Export data** - Within each database's export limit, or from OpenAlex, Crossref, Europe PMC,
+    Semantic Scholar or OpenCitations APIs
+
+    4. **Clean** - Match authors to the roster by ORCID or Scopus ID, build thesauri for organization and
+    name variants, cap authors per document
+
+    5. **Map** - Organization and country co-authorship with fractional counting, author co-authorship
+    colored by internal unit, keyword co-occurrence for topics
+
+    6. **Deliver** - Summary for non-technical readers, annotated figures, top-partner table, documented
+    methods; sometimes a dashboard or interactive link
+
+
+    **Decision Points**:
+
+    - Does this question need a network, or does a table and world map answer it?
+
+    - Which name variants are the same organization or person?
+
+    - Full or fractional counting, and what cap on authors per paper?
+
+    - Which partners and bridges to call out in the summary?
+
+
+    **Information Needs**:
+
+    - Roster match rate (matched, unmatched, ambiguous authors)
+
+    - Top partner organizations and countries by joint papers
+
+    - Which internal authors or units connect to which external partners (bridges)
+
+    - Possible homonyms: one name node with implausibly diverse affiliations or topics
+
+
+    **Pain Points**:
+
+    - Name homonyms create false bridges, worst for common Chinese and Korean surnames
+
+    - Each report is rebuilt by hand from scratch
+
+    - The hour budget cuts cleaning short
+
+    - Readers unfamiliar with network maps need annotation and plain-language legends
+
+
+    **Data Flow**:
+
+    - Input: Publication records with authors and affiliations; staff roster with identifiers
+
+    - Transformations: Roster join by identifier, name and organization merges, author cap, co-authorship projection at
+    author, organization and country level with fractional counting, clustering, centrality
+
+    - Output: Annotated maps, partner tables, plain-language summary, methods appendix, optional interactive link
+success_criteria:
+    - metric: Rerun cost
+      target: The same cleaning and mapping steps applied to a new department in under an hour (design goal; no source measures it)
+    - metric: Identity transparency
+      target: Report states the roster match rate and flags ambiguous names
+    - metric: Reader comprehension
+      target: A non-technical reader can name the top three partners and one bridge from the annotated figure
+sources:
+    - title: NIH Library bibliometrics classes and services
+      url: https://www.nihlibrary.nih.gov/about-us/news/bibliometrics-classes-and-services
+      summary: 20 staff hours per report; VOSviewer network classes
+    - title: UNC-Chapel Hill Health Research Intelligence Librarian posting
+      url: https://iassistdata.org/jobs-repository/2026-07-22_2/
+      summary: Collaboration mapping, quality assurance, summaries for non-technical audiences, reproducible workflows
+    - title: University of Waterloo - Bibliometrics and Research Impact Librarian
+      url: https://uwaterloo.ca/lib/about/work-libraries/bibliometrics-and-research-impact-librarian
+      summary: Strategic requests from leadership with InCites and SciVal
+    - title: SciVal Collaboration module
+      url: https://www.elsevier.support/scival/answer/collaboration-module-identify-and-evaluate-existing-and-potential-collaboration-partners
+      summary: World map and collaborator table, no network view
+    - title: Dimensions help - export limits
+      url: https://help.dimensions.ai/en/articles/9784001
+      summary: Bibliometric mapping export limits by subscription tier
+    - title: Velden et al. on author name homonymy
+      url: https://arxiv.org/pdf/1106.2473
+      summary: Homonyms create spurious bridges in co-author networks
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

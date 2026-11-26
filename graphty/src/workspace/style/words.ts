@@ -95,6 +95,11 @@ export interface SectionSpec {
     readonly items?: readonly { readonly id: string; readonly name: string; readonly channels: readonly Channel[] }[];
     /** Properties drawn together: once the row sets one, the others show, waiting for a value. */
     readonly together?: readonly Channel[];
+    /**
+     * The Shaders section's option tiles: what each option says it is, by property ("Effects
+     * option"); absent, the tab's words ({@link OPTION_TILE_WORDS}).
+     */
+    readonly optionWords?: Readonly<Partial<Record<Channel, string>>>;
 }
 
 /** A model's channels: what the Shape field names, and what Model settings sets. */
@@ -439,6 +444,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.labelLetterSize": "Label letter size",
     "node.labelWrapTrailingSpace": "Label wraps with a trailing space",
     "node.labelWrapSkipEndSpace": "Label wraps without an end space",
+    "node.labelWrapUnkerned": "Label wraps unkerned",
     "node.labelMinScreenSize": "Label smallest size on screen",
     "node.labelOnTop": "Label drawn on top",
     "node.labelDeclutter": "Label overlap order",
@@ -513,6 +519,11 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.animationSpeed": "Animation",
     "edge.label": "Label",
     "edge.labelStyle": "Label style",
+    "edge.tooltip": "Tooltip",
+    "edge.tooltipStyle": "Tooltip style",
+    "edge.tooltipSize": "Tooltip size",
+    "edge.tooltipColor": "Tooltip color",
+    "edge.tooltipBackground": "Tooltip background",
     "edge.labelSize": "Label size",
     "edge.labelColor": "Label color",
     "edge.labelBackground": "Label background",
@@ -536,6 +547,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelLetterSize": "Label letter size",
     "edge.labelWrapTrailingSpace": "Label wraps with a trailing space",
     "edge.labelWrapSkipEndSpace": "Label wraps without an end space",
+    "edge.labelWrapUnkerned": "Label wraps unkerned",
     "edge.labelMinScreenSize": "Label smallest size on screen",
     "edge.labelOnTop": "Label drawn on top",
     "edge.labelRotation": "Label rotation",
@@ -590,11 +602,6 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.xlabelLocation": "Outside label location",
     "edge.xlabelOffsetX": "Outside label offset x",
     "edge.xlabelOffsetY": "Outside label offset y",
-    "edge.tooltip": "Tooltip",
-    "edge.tooltipStyle": "Tooltip style",
-    "edge.tooltipSize": "Tooltip size",
-    "edge.tooltipColor": "Tooltip color",
-    "edge.tooltipBackground": "Tooltip background",
     "node.borderWaveAmplitude": "Border wave amplitude",
     "node.borderWavePeriod": "Border wave period",
     "node.outerBorderColor": "Outer border color",
@@ -1657,6 +1664,13 @@ export const OPTION_TILE_WORDS: Readonly<Record<"node" | "edge", string>> = {
     node: "Shape option",
     edge: "Line option",
 };
+
+/**
+ * What a tile from the tab's own style options says it is, by the section it is added in.
+ * @param section - the section's title, such as "Effects".
+ * @returns the words: "Effects option".
+ */
+export const optionTileWord = (section: string): string => `${section} option`;
 
 /** The shader editor's words, each as a reader sees it. */
 export const EDITOR_WORDS = {

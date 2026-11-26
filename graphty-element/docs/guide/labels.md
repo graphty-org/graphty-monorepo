@@ -99,7 +99,9 @@ an edge is there. Turn on `layoutBehavior.labels.avoidNodesAndEdges` and the ele
 that would cover one: it tries the label's own place first, then above, below, right, left and the
 four corners of its node, and draws it at the first place that covers no other label, node or edge.
 When every place covers something, it takes the one that covers least (another label is worst, then
-a node, then an edge).
+a node, then an edge). A label its style puts on its node -- `location: "center"` or one of the
+`"inside-*"` places -- stays on its node, and a label whose place a style layer states (`node.labelLocation`, as a
+file's styles state a label below its node) stays at that place.
 
 ```typescript
 element.layoutBehavior = { labels: { declutter: true, avoidNodesAndEdges: true } }; // both off by default
@@ -255,7 +257,7 @@ await element.session.styles.add({
 Louvain numbers its groups by id, not from 1, so `rank` and `count` are what give "Community 2 of
 5". Every word is yours; the element adds none. A value is drawn as written: a name holding
 `<bold>` shows the tag, and only the template's own markup is read. Templates work on `node.label`,
-`edge.label` (where `count` and `rank` are taken across the edges) and `node.tooltip`.
+`edge.label` and `edge.tooltip` (where `count` and `rank` are taken across the edges) and `node.tooltip`.
 
 A `format` on the template writes every number a `{path}` reads the way `Intl.NumberFormat`
 would. Name on one line, PageRank below it with two decimals and thousands grouped:

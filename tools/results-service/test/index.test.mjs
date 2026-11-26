@@ -11,8 +11,8 @@ import { describe, it } from "node:test";
 
 import { failureHashes as ledgerHashes } from "../../test-ledger.mjs";
 import { failureHashes, issueKey } from "../src/signature.js";
-import { HISTORY_INVOCATIONS, PLAN_PARALLEL } from "../src/queries.js";
-import { AUDIENCE, handle, keyCache } from "../src/service.js";
+import { FILE_MS_TTL, HISTORY_INVOCATIONS, PLAN_PARALLEL } from "../src/queries.js";
+import { AUDIENCE, handle, keyCache, usageMeter } from "../src/service.js";
 import { d1 } from "./d1-shim.mjs";
 
 const NOW = Date.UTC(2026, 9, 24, 12);
@@ -61,6 +61,7 @@ const pr = (claims = {}) =>
 function service({ fetch: doFetch = fetch } = {}) {
     const DB = d1();
     const keys = keyCache();
+    const meter = usageMeter();
     const env = {
         DB,
         REPOSITORY_ID: "1122477634",
@@ -74,7 +75,7 @@ function service({ fetch: doFetch = fetch } = {}) {
             headers,
             body: body && JSON.stringify(body),
         });
-        const res = await handle(request, env, { fetch: doFetch, now, keys });
+        const res = await handle(request, env, { fetch: doFetch, now, keys, meter });
         return { status: res.status, body: await res.json() };
     };
     const rows = (sql) =>
@@ -113,7 +114,7 @@ describe("GET /v1/health", () => {
     });
     it("answers 500 when the database does not", async () => {
         const { env } = service();
-        env.DB = { prepare: () => ({ first: async () => Promise.reject(new Error("D1 down")) }) };
+        env.DB = { prepare: () => ({ all: async () => Promise.reject(new Error("D1 down")) }) };
         const res = await handle(new Request("https://graphty-results.test/v1/health"), env, { fetch, now: NOW });
         assert.equal(res.status, 500);
     });
@@ -628,8 +629,10 @@ describe("GET /v1/plan", () => {
         assert.ok(seen.size > 0);
         for (const sql of seen) {
             const steps = env.DB.sqlite.prepare(`EXPLAIN QUERY PLAN ${sql}`).all();
+            // a subquery per asked variant (json_each over the request's own list) is bounded by the request; one
+            // per stored row is what #8208 was
             const correlated = steps.filter((s) => /CORRELATED/.test(s.detail));
-            assert.deepEqual(correlated, [], sql);
+            if (!/json_each/.test(sql)) assert.deepEqual(correlated, [], sql);
         }
     });
 
@@ -642,7 +645,7 @@ describe("GET /v1/plan", () => {
         const counted = (s) => ({
             bind: (...a) => counted(s.bind(...a)),
             ...Object.fromEntries(
-                ["all", "first"].map((m) => [
+                ["all", "first", "run"].map((m) => [
                     m,
                     async () => {
                         most = Math.max(most, ++open);
@@ -700,6 +703,8 @@ describe("GET /v1/plan", () => {
         s.fail("f2", { file: "b.test.ts" });
         s.inv("f3", { outcome: "failed", at: NOW - 8 * DAY });
         s.fail("f3", { file: "too-old.test.ts" });
+        // the first read kept the variant's then empty fileMs for FILE_MS_TTL (its own test below)
+        env.DB.sqlite.exec("DELETE FROM file_ms");
         const v = (await plan(call, { variants: BROWSER, inputs: "k1" })).body.variants[BROWSER];
         assert.equal(v.passedWithInputs, "reuse");
         assert.deepEqual(v.order, ["b.test.ts", "a.test.ts"]);
@@ -709,6 +714,20 @@ describe("GET /v1/plan", () => {
         assert.deepEqual(flat.order, ["b.test.ts", "a.test.ts"]);
         assert.deepEqual(flat.fileMs, { [X]: 106 });
         assert.equal((await plan(call, { variants: BROWSER, inputs: "k1" })).body.order, undefined);
+    });
+
+    it("#9784: answers a variant's fileMs computed within FILE_MS_TTL, and computes it again after", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        s.inv("a", { at: NOW - DAY });
+        s.file("a", X, 100);
+        const fileMs = async () => (await plan(call, { variants: BROWSER, inputs: "-" })).body.variants[BROWSER].fileMs;
+        assert.deepEqual(await fileMs(), { [X]: 100 });
+        s.inv("b", { at: NOW - DAY + 1 });
+        s.file("b", X, 300);
+        assert.deepEqual(await fileMs(), { [X]: 100 });
+        env.DB.sqlite.exec(`UPDATE file_ms SET at = ${NOW - FILE_MS_TTL}`);
+        assert.deepEqual(await fileMs(), { [X]: 200 });
     });
 
     it("reads per-file durations from the variant's newest invocations only", async () => {
@@ -2019,6 +2038,79 @@ describe("story captures (design/visual-testing/early-capture.md, 4c)", () => {
         assert.equal((await call("GET", `/v1/story-reach?shas=${many}`, { token: LOCAL_TOKEN })).status, 400);
     });
 
+    it("#9974: a read touches only each story's and unit's newest row, however many slices are stored", async () => {
+        // window functions and a self-join over a week of story_capture rows read about 750,000 rows a call, and
+        // some 900 calls a day spent the daily D1 read cap
+        const { call, env } = service();
+        const one = (story, status) => ({ project: "graphty", story, status, hash: status });
+        for (let run = 4001; run <= 4040; run++)
+            await call("POST", "/v1/story-captures", {
+                token: slices({ run_id: String(run) }),
+                body: slice({
+                    captures: [one("a", "changed"), one("b", "unchanged")],
+                    units: [{ project: "graphty", unit: "u" }],
+                }),
+            });
+        assert.equal(env.DB.sqlite.prepare("SELECT count(*) AS n FROM story_capture").get().n, 80);
+        const seen = [];
+        const prepare = env.DB.prepare;
+        env.DB.prepare = (sql) => (seen.push(sql), prepare(sql));
+        const { body } = await call("GET", "/v1/story-captures", { token: LOCAL_TOKEN });
+        assert.deepEqual(
+            body.captures.map((c) => [c.story, c.runId, c.status]),
+            [
+                ["a", 4040, "changed"],
+                ["b", 4040, "unchanged"],
+            ],
+        );
+        assert.equal(body.units.length, 1);
+        const history = seen.filter((sql) => /\b(story_capture|story_unit)\b/.test(sql));
+        assert.deepEqual(history, []);
+    });
+
+    it("#9974: migration 0014 fills the newest rows from the captures already stored", async () => {
+        const { DatabaseSync } = await import("node:sqlite");
+        const { readdirSync } = await import("node:fs");
+        const dir = new URL("../migrations/", import.meta.url);
+        const sqlite = new DatabaseSync(":memory:");
+        const files = readdirSync(dir).sort();
+        const at = files.indexOf("0014_story_newest.sql");
+        for (const f of files.slice(0, at)) sqlite.exec(readFileSync(new URL(f, dir), "utf8"));
+        const add = sqlite.prepare(
+            `INSERT INTO story_capture (project, story, mode, sha, baselines_tree, run_id, attempt, artifact, status, at)
+             VALUES ('p', ?, '', ?, ?, ?, 1, 'x', ?, 0)`,
+        );
+        // the pick-rule test's history: a changed under OLD then under T; b changed, unchanged, changed; c clear now
+        for (const [story, sha, tree, run, status] of [
+            ["a", "o", "OLD", 4001, "changed"],
+            ["a", "a", "T", 4010, "changed"],
+            ["b", "a", "T", 4010, "changed"],
+            ["c", "a", "T", 4010, "changed"],
+            ["a", "b", "T", 4020, "new"],
+            ["b", "b", "T", 4020, "unchanged"],
+            ["c", "b", "T", 4020, "unchanged"],
+            ["a", "c", "T", 4030, "changed"],
+            ["b", "c", "T", 4030, "changed"],
+        ])
+            add.run(story, sha, tree, run, status);
+        sqlite.exec(
+            "INSERT INTO story_unit (project, unit, sha, run_id, attempt, at) VALUES ('p', 'u', 'a', 4010, 1, 0), ('p', 'u', 'b', 4020, 1, 0)",
+        );
+        sqlite.exec(readFileSync(new URL(files[at], dir), "utf8"));
+        assert.deepEqual(
+            sqlite
+                .prepare("SELECT story, sha, first_unapproved AS first FROM story_newest ORDER BY story")
+                .all()
+                .map((r) => ({ ...r })),
+            [
+                { story: "a", sha: "c", first: "a" },
+                { story: "b", sha: "c", first: "c" },
+                { story: "c", sha: "b", first: null },
+            ],
+        );
+        assert.deepEqual({ ...sqlite.prepare("SELECT unit, sha FROM unit_newest").get() }, { unit: "u", sha: "b" });
+    });
+
     it("is read by no file under tools/ but the store and the consumers the design names", async () => {
         const { execFileSync } = await import("node:child_process");
         const root = new URL("../../../", import.meta.url).pathname;
@@ -2116,5 +2208,120 @@ describe("GitHub's key set", () => {
         gh.answer = () => Response.json(jwks);
         assert.equal(await status(call, pr(), NOW + 60_000), 200);
         assert.equal(gh.fetches, 2);
+    });
+});
+
+describe("#9784: the daily D1 caps and GET /v1/usage", () => {
+    it("counts each route's requests and rows by UTC day, public", async () => {
+        const { call } = service();
+        await call("POST", "/v1/invocations", { token: pr(), body: record() });
+        await call("GET", "/v1/health");
+        // counts reach usage_day once a minute: the next request after it adds them
+        const later = NOW + 61_000;
+        await call("GET", "/v1/health", { now: later });
+        const { status, body } = await call("GET", "/v1/usage?days=2", { now: later });
+        assert.equal(status, 200);
+        assert.deepEqual(body.caps, { rowsRead: null, rowsWritten: null });
+        assert.equal(body.days.length, 1);
+        const [today] = body.days;
+        assert.equal(today.day, "2026-10-24");
+        const posted = today.routes["POST /v1/invocations"];
+        assert.equal(posted.requests, 1);
+        assert.ok(posted.rowsWritten >= 3, JSON.stringify(posted)); // the invocation, its file and its failure
+        assert.equal(today.routes["GET /v1/health"].requests, 2);
+        assert.equal(today.rowsWritten >= posted.rowsWritten, true);
+    });
+
+    it("answers 429 past a cap until the next UTC day, but still /v1/health and /v1/usage", async () => {
+        const { call, env } = service();
+        env.DAILY_ROWS_WRITTEN_CAP = "3";
+        env.DAILY_ROWS_READ_CAP = "1000000";
+        assert.equal((await call("POST", "/v1/invocations", { token: pr(), body: record() })).status, 200);
+        const refused = await call("POST", "/v1/invocations", {
+            token: pr(),
+            body: record({ id: "4010.1.graphty-element-browser-3.0.2" }),
+        });
+        assert.equal(refused.status, 429);
+        assert.match(refused.body.error, /daily D1 cap is spent \(rows written/);
+        assert.equal(refused.body.caps.rowsWritten, 3);
+        assert.equal((await call("GET", "/v1/plan", { token: pr() })).status, 429);
+        assert.equal((await call("GET", "/v1/health")).status, 200);
+        const usage = await call("GET", "/v1/usage");
+        assert.equal(usage.status, 200);
+        assert.deepEqual(usage.body.caps, { rowsRead: 1_000_000, rowsWritten: 3 });
+        // the next UTC day starts from nothing
+        const tomorrow = Date.UTC(2026, 9, 25, 0, 1);
+        const token = oidc({
+            event_name: "pull_request",
+            sha: "merge7",
+            exp: tomorrow / 1000 + 300,
+            nbf: tomorrow / 1000 - 10,
+        });
+        const next = await call("POST", "/v1/invocations", {
+            token,
+            body: record({ id: "4010.1.graphty-element-browser-3.0.3" }),
+            now: tomorrow,
+        });
+        assert.equal(next.status, 200);
+    });
+});
+
+// Every statement the tests above prepared, planned on the migrated schema: a full SCAN of a table reads every row
+// of it on every call, and that is what D1 bills (#9784: 56 billion rows read in a month). A table may be scanned
+// only when it stays small, and says why here.
+const SMALL_TABLES = {
+    quarantine: "the entries in force and those that left: a few dozen a month",
+    story_newest: "one row per story and mode, kept on write (#9974)",
+    unit_newest: "one row per slice unit, kept on write (#9974)",
+    story_notify: "one row per notice kind (2)",
+    candidate: "one row at most",
+    duration_backfill: "one row",
+};
+const SQL_WORDS = new Set([
+    "WHERE",
+    "ON",
+    "JOIN",
+    "LEFT",
+    "CROSS",
+    "INNER",
+    "GROUP",
+    "ORDER",
+    "LIMIT",
+    "UNION",
+    "INDEXED",
+]);
+
+describe("#9784: query plans", () => {
+    it("scans no table in full, except the small ones", async () => {
+        const { prepared } = await import("./d1-shim.mjs");
+        const { sqlite } = d1();
+        const tables = new Set(
+            sqlite
+                .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+                .all()
+                .map((r) => r.name),
+        );
+        assert.ok(prepared.size > 50, `${prepared.size} statements`);
+        const found = [];
+        for (const sql of prepared) {
+            // `FROM table alias` and `JOIN table alias`: the plan names a table by its alias
+            const alias = new Map();
+            for (const [, table, name] of sql.matchAll(/\b(?:FROM|JOIN)\s+(\w+)(?:\s+(?:AS\s+)?(\w+))?/gi)) {
+                if (!tables.has(table)) continue;
+                alias.set(table, table);
+                if (name && !SQL_WORDS.has(name.toUpperCase())) alias.set(name, table);
+            }
+            for (const { detail } of sqlite.prepare(`EXPLAIN QUERY PLAN ${sql}`).all()) {
+                const table = alias.get(/^SCAN (\w+)/.exec(detail)?.[1]);
+                // an index walked in order and cut by LIMIT, with nothing filtered out, reads only the rows it answers
+                const limited =
+                    /USING (COVERING )?INDEX/.test(detail) &&
+                    !/WHERE/i.test(sql) &&
+                    /ORDER BY .* LIMIT \d+$/s.test(sql);
+                if (table && !limited && !Object.hasOwn(SMALL_TABLES, table))
+                    found.push(`${table} (${detail}): ${sql.slice(0, 120)}`);
+            }
+        }
+        assert.deepEqual(found, []);
     });
 });

@@ -20,7 +20,11 @@
 //   import-scan [<free-queue.json>]        replaces the proposed groups with the free-queue scan's jobs
 //   start <group> <branch> | ready <group> <sha> | freeze <group> <pr> | close <group> --merged|--unmerged
 //   release <group> <n> --why <reason>     a member that turned out not to belong (never routed back there)
-//   wait <n> --on <group|branch|#pr> [--x9 <sha>] --why <reason>
+//   wait <n> --on <group|branch|#pr> [--x9 <sha>] [--due <ISO time>] --why <reason>
+//                                          --due: past it the wait no longer holds the issue and check --fix ends it;
+//                                          on a live wait with the same target, --due sets its due time and why
+//   wait <n> --on <target> --end --why <reason>
+//                                          ends a live wait (one nothing else will end)
 //   archive                                moves groups closed or dissolved over 7 days ago to groups-archive.jsonl
 //   compact                                archive, plus drops stale proposals, settled waits and old history
 //   check [--fix] [--json]                 drift against GitHub: markers, labels, pull request states
@@ -50,7 +54,9 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
 import {
+    blockHolds,
     claimsCommand,
+    describe,
     fetchOpen,
     gh,
     ghAllowed,
@@ -514,6 +520,9 @@ const refuseExcluded = (n, facts, suffix = "") => {
 };
 
 const liveWaits = (ledger) => ledger.waits.filter((w) => !w.ended && !w.expired);
+// A wait with a due time stops holding its issue once the time passes (2026-11-18: waits for "a recurrence" or "a
+// measurement" held critical and high issues for days with nothing ever ending them).
+const pastDue = (w, now) => Boolean(w.due) && Date.parse(w.due) <= now;
 
 /**
  * Routes an issue (design section "Routing a new issue"). With no target, or a closed or dissolved one, it starts a
@@ -796,20 +805,33 @@ export function release(ledger, id, n, why, now) {
 }
 
 /**
- * Records that an issue waits on another branch or pull request (rubric X6, X8 or X9).
+ * Records that an issue waits on another branch or pull request (rubric X6, X8 or X9). On a live wait with the same
+ * issue and target, a due time updates that wait's due time and why; `end` ends it instead.
  * @param ledger the ledger
- * @param spec `{ n, on, x9, why, now }`
+ * @param spec `{ n, on, x9, why, now, due, end }`
  * @returns one line
  */
 export function addWait(ledger, spec) {
-    const { n, on, x9, why, now } = spec;
+    const { n, on, x9, why, now, due, end } = spec;
     if (!on) throw new Refused("--on is required");
     if (!why?.trim()) throw new Refused("--why is required");
+    if (due !== undefined && Number.isNaN(Date.parse(due))) throw new Refused(`--due ${due} is not a time`);
     const test = x9 ? `X9 ${x9}` : "X6";
     const at = new Date(now).toISOString();
-    if (liveWaits(ledger).some((w) => w.issue === n && w.on === on)) return `#${n} already waits on ${on}`;
-    ledger.waits.push({ issue: n, on, test, since: at, why, ended: null, expired: null });
-    return `#${n} waits on ${on} (${test})`;
+    const live = liveWaits(ledger).find((w) => w.issue === n && w.on === on);
+    if (end) {
+        if (!live) throw new Refused(`#${n} has no live wait on ${on}`);
+        live.ended = `${at} ${why}`;
+        return `#${n} no longer waits on ${on}`;
+    }
+    if (live && due) {
+        Object.assign(live, { due, why });
+        return `#${n} waits on ${on} until ${due}`;
+    }
+    if (live) return `#${n} already waits on ${on}`;
+    ledger.waits.push({ issue: n, on, test, since: at, why, ...(due ? { due } : {}), ended: null, expired: null });
+    const until = due ? ` until ${due}` : "";
+    return `#${n} waits on ${on} (${test})${until}`;
 }
 
 /**
@@ -864,7 +886,15 @@ export function importScan(ledger, scan, now) {
     ledger.groups = keep;
     const counts = { groups: 0, issues: 0, unreasoned: 0 };
     for (const job of scan.jobs) importJob(ledger, job, taken, now, counts);
-    ledger.blocked = Array.isArray(scan.blocked) ? scan.blocked : [];
+    // A block blocked again keeps its earlier due time while that is still ahead, so a scan that writes "now + N"
+    // each time cannot push it on
+    const dueBefore = new Map(
+        (ledger.blocked ?? []).filter((b) => blockHolds(b, now) && b.due).map((b) => [b.issue, b.due]),
+    );
+    ledger.blocked = (Array.isArray(scan.blocked) ? scan.blocked : []).map((b) => {
+        const old = dueBefore.get(b.issue);
+        return old && b.due && Date.parse(old) < Date.parse(b.due) ? { ...b, due: old } : b;
+    });
     ledger.scannedAt = scan.builtAt ?? new Date(now).toISOString();
     return counts;
 }
@@ -993,8 +1023,12 @@ const reviewable = (members, everyMemberReviewed = EVERY_MEMBER_REVIEWED) => {
 // Issues no job may take now: members of started, ready, frozen and held groups, of follow-up groups whose base is
 // still live, members recorded under an exclusion (a test starting with X: owner-only, tracker, unmerged cause), and
 // issues with a live wait.
-const busyIssues = (ledger) => {
-    const busy = new Set(liveWaits(ledger).map((w) => w.issue));
+const busyIssues = (ledger, now) => {
+    const busy = new Set(
+        liveWaits(ledger)
+            .filter((w) => !pastDue(w, now))
+            .map((w) => w.issue),
+    );
     for (const g of ledger.groups.filter((x) => isLive(x))) {
         const base = g.after && ledger.groups.find((x) => x.id === g.after);
         const blocked = g.state !== "proposed" || g.held || (base && isLive(base));
@@ -1019,14 +1053,19 @@ const busyIssues = (ledger) => {
  * `inherited` marker (it waits on master's fix). Every one is listed and counted as startable: how many start this
  * round is the round's start rate, never this list (#9136: capping the list at half the free test slots hid 35 of
  * 36 red pull requests whenever the slots were busy, and idle read the queue as drained).
- * @param options `{ everyMemberReviewed, claims, isAncestor }`: the claims sweep's claims (state.json), git
- *   ancestry on origin/master
- * @returns `{ jobs, rescan, stale }`
+ * Jobs no agent can start go in `held` with their reason, listed by jobLines but never counted as startable (#9710):
+ * `open` for a group whose every member has a live wait, `fix-red` for a pull request failing only owner-only checks
+ * (PR Integrity) or whose newest marker is `owner-review`.
+ * @param options `{ everyMemberReviewed, claims, isAncestor, urgent }`: the claims sweep's claims (state.json), git
+ *   ancestry on origin/master, the open critical and high issue numbers, in progress or not (default: those of q)
+ * @returns `{ jobs, held, rescan, stale, unjustified, openEnded }`, unjustified the critical and high issues the scan
+ *   blocked with no `due` time and none of the reasons in JUSTIFIED_BLOCK, openEnded the critical and high issues a
+ *   live wait with no `due` time holds
  */
 export function ledgerJobs(ledger, q, now, options = {}) {
     const pos = new Map(q.map((i, k) => [i.number, k]));
     const byNumber = new Map(q.map((i) => [i.number, i]));
-    const busy = busyIssues(ledger);
+    const busy = busyIssues(ledger, now);
     const seen = new Set();
     const out = [];
     for (const g of ledger.groups.filter((x) => x.state === "proposed")) {
@@ -1053,10 +1092,29 @@ export function ledgerJobs(ledger, q, now, options = {}) {
         }
     }
     const live = liveClaims(options.claims);
-    const blocked = new Set(
-        (ledger.blocked ?? []).filter((b) => blockActive(ledger, b, live, now)).map((b) => b.issue),
+    const holding = (ledger.blocked ?? []).filter((b) => blockActive(ledger, b, live, now) && blockHolds(b, now));
+    const blocked = new Set(holding.map((b) => b.issue));
+    // an issue with a live wait is not free, scanned or not (#9764: a recorded wait still offered #9768)
+    const waiting = new Set(
+        liveWaits(ledger)
+            .filter((w) => !w.due || Date.parse(w.due) > now)
+            .map((w) => w.issue),
     );
-    const free = q.map((i) => i.number).filter((n) => !seen.has(n) && !busy.has(n) && !blocked.has(n));
+    const free = q
+        .map((i) => i.number)
+        .filter((n) => !seen.has(n) && !busy.has(n) && !blocked.has(n) && !waiting.has(n));
+    const unjustified = holding
+        .filter((b) => URGENT.has(byNumber.get(b.issue)?.priority) && !b.due)
+        .filter((b) => !JUSTIFIED_BLOCK.test(b.reason ?? "") && !namesLiveWork(b))
+        .map((b) => b.issue);
+    const urgent = options.urgent ?? new Set(q.filter((i) => URGENT.has(i.priority)).map((i) => i.number));
+    const openEnded = [
+        ...new Set(
+            liveWaits(ledger)
+                .filter((w) => !w.due && urgent.has(w.issue))
+                .map((w) => w.issue),
+        ),
+    ].sort((a, b) => a - b);
     const top = new Set(q.slice(0, 10).map((i) => i.number));
     let rescan = free.filter((n) => top.has(n));
     if (!rescan.length && !out.length && free.length) rescan = [free[0]];
@@ -1076,13 +1134,39 @@ export function ledgerJobs(ledger, q, now, options = {}) {
     const stale =
         Number.isNaN(age) || age > SCAN_STALE_MS ? `the last scan is older than 2 hours (${ledger.scannedAt})` : null;
     out.sort((a, b) => pos.get(a.lead) - pos.get(b.lead));
-    return { jobs: withPipeJobs(out, pipeJobs(ledger, q, now, options, live)), rescan, stale };
+    const pipe = pipeJobs(ledger, q, now, options, live);
+    return {
+        jobs: withPipeJobs(
+            out,
+            pipe.filter((j) => !j.held),
+        ),
+        held: pipe.filter((j) => j.held),
+        rescan,
+        stale,
+        unjustified,
+        openEnded,
+    };
 }
+
+const URGENT = new Set(["critical", "high"]);
+
+// The reasons a critical or high issue may stay blocked with no end time (issue-round step 2): anything else needs a
+// `due` time in the scan, or the round sends the issue a diagnosis job.
+// The scan writes its own forms too (X6/X7/X9 exclusions, trackers, collisions and dependencies naming a pull
+// request, a T-test with an open group). A wait for a recurrence is not here: it needs a `due` like a measurement.
+// ponytail: a named #m is not checked for still being open; the scan is rebuilt from the open pull requests every 2 h
+const JUSTIFIED_BLOCK =
+    /^(owner-only|needs-decision|in flight|X[3-9]\b)|\btracker\b|waits on (armable )?#\d+|collision\b.*#\d+|depends on .*#\d+|\bT\d+ with open group/i;
+
+// A block naming a pull request, branch, claim or group ends when that does (blockActive), so it needs no due time.
+const namesLiveWork = (b) => Boolean(b.prs?.length || b.pr || b.branch || b.claim || b.group);
 
 const PRIORITIES = ["critical", "high", "medium", "low"];
 const prank = (p) => (PRIORITIES.includes(p) ? PRIORITIES.indexOf(p) : PRIORITIES.length);
 const BLOCK_TTL_MS = 2 * HOUR;
 const OPEN_AFTER_MS = 2 * HOUR;
+// Checks only the owner can clear (his code-owner review); a pull request failing only these is no fix-red job.
+const OWNER_CHECKS = new Set(["PR Integrity"]);
 
 // A branch is held only by a claim live from session activity; one live only because a pull request or branch names
 // its issue (byWork) holds the issue, never the branch, so that pull request's fix-red and open jobs still run.
@@ -1128,6 +1212,9 @@ const redJobs = (ledger, prs, q, now, live) => {
         if (!red || now - Date.parse(p.headAt) < RED_PR_IDLE_MS || live.branches.has(p.branch)) continue;
         const attempts = p.markers.filter((m) => m.kind === "fix attempt");
         if (attempts.some((m) => now - m.at < RED_PR_IDLE_MS) || p.markers.at(-1)?.kind === "inherited") continue;
+        // only the owner's code-owner review clears PR Integrity; an owner-review marker says the rest waits on him
+        const ownerOnly =
+            p.mergeable !== "CONFLICTING" && p.failing?.length && p.failing.every((n) => OWNER_CHECKS.has(n));
         const blocks = (ledger.blocked ?? [])
             .filter((b) => (b.prs ?? []).includes(p.number) && byNumber.has(b.issue))
             .map((b) => b.issue);
@@ -1147,6 +1234,7 @@ const redJobs = (ledger, prs, q, now, live) => {
             blocks,
             attempts: attempts.length,
             why: `${why}, head ${Math.round((now - Date.parse(p.headAt)) / HOUR)} h old`,
+            held: ownerOnly || p.markers.at(-1)?.kind === "owner-review" ? "owner review" : null,
         });
     }
     return out;
@@ -1161,6 +1249,12 @@ const openJobs = (ledger, prs, now, options, live) => {
         if (live.branches.has(g.branch) || (ev?.sha && options.isAncestor?.(ev.sha))) continue;
         const { issues, points } = size(g);
         if (issues > CAPS[groupClass(g)].issues || points > CAPS[groupClass(g)].points) continue; // over-cap: split first
+        // pr-open refuses a branch whose every issue waits on another pull request (#9710: #9083 on #8596)
+        const waits = g.members.map((m) =>
+            liveWaits(ledger)
+                .filter((w) => w.issue === m.n)
+                .map((w) => w.on),
+        );
         out.push({
             kind: "open",
             group: g.id,
@@ -1168,6 +1262,7 @@ const openJobs = (ledger, prs, now, options, live) => {
             priority: PRIORITIES.find((p) => g.members.some((m) => m.priority === p)) ?? "none",
             issues: g.members.map((m) => m.n),
             why: `ready ${ev?.sha ?? "?"} ${Math.round((now - since) / HOUR)} h ago, no pull request`,
+            held: waits.every((w) => w.length) ? `waits on ${[...new Set(waits.flat())].join(" ")}` : null,
         });
     }
     return out;
@@ -1193,38 +1288,52 @@ const ascii = (s) => s.replaceAll(/[^\x20-\x7e\n\t]/g, "?");
  * @returns lines
  */
 export function jobLines(result) {
-    const lines = result.jobs.map((j) => {
-        if (j.kind === "fix-red") {
-            const close =
-                j.attempts >= 2 ? `; ${j.attempts} fix attempts: close it, branch kept` : `; attempts ${j.attempts}`;
-            const blocks = j.blocks.length ? `; blocks ${hashes(j.blocks)}` : "";
-            return ascii(
-                `fix-red #${j.pr} ${j.priority} ${j.branch} -- ${j.why}${blocks}; issues ${hashes(j.issues) || "none"}${close}`,
-            );
-        }
-        if (j.kind === "open")
-            return ascii(`open ${j.branch} ${j.priority} ${j.group} -- ${j.why}; issues ${hashes(j.issues)}`);
-        if (j.unscanned) return `job ${hashes(j.issues)} ${j.priority} unscanned -- in no group of the ledger`;
-        const pairs = j.issues.map((n, k) => n + ":" + j.tests[k]).join(" ");
-        const tests = j.issues.length > 1 ? ` tests ${pairs}` : "";
-        const why = j.why || "no reason given";
-        return ascii(
-            `job ${hashes(j.issues)} ${j.priority} ${j.group}${tests} -- ${why}; files ${j.files.join(" ") || "none named"}`,
-        );
-    });
+    const held = (result.held ?? []).map((j) => `${jobLine(j)}; held: ${j.held}`);
+    const lines = [...result.jobs.map((j) => jobLine(j)), ...held];
     const work = result.jobs.filter((j) => !j.kind);
     const issues = work.reduce((t, j) => t + j.issues.length, 0);
     const grouped = work.filter((j) => j.issues.length > 1).length;
     const red = result.jobs.filter((j) => j.kind === "fix-red").length;
     const open = result.jobs.filter((j) => j.kind === "open").length;
     const pipe = red || open ? `; ${red} fix-red, ${open} open` : "";
-    lines.push(`${work.length} jobs, ${issues} issues, ${grouped} grouped${pipe}`);
+    const heldNote = held.length ? `; ${held.length} held` : "";
+    lines.push(`${work.length} jobs, ${issues} issues, ${grouped} grouped${pipe}${heldNote}`);
+    if (result.unjustified?.length) {
+        lines.push(
+            `unjustified blocks: ${hashes(result.unjustified)} -- critical/high blocked with no due time and no allowed reason: diagnose each, or rescan with a due time`,
+        );
+    }
+    if (result.openEnded?.length) {
+        lines.push(
+            `open-ended waits: ${hashes(result.openEnded)} -- critical/high held by a wait with no due time: check its branch or pull request still moves, then wait again with --due or release it`,
+        );
+    }
     if (result.rescan.length || result.stale) {
         const why = result.stale ?? "not in the ledger";
         lines.push(`rescan: ${hashes(result.rescan) || "(none unscanned)"} -- start the free-queue scan (${why})`);
     }
     return lines;
 }
+
+const jobLine = (j) => {
+    if (j.kind === "fix-red") {
+        const close =
+            j.attempts >= 2 ? `; ${j.attempts} fix attempts: close it, branch kept` : `; attempts ${j.attempts}`;
+        const blocks = j.blocks.length ? `; blocks ${hashes(j.blocks)}` : "";
+        return ascii(
+            `fix-red #${j.pr} ${j.priority} ${j.branch} -- ${j.why}${blocks}; issues ${hashes(j.issues) || "none"}${close}`,
+        );
+    }
+    if (j.kind === "open")
+        return ascii(`open ${j.branch} ${j.priority} ${j.group} -- ${j.why}; issues ${hashes(j.issues)}`);
+    if (j.unscanned) return `job ${hashes(j.issues)} ${j.priority} unscanned -- in no group of the ledger`;
+    const pairs = j.issues.map((n, k) => n + ":" + j.tests[k]).join(" ");
+    const tests = j.issues.length > 1 ? ` tests ${pairs}` : "";
+    const why = j.why || "no reason given";
+    return ascii(
+        `job ${hashes(j.issues)} ${j.priority} ${j.group}${tests} -- ${why}; files ${j.files.join(" ") || "none named"}`,
+    );
+};
 
 // ---------------------------------------------------------------------------------------------------------------
 // Drift against GitHub.
@@ -1291,6 +1400,10 @@ export function drift(ledger, facts, now, isAncestor = () => false) {
         out.push(...memberDrift(g, facts.issues));
     }
     out.push(...prWaitDrift(ledger, facts));
+    for (const w of liveWaits(ledger).filter((x) => pastDue(x, now))) {
+        const why = `due ${w.due} passed`;
+        out.push({ group: null, issue: w.issue, kind: "wait-due", detail: why, fix: { op: "end-wait", wait: w, why } });
+    }
     for (const w of liveWaits(ledger).filter((w) => isX9(w))) {
         const sha = String(w.test).split(" ")[1];
         if (sha && isAncestor(sha)) {
@@ -2042,12 +2155,20 @@ export function fetchOpenPrs(branches, run = graphql) {
     return out;
 }
 
-const MARKER_KINDS = /^pipeline-round: (fix attempt|inherited|taken|released)\b/;
+const MARKER_KINDS = /^pipeline-round: (fix attempt|inherited|taken|released|owner-review)\b/;
+const FAILED = new Set(["FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE"]);
+// The head commit's failing check names; a name run more than once counts by its newest result.
+const failingChecks = (rollup) => {
+    const last = new Map();
+    for (const c of rollup?.contexts?.nodes ?? []) last.set(c.name ?? c.context, c.conclusion ?? c.state);
+    return [...last].filter(([, r]) => FAILED.has(r)).map(([n]) => n);
+};
 const PR_TEXT = `createdAt body author ${ACTOR} editor ${ACTOR} lastEditedAt`;
 const AGENT_PRS = (after) => `query { repository(owner: "${OWNER}", name: "${NAME}") {
-  pullRequests(states: OPEN, first: 50${after ? `, after: "${after}"` : ""}) { pageInfo { hasNextPage endCursor }
+  pullRequests(states: OPEN, first: 20${after ? `, after: "${after}"` : ""}) { pageInfo { hasNextPage endCursor }
     nodes { number headRefName isDraft createdAt mergeable author { login } labels(first: 20) { nodes { name } }
-      commits(last: 1) { nodes { commit { committedDate statusCheckRollup { state } } } }
+      commits(last: 1) { nodes { commit { committedDate statusCheckRollup { state
+        contexts(first: 100) { nodes { ... on CheckRun { name conclusion } ... on StatusContext { context state } } } } } } }
       comments(last: 20) { nodes { ${PR_TEXT} } }
       closingIssuesReferences(first: 5) { nodes { number labels(first: 20) { nodes { name } }
         comments(last: 15) { nodes { ${PR_TEXT} } } } } } } } }`;
@@ -2085,6 +2206,7 @@ export function fetchAgentPrs(run = graphql) {
                 labels: (p.labels?.nodes ?? []).map((l) => l.name),
                 mergeable: p.mergeable,
                 checks: head?.statusCheckRollup?.state ?? null,
+                failing: failingChecks(head?.statusCheckRollup),
                 headAt: head?.committedDate ?? p.createdAt,
                 issues: issues.map((i) => i.number),
                 priority: bestPriority(issues.map((i) => (i.labels?.nodes ?? []).map((l) => l.name))),
@@ -2191,7 +2313,9 @@ const sinkParts = (stuck, sinks) => {
  * The idle verdict. Idle means the session should act now: jobs are startable and nothing on the machine says wait,
  * or nothing is startable while test slots are free and a sink this session can clear holds work back (starved).
  * @param f `{ running, stuck, sinks: { unopened, stateAgeMs, toolsBehind, workspace }, info, slots: { count, held,
- *   waitedMs }, load, cores, startable }`; slots.count 0 means no limit
+ *   waitedMs }, load, cores, startable, critHigh,
+ *   critHighHeld }`; slots.count 0 means no limit; critHigh is how many startable jobs a critical or high issue
+ *   leads, critHighHeld how many critical or high issues of the queue no job offers
  * @returns `{ idle, reason, line, ...f, free }`
  */
 export function idleVerdict(f) {
@@ -2206,9 +2330,12 @@ export function idleVerdict(f) {
         reason = `a run has waited ${Math.round(f.slots.waitedMs / 60_000)} min for a slot`;
     else if (f.load >= f.cores) reason = "load is at or over the cores";
     else if (free === 0) reason = "no free test slot";
-    const idle = reason === "start jobs" || reason.startsWith("starved");
+    else if (!f.critHigh && f.critHighHeld) reason = "start jobs; no critical/high job is startable, say why";
+    const idle = reason.startsWith("start jobs") || reason.startsWith("starved");
     const info = f.info ? `; ${f.info}` : "";
-    const line = `idle: running ${f.running}, stuck ${stuck.length}, ${slots}, load ${load}/${f.cores}, startable ${f.startable} -- ${reason}${info}`;
+    const held = f.critHighHeld ? `, ${f.critHighHeld} held` : "";
+    const ch = `critical/high ${f.critHigh ?? 0}${held}`;
+    const line = `idle: running ${f.running}, stuck ${stuck.length}, ${slots}, load ${load}/${f.cores}, startable ${f.startable} (${ch}) -- ${reason}${info}`;
     return { idle, reason, line, ...f, free: Number.isFinite(free) ? free : null };
 }
 
@@ -2324,11 +2451,28 @@ const idleFacts = (c, sweep) => {
     const machine = c.machine();
     const running = runningJobs(sweep.claims, session, c.now);
     const options = { claims: sweep.claims, isAncestor: c.isAncestor };
-    const result = ledgerJobs(readLedger(c.ledgerPath), queue(open, c.now).queue, c.now, options);
+    const ledger = readLedger(c.ledgerPath);
+    const q = queue(open, c.now).queue;
+    const result = ledgerJobs(ledger, q, c.now, options);
+    const urgent = (p) => p === "critical" || p === "high";
+    const offered = new Set(result.jobs.flatMap((j) => j.issues));
+    const critHigh = result.jobs.filter((j) => urgent(j.priority)).length;
+    const critHighHeld = q.filter((i) => urgent(i.priority) && !offered.has(i.number)).length;
     const { info, ...sinks } = c.sinks();
-    sinks.unopened = (sweep.claims ?? []).filter(
-        (x) => x.kind === "ready" && x.action === "stranded" && c.now - x.at > OPEN_AFTER_MS,
-    ).length;
+    // A branch held on someone else (a wait, the owner) or already in an open pull request is no sink this session
+    // can clear (#9710: the samples branch waits on #8596; the owner's #1677 is open).
+    const notMine = new Set([
+        ...(result.held ?? []).map((j) => j.branch),
+        ...(ledger.openPrs?.prs ?? []).map((p) => p.branch),
+    ]);
+    sinks.unopened = new Set(
+        (sweep.claims ?? [])
+            .filter((x) => x.kind === "ready" && x.action === "stranded" && c.now - x.at > OPEN_AFTER_MS)
+            // a branch whose issue waits on another pull request cannot open yet (#9764: #8193 on #9592)
+            .filter((x) => !liveWaits(ledger).some((w) => w.issue === x.n))
+            .map((x) => x.branch)
+            .filter((b) => !notMine.has(b)),
+    ).size;
     const claimsInfo = sweep.unknown ? sweep.line : null;
     return {
         session,
@@ -2336,6 +2480,8 @@ const idleFacts = (c, sweep) => {
         stuck: running.stuck,
         issues: running.issues,
         startable: result.jobs.length,
+        critHigh,
+        critHighHeld,
         sinks,
         info: [info, claimsInfo].filter(Boolean).join("; ") || null,
         ...machine,
@@ -2352,6 +2498,8 @@ const OPTIONS = {
     to: { type: "string" },
     on: { type: "string" },
     x9: { type: "string" },
+    due: { type: "string" },
+    end: { type: "boolean" },
     merged: { type: "boolean" },
     unmerged: { type: "boolean" },
     json: { type: "boolean" },
@@ -2365,7 +2513,7 @@ const OPTIONS = {
 };
 
 const USAGE =
-    "usage: issue-groups.mjs seed <file> [--force] | show [<group>|<issue>] [--json] | create <lead> [<n>:<test>[:<with>]...] --why <r> [--files <p>...] [--class <c>] | add <group> <n> --test <T#> [--with <n>] [--class <c>] | route <n> [--to <group> --test <T#> [--with <n>] [--join]] [--class <c>] [--why <r>] | import-scan [<file>] | start <group> <branch> <n>... | ready <group> <sha> | freeze <group> <pr> | close <group> --merged|--unmerged | release <group> <n> --why <r> | wait <n> --on <target> [--x9 <sha>] --why <r> | archive | compact | check [--fix] [--json] | jobs [--json] | combine-plan [--link <a>:<b>:<T#>...] [--json] | metrics [--append] [--json] | idle [--json]";
+    "usage: issue-groups.mjs seed <file> [--force] | show [<group>|<issue>] [--json] | create <lead> [<n>:<test>[:<with>]...] --why <r> [--files <p>...] [--class <c>] | add <group> <n> --test <T#> [--with <n>] [--class <c>] | route <n> [--to <group> --test <T#> [--with <n>] [--join]] [--class <c>] [--why <r>] | import-scan [<file>] | start <group> <branch> <n>... | ready <group> <sha> | freeze <group> <pr> | close <group> --merged|--unmerged | release <group> <n> --why <r> | wait <n> --on <target> [--x9 <sha>] [--due <time>] --why <r> | wait <n> --on <target> --end --why <r> | archive | compact | check [--fix] [--json] | jobs [--json] | combine-plan [--link <a>:<b>:<T#>...] [--json] | metrics [--append] [--json] | idle [--json]";
 
 const num = (s) => {
     if (!/^#?\d+$/.test(s ?? "")) throw new Refused(`not an issue number: ${s}`);
@@ -2526,7 +2674,7 @@ const COMMANDS = {
         return c.change((ledger) => ok(`${release(ledger, c.pos[0], n, c.o.why, c.now).id} released #${n}`));
     },
     wait: (c) => {
-        const spec = { n: num(c.pos[0]), on: c.o.on, x9: c.o.x9, why: c.o.why, now: c.now };
+        const spec = { n: num(c.pos[0]), on: c.o.on, x9: c.o.x9, due: c.o.due, end: c.o.end, why: c.o.why, now: c.now };
         return c.change((ledger) => ok(addWait(ledger, spec)));
     },
     archive: (c) =>
@@ -2547,7 +2695,7 @@ const COMMANDS = {
         const ledger = readLedger(c.ledgerPath);
         const sweep = c.sweep(false);
         if (!ledger.groups.length) return c.fallback(c.o.json ? ["--json"] : []);
-        const options = { claims: sweep.claims, isAncestor: c.isAncestor };
+        const options = { claims: sweep.claims, isAncestor: c.isAncestor, urgent: c.urgent() };
         const result = ledgerJobs(ledger, c.fetchQueue(), c.now, options);
         if (c.o.json) return ok(JSON.stringify(result, null, 2));
         const prs = ledger.openPrs ? [] : ["pull requests unknown: run check --fix (no fix-red or open jobs)"];
@@ -2613,6 +2761,8 @@ export function main(argv, deps = {}) {
     const ledgerPath = deps.ledgerPath ?? (process.env.ISSUE_GROUPS_LEDGER || defaultLedger());
     const now = deps.now ?? Date.now();
     const run = deps.run ?? graphql;
+    let open;
+    const openIssues = () => (open ??= fetchOpen());
     let parsed;
     try {
         parsed = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true });
@@ -2630,14 +2780,25 @@ export function main(argv, deps = {}) {
         ledgerPath,
         metricsLog: deps.metricsLog ?? `${dirname(ledgerPath)}/grouping-metrics.jsonl`,
         readFile: deps.readFile ?? ((p) => readFileSync(p, "utf8")),
-        fetchQueue: deps.fetchQueue ?? (() => queue(fetchOpen(), now).queue),
+        fetchQueue: deps.fetchQueue ?? (() => queue(openIssues(), now).queue),
+        // with a fetchQueue given (tests), undefined: ledgerJobs takes the critical and high issues of the queue
+        urgent:
+            deps.urgent ??
+            (() =>
+                deps.fetchQueue
+                    ? undefined
+                    : new Set(
+                          openIssues()
+                              .filter((i) => URGENT.has(describe(i, now).priority))
+                              .map((i) => i.number),
+                      )),
         isAncestor: deps.isAncestor ?? gitAncestor,
         fallback: deps.fallback ?? fallbackJobs,
         git: deps.git ?? GIT,
         guard: deps.guard ?? guardPaths,
         change: (fn) => mutate(ledgerPath, fn),
         facts: (numbers) => fetchFacts(numbers, [], run).issues,
-        fetchOpen: deps.fetchOpen ?? (() => fetchOpen()),
+        fetchOpen: deps.fetchOpen ?? openIssues,
         session: deps.session ?? (() => lastRoundSession(ledgerPath)),
         machine: deps.machine ?? (() => ({ slots: slotFacts(now), load: loadavg()[0], cores: cpus().length })),
         ...sideEffects(deps, ledgerPath, now, run),

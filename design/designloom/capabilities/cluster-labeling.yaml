@@ -1,0 +1,28 @@
+id: cluster-labeling
+name: Automatic cluster labeling and quality
+category: analysis
+description: Label clusters from member text by log-likelihood ratio, tf-idf or mutual information (or an external
+    labeler) and report modularity and silhouette per clustering run.
+status: planned
+notes: "Research trace: bibliometrics-and-science-mapping.md section 10, requirement 23 (Should)."
+algorithms: []
+used_by_workflows:
+    - W207
+    - W208
+    - W210
+    - W212
+    - W51
+    - W52
+    - W58
+    - W2037
+    - W2096
+    - W2097
+    - W2099
+implemented_by_components: []
+requirements:
+    - "Should: Cluster labeling (LLR, tf-idf) and quality (modularity, silhouette)"
+    - "Must: Top hashtags, URLs, domains, words, bio terms and most-followed or most-reposted accounts per community, with editable cluster labels; extends community-profiling to text tokens."
+sources:
+    - title: Bibliometrics and Science Mapping (section 10, requirement 23)
+      url: design/user-research/bibliometrics-and-science-mapping.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

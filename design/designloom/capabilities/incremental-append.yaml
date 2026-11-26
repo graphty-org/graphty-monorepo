@@ -1,0 +1,19 @@
+id: incremental-append
+name: Incremental Append to a Chart
+category: analysis
+description: Append newly arrived records to an existing chart, matching them to existing entities, keeping layout and
+    annotations, and highlighting what is new since the last update.
+status: planned
+notes: "Research trace: law-enforcement-and-intelligence-analysts.md section 10, requirement 16 (Must)."
+algorithms: []
+used_by_workflows:
+    - W09
+    - W98
+implemented_by_components: []
+requirements:
+    - "Must: Append to a chart: match to existing entities, keep layout and notes, highlight what is new"
+sources:
+    - title: Law enforcement crime and intelligence analysts, and defense and national intelligence analysts (section
+          10, requirement 16)
+      url: design/user-research/law-enforcement-and-intelligence-analysts.md
+      summary: "Must in the research. Covered by Designloom when researched: Gap"

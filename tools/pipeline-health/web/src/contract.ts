@@ -260,6 +260,17 @@ export const MEMBER_IDS = [
     "costs.t4",
     "costs.llm",
     "costs.aws",
+    "costs.cloudflare",
+    "costs.usage_cf_requests",
+    "costs.usage_cf_d1_rows_read",
+    "costs.usage_cf_d1_rows_written",
+    "costs.usage_cf_r2_class_a",
+    "costs.usage_cf_r2_class_b",
+    "costs.usage_cf_r2_storage_bytes",
+    "costs.usage_aws_dynamo_write_units",
+    "costs.usage_aws_dynamo_read_units",
+    "costs.usage_aws_lambda_invocations",
+    "costs.usage_aws_api_requests",
     "costs.cloudflare_usage",
     "costs.sentry_usage",
     "data-sources.stress_run",
@@ -268,6 +279,7 @@ export const MEMBER_IDS = [
     "data-sources.collector",
     "data-sources.app_rate",
     "data-sources.write_budget",
+    "data-sources.read_budget",
     "data-sources.sources_not_ok",
     "local-runs.local_vs_ci",
     "local-runs.shard_time",
@@ -374,6 +386,7 @@ export type SourceId =
     | "stress"
     | "hosts"
     | "billing"
+    | "aws-usage"
     | "flaky-feed"
     | "benchmarks"
     | "local";

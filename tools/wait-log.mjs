@@ -1,16 +1,14 @@
 // No #! line: every vitest config imports this through test-slots.mjs, and Vite's config loader
 // prepends code to line 1, which turns a #! into a syntax error. Run it as `node tools/wait-log.mjs`.
 /**
- * wait-log.mjs -- one machine-readable log of every wait in the pipeline, so the time a change spends
- * queued (for the landing lock, a gate slot, a browser slot, a test or GPU slot, a screenshot preview)
- * can be measured instead of guessed (design/ci/fast-pipeline.md, build order step 1).
+ * wait-log.mjs -- one machine-readable log of every wait on this machine, so the time a run spends
+ * queued (for a browser slot, a test or GPU slot, a screenshot preview) can be measured instead of
+ * guessed.
  *
  * Each wait that ended is one JSON line in <main checkout>/tmp/waits.jsonl:
  *   { kind, start, end, ms, waiter, pid, heldBy, ...extra }
- * - kind: what was waited for: "land-lock" and "cut-lock" (tools/land.mjs), "gate-slot"
- *   (tools/push-queue.sh), "browser-slot" (tools/with-browser.sh), "test-slot" and "gpu-slot"
- *   (tools/test-slots.mjs), "preview-lock" (tools/visual-preview.sh). "land-lock-held" and
- *   "cut-lock-held" are the time a landing held the lock, from taking it to giving it back;
+ * - kind: what was waited for: "browser-slot" (tools/with-browser.sh), "test-slot" and "gpu-slot"
+ *   (tools/test-slots.mjs), "preview-lock" (tools/visual-preview.sh).
  *   "test-slot-held" and "gpu-slot-held" the time a test run held its slot, with `what` (its package
  *   or shard family) and `exit` (its exit code, null when unknown): every local test run, waited or not.
  *   "test-slot-idle": a holder that stopped using the CPU gave its slot back early (tools/test-slots.mjs).
@@ -19,7 +17,7 @@
  * - start, end: ISO times; ms: end - start.
  * - waiter: who waited (its checkout and command); pid: its process.
  * - heldBy: who held what it waited for when the wait began, as each tool describes its holders.
- * Slots log a wait only when one happened, and every hold; the landing locks log every taking and every hold.
+ * Slots log a wait only when one happened, and every hold.
  *
  * PIPELINE_WAIT_LOG names another file (tests), and "off" turns the log off. A log that cannot be
  * written never fails or delays the waiter.

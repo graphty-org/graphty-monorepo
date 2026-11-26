@@ -1,0 +1,118 @@
+id: W46
+name: Multilayer Networks Analyzed as Multilayer
+category: analysis
+validated: false
+personas:
+    - expert-emma
+    - network-neuroscience-researcher
+requires_capabilities:
+    - data-import
+    - temporal-analysis
+    - temporal-navigation
+    - community-detection
+    - comparison-view
+    - visual-encoding-edges
+    - legend-display
+    - filtering
+    - resolution-sweep
+    - multilayer-networks
+    - seeded-runs
+suggested_components:
+    - data-import-dialog
+    - network-list-panel
+    - community-panel
+    - range-slider
+    - comparison-view
+    - temporal-controls
+    - graph-canvas
+    - legend-panel
+starting_state:
+    data_type: multilayer edge list (relation types, time windows or sites as layers)
+    node_count: 100-100000 per layer
+    edge_density: any
+    user_expertise: expert
+goal: >-
+    **Intent**: Analyze a network whose edges come in layers -- relation types (multiplex), time windows or sites --
+    without collapsing the layers, find communities per layer that persist or change, and show the layers.
+
+
+    **Mental Model**: "The same node in several layers, tied to itself." Interlayer links connect each node to its
+    copies; a coupling strength trades communities within layers against persistence across layers.
+
+
+    **Task Phases**:
+
+    1. **Represent layers plus interlayer links** - Import a multilayer edge list; each node is linked to its
+    copies in other layers
+
+    2. **Choose coupling omega and resolution gamma** - Multilayer modularity trades static structure within
+    layers against persistence across layers; sweep omega together with gamma
+
+    3. **Read communities per layer** - Each node gets one community per layer; compute persistence and find
+    nodes that switch
+
+    4. **Other analyses** (as needed) - Multilayer centrality, reducibility (can layers be merged?), multilayer motifs
+
+    5. **Show it** - Stacked planes, or one graph with edges colored by layer
+
+
+    **Decision Points**:
+
+    - What is a layer here (relation, time window, site)?
+
+    - Which omega and gamma, and which region of the sweep is reported? Each point of the sweep is a stochastic run, so
+    record its seed and rerun the reported points
+
+    - Can some layers be merged without losing information?
+
+
+    **Information Needs**:
+
+    - Per-layer community assignment and persistence
+
+    - Nodes that switch communities across layers
+
+    - Number of communities and persistence across the omega-gamma sweep
+
+
+    **Pain Points**:
+
+    - Multilayer tools are R-only (muxViz, emln) or MATLAB (GenLouvain) and multilayer-only
+
+    - GUI tools collapse layers into one graph on import
+
+
+    **Data Flow**:
+
+    - Input: Multilayer edge list with layer ids, optional interlayer links
+
+    - Transformations: Multilayer modularity over an omega-gamma sweep, persistence, reducibility
+
+    - Output: Per-layer partitions, persistence statistics, stacked-layer figure
+success_criteria:
+    - metric: Layers preserved
+      target: Layers kept distinct through import, analysis and drawing
+    - metric: Coupling justified
+      target: Reported partition accompanied by the omega-gamma sweep
+sources:
+    - title: Community structure in time-dependent, multiscale and multiplex networks (Mucha et al. 2010)
+      url: https://arxiv.org/abs/0911.1824
+      summary: Multilayer modularity with interlayer coupling
+    - title: GenLouvain
+      url: https://github.com/GenLouvain/GenLouvain
+      summary: MATLAB multilayer modularity with persistence helpers
+    - title: Community detection in temporal multilayer networks (Bazzi et al. 2016)
+      url: https://arxiv.org/abs/1501.00040
+      summary: Trade-off between static structure within layers and persistence across layers
+    - title: Structural reducibility of multilayer networks (De Domenico, Porter and Arenas 2015)
+      url: https://arxiv.org/pdf/1405.0843
+      summary: Multilayer analysis including reducibility
+    - title: muxViz
+      url: https://www.github.com/manlius/muxViz
+      summary: Multilayer analysis, motifs and stacked-plane visualization
+    - title: emln README
+      url: https://cran.r-project.org/web/packages/emln/readme/README.html
+      summary: Ecological multilayer networks in R with plot_multilayer()
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

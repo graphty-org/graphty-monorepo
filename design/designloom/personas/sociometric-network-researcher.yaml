@@ -1,0 +1,91 @@
+id: sociometric-network-researcher
+name: Whole-Network Survey Sociologist
+roster_persona: survey-network-researcher
+tier: B
+scope: in-scope
+role: Associate Professor of Sociology (Sociometric School and Organization Studies)
+quote: Half my effects only mean something if I can show the reviewer exactly how I handled the forty kids who never filled in the survey.
+bio: >-
+    Dr. Katarina Brandt is an associate professor of sociology of education. She runs roster surveys in schools and
+    organizations: every student or employee gets a list of everyone inside the boundary and names friends or advice
+    partners, often across two to four waves. Her networks have 25 to about 1,500 nodes with 10 to 50 attribute columns,
+    and she often has many classrooms at once that she analyzes as a collection of separate networks. She cleans the
+    survey export in Excel, takes a first look and runs descriptives in UCINET and NetDraw, fits ERGM and stochastic
+    actor-oriented models in R (network, sna, ergm, RSiena), and draws the paper's sociogram in Pajek, Gephi or R. Her
+    central questions are homophily and segregation, and separating selection from influence (do students pick friends
+    who drink, or start drinking after befriending drinkers). Every coding choice -- symmetrizing rule, cutoff, missing
+    data treatment -- ends up in a methods section and in front of a reviewer.
+characteristics:
+    expertise: expert
+    time_pressure: medium
+    graph_literacy: advanced
+    domain_knowledge: advanced
+motivations:
+    - Turn a roster survey export into a defensible, analyzable network without silent coding errors
+    - Test selection versus influence and homophily with models a sociology journal will accept
+    - Report how non-respondents, off-roster nominees and boundary problems were handled
+    - Produce a readable, pseudonymized sociogram colored by the attribute the paper is about
+    - Compare many classrooms or several waves side by side with the same layout and styling
+behaviors:
+    - Designs roster instruments with nomination caps (Add Health allowed up to five male and five female friends; staff advice surveys allow up to 12 names)
+    - Reshapes wide friend1..friend10 survey columns into an edge list and recodes off-roster codes such as 99999999 and 88888888
+    - Keeps attributes in a separate actor-by-variable table and has to make sure ID order matches across files
+    - Symmetrizes (maximum or minimum), dichotomizes at a stated cutoff, transposes and extracts the main component, and reports each choice
+    - Codes unobserved dyads as missing (NA) rather than zero before fitting ergm or RSiena
+    - Runs UCINET cohesion, centrality, core-periphery and subgroup menus for the descriptive table
+    - Fits ERGMs with nodematch terms and checks goodness of fit; re-runs siena07 until the convergence ratio is below 0.25
+    - Draws one sociogram per wave in a fixed layout, colored by behavior or race, isolates omitted and stated
+    - Hands node-level scores to Stata, SPSS or R for regression
+frustrations:
+    - Non-respondents and off-roster nominees that tools treat as plain absent ties
+    - A different file format for every tool (DL, .net, VNA, edge list)
+    - NetDraw formatting that does not survive a session, and menu work that leaves no script record
+    - UCINET only runs on Windows
+    - Long SIENA re-runs until convergence
+    - Hairball figures, and no easy way to keep the same layout across waves
+context:
+    frequency: weekly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W3114
+    - W26
+    - W27
+    - W29
+    - W30
+    - W31
+    - W33
+    - W291
+sources:
+    - title: Moody (2001) Race, school integration, and friendship segregation in America
+      url: https://cpi.stanford.edu/_media/pdf/Reference%20Media/Moody_2001_Race.pdf
+      summary: Add Health roster nominations (up to 10 friends), 112 of 130 schools kept for response rate, Pajek figures colored by race with isolates omitted
+    - title: Add Health nomination fields and off-roster codes
+      url: https://addhealth-navigator.cpc.unc.edu/item/example.org/2955231e-ae0d-4d93-ad81-f34790b2d275
+      summary: Codes 99999999 and 88888888 for nominees not on the roster
+    - title: School Staff Social Network Questionnaire (ICPSR 32921)
+      url: https://www.icpsr.umich.edu/web/ICPSR/studies/32921
+      summary: Teacher advice network instrument; staff list up to 12 people
+    - title: Hanneman and Riddle, Introduction to Social Network Methods, chapter 6
+      url: https://faculty.ucr.edu/~hanneman/nettext/C6_Working_with_data.html
+      summary: UCINET data entry, DL files, symmetrize, dichotomize, transpose and extract transforms
+    - title: Borgatti, Everett and Johnson, Analyzing Social Networks, chapter 5 resources
+      url: https://study.sagepub.com/borgatti2e/student-resources/chapter-5/chapter-5-data-management
+      summary: DL formats, symmetrizing rules and dichotomizing cutoffs compared
+    - title: ergm package vignette
+      url: https://cran.r-project.org/web/packages/ergm/vignettes/ergm.html
+      summary: Missing dyads as NA, mixing matrices, nodematch, MCMC diagnostics and goodness of fit
+    - title: Basic RSiena script (Snijders)
+      url: https://www.stats.ox.ac.uk/~snijders/siena/basic_RSiena.html
+      summary: Waves, behavior dependent variables, convergence below 0.25, sienaGOF
+    - title: UW Sociolab UCINET quick guide
+      url: https://depts.washington.edu/sociolab/researchtools/networkanalysis/documents/UCINetQuickGuide2018.pdf
+      summary: NetDraw formatting does not reliably persist; attribute handling described as finicky
+    - title: Smith, Moody and Morgan (2021) on network imputation
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8294095
+      summary: Dropping non-respondents is almost always the worst option
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

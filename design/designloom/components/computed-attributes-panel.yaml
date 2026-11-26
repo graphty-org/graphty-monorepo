@@ -9,8 +9,53 @@ implements_capabilities:
 used_in_workflows:
     - W03
     - W06
-    - W12
     - W23
+    - W119
+    - W121
+    - W123
+    - W126
+    - W128
+    - W167
+    - W168
+    - W170
+    - W177
+    - W188
+    - W190
+    - W191
+    - W193
+    - W195
+    - W209
+    - W214
+    - W215
+    - W228
+    - W229
+    - W236
+    - W274
+    - W285
+    - W289
+    - W29
+    - W290
+    - W30
+    - W334
+    - W337
+    - W342
+    - W380
+    - W383
+    - W385
+    - W386
+    - W387
+    - W39
+    - W41
+    - W434
+    - W436
+    - W432
+    - W64
+    - W65
+    - W71
+    - W73
+    - W75
+    - W93
+    - W2037
 dependencies:
     - text-input
     - select

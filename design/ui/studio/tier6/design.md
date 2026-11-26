@@ -78,6 +78,9 @@ only the Assistant.
 
 ### 3.2 The flag
 
+_Graduated 2026-11-22 (issue #9670): the Assistant is no longer behind a flag; it is on every site
+and needs no `?features=assistant`. The record below is how it worked before._
+
 The experiment id is `assistant`, following `design/ci/channels-pipeline/features.md`.
 
 - It is a row in graphty-element's `FEATURES`, because this work adds to the element. Every addition

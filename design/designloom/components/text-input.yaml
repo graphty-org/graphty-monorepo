@@ -5,7 +5,11 @@ description: Single-line text input field with label, placeholder, validation st
 status: implemented
 notes: "Ships: Mantine TextInput, Mantine through compact-mantine, used across graphty/src."
 implements_capabilities: []
-used_in_workflows: []
+used_in_workflows:
+    - W145
+    - W149
+    - W232
+    - W330
 dependencies: []
 props:
     value:

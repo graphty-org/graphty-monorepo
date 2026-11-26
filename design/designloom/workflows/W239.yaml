@@ -1,0 +1,136 @@
+id: W239
+name: Instructor Lab Preparation That Survives the First Session
+category: administration
+validated: false
+personas:
+    - network-analysis-instructor
+    - graph-algorithms-learner
+requires_capabilities:
+    - sample-datasets
+    - data-import
+    - view-bookmarks
+    - analysis-history
+    - guided-onboarding
+    - shortest-path
+    - algorithm-progress
+    - export-image
+    - analysis-provenance
+    - graph-authoring
+    - algorithm-step-through
+    - private-share-link
+suggested_components:
+    - sample-data-dialog
+    - file-drop-zone
+    - session-save-dialog
+    - bookmark-panel
+    - share-dialog
+    - onboarding-wizard
+    - graph-canvas
+    - algorithm-panel
+starting_state:
+    data_type: classic teaching dataset, a class survey, an exam network or students' own data
+    node_count: 10-1000
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Prepare a lab or workshop so every student reaches a correct, readable result in one session: concepts
+    first, a small sparse dataset, a handout with exact steps, a fallback, a demo plan and a grading scheme. Done each
+    term, and redone after each tool release.
+
+
+    **Mental Model**: "A recipe that must still work next term." The handout is only as good as the tool's stability;
+    a starting state students can open in one click removes most of the risk.
+
+
+    **Task Phases**:
+
+    1. **Concept before tool** - Two lessons of network concepts before opening the software
+
+    2. **Pick the dataset** - Students' own data, a class survey, a classic (karate club 34 members and 78 edges, Les
+    Miserables, political books) or an exam network
+
+    3. **Write the handout** - Exact menus and version notes; post it with data and install notes on the LMS; prepare
+    pre-made files as a fallback when a data source closes
+
+    4. **Run the lab** - Demonstration, task, discussion, second task; a 5-15 minute Network of the Day warm-up; or a
+    stepped algorithm demo on the projector
+
+    5. **Grade** - Use of tools, insight and presentation; fixed deliverables with late penalties; for algorithms, the
+    order and working
+
+
+    **Decision Points**:
+
+    - Which tool, given installs, operating systems and privacy of free tiers
+
+    - Which dataset, at what size and density
+
+    - What AI-use policy to set
+
+    - What to grade and how to keep it fast
+
+
+    **Information Needs**:
+
+    - A saved starting state students open by link, identical for everyone
+
+    - A data card for each teaching dataset (source, size, meaning of attributes)
+
+    - A step list that stays valid across versions
+
+    - A private, read-only share for grading
+
+
+    **Pain Points**:
+
+    - Handouts rot with each release
+
+    - Install time eats the first lab; Windows-only tools exclude Mac students
+
+    - Free tiers publish student work
+
+    - Students' pictures differ from the demo because layouts and communities are not seeded
+
+
+    **Data Flow**:
+
+    - Input: Dataset, learning goals, tool choice
+
+    - Transformations: Saved starting state, handout, fallback files, demo script
+
+    - Output: LMS package (data, handout, link), graded submissions
+success_criteria:
+    - metric: Zero-install lab
+      target: Every student opens the prepared starting state from a link with no install
+    - metric: Handout durability
+      target: A handout written for one release still works for the next without edits
+    - metric: Identical start
+      target: Every student sees the same layout and colors when opening the prepared state
+sources:
+    - title: Aarhus University teaching case
+      url: https://educate.au.dk/en/teaching-cases/hands-on-data-analysis-visualising-networks
+      summary: Concepts before Gephi, two lessons, LMS posting, Twitter to YouTube fallback
+    - title: Warwick IM904 week 4
+      url: https://warwick.ac.uk/fac/cross_fac/cim/people/academic-technology/im904/week4
+      summary: Demonstration, task, discussion, second task; pre-made files
+    - title: UBC Library Gephi hands-on activity
+      url: https://ubc-library-rc.github.io/gephi-palladio/content/05_Gephi_hands_on_activity.html
+      summary: Handout with exact steps posted with data
+    - title: Network of the Day (Connections, 2026)
+      url: https://reference-global.com/article/10.2478/connections-2026-0005?tab=article
+      summary: 5 to 15 minute warm-up
+    - title: UCI Network Data - Zachary karate club
+      url: https://networkdata.ics.uci.edu/netdata/html/zacharyKarate.html
+      summary: 34 members and 78 edges
+    - title: UT Dallas ATCM 3385 syllabus
+      url: https://dox.utdallas.edu/syl86627
+      summary: Grading on use of tools, insight and presentation
+    - title: Grandjean - Gephi introduction
+      url: https://martingrandjean.ch/gephi-introduction/
+      summary: Tutorial tied to Gephi 0.8.2, an example of handout rot
+    - title: VisuAlgo - Single-Source Shortest Paths
+      url: https://visualgo.net/en/sssp
+      summary: e-Lecture mode for stepped algorithm demos
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

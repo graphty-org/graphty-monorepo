@@ -75,7 +75,16 @@ export interface NodeLabel {
      * `closeButton`, when the label is not drawn, or when it is behind the camera.
      * @since 3.29.0
      */
-    readonly closeRect?: { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
+    readonly closeRect?: {
+        /** The left edge, in CSS pixels from the canvas's left side. */
+        readonly x: number;
+        /** The top edge, in CSS pixels from the canvas's top. */
+        readonly y: number;
+        /** The width, in CSS pixels. */
+        readonly width: number;
+        /** The height, in CSS pixels. */
+        readonly height: number;
+    };
 }
 
 /** The counts before any label is drawn. */
@@ -1505,7 +1514,11 @@ export class LabelDeclutter {
 
         let best = 0;
         let lowest = Number.POSITIVE_INFINITY;
-        for (let place = 0; place <= AROUND.length && lowest > 0; place++) {
+        // A label its style puts on its node (centered, or inside it), or whose place a layer states (a file's label
+        // below its node), belongs there: moved elsewhere it would say something the file or style did not, so only
+        // its own place is tried.
+        const places = entry.node.label?.onTarget === true || entry.node.labelPlaced ? 0 : AROUND.length;
+        for (let place = 0; place <= places && lowest > 0; place++) {
             this.frame(entry, place);
             const cost = this.cost(entry, size, lowest);
             if (cost < lowest) {

@@ -1,0 +1,17 @@
+id: circle-seeded-stress-layout
+name: "Circle-seeded stress layout"
+category: visualization
+description: "Place nodes on a circle in a given or crossing-reducing order, then optionally refine by stress majorization so that drawn distances approximate graph distances, keeping the result reproducible. This is netmeta netgraph's layout (start.layout circle or eigen, iterate, seq optimal). The layout package ships a Kamada-Kawai solver; a circle start in a fixed order and a crossing-reducing order do not exist."
+status: planned
+notes: "Research trace: network-meta-analysis-evidence-networks.md section 10, table row 9."
+algorithms: []
+used_by_workflows:
+    - W3054
+    - W3057
+implemented_by_components: []
+requirements:
+    - "Must: Circular start layout in a chosen treatment order, refined by stress majorization, with a crossing-reducing order"
+sources:
+    - title: "Network Meta-Analysis Authors: Treatment Evidence Networks (section 10, table row 9)"
+      url: design/user-research/network-meta-analysis-evidence-networks.md
+      summary: "Must in the research"

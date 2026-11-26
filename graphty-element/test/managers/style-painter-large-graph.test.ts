@@ -8,6 +8,7 @@ import { assert, describe, it } from "vitest";
 
 import type { Path } from "../../src/catalog/types";
 import { StylePainter } from "../../src/managers/StylePainter";
+import { DEFAULT_LIMITS, FULL_DETAIL_NODE_TRIANGLES, fullDetailOverBudget } from "../../src/session/limits";
 import { createStylesApi, type RepaintContext } from "../../src/session/styles/index";
 import type { SelectorSource } from "../../src/session/styles/predicate";
 import { createLayerRepaint } from "../../src/session/styles/repaint";
@@ -82,5 +83,19 @@ describe("a large graph's node detail", () => {
         large = false;
         assert.isUndefined(painter.rowPaint(0)?.style.shape?.detail);
         assert.strictEqual(painter.rowPaint(0)?.meshKey, full?.meshKey, "below it again, the original key");
+    });
+
+    it("paints low once the full-detail triangle estimate passes the budget, and keeps a layer's own detail", async () => {
+        const budget = DEFAULT_LIMITS.fullDetailTriangleBudget;
+        const atBudget = Math.floor(budget / FULL_DETAIL_NODE_TRIANGLES);
+        let nodes = atBudget;
+        const over = (): boolean => fullDetailOverBudget(nodes, budget);
+        const painter = await painted(over);
+        const layered = await painted(over, "full");
+
+        assert.isUndefined(painter.rowPaint(0)?.style.shape?.detail, "at the budget, full detail");
+        nodes = atBudget + 1;
+        assert.strictEqual(painter.rowPaint(0)?.style.shape?.detail, "low", "one node past it, low");
+        assert.strictEqual(layered.rowPaint(0)?.style.shape?.detail, "full", "a layer's own detail wins");
     });
 });

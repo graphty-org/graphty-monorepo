@@ -141,6 +141,18 @@ describe("check-features", () => {
         );
     });
 
+    it("lets a graduated id that is an ordinary word stay a word, and fails it where it gates", () => {
+        const found = problems({
+            "graphty-element/src/features/registry.ts": registry(TIMELINE, `"assistant"`),
+            "graphty/src/Chat.tsx": `const said = { role: "assistant" };\nconst on = element.enabledFeatures.enabled.includes("assistant");\n`,
+            "graphty/sites/canary.json": `{ "site": "canary", "features": ["assistant"] }\n`,
+        });
+        assert.deepEqual(found.sort(), [
+            'graphty/sites/canary.json:1: site configuration names "assistant", which is not in FEATURES or APP_FEATURES',
+            'graphty/src/Chat.tsx:2: enabled check names "assistant", which is not in FEATURES or APP_FEATURES',
+        ]);
+    });
+
     it("fails where code or a site file still names one of the app's graduated experiments", () => {
         assert.deepEqual(
             problems({

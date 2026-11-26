@@ -1,0 +1,34 @@
+id: seeded-runs
+name: Seeded Repeatable Runs
+category: analysis
+description: Every stochastic algorithm (communities, layouts, rewiring, simulation, subsampling) takes a seed and
+    records it; multi-run execution with spread reported. This is the one cross-algorithm record for seeding; the
+    implemented community-detection and layout-force-directed records already meet it for their own algorithms, and
+    every other stochastic algorithm is measured against it.
+status: planned
+notes: "Research trace: network-scientists-and-analysis-method-validity.md section 9, requirement R2 (Must)."
+algorithms: []
+used_by_workflows:
+    - W03
+    - W04
+    - W38
+    - W42
+    - W44
+    - W45
+    - W48
+    - W17
+    - W19
+    - W41
+    - W46
+    - W252
+    - W1138
+    - W2066
+    - W2072
+implemented_by_components: []
+requirements:
+    - "Must: Seeded, repeatable runs: every stochastic algorithm (communities, layouts, rewiring, simulation) takes a
+      seed and records it"
+sources:
+    - title: Network Scientists and the Validity of Core Analysis Methods (section 9, requirement R2)
+      url: design/user-research/network-scientists-and-analysis-method-validity.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

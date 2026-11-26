@@ -1,0 +1,18 @@
+id: flow-capacity-analysis
+name: Flow and Capacity Analysis
+category: analysis
+description: Edge capacity and flow in algorithms (max flow, min cut, weighted paths); flow volume as edge width on
+    maps; facility open/close toggles per scenario.
+status: planned
+notes: "Research trace: supply-chain-and-physical-infrastructure-networks.md section 10, requirement R13 (Should)."
+algorithms: []
+used_by_workflows:
+    - W220
+    - W224
+implemented_by_components: []
+requirements:
+    - "Should: Capacity and flow in algorithms (max flow / min cut, weighted paths)"
+sources:
+    - title: Supply Chain Risk Analysts and Physical Infrastructure Network Engineers (section 10, requirement R13)
+      url: design/user-research/supply-chain-and-physical-infrastructure-networks.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

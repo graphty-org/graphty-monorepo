@@ -13,7 +13,7 @@
 
 import type { EdgeId, NodeId } from "../../../catalog/types";
 import { GraphtyError } from "../../../errors/GraphtyError";
-import type { JoinRecord } from "../../types";
+import type { JoinRecord, JoinReduce } from "../../types";
 import { applyAct, type StepsAct } from "./acts";
 import { build, copyKey, isStaged, nodeSpace, ownSpace, resolveNode, stepSources } from "./build";
 import { RECORD_PATHS } from "./paths";
@@ -21,6 +21,7 @@ import { conflictReport, readableRecord, type StepsOutcome } from "./provenance"
 import { applyRefreshEdit, editStates, missingColumns, type RefreshEdit, type RefreshIssue } from "./refresh";
 import {
     type Aggregate,
+    type BuildInput,
     type BuildResult,
     type BuiltEdge,
     type BuiltNode,
@@ -110,6 +111,11 @@ export interface SourceSteps {
     readonly types: readonly TypeEntry[];
     /** The reader source's operations, in the order made. */
     readonly reader: readonly ReaderOp[];
+    /**
+     * The graph's `data.knownFields.repeatedEdges` as of the last edit, which the build reduces
+     * repeated edges by; absent keeps them. Session state, not saved: an edit sets it from the setting.
+     */
+    readonly repeatedEdges?: BuildInput["repeatedEdges"];
     /**
      * The build stamp, a ULID minted by each build that changed the graph, so a run made over one
      * build reads stale after a later one, even when a refresh brings the same rows back (8.6).
@@ -1030,9 +1036,26 @@ interface StepAct {
     readonly edgeType?: string;
     readonly ignoreCase: boolean;
     readonly ignoreSpaces: boolean;
-    readonly repeated: "first" | "last" | "both" | null;
+    readonly repeated: JoinReduce | "both" | null;
     readonly aggregate: Aggregate | null;
     readonly unmatchedFrom?: "keep" | "drop";
+    readonly unmatched?: "skip" | "add";
+    readonly perPair?: boolean;
+    /** Each row an edge between node 1 and the node its `field` names in `into.space`. */
+    readonly to?: { readonly field: string; readonly into: { readonly space: string } };
+}
+
+/**
+ * A merge's aggregate read back as `repeated` (#10056): the one rule every entry names, whether
+ * spelled `"*"` or once per column (#10108), except `"first"` and `"last"`, which `repeated`
+ * spells as a row winning.
+ * @param aggregate - The step's aggregate.
+ * @returns The rule, or null.
+ */
+function oneReduction(aggregate: Aggregate | undefined): JoinReduce | null {
+    const rules = new Set(Object.values(aggregate ?? {}));
+    const [rule] = rules;
+    return rules.size === 1 && rule !== undefined && rule !== "first" && rule !== "last" ? rule : null;
 }
 
 /**
@@ -1060,22 +1083,22 @@ function stepAct(value: SourceSteps, step: Step): StepAct | null {
             from: { source: step.source, field: step.read.key },
             into: into(step.read.space, step),
             ...shared,
-            repeated: step.repeated ?? null,
+            repeated: step.repeated ?? oneReduction(step.aggregate),
             aggregate: step.aggregate ?? null,
             unmatchedFrom: step.unmatchedFrom ?? "keep",
         };
     }
     const src = value.sources[step.source] as Source | undefined;
-    if (
-        step.op !== "join.edges" ||
-        step.read.table !== "nodes" ||
-        step.read.edgeId === undefined ||
-        src === undefined
-    ) {
+    if (step.op !== "join.edges" || step.read.table !== "nodes" || src === undefined) {
         return null;
     }
     const { read } = step;
-    const intoFrom = read.target === read.edgeId && read.targetSpace === nodeSpace(src);
+    // The row's own node is one end, keyed by the row's key; else each row is an edge between two
+    // nodes it names, made by `connect` with `to`.
+    const key = src.mapping.nodes?.key;
+    const own = (col: string, space: string): boolean => col === key && space === nodeSpace(src);
+    const rowsOnly = !own(read.target, read.targetSpace) && !own(read.source, read.sourceSpace);
+    const intoFrom = rowsOnly ? step.viaEnd !== "target" : own(read.target, read.targetSpace);
     const edgeType = value.types.find(
         (t) => t.kind === "edge" && t.rules.some((r) => r.source === step.source && r.part === step.part),
     )?.name;
@@ -1088,6 +1111,15 @@ function stepAct(value: SourceSteps, step: Step): StepAct | null {
         ...shared,
         repeated: step.repeated ?? null,
         aggregate: step.aggregate ?? null,
+        unmatched: step.unmatchedRows === "add" ? "add" : "skip",
+        perPair: step.repeated === "first",
+        ...(rowsOnly
+            ? {
+                  to: intoFrom
+                      ? { field: read.target, into: { space: read.targetSpace } }
+                      : { field: read.source, into: { space: read.sourceSpace } },
+              }
+            : {}),
     };
 }
 

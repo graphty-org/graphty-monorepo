@@ -1,0 +1,172 @@
+id: W370
+name: Cross-Sectional Symptom Network to Published Figure
+category: analysis
+validated: false
+personas:
+    - symptom-network-researcher
+    - point-and-click-network-analyst
+    - network-psychometrics-methodologist
+requires_capabilities:
+    - label-overlap-removal
+    - data-import
+    - data-validation
+    - data-preview
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-force-directed
+    - filtering
+    - centrality-degree
+    - community-detection
+    - computed-attributes
+    - basic-statistics
+    - statistics-panel
+    - tooltip-display
+    - details-on-demand
+    - style-presets
+    - export-image
+    - data-export
+    - signed-edges
+    - matrix-import
+    - signed-centrality
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - graph-canvas
+    - visual-encoding-panel
+    - legend-panel
+    - layout-panel
+    - slider
+    - ranked-node-table
+    - statistics-panel
+    - node-tooltip
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: respondent-by-item matrix (.sav or CSV, ordinal items) already estimated in R into a square signed weights matrix, plus a node table of short labels, full item text and subscale
+    node_count: 10-50
+    edge_density: complete before regularization; sparse after (many weights exactly zero)
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Draw one estimated cross-sectional network of questionnaire items (a regularized partial correlation
+    network) as a journal figure that follows the network reporting standards, and report strength, expected influence
+    and bridge centrality beside it. This is the default analysis in most of the 141 cross-sectional network
+    psychometrics papers counted by Robinaugh et al. 2020.
+
+
+    **Mental Model**: "Each edge is what is left of the association between two symptoms after controlling for all the
+    others." Edges are estimates with signs, not observed links; blue is positive, red is negative, width is absolute
+    size relative to a stated maximum. Node position in a spring layout carries no meaning.
+
+
+    **Task Phases**:
+
+    1. **Clean data** (hours to days, in SPSS or R) - Drop skip-structure items and items that are functions of
+    others; report missingness
+
+    2. **Check redundancy** (30 min) - Merge items with overlapping content and correlation of .50 or more
+    (goldbricker, UVA); one published example went from 15 to 12 nodes
+
+    3. **Estimate** (in R or JASP) - Polychoric correlations, EBICglasso over 100 lambda values, gamma between
+    0 and 0.5 (one example gave 105 edges at 0, 95 at 0.25, 87 at 0.5)
+
+    4. **Load the weights matrix** - Import a square CSV with item names as header and row names; zeros mean no
+    edge; join the node table (short label, full item text, subscale)
+
+    5. **Encode** - Blue positive, red negative, dashed negatives for print; width and saturation by absolute
+    weight against a fixed maximum; hide-below threshold that does not move the layout; node color by subscale;
+    short labels with a legend of full item text
+
+    6. **Lay out** - Fruchterman-Reingold spring layout with a fixed seed; save the coordinates
+
+    7. **Describe** - Density and mean absolute weight, because the average edge weight cannot be read from
+    the picture
+
+    8. **Centrality** - Strength and expected influence as raw scores; bridge strength and bridge expected
+    influence with a community per node; then run the stability workflow (W371) before any claim
+
+    9. **Hand off** - Export the network figure at journal size with the layout and drawing settings
+    (maximum, minimum, cut, seed) recorded; export the weights and centrality tables for the supplement
+
+
+    **Decision Points**:
+
+    - Which items are redundant enough to merge before estimating?
+
+    - Which gamma, and is the edge count it gives defensible?
+
+    - What maximum edge weight to scale widths against, and is a minimum or cut used?
+
+    - Color only, or color plus dashed lines for negative edges (grayscale print)?
+
+    - Which community assignment defines "bridge" (subscales or detected communities)?
+
+
+    **Information Needs**:
+
+    - Number of non-zero edges, density and mean absolute weight
+
+    - Strongest positive and strongest negative edges with their values
+
+    - Full item text for a short label on hover
+
+    - Raw strength, expected influence and bridge values per node in a sortable table
+
+    - The drawing settings actually used, for the figure caption
+
+
+    **Pain Points**:
+
+    - qgraph's default green-red edge colors; the colorblind blue-red theme must be chosen
+
+    - Labels overlapping in tight layouts
+
+    - Spring layouts drift across package versions, so the layout matrix must be saved
+
+    - Drawing tools treat an estimated edge like an observed one and invite reading node distance as meaning
+
+    - Betweenness and closeness offered by default although they rarely pass the stability check
+
+
+    **Data Flow**:
+
+    - Input: Square signed weights matrix (CSV) plus node table (label, full text, subscale, community)
+
+    - Transformations: Matrix to weighted signed undirected graph, signed-edge encoding against a fixed maximum,
+    seeded spring layout, strength, expected influence and bridge metrics, density and mean weight
+
+    - Output: Journal figure with legend and recorded settings, centrality table, weights matrix for the supplement
+success_criteria:
+    - metric: Time from weights matrix to figure following the reporting standards
+      target: Under 15 minutes (design goal; no source measures it)
+    - metric: Signed encoding readable in grayscale
+      target: Negative edges distinguishable without color
+    - metric: Caption facts available
+      target: User can state the maximum, minimum and cut used, density and mean absolute weight
+sources:
+    - title: Epskamp, Borsboom and Fried 2018 - bootnet tutorial
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5809547
+      summary: estimateNetwork with EBICglasso, spring layout, centralityPlot, the PTSD example
+    - title: Epskamp and Fried 2018 - A tutorial on regularized partial correlation networks
+      url: https://arxiv.org/pdf/1607.01367
+      summary: Gamma between 0 and 0.5 and its effect on edge count
+    - title: Burger et al. 2023 - Reporting standards
+      url: https://pure.uva.nl/ws/files/184239260/ContentServer_2_.pdf
+      summary: Redundancy merging (15 to 12 CES-D nodes), density and mean weight, raw centrality, dashed negative edges
+    - title: qgraph reference manual
+      url: https://cran.r-project.org/web/packages/qgraph/qgraph.pdf
+      summary: maximum, minimum, cut, groups, nodeNames; colorblind theme vs classic default
+    - title: qgraph arguments (spring layout)
+      url: https://search.r-project.org/CRAN/refmans/qgraph/html/qgraph.html
+      summary: Spring layout is Fruchterman-Reingold with 500 iterations
+    - title: networktools goldbricker source
+      url: https://rdrr.io/cran/networktools/src/R/goldbricker.R
+      summary: Redundant item detection before estimation
+    - title: networktools bridge reference
+      url: https://search.r-project.org/CRAN/refmans/networktools/html/bridge.html
+      summary: Bridge strength and bridge expected influence require a community per node
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

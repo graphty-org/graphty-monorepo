@@ -113,7 +113,7 @@ export type GraphtyErrorCode =
      * A timeline call needs a time field and none is designated: `session.time.window`, `play`,
      * `stepBy` or `seek` with no attribute given. The caller designates one with
      * `session.time.setField` (or the `node-time-path` / `edge-time-path` attributes).
-     * @beta
+     * Beta: may change in a minor release.
      */
     | "E_NO_TIME_FIELD"
     /**
@@ -142,20 +142,20 @@ export type GraphtyErrorCode =
     /**
      * A layer names a shader the catalog does not list, in a use on `node.shaders` or
      * `edge.shaders` or a parameter's address. `details.candidates` lists the ids that list takes.
-     * @since 3.36.0
+     * Since 3.36.0.
      */
     | "E_UNKNOWN_SHADER"
     /**
      * A layer names a shader where it cannot draw: an edge shader on `node.shaders`
      * (`shader.target-mismatch`), or a use at a place the shader does not allow
      * (`shader.place-unsupported`); the refused problem's `fact` carries the code.
-     * @since 3.36.0
+     * Since 3.36.0.
      */
     | "E_SHADER_KIND"
     /**
      * A layer sets or binds a parameter the shader does not declare, or binds one per element
      * that it does not declare `varies`. `details.candidates` lists the declared parameters.
-     * @since 3.36.0
+     * Since 3.36.0.
      */
     | "E_UNKNOWN_SHADER_PARAM"
     /**
@@ -208,7 +208,7 @@ export type GraphtyErrorCode =
      * A graph was constructed with the id of a page element that the document does not hold, so
      * there is nowhere to draw. `details.id` carries the id. The caller creates the element first,
      * or passes the element itself.
-     * @since 3.40.0
+     * Since 3.40.0.
      */
     | "E_HOST_NOT_FOUND"
     /**
@@ -569,11 +569,12 @@ export type GraphtyErrorCode =
      */
     | "E_NO_WEBGL"
     /**
-     * A shader could not be built for WebGPU, usually because a name or a built-in in it is legal
-     * GLSL that WGSL or the compilers in between do not take. A refused shader never draws and can
-     * lose every frame it is part of, so `rendererStatus.drawing` turns false. `details.stage` names the step that gave up (`"compiler"`,
-     * `"translator"` or `"device"`) and `details.messages` carry what it said, which the translator
-     * leaves empty. Reported as `graph-error`.
+     * A shader could not be built, under WebGPU usually because a name or a built-in in it is legal
+     * GLSL that WGSL or the compilers in between do not take; under WebGL because the driver's
+     * compiler refused it. A refused shader never draws and can lose every frame it is part of, so
+     * `rendererStatus.drawing` turns false. `details.stage` names the step that gave up
+     * (`"compiler"`, `"translator"` or `"device"`) and `details.messages` carry what it said,
+     * which the translator leaves empty. Reported as `graph-error`.
      */
     | "E_SHADER_REFUSED"
     /**
@@ -584,6 +585,13 @@ export type GraphtyErrorCode =
      * stays in 3D and the next attempt starts clean. Recoverable: asking again can succeed.
      */
     | "E_XR_SESSION_FAILED"
+    /**
+     * Something run for one frame of an immersive session threw: Babylon.js's own XR input, or
+     * code observing the frame. The session keeps drawing; the step that threw is skipped for that
+     * frame. `details.mode` is `"vr"` or `"ar"` and `cause` carries what was thrown. Reported once
+     * per session for each distinct message, as `graph-error` (context `"xr"`), never thrown.
+     */
+    | "E_XR_FRAME_FAILED"
     /**
      * A feature the caller asked for needs an optional peer package that is not installed.
      * `details.package` names the package to install and `details.feature` the feature that
@@ -824,14 +832,14 @@ export type GraphtyErrorCode =
      * stopped for a reason of its own carries `details.reason`: `"hidden"` (the tab went to the
      * background, so no frames were drawn), `"resized"` (the canvas changed size), or how the tour
      * it recorded ended early: `"interrupted"`, `"replaced"` or `"mode-changed"`. Retrying may work.
-     * @since 3.40.0
+     * Since 3.40.0.
      */
     | "E_CAPTURE_FAILED"
     /**
      * A screenshot waited for the layout to stop moving and it was still moving when the wait ran
      * out. `details.timeoutMs` is the wait. The caller captures again later, raises
      * `timing.settleTimeoutMs`, or captures without waiting (`timing.waitForSettle: false`).
-     * @since 3.40.0
+     * Since 3.40.0.
      */
     | "E_NOT_SETTLED"
     /**
@@ -997,22 +1005,36 @@ export type GraphtyWarningCode =
      * A saved filter condition this reader cannot read (an effect it does not know, or a malformed
      * condition) was skipped; the rest were read, and what the file hides was read from its
      * filter steps. `params.slice` is `"visibility"`, `params.id` the condition's id when it has one.
-     * @since 3.32.0
+     * Since 3.32.0.
      */
     | "W_FILTER_CONDITION_SKIPPED"
     /**
      * A project's filter conditions are of a version this reader does not know, or are not a
      * list: they were read from the file's filter steps instead. `params.slice` is `"visibility"`,
      * `params.version` the version found.
-     * @since 3.32.0
+     * Since 3.32.0.
      */
     | "W_FILTER_CONDITIONS_UNREADABLE"
     /**
      * A project's filter steps and the keep and exclude filter conditions it also holds disagree
      * (a tool edited only one of them): the conditions were read. `params.slice` is `"visibility"`.
-     * @since 3.32.0
+     * Since 3.32.0.
      */
     | "W_FILTER_STEPS_DIFFER"
+    /**
+     * A filter draft autosave kept could not be opened again after a restore (the condition it
+     * edited is gone, or its new condition's id is taken), so it was dropped. In an autosave
+     * restore's report; `params.id` is the condition's id.
+     * Since 3.40.0.
+     */
+    | "W_FILTER_DRAFT_DROPPED"
+    /**
+     * The draft of the sources and steps autosave kept could not be opened again after a restore
+     * (the source-steps experiment is off, or the rows it read are gone), so it was dropped. In an
+     * autosave restore's report; no params.
+     * Since 3.40.0.
+     */
+    | "W_SOURCE_DRAFT_DROPPED"
     /**
      * A style layer's `{ match: "ids" }` selector names ids no element of the layer's target answers
      * to, by either spelling of an integer id, so they paint nothing. `params.target` is `"node"` or
@@ -1032,7 +1054,7 @@ export type GraphtyWarningCode =
     /**
      * The element's `limits` were set, or are held, while `render-path` is `"objects"`, where the
      * shipped ceilings stand: they are honored only under `"batched"`. `params.renderPath`.
-     * @experimental cosmograph
+     * Experimental: may change in a minor release.
      */
     | "W_LIMITS_IGNORED"
     /**
@@ -1040,9 +1062,17 @@ export type GraphtyWarningCode =
      * than `limits.objectRows` allows, on `render-path="batched"`: the rows past it are drawn as
      * plain bodies and plain lines. `params.of` is `"nodes"` or `"edges"`, `params.wanted` how
      * many asked, `params.cap` the budget.
-     * @experimental cosmograph
+     * Experimental: may change in a minor release.
      */
     | "W_OBJECT_CAP"
+    /**
+     * The installed Babylon.js words a line of its shaders differently from the one
+     * render-path="batched" edits, so the edit was not made: batched rows still draw, with Babylon's
+     * own line (a node's shading may differ a little from the same node drawn as an object).
+     * `params.renderer` is `"webgl"` or `"webgpu"`, `params.patterns` the edits that matched
+     * nothing. Reported as `render-warning`.
+     */
+    | "W_SHADER_EDIT_MISSED"
     /**
      * A style layer binds a whole label style channel (`node.labelStyle`) to a path. No scale
      * produces a whole label style, so the binding paints nothing. `params.channel` is the channel,
@@ -1405,6 +1435,7 @@ const CODE_TABLE = {
     E_NO_WEBGL: "E_NO_WEBGL",
     E_SHADER_REFUSED: "E_SHADER_REFUSED",
     E_XR_SESSION_FAILED: "E_XR_SESSION_FAILED",
+    E_XR_FRAME_FAILED: "E_XR_FRAME_FAILED",
     E_MISSING_PACKAGE: "E_MISSING_PACKAGE",
     E_UNSUPPORTED: "E_UNSUPPORTED",
     E_READONLY: "E_READONLY",

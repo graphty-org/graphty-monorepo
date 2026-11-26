@@ -1,0 +1,116 @@
+id: W378
+name: Bayesian Network (DAG) from Cross-Sectional Symptoms
+category: analysis
+validated: false
+personas:
+    - symptom-network-researcher
+    - network-psychometrics-methodologist
+requires_capabilities:
+    - data-import
+    - visual-encoding-edges
+    - visual-encoding-nodes
+    - legend-display
+    - layout-hierarchical
+    - layout-radial
+    - filtering
+    - tooltip-display
+    - details-on-demand
+    - path-highlighting
+    - export-image
+    - data-export
+    - uncertainty-encoding
+    - directed-self-loop-rendering
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - graph-canvas
+    - visual-encoding-panel
+    - legend-panel
+    - range-slider
+    - filter-panel
+    - node-tooltip
+    - layout-panel
+    - image-export-dialog
+starting_state:
+    data_type: bnlearn bootstrap arc table -- from, to, strength (share of replicates the arc appears), direction (share it points this way) -- plus an averaged network and per-arc BIC change
+    node_count: 10-30
+    edge_density: sparse after thresholding (strength above 0.85)
+    user_expertise: advanced
+goal: >-
+    **Intent**: Learn which symptom plausibly drives which from cross-sectional data with a directed acyclic graph, and
+    show how certain both the presence and the direction of each arc are.
+
+
+    **Mental Model**: "Every arrow carries two doubts: is the link there, and does it point this way?" A direction near
+    0.5 means the arrowhead is barely better than a coin toss.
+
+
+    **Task Phases**:
+
+    1. **Learn a structure** (in R) - pc.stable, hill-climbing or a hybrid
+
+    2. **Bootstrap** - 200 to 10,000 replicates; strength and direction per possible arc
+
+    3. **Filter and average** - Keep arcs with strength above 0.85 and direction above 0.5; averaged network
+
+    4. **Weight** - BIC change if each arc is removed
+
+    5. **Load** - Arc table with strength, direction and BIC columns
+
+    6. **Draw** - Circle or top-down layout; thickness and saturation by one chosen value (strength, direction
+    or BIC); arrowhead emphasis by direction probability; a two-headed or faded-head style when direction is near 0.5
+
+    7. **Read** - Find nodes at the top of the DAG (possible drivers, for example physiological reactivity to
+    reminders in a 17-symptom PTSD study) and follow paths downward
+
+
+    **Decision Points**:
+
+    - Which thresholds for strength and direction?
+
+    - Which value drives thickness: appearance, direction or BIC importance? (One published study made two figures)
+
+    - How to draw an arc whose direction is uncertain?
+
+
+    **Information Needs**:
+
+    - Strength, direction and BIC per arc on hover
+
+    - Which arcs pass the thresholds, adjustable live
+
+    - Upstream and downstream nodes of a chosen symptom
+
+
+    **Pain Points**:
+
+    - Two uncertainties per arc with no standard drawing
+
+    - Separate figures needed for each edge value
+
+    - Static circle layouts hide the top-down causal order
+
+
+    **Data Flow**:
+
+    - Input: Arc table (from, to, strength, direction, BIC) and node table
+
+    - Transformations: Threshold filter, directed graph, arrowhead encoding by direction probability, thickness by a
+    chosen column, hierarchical layout
+
+    - Output: DAG figure with both uncertainties encoded, filtered arc table
+success_criteria:
+    - metric: Direction uncertainty visible
+      target: Arcs with direction near 0.5 are distinguishable from confidently directed arcs
+    - metric: Live thresholds
+      target: Changing the strength or direction threshold updates the drawing without re-import
+sources:
+    - title: Briganti, Scutari and McNally 2022 - A tutorial on Bayesian networks for psychopathology researchers
+      url: https://dipot.ulb.ac.be/dspace/bitstream/2013/340429/3/tutorial.pdf
+      summary: pc.stable and hill-climbing, boot.strength, thresholds 0.85 and 0.5, averaged.network, arc.strength with bic-g, qgraph circle drawing
+    - title: McNally, Heeren and Robinaugh 2017 - PTSD DAG
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5632780/
+      summary: 17 PTSD symptoms, 10,000 bootstraps, direction shown at 51 percent agreement, two figures for direction and BIC
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

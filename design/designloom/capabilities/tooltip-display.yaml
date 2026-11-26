@@ -1,37 +1,97 @@
 id: tooltip-display
 name: Tooltip Display
 category: interaction
-description: Show quick information tooltips when hovering over nodes and edges. Display key attributes without
-    requiring full detail panel. Balance informativeness with brevity.
-status: implemented
-notes: "Ships: the element's tooltip style option (graphty-element/api/schema.api.md)."
+description: Show a short preview of a node or edge on hover or keyboard focus -- the attributes a reader needs to
+    decide whether to open it -- without opening the full detail panel. Users across the research hover to preview and
+    click to open (Neo4j Bloom caption properties, Obsidian note previews, e-discovery sender and date, text
+    concordance lines). Hover is not available everywhere -- tooltips vanish from static exports and phone readers
+    "can't rely on things like tool tips or hover", so nothing may be reachable only by hover. Which attributes to show,
+    and the words around them, are the application's choice; graphty-element supplies the values.
+status: in-progress
+notes: "Partly ships: the element's tooltip style option (node.tooltip and edge.tooltip in graphty-element/api/schema.api.md). Planned: previews on keyboard focus and on tap, and the hover delay as a consumer option. Any requirement below that this note does not name as shipping counts as planned."
 algorithms: []
 used_by_workflows:
     - W14
     - W02
     - W05
     - W06
+    - W111
+    - W115
+    - W124
+    - W127
+    - W138
+    - W139
+    - W223
+    - W263
+    - W282
+    - W318
+    - W324
+    - W362
+    - W363
+    - W369
+    - W370
+    - W371
+    - W372
+    - W374
+    - W375
+    - W376
+    - W377
+    - W378
+    - W379
+    - W382
+    - W399
+    - W409
+    - W418
+    - W437
+    - W433
+    - W55
+    - W57
+    - W63
+    - W67
+    - W69
+    - W70
+    - W72
+    - W73
+    - W80
+    - W83
+    - W91
+    - W105
+    - W2038
 implemented_by_components:
     - tooltip
     - node-tooltip
 requirements:
-    - Display tooltip after 300ms hover delay (configurable 100-1000ms)
-    - Show tooltip within 50ms of delay completion (no perceptible lag after delay)
-    - Display node label as tooltip header in bold
-    - Display node type as secondary line if type attribute exists
-    - "Display up to 5 key attributes as label: value pairs"
-    - "Display degree as 'Connections: N' in metrics section"
-    - "Display community ID as 'Community: N' if community detection has run"
-    - Position tooltip 10px offset from cursor, avoiding viewport edges
-    - Reposition tooltip to stay within viewport bounds
-    - Dismiss tooltip within 100ms when cursor leaves hover target
-    - "Display edge tooltip on edge hover: source → target, weight, type"
-    - Truncate long values to 50 characters with '...' in tooltip
-    - Provide setting to customize which attributes appear in tooltip
-    - Provide setting to disable tooltips entirely for performance
-    - Use consistent tooltip styling with application theme
-    - "Support touch devices: show tooltip on tap, dismiss on tap elsewhere"
+    - "Should: Show a preview for nodes and for edges (many tools cannot hover an edge at all; Plotly is one)"
+    - "Library parity: Let the consumer choose which attributes and computed values appear (label, type, degree, an algorithm result), with a neutral default; graphty-element returns values, and the application writes any wording around them"
+    - "Must: Edge previews can carry the endpoints, type, weight and aggregates such as sent, received and total counts or per-edge uncertainty (estimate and interval)"
+    - "Must: Show the preview on keyboard focus as well as on hover, with the item's kind, name, degree split by direction and, for an edge, its far end"
+    - "Should: On touch devices show the same preview on tap, and keep every previewed fact reachable without hover (selection detail, labels baked into exports)"
+    - "Library parity: Keep the preview inside the viewport and off the item it describes"
+    - "Library parity: The hover delay is a consumer option with a neutral default; after the delay, show and dismiss within the 0.1 second limit that feels instant"
+    - "Must: Hand the hovered item's id to the host, so a host application can show its own preview (an Obsidian-style note pane, the records behind an edge)"
+    - "Library parity: Allow tooltips to be turned off"
 sources:
-    - title: Complete Graph Visualization Textbook - Chapter 6
-      url: https://graphty.app/docs/
-      summary: Tooltips - informative but brief, appearing quickly
+    - title: Yi, Kang, Stasko and Jacko 2007, The role of interaction in information visualization
+      url: https://doi.org/10.1109/TVCG.2007.70515
+      summary: Interaction taxonomy; details on demand is the "elaborate" intent tooltips serve
+    - title: NN/g, Tooltip guidelines
+      url: https://www.nngroup.com/articles/tooltip-guidelines/
+      summary: Tooltips hold brief, supplementary information
+    - title: Nielsen Norman Group, Response times, the 3 important limits
+      url: https://www.nngroup.com/articles/response-times-3-important-limits/
+      summary: 0.1 second feels instant
+    - title: Neo4j Bloom scene interactions
+      url: https://neo4j.com/docs/bloom-user-guide/current/bloom-visual-tour/bloom-scene-interactions/
+      summary: Hover shows caption properties; double-click opens the Inspector
+    - title: How the Wall Street Journal approaches data interactives on mobile
+      url: https://www.journalism.co.uk/how-the-wall-street-journal-approaches-data-interactives-on-mobile/
+      summary: On a phone readers "can't rely on things like tool tips or hover"
+    - title: Cambridge Intelligence, intelligence dissemination with PDF exports
+      url: https://cambridge-intelligence.com/intelligence-dissemination-with-pdf-exports/
+      summary: Static exports lose interactive detail such as tooltips
+    - title: Plotly network graphs
+      url: https://plotly.com/python/network-graphs/
+      summary: Plotly cannot hover an edge
+    - title: Balik et al. 2014 (ASSETS), accessible graphs (GSK)
+      url: https://ciigar.csc.ncsu.edu/files/bib/Balik2014-AccessGraphs.pdf
+      summary: Voicing each node or edge on keyboard focus; what an announcement needs

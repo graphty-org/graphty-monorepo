@@ -1,0 +1,19 @@
+id: subgraph-from-selection
+name: "New Graph from Selection"
+category: interaction
+description: "Make a new working graph (or hide the rest) from any current selection, such as nodes in a genome-count band, keeping their attributes and the edges among them, and allow restoring hidden edges after a relayout (reference-anchored untangling)."
+status: planned
+notes: "Research trace: genome-assembly-and-pangenome-graphs.md section 10, table row 19 (Must)."
+algorithms: []
+used_by_workflows:
+    - W2000
+    - W3102
+implemented_by_components: []
+requirements:
+    - "Must: Select by genome-count band and make a new graph from the selection, or hide it"
+sources:
+    - title: "Genome Assemblers, Microbial Genome Finishers and Pangenome Researchers: Assembly Graphs and Pangenome
+          Graphs (section 10, table row 19)"
+      url: design/user-research/genome-assembly-and-pangenome-graphs.md
+      summary: "Must in the research. Covered by Designloom when researched: Partial (filtering and component extraction
+          exist; new graph from an arbitrary selection is unproven)"

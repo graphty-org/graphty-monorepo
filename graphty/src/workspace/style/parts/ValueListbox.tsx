@@ -291,7 +291,8 @@ export function ValueListbox({
                     width={240}
                     height={320}
                     descriptions="end"
-                    {...(current === undefined && extra === undefined
+                    // Unset, the default it shows is in force but not chosen: the list checks no value.
+                    {...((current === undefined && extra === undefined) || unset
                         ? {}
                         : { highlight: current?.id ?? extra?.value })}
                     query={query}

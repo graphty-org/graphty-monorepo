@@ -1,0 +1,148 @@
+id: W409
+name: Seeded Collocation Network (#LancsBox GraphColl)
+category: exploration
+validated: false
+personas:
+    - corpus-linguist
+requires_capabilities:
+    - data-import
+    - search
+    - neighborhood-expansion
+    - ego-network
+    - filtering
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - layout-radial
+    - legend-display
+    - tooltip-display
+    - hover-highlight
+    - details-on-demand
+    - analysis-history
+    - export-image
+    - data-export
+    - analysis-provenance
+    - co-occurrence-weighting
+    - provenance-tracking
+    - weight-as-edge-length
+suggested_components:
+    - search-input
+    - search-panel
+    - ego-network-dialog
+    - context-menu
+    - data-table-panel
+    - range-slider
+    - filter-panel
+    - visual-encoding-panel
+    - legend-panel
+    - graph-canvas
+    - node-tooltip
+    - node-details-panel
+    - status-bar
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: a reference corpus (BNC2014) or a specialized corpus, queried for one node word
+    node_count: 10-100 collocates per searched word (hundreds before thresholds)
+    edge_density: star around each searched word; shared collocates link several stars
+    user_expertise: advanced
+goal: >-
+    **Intent**: Start from one word, see its collocates with association strength as edge length and text position as
+    placement, read concordance lines before trusting any of them, then expand collocates into further nodes to find
+    what two or more words share and which discourses they point to. Report every graph with its parameters.
+
+
+    **Mental Model**: "A magnet." The node word pulls strong collocates close; shared collocates sit between the words
+    that attract them. There is no one definite set of collocates, so a graph without its parameters means nothing.
+
+
+    **Task Phases**:
+
+    1. **Load a corpus** - Choose a reference corpus or import one
+
+    2. **Set unit and span** - Word, lemma, headword or part of speech; span such as five words left and right
+
+    3. **Search the node word** - A word or a query such as [hw="drug" pos="N.*"]; a table and a graph appear,
+    sorted by logDice; all statistics (MI, MI2, MI3, log-likelihood, Delta P, user-defined) are computed
+
+    4. **Set thresholds** - Statistic cut-off, minimum collocate and collocation frequency, or a top-N graph
+    filter when the graph overpopulates
+
+    5. **Read the graph** - Edge length = strength, circle size = collocation frequency, color = corpus
+    frequency, left or right placement = where the collocate occurs, middle when both; map any table column to a graph
+    dimension
+
+    6. **Hover for concordance** - A preview of the lines where the collocate occurs with the node word
+
+    7. **Expand** - Double-click a collocate to search it; shared collocates move to the middle, unique ones
+    to the rim; list shared collocates; searched and unexpanded words are marked differently
+
+    8. **Mind direction** - Arrows mean direction only with a directional statistic (Delta P) and only when both words
+    were searched
+
+    9. **Report and export** - Collocation Parameters Notation such as 4b-MI2(3), L5-R5, C5-NC1 saved with the
+    results; collocate table as CSV, graph as image or dot
+
+
+    **Decision Points**:
+
+    - Word form or lemma?
+
+    - Which statistic and cut-off, knowing each highlights different collocates?
+
+    - Which collocates to expand next?
+
+    - Is an arrow meaningful under the chosen statistic?
+
+
+    **Information Needs**:
+
+    - All statistics for each collocate, sortable
+
+    - Concordance lines for a collocate with the node word
+
+    - Candidates versus collocates kept (for example 15,221 candidates to 94 collocates)
+
+    - Which words have been expanded and which collocates are shared
+
+    - The parameter string for the current graph
+
+
+    **Pain Points**:
+
+    - Graphs overpopulate (392 collocates versus the top 10)
+
+    - Different statistics and thresholds give different graphs, so parameters must travel with every figure
+
+    - General graph tools cannot set edge length by a value or place nodes left, right or middle by an attribute
+
+    - Exports drop the concordance lines
+
+
+    **Data Flow**:
+
+    - Input: Corpus, node word or query, unit, span, statistic, thresholds
+
+    - Transformations: Windowed collocation counting, association statistics, threshold filtering, seeded expansion,
+    strength-as-length radial layout with side constraints
+
+    - Output: Collocation network figure with its parameter notation, collocate tables, concordance extracts
+success_criteria:
+    - metric: Parameter notation
+      target: Every displayed and exported graph carries its parameter string
+    - metric: Seeded expansion
+      target: Double-clicking a collocate expands it in place with shared collocates repositioned
+    - metric: Evidence
+      target: Concordance lines for any collocate appear on hover
+sources:
+    - title: "#LancsBox X manual, GraphColl sections 4.1-4.8"
+      url: https://lancsbox.lancaster.ac.uk/data/materials/Manual_EN.pdf
+      summary: Settings, logDice default, graph encodings, KWIC on hover, double-click expansion, overpopulation, Collocation Parameters Notation
+    - title: "#LancsBox GraphColl exercises"
+      url: https://lancsbox.lancaster.ac.uk/data/materials/Ex_GraphColl.pdf
+      summary: BNC2014 exercises, word versus lemma, 15,221 candidates and 94 collocates for alcohol
+    - title: Brezina, McEnery and Wattam 2015, Collocations in context
+      url: https://ling.hse.ru/data/2016/10/11/1108830056/brezina_et_al_2015_-_graphcoll_paper.pdf
+      summary: GraphColl design, 14 statistics in 26 equations, directionality, red searched and purple unexpanded words, CSV and dot export
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

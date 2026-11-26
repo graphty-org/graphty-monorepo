@@ -1,0 +1,18 @@
+id: exact-graph-invariants
+name: "Exact graph invariants"
+category: analysis
+description: "Exact (not estimated) invariants for a small graph shown beside its drawing and usable to sort and filter a collection: order, size, degree sequence, girth, diameter, chromatic number, independence number, automorphism group order and spectrum. algorithms has isomorphism search but no girth, chromatic or independence number. Source: https://arxiv.org/html/2210.17253 (House of Graphs 2.0, 44 invariants)"
+status: planned
+notes: "Research trace: students-educators-and-first-time-users.md section 9, requirement 33 (Should)."
+algorithms: []
+used_by_workflows:
+    - W2030
+implemented_by_components: []
+requirements:
+    - "Should: Exact invariants beside the drawing (order, size, degree sequence, girth, diameter, chromatic and
+      independence number, automorphism group order, spectrum)"
+sources:
+    - title: Students, Instructors and First-Time Graph Users (section 9, requirement 33)
+      url: design/user-research/students-educators-and-first-time-users.md
+      summary: "Should in the research. Covered by Designloom when researched: basic-statistics partly (order, size,
+          degrees); algorithms has isomorphism search but no girth, chromatic or independence number; not covered"

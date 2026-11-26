@@ -46,6 +46,30 @@ describe("the layout filling the row table on a shared device", () => {
         assert.strictEqual(table.positionUploads - uploadsBeforeRead, 0);
     });
 
+    // A frame publishes whether or not a batch landed. While a software adapter's queue ran behind the page, every
+    // frame copied the one landing again and sent the rows told to the ring over it: an upload a frame (issue #9806).
+    it("copies a landing once, however many frames publish it before the next one lands", async () => {
+        const graph = await running("batched");
+        const table = graph.getRowTable();
+        assert.isNotNull(table);
+        await copied(graph);
+        const engine = layoutOf(graph);
+        // nothing lands between these calls: a landing is taken in a promise callback, and none runs here
+        engine.publishPositions();
+        table.flush();
+        const { copies } = table;
+        const uploads = table.positionUploads;
+        const landings = engine.landedBatchesPublished;
+        engine.publishPositions();
+        table.flush();
+        engine.publishPositions();
+        table.flush();
+
+        assert.strictEqual(engine.landedBatchesPublished, landings);
+        assert.strictEqual(table.copies - copies, 0);
+        assert.strictEqual(table.positionUploads - uploads, 0);
+    });
+
     it("touches no row on the CPU per landing, and publishes the rows when something reads them", async () => {
         const graph = await running("batched");
         const table = graph.getRowTable();
@@ -78,9 +102,11 @@ describe("the layout filling the row table on a shared device", () => {
         assert.isAbove(lane.changes - written, 0);
     });
 
-    // Two labels three texture lines apart (1024 rows a line): a frame that sent every line between them
-    // would bring thousands of rows up to the owed landing one at a time.
-    const SPREAD = 2100;
+    // Two labels on two texture lines (1024 rows a line): a frame that sent every line between them would
+    // bring over a thousand rows up to the owed landing one at a time. No larger: on SwiftShader the GPU process
+    // keeps memory for each workgroup of the layout's barrier kernels, and a 2,100-node graph came within 4% of
+    // what crashes it (issue #9748).
+    const SPREAD = 1100;
     for (const renderer of ["webgpu", "webgl"] as const) {
         for (const which of [
             "one labeled node",
@@ -91,7 +117,8 @@ describe("the layout filling the row table on a shared device", () => {
             "one arrowed edge",
         ] as const) {
             it(`writes no row per landing with ${which}, and draws it where the card does (${renderer})`, async () => {
-                // a hundred labels over 2100 rows: fewer than the rows an owed landing answers one at a time
+                // a hundred labels over 1100 rows: fewer than the rows an owed landing answers one at a time (1024),
+                // more than the 64 it once answered (issue #9161)
                 const many = which === "a hundred labels spread";
                 const pinned = which === "two pinned labels far apart";
                 const spread = many || pinned || which === "two labels far apart";
@@ -100,7 +127,7 @@ describe("the layout filling the row table on a shared device", () => {
                 if (which !== "one arrowed edge") {
                     let nodes = spread ? ["n0", `n${String(SPREAD - 1)}`] : ["n0"];
                     if (many) {
-                        nodes = Array.from({ length: 100 }, (_, i) => `n${String(i * 21)}`);
+                        nodes = Array.from({ length: 100 }, (_, i) => `n${String(i * 11)}`);
                     }
                     await styles.add({
                         name: "labels",
@@ -172,8 +199,9 @@ describe("the layout filling the row table on a shared device", () => {
         }
     }
 
-    // Every edge arrowed: every node is built and both ends of every edge are read each frame, so the frame
-    // writes the owed landing before its first read rather than answering a quarter of the rows one at a time first.
+    // Every edge arrowed: every node is built and both ends of every edge are read each frame (2200 reads, past the
+    // 1024 rows an owed landing answers one at a time), so the frame writes the owed landing before its first read
+    // rather than answering a thousand rows one at a time first.
     for (const renderer of ["webgpu", "webgl"] as const) {
         it(`writes a landing once, before any row is read one at a time, with every edge arrowed (${renderer})`, async () => {
             const graph = await running("batched", undefined, renderer, SPREAD);
@@ -204,7 +232,8 @@ describe("the layout filling the row table on a shared device", () => {
     // A batch lands between frames, so a frame's work before its publish (a style paint, a label refit) reads
     // rows while the owed publish is a landing behind (issue #9490): each such read wrote every row.
     it("answers a row read after a batch lands and before it is published, writing no row", async () => {
-        const graph = await running("batched", undefined, "webgpu", SPREAD);
+        // one row read is under the owed landing's budget at any size, so the default graph proves it
+        const graph = await running("batched");
         await copied(graph);
         await landed(graph);
         const lane = graph.getDataManager()[WRITABLE_LANE];
@@ -217,7 +246,7 @@ describe("the layout filling the row table on a shared device", () => {
             await nextFrame();
         }
 
-        const node = graph.getNode(`n${String(SPREAD - 1)}`);
+        const node = graph.getNode("n199");
         assert.isDefined(node);
         const at = node.getPosition();
         assert.isTrue(Number.isFinite(at.x));
@@ -292,6 +321,28 @@ describe("the layout filling the row table on a shared device", () => {
         assert.isAtLeast(box[5], 300);
     });
 
+    // The layout reloads before the table grows to the added row: the ring then waited for a later edge edit, and every
+    // landing in between went up by upload.
+    it("keeps copying landings after a node with no edges is added mid-run", async () => {
+        const graph = await running("batched");
+        const table = graph.getRowTable();
+        assert.isNotNull(table);
+        await copied(graph);
+        await graph.addNodes([{ id: "late" }]);
+        // the load's first landing goes up by upload (the ring is attached a batch after a load), and the added row,
+        // told to the ring as the layout places it, is sent again over the landings of the batches then in flight
+        await toldRowsLanded(graph);
+        const { copies } = table;
+        const uploads = table.positionUploads;
+        await landed(graph);
+        await landed(graph);
+        await landed(graph);
+
+        assert.isAtLeast(table.copies - copies, 2, `uploads ${String(table.positionUploads - uploads)}`);
+        assert.strictEqual(table.positionUploads - uploads, 0);
+        assert.isBelow((await textureDiff(graph)).worst, 1e-5);
+    });
+
     it("shows the rows added while it runs once the layout places them", async () => {
         const graph = await running("batched");
         const table = graph.getRowTable();
@@ -353,6 +404,26 @@ describe("the layout filling the row table on a shared device", () => {
         assert.isBelow(diff.wWorst, 1e-6);
     });
 
+    // The ring must hold every batch in flight plus the landed one: a ring of four at four in flight handed the batch
+    // submitted after a landing the slot that landing's publish then copied, so the texture showed a batch not landed.
+    for (const maxInFlight of [2, 4]) {
+        it(`holds the landed batch in the texture with ${String(maxInFlight)} batches in flight`, async () => {
+            const graph = await running("batched");
+            await graph.setLayout("forceatlas2", {
+                maxIter: 1_000_000_000,
+                maxInFlight,
+                iterationsPerStep: 256,
+                settleThreshold: 1e-12,
+            });
+            await landed(graph);
+            await copied(graph);
+            for (let i = 0; i < 20; i++) {
+                await landed(graph);
+            }
+            assert.isBelow((await textureDiff(graph)).worst, 1e-5, "the row texture holds the landed batch");
+        });
+    }
+
     it("draws its first landings at the size the layout measures", async () => {
         adapterSays("test-hardware");
         const graph = await open();
@@ -394,12 +465,13 @@ describe("the layout filling the row table on a shared device", () => {
                     .map((other) => Math.hypot(other.x - node.x, other.y - node.y)),
             );
         const target = shown.reduce((best, node) => (gap(node) > gap(best) ? node : best)).id;
-        await graph.zoomToNodes(target, { extent: "drawn" });
-        await copied(graph);
-        // textureDiff stops the frames, so the node stands where the card shows it while the pointer
-        // travels; the layout is still mid-run, with its batch in flight
+        // textureDiff stops the frames, so the node stands where the card shows it while the camera
+        // frames it and the pointer travels; the layout is still mid-run, with its batch in flight. Framed
+        // before the frames stop, the next landing moved the node out of a frame one node wide: a fitted
+        // landing is copied from the run's first batch, while the arrangement still collapses (issue #9665).
         assert.isBelow((await textureDiff(graph)).worst, 1e-5);
         assert.isFalse(layoutOf(graph).isSettled);
+        await graph.zoomToNodes(target, { extent: "drawn" });
         const at = graph.nodeScreenPosition(target);
         assert.isTrue(at?.visible);
         assert.isNull(graph.getSelectedNode());

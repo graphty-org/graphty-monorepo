@@ -701,7 +701,9 @@ export function settleFor(
     }
     labelGrid(extracted, snapshot, work, options.frame ?? null);
     renameAll(extracted, snapshot, work, tool);
-    const lengths: StyleLengths = graphty ? { units: "scene" } : lengthsOf(defaults, snapshot.nodeCount);
+    const lengths: StyleLengths = graphty
+        ? { units: "scene" }
+        : lengthsOf(defaults, snapshot.nodeCount, () => medianHalfDiagonal(extracted, snapshot, work));
     const notes = [...extracted.styles.notes, ...nearestNotes(work)];
     return {
         ...extracted,
@@ -928,18 +930,44 @@ function labelGrid(
 
 /**
  * How the lengths are meant to be drawn, and how far apart the program lays out a file's nodes: its stated settled
- * spacing or, for a program that scatters the nodes over a square at random (Gephi), the median nearest-node distance
- * of that many uniform points, side * sqrt(ln 2 / (pi n)).
+ * spacing; for a program that scatters the nodes over a square at random (Gephi), the median nearest-node distance
+ * of that many uniform points, side * sqrt(ln 2 / (pi n)); for one whose layout keeps a gap between the circles round
+ * the nodes (OGDF), the gap plus twice the median half-diagonal, and that gap.
  * @param defaults - the program's defaults, or null
  * @param nodes - how many nodes the file has
+ * @param halfDiagonal - the file's median node half-diagonal, read only when the program needs it
  * @returns the lengths
  */
-function lengthsOf(defaults: ToolDefaults | null, nodes: number): StyleLengths {
+function lengthsOf(defaults: ToolDefaults | null, nodes: number, halfDiagonal: () => number | null): StyleLengths {
     const side = defaults?.layoutScatterSide?.value;
+    const gap = defaults?.layoutNodeGap?.value;
+    const radius = gap === undefined ? null : halfDiagonal();
     const spacing =
         defaults?.layoutSpacing?.value ??
-        (side === undefined || nodes < 2 ? undefined : side * Math.sqrt(Math.LN2 / (Math.PI * nodes)));
-    return spacing !== undefined && spacing > 0 ? { units: "file", spacing } : { units: "file" };
+        (side === undefined || nodes < 2 ? undefined : side * Math.sqrt(Math.LN2 / (Math.PI * nodes))) ??
+        (gap === undefined || radius === null ? undefined : gap + 2 * radius);
+    if (spacing === undefined || spacing <= 0) {
+        return { units: "file" };
+    }
+    return gap === undefined || radius === null ? { units: "file", spacing } : { units: "file", spacing, gap };
+}
+
+/**
+ * The median half-diagonal of the file's nodes, from their widths and heights.
+ * @param extracted - the styles being settled
+ * @param snapshot - the graph
+ * @param work - the work
+ * @returns the half-diagonal, or null when no node has a size
+ */
+function medianHalfDiagonal(extracted: ExtractedStyles, snapshot: GraphSnapshot, work: Work): number | null {
+    const widths = resolved(extracted, snapshot, work, "node", "width");
+    const heights = resolved(extracted, snapshot, work, "node", "height");
+    const radii = widths
+        .map((w, i) => [w, heights[i]])
+        .filter((pair): pair is [number, number] => pair.every((x) => typeof x === "number" && x >= 0))
+        .map(([w, h]) => Math.hypot(w, h) / 2)
+        .sort((a, b) => a - b);
+    return radii.length === 0 ? null : radii[Math.floor((radii.length - 1) / 2)];
 }
 
 /**

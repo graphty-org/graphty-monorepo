@@ -1,0 +1,74 @@
+id: tb-genomic-cluster-epidemiologist
+name: TB Genomic Cluster Epidemiologist
+roster_persona: public-health-cluster-epidemiologist
+tier: B
+scope: in-scope
+role: Tuberculosis Cluster and Genotyping Epidemiologist, State TB Program
+quote: The genotypes match, but I still have to say which case infected the others, and why I think so.
+bio: >-
+    Linh Tran runs genotype and whole-genome-sequence cluster review for a state tuberculosis program. Her background
+    is clinical and her R is moderate. Work arrives as a cluster alert from the national TB genotyping information
+    system, scored by a log-likelihood ratio, and her job is to decide whether genotype-matched cases are recent
+    transmission at all, and if so to name a probable source case and prioritize contacts and locations. She ranks
+    candidate sources with CDC's LITT tool, which ships R code plus a Shiny interface for users without R programming
+    experience, compares shared-location stays with LATTE, and draws the resulting directed source-to-case picture in
+    MicrobeTrace because LITT itself only writes Excel tables. Her inputs are a pairwise SNP matrix, epidemiologic
+    links graded definite, probable or possible, infectious-period start and end dates, smear and cavitation status,
+    and shelter or venue rosters. Clusters are small, tens of cases; LITT was validated on 534 cases in 56 clusters.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: intermediate
+    domain_knowledge: advanced
+motivations:
+    - Decide whether a genotype-matched group is recent transmission or unrelated cases sharing a common strain
+    - Name a probable source case for each secondary case, with the reasoning written down
+    - Prioritize which contacts and which locations get tested first
+    - Find the data entry errors that a ranking disagreement exposes, and re-run on corrected inputs
+    - Hand the TB controller one picture that shows the direction of spread and the evidence behind each arrow
+behaviors:
+    - Starts from a cluster alert, not from a file, and assembles inputs into supplied templates
+    - Drops candidate sources that are more than 5 SNPs away, not infectious, not infectious before the case's onset, or under 10 years old
+    - Reads a summed score where lower means more likely: SNP rating 0 to 5, infectiousness 0 to 5, timing 0 to 2, epidemiologic link 0 to 3, totals of 8 or more dropped
+    - Produces a second ranking without sequence data, because some cases are never sequenced
+    - Treats a disagreement between her own judgment and the tool as a data problem first: investigators and LITT agreed on the top source for 145 of 181 cases
+    - Re-runs with alternative infectious-period lengths to see whether the ranking is stable
+    - Compares location stay dates against infectious periods to rank venue contacts
+    - Draws the inferred directed network by hand or in a separate tool, with edges weighted by score
+    - Keeps SNP distance and epidemiologic evidence visible side by side rather than collapsing them into one number
+frustrations:
+    - Pairwise SNP distance alone cannot establish recent transmission, as a Los Angeles County analysis concluded, so a thresholded network is a starting point and not an answer
+    - The ranking tool writes Excel tables, so every picture needs a second tool and a manual rebuild
+    - Infectious-period dates are estimated by rule when missing, and the ranking moves when the rule changes
+    - Cases without sequencing cannot be dropped from the investigation, only from the SNP part of the score
+    - Shelter and venue rosters arrive as spreadsheets whose person identifiers do not match the case register
+    - Nothing keeps the score, the SNP distance and the graded epidemiologic link attached to the arrow once it is drawn
+context:
+    frequency: monthly
+    devices:
+        - laptop
+        - desktop
+    voluntary: false
+workflows:
+    - W63
+    - W64
+    - W66
+sources:
+    - title: LITT - the Tuberculosis Lineage Inference Tool (Frontiers in Public Health 2021)
+      url: https://www.frontiersin.org/articles/10.3389/fpubh.2021.667337/full
+      summary: Input templates, filtering and scoring rules, Shiny interface for users without R experience, validation of 534 cases in 56 clusters with 80% top-source agreement, Excel output
+    - title: Whole genome sequencing and SNP distance in TB cluster investigation, Los Angeles County (Frontiers in Public Health 2022)
+      url: https://www.frontiersin.org/articles/10.3389/fpubh.2021.790544/full
+      summary: Pairwise SNP distance alone cannot establish recent transmission
+    - title: CDC genomic epidemiology toolkit, module 3.2
+      url: https://www.cdc.gov/advanced-molecular-detection/media/pdfs/ToolkitModule_3.2-508C.pdf
+      summary: Threshold starting points by pathogen including 5 and 15 SNPs for TB, and how to move between a tree and a threshold network
+    - title: Social network exposure and tuberculosis transmission, Kampala
+      url: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC11083641/
+      summary: Only 35% of infected people had a known exposure inside the index case's social network, the limit of network-based contact prioritization
+    - title: Network-informed contact investigation, Oklahoma tuberculosis outbreak
+      url: https://pubmed.ncbi.nlm.nih.gov/17018825/
+      summary: Contacts prioritized by network position had an odds ratio of 7.8 (95% CI 1.6 to 36.6) for latent TB infection
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

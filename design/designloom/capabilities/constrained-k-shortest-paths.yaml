@@ -1,0 +1,19 @@
+id: constrained-k-shortest-paths
+name: Constrained and k-Shortest Paths
+category: analysis
+description: All tied shortest paths, k shortest loopless paths with tie handling stated, constraints by edge type,
+    direction and maximum hops, and a no-path reason.
+status: planned
+notes: "Research trace: network-scientists-and-analysis-method-validity.md section 9, requirement R12 (Must)."
+algorithms: []
+used_by_workflows:
+    - W05
+    - W40
+implemented_by_components: []
+requirements:
+    - 'Must: Paths: all-shortest with ties, k-shortest with tie handling stated, type and direction constraints, maximum
+      hops, "no path because ..."'
+sources:
+    - title: Network Scientists and the Validity of Core Analysis Methods (section 9, requirement R12)
+      url: design/user-research/network-scientists-and-analysis-method-validity.md
+      summary: "Must in the research. Covered by Designloom when researched: Partly (shortest-path, all-paths-finding)"

@@ -7,6 +7,9 @@ implements_capabilities:
     - guided-onboarding
 used_in_workflows:
     - W14
+    - W239
+    - W240
+    - W373
 dependencies:
     - button
     - progress-bar

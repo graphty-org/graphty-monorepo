@@ -2,7 +2,7 @@
  * @file A layout record as every section saves it (spec/README.md 5 rule 9): the arrangement in
  * `id`, its own options by the names the format gives them, and the engine that drew it, with the
  * options only that engine takes, as provenance in `drawnBy`. Recipe `layout.set`, results'
- * `layout` and view's `layout` all write and read it here. Experimental (`save-files-v2`).
+ * `layout` and view's `layout` all write and read it here.
  */
 
 import { engineOptionNames, layoutDescriptor, savedLayoutOptions } from "../../catalog/layouts";

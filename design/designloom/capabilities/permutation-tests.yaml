@@ -1,0 +1,18 @@
+id: permutation-tests
+name: Permutation Tests (CUG, QAP, MRQAP)
+category: analysis
+description: CUG and QAP tests and MRQAP with double semi-partialling, showing permutation p-values and a
+    null-distribution histogram.
+status: planned
+notes: "Research trace: academic-social-network-research.md section 10, table row 20 (Should)."
+algorithms: []
+used_by_workflows:
+    - W30
+implemented_by_components: []
+requirements:
+    - "Should: Permutation tests: CUG, QAP, MRQAP with DSP, null-distribution histogram"
+sources:
+    - title: Academic Social Network Researchers (section 10, table row 20)
+      url: design/user-research/academic-social-network-research.md
+      summary: "Should in the research. Covered by Designloom when researched: NOT
+          covered"

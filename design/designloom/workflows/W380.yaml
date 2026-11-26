@@ -1,0 +1,168 @@
+id: W380
+name: County Migration Flow Map from a Federal Release
+category: analysis
+validated: false
+personas:
+    - migration-flow-demographer
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - computed-attributes
+    - filtering
+    - node-selection
+    - ego-network
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - details-on-demand
+    - statistics-panel
+    - export-image
+    - data-export
+    - geographic-layout
+    - od-flow-import
+    - flow-arithmetic
+    - flow-clutter-control
+    - flow-uncertainty
+    - geospatial-file-io
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - attribute-table-join-dialog
+    - computed-attributes-panel
+    - filter-panel
+    - range-slider
+    - ranked-node-table
+    - visual-encoding-panel
+    - gradient-editor
+    - legend-panel
+    - node-details-panel
+    - graph-canvas
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: county-to-county migration flows (ACS 5-year with margins of error, or IRS SOI inflow and outflow files) plus county centroids
+    node_count: 3000-3300
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Turn a federal county-to-county migration release into a readable map of where people moved from and
+    to, and into the numbers a state migration brief needs: each county's net gain or loss, its gross exchange and its
+    top origins and destinations.
+
+
+    **Mental Model**: "A matrix of counties with in, out and net." Every county is a place on the map; every flow is a
+    directed count between two places; the useful view is one county's inbound, outbound or net flows, not the whole
+    country at once.
+
+
+    **Task Phases**:
+
+    1. **Choose the source** (minutes) - ACS 5-year flows (estimate plus 90 percent margin of error; county-to-county
+    ended with 2016-2020, state-to-county continues) or IRS SOI (annual returns, exemptions and AGI, filers only);
+    often both, to reconcile
+
+    2. **Pull the data** (minutes) - tidycensus get_flows() with a Census API key returns three long rows per pair
+    (MOVEDIN, MOVEDOUT, MOVEDNET) with GEOID1, GEOID2, estimate, moe and both centroids; raw files are a fixed-width
+    national text file plus one Excel sheet per state
+
+    3. **Clean release quirks** - Remove IRS total rows (destination codes 96, 97, 98), separate the
+    non-migrant row where origin equals destination (564,311 returns for Hawaii alone), note flows under 20 returns
+    folded into "Other Flows", handle ACS moves from abroad with no GEOID2, pad FIPS codes to five characters
+
+    4. **Compute measures** (minutes) - Net (in minus out) and gross (in plus out) per pair and per county; net rate
+    per 1,000 residents, mapped as a county choropleth
+
+    5. **Filter for drawing** (a decision) - Top N origins for a focal county, flows above a threshold, or only flows
+    touching one selected county, shown as inbound, outbound or net
+
+    6. **Draw** (minutes to hours) - Arcs sized by estimate on a web map, a print map (see the print workflow), or a
+    chord diagram for regional summaries
+
+    7. **Read and hand off** - Name the top origins and destinations and the net balance; export the figure and the
+    table for a PDF brief or web story; footnote margins of error
+
+
+    **Decision Points**:
+
+    - ACS, IRS or both, and how to reconcile differences?
+
+    - Keep non-migrant self-flows as a county total, or drop them?
+
+    - Top N, threshold, or one-county view for the figure?
+
+    - Show net, gross, inbound or outbound for the focal county?
+
+    - How to signal flows whose margin of error exceeds the estimate?
+
+
+    **Information Needs**:
+
+    - Count of rows recognized as totals, self-flows, abroad or suppressed during import
+
+    - Per-county in, out, net, gross and net rate
+
+    - Ranked list of a county's top origins and destinations
+
+    - Margin of error next to each estimate in the details view
+
+    - Change in each flow versus the previous vintage
+
+
+    **Pain Points**:
+
+    - Total and non-migrant rows mixed into the flow table; a self-flow dwarfs every real flow
+
+    - FIPS codes that lose leading zeros in spreadsheets break the join to places
+
+    - A whole-country flow map has thousands of crossing links and is unreadable
+
+    - Small flows with wide margins of error are drawn as confidently as large ones
+
+    - The no-code select-a-county viewer (Census Flows Mapper) was retired on October 8, 2024
+
+
+    **Data Flow**:
+
+    - Input: Long OD table (origin GEOID, destination GEOID, estimate, moe) or IRS inflow and outflow CSVs, plus a
+    county place table with centroids or the Census county boundary file (shapefile, geodatabase, KML or GeoPackage)
+    joined by GEOID
+
+    - Transformations: Removal of total and abroad rows, self-flow separation, id padding, net and gross per pair and
+    per county, rate per population, top-N or one-county filter
+
+    - Output: Flow map and choropleth with legend, ranked origin and destination table, cleaned flow table
+success_criteria:
+    - metric: Time from downloaded release to one county's inbound, outbound and net map
+      target: Under 20 minutes (design goal; no source measures it)
+    - metric: Import transparency
+      target: User can state how many total, self-flow, abroad and unmatched rows were set aside
+    - metric: Brief readiness
+      target: Exported figure names the measure, the year range and the flow-width scale
+sources:
+    - title: tidycensus - Other datasets (get_flows)
+      url: https://walker-data.com/tidycensus/articles/other-datasets.html
+      summary: get_flows() long output with MOVEDIN, MOVEDOUT, MOVEDNET, moe and centroids; mapdeck arc example
+    - title: ACS 2016-2020 migration flows documentation
+      url: https://www.census.gov/content/dam/Census/topics/population/migration/guidance-for-data-users/acs-migration-tutorial/2016-2020-Migration-Flows-Documentation.pdf
+      summary: File layouts, flow, counterflow, net and gross per pair
+    - title: IRS migration data users guide
+      url: https://www.irs.gov/pub/irs-soi/2223inpublicmigdoc.pdf
+      summary: Total codes 96/97/98, non-migrant rows, flows under 20 returns aggregated
+    - title: Census API - ACS migration flows
+      url: https://www.census.gov/data/developers/data-sets/acs-migration-flows.html
+      summary: API access to migration flows; key required
+    - title: FRED blog - Mapping net migration by county
+      url: https://fred.stlouisfed.org/blog/2023/05/mapping-net-migration-by-county
+      summary: Net migration rate mapped as a county choropleth
+    - title: FlowMapper.org (Koylu et al.)
+      url: https://arxiv.org/pdf/2110.03662
+      summary: Threshold filtering for flow maps; fifty states form thousands of links
+    - title: US Census - Cartographic boundary files
+      url: https://www.census.gov/geographies/mapping-files/time-series/geo/cartographic-boundary.html
+      summary: Shapefile, geodatabase and KML since 2019; GeoPackage since 2024
+version: 1.1.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

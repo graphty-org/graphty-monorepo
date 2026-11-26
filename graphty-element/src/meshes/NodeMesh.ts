@@ -55,6 +55,12 @@ interface NodeMeshOptions {
     styleId: string;
     is2D: boolean;
     size: number;
+    /**
+     * The shortest one width of a dashed, dotted or dash-dot border's pattern is drawn, in scene units (a screen pixel
+     * at the node's zoom, `borderRing`); unset, the pattern is measured in the border's own width. The style id
+     * names it, since the ring is cached under that id.
+     */
+    dashUnit?: number;
 }
 
 interface NodeMeshCreateOptions {
@@ -86,6 +92,48 @@ const BOX_OR_ELLIPSE: ReadonlySet<string> = new Set(["rectangle", "none", "ellip
 export function styleOpacity(texture: NodeStyleConfig["texture"]): number {
     const color = texture?.color;
     return typeof color === "object" && "opacity" in color ? (color.opacity ?? 1) : 1;
+}
+
+/**
+ * Where a node body's source draws in the blended pass (Babylon draws a lower `alphaIndex` first),
+ * plus its look's place ({@link lookPlace}): after the node surfaces (`NodeBillboardBatch`, 1e8) and the edges with an
+ * index (about 1e9), before every mesh that keeps the default, as the sources' distance once put
+ * them. The place orders translucent looks among themselves by when each was first made, on both render
+ * paths and after any history of instances: a source parks at one place whose distance its
+ * geometry's bounds shift, and ties fell to whichever look's instance `scene.meshes` met first,
+ * so removing and adding back a node could reorder whole looks (issues #10029, #10030).
+ */
+const NODE_BODY_ALPHA_INDEX = 1e12;
+
+/** The `uniqueId` each look's first source had, by what the look draws, per scene. */
+const lookPlaces = new WeakMap<Scene, Map<string, number>>();
+
+/**
+ * A look's place among translucent looks: the `uniqueId` of the first source made for it. A source
+ * no node wears is pruned and made again with a higher id (and often under another cache key, as
+ * the style interner numbers a look again), which would move the look over every look made in
+ * between; it takes its first place back instead.
+ * @param mesh - The new source.
+ * @param key - What the look draws: its view, picture and style.
+ * @returns The place.
+ */
+function lookPlace(mesh: Mesh, key: string): number {
+    const scene = mesh.getScene();
+    let places = lookPlaces.get(scene);
+    if (places === undefined) {
+        places = new Map();
+        lookPlaces.set(scene, places);
+    }
+
+    // ponytail: one entry per distinct look the scene ever drew, never dropped; drop entries with the
+    // scene's sources if a graph cycles through unbounded looks.
+    let place = places.get(key);
+    if (place === undefined) {
+        place = mesh.uniqueId;
+        places.set(key, place);
+    }
+
+    return place;
 }
 
 /** How deep a node drawn flat is, as a fraction of its smaller side: thin, but never zero. */
@@ -481,6 +529,9 @@ export class NodeMesh {
             mesh.visibility = styleOpacity(createOptions.texture);
         }
 
+        const { picture, ...look } = createOptions;
+        mesh.alphaIndex =
+            NODE_BODY_ALPHA_INDEX + lookPlace(mesh, JSON.stringify([options.is2D, picture?.name ?? null, look]));
         return mesh;
     }
 
@@ -826,7 +877,8 @@ export class NodeMesh {
             const outline = flat ? this.flatOutline(shape, extents) : this.solidOutline(fill);
             const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
             const wave = NodeMesh.waveOf(border, this.extentPerSize(shape));
-            const piecesOf = (round: Point2[]): RingPiece[] => borderRing(round, width, border?.style ?? "solid", wave);
+            const piecesOf = (round: Point2[]): RingPiece[] =>
+                borderRing(round, width, border?.style ?? "solid", wave, options.dashUnit);
             const color = border?.color ?? "#000000";
 
             const ring = { outline, depth, piecesOf, flat, color, opacity };
@@ -888,7 +940,7 @@ export class NodeMesh {
                     const at = gap + i * step;
                     // offset as the main ring's edges are, its sharp corners cut square, so it starts on the ring's outer edge
                     const base = at > 0 ? mitredEdges(round, [at])[0] : round;
-                    return borderRing(base, width, outerBorder?.style ?? "solid");
+                    return borderRing(base, width, outerBorder?.style ?? "solid", undefined, options.dashUnit);
                 }).flat();
             const color = outerBorder?.color ?? "#000000";
             const ring = { outline, depth, piecesOf, flat, color, opacity };
@@ -1083,6 +1135,7 @@ export class NodeMesh {
      * @param extents.z - Its depth.
      * @param is2D - Whether the view is 2D.
      * @param scene - The scene.
+     * @param dashUnit - The shortest one width of a patterned border is drawn, in scene units ({@link borderRing}).
      * @returns The ring, or null when the style draws no border.
      */
     static createGroupBorder(
@@ -1090,6 +1143,7 @@ export class NodeMesh {
         extents: { x: number; y: number; z: number },
         is2D: boolean,
         scene?: Scene,
+        dashUnit?: number,
     ): Mesh | null {
         const { border, shape } = createOptions;
         const width = (border?.width ?? 0) * this.extentPerSize(shape);
@@ -1098,7 +1152,12 @@ export class NodeMesh {
         }
 
         const outline = this.flatOutline(shape, { across: Math.max(extents.x, extents.y), ...extents });
-        const mesh = ringSlab("node-border", borderRing(outline, width, border?.style ?? "solid"), extents.z, scene);
+        const mesh = ringSlab(
+            "node-border",
+            borderRing(outline, width, border?.style ?? "solid", undefined, dashUnit),
+            extents.z,
+            scene,
+        );
         placeByZIndex(mesh, shape, is2D);
         mesh.isPickable = false;
 

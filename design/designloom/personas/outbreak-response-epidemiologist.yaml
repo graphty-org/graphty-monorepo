@@ -1,0 +1,78 @@
+id: outbreak-response-epidemiologist
+name: Outbreak Response Epidemiologist
+roster_persona: public-health-cluster-epidemiologist
+tier: B
+scope: in-scope
+role: Field Epidemiologist, CDC Field Team or State Outbreak Unit
+quote: Show me the genetic links and the named contacts in the same picture, and tell me who is connected but was never named.
+bio: >-
+    Graham Bell is a former Epidemic Intelligence Service officer who now deploys to outbreaks: HIV among people who
+    inject drugs, COVID-19 in congregate settings, hepatitis in a rural county. He is competent in R and comfortable
+    reading phylogenetic trees. In the field he overlays genetic links on named contacts and on person-place exposures
+    in MicrobeTrace, imports Nextstrain trees exported as Newick in divergence mode, and sometimes works from a
+    temporary Access database that someone stood up in the first week of a surge. His graphs are small by database
+    standards and large by browser standards: Scott County, Indiana involved 411 people and 1,060 risk links, and an
+    Arkansas university outbreak linked 565 of 965 cases to 56 residences and 54 gatherings. His job on arrival is to
+    establish the true size of the outbreak, split the work by cluster so field teams are not duplicating interviews,
+    and find the people and the venues that join otherwise separate groups.
+characteristics:
+    expertise: advanced
+    time_pressure: high
+    graph_literacy: advanced
+    domain_knowledge: advanced
+motivations:
+    - Show that an outbreak is bigger than the local count suggests, with evidence a health officer will accept
+    - Separate what the interviews found from what the sequences found, and look at the disagreement
+    - Assign field work by cluster and by venue rather than case by case
+    - Keep a day's analysis reproducible when the team rotates and someone else opens the file tomorrow
+    - Get a defensible picture out in hours, on a government laptop, without installing anything
+behaviors:
+    - Loads several files at once: a genetic input, a contact edge list, a node line list, and a separate place node list
+    - Keeps genetic and contact edges visually distinct by coloring links on an edge variable
+    - Starts from a published distance threshold for the pathogen, then moves it and watches the cluster count
+    - Applies nearest connected neighbor pruning to the molecular links before adding epidemiologic links
+    - Looks for components where contact and genetic links agree, genetic links with no named contact, and named contacts with no genetic support
+    - Uses person-place bipartite data to find the residences, bars or gatherings that join case groups
+    - Plays a timeline over onset or diagnosis date, and reads an epi curve and a map beside the network
+    - Watches for the topologies that mean a data error rather than biology: a starburst from a blank row parsed as a node, a two-step chain from a bad alignment
+    - Exports per-cluster node and edge files, images and tables for the daily situation report
+frustrations:
+    - 3,700 SARS-CoV-2 genomes, roughly 7 million candidate links, crashed the browser tab after 15 to 30 minutes
+    - A 12,070-row edge list took 10 minutes to load with no useful progress indication
+    - Several link types on the same pair of people collapse to one color, hiding that a pair is both a sex partner and a household contact
+    - Styling is lost when a saved session is reopened, so the figure has to be rebuilt
+    - Trees have to be re-exported in divergence units and thresholds retuned before a network tool will agree with them
+    - Named contacts and genetic links disagree often enough that a single-source picture misleads: in Indiana 66% of named risk links had no genetic support and 40.6% of inferred transmissions had no reported contact
+context:
+    frequency: daily
+    devices:
+        - laptop
+    voluntary: false
+workflows:
+    - W62
+    - W63
+    - W66
+    - W72
+    - W73
+sources:
+    - title: MicrobeTrace - a browser application for graph-based molecular epidemiology (PLOS Computational Biology 2021)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8491948/
+      summary: 4,119 unique users March 2018 to November 2020, mean visit 8.7 minutes, combined genetic and contact link views, cluster-size filtering effects
+    - title: Comparison of named contacts and inferred genetic links, Scott County Indiana HIV outbreak
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5853229
+      summary: 411 people and 1,060 risk links; 66% of named risk links lacked genetic support and 40.6% of inferred transmissions had no reported contact
+    - title: SARS-CoV-2 transmission at a university, Arkansas (MMWR 2021)
+      url: https://www.cdc.gov/mmwr/volumes/70/wr/mm7001a5.htm
+      summary: 565 of 965 cases entered the network, 56 residences and 54 gatherings as place nodes, 72% of gathering links fraternity or sorority related
+    - title: MicrobeTrace issue 432 - large genome sets crash the tab
+      url: https://github.com/CDCgov/MicrobeTrace/issues/432
+      summary: 3,700 SARS-CoV-2 genomes, about 7 million links, crashed Chrome after 15 to 30 minutes
+    - title: MicrobeTrace issue 436 - several link types on one pair collapse
+      url: https://github.com/CDCgov/MicrobeTrace/issues/436
+      summary: Multiple relationship types between the same two nodes render as a single colored link
+    - title: MicrobeTrace wiki - suspicious network topologies
+      url: https://github.com/CDCgov/MicrobeTrace/wiki/Suspicious-Network-Topologies
+      summary: A starburst usually means a blank row parsed as a node; a two-step chain usually means a bad alignment
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

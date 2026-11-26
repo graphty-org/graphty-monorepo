@@ -1,0 +1,71 @@
+id: social-media-dynamics-researcher
+name: Social Media Dynamics Researcher
+roster_persona: social-media-network-researcher
+tier: B
+scope: in-scope
+role: Communication Researcher (Hashtag Conversations, Retweet Cascades, Coordinated Campaigns)
+quote: Each @reply lives thirty minutes in my model. Play it in fifteen-minute windows and you can watch the conversation ignite.
+bio: >-
+    Dr. Pablo Rey is a communication researcher who studies how online conversations ignite, who bridges communities
+    and when, and when a conversation dies down. He collects tweets and replies with scripts, converts them to dynamic
+    GEXF, and plays them in Gephi. His model follows Axel Bruns' #spill work: each @reply is an edge that lives for a
+    decay time (1,800 seconds), converted with gawk scripts, filtered to active users (degree 10 or more took 5,485
+    nodes to 495), laid out once over the whole span and then played with one-hour and fifteen-minute windows. He
+    screen-records the playback because Gephi cannot export video, and once had to speed the video up 2x to fit an
+    upload limit. He also uses cumulative share timelines in the style of Hoaxy. His data is thousands to a million
+    accounts and tens of thousands to tens of millions of directed, second-resolution interactions. He scripts
+    moderately and is a Gephi power user.
+characteristics:
+    expertise: advanced
+    time_pressure: medium
+    graph_literacy: advanced
+    domain_knowledge: advanced
+motivations:
+    - Show how a conversation ignited, peaked and faded
+    - Find accounts that bridged communities, and when they did it
+    - Detect bursts of coordinated activity in a time window
+    - Publish a playback video and stills that a non-technical audience understands
+    - Follow a live event as it unfolds, not only after the fact
+behaviors:
+    - Writes collection and conversion scripts; turns point-event replies into intervals with a chosen decay time
+    - Filters to the most active accounts before drawing
+    - Lays out the whole period once and freezes positions ("static network, dynamic connections")
+    - Plays with sliding windows of one hour and fifteen minutes; compares cumulative growth curves of shares
+    - Nests the timeline range filter with degree and attribute filters
+    - Screen-records the playback and uploads it as a video
+frustrations:
+    - The decay time is an invented parameter that changes what the network looks like
+    - Edge-weight averaging over long windows underestimates the weight of repeated interactions
+    - Running layout during playback lags; static layouts make new accounts land far from their partners
+    - No video export; recordings must be sped up and edited to fit upload limits
+    - Live collection and the visualization are separate; a running event cannot be watched as it grows
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W19
+    - W304
+    - W309
+    - W312
+sources:
+    - title: Bruns - Mapping Online Publics, dynamic networks part 1
+      url: https://mappingonlinepublics.net/dev/?p=379
+      summary: Replies (@replies) as edges with decaytime = 1800 s, converted with gawk into dynamic GEXF
+    - title: Bruns - Mapping Online Publics, dynamic networks part 2
+      url: https://mappingonlinepublics.net/dev/?p=384
+      summary: Degree 10+ filter, static layout, one-hour and 15-minute windows, layout lag, screen-recorded video
+    - title: Hoaxy (IUNI)
+      url: https://iuni.iu.edu/projects/hoaxy
+      summary: Cumulative share timelines beside a diffusion network
+    - title: Gephi User Manual - Import Dynamic Data
+      url: https://docs.gephi.org/desktop/User_Manual/Import_Dynamic_Data/
+      summary: GEXF dynamic modes, intervals versus timestamps, slice merging
+    - title: igraph GephiGraphStreamer
+      url: https://python.igraph.org/en/main/api/igraph.remote.gephi.GephiGraphStreamer.html
+      summary: Posting graph mutations to Gephi's streaming master as JSON events
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

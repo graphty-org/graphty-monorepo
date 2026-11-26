@@ -68,6 +68,7 @@ describe("kinds of node at load", () => {
                 "label",
                 "weight",
                 "time",
+                "kind",
                 "latitude",
                 "longitude",
                 "coordinates",
@@ -79,9 +80,9 @@ describe("kinds of node at load", () => {
                 "z",
             ],
         );
-        assert.sameMembers([...COLUMN_ROLES.node.atLoad], ["key", "kind"]);
-        assert.sameMembers([...COLUMN_ROLES.edge.inPlace], ["weight", "time"]);
-        assert.sameMembers([...COLUMN_ROLES.edge.atLoad], ["source", "target", "edgeId", "kind"]);
+        assert.sameMembers([...COLUMN_ROLES.node.atLoad], ["key"]);
+        assert.sameMembers([...COLUMN_ROLES.edge.inPlace], ["weight", "time", "kind"]);
+        assert.sameMembers([...COLUMN_ROLES.edge.atLoad], ["source", "target", "edgeId"]);
     });
 
     it("reports the id that appears under two kinds, the same under either choice", async () => {

@@ -1,6 +1,5 @@
-import { DirectionProvider, MantineProvider } from "@mantine/core";
-import { render, screen } from "@testing-library/react";
-import React from "react";
+import { MantineProvider } from "@mantine/core";
+import { screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
@@ -13,6 +12,7 @@ import {
     type ActivationMeta,
     getActivationMeta,
 } from "../../../src/types/events";
+import { renderCompact as renderRow, renderRtl } from "../../harness/render";
 
 /**
  * The gradient a caller passes for the color form, spelled the way the panel
@@ -28,28 +28,6 @@ const CURVES = [
     ["linear", "scaleLinear", "Linear scale"],
     ["log", "scaleLog", "Logarithmic scale"],
 ] as const;
-
-/**
- * Render inside the compact theme, the way the package is consumed.
- * @param ui - The element under test
- * @returns The testing-library render result
- */
-function renderRow(ui: React.ReactElement): ReturnType<typeof render> {
-    return render(<MantineProvider theme={compactTheme}>{ui}</MantineProvider>);
-}
-
-/**
- * Render inside the compact theme with the text direction reversed.
- * @param ui - The element under test
- * @returns The testing-library render result
- */
-function renderRtl(ui: React.ReactElement): ReturnType<typeof render> {
-    return render(
-        <DirectionProvider initialDirection="rtl" detectDirection={false}>
-            <MantineProvider theme={compactTheme}>{ui}</MantineProvider>
-        </DirectionProvider>,
-    );
-}
 
 /**
  * The text the row actually draws, with the parts that exist only to be

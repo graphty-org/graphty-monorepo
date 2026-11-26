@@ -1,0 +1,18 @@
+id: shared-dependency-analysis
+name: Shared Upstream Dependency Analysis
+category: export
+description: Intersect the upstream sets of chosen nodes to find shared hidden sources, and count alternatives per input
+    to find single-sourced inputs.
+status: planned
+notes: "Research trace: supply-chain-and-physical-infrastructure-networks.md section 10, requirement R10 (Must)."
+algorithms: []
+used_by_workflows:
+    - W11
+    - W217
+implemented_by_components: []
+requirements:
+    - "Must: Shared upstream dependencies of a set of nodes; alternatives per input"
+sources:
+    - title: Supply Chain Risk Analysts and Physical Infrastructure Network Engineers (section 10, requirement R10)
+      url: design/user-research/supply-chain-and-physical-infrastructure-networks.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

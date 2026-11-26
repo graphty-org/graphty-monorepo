@@ -1,10 +1,13 @@
 id: node-selection
 name: Node Selection
 category: interaction
-description: Select one or more nodes for further operations. Selection can be used to view details, apply algorithms,
-    filter, or export. Support single and multi-select patterns.
-status: implemented
-notes: "Ships: graphty/src/workspace/selection/ and the element's selected calculated value."
+description: Select one or more nodes or edges for further operations -- view details, run an algorithm seeded from the
+    selection, filter, tag, or export. Select is one of the core interaction intents in visualization (Yi et al. 2007).
+    Users build selections by click, modifier-click, box or freeform lasso, by attribute or selector, and by graph
+    operations (neighbors, group, community), and they hand the selection on to another system as record ids --
+    a review platform's search, a notebook, a migration group.
+status: in-progress
+notes: "Partly ships: graphty/src/workspace/selection/, the element's selected calculated value and its region select gesture (graphty-element/src/input/RegionSelectGesture.ts). Planned: selection by map area, invert selection, and writing the selection to a group attribute in one action. Any requirement below that this note does not name as shipping counts as planned."
 algorithms: []
 used_by_workflows:
     - W02
@@ -12,28 +15,159 @@ used_by_workflows:
     - W20
     - W21
     - W23
+    - W100
+    - W108
+    - W110
+    - W111
+    - W113
+    - W115
+    - W121
+    - W122
+    - W124
+    - W130
+    - W137
+    - W141
+    - W142
+    - W143
+    - W144
+    - W146
+    - W148
+    - W149
+    - W150
+    - W151
+    - W166
+    - W169
+    - W190
+    - W192
+    - W216
+    - W218
+    - W219
+    - W223
+    - W225
+    - W232
+    - W255
+    - W257
+    - W253
+    - W265
+    - W270
+    - W277
+    - W278
+    - W279
+    - W283
+    - W287
+    - W288
+    - W305
+    - W308
+    - W325
+    - W326
+    - W329
+    - W330
+    - W341
+    - W345
+    - W359
+    - W362
+    - W363
+    - W364
+    - W368
+    - W380
+    - W381
+    - W390
+    - W391
+    - W393
+    - W399
+    - W40
+    - W401
+    - W405
+    - W406
+    - W408
+    - W412
+    - W414
+    - W415
+    - W416
+    - W418
+    - W420
+    - W421
+    - W422
+    - W423
+    - W424
+    - W426
+    - W430
+    - W431
+    - W434
+    - W435
+    - W436
+    - W44
+    - W55
+    - W63
+    - W64
+    - W66
+    - W67
+    - W68
+    - W69
+    - W70
+    - W71
+    - W72
+    - W73
+    - W74
+    - W75
+    - W77
+    - W79
+    - W82
+    - W84
+    - W87
+    - W88
+    - W99
+    - W1006
+    - W1054
+    - W254
+    - W1132
+    - W105
+    - W1156
+    - W1157
+    - W1158
+    - W2000
+    - W2030
+    - W2037
+    - W2038
+    - W2066
+    - W3049
+    - W3102
 implemented_by_components:
     - graph-canvas
     - context-menu
     - data-table-panel
 requirements:
-    - Select single node with left-click
-    - Add node to existing selection with Shift+click
-    - Toggle node selection state with Ctrl+click (Cmd+click on Mac)
-    - Select multiple nodes with rectangle drag (lasso selection)
-    - Start lasso from empty area; complete on mouse release
-    - Select all visible nodes with 'Select All' menu option or Ctrl+A
-    - Select nodes by attribute criteria via 'Select by Attribute' dialog
-    - Clear all selection with Escape key or clicking empty area
-    - "Display selected nodes with distinct border color (default: blue, 3px)"
-    - "Display selection count: 'N nodes selected' in status bar"
-    - Provide 'Invert Selection' to select all unselected and deselect selected
-    - Provide 'Select Neighbors' to add neighbors of current selection
-    - Provide 'Select Community' to select all nodes in same community as selection
-    - Support edge selection with click (distinct from node selection)
-    - Display selected edges with distinct style (thicker, different color)
-    - Maintain separate selection state for nodes and edges
+    - "Library parity: Select a single node with a click; clicking empty canvas clears the selection"
+    - "Must: Add to the selection with a modifier-click and toggle one item with a second modifier, the platform's usual keys"
+    - "Must: Select many nodes with a box drag and with a freeform lasso started from empty canvas"
+    - "Must: Select by area on a map underlay (radius or polygon) when nodes have geographic positions"
+    - "Library parity: Select all visible nodes, invert the selection, and clear it, each from a button and a keyboard shortcut"
+    - "Must: Select by attribute criteria and by a selector that combines attribute tests with union and intersection"
+    - "Should: Grow the selection by graph operations -- neighbors (in, out or both, one or n hops), ancestors and descendants on directed graphs, the same group or community as the selection"
+    - "Library parity: Select edges by click, separately from nodes, and keep separate node and edge selection state"
+    - "Must: Write the current selection to an editable group or tag attribute in one action (for example a migration move group)"
+    - "Must: Emit the selection as a list of node and edge ids (or a neutral query descriptor) for a host application, a notebook or an external record list, and accept a selection set from them"
+    - "Library parity: Show selection through the element's selected calculated value and an ordinary style layer, never by mutating a mesh; the selected state must not rely on color alone"
+    - "Library parity: Expose the selection count and the selected ids through the public API so an application can show them"
+    - "Must: Every selection action is reachable from the keyboard, not only by pointer"
 sources:
-    - title: Complete Graph Visualization Textbook - Chapter 6
-      url: https://graphty.app/docs/
-      summary: Selection and Highlighting - click selection patterns
+    - title: Yi, Kang, Stasko and Jacko 2007, Toward a deeper understanding of the role of interaction in information visualization
+      url: https://doi.org/10.1109/TVCG.2007.70515
+      summary: Select (mark something as interesting) is one of seven interaction intents
+    - title: AWS Migration Hub network diagram (dependency and impact analysis research, R7 and R23)
+      url: https://docs.aws.amazon.com/migrationhub/latest/ug/network-diagram-how-to.html
+      summary: Shift-click and Ctrl+drag-box multi-select, then group the selection as an application; lasso and
+          modifier-click selection writing a group attribute is a Must
+    - title: dbt node selection graph operators
+      url: https://docs.getdbt.com/reference/node-selection/graph-operators
+      summary: Selector syntax for descendants, ancestors and bounded hop counts, the pattern behind graph-operator selection
+    - title: Relativity Communication analysis widget
+      url: https://help.relativity.com/RelativityOne/Content/Relativity/Analytics/Communication_analysis.htm
+      summary: Select Groups, Select Neighbors, Hide Selected; Apply writes selected nodes into the document search
+          (ediscovery research, R1 and R22)
+    - title: WCAG 2.2, Understanding 1.4.1 Use of Color
+      url: https://www.w3.org/WAI/WCAG22/Understanding/use-of-color.html
+      summary: Color must not be the only visual cue, so a selected state needs a non-color cue as well
+    - title: User research -- supply chain and physical infrastructure networks (R4)
+      url: design/user-research/supply-chain-and-physical-infrastructure-networks.md
+      summary: Spatial selection by radius or polygon, then propagate, is a Must for infrastructure users

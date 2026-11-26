@@ -1,0 +1,94 @@
+id: W3058
+name: Check Network Connectivity Per Decision Question and Under Exclusions
+category: analysis
+validated: false
+personas:
+    - hta-indirect-comparison-analyst
+    - hta-evidence-review-assessor
+starting_state:
+    data_type: a trial list with a population, comparator and inclusion flag per trial
+    node_count: 5-40
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: For each payer question, confirm that the drug under assessment connects to every requested comparator, find the bridging trials, and see what disconnects when trials are excluded.
+
+
+    **Mental Model**: "No path, no comparison." An anchored indirect comparison needs a chain of trials between the two treatments.
+
+
+    **Task Phases**:
+
+    1. **Filter per question** - Keep the trials that match the population, intervention, comparator and outcome set
+
+    2. **Check connectivity** - Name each subnetwork and whether the drug reaches every comparator
+
+    3. **Find bridges** - Identify trials whose removal disconnects a comparator
+
+    4. **Exclude and compare** - Toggle trials and see the network before and after side by side
+
+    5. **Log** - Record each exclusion and its effect on connectivity
+
+
+    **Decision Points**:
+
+    - Is a bridging trial defensible to include?
+
+    - Does an exclusion leave the decision answerable?
+
+
+    **Information Needs**:
+
+    - Subnetwork membership
+
+    - Bridge trials per comparator
+
+    - The exclusion log
+
+
+    **Pain Points**:
+
+    - A disconnection shows only when the model fails
+
+    - Networks are redrawn by hand per question
+
+
+    **Data Flow**:
+
+    - Input: Trial list with flags
+
+    - Transformations: Filtering, components, bridge detection, before-and-after view
+
+    - Output: A connectivity verdict per question and an exclusion log
+success_criteria:
+    - metric: Warning
+      target: A comparator losing its connection is flagged as soon as the exclusion is made
+sources:
+    - title: "Owen et al. 2019 - MetaInsight"
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6973101
+      summary: "Exclude studies and see the network before and after side by side; disconnected treatments disappear"
+    - title: "netmeta netconnection reference"
+      url: https://search.r-project.org/CRAN/refmans/netmeta/html/netconnection.html
+      summary: "Number of subnetworks, block-diagonal distance matrix, fitting each subnetwork separately"
+    - title: "ISPOR Europe 2025 - indirect comparisons in NICE submissions"
+      url: https://www.ispor.org/heor-resources/presentations-database/presentation-cti/ispor-europe-2025/poster-session-3-2/indirect-treatment-comparisons-in-health-technology-assessment-submissions-a-review-and-critique-of-best-practice
+      summary: "114 NICE appraisals with indirect comparisons, 61.4% NMA; heterogeneity concerns in 79%"
+    - title: "EUnetHTA 21 guideline on direct and indirect comparisons"
+      url: https://www.eunethta.eu/wp-content/uploads/2022/08/EUnetHTA-21-Deliverable-D4.3.2-Methodological-Guideline-on-Direct-and-indirect-comparisons-V1.0.pdf
+      summary: "Methods guidance for European assessments, including disconnected networks"
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z
+requires_capabilities:
+    - table-to-graph-builder
+    - component-analysis
+    - live-exclusion-connectivity-check
+    - comparison-view
+    - shared-fixed-layout
+    - analysis-provenance
+suggested_components:
+    - data-table-panel
+    - filter-panel
+    - checkbox
+    - graph-canvas
+    - statistics-panel

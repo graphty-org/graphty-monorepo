@@ -25,7 +25,7 @@ interface Slot {
     readonly pending: Set<number>;
 }
 
-/** What one batch's slot holds once it lands: the buffer and the transform it was drawn with. */
+/** What one batch's slot holds once it lands: the buffer and the transform it was sent with (a fitted one resolves at landing). */
 export interface DrawnRecord {
     readonly buffer: GPUBuffer;
     readonly transform: DrawnTransform;
@@ -33,8 +33,11 @@ export interface DrawnRecord {
     readonly envelope: GPUBuffer;
 }
 
-/** Bytes of the envelope a batch writes: sum and count, min, max, then the furthest squared distance, one vec4f each. */
-export const ENVELOPE_BYTES = 64;
+/**
+ * Bytes of the envelope a batch writes, one vec4f each: sum and count, min, max, the furthest squared distance, then
+ * the mean and furthest distance `to-drawn` fits with, and the center and scale it drew with when fitting.
+ */
+export const ENVELOPE_BYTES = 96;
 
 /** The `envelope` kernel's four dispatches (see its body), each with its own params and plan. */
 interface EnvelopeStep {
@@ -85,6 +88,8 @@ export class DrawnStage {
         const skipBytes = 4 * Math.max(1, Math.ceil(n / 32));
         this.skipWords = new Uint32Array(skipBytes / 4);
         const scene = resources.buffer("scenePositions");
+        const env = storage(ENVELOPE_BYTES, "drawn/envelope");
+        this.envelopeBuffer = env.buffer;
         this.slots = [];
         for (let i = 0; i < count; i++) {
             const binding = storage(16 * Math.max(1, n), `drawn/slot${i}`);
@@ -99,21 +104,20 @@ export class DrawnStage {
             };
             this.slots.push({
                 binding,
-                bound: kernel.bind({ scene, skip, drawn: binding, P: params }),
+                bound: kernel.bind({ scene, skip, drawn: binding, env, P: params }),
                 params,
                 skip,
                 pending: new Set(),
             });
         }
         this.transform(this.current);
-        // ONE ENVELOPE A BATCH, measured after its last iteration: the owner fits the next transform from these 64 bytes
-        // instead of walking every row (issue #8801). Its buffer is read back before the next batch writes it.
+        // ONE ENVELOPE A BATCH, measured after its last iteration: the owner fits the next transform from these bytes
+        // instead of walking every row (issue #8801), and a fitted batch draws with it (issue #9665). Its buffer is read
+        // back before the next batch writes it.
         this.envelopeKernel = envelope;
         const stride = planGridStride(n, envelope.workgroupSize, caps);
         const one: DispatchPlan = { x: 1, y: 1, z: 1, items: envelope.workgroupSize, stride: null };
         const partials = storage(48 * stride.x, "drawn/envelope-partials");
-        const env = storage(ENVELOPE_BYTES, "drawn/envelope");
-        this.envelopeBuffer = env.buffer;
         this.envelopeSteps = [stride, one, stride, one].map((plan, mode) => {
             const params: Binding = {
                 buffer: lease.uniform(ENVELOPE_PARAMS.byteLength, `drawn/envelope-params${mode}`),
@@ -157,7 +161,7 @@ export class DrawnStage {
             n: this.n,
             dim: this.dim,
             scale: t.scale,
-            pad0: 0,
+            fit: t.fit !== undefined && t.fit > 0 ? t.fit : 0,
             cx: t.center[0],
             cy: t.center[1],
             cz: t.center[2],
@@ -211,10 +215,11 @@ export class DrawnStage {
             queue.writeBuffer(slot.binding.buffer, 16 * row, rows, 4 * row, 4);
         }
         slot.pending.clear();
-        this.kernel.dispatch(encoder, slot.bound, this.plan, [0]);
+        // measured first, so a fitted batch draws about its own rows
         for (const step of this.envelopeSteps) {
             this.envelopeKernel.dispatch(encoder, step.bound, step.plan, [0]);
         }
+        this.kernel.dispatch(encoder, slot.bound, this.plan, [0]);
         return { buffer: slot.binding.buffer, transform: this.current, envelope: this.envelopeBuffer };
     }
 

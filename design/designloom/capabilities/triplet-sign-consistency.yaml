@@ -1,0 +1,23 @@
+id: triplet-sign-consistency
+name: "Sign consistency across triplets"
+category: analysis
+description: "Check every A-B-C triplet of a typed network against an expected sign pattern (for ceRNA: lncRNA-mRNA correlation positive, each with the shared miRNA negative, lncRNA and mRNA changed in the same direction), and list or mark the triplets that contradict it."
+status: planned
+notes: "Research trace: systems-biology-omics-networks.md section 5.11 (ceRNA networks) and section 10, requirement 8 (M, sign-consistent paths)."
+algorithms: []
+used_by_workflows:
+    - W251
+implemented_by_components: []
+requirements:
+    - "Must: Check every A-B-C triplet of a typed network against an expected sign pattern given by the user (for ceRNA: lncRNA-mRNA correlation positive, each with the shared miRNA negative, both changed in the same direction)"
+    - "Must: List the triplets that contradict the pattern and mark them through a style layer on the result"
+sources:
+    - title: "GDCRNATools vignette"
+      url: "https://free.nchc.org.tw/bioconductor/packages/3.9/bioc/vignettes/GDCRNATools/inst/doc/GDCRNATools.html"
+      summary: "Expression of the lncRNA and mRNA in a ceRNA pair should be positively correlated"
+    - title: "SPONGE vignette"
+      url: "https://bioconductor.org/packages/release/bioc/vignettes/SPONGE/inst/doc/SPONGE.html"
+      summary: "Keeps only miRNA-gene links with a negative coefficient"
+    - title: "Systems biology research, section 5.11 and section 10, requirement 8"
+      url: "design/user-research/systems-biology-omics-networks.md"
+      summary: "ceRNA hypothesis; sign-consistent paths, Must"

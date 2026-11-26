@@ -14,8 +14,9 @@ import {
     type Range,
     type SlowRange,
 } from "../../web/src/contract.js";
-import { dynamoStore } from "../dynamo.js";
+import { dynamoStore, takeReadUnits } from "../dynamo.js";
 import { runDrill, testHistory } from "../model/drill.js";
+import { readMeter } from "../model/raw.js";
 import type { Store } from "../model/store.js";
 import { type ViewItem, viewKey, type ViewRoute } from "../views/index.js";
 
@@ -32,6 +33,8 @@ const HISTORY_PATHS = new Set(["/v1/test-history", "/v1/page/flaky/test"]);
 const MAX_KEY_FIELD_BYTES = 512;
 
 let store: Store | undefined;
+/** The public reads' daily budget (model/items.ts DAILY_READ_LIMIT), shared with the Results Lambda's. */
+const meter = readMeter();
 
 /**
  * The view a request names, or a 4xx reason.
@@ -87,6 +90,23 @@ export async function handler(event: APIGatewayProxyEventV2): Promise<APIGateway
     if (event.rawPath === "/v1/health") {
         return json(200, { ok: true, time: new Date().toISOString() }, "no-store");
     }
+    const db = (store ??= dynamoStore(process.env.TABLE_NAME ?? "graphty-health"));
+    if (await meter.spent(db, Date.now())) {
+        return json(429, { code: "read_budget" }, "no-store");
+    }
+    try {
+        return await serve(event);
+    } finally {
+        await meter.charge(db, takeReadUnits(), Date.now());
+    }
+}
+
+/**
+ * Answers one read inside the daily read budget.
+ * @param event - the HTTP API request
+ * @returns the JSON response
+ */
+async function serve(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyStructuredResultV2> {
     const drill = await drillDown(event);
     if (drill) {
         return drill;

@@ -1,0 +1,25 @@
+id: radius-limited-centrality
+name: Radius-Limited Weighted Centrality
+category: analysis
+description: Closeness and betweenness (node and edge) limited to several radii (steps, meters, travel time, angle) in
+    one run, each stored as a named column.
+status: planned
+notes: "Research trace: supply-chain-and-physical-infrastructure-networks.md section 10, requirement R36 (Should)."
+algorithms: []
+used_by_workflows:
+    - W220
+    - W229
+implemented_by_components: []
+requirements:
+    - "Should: Radius-limited closeness and betweenness at several radii (steps, meters, angle) in one run, each a named
+      column"
+sources:
+    - title: Supply Chain Risk Analysts and Physical Infrastructure Network Engineers (section 10, requirement R36)
+      url: design/user-research/supply-chain-and-physical-infrastructure-networks.md
+      summary: "Should in the research. Covered by Designloom when researched: No"
+    - title: Yamaoka, Kumakoshi and Yoshimura 2021, Local betweenness centrality analysis of 30 European cities
+      url: https://arxiv.org/pdf/2103.11437
+      summary: Local betweenness at 300 to 5,000 m in 100 m steps, all radii in one pass; segments colored by peak radius
+    - title: Simons 2021, The cityseer Python package
+      url: https://arxiv.org/abs/2106.15314
+      summary: Centrality computed within network-distance thresholds as moving windows

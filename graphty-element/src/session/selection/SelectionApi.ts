@@ -212,7 +212,12 @@ export interface SelectionAttributeStatistics {
      * first. Absent for a numeric attribute, and for one with more distinct values than a legend
      * could hold.
      */
-    readonly distribution?: readonly { readonly value: string; readonly count: number }[];
+    readonly distribution?: readonly {
+        /** One value of the attribute, as text. */
+        readonly value: string;
+        /** How many selected nodes hold it. */
+        readonly count: number;
+    }[];
     /** The same average across every node in the graph, so the selection can be compared to it. */
     readonly graphMean?: number;
     /** Whether the selection sits above, below or exactly on the graph's average. */
@@ -255,7 +260,12 @@ export interface SelectionStatistics {
      * The lowest and highest degree among the selected nodes: how many edges touch each, the
      * value a rule reads as `graphty.degree`. Absent while no node is selected.
      */
-    readonly degree?: { readonly min: number; readonly max: number };
+    readonly degree?: {
+        /** The lowest degree of a selected node. */
+        readonly min: number;
+        /** The highest degree of a selected node. */
+        readonly max: number;
+    };
 }
 
 /**
@@ -370,7 +380,12 @@ export interface SelectionApi {
      * @throws The same `GraphtyError` as `apply` for a target it refuses, such as `E_BAD_SELECTOR`
      *   for a rule it cannot read.
      */
-    count(target: SelectionTarget): Promise<{ readonly nodes: number; readonly edges: number }>;
+    count(target: SelectionTarget): Promise<{
+        /** How many nodes the target names. */
+        readonly nodes: number;
+        /** How many edges the target names. */
+        readonly edges: number;
+    }>;
     /**
      * Which nodes and edges `apply(target)` would select, without changing the selection: the ids
      * behind {@link SelectionApi.count}, read the same way, so a consumer can list or narrow to a
@@ -385,7 +400,12 @@ export interface SelectionApi {
      * @throws The same `GraphtyError` as `apply` for a target it refuses.
      * @since 3.36.0
      */
-    members(target: SelectionTarget): Promise<{ readonly nodes: readonly NodeId[]; readonly edges: readonly EdgeId[] }>;
+    members(target: SelectionTarget): Promise<{
+        /** The ids of the nodes the target names. */
+        readonly nodes: readonly NodeId[];
+        /** The ids of the edges the target names. */
+        readonly edges: readonly EdgeId[];
+    }>;
     /**
      * Which paths a rule reads that nothing in this session answers, before it is applied: a rule
      * over a misspelt column matches nothing, which reads like a correct answer of zero. Each
@@ -427,7 +447,12 @@ export interface SelectionApi {
      * @returns The node ids and edge ids, or null.
      * @since 3.40.0
      */
-    previous(): { readonly nodes: readonly NodeId[]; readonly edges: readonly EdgeId[] } | null;
+    previous(): {
+        /** The ids of the nodes the last emptying took away that are still in the graph. */
+        readonly nodes: readonly NodeId[];
+        /** The ids of the edges the last emptying took away that are still in the graph. */
+        readonly edges: readonly EdgeId[];
+    } | null;
     /**
      * Select {@link SelectionApi.previous} again, in place of whatever is selected now: the "bring
      * it back" after a clear. Like every selection change it adds no undo step. With nothing to
@@ -477,9 +502,13 @@ export interface SelectionApi {
     previewHover(on: boolean): void;
     /**
      * The elements a {@link SelectionApi.peek} is showing now, or null.
-     * @experimental assistant
      */
-    readonly peeked: { readonly nodes: number; readonly edges: number } | null;
+    readonly peeked: {
+        /** How many nodes the peek shows. */
+        readonly nodes: number;
+        /** How many edges the peek shows. */
+        readonly edges: number;
+    } | null;
     /**
      * Point at some elements for a moment: a neutral ring outside their border (`node.outerBorder*`), drawn by a style layer the element
      * holds above every other, while the rest of the picture stays as it is. It adds no undo step,
@@ -492,11 +521,14 @@ export interface SelectionApi {
      * ```
      * @param target - What to point at, read as `apply` reads it; null for nothing.
      * @returns How many nodes and edges it names.
-     * @throws A `GraphtyError` coded `E_FEATURE_OFF` while the `assistant` experiment is off, or the
-     *   same error as `apply` for a target it refuses.
-     * @experimental assistant
+     * @throws The same error as `apply` for a target it refuses.
      */
-    peek(target: SelectionTarget | null): Promise<{ readonly nodes: number; readonly edges: number }>;
+    peek(target: SelectionTarget | null): Promise<{
+        /** How many nodes the peek shows; 0 after a clear. */
+        readonly nodes: number;
+        /** How many edges the peek shows; 0 after a clear. */
+        readonly edges: number;
+    }>;
     /**
      * Keep this selection under a name, as a kept set created from the selection, so it can be
      * named as `{ set: id }` later.
@@ -707,8 +739,6 @@ export interface SelectionSources {
         dirty: { readonly node: readonly number[]; readonly edge: readonly number[] },
         peeked: { readonly nodes: readonly NodeId[]; readonly edges: readonly EdgeId[] } | null,
     ) => void;
-    /** Whether peeking is on: the `assistant` experiment. Absent, it is off. */
-    readonly canPeek?: () => boolean;
     /**
      * Called when the hover preview turns on or off, with the nodes whose hovered state it moved.
      * @param nodes - The selected nodes.
@@ -1339,17 +1369,6 @@ class Selection implements SelectionOwner {
     }
 
     peek(target: SelectionTarget | null): Promise<{ readonly nodes: number; readonly edges: number }> {
-        if (this.#sources.canPeek?.() !== true) {
-            return Promise.reject(
-                new GraphtyError({
-                    code: "E_FEATURE_OFF",
-                    message: `Peeking needs the "assistant" experiment.`,
-                    source: "run",
-                    details: { feature: "assistant", key: "selection.peek" },
-                }),
-            );
-        }
-
         try {
             this.#sync();
             const members = target === null ? null : resolveTarget(target, this.#context());

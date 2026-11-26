@@ -1715,13 +1715,17 @@ export const DepthFade: Story = {
         const readings = labels
             .map((l) => `${l.id} at ${l.distance.toFixed(0)} units is ${l.alpha.toFixed(2)}`)
             .join(", ");
-        const nearest = labels[0];
         const farthest = labels[labels.length - 1];
+        // HOW FAR THE CAMERA SITS DEPENDS ON THE CANVAS. Zoom-to-fit backs off further on a
+        // squarer canvas, so which labels land inside the near distance is not fixed; each
+        // label's alpha is judged against its own measured distance instead.
+        const expectedAlpha = (distance: number): number =>
+            Math.min(1, Math.max(0, 1 - (distance - DEPTH_FADE_NEAR) / (DEPTH_FADE_FAR - DEPTH_FADE_NEAR)));
 
         await holds(
-            nearest.distance < DEPTH_FADE_NEAR && nearest.alpha >= 0.999,
-            `Styles/Label DepthFade: the nearest label should sit inside ${String(DEPTH_FADE_NEAR)} units and be ` +
-                `drawn solid -- ${readings}`,
+            labels.every((l) => Math.abs(l.alpha - expectedAlpha(l.distance)) <= 0.02),
+            `Styles/Label DepthFade: every label should be solid inside ${String(DEPTH_FADE_NEAR)} units, gone ` +
+                `past ${String(DEPTH_FADE_FAR)} and fade evenly between -- ${readings}`,
         );
 
         await holds(

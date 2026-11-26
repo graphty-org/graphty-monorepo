@@ -10,14 +10,10 @@ import "@graphty/graphty-element";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
 import { cleanup, render, screen, waitFor } from "../../../test/test-utils";
 import { writeAssistantChoice } from "../../assistant-door/provider";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-
-/** The Assistant experiment on, as a site.json that lists it. */
-const SITE = `data:application/json,${encodeURIComponent(JSON.stringify({ features: ["assistant"] }))}`;
 
 type Session = NonNullable<HTMLElementTagNameMap["graphty-element"]["session"]>;
 
@@ -50,8 +46,6 @@ async function openSettings(): Promise<HTMLElement> {
 
 describe("keys a dialog or the Assistant panel keeps", () => {
     beforeEach(async () => {
-        resetSiteConfig();
-        await loadSiteConfig(SITE);
         await page.viewport(1440, 900);
         localStorage.clear();
         writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
@@ -59,7 +53,6 @@ describe("keys a dialog or the Assistant panel keeps", () => {
 
     afterEach(() => {
         cleanup();
-        resetSiteConfig();
         writeAssistantChoice(null);
     });
 

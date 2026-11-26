@@ -151,6 +151,12 @@ export interface AcceleratorDeviceInfo {
 }
 
 // @public
+export interface AcceleratorExactMaxNodes {
+    readonly basis: ExactMaxNodesBasis;
+    readonly value: number;
+}
+
+// @public
 export type AcceleratorFactory = (options?: AcceleratorFactoryOptions) => Promise<GraphAccelerator | null>;
 
 // @public
@@ -215,7 +221,6 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     static readonly loadedWeightByDefault: boolean;
     // @internal
     mixedDirection(): boolean | null;
-    // (undocumented)
     static namespace: string;
     get namespace(): string;
     protected nodeIndex(snapshot: GraphSnapshot, option: string, id: NodeId_2): number;
@@ -230,12 +235,10 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     reachedAccelerator: GraphAccelerator | null;
     static register<T extends AlgorithmClass>(cls: T, options?: RegisterOptions): T;
     protected resolveOptions(options?: Partial<TOptions>): TOptions;
-    // (undocumented)
     abstract run(g: AlgorithmHost): Promise<void>;
     protected get schemaOptions(): TOptions;
     protected _schemaOptions: TOptions;
     static scopeInput?: ScopeInputDeclaration;
-    // (undocumented)
     static type: string;
     get type(): string;
     // @internal
@@ -358,13 +361,10 @@ export interface AlgorithmStatics {
     // @deprecated (undocumented)
     hasOptions(): boolean;
     hasZodOptions(): boolean;
-    // (undocumented)
     namespace: string;
-    // (undocumented)
     optionsSchema: OptionsSchema;
     scopeInput?: ScopeInputDeclaration;
     suggestedName?: (options: Readonly<Record<string, unknown>>) => SuggestedName | undefined;
-    // (undocumented)
     type: string;
     version?: string;
     zodOptionsSchema?: OptionsSchema_2;
@@ -432,15 +432,14 @@ export { AwsCredentials }
 
 // @public
 export interface BaseDataSourceConfig {
-    // (undocumented)
     chunkSize?: number;
     data?: SourceData;
-    // (undocumented)
     errorLimit?: number;
     file?: File;
     graphIndex?: number;
     graphName?: string;
     layout?: "recommended" | "placed" | "keep";
+    pins?: "data" | "keep";
     styles?: "file" | "none";
     url?: string;
 }
@@ -643,11 +642,9 @@ export abstract class DataSource {
     protected declareRequestedLayout(layout: RequestedLayout | null): void;
     // @beta
     protected declareTime(field: TimeField): void;
-    // (undocumented)
     static readonly DEFAULT_CHUNK_SIZE = 1000;
     static descriptor?: FormatDescriptor;
     static detect?: (sample: string) => boolean;
-    // (undocumented)
     edgeSchema: z.core.$ZodObject | null;
     // (undocumented)
     protected errorAggregator: ErrorAggregator;
@@ -673,25 +670,20 @@ export abstract class DataSource {
     static getRegisteredTypes(): string[];
     protected graphChoice(): GraphChoiceOptions;
     static listGraphs?: GraphLister;
-    // (undocumented)
     nodeSchema: z.core.$ZodObject | null;
     static register<T extends DataSourceClass>(cls: T, options?: RegisterOptions): T;
     get requestedLayout(): RequestedLayout | null;
     protected resolveOptions(passed: object): Record<string, unknown>;
-    // (undocumented)
     abstract sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown>;
     static toRecord(fields: Readonly<Record<string, unknown>>): AdHocData;
     static toRecords(records: readonly Readonly<Record<string, unknown>>[]): AdHocData[];
-    // (undocumented)
     static readonly type: string;
     get type(): string;
 }
 
-// @public (undocumented)
+// @public
 export interface DataSourceChunk {
-    // (undocumented)
     edges: AdHocData[];
-    // (undocumented)
     nodes: AdHocData[];
 }
 
@@ -824,6 +816,7 @@ export class Edge {
     }[];
     // @internal
     get drawnGradient(): readonly string[];
+    get drawnHeadPosition(): Vector3 | null;
     get drawnLine(): {
         name: string;
         length: number;
@@ -875,6 +868,8 @@ export class Edge {
     parentGraph: Graph | GraphContext;
     // (undocumented)
     ray: Ray;
+    // @internal
+    redrawPulledOffEnds(): boolean;
     // @internal
     refreshFonts(families: ReadonlySet<string>): boolean;
     // @internal
@@ -976,6 +971,9 @@ export interface ErrorSummary {
     primaryCategory?: string;
     totalErrors: number;
 }
+
+// @public
+export type ExactMaxNodesBasis = "measured" | "default" | "configured";
 
 // @public
 export interface ExpandBehavior {
@@ -1110,8 +1108,10 @@ export interface FormatWriterRegistration {
 export interface GraphAccelerator {
     [algorithmOrLayout: string]: unknown;
     readonly backend: "webgpu" | (string & {});
+    calibrate?(): Promise<void>;
     readonly device?: AcceleratorDeviceInfo;
     dispose?(): void;
+    readonly exactMaxNodes?: AcceleratorExactMaxNodes;
     readonly lost?: Promise<{
         reason: string;
     }>;
@@ -1261,7 +1261,7 @@ export type GraphtyErrorCode =
 * A timeline call needs a time field and none is designated: `session.time.window`, `play`,
 * `stepBy` or `seek` with no attribute given. The caller designates one with
 * `session.time.setField` (or the `node-time-path` / `edge-time-path` attributes).
-* @beta
+* Beta: may change in a minor release.
 */
 | "E_NO_TIME_FIELD"
 /**
@@ -1290,20 +1290,20 @@ export type GraphtyErrorCode =
 /**
 * A layer names a shader the catalog does not list, in a use on `node.shaders` or
 * `edge.shaders` or a parameter's address. `details.candidates` lists the ids that list takes.
-* @since 3.36.0
+* Since 3.36.0.
 */
 | "E_UNKNOWN_SHADER"
 /**
 * A layer names a shader where it cannot draw: an edge shader on `node.shaders`
 * (`shader.target-mismatch`), or a use at a place the shader does not allow
 * (`shader.place-unsupported`); the refused problem's `fact` carries the code.
-* @since 3.36.0
+* Since 3.36.0.
 */
 | "E_SHADER_KIND"
 /**
 * A layer sets or binds a parameter the shader does not declare, or binds one per element
 * that it does not declare `varies`. `details.candidates` lists the declared parameters.
-* @since 3.36.0
+* Since 3.36.0.
 */
 | "E_UNKNOWN_SHADER_PARAM"
 /**
@@ -1356,7 +1356,7 @@ export type GraphtyErrorCode =
 * A graph was constructed with the id of a page element that the document does not hold, so
 * there is nowhere to draw. `details.id` carries the id. The caller creates the element first,
 * or passes the element itself.
-* @since 3.40.0
+* Since 3.40.0.
 */
 | "E_HOST_NOT_FOUND"
 /**
@@ -1717,11 +1717,12 @@ export type GraphtyErrorCode =
 */
 | "E_NO_WEBGL"
 /**
-* A shader could not be built for WebGPU, usually because a name or a built-in in it is legal
-* GLSL that WGSL or the compilers in between do not take. A refused shader never draws and can
-* lose every frame it is part of, so `rendererStatus.drawing` turns false. `details.stage` names the step that gave up (`"compiler"`,
-* `"translator"` or `"device"`) and `details.messages` carry what it said, which the translator
-* leaves empty. Reported as `graph-error`.
+* A shader could not be built, under WebGPU usually because a name or a built-in in it is legal
+* GLSL that WGSL or the compilers in between do not take; under WebGL because the driver's
+* compiler refused it. A refused shader never draws and can lose every frame it is part of, so
+* `rendererStatus.drawing` turns false. `details.stage` names the step that gave up
+* (`"compiler"`, `"translator"` or `"device"`) and `details.messages` carry what it said,
+* which the translator leaves empty. Reported as `graph-error`.
 */
 | "E_SHADER_REFUSED"
 /**
@@ -1732,6 +1733,13 @@ export type GraphtyErrorCode =
 * stays in 3D and the next attempt starts clean. Recoverable: asking again can succeed.
 */
 | "E_XR_SESSION_FAILED"
+/**
+* Something run for one frame of an immersive session threw: Babylon.js's own XR input, or
+* code observing the frame. The session keeps drawing; the step that threw is skipped for that
+* frame. `details.mode` is `"vr"` or `"ar"` and `cause` carries what was thrown. Reported once
+* per session for each distinct message, as `graph-error` (context `"xr"`), never thrown.
+*/
+| "E_XR_FRAME_FAILED"
 /**
 * A feature the caller asked for needs an optional peer package that is not installed.
 * `details.package` names the package to install and `details.feature` the feature that
@@ -1972,14 +1980,14 @@ export type GraphtyErrorCode =
 * stopped for a reason of its own carries `details.reason`: `"hidden"` (the tab went to the
 * background, so no frames were drawn), `"resized"` (the canvas changed size), or how the tour
 * it recorded ended early: `"interrupted"`, `"replaced"` or `"mode-changed"`. Retrying may work.
-* @since 3.40.0
+* Since 3.40.0.
 */
 | "E_CAPTURE_FAILED"
 /**
 * A screenshot waited for the layout to stop moving and it was still moving when the wait ran
 * out. `details.timeoutMs` is the wait. The caller captures again later, raises
 * `timing.settleTimeoutMs`, or captures without waiting (`timing.waitForSettle: false`).
-* @since 3.40.0
+* Since 3.40.0.
 */
 | "E_NOT_SETTLED"
 /**
@@ -2264,6 +2272,8 @@ export abstract class LayoutEngine {
     protected config?: Record<string, unknown>;
     static descriptor?: AuthoredLayoutDescriptor;
     dispose(): void;
+    // @internal
+    get edgeCount(): number;
     protected edgeProblems(drawn: ReadonlyMap<string, Edge>): string[];
     abstract get edges(): Iterable<Edge>;
     protected get followerGroups(): ReadonlyMap<number, readonly number[]>;
@@ -2482,6 +2492,8 @@ class Node_2 implements ModelUser {
         z: number;
     }>;
     // @internal
+    get drawnHeld(): boolean;
+    // @internal
     get drawnInBatch(): boolean;
     // @internal
     get drawnInstanceColor(): Rgba | null;
@@ -2533,9 +2545,9 @@ class Node_2 implements ModelUser {
     get groupDrawnForAnotherCamera(): boolean;
     // @internal
     get groupSizing(): NodeStyleConfig["group"];
-    hideTooltip(): void;
     // @internal
-    holdOffBatch(): void;
+    get hiddenByStyle(): boolean;
+    hideTooltip(): void;
     readonly id: NodeIdType;
     // @internal
     imageDrawn(): BaseTexture | null;
@@ -2550,6 +2562,8 @@ class Node_2 implements ModelUser {
     isPinned(): boolean;
     isSelected(): boolean;
     label?: RichTextLabel;
+    // @internal
+    get labelPlaced(): boolean;
     // @internal
     get labelsBuilt(): boolean;
     // @internal

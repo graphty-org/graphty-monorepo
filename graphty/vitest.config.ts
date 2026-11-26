@@ -283,7 +283,8 @@ const config = defineConfig({
     // The same aliases as the dev server, so tests run graphty-element from source rather
     // than a prebundled copy of its dist that Vite's dependency cache never refreshes.
     resolve: { alias: aliases },
-    // Each pre-push gate shard bundles into its own cache (tools/test-slots.mjs shardCacheDir()):
+    // Each run, and each pre-push gate shard, bundles into its own cache (tools/test-slots.mjs shardCacheDir(); two
+    // real-element runs in one checkout once failed "Failed to fetch dynamically imported module", #9956):
     // with `optimizeDeps.force` below, the graphty-1 to -5 parts side by side each rebundle when
     // their browser project starts, and in one shared directory that swapped the chunks out from
     // under a part already running (a dynamic import answered 404 and the test timed out).
@@ -295,7 +296,8 @@ const config = defineConfig({
         // makes Vite pre-transform main.tsx, which finds both mid-run: Vite re-bundled, reloaded the
         // test page, and the shard hung (CI run 40235438577) or the next file failed (#3762). Tests
         // must never fetch a missing path from the test server; stub fetch instead.
-        // The FBX and USD loaders babylonjs-models imports when such a model first loads, too.
+        // The FBX and USD loaders babylonjs-models imports when such a model first loads, too, and the Graphviz
+        // layout graphty-element loads when a DOT file first opens (the Graphviz sample from another program).
         include: [
             "@mantine/hooks",
             "react-dom/client",
@@ -303,6 +305,7 @@ const config = defineConfig({
             "@babylonjs/loaders/FBX/fbxFileLoader.pure.js",
             "@babylonjs/loaders/USD/usdFileLoader.pure.js",
             "@babylonjs/core/Meshes/Builders/tubeBuilder.js",
+            "@graphty/graphty-element > @hpcc-js/wasm-graphviz",
         ],
         // Re-scan and re-bundle the dependencies at the start of every run. Vite keeps a cached
         // bundle under node_modules/.vite and trusts it while the lockfile and this config are

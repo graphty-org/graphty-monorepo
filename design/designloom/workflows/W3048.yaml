@@ -1,0 +1,158 @@
+id: W3048
+name: Describing a Livestock Movement Network, Static and Over Time
+category: analysis
+validated: false
+scope: deferred
+personas:
+    - veterinary-movement-epidemiologist
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - temporal-analysis
+    - temporal-navigation
+    - event-window-aggregation
+    - parallel-edge-aggregation
+    - degree-analysis
+    - centrality-degree
+    - centrality-betweenness
+    - centrality-closeness
+    - component-analysis
+    - time-respecting-paths
+    - filtering
+    - statistics-panel
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - geographic-layout
+    - data-export
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - temporal-controls
+    - filter-panel
+    - statistics-panel
+    - histogram
+    - ranked-node-table
+    - graph-canvas
+    - data-export-dialog
+starting_state:
+    data_type: national or regional livestock movement records (one row per dated movement between holdings), or movement permits aggregated by region
+    node_count: 100-100000
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Describe the structure of a country's or a region's livestock trade network -- who trades with whom,
+    how concentrated the trade is, how far it reaches -- as a whole over a period and as a sequence of monthly or
+    yearly snapshots, so that later control and surveillance decisions rest on a measured picture. This is the most
+    common kind of study in the field: a 2025 scoping review of 203 livestock and poultry movement network studies in
+    52 countries found network characteristics and structural analysis in 144 of them (73.4%).
+
+
+    **Mental Model**: "The trade network has a shape, and the shape decides how far a disease can go." A movement is a
+    directed, dated edge between holdings (or between regions when only aggregated permits exist). Adding all
+    movements into one static graph is easy and useful, but it connects holdings that no time-ordered sequence of
+    movements connects, so reach measured on it overstates spread.
+
+
+    **Task Phases**:
+
+    1. **Get and clean the data** - Movement rows from a national database (86 of the 203 studies, mostly European),
+    permits aggregated at state or regional level (46, mainly North America and Brazil), or surveys and snowball
+    sampling (43, mainly China, African countries and Southeast Asian low- and middle-income countries). Decide the
+    node: holdings or premises (60.9% of studies), aggregated regions (29.1%), markets or traders. Drop or keep
+    slaughterhouse movements, since they end chains.
+
+    2. **Build the graph** - Directed in almost every study (99.5%), weighted in 57.6%: by animals moved (48.9% of
+    weighted studies) or by number of movements (43.9%). Repeated movements between the same pair are aggregated
+    per window.
+
+    3. **Choose the time scale** - One static graph over the whole period, and snapshots per year or per month (125
+    studies, 61.6%, addressed temporal scale, mostly as monthly networks; one year of data was the most common
+    period). For example, a German pork producer community over three years held 483 holdings and 4,635 movements in
+    the three-year graph, about 322 holdings per yearly graph and about 129 per monthly graph.
+
+    4. **Measure the structure** - In-degree and out-degree and their distributions, betweenness and closeness,
+    giant weakly and strongly connected components and the in- and out-components around them, average shortest
+    path and diameter, the range (how many holdings each holding can reach), and assortativity by region or degree.
+    On the German pig trade network (97,980 premises, 315,333 aggregated links, 6,359,697 trade transactions over
+    2011-2014) the giant weakly connected component held 99% of premises and the giant strongly connected component
+    28%.
+
+    5. **Compare static with temporal** - Compute reach again along time-respecting paths only. On the German pig
+    network the average range was 23,154 premises statically against 17,187 along time-respecting paths, an
+    overestimate of almost 35%. On British cattle data, 47% of farms had ingoing contact chains of more than 1,000
+    farms over a year and 16% of more than 10,000.
+
+    6. **Track change over time** - Compare yearly or monthly snapshots: whether the strongly connected core grows or
+    shrinks, and whether holdings keep their rank from one period to the next.
+
+
+    **Decision Points**:
+
+    - Holdings or regions as nodes, which is often forced by what data exists
+
+    - Whether to include slaughter and market movements
+
+    - Animals moved or number of movements as the weight
+
+    - Static, yearly or monthly, knowing that "Static networks risk spurious inferences in rapidly changing
+    environments" (Sequeira et al. 2025)
+
+
+    **Information Needs**:
+
+    - Degree distributions, component sizes and reach, per snapshot and for the whole period
+
+    - The same measure static and time-respecting, side by side
+
+    - Which holdings, markets or regions are consistently central across snapshots
+
+    - What share of movements is missing from the source (unreported slaughter and intrastate movements in the US)
+
+
+    **Pain Points**:
+
+    - No international movement database exists, and only 8 national databases were electronically available, so
+    countries cannot be compared on the same footing
+
+    - In low- and middle-income countries the network comes from surveys and aggregated data, which "limits the
+    robustness of network models"
+
+    - Most studies still rely on static or largely aggregated networks because real-time longitudinal data is lacking
+
+    - Strongly connected component results depend heavily on how the network is built (holdings versus movements as
+    nodes)
+
+
+    **Data Flow**:
+
+    - Input: Dated movement rows (source, destination, date, species, animal count) or regional permit counts, plus
+    holding type and coordinates where known
+
+    - Transformations: aggregation into static and windowed graphs, degree, betweenness, closeness, components,
+    reach, time-respecting reach, assortativity
+
+    - Output: per-snapshot measure tables, distributions, a static versus temporal comparison, maps of central
+    holdings or regions, and exported measures for regression or simulation in R
+success_criteria:
+    - metric: Static and temporal side by side
+      target: Every reach measure can be shown static and time-respecting for the same window
+    - metric: Snapshot comparison
+      target: A measure computed per month or per year can be compared across snapshots without rebuilding the graph by hand
+sources:
+    - title: Sequeira et al., A systematic scoping review and thematic analysis of livestock and poultry movement networks (PLoS ONE 2025, 20(7):e0328518)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC12279109/
+      summary: 203 studies in 52 countries, 2006-2023; five themes with network characteristics and structural analysis in 144 studies (73.4%); node, weight and time-scale choices; data sources (national databases in 86 studies, regional permits in 46, surveys in 43, only 8 databases electronically available, no international database); limitations quoted
+    - title: Lentz et al., Disease spread through animal movements - a static and temporal network analysis of pig trade in Germany (PLoS ONE 2016)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4859575/
+      summary: HI-Tier extract with 97,980 premises, 315,333 static links and 6,359,697 transactions over 2011-2014; components, centralities, range; static average range 23,154 against 17,187 time-respecting, an overestimate of almost 35%
+    - title: Fielding et al., Contact chains of cattle farms in Great Britain (Royal Society Open Science 2019, 6:180719)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6408381/
+      summary: Cattle Tracing System 2001-2015, about 158 million animal movements and 9.5 million farm-to-farm edges, roughly 64,600 to 85,400 holdings per year; 47% of farms had ingoing contact chains of more than 1,000 farms over 12 months and 16% of more than 10,000; computed in R with igraph and EpiContactTrace
+    - title: Buttner et al., Efficient interruption of infection chains by targeted removal of central holdings in an animal trade network (PLoS ONE 2013, 8(9):e74292)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC3771899/
+      summary: Three-year, yearly and monthly graphs of one German pork producer community (483 holdings and 4,635 movements in the three-year graph)
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -13,6 +13,7 @@ import { formatNumber } from "../inspector/words";
 import { OptionsForm } from "../options/OptionsForm";
 import { SettingsPopout } from "../options/SettingsPopout";
 import { splitOptions } from "../options/splitOptions";
+import { useSessionEvents, VISIBILITY_EVENTS } from "../sessionEvents";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
     type DataChoices,
@@ -103,6 +104,7 @@ function LossList({ rows }: Readonly<{ rows: readonly LossRow[] }>): React.JSX.E
  * @returns the line and, when open, the rows.
  */
 function LossSummary({ lead, rows }: Readonly<{ lead?: string; rows: readonly LossRow[] }>): React.JSX.Element {
+    // on reload: fresh: pointer: the loss rows opened for a look
     const [open, setOpen] = useState(false);
     const line = lossSummary(rows);
     return (
@@ -458,6 +460,7 @@ export function DataOutput({
 }: Readonly<DataOutputProps>): React.JSX.Element {
     const { element, session } = useWorkspace();
     const project = useWorkspaceState((state) => state.project?.name ?? "untitled");
+    // on reload: fresh: derived: rebuilt from the chosen format and the graph
     const [preview, setPreview] = useState<{
         lines: string;
         /** What the format holds differently from the graph: shown as a warning. */
@@ -465,9 +468,12 @@ export function DataOutput({
         /** What the format never holds (the element's `expected` losses): shown as a quiet note. */
         notes: readonly LossRow[];
     } | null>(null);
+    // on reload: fresh: notice: why the last preview or save failed
     const [failure, setFailure] = useState<Failure | null>(null);
+    // on reload: fresh: in flight: a save under way
     const [busy, setBusy] = useState(false);
     /** The style losses of the export the reader asked to save, until they save anyway or choose again. */
+    // on reload: fresh: in flight: a save waiting on the reader to save anyway or choose again
     const [styleLosses, setStyleLosses] = useState<readonly ExportLoss[] | null>(null);
     const formatField = useRef<HTMLInputElement>(null);
 
@@ -489,7 +495,12 @@ export function DataOutput({
             .map((entry) => ({ value: entry.id, label: entry.plainName }));
 
     const { kinds, columns, chosen, written } = columnsWritten(session, table, choices);
-    const scopes = useAsyncValue(() => (session === null ? null : scopeOptions(session)), session === null ? 0 : 1);
+    // Read again as the data changes: a dialog reopened by a reload opens before its data is in.
+    const dataVersion = useSessionEvents(session, VISIBILITY_EVENTS, true);
+    const scopes = useAsyncValue(
+        () => (session === null ? null : scopeOptions(session)),
+        session === null ? -1 : dataVersion,
+    );
     const scope = scopes?.find((option) => option.value === choices.scope);
     const all = scopes?.[0]?.rows;
     const options = row === undefined ? {} : dataExportOptions(row, choices, written);

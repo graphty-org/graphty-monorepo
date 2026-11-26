@@ -15,7 +15,7 @@ import type { Graph } from "../../Graph";
 
 /** The sentence every selector parameter carries, so each tool describes the language the same way. */
 export const SELECTOR_SYNTAX =
-    "A node's or edge's own fields are under 'data.', so write data.type == 'server' or data.weight > `0.5` (numbers in backticks); a bare name such as id or type matches nothing. An empty string matches everything.";
+    "A node's or edge's own fields are under 'data.', so write data.type == 'server' or data.weight > `0.5` (numbers in backticks); a bare name reads the data column of that name, so type == 'server' matches what data.type == 'server' matches. An empty string matches everything.";
 
 /**
  * The sentence every node tool's `connectedBy` parameter carries. A node's own fields cannot say

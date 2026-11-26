@@ -84,10 +84,10 @@ export function useShaderList(
     );
     // v2 lists its styles in their own sections' "+" (Glow beside Shader in Effects), and no v2 section answers a
     // picked option tile, so its gallery offers shaders only (E668).
-    const options: OptionTile[] = (spec.shapeOwnsReplace === true ? [] : OPTION_CHANNELS[tab]).map((channel) => ({
-        key: channel,
-        label: channelWord(channel),
-    }));
+    const options: OptionTile[] = (spec.shapeOwnsReplace === true ? [] : OPTION_CHANNELS[tab]).map((channel) => {
+        const where = spec.optionWords?.[channel];
+        return { key: channel, label: channelWord(channel), ...(where === undefined ? {} : { where }) };
+    });
     const fail = (verb: string) => (error: unknown) => {
         store.set({ notice: { message: failureWords(spec.title, verb, error), error: true } });
     };

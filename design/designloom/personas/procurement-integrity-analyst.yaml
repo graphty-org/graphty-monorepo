@@ -1,0 +1,73 @@
+id: procurement-integrity-analyst
+name: Public Procurement Integrity Analyst
+roster_persona: procurement-integrity-analyst
+tier: B
+scope: in-scope
+role: Screening analyst at a competition authority, audit institution or anti-corruption research group
+quote: Nobody sees a bidding ring from one tender. I need every firm that bid with every other firm, year by year, and a reason to look at the few groups that never compete.
+bio: >-
+    Teodora Ilic screens public tenders for bid rigging and corruption risk. She may sit in a competition authority's
+    screening unit (the UK, Korea and Brazil run their own screening systems, and Ireland's authority is asking for the
+    power to build one), in an audit institution that must examine state and municipal procurement, or in an
+    anti-corruption research group that publishes tender data and risk indicators. She starts from an Open Contracting
+    Data Standard feed or a national tender portal export with every bidder and bid price, flattens it to one row per
+    bid, and builds a network of firms that bid on the same tenders, weighted by how much their tender sets overlap. She
+    looks for groups of firms that bid together tightly and exclusively, compares them with null networks built by
+    shuffling bids within product codes, and reads price, single-bidding and losing-bidder screens beside each group.
+    Where she can match firms to an ownership database she adds an ownership layer per year. The output is a short list
+    of groups and buyers for investigators or auditors, checked against cases already proven, never a verdict.
+characteristics:
+    expertise: advanced
+    time_pressure: low
+    graph_literacy: advanced
+    domain_knowledge: advanced
+motivations:
+    - Turn a year of tenders into a short list of firm groups and buyers worth investigating or auditing
+    - Explain every flag with the tenders, prices and ownership ties behind it
+    - Check that a screen finds the cartels already proven before trusting it on new data
+    - See collusion that spans several buyers, each of whom sees only part of it
+behaviors:
+    - Loads OCDS releases or a tender portal export and flattens bids, awards and buyers into one bid-level table
+    - Checks which tenders lack losing bids before running any collusion screen
+    - Projects the tender-firm table to a co-bidding network weighted by Jaccard similarity or shared-tender count
+    - Finds overlapping groups and scores their coherence and exclusivity against a bid-shuffling null model
+    - Reads single bidding, relative price, bid variation and superfluous losing bidders beside each group
+    - Adds a per-year ownership layer matched from a company database and looks for cut points
+    - Labels prosecuted firms and pairs to validate the screen
+frustrations:
+    - Losing bids are often not published or not machine-readable
+    - Firm identifiers that do not match between tender data and the ownership register
+    - Screens that are suggestive only and flag innocent groups (specialist suppliers, firms under one owner)
+    - General graph tools that cannot build a co-bidding projection or a null model without code
+context:
+    frequency: monthly
+    devices:
+        - desktop
+    voluntary: false
+workflows:
+    - W2072
+sources:
+    - title: Wachs and Kertesz - A network approach to cartel detection in public auction markets (Scientific Reports 2019)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6658564
+      summary: Jaccard-weighted co-bidding network, overlapping greedy groups scored by coherence and exclusivity against a null model; nearly 150,000 Georgian contracts and nearly 15,000 firms, 2011-2016; "only suggestive"
+    - title: Villamil, Kertesz and Fazekas - Collusion risk in corporate networks (Scientific Reports 2024)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10850496/
+      summary: Sweden 2010-2015, ownership and co-bidding layers per year; five risk indicators including single bidding and cut-point position
+    - title: Baranek, Musolff and Titl - Detection of collusive networks in e-procurement (2021)
+      url: https://www.uu.nl/sites/default/files/LEG_USE_WP_21-11.pdf
+      summary: Ukraine ProZorro; pairs that never undercut each other form collusive networks; validated on 863 prosecuted firms in 23,515 tenders
+    - title: Fazekas, Toth, Wachs and Abdou - Public procurement cartels, a large-sample testing of screens using machine learning (IJIO 2025)
+      url: https://unipub.lib.uni-corvinus.hu/12023/1/1-s2.0-S0167718725000943-main.pdf
+      summary: 73 proven cartels from 7 European countries, 2004-2021; 70-84 percent accuracy across countries and markets (read through search summary)
+    - title: CMA - Rigged bids, real costs (2026)
+      url: https://www.gov.uk/government/publications/procurement-in-the-national-interest/rigged-bids-real-costs-a-case-for-urgent-action-on-bid-rigging-in-uk-public-procurement
+      summary: BRIT screening tool piloted with three departments; losing bids not routinely machine-readable; Korea's BRIAS upgraded to inter-firm networks; Brazil's Cerebro
+    - title: CCPC - Why the CCPC wants powers to screen public procurement data (2025)
+      url: https://www.ccpc.ie/news-and-media/news/article/2025/05/14/cracking-down-on-bid-rigging--why-the-ccpc-wants-powers-to-screen-public-procurement-data
+      summary: Names Brazil, Denmark, Portugal, Spain, Switzerland, the US and South Korea as already screening procurement data
+    - title: Open Contracting Partnership - Cardinal, an open-source library to calculate public procurement red flags
+      url: https://www.open-contracting.org/2024/06/12/cardinal-an-open-source-library-to-calculate-public-procurement-red-flags/
+      summary: Computes red flags from OCDS data, including identical bid prices; collusion flags need individual bid values
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

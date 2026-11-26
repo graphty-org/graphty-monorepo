@@ -78,6 +78,7 @@ const CASES: Readonly<Record<LabelField, WalkCase>> = {
         text: SHORT_WORDS,
         bases: WRAP_SWEEP.map((wrapWidth) => ({ wrapWidth, wrapTrailingSpace: true })),
     },
+    wrapUnkerned: { text: SHORT_WORDS, bases: WRAP_SWEEP.map((wrapWidth) => ({ wrapWidth })) },
     wrapEllipsis: { base: { wrapWidth: 3, maxLines: 2 } },
     wrapAnywhere: { base: { wrapWidth: 2 } },
     wrapSpaceCount: { value: 4, text: SHORT_WORDS, bases: WRAP_SWEEP.map((wrapWidth) => ({ wrapWidth })) },

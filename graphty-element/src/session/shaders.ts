@@ -195,7 +195,8 @@ export interface SessionShaders {
      * nothing is written unless that passes.
      * @param text - The shader text: GLSL with a `graphty-shader 1` header, or a header-less body.
      * @param options - Who supplied it, where it is added, what to do when its id is taken, where to apply it.
-     * @returns The shader, or every problem found.
+     * @returns The shader, or every problem found. Rejects (never throws) with a `GraphtyError`
+     *   `E_UNKNOWN_LAYER` when `apply` names no layer, or `E_SHADER_KIND` for a background applied to one.
      */
     add(text: ShaderText, options?: ShaderAddOptions): Promise<ShaderAddResult>;
     /**
@@ -1572,32 +1573,45 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
         return { ok: true, descriptor, sameAs: copy, ...(shown instanceof Blob ? { picture: shown } : {}) };
     };
 
+    /**
+     * Read text for `add` or `check`.
+     * @param text - The text.
+     * @param options - Where it is being added.
+     * @returns What it read into, or its problems as a failed result.
+     */
+    const readOrFailed = (
+        text: string,
+        options: ShaderTextOptions,
+    ): ReadText | { readonly ok: false; readonly problems: readonly ShaderProblem[] } => {
+        const first = readText(text, options);
+        return Array.isArray(first) ? { ok: false, problems: first as readonly ShaderProblem[] } : (first as ReadText);
+    };
+
     const api: SessionShaders = {
-        add(text, options = {}) {
-            const first = readText(text, options);
-            if (Array.isArray(first)) {
-                return Promise.resolve({ ok: false, problems: first as readonly ShaderProblem[] });
+        // Async so a refusal (`E_UNKNOWN_LAYER`, `E_SHADER_KIND`) rejects rather than throws; the
+        // body still runs synchronously up to its first await, so a held add stays one dispatch.
+        async add(text, options = {}) {
+            const read = readOrFailed(text, options);
+            if ("problems" in read) {
+                return read;
             }
 
-            const read = first as ReadText;
             // ponytail: a copy of a catalog shader is decided after its body loads, so a held add of one
             // is not synchronous; every other add is.
             if (options.asNew !== true && namesCatalog(read)) {
-                return copyOfCatalog(read).then((copy) =>
-                    copy === undefined ? addNew(read, text, options) : addCopy(copy, options),
-                );
+                const copy = await copyOfCatalog(read);
+                return copy === undefined ? addNew(read, text, options) : addCopy(copy, options);
             }
 
             return addNew(read, text, options);
         },
 
         async check(text, options = {}) {
-            const first = readText(text, options);
-            if (Array.isArray(first)) {
-                return { ok: false, problems: first as readonly ShaderProblem[] };
+            const read = readOrFailed(text, options);
+            if ("problems" in read) {
+                return read;
             }
 
-            const read = first as ReadText;
             const copy = options.asNew !== true && namesCatalog(read) ? await copyOfCatalog(read) : undefined;
             if (copy !== undefined) {
                 return checkCopy(copy, options);

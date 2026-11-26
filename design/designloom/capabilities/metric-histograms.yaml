@@ -1,42 +1,118 @@
 id: metric-histograms
 name: Metric Distribution Charts
 category: visualization
-description: Display histograms and distribution charts for any numeric node or edge attribute, enabling statistical
-    understanding of graph properties.
-status: implemented
-notes: "Ships: the session's histogram and graphty/src/workspace/inspector/Distribution.tsx."
+description: "Display distribution charts for any numeric node or edge attribute: a histogram for values over a modest range and, for heavy-tailed quantities such as degree, strength and centrality, the complementary cumulative distribution (CCDF) on log-log axes, which needs no bins. Charts are linked to the graph: a bar or a brushed range selects its elements, and filtering updates the chart. The chart describes a distribution and never labels it 'power-law'; fitting belongs to degree-distribution-fit."
+status: in-progress
+notes: "Partly ships: the session's histogram and graphty/src/workspace/inspector/Distribution.tsx. Planned: the CCDF on log-log axes, distributions split or stacked by category, brushing bars to select, and CSV export of the bins. Any requirement below that this note does not name as shipping counts as planned."
 algorithms: []
 used_by_workflows:
     - W01
     - W03
     - W04
     - W10
-    - W12
     - W23
+    - W113
+    - W118
+    - W119
+    - W120
+    - W126
+    - W128
+    - W130
+    - W142
+    - W153
+    - W16
+    - W162
+    - W164
+    - W165
+    - W172
+    - W176
+    - W181
+    - W184
+    - W190
+    - W191
+    - W199
+    - W209
+    - W210
+    - W215
+    - W222
+    - W229
+    - W234
+    - W247
+    - W249
+    - W269
+    - W29
+    - W290
+    - W295
+    - W298
+    - W30
+    - W305
+    - W335
+    - W337
+    - W340
+    - W359
+    - W366
+    - W37
+    - W371
+    - W377
+    - W38
+    - W385
+    - W394
+    - W402
+    - W405
+    - W42
+    - W425
+    - W432
+    - W433
+    - W49
+    - W56
+    - W61
+    - W62
+    - W63
+    - W65
+    - W66
+    - W70
+    - W73
+    - W75
+    - W86
+    - W98
+    - W1042
+    - W1060
+    - W1126
+    - W1156
+    - W1159
+    - W2000
+    - W2036
+    - W2072
 implemented_by_components:
     - histogram
 requirements:
-    - Generate histogram for any numeric node attribute with automatic bin count (Sturges' formula)
-    - Allow manual bin count override from 5 to 100 bins
-    - Display mean value as vertical line on histogram
-    - Display median value as vertical line on histogram (distinct style from mean)
-    - Display standard deviation as shaded region around mean
-    - Display min, max, mean, median, and std dev as text statistics below chart
-    - "Identify distribution shape: normal, power-law, bimodal, uniform, or unknown"
-    - Provide log-scale toggle for x-axis to visualize power-law distributions
-    - Provide log-scale toggle for y-axis to visualize long-tail frequencies
-    - Support clicking histogram bar to select all nodes in that bin's range
-    - Support shift-clicking to add bin's nodes to current selection
-    - Support brush selection across multiple bars to select range
-    - Overlay up to 3 distributions on same chart for comparison with distinct colors
-    - Export chart as PNG image at 2x resolution for print quality
-    - Export chart data as CSV with bin edges and counts
-    - Update histogram within 500ms when filters change the visible graph
-    - Display 'Insufficient data' message when fewer than 10 data points available
+    - "Library parity: Generate a histogram for any numeric node or edge attribute, with the bin rule named in the result and a caller override for bin count or bin width"
+    - "Library parity: Offer the CCDF on log-log axes for degree, strength, centrality and other heavy-tailed attributes"
+    - "Must: Never fit a line by least squares on a log-log histogram, and never classify the shape (normal, power-law, bimodal); a power-law judgment comes only from degree-distribution-fit as plausible, not plausible or alternative favored"
+    - "Library parity: Provide log-scale toggles for the x axis (with logarithmic bins) and the y axis"
+    - "Library parity: Show mean and median as distinct reference lines, and show spread by quartiles rather than a mean plus or minus standard deviation band, which misdescribes heavy-tailed attributes"
+    - "Library parity: Return count, missing and invalid value counts, minimum, maximum, mean, median, quartiles and standard deviation as numbers"
+    - "Library parity: Support clicking a bar to select the elements in its range, shift-clicking to add them, and brushing across bars to select a range"
+    - "Library parity: Split or stack the distribution by a category such as node type, and overlay several distributions in distinct colors for comparison"
+    - "Library parity: Update the chart when filters change the visible graph, fast enough to feel immediate, with progress feedback past about a second"
+    - "Library parity: Export the chart through export-image and its data as CSV with bin edges and counts"
+    - "Library parity: Return a code with the value count when there are too few values to chart, instead of an empty chart"
 sources:
-    - title: Power Law Detection in Networks
-      url: https://arxiv.org/abs/0706.1062
-      summary: Degree distribution analysis to identify scale-free networks
-    - title: Gephi Statistics Panel
-      url: https://gephi.org/users/
-      summary: Distribution visualization for network metrics
+    - title: "Clauset, Shalizi and Newman, Power-law distributions in empirical data (2009)"
+      url: "https://arxiv.org/abs/0706.1062"
+      summary: "Plot the CCDF; least-squares fits on log-log histograms are biased; a power law is only ever plausible"
+    - title: "Broido and Clauset, Scale-free networks are rare (2019)"
+      url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC6399239/"
+      summary: "Of 928 networks 4% met the strongest scale-free evidence; a log-normal fit at least as well for 88%"
+    - title: "Neo4j Bloom scene interactions"
+      url: "https://neo4j.com/docs/bloom-user-guide/current/bloom-visual-tour/bloom-scene-interactions/"
+      summary: "Filter drawer with histograms and sliders; filtered elements grey out"
+    - title: "i2 Analyst's Notebook: showing data distribution"
+      url: "https://docs.i2group.com/anb/10.0.0/showing_data_distribution.html"
+      summary: "Investigators read peaks in attribute histograms"
+    - title: "Gephi Statistics Panel"
+      url: "https://gephi.org/users/"
+      summary: "Distribution charts for network metrics"
+    - title: "User research: network scientists and analysis method validity"
+      url: "design/user-research/network-scientists-and-analysis-method-validity.md"
+      summary: "Keep histograms for small ranges, offer a log-log CCDF, drop power-law detection and mean-plus-sd outlier rules"

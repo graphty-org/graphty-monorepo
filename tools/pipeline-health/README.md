@@ -215,17 +215,18 @@ write (pull request runs, or the listed workflows on master). A body is at most 
 
 [`local/collector.mjs`](local/collector.mjs) posts this machine's test runs, each record once:
 
-| Source in the main checkout                                | Route                        |
-| ---------------------------------------------------------- | ---------------------------- |
-| `tmp/waits.jsonl` (each test run's slot hold: what, exit)  | `POST /v1/local/push-runs`   |
-| `tmp/waits.jsonl` (test and GPU slot waits)                | `POST /v1/local/waits`       |
-| `tmp/test-ledger/records/<date>/*.json.gz` (pre-push gate) | `POST /v1/local/invocations` |
-| `tmp/push-log.jsonl` (pre-push gate runs)                  | `POST /v1/local/push-runs`   |
-| `tmp/issue-round/grouping-metrics.jsonl` (daily ledger)    | `POST /v1/local/grouping`    |
+| Source in the main checkout                               | Route                        |
+| --------------------------------------------------------- | ---------------------------- |
+| `tmp/waits.jsonl` (each test run's slot hold: what, exit) | `POST /v1/local/push-runs`   |
+| `tmp/waits.jsonl` (test and GPU slot waits)               | `POST /v1/local/waits`       |
+| `tmp/test-ledger/records/<date>/*.json.gz` (history)      | `POST /v1/local/invocations` |
+| `tmp/push-log.jsonl` (history)                            | `POST /v1/local/push-runs`   |
+| `tmp/issue-round/grouping-metrics.jsonl` (daily ledger)   | `POST /v1/local/grouping`    |
 
 Every test run on this machine holds a test slot (`tools/test-slots.mjs`), which logs the hold with what ran
 (the package, or the shard family `tools/run-tests.sh` ran) and its exit code: those are the Local runs page's
-runs and local time. The test ledger and the push log are written only by the pre-push gate, now run by hand.
+runs and local time. No tool on master writes the test ledger or the push log any more (the retired push checks did); the collector
+posts what they hold.
 The grouping metrics line is appended once a day by issue-round (`tools/issue-groups.mjs metrics --append`). Only
 these fields are posted, as the source `grouping-ledger` (age limit 48 hours): `issuesPerMergedPr` and `multiFixShare`
 (the ledger counts a pull request's closing links and its commits' Fixes lines, so the dashboard never counts issues
@@ -272,6 +273,17 @@ The token is `HEALTH_LOCAL_TOKEN`, from the server's environment or else the mai
 Its cursor is `tmp/pipeline-health-local/cursor.json` in the main checkout. A failed post logs one line
 and keeps the cursor, so the next pass sends the same rows; delete the cursor to post everything again.
 
+### Cloud usage
+
+Hourly, the collector reads what the cloud services were used for, by UTC day: from Cloudflare's GraphQL
+analytics, each Worker's requests, D1 rows read and written, and R2 Class A and B operations and storage; from
+CloudWatch, the table's consumed read and write units, Lambda invocations and the API's requests. Each is a row on
+Costs: yesterday's use as a share of its daily allowance (Cloudflare's included monthly amount over 30, AWS's
+allowance in `config/rates.json` `awsUsage`), yellow past 50%, red past 80% or when the last 7 days average more
+than twice the 28 days before. The Cloudflare line on the money table adds what that usage costs past the plan
+(`cloudflareUsage` in `config/rates.json`) and is projected to month-end against 5 USD. The Cloudflare rows need a
+read-only API token with Account Analytics: Read in SSM; until then they show "not set up".
+
 ## Configuration
 
 - [`config/slas.json`](config/slas.json): every member's target (`ok`) and red threshold (`fail`), its
@@ -289,13 +301,15 @@ and keeps the cursor, so the next pass sends the same rows; delete the cursor to
 | `/graphty-health/github-app/app-id`, `installation-id`, `private-key`        | The collector's GitHub App                                         |
 | `/graphty-health/local-token-sha256`                                         | The local collector's token (its SHA-256, hex)                     |
 | `/graphty-health/pushover/app-token`, `user-key`                             | Alerts                                                             |
-| `/graphty-health/cloudflare/token`, `account-id`                             | The Cloudflare line on Costs (optional)                            |
+| `/graphty-health/cloudflare/token`, `account-id`                             | Cloudflare usage and its bill on Costs (optional)                  |
 | `/graphty-health/sentry/token`                                               | The Sentry line on Costs (optional)                                |
 | `/graphty-health/results/url`, `token`                                       | The results store the slice dispatcher reads                       |
 | `/graphty-health/release-scheduler/app-id`, `installation-id`, `private-key` | The App the slice dispatcher and the release scheduler dispatch as |
 
 **When everything goes dark.** The backend stops itself before it costs money: a daily write budget
-(past it, writes get 429 and Data sources turns red), a 50 USD monthly AWS Budget whose action denies
+(past it, writes get 429 and Data sources turns red), a daily read budget of 500,000 DynamoDB read units for the
+public reads (past it, the page, the MCP server and the results reads get 429 until midnight UTC), per-route API
+throttling (reads 5 a second with bursts of 20, writes 20 with bursts of 100), a 50 USD monthly AWS Budget whose action denies
 the Lambdas at 100%, and the AWS project's own spend limit. Any of them silences the collector; the
 CloudWatch alarm `graphty-health-collector-dead-man` (no successful collector run in 20 minutes) emails
 the SNS topic `graphty-health-alarms` when that happens.

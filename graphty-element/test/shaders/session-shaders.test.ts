@@ -18,6 +18,7 @@ import { clearRegisteredShadersForTesting } from "../../src/catalog/shaderRegist
 import { shaderAnimates, type ShaderProblem } from "../../src/catalog/shaders";
 import { formatShaderDraft, removeShaderParam, renameShaderParam, splitShaderText } from "../../src/catalog/shaderText";
 import type { LayerSpec, StyleDocument } from "../../src/catalog/types";
+import { isGraphtyError } from "../../src/errors";
 import { ShaderGuard } from "../../src/managers/ShaderGuard";
 import { createGraphSession, type GraphSession } from "../../src/session";
 import { type HostShader, shaderContentHash, type ShaderHost, shadersControllerOf } from "../../src/session/shaders";
@@ -919,6 +920,32 @@ vec4 shade(NodeInput n) {
         assert.lengthOf(s.shaders.list(), 0);
         assert.strictEqual(s.history.steps.length, steps);
         assert.isFalse((await s.shaders.check(TINT, { apply: { layer: edges.id } })).ok);
+    });
+
+    it("rejects the promise add returns for a bad apply, never throwing from the call (#9945)", async () => {
+        const { session: s, layer } = await session();
+        const sky = `/* graphty-shader 1
+{ "id": "user/sky", "name": "Sky" }
+*/
+vec4 shade(BackgroundInput b) { return vec4(b.uv, 0.0, 1.0); }
+`;
+        const refusals: [string, Promise<unknown>][] = [];
+        // Calling `add` must not throw: each refusal arrives as the promise's rejection.
+        refusals.push(["E_UNKNOWN_LAYER", s.shaders.add(TINT, { apply: { layer: "nope" } })]);
+        refusals.push(["E_SHADER_KIND", s.shaders.add(sky, { apply: { layer } })]);
+        for (const [code, pending] of refusals) {
+            const error: unknown = await pending.then(
+                () => null,
+                (reason: unknown) => reason,
+            );
+            assert.isTrue(isGraphtyError(error), String(error));
+            assert.strictEqual(isGraphtyError(error) ? error.code : undefined, code);
+        }
+
+        assert.notInclude(
+            s.shaders.list().map((shader) => shader.id),
+            "user/tint",
+        );
     });
 
     it("copies the reader's values as the defaults, keeping a preset's id; a duplicate gets a user id", async () => {

@@ -4,7 +4,7 @@
 # refreshes the latest-commit line of the branch's progress note on its issue (tools/branch-note.mjs, at
 # most once per 10 minutes per branch). It returns at once and never fails the commit.
 #
-# The push skips the pre-push gate (--no-verify): it is a copy of work in progress, and nothing runs CI on
+# The push skips the pre-push hook (--no-verify): it is a copy of work in progress, and nothing runs CI on
 # a branch push. CI runs on the branch's pull request (tools/pr-open.sh).
 #
 # Never for golden, golden-cut, golden-verified (which the main checkout follows) or master, a detached

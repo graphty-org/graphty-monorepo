@@ -1,0 +1,135 @@
+id: W418
+name: Browser WebXR Session on a Standalone Headset
+category: exploration
+validated: false
+personas:
+    - multilayer-network-3d-biologist
+    - immersive-cyber-defense-analyst
+requires_capabilities:
+    - graph-rendering
+    - progressive-loading
+    - neighborhood-expansion
+    - node-selection
+    - hover-highlight
+    - details-on-demand
+    - tooltip-display
+    - zoom-pan
+    - overview-minimap
+    - filtering
+    - immersive-xr-session
+    - xr-label-legibility
+suggested_components:
+    - graph-canvas
+    - node-tooltip
+    - node-details-panel
+    - minimap
+    - zoom-controls
+    - filter-panel
+    - progressive-loader
+starting_state:
+    data_type: any network already open on a web page
+    node_count: under 1,000 advised; about 4,000 to 5,000 elements is the published standalone reference point
+    edge_density: sparse to moderate
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Take a network open on a web page into a standalone headset's browser (Meta Quest Browser or Safari on
+    Apple Vision Pro) for a short immersive look, then return to the 2D page without losing what was found. No
+    published network-analysis workflow runs this way; the sequence is assembled from platform documentation, the
+    closest standalone tool (Graph2VR, a native app on Quest 2) and browser VR graph libraries.
+
+
+    **Mental Model**: "Step into the same page." The headset is another view of the graph the user already has, not a
+    separate application.
+
+
+    **Task Phases**:
+
+    1. **Open the page in the headset browser** - On Vision Pro, WebXR sat behind a Safari feature flag when
+    natural input shipped in visionOS 1.1; the same page runs on a desktop
+
+    2. **Find the enter button** - "Enter VR" or "Enter AR" appears only when the browser supports that mode
+
+    3. **Grant permissions** - Hand tracking is an optional feature the page requests and the user approves or
+    declines
+
+    4. **Choose an input** - Quest: controllers with a ray and trigger, or hands. Vision Pro: gaze-and-pinch
+    transient pointer that exists only while pinching, starting at the gaze and then following the hand
+
+    5. **Optionally switch to passthrough** - Immersive AR needs a transparent background; the graph can be
+    placed on a detected table or wall plane, with at most 8 persistent anchors per site
+
+    6. **Work within the standalone budget** - About 5,000 triples dropped Graph2VR to about five frames per
+    second; a browser VR library's large example is about 4,000 elements; query and expand rather than load everything
+
+    7. **Read labels and keep sessions short** - Distant labels were the most-reported problem; 40 to 60 minute sessions
+    caused dizziness or tiredness for some; manufacturers advise a break every 30 minutes
+
+    8. **Leave and continue on the 2D page** - No source describes how a browser tool carries selection, camera or
+    findings back after the session; native tools hand off to a web module or a report
+
+
+    **Decision Points**:
+
+    - VR or passthrough AR for this graph and this room?
+
+    - Controllers, hands or gaze-and-pinch?
+
+    - Load the whole graph, or a neighborhood and expand?
+
+
+    **Information Needs**:
+
+    - Whether the current browser supports VR or AR before trying
+
+    - Node details legible up close, since distant labels are not
+
+    - What was selected in the headset, available back on the page
+
+
+    **Pain Points**:
+
+    - Frame rate collapses at a few thousand elements on standalone hardware
+
+    - Labels on distant nodes are unreadable at headset pixel density
+
+    - Flying too fast and cybersickness
+
+    - Nothing found in the headset survives the return to the page
+
+
+    **Data Flow**:
+
+    - Input: The network and styling already loaded on the 2D page
+
+    - Transformations: Immersive session start, input mapping, optional surface placement, neighborhood expansion
+
+    - Output: Selections and camera returned to the 2D page
+success_criteria:
+    - metric: Frame rate
+      target: Comfortable frame rate on a Quest-class headset at the documented node budget
+    - metric: Continuity
+      target: Selection and findings made in the headset are present on the page after exit
+    - metric: Legibility
+      target: User can read any node's name and details without guessing
+sources:
+    - title: WebKit - Introducing natural input for WebXR in Apple Vision Pro
+      url: https://webkit.org/blog/15162/introducing-natural-input-for-webxr-in-apple-vision-pro/
+      summary: Feature flag, transient-pointer gaze-and-pinch input, hand tracking as an optional feature
+    - title: Meta - WebXR mixed reality on Quest
+      url: https://developers.meta.com/horizon/documentation/web/webxr-mixed-reality/
+      summary: immersive-ar, transparent background, detected planes, at most 8 persistent anchors per site
+    - title: A-Frame - xr-mode-ui
+      url: https://aframe.io/docs/master/components/xr-mode-ui.html
+      summary: Enter VR and Enter AR buttons shown only when supported
+    - title: Graph2VR (Database journal)
+      url: https://academic.oup.com/database/article/7613396
+      summary: About 5,000 triples at about 5 fps on Quest 2; distant labels unreadable; 40-60 minute sessions
+    - title: 3d-force-graph-vr README
+      url: https://unpkg.com/3d-force-graph-vr@3.0.3/README.md
+      summary: A-Frame VR graph with node and link hover and click; about 4k-element example
+    - title: Meta help - sites requesting hand pose data (read through a search summary)
+      url: https://www.meta.com/help/quest/1406582186767703/
+      summary: Approving or declining a site's request for hand tracking
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

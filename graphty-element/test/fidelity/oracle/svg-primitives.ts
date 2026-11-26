@@ -821,6 +821,43 @@ function clipCut(el: Element, root: SVGSVGElement, m: DOMMatrix, shape: PBox): P
 }
 
 /**
+ * The box of the clip an element is drawn through, in the root's pixels: vis-network's circular image draws its whole
+ * picture clipped to the node's circle, so a picture wider than the circle (circularImage of a 48 x 24 image,
+ * vis-network-specimen-images-charts) shows only the circle's width.
+ * @param el - the element
+ * @param root - the SVG
+ * @param rootInverse - the root's inverse screen matrix
+ * @returns the clip's box, or null when it is drawn unclipped
+ */
+function clipBoxOf(el: Element, root: SVGSVGElement, rootInverse: DOMMatrix): PBox | null {
+    const holder = el.closest<SVGGraphicsElement>("[clip-path]");
+    const ref = /url\(\s*["']?#([^"')]+)["']?\s*\)/.exec(holder?.getAttribute("clip-path") ?? "");
+    // ponytail: the clip's first shape in user space; a clip of several shapes or in objectBoundingBox units reads as that one
+    const clip = ref === null ? null : root.querySelector<SVGGraphicsElement>(`clipPath[id="${ref[1]}"] > *`);
+    const m = holder === null || clip === null ? null : matrixOf(holder, rootInverse);
+    return m === null || clip === null ? null : boxThrough(m, clip.getBBox());
+}
+
+/**
+ * A box cut to a clip's box, where they overlap.
+ * @param box - the box
+ * @param clip - the clip's box, or null for none
+ * @returns the part kept
+ */
+function clippedTo(box: PBox, clip: PBox | null): PBox {
+    if (clip === null) {
+        return box;
+    }
+    const kept = {
+        x0: Math.max(box.x0, clip.x0),
+        y0: Math.max(box.y0, clip.y0),
+        x1: Math.min(box.x1, clip.x1),
+        y1: Math.min(box.y1, clip.y1),
+    };
+    return kept.x0 < kept.x1 && kept.y0 < kept.y1 ? kept : box;
+}
+
+/**
  * The part of a picture that draws anything: the box round its pixels that are not wholly transparent, in the image
  * element's own units. A picture's PNG is often larger than what it paints: yEd draws a node's soft shadow in a PNG as
  * wide as the node and its labels, so a 35 by 55 artifact's shadow in `graphml-galaxy-lcms-workflow` is a 113 by 76
@@ -1028,6 +1065,10 @@ const JAVA_FACES: Readonly<Record<string, string>> = {
     // where Carlito's or the browser's stand-in's would; every PostScript style of it (`Calibri-Italic`) is looked up
     // by its family
     calibri: "DejaVu Sans",
+    // ArialMT, which it lacks too: cx2-wp1449-tlr's "(anti-viral compounds)" at 7.61 px starts 43.2 px left of its
+    // node's middle, half its DejaVu Sans width (86.4 px), where the browser's stand-in draws it 70.3 px wide and so
+    // 8 px left of center
+    arialmt: "DejaVu Sans",
     // Tahoma, which JFreeChart asks for in Cytoscape desktop's charts and the oracles' Java lacks: the two "..."
     // category names of images-charts-p7's line chart start 21.37 units apart at 20 units, their DejaVu Sans width
     // (19.07) and a 2.3-unit gap, not the browser's stand-in's
@@ -1790,7 +1831,7 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
                     index: i,
                     tag,
                     kind: "image",
-                    box: boxThrough(m, b),
+                    box: clippedTo(boxThrough(m, b), clipBoxOf(el, root, rootInverse)),
                     quad: [
                         at(m, b.x, b.y),
                         at(m, b.x + b.width, b.y),

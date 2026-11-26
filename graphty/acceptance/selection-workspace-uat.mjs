@@ -15,13 +15,16 @@
  *     --workers <n>        scenarios at once, each in its own browser context (default 3)
  *     --out <dir>          where a failed scenario's screenshot goes (default tmp/selection-workspace-uat)
  *     --list               print the matrix and run nothing
+ *     --features <a,b>     open the app with these experiments on (?features=...), e.g. cosmograph,
+ *                          which draws with graphty-element's batched render path
+ *     --report <file>      also write every scenario's result as JSON (compare-reports.mjs diffs two)
  *
  * What a selection should hold is worked out here from the graph and the runs' results, not read from
  * the editor: each step's own set, then the verbs folded in order (Add is a union, Keep an intersection,
  * Except a difference), then the cards unioned. Exit 0 when every scenario passed, 1 when one failed.
  * See README.md beside this file.
  */
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { extname, join, normalize, resolve, sep } from "node:path";
@@ -40,6 +43,8 @@ const { values: args } = parseArgs({
         out: { type: "string", default: "tmp/selection-workspace-uat" },
         list: { type: "boolean", default: false },
         browser: { type: "string", default: "all" },
+        features: { type: "string", default: "" },
+        report: { type: "string" },
     },
 });
 
@@ -84,8 +89,13 @@ class Visit {
     async open(url = args.url) {
         // Paper citations is a timed sample, offered only with the timeline experiment on.
         const page = new URL(url);
+        const features = [page.searchParams.get("features"), args.features];
         if (this.dataset === "papers") {
-            page.searchParams.set("features", `${page.searchParams.get("features") ?? ""},timeline`);
+            features.push("timeline");
+        }
+        const on = features.filter(Boolean).join(",");
+        if (on !== "") {
+            page.searchParams.set("features", on);
         }
         await this.page.goto(page.href);
         await this.page.getByRole("button", { name: `Open the ${SAMPLES[this.dataset]} sample` }).click();
@@ -94,9 +104,19 @@ class Visit {
             () => document.querySelector("graphty-element")?.session?.data.nodes().length > 0,
         );
         const graph = await inPage(this.page, () => {
-            const s = document.querySelector("graphty-element").session;
-            return { nodes: s.data.nodes().map((r) => ({ ...r })), edges: s.data.edges().map((r) => ({ ...r })) };
+            const el = document.querySelector("graphty-element");
+            const s = el.session;
+            return {
+                renderPath: el.renderPath,
+                nodes: s.data.nodes().map((r) => ({ ...r })),
+                edges: s.data.edges().map((r) => ({ ...r })),
+            };
         });
+        // The cosmograph experiment must really draw with the batched render path, or a run with it on
+        // checks the default path twice.
+        if (on.split(",").includes("cosmograph") && graph.renderPath !== "batched") {
+            throw new Error(`the cosmograph experiment drew with the ${graph.renderPath} render path, not batched`);
+        }
         this.nodes = graph.nodes;
         this.edges = graph.edges;
         this.all = new Set((this.side === "node" ? graph.nodes : graph.edges).map((r) => String(r.id)));
@@ -1048,6 +1068,31 @@ const visit = async (page, dataset, entry) => {
     return v;
 };
 
+// Safari ends a background tab and loads it again with its session storage emptied (issue #9655):
+// a real reload, in a new page, of the workspace left open with a step picked and not Done. The
+// workspace comes back on that step, and nothing was written: a filter card's pick is still a draft.
+const reloadKeeps = (entry) => async (page) => {
+    const v = await visit(page, "karate", entry);
+    await v.pickFirst(0, "Degree");
+    const step = v.card(0).locator(".sel-card-step[data-row]", { hasText: "Degree" });
+    await step.waitFor();
+    await page.waitForFunction(() => {
+        const status = document.querySelector("graphty-element:not([data-start-page])")?.autosaver?.status;
+        return status?.state === "saved" && status.entry !== null;
+    });
+    const held = await v.held();
+    await inPage(page, () => {
+        sessionStorage.clear();
+    });
+    await page.reload();
+    await v.ws.waitFor();
+    await step.waitFor();
+    const after = await v.held();
+    if (JSON.stringify(after) !== JSON.stringify(held)) {
+        fail(`the reload wrote the unfinished edit: ${JSON.stringify(held)} became ${JSON.stringify(after)}`);
+    }
+};
+
 // A slider dragged past both ends reaches them exactly; the last node can be picked alone.
 const sliderEnds = (dataset, entry, kind, algorithm) => async (page) => {
     const v = await visit(page, dataset, entry);
@@ -1831,6 +1876,8 @@ const groupSwatches = async (page) => {
 };
 
 const SCENARIOS = [
+    ["reload: Safari ends the tab, a style layer's workspace open", reloadKeeps("style-nodes")],
+    ["reload: Safari ends the tab, a new Data filter not yet Done", reloadKeeps("filter-nodes")],
     [
         "slider: Betweenness, Karate Club, both exact ends",
         sliderEnds("karate", "style-nodes", "Betweenness", "betweenness"),
@@ -2048,6 +2095,9 @@ for (const engine of engines) {
 }
 
 const failed = results.filter((each) => each.status === "FAIL");
+if (args.report !== undefined) {
+    writeFileSync(args.report, JSON.stringify({ features: args.features, results }, null, 1) + "\n");
+}
 console.log(`\n${"browser".padEnd(10)}${"id".padEnd(6)}${"result".padEnd(8)}${"secs".padEnd(6)}scenario`);
 for (const each of [...results].sort((a, b) => a.engine.localeCompare(b.engine) || a.id.localeCompare(b.id))) {
     console.log(

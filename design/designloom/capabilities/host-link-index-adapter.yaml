@@ -1,0 +1,22 @@
+id: host-link-index-adapter
+name: Host link index adapter
+category: analysis
+description: Accept a live graph from a host app's own resolved link index (for Obsidian, resolvedLinks and
+    unresolvedLinks with counts plus per-file metadata) so links resolve exactly as the host resolves them, with no
+    parsing of its own.
+status: planned
+notes: "Research trace: personal-knowledge-graphs-and-note-networks.md section 9, requirement 1 (Must)."
+algorithms: []
+used_by_workflows:
+    - W324
+    - W325
+    - W334
+implemented_by_components: []
+requirements:
+    - "Must: Host adapter (primary path). graphty-element accepts a live graph from a host note app's own resolved link
+      index (for Obsidian, resolvedLinks/unresolvedLinks with counts, plus per-file metadata) so links resolve exactly
+      as the host resolves them, with no Markdown parsing of its own"
+sources:
+    - title: Personal Knowledge Graphs and Note Networks (section 9, requirement 1)
+      url: design/user-research/personal-knowledge-graphs-and-note-networks.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

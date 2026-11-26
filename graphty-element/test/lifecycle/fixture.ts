@@ -61,7 +61,9 @@ export interface Fixture {
      *   `delay` (the debounce in ms; a large one leaves a write to the lifecycle events), `list` (`1`: report
      *   `listAutosaves` before the element mounts, as `listed`), and for a page
      *   that drives itself, `auto` (edits to make and save) and `tail` (`1`: one more edit, left pending);
-     *   `build` loads one of the `bundles` given to `startFixture` instead of the built ./bundle.
+     *   `build` loads one of the `bundles` given to `startFixture` instead of the built ./bundle;
+     *   `detail` (`low`: a layer draws every node at low detail, so a benchmark compares the same
+     *   geometry at every size whatever `fullDetailTriangleBudget` chooses).
      */
     url(params: Record<string, string | number>): string;
     /** The reports of one tab. */
@@ -226,6 +228,13 @@ el.addEventListener("graphty-autosave-status", (e) => {
     }
 });
 el.addEventListener("graphty-autosave-at-risk", (e) => report("at-risk", { params: e.detail.params }));
+// production-compat runs this page against production's published element, which may predate the
+// tour-progress event and refuse it with a TypeError; that build simply reports no tour.
+try {
+    el.addListener("tour-progress", (e) => report("tour", { tour: e.tour, stop: e.stop, phase: e.phase }));
+} catch (error) {
+    if (!(error instanceof TypeError)) throw error;
+}
 // Every entry not restored, and why: the ready report carries them, so a test reads the page's
 // whole decision from one report whatever order the reports arrive in.
 const available = [];
@@ -247,6 +256,22 @@ const summary = (r) => r && { revision: r.revision, entry: r.entry.id, wasDiscar
 const ready = el.autosaver.ready.then(async (restored) => {
     if (params.get("rows") === "late") rows();
     await el.waitForSettled();
+    // detail=low: every node drawn at low detail, the same geometry at every size.
+    // On a large graph the new meshes land over many frames: wait for them, then check the frame
+    // drew every node at 20 triangles, so a write is never timed beside a half-drawn scene (#9632).
+    // The edge batches are thin-instance meshes, left out of the count.
+    if (params.get("detail") === "low") {
+        await el.session.styles.add({ name: "Low detail", target: "node", selector: { match: "everything" }, set: { "node.meshDetail": "low" } });
+        await el.waitForPainted();
+        await el.waitForStableFrame();
+        const active = el.graph.scene.getActiveMeshes();
+        let triangles = 0;
+        for (let i = 0; i < active.length; i++) if (!active.data[i].hasThinInstances) triangles += active.data[i].getTotalIndices() / 3;
+        if (triangles !== n * 20) {
+            report("not-ready", { triangles, expected: n * 20, n });
+            throw new Error("drew " + triangles + " node triangles of " + n * 20);
+        }
+    }
     const { nodeCount, edgeCount } = el.session.data.snapshot();
     if (nodeCount < n || edgeCount < n) {
         report("not-ready", { nodeCount, edgeCount, n });
@@ -299,6 +324,12 @@ window.fixture = {
     status: () => el.autosaver.status,
     camera: () => el.getCameraState(),
     placeCamera: (state) => el.setCameraState(state, { animate: false }),
+    // Save a two-stop tour named "walk" whose second stop holds until it is ended, and play it.
+    async playWalk() {
+        await ready;
+        await el.session.tours.save([{ name: "walk", tour: { stops: [{ view: "fitToGraph", hold: 0 }, { view: "fitToGraph", duration: 0, hold: Number.MAX_SAFE_INTEGER }] } }]);
+        void el.playTour("walk");
+    },
     listed,
     async check() {
         await ready;

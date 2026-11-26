@@ -44,7 +44,7 @@ function heldParams(descriptor: ShaderDescriptor): ShaderParams {
  * @param descriptor - The shader.
  * @param params - Its parameters.
  * @param claims - Whether it should draw in this view.
- * @returns The pixels that changed colour, place by place.
+ * @returns The pixels that changed color, place by place.
  */
 async function useChanges(
     graph: Graph,

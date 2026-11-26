@@ -25,20 +25,20 @@
  * permanently, and one channel's test cannot leak into the next.
  *
  * THE FINGERPRINT IS STRUCTURE AND PIXELS, and it needs both. The structure -- mesh names,
- * visibility, scaling, bounding extents, outline settings, material colours, alpha, wireframe,
- * instance colour buffers and the scene's effect layers -- catches a channel that builds or
+ * visibility, scaling, bounding extents, outline settings, material colors, alpha, wireframe,
+ * instance color buffers and the scene's effect layers -- catches a channel that builds or
  * resizes something, and misses one that only changes what a shader does with a mesh already
- * there. Measured while writing this file: a node's glow colour and its outline colour both draw
- * through a Babylon effect LAYER, which keeps its per-mesh colours in a private map, so a purely
+ * there. Measured while writing this file: a node's glow color and its outline color both draw
+ * through a Babylon effect LAYER, which keeps its per-mesh colors in a private map, so a purely
  * structural reading called both of them unpainted. They paint; the instrument was blind.
  *
- * So each reading also carries a coarse histogram of the frame: every pixel quantised to four
+ * So each reading also carries a coarse histogram of the frame: every pixel quantized to four
  * bits per channel and counted. Two renderings of an unchanged scene in headless Chromium give
  * byte-identical histograms, which is what lets "the picture changed" be asked with a threshold
  * near zero rather than a tolerance wide enough to swallow a real change.
  *
  * THE PROBE VALUES ARE DERIVED FROM THE CHANNEL TABLE. A number is placed away from the default
- * inside whatever bounds the descriptor declares, an enum takes its last member, a colour is
+ * inside whatever bounds the descriptor declares, an enum takes its last member, a color is
  * magenta. So a channel added to the table is tested here with no edit to this file -- which is
  * the property that makes this a gate rather than a checklist.
  *
@@ -132,10 +132,10 @@ export const PREREQUISITES: Readonly<Partial<Record<string, Record<string, unkno
     "node.raisedBorderDarkColor": { "node.raisedBorderWidth": 0.3 },
     // An arc height raises only a raised route; every other layout draws edges straight.
     "edge.arcHeight": { "edge.route": "arc" },
-    // A direction turns a gradient; with no second colour the fill is flat whichever way it runs.
+    // A direction turns a gradient; with no second color the fill is flat whichever way it runs.
     "node.gradientDirection": { "node.gradientColor": "#00ff00" },
     "node.gradientKind": { "node.gradientColor": "#00ff00" },
-    // Stops place colours, three of them so the middle one has somewhere to move.
+    // Stops place colors, three of them so the middle one has somewhere to move.
     "node.gradientStops": { "node.gradientColors": "#ff0000 #00ff00 #0000ff" },
     // a radial gradient's middle and reach move only a radial gradient
     "node.gradientCenterX": { "node.gradientColor": "#00ff00", "node.gradientKind": "radial" },
@@ -286,7 +286,7 @@ const BUCKETS = 16 * 16 * 16;
 /**
  * A label style far enough from the default to change the plane a label is drawn on.
  *
- * Both fields, because a colour alone repaints the same texture at the same size and a size
+ * Both fields, because a color alone repaints the same texture at the same size and a size
  * alone leaves a monochrome fingerprint unchanged in a scene read structurally.
  */
 const LABEL_PROBE: LabelStyle = { sizePx: 96, color: "#ff00ff", background: "#00ff00", padding: 20 };
@@ -316,7 +316,7 @@ const PROBE_VALUES: Readonly<Partial<Record<string, unknown>>> = {
     "edge.arrowHeadSize": 1,
     "edge.arrowTailSize": 1,
     // a model and a texture are served files (a texture is PNG, JPEG or WebP); the model is a textured car, longer
-    // than it is tall and off its own origin, so its fit, centre, up axis and tint each show
+    // than it is tall and off its own origin, so its fit, center, up axis and tint each show
     "node.modelDoubleSided": "true",
     "node.model": MODEL_URL,
     "node.texture": TEXTURE_URL,
@@ -479,7 +479,7 @@ export function describeMesh(mesh: Record<string, unknown>): string {
 export interface Reading {
     /** Everything about the scene graph a style channel could have changed. */
     readonly structure: string;
-    /** How many pixels fall in each coarse colour bucket. */
+    /** How many pixels fall in each coarse color bucket. */
     readonly histogram: Uint32Array;
     /** The frame itself, RGBA, for {@link pixelsChanged}. */
     readonly pixels: Uint8Array;
@@ -503,11 +503,11 @@ export function pixelsMoved(one: Reading, other: Reading): number {
 
 /**
  * How many pixels differ between two readings of the frame, place by place. The histogram ({@link pixelsMoved}) is
- * blind to a change that keeps every colour's count: a cap turned to its other side, a diamond for an arrow of the
+ * blind to a change that keeps every color's count: a cap turned to its other side, a diamond for an arrow of the
  * same area. Two renderings of an unchanged scene are byte-identical, so any difference is a change.
  * @param one - The earlier reading.
  * @param other - The later one.
- * @returns The number of pixels whose colour changed.
+ * @returns The number of pixels whose color changed.
  */
 export function pixelsChanged(one: Reading, other: Reading): number {
     let changed = 0;
@@ -571,7 +571,7 @@ export async function addProbePrerequisites(session: GraphSession, graph: Graph)
         name: "channel probe prerequisites",
         target: "node",
         selector: { match: "everything" },
-        // A border to recolour and restyle: its colour and style draw nothing alone.
+        // A border to recolor and restyle: its color and style draw nothing alone.
         set: { "node.label": "WORDS", "node.borderWidth": 0.3 },
     });
     await session.styles.add({
@@ -635,7 +635,7 @@ export interface PaintMeasure {
     readonly painted: boolean;
     /** How many pixels moved by writing it. */
     readonly moved: number;
-    /** How many pixels changed colour, place by place, by writing it ({@link pixelsChanged}). */
+    /** How many pixels changed color, place by place, by writing it ({@link pixelsChanged}). */
     readonly changed: number;
     /** How many pixels stayed moved after the layer was removed. */
     readonly leftMoved: number;
@@ -790,7 +790,7 @@ export const ENUM_SETUP: Readonly<Partial<Record<string, Record<string, unknown>
 const ENUM_AGAINST: Readonly<Partial<Record<string, string | ((value: string) => string)>>> = {
     "node.groupPaddingOf": "average",
     // A halo's own shape has no default (it follows the node's) and a solid one is drawn as its flat silhouette,
-    // so neighbours in the list draw alike (torus and torus-knot are both an ellipse): each is measured against a
+    // so neighbors in the list draw alike (torus and torus-knot are both an ellipse): each is measured against a
     // star, which no other value draws, and the star against an ellipse.
     "node.underlayShape": (value) => (value === "star" ? "ellipse" : "star"),
     "node.overlayShape": (value) => (value === "star" ? "ellipse" : "star"),
@@ -1060,7 +1060,7 @@ function valuesInViews(name: string, channels: readonly ChannelDescriptor[], sce
                 const skipped = typeof chosen === "function" ? undefined : (chosen ?? fallback);
                 for (const value of values.filter((entry) => entry !== skipped)) {
                     // With no declared default (the layout decides `edge.route`), a value is measured against the
-                    // next one in the list, so every value must be told apart from its neighbour.
+                    // next one in the list, so every value must be told apart from its neighbor.
                     const against =
                         (typeof chosen === "function" ? chosen(value) : chosen) ??
                         descriptor.default ??

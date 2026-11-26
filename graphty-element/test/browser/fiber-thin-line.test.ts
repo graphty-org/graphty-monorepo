@@ -1,7 +1,7 @@
 /**
  * @file The Fiber edge shader draws on an ordinary thin line: a line a few pixels wide fades to the glass's average
  * color, and that average is glass (pale on a light canvas, dark lit glass on a dark one), never the line's own color,
- * so picking Fiber for a default grey edge changes the picture a reader sees, pixel by pixel.
+ * so picking Fiber for a default gray edge changes the picture a reader sees, pixel by pixel.
  */
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
@@ -40,7 +40,7 @@ for (const view of ["2d", "3d"] as const) {
         });
 
         it("changes pixels a reader sees", async () => {
-            // The graphty app's default edge: darkgrey at width 8, a line a few pixels wide on screen.
+            // The graphty app's default edge: darkgray at width 8, a line a few pixels wide on screen.
             const line = { "edge.color": "#A9A9A9", "edge.width": 8 };
             await session.styles.add({ name: "line", target: "edge", selector: { match: "everything" }, set: line });
             const plain = await pixels(graph);

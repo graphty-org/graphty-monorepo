@@ -269,6 +269,12 @@
         },
         {
             "file": "src/managers/LayoutManager.ts",
+            "function": "LayoutManager.holdRowsOnPlane",
+            "case": "not agreed",
+            "reason": "Puts every held row on the plane in a 2D view, hidden rows included, as putOnPlane does."
+        },
+        {
+            "file": "src/managers/LayoutManager.ts",
             "function": "LayoutManager.updatePositions",
             "case": "not agreed",
             "reason": "Freezes the store so a simulation sees new rows; reads nothing."

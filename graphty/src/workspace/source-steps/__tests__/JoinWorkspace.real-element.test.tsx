@@ -547,6 +547,37 @@ describe("the join workspace (source-steps)", () => {
         }
     });
 
+    it("a card that adds many nodes draws them at their own size, so they never bury the graph", async () => {
+        // 13 visits, each a node: held at a size on screen, so many would cover the people they link to.
+        const visits = Array.from({ length: 13 }, (_, at) => `V${String(at)},B${String((at % 3) + 1)}`);
+        const { session, modal } = await opened(false, {
+            name: "visits.csv",
+            text: ["visit,badge", ...visits].join("\n"),
+        });
+        await pickSources(modal, "visits", "people");
+        await pickFields(modal, "badge", "badge");
+        await joinAs(modal, "Node per visits row, linked to people");
+        await newest(session, (row) => row.op === "join.edges", "a node per visit");
+        const look = (id: string): Readonly<Record<string, unknown>> => session.styles.explain({ node: id }).merged;
+        for (const styled of [false, true]) {
+            if (styled) {
+                await userEvent.click(within(modal).getByText("Styled", { exact: true }));
+            }
+            await waitFor(() => {
+                assert.strictEqual(session.styles.shownDraft?.steps === undefined, styled);
+            });
+            await session.styles.settled();
+            const name = styled ? "Styled" : "Card colors";
+            const visit = session.data.nodes().find((node) => String(node.id).endsWith("V0"))?.id;
+            assert.isDefined(visit, "the visit is drawn");
+            assert.notStrictEqual(
+                look(String(visit))["node.sizeSpace"],
+                "screen",
+                `a visit keeps its own size (${name})`,
+            );
+        }
+    });
+
     it("a second card's merged nodes ring wider than an earlier card's, in Card colors and Styled", async () => {
         const { session, modal } = await opened(false, { name: "flags.csv", text: "badge,flag\nB1,yes" });
         await matchBadge(modal);

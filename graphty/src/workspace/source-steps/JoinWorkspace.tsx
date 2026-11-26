@@ -69,6 +69,8 @@ const NO_STEPS: JoinCardView["steps"] = [];
 const FOCUS_RING = 2.6;
 /** A new node's size on screen in the preview: a node of size 1 covers 1/50 of the canvas's height. */
 const NEW_SIZE = 1;
+/** The most new and removed nodes held at NEW_SIZE: more, drawn that large, would cover the graph they change. */
+const NEW_SIZE_UP_TO = 12;
 
 /**
  * Whether a key press lands in a field text is typed into: a list's own box, which only picks, is not one.
@@ -182,13 +184,15 @@ function useCardColors(
         const steps = cards.flatMap((card, at) =>
             stepsOf(all, card.steps).map((step) => ({ step, color: colorOf(at) })),
         );
+        const added = draft.preview().marks.nodes;
         const shown = session.styles.showDraft({
             merged: MERGED_COLOR,
             new: NEW_COLOR,
             removed: REMOVED_COLOR,
-            // What the open card merges reads apart from what earlier cards merged; new nodes stay in sight framed whole.
+            // What the open card merges reads apart from what earlier cards merged; a few new nodes stay in sight
+            // framed whole, and many keep their own size, so they never bury the reader's graph.
             focus: { steps: stepsOf(all, open), ring: FOCUS_RING },
-            newSize: NEW_SIZE,
+            ...(added.new + added.removed <= NEW_SIZE_UP_TO ? { newSize: NEW_SIZE } : {}),
             ...(colors ? { steps } : {}),
             ...(marked.length > 0 ? { mark: { refs: marked } } : {}),
         });
@@ -196,7 +200,7 @@ function useCardColors(
             shown.end();
         };
         // The view reads the draft when shown: it is shown again after every draft change, and when another card opens.
-    }, [draft, colors, version, marked, session, openKey]);
+    }, [draft, colors, version, marked, session, openKey]); // eslint-disable-line react-hooks/exhaustive-deps -- cards, colors and the open card are read from the draft, which `version` and `openKey` follow
 }
 
 /**

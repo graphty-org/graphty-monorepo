@@ -321,14 +321,29 @@ function mergedEdgeLook(color: string): LayerSpec["set"] {
 }
 
 /**
+ * The size channels of a new or removed node under a draft view's `newSize`.
+ * @param size - The view's `newSize`.
+ * @returns The channels; none without one.
+ */
+function markSize(size: number | undefined): LayerSpec["set"] {
+    return size === undefined ? {} : { "node.size": size, "node.sizeSpace": "screen" };
+}
+
+/**
  * What a removed element gets in a color, drawn while Before shows: a new one's look, dimmed.
  * @param color - The color.
+ * @param size - The view's `newSize`, which a removed node is held at too.
  * @returns The layers.
  */
-function removedLayers(color: string): LayerSpec[] {
+function removedLayers(color: string, size: number | undefined): LayerSpec[] {
     const selector = { match: "expression", where: `${DRAFT_PATH} == 'removed'` } as const;
     return [
-        { name: "Removed", target: "node", selector, set: { ...newNodeLook(color), "node.opacity": 0.4 } },
+        {
+            name: "Removed",
+            target: "node",
+            selector,
+            set: { ...newNodeLook(color), "node.opacity": 0.4, ...markSize(size) },
+        },
         { name: "Removed", target: "edge", selector, set: { ...newEdgeLook(color), "edge.opacity": 0.4 } },
     ];
 }
@@ -345,6 +360,36 @@ function untouchedLook(color: string): LayerSpec["set"] {
         "node.borderWidth": 0.1,
         "node.borderScreenWidth": MARK_SCREEN_WIDTH,
     };
+}
+
+/**
+ * The rings a draft view's `focus` draws over every other ring: on the nodes every focused step merges, so they read
+ * apart from what other steps merged, and from what only some of a join's steps reach (the identifiers reach every
+ * account, the watchlist read through them only some).
+ * @param view - The view.
+ * @param ids - The session ids of the drawn draft's elements.
+ * @returns The layers, none without a focus.
+ */
+function focusLayers(view: DraftView, ids: DraftIds): LayerSpec[] {
+    const { focus } = view;
+    // A step that merges no node (one that adds a source, or brings only edges) takes no node out.
+    const focused = (focus?.steps ?? [])
+        .map((step) => ({ step, merged: ids({ step, buckets: STEP_MARKS.merged })?.nodes ?? [] }))
+        .filter(({ merged }) => merged.length > 0);
+    const reached = new Set(focused[0]?.merged ?? []);
+    for (const { merged } of focused.slice(1)) {
+        const nodes = new Set(merged);
+        for (const node of reached) {
+            if (!nodes.has(node)) {
+                reached.delete(node);
+            }
+        }
+    }
+    return focused.flatMap(({ step, merged }) => {
+        const color = view.steps?.find((each) => each.step === step)?.color ?? view.merged;
+        const ring = { ...mergedLook(color), "node.haloScale": focus?.ring ?? MERGED_AGAIN_SCALE };
+        return idLayers("Focus", { nodes: merged.filter((node) => reached.has(node)), edges: [] }, ring);
+    });
 }
 
 /**
@@ -404,10 +449,7 @@ export function draftLayers(
             name: "New",
             target: "node",
             selector: marked("new"),
-            set: {
-                ...newNodeLook(view.new),
-                ...(view.newSize === undefined ? {} : { "node.size": view.newSize, "node.sizeSpace": "screen" }),
-            },
+            set: { ...newNodeLook(view.new), ...markSize(view.newSize) },
         },
         { name: "New", target: "edge", selector: marked("new"), set: newEdgeLook(view.new) },
     ];
@@ -430,16 +472,10 @@ export function draftLayers(
         ...idLayers("Merged", mergedAgain((view.steps ?? []).map(({ step }) => ids({ step, buckets: ["merged"] }))), {
             "node.haloScale": MERGED_AGAIN_SCALE,
         }),
+        ...focusLayers(view, ids),
     );
-    // The focused steps' merged nodes over every other ring, so they read apart from what other steps merged.
-    const { focus } = view;
-    for (const step of focus?.steps ?? []) {
-        const color = view.steps?.find((each) => each.step === step)?.color ?? view.merged;
-        const ring = { ...mergedLook(color), "node.haloScale": focus?.ring ?? MERGED_AGAIN_SCALE };
-        specs.push(...idLayers("Focus", ids({ step, buckets: STEP_MARKS.merged }), ring));
-    }
     if (view.removed !== undefined) {
-        specs.push(...removedLayers(view.removed));
+        specs.push(...removedLayers(view.removed, view.newSize));
     }
     if (strong !== null) {
         specs.push(...idLayers("Marked", strong, { "node.opacity": 1 }, { "edge.opacity": 1 }));

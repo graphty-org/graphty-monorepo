@@ -579,7 +579,9 @@ export interface DraftView {
     /**
      * Steps whose merged nodes get a ring of their own, drawn over every other ring: the step's color
      * from `steps`, else `merged`, at `ring` times the node's size. What the reader is deciding about
-     * then reads apart from what other steps merged. Absent, no step's ring differs.
+     * then reads apart from what other steps merged. Only a node every focused step that merges a node
+     * merges gets it: in a join of several steps (a watchlist read through the identifiers onto
+     * accounts) a node only some of them reach keeps the merged ring. Absent, no step's ring differs.
      */
     readonly focus?: {
         /** The steps, by their place in `draft.steps()`. */
@@ -588,9 +590,10 @@ export interface DraftView {
         readonly ring: number;
     };
     /**
-     * The size on screen each node the commit would add is drawn at, as `node.size` with
-     * `node.sizeSpace: "screen"` (a node of size s covers s / 50 of the view's height), so it stays in
-     * sight on a graph framed whole. Absent, a new node keeps its own size.
+     * The size on screen each node the commit would add, or remove (drawn while Before shows, with
+     * `removed`), is drawn at, as `node.size` with `node.sizeSpace: "screen"` (a node of size s covers
+     * s / 50 of the view's height), so it stays in sight on a graph framed whole. Absent, such a node
+     * keeps its own size.
      */
     readonly newSize?: number;
 }

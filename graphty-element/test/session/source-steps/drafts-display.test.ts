@@ -471,6 +471,12 @@ describe("source-steps drafts: drawing a draft", () => {
         await session.styles.settled();
         assert.deepStrictEqual(look(), ["#123456", 0.4, 0.4, (plain as unknown[])[3]]);
         assert.notDeepEqual(plain, look());
+        // With a new size, what the commit removes is held at it too, so it is seen among the edges it takes with it.
+        session.styles.showDraft({ merged: "#7048E8", new: "#E8590C", removed: "#123456", newSize: 1 });
+        await session.styles.settled();
+        const gone = session.styles.explain({ node: String(session.data.nodes().at(-1)?.id) }).merged;
+        assert.deepStrictEqual([gone["node.size"], gone["node.sizeSpace"]], [1, "screen"]);
+        assert.notStrictEqual(session.styles.explain({ node: "B2" }).merged["node.sizeSpace"], "screen", "B2 stays");
         d.dispose();
         session.dispose();
     });

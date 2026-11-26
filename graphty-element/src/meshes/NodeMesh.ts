@@ -19,6 +19,7 @@ import { SharedImplementationMap } from "../catalog/pluginRegistry";
 import type { NodeStyleConfig } from "../config";
 import { PolyhedronType, SHAPE_CONSTANTS } from "../constants/meshConstants";
 import type { ModelTemplate } from "../models/ModelCache";
+import type { GraphSceneMetadata } from "../types/sceneMetadata";
 import { addGradientStops } from "./edgeGradient";
 import { shadeInstanceColors } from "./InstanceColorShading";
 import { setUpQuietly } from "./LabelBatch";
@@ -1426,6 +1427,8 @@ export class NodeMesh {
             }
             data.applyToMesh(mesh, true);
             mesh.refreshBoundingInfo();
+            // A new submesh: a frozen list of what is drawn holds the old one, whose counts overrun these buffers.
+            (scene.metadata as GraphSceneMetadata | null)?.thawActiveMeshes?.();
         });
         mesh.onDisposeObservable.addOnce(() => {
             scene.onBeforeRenderObservable.remove(observer);

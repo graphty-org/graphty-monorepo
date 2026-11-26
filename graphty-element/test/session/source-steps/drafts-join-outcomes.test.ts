@@ -722,3 +722,38 @@ describe("source-steps: removing the source a join went into", () => {
         }
     });
 });
+
+describe("source-steps drafts: drawing one join of several matches", () => {
+    it("a node every focused step merges rings wider than one only some of them merge", async () => {
+        // A watchlist read through the identifiers onto accounts: the identifiers reach every account, the
+        // watchlist only A1 (p1). Focused on the whole join, A1 is the one the reader looks for.
+        const o = await opened(["accounts"], ["ids", "watch"]);
+        const asked = ["watch.value = ids.phone", "ids.account_id = accounts.account"].map((text) =>
+            match(o.key, text),
+        );
+        const fields = o.draft.joinOutcomes({ matches: asked }).outcomes.find((each) => each.code === "fields");
+        make(o.draft, fields?.acts ?? []);
+        const steps = o.draft
+            .steps()
+            .filter((step) => step.act !== null)
+            .map((step) => step.index);
+        assert.lengthOf(steps, 2, "the join is two steps");
+        await o.draft.display(true);
+        const scale = (id: string): number => o.session.styles.explain({ node: id }).merged["node.haloScale"] ?? 0;
+        for (const colors of [false, true]) {
+            const shown = o.session.styles.showDraft({
+                merged: "#009E73",
+                new: "#D55E00",
+                focus: { steps, ring: 2.6 },
+                ...(colors ? { steps: steps.map((step) => ({ step, color: "#999933" })) } : {}),
+            });
+            await o.session.styles.settled();
+            const name = colors ? "Card colors" : "Styled";
+            assert.isAbove(scale("A1"), scale("A2"), `A1, which the watchlist reaches, rings wider than A2 (${name})`);
+            assert.isAbove(scale("A2"), 0, `A2 keeps its ring (${name})`);
+            assert.strictEqual(scale("A2"), scale("A3"), `A2 and A3 alike (${name})`);
+            shown.end();
+        }
+        o.session.dispose();
+    });
+});

@@ -855,6 +855,11 @@ export class UpdateManager implements Manager {
         // draws nothing and promotes nothing, `renderFrames` draws and promotes.
         this.watchOwnWork();
         this.watchFrames();
+        const scene = this.graphContext.getScene();
+        scene.metadata ??= {};
+        (scene.metadata as GraphSceneMetadata).thawActiveMeshes = () => {
+            this.thawActiveMeshes();
+        };
     }
 
     /**

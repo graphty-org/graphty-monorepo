@@ -656,6 +656,8 @@ async function hoverUntimed(page, t) {
 async function clickEmptyUntimed(page, ctx) {
     // A cold page starts with nothing selected; a click on the canvas would warm the picking a cold input times.
     if (ctx.cold) return;
+    // Never mid-glide (the app's Focus selected): a press while the camera moves is not where it was aimed.
+    await camStill(page);
     await page.mouse.move(ctx.empty.x, ctx.empty.y);
     await frames(page, 2);
     await page.mouse.down();
@@ -665,6 +667,7 @@ async function clickEmptyUntimed(page, ctx) {
 }
 
 async function selectUntimed(page, t) {
+    await camStill(page);
     await hoverUntimed(page, t);
     await page.mouse.down();
     await page.mouse.up();
@@ -1166,9 +1169,13 @@ const ELEMENT = [
         id: "click-empty-deselect",
         name: "Click empty canvas to clear the selection",
         async run(page, ctx, rep) {
-            const t = ctx.nodes[rep % 2];
-            await selectUntimed(page, t);
-            await page.mouse.move(ctx.empty.x, ctx.empty.y);
+            const t0 = ctx.nodes[rep % 2];
+            await selectUntimed(page, t0);
+            // The app glides to the selected node: find the node and an empty point where they are drawn now.
+            await camStill(page);
+            const t = await whereIs(page, t0.id);
+            const empty = (await emptyPoint(page)) ?? ctx.empty;
+            await page.mouse.move(empty.x, empty.y);
             await frames(page, 3);
             return timed(
                 page,
@@ -3455,6 +3462,9 @@ const APP = [
         id: "app-restyle-color",
         name: "Set the Everything layer's node color (Enter until the node is drawn in it)",
         async run(page, ctx) {
+            // The pointer off every node, so the Hovered layer decides nothing below.
+            await page.mouse.move(ctx.empty.x, ctx.empty.y);
+            await until(page, "el.session.selection.hovered === null");
             // Always a color the node is not drawn in now.
             const now = await page.evaluate(
                 `(() => { const el = document.querySelector("graphty-element"); return ${COLOR_OF(ctx.nodes[0].id)}; })()`,
@@ -3814,7 +3824,15 @@ const APP_MORE = [
         "Control+i",
         // The rail's Assistant button is always there; its place being the current one is the assistant shown.
         `!!document.querySelector('[data-assistant-door][aria-current="page"]')`,
-        { skipOnTimeout: "the assistant place is hidden in this build" },
+        {
+            skipOnTimeout: "the assistant place is hidden in this build",
+            // The assistant is a place, not a dialog: its rail button closes it again.
+            after: async (page) => {
+                const open = page.locator('[data-assistant-door][aria-current="page"]');
+                if (await open.count()) await open.click();
+                await until(page, `!document.querySelector('[data-assistant-door][aria-current="page"]')`);
+            },
+        },
     ),
     {
         id: "app-camera-preset",

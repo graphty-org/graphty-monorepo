@@ -228,8 +228,7 @@ describe("a node's Label is Text or Glyph", () => {
         assert.isAtMost(tops.size, 6, "the Glyph pop-over is 6 lines tall at most");
         const advanced = await openGroup(pop);
         const font = within(advanced).getByRole<HTMLInputElement>("combobox", { name: "Node glyph font" });
-        // compact-mantine's FontPicker shows a generic family by its CSS name.
-        assert.equal(font.value, "sans-serif", "the font shows what an unset glyph is drawn in");
+        assert.equal(font.value, "Sans serif", "the font shows what an unset glyph is drawn in");
     });
 
     it("a file writing a glyph opens as one Label row of kind Glyph, its character shown and drawn", async () => {

@@ -311,6 +311,53 @@ describe("a partition's groups as layers", () => {
         });
     }
 
+    it("names the folder as the run's one layer would be named when the start gives no name", async () => {
+        const plain = await session();
+        await plain.runs.start("louvain", {}, { as: "louvain" });
+        await plain.styles.settled();
+        const [layer] = plain.styles.list().filter((each) => each.source.by === "run");
+
+        const s = await session();
+        await s.runs.start("louvain", {}, { as: "louvain", style: { groups: "layers" } });
+        await s.styles.settled();
+
+        const [folder] = s.styles.tree().filter((row) => row.kind === "folder");
+        assert.strictEqual(folder.name, layer.name);
+    });
+
+    it("gives a re-run's group that shares no member with any earlier group a layer of its own, unlike the live group's", async () => {
+        const s = createGraphSession({ runs: { execute: communities } });
+        await s.data.addNodes(["a", "b", "c", "d"].map((id) => ({ id })));
+        membership = { a: 0, b: 1, c: 2 };
+        await s.runs.start("louvain", {}, { as: "louvain", style: { groups: "layers" } });
+        await s.styles.settled();
+
+        // a keeps its group; b and c leave the result; d is in a group sharing no member with any.
+        membership = { a: 0, d: 7 };
+        await s.runs.start("louvain", {}, { as: "louvain", seed: 7 });
+        await s.styles.settled();
+
+        const [folder] = s.styles.tree().filter((row) => row.kind === "folder");
+        const fresh = folder.children[0];
+        assert.lengthOf(folder.children, 4, "one layer added to the three the first run painted");
+        assert.strictEqual(fresh.name, String(s.runs.get("louvain")?.result?.node("d")?.group), "d's group");
+        assert.strictEqual(s.styles.counts(fresh.id).matched, 1);
+        assert.isDefined(colorOf(s, "d"), "the new group is painted");
+        assert.notStrictEqual(colorOf(s, "d"), colorOf(s, "a"), "and not as the live group beside it");
+    });
+
+    it("reports its group layers present and nothing missing", async () => {
+        const s = await session();
+        await s.runs.start("louvain", {}, { as: "louvain", style: { groups: "layers" } });
+        await s.styles.settled();
+        const [folder] = s.styles.tree().filter((row) => row.kind === "folder");
+
+        const layers = s.runs.layers("louvain");
+
+        assert.sameMembers([...(layers?.present ?? [])], [...folder.children.map((row) => row.id)]);
+        assert.lengthOf(layers?.missing ?? [], 0);
+    });
+
     it("puts the folder of groups back when a deleted folder's run restores its layer", async () => {
         const s = await session();
         await s.runs.start("louvain", {}, { as: "louvain", style: { groups: "layers", name: "Louvain" } });
@@ -403,5 +450,72 @@ describe("a partition's groups as layers", () => {
             1,
             "one layer, as a start without the option paints",
         );
+    });
+});
+
+/** The edge values the run publishes, by the element's edge id; a test swaps them before a re-run. */
+let kinds: Readonly<Record<string, string>> = {};
+
+/**
+ * An executor that publishes {@link kinds} as an edge field, `kind`.
+ * @param context - The run.
+ * @returns The outcome.
+ */
+async function edgeKinds(context: RunExecutionContext): Promise<RunOutcome> {
+    await Promise.resolve();
+    const edges = Object.entries(kinds);
+    return {
+        result: createRunResult({
+            runId: context.runId,
+            shape: "edge-metric",
+            fields: [
+                {
+                    name: "kind",
+                    plainName: "Kind",
+                    technicalName: "kind",
+                    kind: "edge",
+                    type: "string",
+                    path: `results.${context.runId}.kind`,
+                },
+            ],
+            measured: { nodes: 0, edges: edges.length },
+            edges: edges.map(([id, kind]) => ({ id, values: { kind } })),
+            caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "kinds", facts: [], notes: [] },
+            durationMs: 1,
+        }),
+    };
+}
+
+describe("an edge layer naming a run's edge values", () => {
+    it("reports the value a re-run dropped, and the dropped value's name goes while a kept one's stays", async () => {
+        const s = createGraphSession({ runs: { execute: edgeKinds } });
+        await s.data.addNodes(["a", "b", "c"].map((id) => ({ id })));
+        await s.data.addEdges([
+            { src: "a", dst: "b" },
+            { src: "b", dst: "c" },
+        ]);
+        // The element numbers edges in arrival order: a->b is "0", b->c is "1".
+        kinds = { "0": "x", "1": "y" };
+        await s.runs.start("louvain", {}, { as: "kinds", style: false });
+        const xs = await s.styles.add({
+            name: "x edges",
+            target: "edge",
+            selector: { match: "rule", where: { kind: "categories", attribute: "results.kinds.kind", values: ["x"] } },
+            set: { "edge.color": "#ff0000" },
+        });
+        await s.data.setValueLabel("results.kinds.kind", "x", "Ex");
+        await s.data.setValueLabel("results.kinds.kind", "y", "Why");
+        await s.styles.settled();
+        assert.strictEqual(s.styles.counts(xs.id).matched, 1);
+
+        kinds = { "0": "y", "1": "y" };
+        await s.runs.start("louvain", {}, { as: "kinds", seed: 7, style: false });
+        await s.styles.settled();
+
+        assert.deepEqual(
+            s.styles.get(xs.id)?.unmatched?.map((code) => [code.code, code.params.value]),
+            [["group.gone", "x"]],
+        );
+        assert.deepEqual([...s.data.valueLabels("results.kinds.kind").entries()], [["y", "Why"]]);
     });
 });

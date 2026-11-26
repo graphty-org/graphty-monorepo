@@ -34,6 +34,7 @@
         "reason": "Measures the objects path's frozen instance matrices, set by hand"
     },
     { "file": "test/browser/view-switch-draws-every-node.test.ts", "reason": "Sets each case's render path by hand" },
+    { "file": "test/browser/view-switch-keeps-node-meshes.test.ts", "reason": "Sets its render path by hand" },
     { "file": "test/interactions/xr/xr-batched-rows.test.ts", "reason": "Sets each case's render path by hand" },
     { "file": "test/browser/framing-skips-plain-edges.test.ts", "reason": "Sets each case's render path by hand" },
     {

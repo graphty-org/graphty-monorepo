@@ -23,6 +23,7 @@ import { addGradientStops } from "./edgeGradient";
 import { shadeInstanceColors } from "./InstanceColorShading";
 import { setUpQuietly } from "./LabelBatch";
 import type { MeshCache } from "./MeshCache";
+import { moveInstance } from "./moveInstance";
 import { isNodeMaterial, lightNodeMaterial, outlineNodeMesh, sceneLighting } from "./NodeLighting";
 import {
     bodilessSlab,
@@ -464,6 +465,43 @@ export class NodeMesh {
         scene?: Scene,
     ): AbstractMesh {
         return cache.get(this.cacheKeyOf(options), () => this.createSource(options, createOptions, scene));
+    }
+
+    /**
+     * Draw an instance {@link NodeMesh.create} built from the source it would build now, as a new
+     * instance of it starts: the 2D/3D switch keeps every node's instance (`keepNodeMeshForDimension`)
+     * rather than dispose it and build another. Only the instance's own transform and buffers are
+     * reset; the caller builds everything that hangs from it again.
+     * @param instance - The instance, off every source.
+     * @param cache - As for {@link NodeMesh.create}.
+     * @param options - As for {@link NodeMesh.create}.
+     * @param createOptions - As for {@link NodeMesh.create}.
+     * @param scene - As for {@link NodeMesh.create}.
+     * @returns The instance.
+     */
+    static reuse(
+        instance: InstancedMesh,
+        cache: MeshCache,
+        options: NodeMeshOptions,
+        createOptions: NodeMeshCreateOptions,
+        scene?: Scene,
+    ): InstancedMesh {
+        const name = this.cacheKeyOf(options);
+        const source = cache.sourceFor(name, () => this.createSource(options, createOptions, scene));
+        instance.name = name;
+        // What Babylon's constructor and instance factory take from the source.
+        instance.position.copyFrom(source.position);
+        instance.rotation.copyFrom(source.rotation);
+        instance.scaling.copyFrom(source.scaling);
+        instance.rotationQuaternion = source.rotationQuaternion?.clone() ?? null;
+        instance.infiniteDistance = source.infiniteDistance;
+        instance.setPivotMatrix(source.getPivotMatrix());
+        if (source.instancedBuffers) {
+            instance.instancedBuffers = { ...source.instancedBuffers };
+        }
+
+        moveInstance(instance, source);
+        return instance;
     }
 
     /**

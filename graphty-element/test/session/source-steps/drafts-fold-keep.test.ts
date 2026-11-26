@@ -1,7 +1,9 @@
 /**
  * @file Merging the graph's own nodes into a waiting source's under No match: Keep. A node whose value
  * names no node 1 stays as it was, with its own id, whether or not its value repeats; and a card's count
- * of new nodes (`preview.made`) is the nodes the commit adds, as `preview.marks` says.
+ * of new nodes (`preview.made`) is the nodes the commit adds, as `preview.marks` says. A source with no
+ * key column has no ids of its own, so its unmatched nodes take the value they are joined by, and keep
+ * what a later merge folds into them by another field.
  */
 
 import { assert, describe, it } from "vitest";
@@ -50,6 +52,20 @@ describe("source-steps drafts: merging the graph's nodes into a waiting source, 
         assert.strictEqual(preview.marks.nodes.new, 3, "the three people");
         assert.strictEqual(preview.made(steps).nodes.new, preview.marks.nodes.new);
         d.dispose();
+        session.dispose();
+    });
+
+    it("names a keyless source's unmatched node by its joined value, with what a merge by another field brings", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import(csv("acc.csv", "account", "A1"), { key: "account", type: "account" });
+        const ident = await session.data.stage(csv("ident.csv", "account,phone", "A1,555", "A9,777", "A8,888"));
+        const watch = await session.data.stage(csv("watch.csv", "value,risk", "555,low", "777,high", "888,high"));
+        const d = session.data.draft();
+        d.merge({ from: { source: ident, field: "account" }, into: { space: "account" } });
+        d.merge({ from: { source: watch, field: "value" }, into: { space: "account", field: "phone" } });
+        await d.commit();
+        const risk = Object.fromEntries([...session.data.nodes()].map((n) => [String(n.id), n.risk]));
+        assert.deepStrictEqual(risk, { A1: "low", A8: "high", A9: "high" });
         session.dispose();
     });
 });

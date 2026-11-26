@@ -2980,6 +2980,7 @@ class Builder {
 
     // Only 2: Drop drops it; Keep, when field 1 is node 1's key and field 2 node 2's own, moves it into node 1's
     // space later (3.6 item 3). A node 2 joined by another of its fields keeps its id: its value names no node.
+    // A node 2 of a source with no key column has no id of its own, so it takes the value it is joined by.
     private unmatchedNode2(
         s: MergeStep,
         n2: BuiltNode,
@@ -2989,10 +2990,16 @@ class Builder {
     ): void {
         if (s.unmatchedFrom === "drop") {
             this.skipNode2(s, n2);
-        } else if (byKey(s) && !excluded && !isEmpty(v) && text(v) === n2.key) {
+        } else if (byKey(s) && !excluded && !isEmpty(v) && (text(v) === n2.key || this.keyless(s.source))) {
             const k = text(v);
             kept.set(k, [...(kept.get(k) ?? []), n2]);
         }
+    }
+
+    // A source with no key column: its rows are keyed by their content, or numbered.
+    private keyless(source: string): boolean {
+        const { numbered, mapping } = this.source(source);
+        return mapping.nodes?.key === undefined || mapping.nodes.key === numbered;
     }
 
     // A node 2 left out: its rows, which make no node now, are still there for a later merge to read.

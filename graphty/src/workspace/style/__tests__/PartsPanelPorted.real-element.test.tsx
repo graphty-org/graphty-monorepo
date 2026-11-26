@@ -101,8 +101,13 @@ function section(kind: "node" | "edge", id: string): HTMLElement {
  * @returns the first new line.
  */
 async function addFrom(kind: "node" | "edge", id: string, item: string): Promise<HTMLElement> {
-    await userEvent.click(within(section(kind, id)).getByRole("button", { name: /^Add to / }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: item }));
+    const plus = within(section(kind, id)).getByRole("button", { name: /^Add to / });
+    // A "+" of one item adds it at once; a menu opens only where there is a choice.
+    const menu = plus.hasAttribute("aria-haspopup");
+    await userEvent.click(plus);
+    if (menu) {
+        await userEvent.click(await screen.findByRole("menuitem", { name: item }));
+    }
     return waitFor(() => {
         const line = section(kind, id).querySelector<HTMLElement>(".ws-row[data-line]");
         assert.isNotNull(line, `${kind} ${id}: ${item} added`);
@@ -162,7 +167,8 @@ describe("the old Style panel's tests on the panel by part", () => {
     it.each([
         ["node", "fill", "Solid"],
         ["node", "effects", "Glow"],
-        ["edge", "effects", "Underlay"],
+        // The edge Underlay item is gone: its band is the line's Outline (one casing family).
+        ["edge", "effects", "Overlay"],
     ] as const)(
         "adds and removes a property in %s %s, with focus and an announcement each way",
         async (kind, id, item) => {

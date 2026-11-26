@@ -27,6 +27,7 @@ export const LIGHTING_WORDS: Readonly<Record<Lighting, string>> = {
  * @returns the hidden settings' keys.
  */
 export function useNotInEffect(session: GraphSession | null): readonly GraphSettingKey[] {
+    // on reload: fresh: read: read again from graphty-element at start
     const [hidden, setHidden] = useState(() => notInEffectKey(session));
     useEffect(() => {
         const update = (): void => {

@@ -791,6 +791,7 @@ function AddMenu({
     onOpenChange?: (opened: boolean) => void;
     target?: React.JSX.Element;
 }>): React.JSX.Element | null {
+    // on reload: fresh: pointer: a menu held open by its control
     const [own, setOwn] = useState(false);
     const isOpen = opened ?? own;
     const dropdown = useRef<HTMLDivElement>(null);

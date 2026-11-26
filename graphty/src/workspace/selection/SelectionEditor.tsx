@@ -247,7 +247,7 @@ export function SelectionEditor({
     // That empty card's All nodes, chosen on its start button: nothing is written, so the card remembers it. A
     // Style panel v2 layer starts there: a layer nothing was selected for styles all of them (owner, 2026-11-23),
     // and its Select line reads All, so the workspace it opens holds all of them too.
-    // on reload: derived: recomputed from the host and the v2 flag on mount
+    // on reload: fresh: derived: recomputed from the host and the v2 flag on mount
     const [startsAll, setStartsAll] = useState(() => host === "selector" && stylePanelV2On(session));
     const reading = useSteps(session, converted && !startsAll ? asNone(given) : given);
     // Whether the host holds a rule now: what it was given, read as the element holds it.

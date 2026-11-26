@@ -137,7 +137,9 @@ function Editor({
     useStyleVersion(session, element);
     const written = lines.join("\n");
     // Typed words, until they are written on leaving the field.
+    // on reload: fresh: in flight: typed words not yet written
     const [draft, setDraft] = useState<string | null>(null);
+    // on reload: fresh: pointer: a picker held open by the pointer
     const [picking, setPicking] = useState(false);
     const caret = useRef<number | null>(null);
     // The words last committed, until the element hands them back: a value inserted right after a commit goes into

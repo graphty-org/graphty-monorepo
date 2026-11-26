@@ -137,7 +137,7 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
             await session.styles.settled();
             const tree = await screen.findByRole("tree", { name: "Style layers" });
             await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Busy, / }));
-            await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+            await userEvent.click(await screen.findByRole("button", { name: /^Select nodes\.\.\./ }));
             await ws();
             await pickValue("Degree");
             await typeDegreeFrom("5");

@@ -97,7 +97,7 @@
             "textAsRuleAnswer"
         ],
         "src/workspace/graph-place/StyleTree.tsx": ["?", "?", "selecting"],
-        "src/workspace/inspector/GraphSettings.tsx": ["FileSource.defaultValue", "hidden", "waiting"],
+        "src/workspace/inspector/GraphSettings.tsx": ["waiting"],
         "src/workspace/inspector/GraphValues.tsx": ["kind"],
         "src/workspace/inspector/Inspector.tsx": ["draft", "picked", "seen"],
         "src/workspace/inspector/LayerValues.tsx": ["all"],
@@ -272,16 +272,8 @@
             "unused",
             "url"
         ],
-        "src/workspace/style/PicturePopover.tsx": ["busy", "focused", "model", "problem", "url"],
-        "src/workspace/style/PropertyRow.tsx": [
-            "TextInput.defaultValue",
-            "draft",
-            "open",
-            "open",
-            "pendingVary",
-            "varyOpen"
-        ],
-        "src/workspace/style/Section.tsx": ["code", "element", "gallery", "hidden", "waiting"],
+        "src/workspace/style/PropertyRow.tsx": ["draft", "open", "open", "pendingVary", "varyOpen"],
+        "src/workspace/style/Section.tsx": ["element", "hidden", "waiting"],
         "src/workspace/style/ShaderCodeEditor.tsx": ["extensions", "view"],
         "src/workspace/style/ShaderEditorDialog.tsx": [
             "adding",
@@ -293,12 +285,11 @@
             "tab",
             "tabMoves"
         ],
-        "src/workspace/style/ShaderGallery.tsx": ["origin", "query", "stop"],
+        "src/workspace/style/ShaderGallery.tsx": ["query", "stop"],
         "src/workspace/style/ShaderParamRows.tsx": ["open", "typed", "typed"],
         "src/workspace/style/ShaderParams.tsx": ["live"],
-        "src/workspace/style/ShaderRow.tsx": ["dragging", "open", "open", "why"],
+        "src/workspace/style/ShaderRow.tsx": ["why"],
         "src/workspace/style/StylePanel.tsx": ["adding", "justOn", "tab"],
-        "src/workspace/style/ValueField.tsx": ["TextInput.defaultValue"],
         "src/workspace/style/ValuePicker.tsx": ["query", "unfolded"],
         "src/workspace/style/WhichPicker.tsx": [
             "active",

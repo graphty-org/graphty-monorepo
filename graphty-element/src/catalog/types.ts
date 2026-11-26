@@ -1155,12 +1155,7 @@ export type Channel =
     | "edge.xlabelStyle"
     | "edge.xlabelLocation"
     | "edge.xlabelOffsetX"
-    | "edge.xlabelOffsetY"
-    | "edge.tooltip"
-    | "edge.tooltipStyle"
-    | "edge.tooltipSize"
-    | "edge.tooltipColor"
-    | "edge.tooltipBackground";
+    | "edge.xlabelOffsetY";
 
 /**
  * The values the "edge.style" channel accepts.

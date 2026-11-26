@@ -48,6 +48,7 @@ export function GroupMenu<G extends MenuGroup>({
     linesOf: (group: G) => React.ReactNode;
 }>): React.JSX.Element | null {
     const setMore = useContext(HeaderMoreContext);
+    // on reload: fresh: pointer: a menu held open by its control
     const [open, setOpen] = useState<string | null>(null);
     const sets = groups.map((group) => isSet(group));
     // Handed to the pop-over's frame each render: the frame's re-render draws its header only, as this content is

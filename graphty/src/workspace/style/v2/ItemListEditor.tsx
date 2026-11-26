@@ -61,6 +61,7 @@ interface ItemListEditorProps {
  */
 export function ItemListEditor({ ctx, list, channel, inline = false }: ItemListEditorProps): React.JSX.Element | null {
     const { store } = useWorkspace();
+    // on reload: fresh: pointer: a pop-over held open by its control
     const [open, setOpen] = useState(false);
     const listId = useId();
     const fail = (error: unknown): void => {

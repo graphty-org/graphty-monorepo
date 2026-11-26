@@ -197,6 +197,7 @@ export function AngleLine({
     onWrite: (value: number) => void;
 }>): React.JSX.Element {
     const given = typeof value === "number" ? value : 0;
+    // on reload: fresh: pointer: a drag in progress
     const [moving, setMoving] = React.useState<number | null>(null);
     return (
         <AnglePicker
@@ -287,6 +288,7 @@ function RangeSlider({
     const given = units(typeof value === "number" ? value : fallback);
     // The thumb follows a drag before it is written. The value the drag began at decides whether it wrote anything:
     // `value` may follow the drag itself (a list's shares preview it).
+    // on reload: fresh: pointer: a drag in progress
     const [moving, setMoving] = React.useState<number | null>(null);
     const began = React.useRef<number | null>(null);
     const shown = moving ?? given;
@@ -1005,6 +1007,7 @@ function GroupOpener({
     label,
     words,
 }: Readonly<{ ctx: RowContext; channel: Channel; label: string; words: string }>): React.JSX.Element {
+    // on reload: fresh: pointer: a pop-over held open by its control
     const [open, setOpen] = React.useState(false);
     const id = React.useId();
     const group = groupOfLine(channel);
@@ -1291,6 +1294,7 @@ export function RubricLine(props: RubricLineProps): React.JSX.Element | null {
 function OneLine({ ctx, line, row, named: alwaysNamed = false }: RubricLineProps): React.JSX.Element | null {
     const { store } = useWorkspace();
     // R6 sides: split by its Separate sides line, or because the two sides already differ.
+    // on reload: fresh: request: a one-time split request
     const [splitAsked, setSplit] = React.useState(false);
     const { session, side } = ctx;
     // A line standing for several units edits whichever the row sets.

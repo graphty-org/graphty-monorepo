@@ -290,8 +290,6 @@ export const UNREACHABLE_STYLE_FIELDS: readonly UnreachableStyleField[] = [
     ...namedBlockOf("edge", "tooltip", LABEL_RESIDUE),
     // An edge's external label: its words, its place and its appearance are channels, as the node's.
     ...namedBlockOf("edge", "xlabel", LABEL_RESIDUE),
-    // An edge's tooltip: its words and its appearance are channels, as the node's.
-    ...namedBlockOf("edge", "tooltip", LABEL_RESIDUE),
 
     // A caption at each end of an edge, published as four channels -- the words and the
     // appearance at each end -- so what is left is the same sixteen leaves a label leaves, for
@@ -425,24 +423,6 @@ export const UNPAINTED_CHANNELS: readonly UnpaintedChannel[] = [
             "`test/browser/groups-follow-members.test.ts` is where it is proved: it reads a Cytoscape.js " +
             "file whose compound parents set a padding, a minimum width and a bias, and requires each " +
             "group's box to be the size Cytoscape.js draws.",
-    })),
-    ...(
-        [
-            "edge.tooltip",
-            "edge.tooltipStyle",
-            "edge.tooltipSize",
-            "edge.tooltipColor",
-            "edge.tooltipBackground",
-        ] as const
-    ).map((channel): UnpaintedChannel => ({
-        kind: "by-design",
-        channel,
-        reason:
-            "AN EDGE TOOLTIP IS DRAWN, so this waiver is about the reading and not about the capability, as " +
-            "for `node.tooltip` above: the tooltip is hover-only, drawn while the pointer is over the edge's " +
-            "line, and this gate paints into a RESTING scene, the one moment it must not be on screen. " +
-            "`test/browser/edge-tooltip-on-hover.test.ts` moves a real pointer onto the line and requires the " +
-            "tooltip to be drawn with the words the layer wrote.",
     })),
     ...(["node.tooltipSize", "node.tooltipColor", "node.tooltipBackground"] as const).map(
         (channel): UnpaintedChannel => ({

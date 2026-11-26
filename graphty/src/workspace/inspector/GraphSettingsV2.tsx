@@ -76,6 +76,7 @@ function colorText(value: unknown): string {
  * @param session - the element's session.
  */
 function useProjectVersion(session: GraphSession | null): void {
+    // on reload: fresh: derived: a redraw count, bumped by graphty-element's project changes
     const [, bump] = useReducer((n: number) => n + 1, 0);
     useEffect(() => session?.on("project:changed", bump), [session]);
     // The highlight color is a view setting, not a project change: it has its own event.
@@ -96,9 +97,12 @@ function BackgroundRow({ session }: Readonly<{ session: GraphSession }>): React.
     const { background } = session.config;
     const sky = background.backgroundType === "skybox";
     // Sky picked and waiting for its picture; and the picture left by a switch to Color, for a switch back.
+    // on reload: fresh: in flight: Sky picked and waiting for its picture
     const [waiting, setWaiting] = useState(false);
+    // on reload: fresh: pointer: a pop-over held open by its control
     const [settings, setSettings] = useState(false);
     const leftSky = useRef<string | undefined>(undefined);
+    // on reload: fresh: request: a one-time open of the shader just added
     const [shaderAdded, setShaderAdded] = useState(false);
     const fail = (error: unknown): void => {
         store.set({ notice: { message: failureWords("Background", "changed", error), error: true } });

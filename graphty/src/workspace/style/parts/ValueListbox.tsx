@@ -198,8 +198,10 @@ export function ValueListbox({
         extra?.section ??
         sections?.[0]?.name ??
         "";
+    // on reload: fresh: pointer: the section of a list opened for a look
     const [section, setSection] = useState(startSection);
     // The choice whose dedicated component is open beside the list, if any.
+    // on reload: fresh: pointer: a picker opened beside the list
     const [besideOf, setBesideOf] = useState<string | null>(null);
     const opener = extraChoices.find((choice) => choice.value === besideOf)?.beside;
     const rows = opened ? valueRows(session, descriptor, extraChoices, counts, icons) : [];

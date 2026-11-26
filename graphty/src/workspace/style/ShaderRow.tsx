@@ -117,6 +117,7 @@ function SettingsPopout({
     notes: readonly string[];
 }>): React.JSX.Element | null {
     const { store } = useWorkspace();
+    // on reload: fresh: pointer: a pop-over held open by its control
     const [open, setOpen] = useState(false);
     const { descriptor } = entry;
     if (descriptor === undefined || entry.use.off === true) {

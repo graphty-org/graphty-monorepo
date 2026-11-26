@@ -1050,6 +1050,7 @@ function TextValue({
             kind="text"
             width="fill"
             label={name}
+            // on reload: fresh: derived: the written value; typed words are written when the field is left
             defaultValue={text}
             onBlur={(event) => {
                 const next = event.currentTarget.value;
@@ -1684,6 +1685,7 @@ export function VarySlot({
 }>): React.JSX.Element {
     const { store } = useWorkspace();
     const [open, setOpen] = useState(false);
+    // on reload: fresh: pointer: which of several values is shown, picked for a look
     const [picked, setPicked] = useState(0);
     const chosen = which?.[picked];
     const descriptor = chosen?.descriptor ?? first;

@@ -65,7 +65,9 @@ function mainControl(args: {
  */
 export function ShaderUseRow({ ctx, entry }: Readonly<{ ctx: RowContext; entry: ShaderEntry }>): React.JSX.Element {
     const { store } = useWorkspace();
+    // on reload: fresh: pointer: a pop-over held open by its control
     const [open, setOpen] = useState(false);
+    // on reload: fresh: pointer: the gallery held open by its control
     const [gallery, setGallery] = useState(false);
     const box = useRef<HTMLDivElement>(null);
     const { descriptor, use } = entry;

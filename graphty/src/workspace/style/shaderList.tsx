@@ -75,7 +75,9 @@ export function useShaderList(
     active = true,
 ): ShaderList {
     const { store } = useWorkspace();
+    // on reload: fresh: pointer: the gallery held open by its control
     const [gallery, setGallery] = useState(false);
+    // on reload: fresh: request: a one-time open of the code dialog
     const [code, setCode] = useState<PasteInit | null>(null);
     const tab = ctx.side;
     const all = active ? shaderEntries(ctx) : [];

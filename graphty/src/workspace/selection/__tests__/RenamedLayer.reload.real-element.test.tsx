@@ -42,7 +42,7 @@ describe.each<ReloadOptions>([{ lostSession: false }, { lostSession: true }, { r
         beforeEach(forget);
         afterEach(forget);
 
-        it("stays picked, and its open Style Nodes workspace comes back on it", async () => {
+        it("stays picked, and its open Select nodes workspace comes back on it", async () => {
             const before = await openAutosaved("Les Miserables");
             await userEvent.click(page.getByRole("button", { name: "Add a layer or a folder" }));
             await userEvent.click(await screen.findByRole("menuitem", { name: "Layer" }));
@@ -50,7 +50,7 @@ describe.each<ReloadOptions>([{ lostSession: false }, { lostSession: true }, { r
             await userEvent.clear(name);
             await userEvent.type(name, "test{Enter}");
             await picked("test");
-            await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+            await userEvent.click(await screen.findByRole("button", { name: /^Select nodes\.\.\./ }));
             // Reloaded at once, in the opening's first frames (its header drawn, its first frame
             // not yet painted): the workspace is recorded as open when the reader opens it (#10017).
             await waitFor(() => {

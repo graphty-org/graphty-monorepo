@@ -132,6 +132,7 @@ export function CommitText({
     unset: string;
     onCommit: (words: string) => void;
 }>): React.JSX.Element {
+    // on reload: fresh: in flight: typed words not yet written
     const [typed, setTyped] = useState<string | null>(null);
     // Unset, the field shows the default as its value (design "Input rules": every input shows a value); words that
     // are still the default write nothing.

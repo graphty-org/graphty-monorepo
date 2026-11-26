@@ -118,6 +118,7 @@ function DataPicker({
     const { store } = useWorkspace();
     const spec = specOf(ctx, channel);
     // The entries picked to add, not yet written.
+    // on reload: fresh: in flight: entries picked to add, not yet written
     const [draft, setDraft] = useState<readonly DataEntry[] | null>(null);
     const held = spec?.entries ?? [];
     const added = draft ?? [];
@@ -509,6 +510,7 @@ function EntryLines({
     color: string | undefined;
 }>): React.JSX.Element {
     const { store } = useWorkspace();
+    // on reload: fresh: pointer: a picker opened beside the entry
     const [beside, setBeside] = useState<Beside>(null);
     const entry = spec.entries[at];
     const name = entryName(ctx.session, entry);
@@ -1003,7 +1005,9 @@ function EntryLine({
 }>): React.JSX.Element {
     const entry = spec.entries[at];
     const name = entryName(ctx.session, entry);
+    // on reload: fresh: pointer: a pop-over held open by its control
     const [open, setOpen] = useState(false);
+    // on reload: fresh: pointer: a picker opened beside the entry
     const [beside, setBeside] = useState<Beside>(null);
     const args: EntryArgs = {
         ctx,
@@ -1107,9 +1111,12 @@ export function DataRow({
     fixedLines: React.ReactNode;
 }>): React.JSX.Element {
     const { store } = useWorkspace();
+    // on reload: fresh: in flight: a node picked, not yet written
     const [picked, setPicked] = useState<NodeId | null>(null);
+    // on reload: fresh: pointer: a pop-over held open by its control
     const [open, setOpen] = useState(false);
     // The place of a Graph value the picker just added, whose Calculate pop-over opens once its line is drawn.
+    // on reload: fresh: request: a one-time open of the Calculate pop-over
     const [calculating, setCalculating] = useState<number | null>(null);
     const spec = specOf(ctx, channel);
     const facts = spec === undefined ? undefined : sampleFacts(ctx, channel, picked);

@@ -283,9 +283,9 @@ import {
 } from "./meshes/NodeThumbnail";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { type Antialias, type LeanLines, pulledEdgesDefault } from "./meshes/PulledLineBatch";
-import { holdSceneSession } from "./models/assetPicture";
 import { RichTextLabel } from "./meshes/RichTextLabel";
 import { onRewriteMissed } from "./meshes/RowPullPlugin";
+import { holdSceneSession } from "./models/assetPicture";
 import { loadChunk, loadModel, ModelLoadFailure } from "./models/loadModel";
 import { type ModelTemplate, optionsOf } from "./models/ModelCache";
 import { TextureCache } from "./models/TextureCache";

@@ -1079,7 +1079,6 @@ function channelPlans(
         ["targetLabel", [id("edge.arrowHeadText")]],
         ["sourceLabel", [id("edge.arrowTailText")]],
         ["xlabel", [id("edge.xlabel")]],
-        ["tooltip", [id("edge.tooltip")]],
         // Along the line, in the scene's units, as a node's lengths are.
         ["targetLabelOffset", [length("edge.arrowHeadTextDistance", factors.node * SCENE_PER_UNIT.node)]],
         ["sourceLabelOffset", [length("edge.arrowTailTextDistance", factors.node * SCENE_PER_UNIT.node)]],

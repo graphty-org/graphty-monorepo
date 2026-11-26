@@ -228,6 +228,13 @@ export interface WorkspaceState {
      * that kind, else the kind the row styles (combined Style panel, 2026-10-16).
      */
     readonly styleSide: "node" | "edge";
+    /**
+     * Style panel v2: the things a section's "+" added that the row does not set yet, waiting for their first
+     * value, by row, kind and section (`<row ids>:<kind>:<section>`).
+     */
+    readonly styleWaiting: Readonly<Partial<Record<string, readonly string[]>>>;
+    /** Style panel v2: the words in the Style tab's find box. */
+    readonly styleQuery: string;
     readonly leftWidth: number;
     /** The Assistant panel's width once the reader resized it; null for its default. */
     readonly assistantWidth: number | null;
@@ -592,6 +599,8 @@ export const ON_RELOAD = {
     styleRow: "kept: element-id",
     tabs: "kept",
     styleSide: "kept",
+    styleWaiting: "kept",
+    styleQuery: "kept",
     leftWidth: "this tab: changes on every drag step, too often to write to autosaved work",
     assistantWidth: "this tab: changes on every drag step, too often to write to autosaved work",
     assistantFrom: "fresh: pointer: holds an element to focus, which the reload replaced",
@@ -754,6 +763,8 @@ const INITIAL: WorkspaceState = {
     styleRow: null,
     tabs: {},
     styleSide: "node",
+    styleWaiting: {},
+    styleQuery: "",
     leftWidth: PANEL_MIN,
     assistantWidth: null,
     assistantFrom: null,

@@ -52,7 +52,9 @@ function drawn(session: Session, node: string): { values: string; colors: string
 }
 
 const GENES = [
+    // eslint-disable-next-line camelcase -- data column names, as a dataset spells them
     { id: "g1", expr_10: 10, EXPR_2: 2, expr_1: 1, other: 5 },
+    // eslint-disable-next-line camelcase -- data column names, as a dataset spells them
     { id: "g2", expr_10: 20, EXPR_2: 4, other: 7 },
 ];
 
@@ -70,12 +72,14 @@ describe("a chart from data", () => {
 
     it("joins a column loaded later", async () => {
         const { session } = await chartOf(GENES, { entries: [{ pattern: "expr_" }] });
+        // eslint-disable-next-line camelcase -- data column names, as a dataset spells them
         await session.data.addNodes([{ id: "g3", expr_3: 3 }]);
         await session.styles.settled();
         assert.strictEqual(drawn(session, "g1").values, "1 2 NaN 10");
     });
 
     it("colors by series, a column's name up to its last separator", async () => {
+        // eslint-disable-next-line camelcase -- data column names, as a dataset spells them
         const { session } = await chartOf([{ id: "n", ctrl_1: 1, ctrl_2: 2, kd_1: 3 }], {
             entries: [{ pattern: "" }],
             series: { separator: "_" },

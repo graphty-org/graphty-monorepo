@@ -18,6 +18,7 @@ export function useHeaderMore(): {
     more: PopoutHeaderMore | undefined;
     body: (children: React.ReactNode) => React.JSX.Element;
 } {
+    // on reload: fresh: derived: set again by the panel drawn inside it
     const [more, setMore] = useState<PopoutHeaderMore | undefined>(undefined);
     const put = useCallback((next: PopoutHeaderMore | undefined) => {
         setMore(next);

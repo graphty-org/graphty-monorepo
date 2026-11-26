@@ -206,6 +206,7 @@ type Override = { color?: string; label?: string; opacity?: number };
  */
 function ColorsLines({ args }: Readonly<{ args: GroupArgs }>): React.JSX.Element {
     const { ctx, channel, spec, facts, put } = args;
+    // on reload: fresh: pointer: the category whose picker is open
     const [key, setKey] = useState<string | null>(null);
     const categories = listedCategories(spec, facts);
     const picked = categories.find((each) => each.key === key) ?? categories.at(0);
@@ -438,6 +439,7 @@ function putScale(args: GroupArgs, patch: Partial<Scale>): void {
  */
 function ClipLine({ args, clip }: Readonly<{ args: GroupArgs; clip: readonly [number, number] }>): React.JSX.Element {
     // The thumbs follow a drag before it is written.
+    // on reload: fresh: pointer: a drag in progress
     const [moving, setMoving] = useState<[number, number] | null>(null);
     const [low, high] = moving ?? clip;
     const write = (from: number, to: number): void => {

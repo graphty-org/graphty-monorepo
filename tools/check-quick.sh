@@ -26,7 +26,8 @@
 # 9. only with --with-dry-run: the graphty app's build, then its dry run (graphty/acceptance/run.mjs, every
 #    route, on this machine's NVIDIA card), then the same routes, its canvas test and the selection
 #    workspace's test each once as is and once with the cosmograph experiment on (the batched render
-#    path), every route compared across the two. Never by default: the agent that owns a long-lived branch
+#    path), every route compared across the two, and every route and its reload once more with the Style panel v2
+#    experiments on (file-styles,style-panel-v2). Never by default: the agent that owns a long-lived branch
 #    asks for it before opening the pull request (CLAUDE.md, "Shipping a change", step 2; issue #3269).
 #
 # Left to CI, which runs them on every pull request that needs them (issue #8052): the documentation site
@@ -202,6 +203,7 @@ dry_run() {
     local rc=0
     node graphty/acceptance/run.mjs || rc=1
     node graphty/acceptance/run.mjs --features cosmograph || rc=1
+    node graphty/acceptance/run.mjs --features file-styles,style-panel-v2 || rc=1
     node graphty/acceptance/compare-reports.mjs tmp/dry-run/report.json tmp/dry-run-cosmograph/report.json || rc=1
     node graphty/acceptance/canvas-uat.mjs || rc=1
     node graphty/acceptance/canvas-uat.mjs --features cosmograph || rc=1

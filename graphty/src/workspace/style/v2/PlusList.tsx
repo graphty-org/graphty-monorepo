@@ -63,6 +63,7 @@ function useOpen(collapseKey: string | undefined): [boolean, (open: boolean) => 
         collapseKey === undefined
             ? undefined
             : styleSectionCollapsed(collapseKey.split(":")[0], collapseKey.split(":").slice(1).join(":"));
+    // on reload: fresh: derived: read from the reader's preference
     const [open, setOpen] = useState(() => preference === undefined || readPreference(preference) === "open");
     return [
         open,

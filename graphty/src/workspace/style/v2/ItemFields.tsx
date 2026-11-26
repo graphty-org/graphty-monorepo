@@ -77,6 +77,7 @@ export function WordsField({
             kind="text"
             width="fill"
             label={label}
+            // on reload: fresh: derived: the written value; typed words are written when the field is left
             defaultValue={value}
             onBlur={(event) => {
                 if (event.currentTarget.value !== value) {

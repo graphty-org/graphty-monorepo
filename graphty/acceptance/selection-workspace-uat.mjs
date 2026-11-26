@@ -1049,7 +1049,7 @@ async function walkRow(page, row) {
 // A layer saved by Done opens again as the same cards with the same counts.
 async function reopenSame(v) {
     await v.page.getByRole("button", { name: "Graph", exact: true }).click();
-    await v.page.getByRole("button", { name: /^Style Nodes\.\.\./ }).click();
+    await v.page.getByRole("button", { name: /^Select nodes\.\.\./ }).click();
     await v.ws.waitFor();
     await v.check("reopen");
     await assertOrder(v, "reopen");
@@ -1300,7 +1300,7 @@ const reopenOrder = async (page) => {
     await v.page.mouse.click(520, 80);
     await v.leave("done");
     await v.page.getByRole("button", { name: "Graph", exact: true }).click();
-    await v.page.getByRole("button", { name: /^Style Nodes\.\.\./ }).click();
+    await v.page.getByRole("button", { name: /^Select nodes\.\.\./ }).click();
     await v.ws.waitFor();
     await v.unfold(0);
     await v.step(0, 0).getByRole("checkbox").first().waitFor();

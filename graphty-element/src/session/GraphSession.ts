@@ -4914,12 +4914,6 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             return;
         }
 
-        // A state pass is not on the data passes' queue, so it can run after a freeze renumbered the
-        // rows and before the data pass carries the paint to its new rows: the next data pass then
-        // paints every element rather than carrying paint this pass laid out by the new rows.
-        // ponytail: one full pass after a state change and a data change meet; queue state passes
-        // with the data passes if that shows up in a profile.
-        paintedThrough = null;
         painter
             .repaintElements(stack.compiled(), dirty, { signal: teardown.signal, report: () => undefined, rowsOnly })
             .catch(repaintFailed("selection"));

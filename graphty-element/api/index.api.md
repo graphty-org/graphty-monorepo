@@ -877,6 +877,7 @@ export class DataManager implements Manager {
         readonly a: NodeIdType;
         readonly b: NodeIdType;
         readonly edges: Edge[];
+        readonly rows: number[];
     }[] | null;
     clear(): void;
     get directed(): boolean;

@@ -908,6 +908,31 @@ export class PulledLineBatch {
     }
 
     /**
+     * Hand out a curve batch's entry for the next part of another entry's run: the same width and draw order, look and
+     * rows, drawing nothing until {@link PulledLineBatch.setCurve}.
+     * @param piece - The entry it continues.
+     * @returns The new entry.
+     */
+    acquireLike(piece: number): number {
+        const next = this.acquire(this.entryWidths[piece] ?? 0, this.entryOrders[piece]);
+        const from = piece * this.pieceFloats;
+        this.rows.copyWithin(next * this.pieceFloats, from, from + 7);
+        this.touch(next);
+        this.unplace(next);
+        return next;
+    }
+
+    /**
+     * A route block's points as the card holds them, four floats a point (x, y, z, then 0).
+     * @param at - Its first texel ({@link PulledLineBatch.writeRoute}).
+     * @param count - Its points.
+     * @returns A view of them; empty in a batch with no route table.
+     */
+    routePoints(at: number, count: number): Float32Array {
+        return this.routes?.subarray(at * TEXEL_FLOATS, (at + count) * TEXEL_FLOATS) ?? new Float32Array(0);
+    }
+
+    /**
      * Keep a line's cut path in the route table, in the block it holds when it fits there, else in another.
      * @param at - The block the line holds, or -1.
      * @param points - The path's points, flat (x, y, z) triples.

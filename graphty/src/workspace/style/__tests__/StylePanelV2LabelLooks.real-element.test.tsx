@@ -1,9 +1,9 @@
 /**
- * A label's look is a kind of its row (ledger E196: "the toggle between 'Plain' and 'Card' label must be removed
- * and replaced with `+` having label or card"), on the REAL graphty-element and real input: "+" Card writes the
- * look card; "+" Label always adds a Text label, a further one once a label is drawn; a Label switched to Card from
- * its Kind select writes only the look, on the node and the edge tab; a further label's Kind select writes only its
- * own look; an End caption's Kind select lists its ends, then its looks; and no label pop-over has a Look line.
+ * A label's preset (owner, 2026-11-24: "card, dark, pill, and callout are just presets. add a presets dropdown to
+ * the first level popout for labels"), on the REAL graphty-element and real input: "+" offers Label alone and always
+ * adds a Text label, a further one once a label is drawn; the label pop-over's Preset line picks Default, Card,
+ * Dark, Pill or Callout and writes only the look, on the node and the edge tab; a further label's Preset line writes
+ * only its own look; and an End caption's End buttons pick its end, its Preset line its look.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -60,6 +60,12 @@ async function plus(tab: HTMLElement, kind: "node" | "edge", item: string, list:
  */
 async function switchTo(root: HTMLElement, title: string, item: string): Promise<void> {
     await pickKind(root, title, item);
+    // The row draws anew under its new name and its pop-over opens again on it: closed once it shows the pick, so
+    // the pop-over never opens again behind the test.
+    await waitFor(() => {
+        const box = document.querySelector<HTMLInputElement>('[data-look-menu] input[role="combobox"]');
+        assert.strictEqual(box?.value, item, `the Preset line reads ${item}`);
+    });
     await closeSettings();
 }
 
@@ -105,21 +111,18 @@ describe("a label's look is a kind of its row", () => {
     it("'+' Card writes the look card; '+' Label then adds a further Text label; its Kind select writes only its look", async () => {
         const { session, element, nodes } = await openGraph();
         const tab = await openStyle("Key people");
-        await plus(tab, "node", "Card", "Node card");
+        // Card is a preset of a label (owner, 2026-11-24): "+" adds a Label, its Preset line picks Card.
+        await plus(tab, "node", "Label", "Node label");
+        await switchTo(sectionOf(tab, "node-text"), "node label", "Card");
         await waitFor(() => {
-            assert.equal(styleOf(session, nodes, "node.labelStyle").look, "card", "'+' Card writes look card");
+            assert.equal(styleOf(session, nodes, "node.labelStyle").look, "card", "Preset Card writes look card");
             assert.isDefined(session.styles.get(nodes)?.encode?.["node.label"], "its words read Node id");
         });
-        // No Look line in its pop-over: the look is its kind.
-        const text = sectionOf(tab, "node-text");
-        await userEvent.click(within(text).getByRole("button", { name: /^Node card settings/ }));
-        const pop = await waitFor(() => {
-            const found = document.querySelector<HTMLElement>("[data-thing-popover]");
-            assert.isNotNull(found);
-            return found;
+        // The section as drawn now: a pop-over closing may draw it anew.
+        const text = (): HTMLElement => sectionOf(tab, "node-text");
+        await waitFor(() => {
+            assert.isNotNull(rowButton(text(), "node card"), "the row is named by its preset");
         });
-        assert.isNull(pop.querySelector('.ws-row[data-line$=".look"]'), "no Look line");
-        await userEvent.keyboard("{Escape}");
 
         // "+" Label always adds a Text label: here a further one beside a Card, so it names the plain look, which
         // graphty-element draws plain (a further label naming no look draws in the main label's).
@@ -134,7 +137,7 @@ describe("a label's look is a kind of its row", () => {
             assert.equal(value?.[0]?.style?.look, "default", "a Text label");
         });
         const entry = await waitFor(() => {
-            const found = text.querySelector<HTMLElement>(`[data-label-entry="${id}"]`);
+            const found = text().querySelector<HTMLElement>(`[data-label-entry="${id}"]`);
             assert.isNotNull(found);
             assert.isNotNull(rowButton(found, "node label 2"), "named Label");
             return found;
@@ -162,13 +165,13 @@ describe("a label's look is a kind of its row", () => {
         await session.styles.settled();
         // Had the Text label been drawn in the main label's Card, switching it to Card would change nothing.
         assert.isAbove(pixelsApart(plain, await picture(element)), 0, "the Text label was drawn plain, not as a card");
-        await switchTo(entry, "node card 2", "Label");
+        await switchTo(entry, "node card 2", "Default");
         await waitFor(() => {
             const value = written(session, nodes, "node.labels") as readonly LabelEntry[] | undefined;
             assert.deepEqual(
                 value,
                 [{ id, style: { look: "default", location: "bottom" } }],
-                "Label names the plain look",
+                "Default names the plain look",
             );
         });
         await session.styles.settled();
@@ -193,7 +196,7 @@ describe("a label's look is a kind of its row", () => {
         await waitFor(() => {
             assert.isNotNull(rowButton(text, "node card"), "the Card it draws");
         });
-        await switchTo(text, "node card", "Label");
+        await switchTo(text, "node card", "Default");
         const hubs = session.styles.list().find((layer) => layer.name === "Hubs")?.id ?? "";
         await waitFor(() => {
             assert.deepEqual(styleOf(session, hubs, "node.labelStyle"), { size: 2, look: "default" });
@@ -215,7 +218,8 @@ describe("a label's look is a kind of its row", () => {
                 within(sectionOf(tab, "node-text")).getByRole("button", { name: "Add to node text" }),
             );
             const menu = await screen.findByRole("menu");
-            const item = within(menu).queryByRole("menuitem", { name: "Label" });
+            // The adding item, after the labels already drawn (the main one is listed as "Label" too, to edit).
+            const item = within(menu).queryAllByRole("menuitem", { name: "Label" }).at(-1) ?? null;
             await userEvent.keyboard("{Escape}");
             return item;
         };
@@ -234,7 +238,7 @@ describe("a label's look is a kind of its row", () => {
         });
         await userEvent.click(within(sectionOf(tab, "node-text")).getByRole("button", { name: "Add to node text" }));
         const menu = await screen.findByRole("menu");
-        assert.isTrue(disabled(within(menu).queryByRole("menuitem", { name: "Card" })), "nor is a Card");
+        assert.isNull(within(menu).queryByRole("menuitem", { name: "Card" }), "a preset is never a '+' item");
         assert.isFalse(disabled(within(menu).queryByRole("menuitem", { name: "Tooltip" })), "Tooltip still is");
         await userEvent.keyboard("{Escape}");
     });
@@ -301,7 +305,7 @@ describe("a label's look is a kind of its row", () => {
             assert.isNotNull(rowButton(sectionOf(tab, "node-text"), "node card"), "the row is the Card now");
         });
         // Back to Label takes the look off and keeps the rest.
-        await switchTo(sectionOf(tab, "node-text"), "node card", "Label");
+        await switchTo(sectionOf(tab, "node-text"), "node card", "Default");
         await waitFor(() => {
             assert.deepEqual(styleOf(session, nodes, "node.labelStyle"), { color: "#1971C2", size: 2 });
         });
@@ -323,12 +327,13 @@ describe("a label's look is a kind of its row", () => {
         });
         assert.equal(restOf(session, edges, "edge.labelStyle"), before, "the switch writes only the look");
 
-        // A further edge label in a look, from "+".
+        // A further edge label, from "+", then its Preset line's Card.
         const id = session.styles.newLabelId(edges);
-        await plus(tab, "edge", "Card", "Edge card 2");
+        await plus(tab, "edge", "Label", "Edge label 2");
+        await switchTo(sectionOf(tab, "edge-text"), "edge label 2", "Card");
         await waitFor(() => {
             const value = written(session, edges, "edge.labels") as readonly LabelEntry[] | undefined;
-            assert.equal(value?.find((entry) => entry.id === id)?.style?.look, "card", "'+' Card writes look card");
+            assert.equal(value?.find((entry) => entry.id === id)?.style?.look, "card", "Preset Card writes look card");
         });
     });
 
@@ -341,7 +346,7 @@ describe("a label's look is a kind of its row", () => {
         const tab = await openStyle("Links");
         await showKind("edge");
         const text = sectionOf(tab, "edge-text");
-        const list = await openKind(text, "edge target", "Look");
+        const list = await openKind(text, "edge target", "Preset");
         // Its ends are grouped buttons named End above them (they show the same settings), its looks this list.
         const ends = document.querySelector<HTMLElement>('[data-kind-menu="edge.endCaption"]');
         assert.isNotNull(ends, "the End line");
@@ -352,7 +357,7 @@ describe("a label's look is a kind of its row", () => {
             ["Target", "Source"],
         );
         const items = [...list.querySelectorAll('[role="option"]')].map((element) => element.textContent);
-        assert.deepEqual(items, ["End caption", "Card", "Dark", "Pill", "Callout"]);
+        assert.deepEqual(items, ["Default", "Card", "Dark", "Pill", "Callout"]);
         const before = restOf(session, edges, "edge.arrowHeadTextStyle");
         await userEvent.click(within(list).getByRole("option", { name: "Dark" }));
         await waitFor(() => {

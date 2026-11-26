@@ -282,9 +282,13 @@ const SIZE_RUBRIC: ThingRubric = {
                 },
                 { channel: "node.labelFitSquare" },
                 { channel: "node.labelFitQuantum" },
-                { channel: "node.labelFitImage" },
-                { channel: "node.labelFitImagePadding" },
             ],
+        },
+        {
+            // Fitting to a picture's own size is rarer: its two lines are a group of their own, so Fit to label
+            // stays within six lines with its padding's sides apart (owner's input rules, 2026-11-23).
+            name: "Fit image",
+            lines: [{ channel: "node.labelFitImage" }, { channel: "node.labelFitImagePadding" }],
         },
     ],
 };

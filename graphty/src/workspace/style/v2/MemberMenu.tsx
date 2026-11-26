@@ -274,9 +274,12 @@ export function KindMenu({
         now.look === undefined || looks.length < 2 ? null : (
             <SwitchMenu
                 attribute={{ "data-look-menu": group.id }}
-                name="Look"
+                name="Preset"
                 form="select"
-                members={looks.map((member) => choice(member))}
+                members={looks.map((member) => ({
+                    ...choice(member),
+                    name: member.look?.id === PLAIN_LOOK ? "Default" : member.plainName,
+                }))}
                 now={now.id}
                 onChoose={(picked) => {
                     switchTo(looks.find((member) => member.id === picked.key));
@@ -332,11 +335,11 @@ export function KindMenu({
             {style === undefined || look === undefined ? null : (
                 <SwitchMenu
                     attribute={{ "data-look-menu": group.id }}
-                    name="Look"
+                    name="Preset"
                     form="select"
                     members={LABEL_LOOKS.map((each) => ({
                         key: each.id,
-                        name: each.id === PLAIN_LOOK ? group.plainName : each.plainName,
+                        name: each.id === PLAIN_LOOK ? "Default" : each.plainName,
                         disabled: false,
                     }))}
                     now={look}
@@ -365,13 +368,13 @@ export function EntryLookMenu({ ctx, entry }: Readonly<{ ctx: RowContext; entry:
     const now = entryLook(ctx, entry);
     const members = LABEL_LOOKS.map((each) => ({
         key: each.id,
-        name: each.id === PLAIN_LOOK ? "Label" : each.plainName,
+        name: each.id === PLAIN_LOOK ? "Default" : each.plainName,
         disabled: false,
     }));
     return (
         <SwitchMenu
             attribute={{ "data-look-menu": `${ctx.side}.labels` }}
-            name="Look"
+            name="Preset"
             form="select"
             members={members}
             now={now}

@@ -17,7 +17,7 @@ import { userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
-import { openGraph, openStyle, picture, pixelsApart, sectionOf, written } from "./v2Harness";
+import { closeSettings, openGraph, openStyle, pickKind, picture, pixelsApart, sectionOf, written } from "./v2Harness";
 
 /**
  * The further labels one layer writes.
@@ -82,9 +82,12 @@ describe("several labels per node", () => {
         const tab = await openStyle("Key people");
         await addLabel(tab, "Node label");
         await userEvent.click(within(sectionOf(tab, "node-text")).getByRole("button", { name: /^Add to node text/ }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Card" }));
-        const options = await screen.findByRole("group", { name: /^Node card/ });
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Label" }));
+        const options = await screen.findByRole("group", { name: /^Node label 2/ });
         await userEvent.click(await within(options).findByRole("option", { name: /^Node id(,|$)/ }));
+        // Card is a preset of the further label, from its Preset line (owner, 2026-11-24).
+        await pickKind(sectionOf(tab, "node-text"), "node label 2", "Card");
+        await closeSettings();
         const inspector = screen.getByRole("complementary", { name: "Inspector" });
         assert.equal(Math.round(inspector.getBoundingClientRect().width), 240, "the inspector's default width");
         // The reported "L..." / "C..." rows with "Node ..." beside them (E206, E265).

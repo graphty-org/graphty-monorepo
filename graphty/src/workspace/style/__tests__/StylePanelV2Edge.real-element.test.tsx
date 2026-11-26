@@ -84,7 +84,8 @@ async function found(root: ParentNode, selector: string): Promise<HTMLElement> {
  * @param which - which of the line's fields (0, or 1 for a pair's second).
  */
 async function typeInto(line: HTMLElement, text: string, which = 0): Promise<void> {
-    const input = line.querySelectorAll<HTMLInputElement>("input")[which];
+    // The fields a reader types in: a slider's hidden value input is not one.
+    const input = [...line.querySelectorAll<HTMLInputElement>("input")].filter((each) => each.type !== "hidden")[which];
     assert.isDefined(input);
     await userEvent.click(input);
     await userEvent.keyboard("{Control>}a{/Control}");

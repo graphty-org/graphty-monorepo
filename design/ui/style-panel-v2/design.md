@@ -93,17 +93,19 @@ Plate (Behind or Over), edge Arrow (Target, Source, Middle to target, Middle to 
 (Target or Source) and edge Outline (Under line or Over line). Tooltip and External label are kind groups too,
 whose kinds are the label looks. A kind group that holds one row per kind (Plate, Arrow, End caption, Outline)
 is one "+" item that adds the first free kind in that order, so a second "+" Arrow gives a Source arrow beside
-the Target one. Label is "many", so its kinds may repeat: its "+" lists each look as its own item (below), and
-each adds a new Label row of that kind. Glyph is never a "+" item: it is reached only from a Label row's Switch
+the Target one. Label is "many": its one "+" item adds a further Label row each time, and its
+preset is picked in its pop-over (below). Glyph is never a "+" item: it is reached only from a Label row's Switch
 to (E275, E276). A row's kind is changed from its Switch to (5).
 
-**A label's look is its kind** (E196: "the toggle between "Plain" and "Card" label must be removed and replaced
-with `+` having label or card"). There is no look select. The Label kinds Text, Card, Dark, Pill and Callout are
-graphty-element's label looks (`look` unset, `card`, `dark`, `pill`, `callout`); Glyph draws a character instead
-of text and has no look. The Text section's "+" offers each look directly: "Label" adds a Text label (`look`
-unset), "Card" a Card label, and so on, so the reader picks label or card from "+" (E196); Switch to changes a
-look afterwards. Tooltip, External label and End caption carry the same looks as kinds, Plain first (End
-caption's Switch to lists its ends, a divider, then its looks); "+" adds them Plain.
+**A label's look is a preset** (owner, 2026-11-24: "card, dark, pill, and callout are just presets. add a presets
+dropdown to the first level popout for labels"; this replaces E196's looks as "+" items). The Text section's "+"
+offers Label alone. The label's first pop-over has a Preset drop-down under its Text / Glyph tabs: Default, Card,
+Dark, Pill, Callout (graphty-element's `look`: `default`, `card`, `dark`, `pill`, `callout`), five choices that are
+a drop-down because the owner asked for one. Picking a preset writes `look` and nothing else, one undo step; the
+reader's own edits stay. A further label, a Tooltip, an External label and an End caption have the same Preset
+line. Glyph draws a character instead of text and has no preset line. The row is still named by its preset
+("Card"). Not built yet from tmp/formatted-string/final-design.md section 1: the Clear edits button and moving
+loose fields into an "Other settings" group.
 
 ### 2.4 Thing row
 
@@ -200,7 +202,8 @@ Every hit target counts. Budgets: an empty layer at most 8; the default Everythi
 ## 4. Sections and things
 
 **Fit to label** (`node.labelFit*`) is a sub-group of Size's settings, since it sizes the shape and overrules
-Size (`x-size-labelfit`). In the "+" lists below, `|` is a divider between tiers.
+Size (`x-size-labelfit`). Its two picture lines (`labelFitImage`, `labelFitImagePadding`) are Size's group "Fit
+image", so Fit to label stays within six lines with its padding's sides apart. In the "+" lists below, `|` is a divider between tiers.
 
 ### 4.1 Node tab
 
@@ -564,7 +567,8 @@ thing's groups when it has more than one, and each opens a new pop-over.
 - **Every input has a value.** An unset input shows its default: the value graphty-element would draw there
   (what the layers beneath draw, else graphty-element's default), in the normal text color. Never an empty
   field, a placeholder-only field, or a segment line with nothing selected. The minus still shows only when the
-  layer sets the value.
+  layer sets the value. A search box (a picker's "Find field", the panel's "Find a setting") holds no value of
+  the layer: it filters a list, so it starts empty with its placeholder (team decision, 2026-11-25).
 - **Slot order.** Every line reads `[control] [link or ...] [-]`, its name above it: the link or settings button right after
   its control on the same line, the minus the right-most icon. A list's "+" sits before the minus.
 - **Hover.** The link and settings buttons are hidden until the line is hovered, and also shown while focus is
@@ -603,6 +607,11 @@ thing's groups when it has more than one, and each opens a new pop-over.
   Clamp outliers as above. A color by groups: source, palette, the group table, More values than colors | No
   value, and its one value under them. It is 312 wide in v2, so a pair's halves read
   whole. A bound value's dialog is the same dialog.
+- **Location counts as one row (team decision, 2026-11-25; not an owner statement).** A label's Location draws
+  Outside / Inside / Auto stacked beside its cell grid, and the pop-over counts the pair as one row, since the grid
+  is that tall on its own. Laid side by side the words are cut ("Outsid") beside the grid. Read strictly, the
+  owner's "6 components from top to bottom" counts the three stacked buttons as three, which makes a label's
+  pop-over 7 rows tall (8 with its Text / Glyph tabs) once a place is written; that reading waits for the owner.
 - **Free text and pictures.** An unset text field holds the words drawn there ("+" for a badge's suffix) as its
   value, or "None" where none are drawn; left so, nothing is written. A picture (a label's image, a node image's
   Fallback, an arrow's Image) is compact-mantine's `ImagePicker` (R16), reading "None" with no picture. A
@@ -610,8 +619,8 @@ thing's groups when it has more than one, and each opens a new pop-over.
 - **Drop-downs of fewer than six (2026-11-24).** Fewer than six exclusive options are grouped buttons wherever
   their words fit the line (a Finish's Shading: Smooth, Flat, Unlit, across the sidebar row under its name);
   where the words do not fit, icons, when every option has a common-knowledge icon. Three stay drop-downs, each
-  for its reason: a text's **Look** (Default, Card, Dark, Pill, Callout: about 260 px of words on a 200 px line,
-  and no common-knowledge icon for a card, a pill or a callout); an arrow's **End** (Target, Source, Middle to
+  for its reason: a label's **Preset** (the owner asked for a drop-down; Default, Card, Dark, Pill, Callout: about
+  260 px of words on a 200 px line, and no common-knowledge icon for a card, a pill or a callout); an arrow's **End** (Target, Source, Middle to
   target, Middle to source: "Middle to target" alone fills the line, and no common-knowledge icon for a middle
   end); an edge's **Force curves** (Barnes-Hut, ForceAtlas2: the names of two methods, about 180 px on a 176 px
   row, with no icon). A font is the font picker, not a drop-down.
@@ -630,8 +639,10 @@ thing's groups when it has more than one, and each opens a new pop-over.
   There are no Kind buttons under the row and no Basic / Model / Shader tabs in its pop-over, and a model's
   pop-over has no Model line, fixed or varying by data; each pop-over holds only its own settings (a model's
   Fallback shape, Tint, Fit and Center; a shader's parameters). The Fallback shape line sets the shape drawn under
-  the model, a different value from the drop-down's shape, which replaces the model (owner, 2026-11-25). A line under a row repeats the same control as the pop-over's line for that
-  value (2.5), in the same component and words: that is one control drawn in two places, not a second path. The
+  the model, a different value from the drop-down's shape, which replaces the model (team reading, not an owner
+  statement). Team decision, not stated by the owner: a line under a row may repeat the same control as the
+  pop-over's line for that value (2.5), in the same component and words, and that counts as one control drawn in
+  two places, not a second path. The
   rules test fails a value edited by two different controls. Model... opens the Models gallery beside the list,
   which stays open, and the gallery's Add custom model... is the one way to the Load custom model dialog from the
   Shape. The model varies by data from the Shape's by-data link, whose list opens with a "Which value" choice
@@ -741,7 +752,7 @@ follows.
 | Label: Glyph                           | char R14                          | Size, Color | Main: font R13, weight R5b                                                                                                                                                                                                                      |
 | Tooltip, External label                | text source R12                   | Size, Color | 7.3                                                                                                                                                                                                                                             |
 | Record                                 | fields R15r                       | -           | Main: Fields R15 (`shapeTexts`: point, text R12). Table: the label table editor R15, cell picture R7, padding R5, font R13                                                                                                                      |
-| Size                                   | size R5                           | -           | Main: Unit R8f, sizeMode R8f, width \| height, keep ratio R7, depth R5, relativeExtents, planar R7. Fit to label: labelFit R8, padding X \| Y, labelFitSquare R7, labelFitQuantum R5, labelFitImage R7, labelFitImagePadding R5                 |
+| Size                                   | size R5                           | -           | Main: Unit R8f, sizeMode R8f, width \| height, keep ratio R7, depth R5, relativeExtents, planar R7. Fit to label: labelFit R8, padding X \| Y, labelFitSquare R7, labelFitQuantum R5. Fit image: labelFitImage R7, labelFitImagePadding R5      |
 | Shape: Basic shape                     | shape R10                         | -           | No pop-over. Set lines only: shapeRotation R5, cornerRadius R5, exactCornerRadius R7, cornerFraction R5, shapePoints R15, shapeStretchPoints R7, shapeParts R15, inner lines R15, inner line width R5, inner line backing color R1 and width R5 |
 | Shape: Model                           | shape R10, naming the model       | -           | Main: Fallback shape R10, modelTint R9, modelFit R8f, modelCenter R8. Orient: modelSourceUp R9, modelTurn R5, modelDoubleSided R8f. Animation: modelAnimation R9, speed \| offset                                                               |
 | Shape: replace shader                  | shape R10, naming the shader      | -           | Main: ShaderParamRows R16; reach, minSize R5                                                                                                                                                                                                    |

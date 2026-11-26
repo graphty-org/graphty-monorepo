@@ -574,7 +574,9 @@ describe("every label field is reachable from the Label row and draws (E673)", (
                     await userEvent.click(within(line).getByRole("button", { name: word }));
                     return field === "weight" ? "bold" : true;
                 }
-                const inputs = (): HTMLInputElement[] => [...line.querySelectorAll<HTMLInputElement>("input")];
+                // The fields a reader types in: a slider's hidden value input is not one.
+                const inputs = (): HTMLInputElement[] =>
+                    [...line.querySelectorAll<HTMLInputElement>("input")].filter((each) => each.type !== "hidden");
                 if (place.how === "pair") {
                     await typeIn(inputs()[1], String(test.value));
                     return test.value;

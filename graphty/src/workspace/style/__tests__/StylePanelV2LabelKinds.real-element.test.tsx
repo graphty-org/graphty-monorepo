@@ -91,7 +91,7 @@ describe("a node's Label is Text or Glyph", () => {
         await session.styles.update(nodes, { set: { "node.label": "Hi" } });
         await session.styles.settled();
         const tab = await openStyle("Key people");
-        for (const kind of ["Label", "Glyph"]) {
+        for (const kind of ["Default", "Glyph"]) {
             if ((await kindOf(await labelRow(tab), LABEL_SETTINGS)) !== kind) {
                 await switchTo(await labelRow(tab), kind);
             }
@@ -134,7 +134,7 @@ describe("a node's Label is Text or Glyph", () => {
         await session.styles.settled();
         const tab = await openStyle("Key people");
         const row = await labelRow(tab);
-        assert.equal(await kindOf(row, LABEL_SETTINGS), "Label");
+        assert.equal(await kindOf(row, LABEL_SETTINGS), "Default");
         const before = await picture(element);
 
         await switchTo(row, "Glyph");
@@ -185,7 +185,7 @@ describe("a node's Label is Text or Glyph", () => {
             assert.isUndefined(written(session, nodes, "node.glyph"));
             assert.isUndefined(written(session, nodes, "node.glyphColor"));
         });
-        assert.equal(await kindOf(await labelRow(tab), LABEL_SETTINGS), "Label");
+        assert.equal(await kindOf(await labelRow(tab), LABEL_SETTINGS), "Default");
     });
 
     it("changing a Label's kind keeps its pop-over open on the new kind, and a Glyph shows its letter and font", async () => {
@@ -201,12 +201,12 @@ describe("a node's Label is Text or Glyph", () => {
                 assert.isNotNull(found, "the pop-over is open");
                 return found;
             });
-        // A text's looks are its Look line, under the Text and Glyph tabs (design "Input rules", "Tabs").
+        // A text's presets are its Preset line, under the Text and Glyph tabs (design "Input rules", "Tabs").
         for (const look of ["Card", "Pill"]) {
-            await userEvent.click(await within(await panelOf()).findByRole("combobox", { name: "Look" }));
+            await userEvent.click(await within(await panelOf()).findByRole("combobox", { name: "Preset" }));
             await userEvent.click(within(await screen.findByRole("listbox")).getByRole("option", { name: look }));
             await waitFor(async () => {
-                const box = await within(await panelOf()).findByRole<HTMLInputElement>("combobox", { name: "Look" });
+                const box = await within(await panelOf()).findByRole<HTMLInputElement>("combobox", { name: "Preset" });
                 assert.equal(box.value, look, `the pop-over stays open, on ${look}`);
             });
         }

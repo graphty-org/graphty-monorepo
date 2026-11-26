@@ -88,8 +88,9 @@ export class RandomLayout extends SnapshotLayoutEngine {
      * @returns the coordinates, in scene units
      */
     protected compute(input: SnapshotLayoutInput): F32 {
+        // reads only the node count: the stored graph has the same rows, and is not made undirected for it
         return sceneUnits(
-            random(input.graph, {
+            random(input.stored, {
                 center: this.config.center ?? undefined,
                 dim: layoutDim(this.config.dim),
                 seed: this.config.seed,

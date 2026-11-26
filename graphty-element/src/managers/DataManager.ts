@@ -497,6 +497,8 @@ export const dataManagerInternals = {} as {
     edgesAtRow(manager: DataManager, row: number): { built: Iterable<Edge>; rows: number[] };
     /** The id of a row stored with no `Node` yet, or undefined when a `Node` draws it or none is stored there. */
     unbuiltAt(manager: DataManager, index: number): NodeIdType | undefined;
+    /** How many rows are stored with no `Node` yet: 0 on the `"objects"` path, where every row has its `Node`. */
+    unbuiltCount(manager: DataManager): number;
     /** The record of a row stored with no `Node` yet, or undefined when a `Node` draws it or none is stored there. */
     unbuiltRecord(manager: DataManager, index: number): Record<string | number, unknown> | undefined;
     /** Build the `Node` of a row stored with no `Node` yet, and hand it back. */
@@ -932,6 +934,7 @@ export class DataManager implements Manager {
             return { built: manager.builtEdgesOf(id), rows };
         };
         dataManagerInternals.unbuiltAt = (manager, index) => manager.unbuilt.get(index)?.id;
+        dataManagerInternals.unbuiltCount = (manager) => manager.unbuilt.size;
         dataManagerInternals.unbuiltRecord = (manager, index) => {
             const row = manager.unbuilt.get(index);
             return row === undefined ? undefined : manager.recordOf(row.id, row.record);

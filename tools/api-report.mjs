@@ -366,6 +366,14 @@ const PLAIN_STRING_MEMBERS = new Set([
     "TourStop.view",
     "TourRenameCommand.from",
     "TourRenameCommand.to",
+    // an uploaded font: the family name its own file declares, the SHA-256 of its bytes, and the
+    // bytes themselves as base64 in a save file -- the consumer's data, never graphty-element's words
+    "FontCommand.family",
+    "FontRecord.family",
+    "FontRecord.sha256",
+    "StyleDocumentFont.family",
+    "StyleDocumentFont.sha256",
+    "StyleDocumentFont.data",
 ]);
 
 /**

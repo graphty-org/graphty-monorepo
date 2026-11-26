@@ -269,6 +269,50 @@ test("the node list is off by default; on, the keyboard walks it and selects a n
     assert.isNull(host.shadowRoot?.querySelector("[role=listbox]"));
 });
 
+test("the node list writes only the rows that change: none for a move, one per changed selection", async () => {
+    const { host } = await mount({ "aria-label": "Network drawing", "accessible-node-list": "" });
+    await addPath(host);
+    const list = host.shadowRoot?.querySelector("[role=listbox]");
+    assert.exists(list);
+    // Every write to the list's rows since the last read, as "type:attribute:row text"; the list's
+    // own label and cursor attributes are one write each, whatever the graph's size.
+    const seen: MutationRecord[] = [];
+    const writes = new MutationObserver((records) => seen.push(...records));
+    writes.observe(list, { subtree: true, childList: true, attributes: true, characterData: true });
+    const written = (): string[] =>
+        [...seen.splice(0), ...writes.takeRecords()]
+            .filter((r) => r.type === "childList" || r.target !== list)
+            .map((r) => `${r.type}:${r.attributeName ?? ""}:${(r.target as Element).textContent}`);
+    const rows = (): string[] =>
+        [...list.querySelectorAll("[role=option]")].map((o) => `${o.textContent}=${o.getAttribute("aria-selected")}`);
+
+    let derived = next(host, "project:derived");
+    await host.session.positions.set([{ id: "b", x: 5, y: 7, z: 0 }]);
+    await derived;
+    assert.deepStrictEqual(written(), [], "moving a node rewrote the list");
+
+    let changed = next(host, "selection:changed");
+    await host.session.selection.apply({ ids: ["b"] });
+    await changed;
+    assert.deepStrictEqual(written(), ["attributes:aria-selected:b"]);
+
+    changed = next(host, "selection:changed");
+    await host.session.selection.apply({ ids: ["c"] });
+    await changed;
+    assert.sameMembers(written(), ["attributes:aria-selected:b", "attributes:aria-selected:c"]);
+
+    derived = next(host, "project:derived");
+    await host.addNodes([{ id: "d" }]);
+    await derived;
+    assert.deepStrictEqual(rows(), ["a=false", "b=false", "c=true", "d=false"]);
+    assert.lengthOf(
+        written().filter((w) => !w.startsWith("childList") && !w.endsWith(":d")),
+        0,
+        "adding a node rewrote the rows already there",
+    );
+    writes.disconnect();
+});
+
 test("axe finds no violations on a loaded, described graph with its node list", async () => {
     const { host } = await mount({ "aria-label": "Network drawing", "accessible-node-list": "" });
     host.accessibleDescription = ({ nodes, edges }) => `${nodes} nodes, ${edges} edges`;

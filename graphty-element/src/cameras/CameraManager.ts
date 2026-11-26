@@ -79,6 +79,8 @@ interface InputHandler extends GestureEndHooks {
     zoomToPointer?: boolean;
     /** Whether the reader is moving the camera, or the input is switched off for a node drag. */
     readonly busy?: boolean;
+    /** Told at each press of the reader's, the moment it happens, however soon it is let go. */
+    onPress?: (() => void) | null;
 }
 
 export type CameraKey = "orbit" | "2d" | "xr";
@@ -142,6 +144,11 @@ export class CameraManager {
         };
         inputHandler.requestFrame = () => {
             this.requestFrame?.();
+        };
+        // A press stops autoRotate as a held one does, even pressed and let go between two frames,
+        // which `busy`, read once a frame, never sees.
+        inputHandler.onPress = () => {
+            this.#idleMs = 0;
         };
         controller.onReaderMove = () => {
             this.#idleMs = 0;

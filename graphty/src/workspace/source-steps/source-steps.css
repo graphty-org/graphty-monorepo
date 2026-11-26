@@ -200,10 +200,6 @@ dialog.jw-modal {
     align-items: center;
 }
 
-.jw-line:first-child {
-    grid-template-columns: minmax(0, 1fr) 12px minmax(0, 1fr);
-}
-
 .jw-line > .jw-line-count {
     grid-column: 1 / -1;
 }

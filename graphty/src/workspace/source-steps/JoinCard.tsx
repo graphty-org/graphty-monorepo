@@ -64,7 +64,8 @@ function withSide(line: CardLine, at: "a" | "b", end: CardEnd): CardLine {
 }
 
 /**
- * Lines that no longer name a source of the ones before them, blank.
+ * Lines whose two sources name no source of the ones before them, blank. A line with one source picked
+ * keeps it, whichever end: the other end then offers only the card's sources.
  * @param lines - the lines
  * @returns the lines
  */
@@ -72,12 +73,31 @@ function connected(lines: readonly CardLine[]): readonly CardLine[] {
     const named: SourceJoinSide[] = [];
     return lines.map((line, at) => {
         const sides = [line.a.side, line.b.side].filter((side) => side !== null);
-        if (at > 0 && !sides.some((side) => named.some((each) => sameSide(each, side)))) {
+        const linked = at === 0 || sides.some((side) => named.some((each) => sameSide(each, side)));
+        if (!linked && sides.length === 2) {
             return BLANK_LINE;
         }
-        named.push(...sides);
+        if (linked) {
+            named.push(...sides);
+        }
         return line;
     });
+}
+
+/**
+ * The sources a card's other lines name, each once.
+ * @param card - the card
+ * @param at - the line left out
+ * @returns the sources
+ */
+function namedBy(card: OpenCard, at: number): SourceJoinSide[] {
+    const named: SourceJoinSide[] = [];
+    for (const side of card.lines.flatMap((line, i) => (i === at ? [] : [line.a.side, line.b.side]))) {
+        if (side !== null && !named.some((each) => sameSide(each, side))) {
+            named.push(side);
+        }
+    }
+    return named;
 }
 
 /** What every line of a card takes. */
@@ -106,15 +126,15 @@ function sideData(props: LineProps, end: "a" | "b"): readonly (PickChoice | Pick
         value: sideValue(side),
         label: sideName(session, names, side),
     });
-    if (at > 0 && end === "a") {
-        // A further line starts from a source the card already names.
-        const named: SourceJoinSide[] = [];
-        for (const side of card.lines.flatMap((line, i) => (i === at ? [] : [line.a.side, line.b.side]))) {
-            if (side !== null && !named.some((each) => sameSide(each, side))) {
-                named.push(side);
-            }
+    if (at > 0) {
+        // A further line holds a source the card already names, at either end: once the other end has
+        // one it does not name, this end offers only those.
+        const named = namedBy(card, at);
+        const other = card.lines[at][end === "a" ? "b" : "a"];
+        const free = other.side === null ? other.isNew !== true : named.some((each) => sameSide(each, other.side));
+        if (!free) {
+            return named.map((side) => choice(side));
         }
-        return named.map((side) => choice(side));
     }
     const groups = [
         { group: WORKSPACE_WORDS.waiting, items: choices.waiting.map((side) => choice(side)) },
@@ -232,7 +252,10 @@ function Line(
             <SidePick {...props} end="a" />
             <span />
             <SidePick {...props} end="b" />
-            {at === 0 ? null : (
+            {/* The first match keeps the remove column empty, so every match's "=" lines up. */}
+            {at === 0 ? (
+                <span />
+            ) : (
                 <ActionIcon
                     size="xs"
                     variant="subtle"
@@ -258,7 +281,7 @@ function Line(
                     ) : (
                         <FieldPick {...props} end="b" />
                     )}
-                    {at === 0 ? null : <span />}
+                    <span />
                 </>
             ) : null}
             {counts === null ? null : (

@@ -99,7 +99,6 @@ export function JoinHead({
             ) : null}
             <span className="sel-spacer" />
             <SegmentedControl
-                size="xs"
                 aria-label={WORKSPACE_WORDS.preview}
                 value={colors ? "colors" : "styled"}
                 data={[
@@ -111,7 +110,6 @@ export function JoinHead({
                 }}
             />
             <SegmentedControl
-                size="xs"
                 aria-label={PREVIEW_WORDS.beforeAfter}
                 aria-keyshortcuts={ariaKey(SIDE_KEY)}
                 value={draft.side}

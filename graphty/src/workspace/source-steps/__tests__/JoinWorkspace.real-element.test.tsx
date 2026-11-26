@@ -349,6 +349,21 @@ describe("the join workspace (source-steps)", () => {
         }
     });
 
+    it("a second match takes its sources in either order", async () => {
+        const { modal } = await opened(false, { name: "doors.csv", text: "door,name\nD1,North\nD2,South" });
+        await matchBadge(modal);
+        await userEvent.click(within(modal).getByRole("button", { name: "+ Match" }));
+        await choose(modal, "Match 2 source 2", "doors");
+        assert.strictEqual(
+            within(modal).getByRole<HTMLInputElement>("combobox", { name: "Match 2 source 2" }).value,
+            "doors",
+            "a source the card does not name yet stays picked on the right",
+        );
+        await choose(modal, "Match 2 source 1", "entries");
+        await pickFields(modal, "door", "door", 2);
+        assert.include(waysToJoin(modal), EDGE);
+    });
+
     it("+ Match on a written card waits until its picks are made, then asks again how to join", async () => {
         const { session, modal } = await opened(false, { name: "doors.csv", text: "door,name\nD1,North\nD2,South" });
         await connect(modal, session);

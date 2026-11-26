@@ -116,7 +116,7 @@ export interface ReaderCard extends Ignoring {
 }
 
 /** What a card wrote: what its steps match and make, in step order, and its lines as the reader had them. */
-export interface Written {
+interface Written {
     readonly sigs: readonly string[];
     readonly lines: readonly CardLine[];
 }

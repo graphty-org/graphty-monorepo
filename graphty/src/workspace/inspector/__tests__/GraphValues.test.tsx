@@ -7,7 +7,7 @@ import { createGraphSession, type GraphSession } from "@graphty/graphty-element/
 import { afterEach, assert, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { act, render, screen, within } from "../../../test/test-utils";
+import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createRegistry } from "../../commands/registry";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
@@ -115,6 +115,76 @@ describe("the graph's Overview", () => {
         assert.isNull(screen.queryByRole("radio", { name: "In" }));
     });
 
+    it("selects the largest component from its row, and counts the nodes joined to nothing", async () => {
+        const { session: on } = await renderInspector(async (made) => {
+            await made.data.addNodes(["a", "b", "c", "d", "e", "lone"].map((id) => ({ id })));
+            await made.data.addEdges([
+                { source: "a", target: "b" },
+                { source: "b", target: "c" },
+                { source: "d", target: "e" },
+            ]);
+        });
+        const { components } = on.data.statistics({ scope: "all" });
+        assert.equal(components.count, 3);
+        assert.equal(components.largestSize, 3);
+        assert.equal(statValue(screen.getByRole("group", { name: "Overview" }), "Components"), "3");
+        assert.isNotNull(screen.getByText("1 node joined to no other node"));
+
+        await userEvent.click(await screen.findByRole("button", { name: /^Largest component/ }));
+        await waitFor(() => {
+            assert.sameMembers([...on.selection.nodes], ["a", "b", "c"]);
+        });
+    });
+
+    it("names the loaded weight with its meaning", async () => {
+        const { session: on } = await renderInspector(async (made) => {
+            await made.data.import(
+                { config: { file: new File(["from,to,km\na,b,4\nb,c,1\n"], "trails.csv") } },
+                { mapping: { weight: "km", weightMeaning: "distance" } },
+            );
+        });
+        assert.deepEqual(on.data.loadedWeight(), { attribute: "km", meaning: "distance" });
+        const overview = await screen.findByRole("group", { name: "Overview" });
+        assert.include(statValue(overview, "Loaded weight"), "km (");
+    });
+
+    it("offers an edge column that reads as time, and Set in Data opens the edges' time entry", async () => {
+        const { session: on, store } = await renderInspector(async (made) => {
+            await made.data.addNodes(["a", "b", "c"].map((id) => ({ id })));
+            await made.data.addEdges([
+                { source: "a", target: "b", sent: "2021-03-01" },
+                { source: "b", target: "c", sent: "2021-04-01" },
+            ]);
+        });
+        assert.deepInclude(on.time.candidates()[0], { column: "sent", kind: "edge" });
+        await screen.findByText("Time: sent");
+        await userEvent.click(screen.getByRole("button", { name: "Set in Data" }));
+        await waitFor(() => {
+            assert.deepEqual(on.time.field, { edges: { start: "sent" } });
+        });
+        assert.equal(store.get().fieldsEntry, "edges:time");
+    });
+
+    it("offers a node column that reads as time, and Set in Data makes it the time and opens Fields", async () => {
+        const { session: on, store } = await renderInspector(async (made) => {
+            await made.data.addNodes(["a", "b", "c", "d"].map((id, i) => ({ id, born: `2020-0${String(i + 1)}-15` })));
+        });
+        assert.isNull(on.time.field);
+        const found = on.time.candidates()[0];
+        assert.deepInclude(found, { column: "born", kind: "node" });
+
+        await screen.findByText("Time: born");
+        await userEvent.click(screen.getByRole("button", { name: "Set in Data" }));
+        await waitFor(() => {
+            assert.deepEqual(on.time.field, { nodes: { start: "born" } });
+        });
+        assert.deepInclude(store.get(), { page: "panels", place: "data", fieldsEntry: "nodes:time" });
+        // Once the column is the time, nothing is left to offer.
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("button", { name: "Set in Data" }));
+        });
+    });
+
     it("says there is nothing to draw on a graph with no nodes", async () => {
         await renderInspector(async () => {
             // Nothing written.
@@ -159,6 +229,57 @@ describe("an attribute's Summary", () => {
         assert.equal(statValue(summary, "Yes"), String(yes?.count));
         assert.equal(statValue(summary, "No"), String(no?.count));
         assert.equal((yes?.count ?? 0) + (no?.count ?? 0), PEOPLE.length);
+    });
+
+    it("gives a number column its lowest and highest, and no list of values", async () => {
+        const { session: on, store } = await renderInspector(async (made) => {
+            await made.data.addNodes(PEOPLE.map((person, i) => ({ ...person, age: 20 + (i % 50) })));
+        });
+        const column = on.data.attributes().find((candidate) => candidate.path === "data.age");
+        assert.isDefined(column?.min);
+        const summary = await openAttribute(store, "data.age");
+        assert.equal(statValue(summary, "Table"), "Nodes");
+        assert.equal(statValue(summary, "Lowest"), formatNumber(column?.min ?? -1));
+        assert.equal(statValue(summary, "Highest"), formatNumber(column?.max ?? -1));
+        assert.equal(statValue(summary, "Has a value"), "100%");
+        assert.isNull(within(summary).queryByText("Values"));
+    });
+
+    it("lists the first 20 of a column's groups on an edge column, and counts the rest", async () => {
+        const { session: on, store } = await renderInspector(async (made) => {
+            await made.data.addNodes(PEOPLE.slice(0, 100).map(({ id }) => ({ id })));
+            // 25 kinds of tie, each on forty edges: the element reads them as groups, not free text.
+            await made.data.addEdges(
+                Array.from({ length: 1000 }, (_, i) => ({
+                    source: `p${String(i % 100)}`,
+                    target: `p${String((i + 1 + Math.floor(i / 100)) % 100)}`,
+                    tie: `kind ${String(i % 25)}`,
+                })),
+            );
+        });
+        const read = on.data.readableValues().find((value) => value.path === "data.tie" && value.on === "edge");
+        assert.equal(read?.kind, "category");
+        const counts = on.data.valueCounts("data.tie", { kind: "edge" });
+        assert.equal(counts.values.length, 25);
+        const summary = await openAttribute(store, "data.tie");
+        assert.equal(statValue(summary, "Table"), "Edges");
+        assert.isNotNull(within(summary).getByText("Values"));
+        assert.equal(statValue(summary, String(counts.values[0].value)), String(counts.values[0].count));
+        assert.isNull(within(summary).queryByRole("group", { name: String(counts.values[24].value) }));
+        assert.isNotNull(within(summary).getByText("5 more values"));
+    });
+
+    it("draws nothing for an attribute the graph does not hold", async () => {
+        const { store } = await renderInspector(async (made) => {
+            await made.data.addNodes(PEOPLE.slice(0, 3));
+        });
+        act(() => {
+            store.set({ inspected: { kind: "attribute", id: "data.nothing" } });
+        });
+        await waitFor(() => {
+            assert.equal(screen.getByRole("heading", { level: 2 }).textContent, "data.nothing");
+        });
+        assert.isNull(screen.queryByRole("group", { name: "Summary" }));
     });
 
     it("names a column of free text as text, with no list of values", async () => {

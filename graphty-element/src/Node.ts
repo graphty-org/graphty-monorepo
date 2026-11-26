@@ -2675,6 +2675,15 @@ export class Node implements ModelUser {
     }
 
     /**
+     * Whether a layer states where this node's label sits (`node.labelLocation`), so label avoidance leaves it there.
+     * @returns True when one does.
+     * @internal
+     */
+    get labelPlaced(): boolean {
+        return this.currentPaint().labelPlaced === true;
+    }
+
+    /**
      * What this node looks like right now.
      *
      * The painter is asked rather than only the field read, because the two do not become true

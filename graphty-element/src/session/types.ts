@@ -3663,7 +3663,8 @@ export interface LoadedSource extends DataSourceDescriptor {
     /**
      * True when this session holds what the load was read from, so
      * {@link SessionDataApi.reloadSource} can read it again; absent otherwise (a project opened
-     * from a file, a network source, a generated graph).
+     * from a file, a network source, a generated graph). The reader's own work restored by
+     * autosave keeps it: autosave keeps what each such load was read from beside the work.
      * @since 3.30.0
      */
     readonly reloadable?: true;
@@ -4305,8 +4306,10 @@ export interface ImportOptions {
     /**
      * `"recommended"` also chooses a layout for what was loaded, from its shape and its
      * coordinates, in the same step; `"placed"` (since 3.40.0) draws it where its data placed it
-     * (the `fixed` layout) when every node arrived with a position, and otherwise leaves the
-     * layout as it is; `"keep"` (the default) leaves the layout as it is.
+     * (the `fixed` layout) when every node arrived with a position, else with the layout the data
+     * asks for (a DOT file's Graphviz program, when it can run; with `styles: "file"`, the force
+     * layout keeping the gap the file's program keeps between nodes, as an OGDF file's), and
+     * otherwise leaves the layout as it is; `"keep"` (the default) leaves the layout as it is.
      */
     readonly layout?: "recommended" | "placed" | "keep";
     /**

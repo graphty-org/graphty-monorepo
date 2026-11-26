@@ -144,6 +144,13 @@ export interface ToolDefaults {
      */
     readonly layoutScatterSide?: ToolDefaultValue<number>;
     /**
+     * The gap, in `units`, the program's own layout leaves between the circles round two joined nodes of a file that
+     * stores no positions: its ideal edge length is this gap plus the two nodes' half-diagonals, so the spacing it
+     * leaves is the gap plus twice the file's median half-diagonal. Absent for a program whose layout spaces nodes
+     * whatever their size (`layoutSpacing`, `layoutScatterSide`).
+     */
+    readonly layoutNodeGap?: ToolDefaultValue<number>;
+    /**
      * How the program draws each dashed or dotted line style: the length of a dash as drawn (its caps included) and
      * the clear gap after it, in `units`, for a line of a width. Not an edge default: the pattern follows from two
      * properties, the line style and the width, so no rule carries it. Absent for a program, or a line style, whose
@@ -305,10 +312,13 @@ const CYTOSCAPE_ARROWHEAD: ToolArrowhead = {
  * Cytoscape desktop draws a node's outline its size less its border's width across and strokes the border along it,
  * so the border's outer edge is the node's size: a 40 x 40 HEXAGON with a border of 1 is a 39-wide path.
  */
-/** Cytoscape desktop draws a curved edge through its handles, and the loops it adds itself, through their midpoints. */
+/**
+ * Cytoscape desktop draws a curved edge through its handles, and the loops it adds itself, through their midpoints,
+ * the control next to an arrowhead kept at least the head's length behind the line's end.
+ */
 const CYTOSCAPE_BEND_CURVE = v(
-    "midpoints",
-    "cytoscape-impl ding-presentation-impl GraphGraphics.java computeCubicPolyEdgePath (cubic pieces between the handles' midpoints, controls pulled toward each handle by CURVE_ELLIPTICAL)",
+    "midpoints-headroom",
+    "cytoscape-impl ding-presentation-impl GraphGraphics.java computeCubicPolyEdgePath (cubic pieces between the handles' midpoints, controls pulled toward each handle by CURVE_ELLIPTICAL; next to an arrowhead, per axis, that control or one 2 * arrowSize behind the line's end, whichever is further from the tip)",
 );
 
 /**
@@ -1103,6 +1113,12 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 version: "ogdf master 1a40505ac006",
                 units: "px",
                 roundedCornerRadius: cornerCap("ogdf"),
+                layoutNodeGap: v(
+                    20,
+                    `${OGDF} FMMMLayout.cpp resetOptions (unitEdgeLength LayoutStandards::defaultNodeSeparation() 20, ` +
+                        "edgeLengthMeasurement BoundingCircle: an edge's ideal length is 20 plus both nodes' " +
+                        "half-diagonals, init_ind_ideal_edgelength and set_radii)",
+                ),
                 // GraphIO::drawSVG's stroke-dasharray, in line widths (Dash "12,6" and Dot "3,6" at width 3); its
                 // dash-dot patterns hold two dash lengths, which one dash and gap cannot say
                 dashes: {

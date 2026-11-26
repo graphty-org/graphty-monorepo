@@ -2144,6 +2144,7 @@ export const EdgeStyle: z.ZodObject<{
             bezier: "bezier";
             corners: "corners";
             midpoints: "midpoints";
+            "midpoints-headroom": "midpoints-headroom";
             arc: "arc";
         }>>;
         arcRadius: z.ZodOptional<z.ZodNumber>;
@@ -6379,6 +6380,8 @@ class Node_2 implements ModelUser {
     isPinned(): boolean;
     isSelected(): boolean;
     label?: RichTextLabel;
+    // @internal
+    get labelPlaced(): boolean;
     // @internal
     get layoutRadius(): number;
     // @internal

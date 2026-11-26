@@ -1,0 +1,78 @@
+id: mobility-epidemiologist
+name: Mobility Epidemiologist
+roster_persona: migration-flow-demographer
+tier: B
+scope: in-scope
+role: Infectious-Disease Modeler / School of Public Health
+quote: When cases appear somewhere new, I need to know which places feed it travelers and how much a travel restriction actually cut the connections.
+bio: >-
+    Dr. Adaeze is an infectious-disease modeler at a school of public health with a PhD in epidemiology or physics. She
+    works in R or Python on daily origin-destination matrices between administrative units -- SafeGraph-derived US
+    flows at tract, county and state level, Meta Data for Good movement, airline seat matrices, and phone-record
+    matrices computed behind a mobile operator's firewall (Flowminder FlowKit) -- obtained under data-use agreements.
+    She feeds them into metapopulation models in the style of GLEaM, which couples airline flows with commuting
+    statistics. Published examples of her field include Kraemer et al. showing early COVID-19 spread tracked travel
+    volume out of Wuhan, and Wesolowski et al. mapping malaria sources and sinks from 15 million Kenyan phone users.
+    She makes figures in kepler.gl or matplotlib. She reads networks as coupling matrices: who sends travelers to whom,
+    how strongly, and how that changed over time.
+characteristics:
+    expertise: expert
+    time_pressure: high
+    graph_literacy: advanced
+    domain_knowledge: expert
+motivations:
+    - Identify which places are sources and which are sinks of infection
+    - Measure how a travel restriction or lockdown changed connectivity between places
+    - Decide where to send tests or vaccines first
+    - Produce figures for a fast-moving outbreak paper or a ministry briefing
+behaviors:
+    - Scales sample-based device flows to population (each flow times origin population over observed devices) before analysis
+    - Compares daily or weekly matrices before and after an intervention date
+    - Validates a mobility source against an independent one, such as phone-derived flows against ACS commuting
+    - Combines an airline layer with a commuting or ground-mobility layer in one model
+    - Computes import risk along shortest-path trees using an "effective distance" derived from travel volume
+    - Keeps raw and even aggregated data inside approved environments because of data-use agreements
+frustrations:
+    - Access and privacy rules -- Meta's successor dataset adds differential-privacy noise; IOM shares sensitive flow-monitoring data only on request
+    - Raw phone data never leaves the operator; only aggregates can be analyzed
+    - Sample flows must be rescaled to population and tools do not carry the scaling with the data
+    - Flow-map tools show volume but not change between two periods side by side
+    - Network tools that ignore geography make source-sink patterns hard to explain to decision makers
+context:
+    frequency: as-needed
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W382
+    - W385
+    - W387
+sources:
+    - title: Kang et al. - Multiscale dynamic human mobility flow dataset in the US during COVID-19
+      url: https://ar5iv.labs.arxiv.org/html/2008.12238
+      summary: SafeGraph-derived daily and weekly flows at 74,001 tracts, 3,219 counties and states, scaled to population
+    - title: Balcan et al. - GLEaM multiscale mobility networks
+      url: https://arxiv.org/pdf/0907.3304
+      summary: Metapopulation model from OAG airline flows and commuting data in 30 countries
+    - title: Kraemer et al. Science 2020
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC7146642
+      summary: Early COVID-19 spread tracked Baidu travel volume out of Wuhan
+    - title: Harvard press release - Cell phone data and malaria (Wesolowski et al. 2012)
+      url: https://www.hsph.harvard.edu/news/press-releases/cell-phone-data-malaria/
+      summary: Malaria sources and sinks from 15 million Kenyan phone users
+    - title: Flowminder FlowKit factfile
+      url: https://www.flowminder.org/media/cpsoguko/flowkit-factfile.pdf
+      summary: OD matrices computed behind the operator firewall; only aggregates leave
+    - title: HDX - Meta movement data successor dataset
+      url: https://data.humdata.org/dataset/32167ba5-ef67-4254-8eaf-04cdb8b90c1d
+      summary: Movement between administrative areas with differential-privacy noise
+    - title: IOM and OCHA partners in displacement data
+      url: https://centre.humdata.org/iom-and-ocha-partners-in-displacement-data/
+      summary: Sensitive flow-monitoring data shared on request
+    - title: Effective distance and import risk on airline networks
+      url: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10843136/
+      summary: Import risk along airline shortest-path trees
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

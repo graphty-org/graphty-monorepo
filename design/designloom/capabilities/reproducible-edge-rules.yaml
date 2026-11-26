@@ -1,0 +1,21 @@
+id: reproducible-edge-rules
+name: Reproducible Edge Rules
+category: analysis
+description: Save the rule that turned raw interactions into ties (window, thresholds, reciprocity, participant caps,
+    weighting) with the project and apply it identically to the next period or survey wave.
+status: planned
+notes: "Research trace: organizational-network-analysis-people-analytics.md section 9, table row 13 (Should)."
+algorithms: []
+used_by_workflows:
+    - W187
+    - W188
+    - W189
+implemented_by_components: []
+requirements:
+    - "Should: Reproducible edge rules (thresholds, window, reciprocity) saved with the project and applied identically
+      to the next wave"
+sources:
+    - title: Organizational Network Analysis and People Analytics Practitioners (section 9, table row 13)
+      url: design/user-research/organizational-network-analysis-people-analytics.md
+      summary: "Should in the research. Covered by Designloom when researched: NOT
+          covered"

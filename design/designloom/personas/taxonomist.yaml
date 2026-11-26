@@ -1,0 +1,60 @@
+id: taxonomist
+name: Taxonomist
+roster_persona: knowledge-engineer
+tier: B
+scope: in-scope
+role: Taxonomist / Vocabulary Manager (SKOS thesauri)
+quote: A concept with two parents shows up twice in my tree and the related links vanish. I need to see the whole shape
+    before I publish.
+bio: >-
+    Margaret Holloway maintains a multilingual SKOS thesaurus of several thousand concepts for a publisher's content
+    tagging, in PoolParty (VocBench is the open-source alternative). She works in a tree editor: adds narrower concepts,
+    drags concepts to move or merge them, adds a second broader concept where the domain needs a polyhierarchy, writes
+    preferred and alternative labels in each language, and links related concepts and mappings to other schemes. She
+    imports from and exports to spreadsheets and does not write SPARQL. Before each publication she runs quality checks
+    for orphans, disconnected clusters, cycles over broader, missing labels and relation clashes.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: basic
+    domain_knowledge: advanced
+motivations:
+    - Publish a well-formed vocabulary with no orphans, cycles or missing labels
+    - See polyhierarchy and cross-cutting related links in one picture
+    - Review what changed between versions before approval
+    - Keep editors and subject experts aligned on the structure
+behaviors:
+    - Creates a concept scheme, then top concepts, then concepts, or imports a spreadsheet (VocBench Sheet2RDF)
+    - Edits the hierarchy in a tree with drag and drop, adding a second broader concept when needed
+    - Adds prefLabel and altLabel per language, skos:related links and mappings to other schemes
+    - Runs qSKOS-style quality checks before publishing
+    - Compares versions with the editor's SKOS diffing feature and exports SKOS Turtle or a spreadsheet
+frustrations:
+    - A pure tree shows a polyhierarchical concept twice and hides skos:related links
+    - Quality issues such as cycles and disconnected clusters are graph properties a tree cannot show
+    - Version comparison is a list, not a picture of moved branches
+    - No source found for specific complaints about PoolParty or VocBench themselves
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W136
+sources:
+    - title: PoolParty user guide - concept schemes and concepts
+      url: https://help.poolparty.biz/en/user-guide-for-knowledge-engineers/basic-features/working-with-concept-schemes-and-concepts.html
+      summary: Quick start from schemes to top concepts to concepts; polyhierarchical structure in a thesaurus
+    - title: VocBench user manual
+      url: https://vocbench.uniroma2.it/doc/user/
+      summary: SKOS editing, Sheet2RDF import, history and validation, SKOS diffing and versioning
+    - title: qSKOS quality issues
+      url: https://github-wiki-see.page/m/cmader/qSKOS/wiki/Quality-Issues
+      summary: Orphan concepts, disconnected clusters, cyclic hierarchies, missing labels, relation clashes, redundancy
+    - title: qSKOS paper
+      url: https://arxiv.org/pdf/1206.1339
+      summary: Found possible quality issues in all 15 vocabularies analyzed
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,153 @@
+id: W257
+name: Disease Module Detection then Target Prioritization
+category: analysis
+validated: false
+personas:
+    - bioinformatics-researcher
+    - pharma-target-assessment-scientist
+requires_capabilities:
+    - data-import
+    - data-validation
+    - component-analysis
+    - neighborhood-expansion
+    - ego-network
+    - community-profiling
+    - filtering
+    - node-selection
+    - visual-encoding-nodes
+    - legend-display
+    - layout-force-directed
+    - details-on-demand
+    - computed-attributes
+    - analysis-history
+    - export-image
+    - data-export
+    - set-to-set-paths
+    - node-set-overlay-import
+    - network-proximity-statistics
+suggested_components:
+    - gene-set-import-dialog
+    - data-import-dialog
+    - attribute-table-join-dialog
+    - ranked-node-table
+    - enrichment-results-table
+    - filter-panel
+    - visual-encoding-panel
+    - legend-panel
+    - node-details-panel
+    - graph-canvas
+    - analysis-history-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: disease seed gene list on a human interactome, plus drug-target and target-evidence tables
+    node_count: 20-300 drawn from a 13000-18500 protein interactome
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Check that a disease's genes form a connected module on the interactome, grow the module to include
+    likely missing proteins, put drugs next to it, and hand a target-assessment group a ranked, evidence-backed list of
+    tractable and safe targets. Centrality describes the module; it is not the selection method.
+
+
+    **Mental Model**: "Find the neighborhood of the disease, then find what can be drugged in it." Seeds are known
+    disease genes; added proteins are suspects; drugs are tools that reach into the neighborhood.
+
+
+    **Task Phases**:
+
+    1. **Test the seeds** - Compare the largest connected component of the seed genes with random sets of the
+    same size (multiple sclerosis: 11 versus 2 +/- 1, z = 5.8)
+
+    2. **Grow the module** (scripted or in Drugst.One / NeDRex) - DIAMOnD adds the neighbor whose links to the
+    set are least likely by a hypergeometric test, about 200 iterations; alternatives are Steiner trees, BiCoN or random
+    walk with restart
+
+    3. **Validate the module** - GO and pathway enrichment, or comparison against 1,000 mock modules; stop
+    growing where enrichment plateaus
+
+    4. **Look at it** - Draw seeds and added proteins with different shapes; published module figures hold 20 to
+    200 nodes (NeDRex use cases: 23 to 87 genes)
+
+    5. **Overlay drugs** - Rank drugs near the module by TrustRank or closeness to the seeds (235 drugs for an
+    87-gene IBD module in NeDRex) and add the top ones with their target edges
+
+    6. **Score druggability and safety** - Check each candidate in the Open Targets prioritisation grid
+    (tractability, safety, essentiality as a liability); this is a table, not a network
+
+    7. **Decide** (meeting) - Expert review; empirical p-values "cannot replace the expert user"
+
+    8. **Hand off** - Ranked target list, module figure, and parameters (seed list, alpha, iterations, interactome
+    version)
+
+
+    **Decision Points**:
+
+    - Is the seed set significantly connected, or is there no module to build on?
+
+    - When to stop module expansion?
+
+    - Which expansion method, given that they disagree?
+
+    - Which targets are tractable and safe enough for the committee?
+
+
+    **Information Needs**:
+
+    - Largest component size of the seeds versus a random expectation
+
+    - Order in which proteins were added, with their p-values
+
+    - Seed versus added versus drug-target membership on every node
+
+    - Per-target evidence: association scores, tractability, safety flags, expression
+
+    - Enrichment terms per module
+
+
+    **Pain Points**:
+
+    - Interactome incompleteness means modules are partial
+
+    - Module methods give different answers; users compare several
+
+    - Target evidence lives in a table (Open Targets), separate from the network view
+
+    - Association scores track the amount of data available, not its quality
+
+    - Parameters for the methods section are scattered across scripts
+
+
+    **Data Flow**:
+
+    - Input: Seed gene list, interactome, drug-target table, per-target evidence table
+
+    - Transformations: Seed connectivity test, module expansion, enrichment, drug overlay, attribute join of evidence
+
+    - Output: Ranked target list with evidence columns, module figure, parameter record
+success_criteria:
+    - metric: Module legibility
+      target: Seeds, added proteins and drug targets distinguishable in a single exported figure with a legend
+    - metric: Evidence in context
+      target: Every candidate target's evidence row reachable by clicking it in the module
+    - metric: Parameter record
+      target: Seed list, method, iterations and interactome version exported with the figure
+sources:
+    - title: DIAMOnD - A disease module detection algorithm
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4390154/
+      summary: Hypergeometric connectivity significance; about 200 iterations; validated by enrichment
+    - title: Menche et al. 2015
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4435741
+      summary: Largest component significance of disease gene sets; incomplete interactome
+    - title: NeDRex
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8617287
+      summary: Module methods, TrustRank drug ranking, expert-in-the-loop warning
+    - title: Drugst.One
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11223884
+      summary: In-browser module and drug ranking from a gene list for non-coders
+    - title: Open Targets target prioritisation
+      url: https://platform-docs.opentargets.org/web-interface/target-prioritisation
+      summary: Tractability and safety grid; essentiality as a safety liability
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

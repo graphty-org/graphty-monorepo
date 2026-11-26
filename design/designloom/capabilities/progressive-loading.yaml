@@ -1,36 +1,81 @@
 id: progressive-loading
 name: Progressive Loading
 category: performance
-description: Load and display large graphs progressively, showing partial results quickly while continuing to load.
-    Prevent the UI from blocking during large data operations.
+description: Load and display large graphs progressively -- read the file as a stream, show what has arrived while the
+    rest loads, keep the page responsive, and report honest progress -- in the progressive visual analytics sense of
+    useful partial results that users can act on (Stolper, Perer and Gotz 2014). The research targets are hundreds of
+    thousands of candidate edges in public health without the tab dying (MicrobeTrace froze at 1,500 genomes), and
+    database results whose real size is shown rather than silently capped.
 status: planned
 algorithms: []
 used_by_workflows:
     - W01
     - W18
+    - W105
+    - W113
+    - W131
+    - W138
+    - W147
+    - W150
+    - W156
+    - W188
+    - W235
+    - W281
+    - W284
+    - W299
+    - W301
+    - W312
+    - W325
+    - W382
+    - W397
+    - W402
+    - W418
+    - W420
+    - W437
+    - W47
+    - W58
+    - W63
+    - W69
+    - W70
+    - W75
+    - W79
+    - W89
+    - W1060
+    - W68
+    - W1159
 implemented_by_components:
     - progressive-loader
 requirements:
-    - Display first 1,000 nodes within 2 seconds while continuing to load remainder
-    - Render incrementally loaded nodes as they become available (streaming display)
-    - "Display progress bar showing loading progress: 'Loading: X of Y nodes (Z%)'"
-    - Update progress bar at minimum every 500ms during loading
-    - Allow full interaction (pan, zoom, select) with already-loaded portion
-    - Allow running algorithms on partial data with 'Partial results' indicator
-    - Parse large files using streaming parser to minimize memory allocation
-    - Support chunked loading for files delivered via HTTP with Content-Length
-    - Provide 'Cancel' button to abort load operation
-    - Stop loading within 1 second of cancel button click
-    - Release memory for cancelled partial load
-    - Display 'Cancelled at X%' status showing progress at cancellation
-    - "Estimate completion time based on current loading rate: 'Est. X seconds remaining'"
-    - Limit memory usage to 80% of available heap during loading
-    - Report 'Memory limit reached' error when approaching memory exhaustion
-    - Offer 'Load sample' option to load random subset when full load would exceed memory
-    - "Display final load summary: 'Loaded X nodes and Y edges in Z seconds'"
-    - Support resumable loading for interrupted network transfers when server supports range requests
-    - Prioritize loading visible viewport area first when initial positions are available
+    - "Library parity: Read files as a stream whatever their size, so there is no size threshold to choose; where a format cannot stream (a whole-document XML parse), say so in the size check before loading"
+    - "Library parity: Parse off the main thread so pan, zoom and selection keep working while loading"
+    - "Library parity: Show a looped indicator when a load is expected to take 2 seconds or more, and a percent-done indicator (rows or bytes read of the total) when it is expected to take 10 seconds or more; any update interval is a design goal"
+    - "Must: Render nodes and edges as they become available, and let users interact with the part already loaded"
+    - "Must: Mark any algorithm result computed on partly loaded data as partial, with the scope it ran on"
+    - "Must: Before an expensive load or run, report the size and an estimated cost so the user can reduce first (filter, sample, threshold) instead of hanging the tab"
+    - "Library parity: Offer to load a subset (a sample, a filtered slice, the top-N by an attribute) when the full load would not fit, and state on the view that it is a subset"
+    - "Must: Report the total that exists (rows, nodes, edges) and how much was loaded; never cap silently"
+    - "Library parity: Cancel a load in one action, release what was loaded, and report how far it got"
+    - "Library parity: Report running out of memory as an error code with what was loaded, rather than a crashed tab"
+    - "Library parity: Report the final summary (nodes, edges, elapsed time) as structured values the application can show"
+    - "Library parity: Resume an interrupted network transfer when the server supports range requests"
 sources:
-    - title: W18 Data Import and Validation
-      url: https://graphty.app/docs/
-      summary: Large files take long time to load with no progress indicator - pain point
+    - title: Stolper, Perer and Gotz 2014, Progressive Visual Analytics
+      url: https://doi.org/10.1109/TVCG.2014.2346574
+      summary: Partial results shown and usable while a long computation continues
+    - title: Nielsen Norman Group, progress indicators
+      url: https://www.nngroup.com/articles/progress-indicators/
+      summary: Looped indicator for 2-10 second actions, percent-done for 10 seconds or more; no update interval given
+    - title: Papa Parse documentation (data preparation and import research, section 8)
+      url: https://www.papaparse.com/docs
+      summary: Streaming "is necessary for large files which would otherwise crash the browser"; local files read in
+          chunks
+    - title: MDN, Blob.stream()
+      url: https://developer.mozilla.org/en-US/docs/Web/API/Blob/stream
+      summary: Browsers expose files as streams
+    - title: User research -- public health and molecular epidemiology (scale row)
+      url: design/user-research/public-health-and-molecular-epidemiology.md
+      summary: Hundreds of thousands of candidate edges interactively without the tab dying; honest progress and a cost
+          warning before an expensive run
+    - title: Neo4j Browser render limits (graph database exploration research, S16)
+      url: https://community.neo4j.com/t/browser-node-relationship-limit/69507
+      summary: Slowness at a few hundred nodes and freezes near 1,000; caps that hide result size confuse users

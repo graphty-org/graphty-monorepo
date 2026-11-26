@@ -1,0 +1,21 @@
+id: attack-robustness-curves
+name: Attack and Failure Curves
+category: analysis
+description: Random or targeted removal (degree, betweenness), with or without recomputation, plotting giant-component
+    share against fraction removed and the critical fraction. Extends removal-impact-analysis from one removal to a
+    curve.
+status: planned
+notes: "Research trace: network-scientists-and-analysis-method-validity.md section 9, requirement R27 (Should)."
+algorithms: []
+used_by_workflows:
+    - W45
+    - W3049
+implemented_by_components: []
+requirements:
+    - "Should: Attack and failure curves: random or targeted removal, with or without recomputation, giant-component
+      share against fraction removed"
+sources:
+    - title: Network Scientists and the Validity of Core Analysis Methods (section 9, requirement R27)
+      url: design/user-research/network-scientists-and-analysis-method-validity.md
+      summary: "Should in the research. Covered by Designloom when researched: Partly: removal-impact-analysis reports
+          one removal, not a curve"

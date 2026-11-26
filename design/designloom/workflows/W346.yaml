@@ -1,0 +1,147 @@
+id: W346
+name: Clinical Pathway Analysis from EHR Data
+category: analysis
+validated: false
+personas:
+    - clinical-pathway-analyst
+    - process-mining-researcher
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - computed-attributes
+    - filtering
+    - layout-hierarchical
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - animated-transitions
+    - comparison-view
+    - details-on-demand
+    - export-image
+    - event-log-import
+    - process-map-derivation
+    - conformance-overlay
+    - token-replay-animation
+    - node-merging
+    - legend-display
+    - variant-analysis
+    - process-model-notation
+suggested_components:
+    - data-import-dialog
+    - attribute-table-join-dialog
+    - column-mapper
+    - data-preview-table
+    - graph-canvas
+    - filter-panel
+    - temporal-controls
+    - comparison-view
+    - node-details-panel
+    - image-export-dialog
+    - node-merge-dialog
+    - range-slider
+    - visual-encoding-panel
+    - legend-panel
+starting_state:
+    data_type: EHR or registry extract in several tables (patients, admissions, triage, diagnoses, vitals, labs, medications)
+    node_count: 6-40 abstracted activities (MIMICEL 6 activities over 425,028 ED stays)
+    edge_density: dense
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Show where patients wait and where care leaves the guideline, from hospital records, together with
+    clinicians, without the data leaving the hospital. No single source walks the whole sequence; the phases below are
+    assembled from published studies and guidance.
+
+
+    **Mental Model**: "The patient's path through the hospital." Each patient or stay is a case; departments, tests and
+    treatments are steps; the guideline is the path care should follow.
+
+
+    **Task Phases**:
+
+    1. **Extract** - Join EHR tables through patient identifiers and timestamps (six CSV tables for 4,479 patients
+    in one COVID-19 study)
+
+    2. **Map codes to activities** - Build a consolidated activity label set (ER admission, triage, ward and ICU
+    transfer, vitals, labs, medication) from SNOMED CT, ICD-10 and raw record types
+
+    3. **Choose the case notion** - Event, episode, ED stay or patient; document it
+
+    4. **Repair timestamps** - Impute missing or hour-less timestamps from the nearest clinically reliable one
+    only when that restores plausibility; keep and flag identical timestamps; remember late registration
+
+    5. **Map** - Frequency on nodes, performance on edges; animate in relative mode for clinicians
+
+    6. **Compare with the guideline** - Write guideline rules (monitoring before discharge, valid ordering) as
+    constraints and check the log; compare before and after a protocol change
+
+    7. **Protect data** (throughout) - Credentialed data stays on the hospital network
+
+
+    **Decision Points**:
+
+    - Which case notion answers the clinical question?
+
+    - How fine should the activity abstraction be?
+
+    - Impute, drop or flag a doubtful timestamp?
+
+    - Which guideline rules can be checked from the recorded data?
+
+
+    **Information Needs**:
+
+    - Counts of imputed, tied and date-only timestamps
+
+    - Waiting times between care steps with distributions, not only means
+
+    - Share of patients following each guideline rule, with the violating cases
+
+    - Before and after maps on the same layout
+
+
+    **Pain Points**:
+
+    - Spaghetti maps from clinical variability
+
+    - Date-only and late-registered timestamps that create false orderings
+
+    - Little tool support for guideline conformance
+
+    - Cloud tools that cannot be used with patient data
+
+
+    **Data Flow**:
+
+    - Input: Several EHR tables keyed by patient id and time, code dictionaries, guideline rules
+
+    - Transformations: Table join, code abstraction, case notion, timestamp repair, map derivation, constraint checking,
+    period comparison
+
+    - Output: Pathway map and animation for clinicians, guideline conformance counts, before and after comparison
+success_criteria:
+    - metric: Local processing
+      target: The whole workflow runs without uploading patient data off the machine
+    - metric: Timestamp transparency
+      target: Every map states how many events had imputed or tied timestamps
+sources:
+    - title: Munoz-Gama et al. 2022 - Process mining for healthcare
+      url: https://www.alexandria.unisg.ch/server/api/core/bitstreams/413ecf90-0787-4e40-806d-cfcdc55ec2b7/content
+      summary: Guidelines as prescriptive models, abstraction of codes, late registration, clinician involvement
+    - title: Aversano et al. 2025 - healthcare process mining review
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11784703/
+      summary: Events the most common case id; conformance under 10 articles; privacy rarely addressed
+    - title: COVID-19 clinical pathways (arXiv 2606.00041)
+      url: https://arxiv.org/html/2606.00041v1
+      summary: Six joined tables, consolidated labels, timestamp imputation rules, Declare constraints
+    - title: MIMICEL
+      url: https://arxiv.org/html/2505.19389v1
+      summary: ED stay as case; 425,028 cases and 7,568,824 events; access approval required
+    - title: bupaR - frequency maps
+      url: https://bupaverse.github.io/docs/frequency_maps.html
+      summary: Frequency and performance process maps
+    - title: processanimateR animate_process
+      url: https://search.r-project.org/CRAN/refmans/processanimateR/html/animate_process.html
+      summary: Relative-mode animation
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

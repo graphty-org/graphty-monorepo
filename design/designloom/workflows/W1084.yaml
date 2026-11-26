@@ -1,0 +1,139 @@
+id: W1084
+name: Open a FollowTheMoney Stream or Maltego Graph With Its Sources Intact
+category: onboarding
+validated: false
+personas:
+    - investigative-journalist
+    - osint-investigator
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - import-report
+    - provenance-tracking
+    - typed-heterogeneous-graphs
+    - typed-edge-filtering
+    - details-on-demand
+    - filtering
+    - search
+    - visual-encoding-nodes
+    - legend-display
+    - local-only-processing
+    - data-export
+    - investigation-format-import
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - data-preview-table
+    - statistics-panel
+    - graph-canvas
+    - node-details-panel
+    - filter-panel
+    - legend-panel
+    - data-table-panel
+    - data-export-dialog
+starting_state:
+    data_type: >-
+        A FollowTheMoney JSON lines stream (.ftm or .ijson) exported from Aleph, OpenAleph or an ftm pipeline, or a
+        Maltego graph (.mtgx archive or Maltego GraphML) handed over by a colleague
+    node_count: hundreds to tens of thousands of entities per investigation
+    edge_density: sparse; many links are themselves entities (ownerships, memberships, payments)
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Open the file an investigation tool already produced, as it is, and get a graph where every person,
+    company and relationship keeps its type, its dated and quantified details, and the document that asserted it. The
+    alternative today is to export GEXF or Cypher first, which in FollowTheMoney turns every linked property into "an
+    edge with no attributes attached to it"; only Ownership and Membership contract into edges, and the authors call
+    that "a special shortcut, not the normal case".
+
+
+    **Mental Model**: "The file is the case record." Nothing in it should be flattened, guessed or dropped on the way
+    in; if the tool cannot show something, it should say what it left out.
+
+
+    **Task Phases** (no source gives step timings):
+
+    1. **Drop the file** - A .ftm or .ijson stream (one entity per line: id, schema, multi-valued string properties),
+    or a .mtgx archive or GraphML exported from Maltego; nothing leaves the machine
+
+    2. **Decide what becomes an edge** - Interstitial entities (Ownership with owner, asset, start date and share;
+    Membership; Payment; Directorship) become edges that keep their properties, or stay as nodes; entity-type
+    properties such as a passport's holder become plain links
+
+    3. **Check the import** - Counts per schema or Maltego entity type, references to entities not in the file, and
+    entities without a proof document
+
+    4. **Read the graph** - Color by schema or entity type, filter by relationship type, open any node or edge to see
+    its properties, its proof document, source URL and publisher
+
+    5. **Hand it on** - Export with types and provenance kept, so the next tool or colleague sees the same record
+
+
+    **Decision Points**:
+
+    - Which interstitial schemata are edges and which stay nodes (a Payment with an amount and date may need to be
+    selectable on its own)?
+
+    - What to do with references to entities that are not in the file: placeholder nodes or dropped links?
+
+    - For a Maltego file, which of the three GraphML variants (Maltego, yEd, Gephi) was exported, and does it still
+    carry the entity types?
+
+
+    **Information Needs**:
+
+    - Count of entities per schema or entity type, and of links per relationship type
+
+    - Number of references to entities missing from the file
+
+    - Proof document, source URL and publisher on every node and edge
+
+    - Dates, percentages and amounts on relationship edges
+
+
+    **Pain Points**:
+
+    - GEXF and Cypher exports of FollowTheMoney lose every attribute of a link except Ownership and Membership
+
+    - GraphML "is not standardized", so a Maltego file read by a generic reader shows entity types and fields as opaque
+    keys
+
+    - No public specification of the .mtgx archive
+
+    - Sensitive leaked or collected material that must not be uploaded
+
+
+    **Data Flow**:
+
+    - Input: FollowTheMoney JSON lines stream; Maltego .mtgx or GraphML
+
+    - Transformations: Schema-aware node and edge mapping, interstitial entities contracted with their properties,
+    proof and source kept as attributes, Maltego entity types and fields read as typed attributes
+
+    - Output: A typed entity graph with per-node and per-edge sources, an import report, and an export that keeps both
+success_criteria:
+    - metric: Relationship detail kept
+      target: An ownership edge shows its start date and share after import
+    - metric: Source on every element
+      target: User can open the proof document of any node or edge that has one, and see a count of those that do not
+    - metric: Nothing silently dropped
+      target: The import report lists references to missing entities and any schema the import could not place
+sources:
+    - title: FollowTheMoney documentation
+      url: https://followthemoney.tech/docs/
+      summary: Entities are id, schema and multi-valued string properties; streams are one entity per line in .ftm or .ijson files
+    - title: FollowTheMoney - Graphs
+      url: https://followthemoney.tech/docs/graphs
+      summary: Linked properties export as edges with no attributes; only Ownership and Membership contract into edges
+    - title: FollowTheMoney - Thing schema
+      url: https://followthemoney.tech/explorer/schemata/Thing/
+      summary: proof (source document), sourceUrl and publisher on every Thing
+    - title: Maltego - Export Graph as XML
+      url: https://support.maltego.com/en/support/solutions/articles/15000019396-export-graph-as-xml
+      summary: Three GraphML variants (Maltego, yEd, Gephi); GraphML is not standardized
+    - title: mtgx2nx README
+      url: https://github.com/NetwarSystem/mtgx2nx/blob/main/README.md
+      summary: An .mtgx file holds one or more graphs and entity type definitions; nodes carry maltego_entity_type and fields
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

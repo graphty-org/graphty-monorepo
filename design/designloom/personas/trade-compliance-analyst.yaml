@@ -1,0 +1,74 @@
+id: trade-compliance-analyst
+name: Trade Compliance Analyst
+roster_persona: supply-chain-analyst
+tier: B
+scope: in-scope
+role: Trade Compliance Manager / Forced-Labor Import Compliance Lead
+quote: CBP detained the container on Monday. I have 30 days to prove, document by document, that nothing in it touches
+    Xinjiang or a listed entity -- and one missing supplier sinks the whole package.
+bio: >-
+    Laila manages trade compliance for an importer of apparel and solar equipment, two sectors US Customs and Border
+    Protection prioritizes under the Uyghur Forced Labor Prevention Act. When a shipment is detained she has 30 days to
+    respond or export it. Her unit of work is one shipment, not a supplier: she anchors on the entry, breaks the product
+    into materials and production steps (fiber, yarn, fabric, dyeing, garment assembly; or quartzite to polysilicon to
+    wafer to module), and walks upstream one step at a time, recording each entity, its role, its address, any
+    related-party status and the purchase orders, invoices, packing lists, bills of lading, production and inventory
+    records that link it to the next step. She reconciles input volume against output volume, screens every entity and
+    its owners against the UFLPA Entity List (187 entities in August 2026), and compiles a numbered flowchart, maps and
+    an exhibit index with English translations for the Forced Labor Portal. Between detentions she prebuilds tracing
+    packages per supply chain and screens new suppliers through every tier. She works with a customs broker, trade
+    counsel and a screening platform such as Sayari, Kharon or Altana; much of the evidence is PDFs, often in Chinese.
+characteristics:
+    expertise: intermediate
+    time_pressure: high
+    graph_literacy: moderate
+    domain_knowledge: expert
+motivations:
+    - Get a detained shipment released inside the 30-day window
+    - Keep a ready tracing package per supply chain so the next detention takes days, not weeks
+    - Know before buying whether a new supplier sits within a few ownership or trade steps of a listed entity
+    - Prove a negative (no Xinjiang input, no listed entity) with evidence a customs officer will accept
+    - React to Entity List updates across the whole supplier base, not one supplier at a time
+behaviors:
+    - Cuts a shipment-scoped upstream tree from the standing supplier graph, one branch per material, nodes labeled by production step
+    - Attaches documents (type, number, date, quantity) to every link and cites the business record that identified each upstream entity
+    - Reconciles input quantities against output quantities per node and flags facilities that source the same input inside and outside Xinjiang
+    - Screens entities through ownership to parents and affiliates as well as through trade links
+    - Collects affidavits and lets reluctant sub-tier suppliers send records to CBP directly
+    - Numbers each production step and each supporting document so the flowchart, the maps and the exhibit index share one numbering
+    - Re-screens the supplier base whenever the Entity List or ownership data changes
+frustrations:
+    - A gap for even one supplier can undermine the entire submission
+    - Sub-tier suppliers may refuse to share records with her
+    - Shipper names vary between records or are redacted, and translated names do not match
+    - Each package is assembled by hand as numbered PDF exhibits with translations
+    - Screening vendors return entity reports and maps, but the evidence chain has to be rebuilt for each detention
+    - The EU Forced Labour Regulation adds a different unit (investigations on request, from December 2027) on top of the US rules
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: false
+workflows:
+    - W217
+    - W230
+sources:
+    - title: CBP Forced Labor Enforcement Operational Guidance for Importers (Publication 5560-0526, June 2026)
+      url: https://www.cbp.gov/sites/default/files/2026-06/fld_importer_guidance_final_06092026_0.pdf
+      summary: Production stages for twelve sectors, document lists per step, quantity reconciliation, numbered flowcharts and exhibit format
+    - title: CBP UFLPA enforcement FAQ
+      url: https://www.cbp.gov/trade/programs-administration/forced-labor/faqs-uflpa-enforcement
+      summary: One small tier-3 or tier-4 component is enough; affiliates and transshipment; review takes two to three weeks
+    - title: Foley and Lardner, multinational company and CBP's Uyghur forced labor rules (2024)
+      url: https://www.foley.com/insights/publications/2024/02/multinational-company-cbps-uyghur-forced-labor-part-iii/
+      summary: 30-day response window, extension requests, volume reconciliation and capacity evidence
+    - title: Holland and Knight, new compliance tools as CBP issues comprehensive forced labor guidance (2026)
+      url: https://www.hklaw.com/en/insights/publications/2026/07/new-compliance-tools-cbp-issues-comprehensive-forced-labor-guidance
+      summary: Submission through the Forced Labor Portal; a gap for one supplier can undermine the whole submission
+    - title: Thomson Reuters, DHS updates UFLPA Entity List with 43 new entities (August 2026)
+      url: https://www.thomsonreuters.com/en-us/help/onesource-global-trade/regulatory-insights/2026/august-4th/dhs-updates-uflpa-entity-list-43-new-entities.html
+      summary: The Entity List held 187 entities after the August 2026 update
+    - title: Sayari forced labor screening (vendor)
+      url: https://sayari.com/enterprise/forced-labor-screening/
+      summary: Vendor claim of tracing trade backward per supplier and linking ownership networks to flag listed-entity connections

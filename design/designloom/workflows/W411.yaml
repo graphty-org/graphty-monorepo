@@ -1,0 +1,155 @@
+id: W411
+name: Correlation Network from a Table in Graphia
+category: analysis
+validated: false
+personas:
+    - correlation-network-3d-biologist
+requires_capabilities:
+    - data-import
+    - data-preview
+    - computed-attributes
+    - filtering
+    - component-analysis
+    - community-detection
+    - layout-force-directed
+    - graph-rendering
+    - large-graph-rendering
+    - visual-encoding-nodes
+    - details-on-demand
+    - search
+    - analysis-history
+    - export-image
+    - data-export
+    - similarity-graph-construction
+    - render-mode-switching
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - histogram
+    - range-slider
+    - slider
+    - community-panel
+    - cluster-table
+    - graph-canvas
+    - node-details-panel
+    - visual-encoding-panel
+    - analysis-history-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: normalized numeric table (CSV, TSV or Excel) with a row ID, row attributes and a numeric block
+    node_count: 1,000-25,000 rows (published single-cell example 12,498)
+    edge_density: complete before thresholding; tens of thousands to hundreds of thousands of edges after
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Turn a table of expression, proteomics or variant measurements into a correlation network, find
+    co-expression modules, and name them. In Graphia (formerly BioLayout Express3D) the graph opens in 3D by default and
+    the user judges the threshold by watching clusters separate as the live layout settles.
+
+
+    **Mental Model**: "Rows that rise and fall together belong together." The network is a by-product of a threshold
+    on similarity; the clusters are the result.
+
+
+    **Task Phases**:
+
+    1. **Prepare the table outside the tool** (varies) - Normalize in R or a pipeline; save CSV, TSV or Excel with a
+    unique row ID, attribute columns, then numeric columns (the single-cell example used 48 principal components)
+
+    2. **Open the file in the correlation wizard** - The wizard detects where numbers begin; adjust the boundary
+    or transpose rows and columns
+
+    3. **Choose metric and thresholds** - Pearson (Jaccard for discrete data), minimum threshold default 0.7,
+    initial threshold near the knee of the predicted node and edge plot; optional log scaling, normalization,
+    imputation. Published: 0.85 for genes, 0.75 for variant profiles
+
+    4. **Read the 3D layout as it settles** - Live force layout, pausable; smooth-shaded 3D by default, with
+    flat 3D, orthographic 3D and 2D in the View menu; rotate, pan, double-click to focus; overview and per-component
+    modes
+
+    5. **Tune** - Slide the threshold; singletons drop automatically; k nearest neighbors keeps the top k edges
+    per node (15, 10 or 3 in published work, cutting a genome graph from 400.4k to 5,996 edges)
+
+    6. **Cluster** - MCL with a granularity slider (about 1.7 for genes) or Louvain
+
+    7. **Inspect clusters** - Step through clusters; a plot shows member rows' profiles; find rows of interest;
+    color, size and text mappings; enrichment per cluster
+
+    8. **Export** - GraphML, GML, JSON Graph or pairwise text; cluster tables; high-resolution image; save the
+    layout to reload later
+
+
+    **Decision Points**:
+
+    - Which threshold and k define the graph, judged by watching clusters separate?
+
+    - MCL or Louvain, and at what granularity?
+
+    - Is the 3D view or a flat 2D view the one to export?
+
+
+    **Information Needs**:
+
+    - Predicted node and edge counts across thresholds (the knee plot) before building
+
+    - Component sizes and singleton count after each change
+
+    - Member profiles of a cluster as a line plot alongside the graph
+
+    - The parameters used (metric, thresholds, k, clustering) recorded for the methods section
+
+
+    **Pain Points**:
+
+    - The threshold is chosen by eye and changes everything
+
+    - Low thresholds produce graphs too large to work with (BioLayout at r 0.8 or lower)
+
+    - No documented way to save a camera viewpoint, so the exact figure view cannot be reproduced
+
+    - No live 3D view to send a coauthor from the desktop application
+
+
+    **Data Flow**:
+
+    - Input: Numeric table with row IDs and attributes
+
+    - Transformations: Correlation matrix, threshold, kNN pruning, singleton and component filters, live force layout,
+    MCL or Louvain clustering, attribute mappings
+
+    - Output: Correlation network file, cluster and enrichment tables, high-resolution image, saved layout, provenance
+    log
+success_criteria:
+    - metric: Time from table to clustered network
+      target: Under 30 minutes for a 10,000-row table (design goal; no source measures it)
+    - metric: Threshold transparency
+      target: User sees predicted node and edge counts before committing to a threshold
+    - metric: Reproducibility
+      target: Every parameter used is recorded and the same view can be reloaded
+sources:
+    - title: Graphia user guide - Loading numerical data
+      url: https://graphia.app/guide/section4/1_loading_numerical.html
+      summary: Wizard, metrics, minimum threshold 0.7, knee plot, transforms, provenance log
+    - title: Graphia user guide - First start up
+      url: https://graphia.app/guide/section2/2_first_start_up.html
+      summary: Default smooth-shaded 3D, flat, orthographic and 2D views; navigation; layout save and reload
+    - title: Graphia user guide - Correlation analysis steps
+      url: https://graphia.app/guide/section4/2_analyses_steps.html
+      summary: Threshold slider, kNN, MCL granularity, cluster inspection
+    - title: Graphia user guide - Visualisations
+      url: https://graphia.app/guide/section3/3_visualisations.html
+      summary: Color, size and text mappings
+    - title: Graphia user guide - Saving and exporting
+      url: https://graphia.app/guide/section3/6_saving.html
+      summary: Export formats and high-resolution images
+    - title: Freeman et al. 2022 - Graphia
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC9352203
+      summary: Published thresholds, kNN values, MCL 1.7, 12,498-cell and 400.4k-edge examples
+    - title: Freeman et al. 2007 - BioLayout Express3D
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC2041979/
+      summary: r 0.9 gave 5,410 nodes and 447,467 edges; lower thresholds too large
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

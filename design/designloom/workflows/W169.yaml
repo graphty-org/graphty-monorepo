@@ -1,0 +1,127 @@
+id: W169
+name: Qualitative Network Models and Press Perturbations
+category: analysis
+validated: false
+personas:
+    - food-web-ecologist
+requires_capabilities:
+    - data-import
+    - visual-encoding-edges
+    - visual-encoding-nodes
+    - legend-display
+    - node-selection
+    - removal-impact-analysis
+    - algorithm-progress
+    - statistics-panel
+    - annotation
+    - analysis-history
+    - export-image
+    - data-export
+    - signed-edges
+    - perturbation-simulation
+suggested_components:
+    - graph-canvas
+    - context-menu
+    - visual-encoding-panel
+    - legend-panel
+    - impact-analysis-dialog
+    - progress-bar
+    - statistics-panel
+    - annotation-toolbar
+    - analysis-history-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: signed directed graph of species, functional groups and drivers, often drawn with stakeholders
+    node_count: 10-50
+    edge_density: moderate
+    user_expertise: expert
+goal: >-
+    **Intent**: Build a signed directed model of an ecosystem (who helps or harms whom), then predict how every
+    component responds when one is pushed up or down (a press perturbation, such as more fishing or a recovering
+    predator), and report how certain each prediction is.
+
+
+    **Mental Model**: "Plus and minus arrows, then ask what happens if I push here." Only the signs are known, so the
+    model is simulated many times with random strengths and the answer is the share of simulations that agree.
+
+
+    **Task Phases**:
+
+    1. **Draw the signed digraph** (often in a workshop with managers) - Nodes for species, groups,
+    fishing or environmental drivers; positive and negative directed links; or derive the structure from a
+    quantitative model's diet matrix by keeping links above a cutoff
+
+    2. **Add self-limitation** - A negative self-loop on every node to stabilize the model
+
+    3. **Simulate** - 1,000 community matrices with random magnitudes for each signed link, discarding unstable
+    ones
+
+    4. **Validate** - Mark nodes whose observed responses are known and score the share of simulations
+    matching them
+
+    5. **Press a node** - Choose one node and the direction of the push
+
+    6. **Read the impact table** - Per node, the share of positive and negative outcomes; call a response
+    positive or negative when more than 60 percent agree, otherwise mixed
+
+    7. **Iterate structure** (repeat) - Change links and rerun; hand off impact tables and the diagram
+
+
+    **Decision Points**:
+
+    - Which links to include, and at which cutoff when deriving from a quantitative model?
+
+    - Is the model validated well enough to use?
+
+    - What agreement threshold makes a response positive or negative?
+
+
+    **Information Needs**:
+
+    - Clear distinction between positive and negative links and self-loops
+
+    - Share of simulations that were stable
+
+    - Per-node response shares for the chosen press, shown on the graph and in a table
+
+    - A record of each model version and its results
+
+
+    **Pain Points**:
+
+    - Models are drawn in a separate diagram editor and read into R, so every change is a round trip
+
+    - Self-loops and signed edges are poorly supported in graph tools
+
+    - Comparing results across model versions is manual
+
+
+    **Data Flow**:
+
+    - Input: Signed digraph drawn by hand or derived from a quantitative model's diet and mortality matrices
+
+    - Transformations: Self-limitation, random community matrices, stability filter, validation, press simulation
+
+    - Output: Impact tables and bar charts, model diagram, record of model versions
+success_criteria:
+    - metric: Iteration speed
+      target: A structural change and rerun completes in under one minute for a 30-node model (design goal; no source measures it)
+    - metric: Stakeholder readability
+      target: Participants can read link signs and press results directly on the diagram
+sources:
+    - title: QPress mesocosm vignette
+      url: https://swotherspoon.github.io/QPress/articles/Mesocosm.html
+      summary: model.dia, enforce.limitation, system.simulate, validation scores and impact.barplot
+    - title: QPress repository
+      url: https://github.com/SWotherspoon/QPress
+      summary: Qualitative press perturbation simulation in R
+    - title: Tam et al. 2025 - qualitative network models for ecosystem-based management
+      url: https://doi.org/10.1371/journal.pone.0328505
+      summary: Six models derived from an Rpath diet matrix, self-limiting loops, 600 of 1,000 agreement threshold
+    - title: Giordano and Altafini 2017 - Qualitative and quantitative responses to press perturbations
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5596000/
+      summary: Theory of press perturbation responses in signed ecological networks
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

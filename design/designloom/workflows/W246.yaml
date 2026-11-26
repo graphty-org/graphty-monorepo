@@ -1,0 +1,117 @@
+id: W246
+name: Scripted Reproducible Network Build and Publication
+category: reporting
+validated: false
+personas:
+    - signaling-network-modeler
+    - network-biology-core-bioinformatician
+    - metabolic-network-modeler
+requires_capabilities:
+    - data-import
+    - style-presets
+    - community-detection
+    - analysis-history
+    - report-generation
+    - export-image
+    - data-export
+    - analysis-provenance
+suggested_components:
+    - session-save-dialog
+    - analysis-history-panel
+    - report-generator-dialog
+    - data-export-dialog
+    - image-export-dialog
+    - share-dialog
+starting_state:
+    data_type: node and edge data frames in R or Python, or a STRING query, driven by a script
+    node_count: any
+    edge_density: any
+    user_expertise: advanced
+goal: >-
+    **Intent**: Rebuild a network, its style, its analyses and its figures from one script, then publish it with a
+    reviewer link and a methods paragraph that names every source version and parameter.
+
+
+    **Mental Model**: "The script is the paper's method." Clicking is for exploring; whatever goes into a figure must be
+    reproducible by running the script again.
+
+
+    **Task Phases**:
+
+    1. **Connect** - Start desktop Cytoscape and check the connection (cytoscapePing in RCy3)
+
+    2. **Build** - createNetworkFromDataFrames(nodes, edges), or a STRING query by command
+
+    3. **Join and style** - loadTableData; setNodeColorMapping and other mappings; save the style by name
+
+    4. **Analyze** - Run MCL clustering (inflation, which clusterMaker2 calls granularity), enrichment and Network
+    Analyzer by command
+
+    5. **Export** - exportImage, saveSession, exportNetworkToNDEx
+
+    6. **Publish** (varies) - NDEx private link for reviewers, then a DOI at publication
+
+    7. **Write methods** - Database, version, access date, cutoff, enrichment background and every parameter
+
+
+    **Decision Points**:
+
+    - Script against a running desktop application, or a headless library?
+
+    - Pin the database version, or accept that stringApp drops older STRING versions?
+
+    - Which outputs are the deliverable: session file, images, NDEx link, tables?
+
+
+    **Information Needs**:
+
+    - Every parameter that shaped the graph, captured as data
+
+    - Source database names, versions and access dates
+
+    - Which steps ran and in what order
+
+    - Upload progress and resulting links
+
+
+    **Pain Points**:
+
+    - Scripted Cytoscape still needs the desktop application running
+
+    - Older database versions disappear, so exact rebuilds fail
+
+    - The EnrichmentMap protocol takes about 4.5 hours end to end, much of it repeatable
+
+    - No upload progress for large NDEx networks
+
+
+    **Data Flow**:
+
+    - Input: Data frames or query terms; style definitions; parameter set
+
+    - Transformations: Scripted build, join, mapping, clustering, enrichment, export and upload
+
+    - Output: Session, figures, tables, NDEx link and DOI, methods paragraph
+success_criteria:
+    - metric: Rerun fidelity
+      target: Running the script twice gives the same network, style and figure
+    - metric: Headless
+      target: The build runs without a desktop application
+    - metric: Methods completeness
+      target: Generated methods text names source, version, date, cutoff, background and parameters
+sources:
+    - title: RCy3 overview vignette
+      url: https://bioconductor.org/packages/release/bioc/vignettes/RCy3/inst/doc/Overview-of-RCy3.html
+      summary: Scripted build, mapping and export
+    - title: Cytoscape Automation
+      url: https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1758-4
+      summary: Commands and REST interface
+    - title: NDEx protocols
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8544027
+      summary: Private links, DOIs, scripted upload
+    - title: Reimand et al. 2019
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6607905/
+      summary: About 4.5 h end to end; parameters to report
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

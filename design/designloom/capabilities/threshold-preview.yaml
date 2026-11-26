@@ -1,0 +1,21 @@
+id: threshold-preview
+name: Threshold step with live item counts
+category: visualization
+description: Show how many items meet each minimum (occurrences, citations, links) as the threshold changes, with an
+    item table to untick items before the network is built, and draw only the N strongest links with a stated count of
+    hidden links.
+status: planned
+notes: "Research trace: bibliometrics-and-science-mapping.md section 10, requirement 5 (Must)."
+algorithms: []
+used_by_workflows:
+    - W50
+    - W51
+    - W59
+    - W2098
+implemented_by_components: []
+requirements:
+    - "Must: Threshold step showing how many items meet each minimum; item table to untick"
+sources:
+    - title: Bibliometrics and Science Mapping (section 10, requirement 5)
+      url: design/user-research/bibliometrics-and-science-mapping.md
+      summary: "Must in the research. Covered by Designloom when researched: Partly"

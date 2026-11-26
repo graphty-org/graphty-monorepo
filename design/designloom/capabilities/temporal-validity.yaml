@@ -1,0 +1,25 @@
+id: temporal-validity
+name: Validity Intervals and As-Of Views
+category: visualization
+description: Start and end dates on nodes and edges with precise and imprecise ranges and real-start and real-end flags;
+    filter by date and show the graph as of a chosen date; filter relations by class.
+status: planned
+notes: "Research trace: investigative-journalism-and-osint.md section 10, requirement R14 (Should)."
+algorithms: []
+used_by_workflows:
+    - W133
+    - W89
+    - W95
+    - W96
+    - W1013
+implemented_by_components: []
+requirements:
+    - 'Should: Temporal validity on edges and nodes: start and end, precise and imprecise ranges, partial dates, first
+      and last cited; active vs ceased greyed by style; filter by date; show the graph "as of" a chosen date; filter
+      relations by class (command vs administrative)'
+    - "Should: Treat edge validity intervals (valid and invalid times, recorded and expired times) as first-class attributes, with a point-in-time filter on either time axis and a show or hide control for invalidated edges."
+sources:
+    - title: Investigative journalists, OSINT investigators and trust-and-safety teams (section 10, requirement R14)
+      url: design/user-research/investigative-journalism-and-osint.md
+      summary: "Should in the research. Covered by Designloom when researched: Partly (temporal-analysis) -- validity
+          intervals not specified"

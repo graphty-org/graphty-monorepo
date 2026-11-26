@@ -1,0 +1,128 @@
+id: W219
+name: Trace, Isolate and Rank Criticality on a Utility Network
+category: analysis
+validated: false
+personas:
+    - utility-network-gis-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - component-analysis
+    - neighborhood-expansion
+    - path-highlighting
+    - node-selection
+    - removal-impact-analysis
+    - layout-hierarchical
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - details-on-demand
+    - data-export
+    - export-image
+    - geographic-layout
+    - scenario-sweep
+    - state-aware-trace
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - graph-canvas
+    - impact-analysis-dialog
+    - ranked-node-table
+    - layout-panel
+    - visual-encoding-panel
+    - legend-panel
+    - node-details-panel
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: water or electric utility network (pipes, valves, hydrants, meters; conductors, transformers, switches) with open/closed states and coordinates
+    node_count: 4000-15000
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: When a main breaks or a fault occurs, find the valves or switches that isolate it and the customers who
+    lose service, and give the crew a schematic. For the capital plan, rank pipes and valves by criticality.
+
+
+    **Mental Model**: "Follow the flow from the source, stop at closed valves, and see what is cut off." Connectivity
+    depends on device states; hydraulics decide what really fails.
+
+
+    **Task Phases**:
+
+    1. **Keep topology valid** - Clear dirty areas before any trace
+
+    2. **Trace** - Upstream, downstream, connected, subnetwork or isolation from a chosen feature; isolation returns the
+    minimum set of operable devices that stops flow
+
+    3. **Report** - Valves to close and customers affected, with a tree or schematic diagram for dispatch
+
+    4. **Choose model detail (water)** - Skeletonize an all-pipes model (12,000 to 13,000 nodes) to about 4,500 by
+    trimming pipes under 20 cm
+
+    5. **Rank criticality** - Articulation points, bridges and valve segments from the graph; then hydraulic N-1 (close
+    each pipe, count junctions below a pressure threshold)
+
+
+    **Decision Points**:
+
+    - Which valves are operable right now?
+
+    - Trace on the full model or a skeleton?
+
+    - Which criticality measure drives the capital ranking: topological or hydraulic?
+
+
+    **Information Needs**:
+
+    - Device open or closed state on every edge
+
+    - Isolating device set and affected customer count
+
+    - Flow direction from sources, to avoid whole-loop results
+
+    - Per-pipe criticality score and the junctions it strands
+
+
+    **Pain Points**:
+
+    - Traces fail on dirty topology
+
+    - Looped systems return the whole loop unless flow direction is determinate
+
+    - Schematic diagrams fall out of sync with the map
+
+    - Topological metrics alone miss hydraulic behavior
+
+
+    **Data Flow**:
+
+    - Input: Utility Network geodatabase or EPANET .inp, valve and switch states, customer meters
+
+    - Transformations: State-aware directed traversal, isolation set search, schematic layout, articulation points and
+    bridges, per-pipe removal
+
+    - Output: Valve list, affected customers, crew schematic, criticality ranking for the capital plan
+success_criteria:
+    - metric: Time to isolation answer
+      target: Valve list and affected customers within minutes of a break (design goal; no source measures it)
+    - metric: State correctness
+      target: Closed devices stop every trace
+    - metric: Criticality ranking
+      target: Every pipe scored and exportable
+sources:
+    - title: ArcGIS Pro - About tracing utility networks
+      url: https://pro.arcgis.com/en/pro-app/3.3/help/data/utility-network/about-tracing-utility-networks.htm
+      summary: Trace types, isolation definition, loops and flow direction
+    - title: ArcGIS Pro - Network diagram layouts
+      url: https://pro.arcgis.com/en/pro-app/2.7/help/data/network-diagrams/diagram-layouts.htm
+      summary: Tree, schematic and geo-positions layouts
+    - title: WNTR criticality analysis
+      url: https://usepa.github.io/WNTR/criticality.html
+      summary: Graph conversion, articulation points, bridges, valve segments and hydraulic N-1
+    - title: Water distribution model skeletonization study (PMC5896566)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5896566
+      summary: All-pipes to skeleton node counts
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,78 @@
+id: phl-genomic-epidemiologist
+name: Public Health Laboratory Genomic Epidemiologist
+roster_persona: public-health-cluster-epidemiologist
+tier: B
+scope: in-scope
+role: Genomic Epidemiologist and Bioinformatician, State Public Health Laboratory
+quote: Our 300 genomes mean nothing until I can see where they sit among five million other ones.
+bio: >-
+    Nandini Natarajan runs SARS-CoV-2, mpox and influenza genomic surveillance for a state public health laboratory and
+    supports outbreak investigations for the epidemiologists down the hall. She is comfortable on the command line and
+    is the only person in the building who is. Her week is a Nextstrain build with Augur viewed in Auspice, placing new
+    local genomes onto a national mutation-annotated tree with UShER and exploring the result in Taxonium, publishing a
+    Microreact project so epidemiologists can click a map and a tree together, and building SNP-threshold networks in
+    MicrobeTrace when someone wants to see links rather than a tree. CDC's genomic epidemiology toolkit describes
+    exactly that stack. Her inputs are local FASTA plus a metadata TSV, hundreds to thousands of genomes, read against
+    public trees with millions of tips: the Cov2Tree instance behind Taxonium was a daily UShER tree of about 5.6
+    million sequences. The questions put to her are whether a suspected cluster is one introduction or several, where
+    local genomes sit in national context, and whether anything new has appeared.
+characteristics:
+    expertise: expert
+    time_pressure: medium
+    graph_literacy: advanced
+    domain_knowledge: expert
+motivations:
+    - Answer "one introduction or several" with a tree and a date range, not an impression
+    - Place new local genomes in national context the same week they are sequenced
+    - Give epidemiologists something they can explore themselves instead of a static figure
+    - Keep sensitive or embargoed sequence data off third-party servers
+    - Flag a new lineage or an unusual mutation before it is someone else's emergency
+behaviors:
+    - Runs a reproducible pipeline: index, filter and subsample, align, build, date with TreeTime, annotate, export one JSON
+    - Subsamples deliberately (for example 20 sequences per country per month) and records the rule
+    - Switches a tree's x axis between divergence and time, and its layout between rectangular, radial, unrooted and clock
+    - Exports a tree in divergence mode when a network tool needs branch lengths in mutation counts
+    - Places genomes onto an existing mutation-annotated tree rather than rebuilding a global tree
+    - Keeps processing client-side for custom or sensitive data, and uses a streaming server mode only for public trees
+    - Searches a huge tree by metadata or by mutation with AND, OR and NOT, filtering by descendant tip count
+    - Publishes a shareable project whose URL carries the opening view, and warns colleagues where the data is stored
+    - Checks sequence quality first, because unclean sequences with long runs of N produce a confident wrong answer
+frustrations:
+    - Network tools want divergence units and a retuned threshold, so the same data has to be re-exported and re-tuned
+    - Some web tree builders do not clean ambiguous bases from sequences and can yield misleading results, which CDC's own training warns about
+    - In-browser tree exploration topped out around 6 million terminal nodes on some systems
+    - A shareable project means uploading to someone else's database, which an embargo or identifiable metadata forbids
+    - Leaf labels must match the metadata identifier exactly or rows vanish without an error
+    - She is the only person who can run the pipeline, so every request becomes her queue
+context:
+    frequency: weekly
+    devices:
+        - laptop
+        - desktop
+    voluntary: false
+workflows:
+    - W62
+    - W63
+    - W67
+    - W68
+    - W69
+    - W319
+sources:
+    - title: Nextstrain - creating a workflow with Augur
+      url: https://docs.nextstrain.org/en/latest/tutorials/creating-a-workflow.html
+      summary: augur index, filter, align, tree, refine, ancestral, translate, traits, export v2 and what each step adds
+    - title: Auspice view settings
+      url: https://docs.nextstrain.org/projects/auspice/en/stable/advanced-functionality/view-settings.html
+      summary: Layout and axis switching, coloring, filtering, map with transmission lines, and view state encoded in the URL
+    - title: Sanderson, Taxonium - a web-based tool for exploring large phylogenetic trees (eLife 2022)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC9704803
+      summary: Client mode keeps processing local for sensitive data; server mode loads a 5.4 million-sequence tree in seconds; roughly 6 million tips client-side; mutation and metadata search
+    - title: CDC genomic epidemiology toolkit, module 3.2
+      url: https://www.cdc.gov/advanced-molecular-detection/media/pdfs/ToolkitModule_3.2-508C.pdf
+      summary: The toolkit stack, the warning about web tree builders that do not clean ambiguous bases, and exporting a tree in divergence mode before building a threshold network
+    - title: Argimon et al., Microreact - visualizing and sharing data for genomic epidemiology (Microbial Genomics 2016)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/5320705/
+      summary: CSV plus Newick with exactly matching identifiers, linked map, tree, timeline and table, permanent project URL, data stored on Microreact servers
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

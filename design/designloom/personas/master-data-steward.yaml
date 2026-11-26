@@ -1,0 +1,84 @@
+id: master-data-steward
+name: Master Data Steward
+roster_persona: notebook-graph-data-scientist
+tier: B
+scope: in-scope
+role: Data Steward / Customer-Insight Analyst keeping one trusted record per customer, household or supplier in an MDM hub
+quote: Two profiles share an address and a phone. Before I merge them I need to see every source record behind each one, which value wins and why, and whether they already sit in different households.
+bio: >-
+    Folake Oyelaran is a data steward in a bank's data governance team. A master data management (MDM) hub -- Reltio,
+    Informatica Customer 360, Tamr or IBM Match 360, or a customer-360 screen built on Neo4j -- merges source records
+    from core banking, CRM and e-commerce into one "golden record" per customer, household, organization or supplier.
+    Records the matcher is not sure about land in her queue. For each one she opens the profile, compares the
+    candidate records field by field, and merges them, marks them "not a match" or escalates them; then she checks the
+    merged record attribute by attribute, where each attribute lists its source values, the winning source and the
+    survivorship rule that chose it, and pins or ignores a value that is wrong. She unmerges a mistaken merge, puts
+    people into the right household and companies under the right parent, and reads hierarchies as of an effective
+    date. She knows the source systems and the business rules but writes no queries. Customer-insight analysts use the
+    same profile, relationship graph and hierarchy screens read-only before a campaign or a complaint. Unlike the entity
+    resolution data scientist, who tunes a match threshold over millions of clusters in code, she works one profile at a
+    time and every decision is written back to the system of record.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: low
+    domain_knowledge: advanced
+motivations:
+    - Clear the potential-match queue without joining two different people's accounts
+    - Know, for every field of a golden record, which source it came from and which rule chose it
+    - Undo a wrong merge or a wrong surviving value quickly and visibly
+    - Keep households and corporate parent-child hierarchies correct for credit exposure and marketing consent
+behaviors:
+    - Works from a queue of suggested duplicates and suggested edits, each with a high, medium or low match confidence
+    - Opens a profile's potential matches and reads which fields match and partially match
+    - Merges, marks not a match, or escalates a pair to someone who can decide
+    - Reads the sources view per attribute (source values, winner source system, rule type, crosswalk) and pins or ignores a value
+    - Unmerges a mistaken merge from the sources view
+    - Opens the relationship graph, expands one node at a time, and adds, edits or deletes relationships from a side pane
+    - Opens household and organization hierarchies as a tree, for an effective date, and compares them with an earlier version
+frustrations:
+    - The relationship graph refuses to load above 10,000 entities instead of showing part of it
+    - A hierarchy graph shows 10 members until more are requested, with no sign of how many exist
+    - Why a value won (source priority, recency) sits in a table column, not on the graph of source records
+    - New relationships in a hierarchy view are not persisted at once
+    - Corporate family trees above 7,500 members cannot be fetched reliably
+context:
+    frequency: daily
+    devices:
+        - desktop
+        - laptop
+    voluntary: false
+workflows:
+    - W1012
+    - W1013
+sources:
+    - title: Neo4j master data management use case
+      url: https://neo4j.com/use-cases/master-data-management/
+      summary: Master data has deep hierarchies with top-down, lateral and diagonal connections; 360-degree view of customers
+    - title: Neo4j blog - Transforming the enterprise, AI at scale
+      url: https://neo4j.com/blog/machine-learning/transforming-the-enterprise-ai-scale-neo4j/
+      summary: Customer 360 view called Neo4j's most common use case (2019)
+    - title: Reltio Potential Matches perspective
+      url: https://docs.reltio.com/en/explore/get-your-bearings-in-reltio/hub/profiles/profile-perspectives/potential-matches-perspective
+      summary: Uncertain matches go to data stewards, who decide match or not a match
+    - title: How a data steward uses Reltio
+      url: https://community.reltio.com/blogs/terence-kirk/2021/06/25/how-a-data-steward-uses-reltio-to-view-and-manage
+      summary: Review list, merge, not a match, escalate, check and unmerge in the sources view
+    - title: Reltio Sources perspective
+      url: https://docs.reltio.com/explore/get-your-bearings-in-reltio/hub/profiles/profile-perspectives/sources-perspective
+      summary: Per attribute, winner source system, rule type, crosswalk colors; pin, ignore, edit, delete
+    - title: Reltio Graph perspective
+      url: https://docs.reltio.com/applications/hub/profiles-at-a-glance/profile-perspectives-tabs/profile-perspectives-navigation/graph-perspective
+      summary: Relationship graph refuses to load above 10,000 entities
+    - title: Tamr - curating records in the system of record
+      url: https://cloud.docs.tamr.com/docs/curating-records-in-the-system-of-record
+      summary: Queues of suggested duplicates and edits with match confidence and match details
+    - title: IBM MDM - exploring and working with hierarchies
+      url: https://www.ibm.com/docs/en/DSXDOC/wsj/mdm/explore-hierarchies.html
+      summary: Hierarchy graph shows 10 members by default; ultimate parent, multiple parents, orphans, undo
+    - title: Informatica Customer 360 - hierarchies and relationships
+      url: https://docs.informatica.com/master-data-management/customer-360/10-4/user-guide/introduction-to-informatica-mdm---customer-360/key-concepts/hierarchies-and-relationships.html
+      summary: A person can belong to an Organization and a Household hierarchy at once
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

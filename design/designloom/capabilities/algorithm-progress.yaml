@@ -1,8 +1,9 @@
 id: algorithm-progress
 name: Algorithm Progress Indication
 category: performance
-description: Show progress indication when running computationally intensive algorithms. Provide estimated completion
-    time, allow cancellation, and prevent UI blocking during long operations.
+description: Report progress while a long algorithm or layout runs, matched to how long it is expected to take (a
+    looped indicator for short waits, percent done and a rough time estimate for long ones), let the user stop it, and
+    keep the interface responsive meanwhile.
 status: planned
 algorithms: []
 used_by_workflows:
@@ -14,30 +15,53 @@ used_by_workflows:
     - W09
     - W10
     - W21
+    - W119
+    - W128
+    - W164
+    - W169
+    - W232
+    - W239
+    - W284
+    - W285
+    - W299
+    - W332
+    - W38
+    - W384
+    - W42
+    - W425
+    - W428
+    - W44
+    - W45
+    - W48
+    - W58
+    - W62
+    - W66
+    - W70
+    - W73
 implemented_by_components:
     - progress-bar
 requirements:
-    - Display progress indicator for any operation exceeding 500ms
-    - Show progress bar with percentage complete (0-100%) when progress is determinable
-    - Show indeterminate progress spinner when completion percentage cannot be calculated
-    - Display estimated time remaining when algorithm supports progress reporting
-    - Update progress bar at minimum every 500ms during long operations
-    - "Display algorithm name in progress indicator: 'Computing [algorithm name]...'"
-    - "Display current parameters in progress detail: 'Resolution: 1.0, Max iterations: 1000'"
-    - Provide 'Cancel' button to abort algorithm execution
-    - Cancel algorithm within 500ms of cancel button click
-    - Display 'Cancelled' status when algorithm is aborted
-    - Display 'Completed' status with duration when algorithm finishes
-    - Run all algorithms in Web Worker to prevent UI thread blocking
-    - Maintain 60fps UI responsiveness during algorithm execution
-    - Support queueing multiple algorithms with sequential execution
-    - "Display queue position for queued algorithms: 'Queued (2 of 3)'"
-    - Allow cancelling queued algorithms before they start
-    - Display notification toast when background algorithm completes
-    - Log algorithm execution to analysis history on completion
-    - Report 'Out of memory' error gracefully if algorithm exhausts available memory
-    - Provide 'Run in Background' option for algorithms exceeding 30 seconds
+    - "Library parity: Show a looped (indeterminate) indicator when a run is expected to take about 2 to 10 seconds, and none for runs under about 1 second (NN/g)"
+    - 'Library parity: Show percent done when a run is expected to take 10 seconds or more, or when it works through a countable series (iterations, nodes, sources), with a step count such as "iteration 300 of 1000" (NN/g)'
+    - "Library parity: Give a rough time estimate for runs expected to take 10 seconds or more; never a falsely precise one (NN/g)"
+    - "Library parity: Because the duration is estimated before the run, show the richer percent-done form whenever the estimate is uncertain (NN/g)"
+    - "Library parity: Name the algorithm and its parameter values in the progress report; graphty-element returns them as values and codes, and the application writes the words"
+    - "Library parity: Let the user stop any long run; a stopped run returns a distinct cancelled state and leaves the graph as it was before the run"
+    - "Library parity: Report how a run ended (completed, cancelled, failed with an error code such as out of memory) and how long it took"
+    - "Library parity: Run algorithms off the interface thread so the canvas and controls stay responsive while they work"
+    - "Library parity: Allow queueing several runs, show each queued run's position, and allow cancelling a queued run before it starts"
+    - "Library parity: Let a long run continue in the background and notify the user when it finishes"
+    - "Must: Record each finished, failed or cancelled run (algorithm, parameters, seed, outcome) in analysis-history"
+    - "Library parity: Any update interval or frame-rate target is a design goal to be measured, not a sourced requirement"
 sources:
-    - title: W01 First Exploration
-      url: https://graphty.app/docs/
-      summary: Large datasets can crash or hang tools - pain point
+    - title: Nielsen Norman Group, Progress Indicators Make a Slow System Less Insufferable
+      url: https://www.nngroup.com/articles/progress-indicators/
+      summary: Looped indicator for 2-10 second waits, percent done for 10 seconds or more or for a series of records,
+          a general time estimate, and a way to stop long processes
+    - title: Nielsen Norman Group, Response Times - The 3 Important Limits
+      url: https://www.nngroup.com/articles/response-times-3-important-limits/
+      summary: The 0.1, 1 and 10 second limits behind the indicator thresholds
+    - title: Stolper, Perer and Gotz 2014, Progressive Visual Analytics
+      url: https://doi.org/10.1109/TVCG.2014.2346574
+      summary: Long-running analytics that report partial results and let the analyst steer or stop them; cited for
+          this record in design/user-research/data-preparation-and-import.md

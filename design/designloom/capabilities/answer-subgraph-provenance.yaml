@@ -1,0 +1,18 @@
+id: answer-subgraph-provenance
+name: Model or LLM Answer Subgraph with Provenance
+category: analysis
+description: Load and show the subgraph a model prediction or an LLM answer used, with per-element provenance and
+    retrieval or importance scores.
+status: planned
+notes: "Research trace: network-medicine-and-biomedical-knowledge-graphs.md section 10, requirement R8 (Should)."
+algorithms: []
+used_by_workflows:
+    - W262
+    - W263
+implemented_by_components: []
+requirements:
+    - "Should: Show the subgraph that answered an LLM question or a model prediction, with its provenance"
+sources:
+    - title: Network Medicine, Drug Discovery and Biomedical Knowledge Graph Researchers (section 10, requirement R8)
+      url: design/user-research/network-medicine-and-biomedical-knowledge-graphs.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

@@ -1,0 +1,18 @@
+id: dual-graph-analysis
+name: Dual Graph and Angular Analysis
+category: analysis
+description: Build a dual graph where street segments are polyline nodes and edges are weighted by turn angle, with stub
+    removal and unlink/link editing where lines cross without connecting.
+status: planned
+notes: "Research trace: supply-chain-and-physical-infrastructure-networks.md section 10, requirement R35 (Should)."
+algorithms: []
+used_by_workflows:
+    - W229
+implemented_by_components: []
+requirements:
+    - "Should: Dual-graph mode: segments as polyline nodes, edges weighted by turn angle, built from centerlines with
+      stub removal"
+sources:
+    - title: Supply Chain Risk Analysts and Physical Infrastructure Network Engineers (section 10, requirement R35)
+      url: design/user-research/supply-chain-and-physical-infrastructure-networks.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

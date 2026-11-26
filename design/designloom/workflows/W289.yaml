@@ -1,0 +1,123 @@
+id: W289
+name: Researcher's One-Off File Reader or Score
+category: analysis
+validated: false
+personas:
+    - plugin-author-domain-researcher
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - computed-attributes
+    - visual-encoding-nodes
+    - legend-display
+    - export-image
+    - plugin-file-reader-contract
+    - precomputed-metric-columns
+    - service-plugin-bridge
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - computed-attributes-panel
+    - visual-encoding-panel
+    - gradient-editor
+    - legend-panel
+starting_state:
+    data_type: a lab's own tab-separated file (for example bait, prey, confidence, replicates) or an adjacency matrix, plus a lab-specific score
+    node_count: 100-5000
+    edge_density: sparse
+    user_expertise: novice programmer, domain expert
+goal: >-
+    **Intent**: Make a shared graph tool read the lab's own file format, or show the lab's own score per node, without
+    converting files by hand every time. In Cytoscape Desktop this is the classic small app; most researchers avoid that
+    cost and script instead.
+
+
+    **Mental Model**: "Teach the tool my file once." The file has known columns; the score is one number per node; both
+    should appear like built-in ones.
+
+
+    **Task Phases**:
+
+    1. **Route A, desktop app (days to weeks; no source gives the time)** - Copy the sample project template, implement
+    a reader task factory and register it at activation, debug bundles stuck in "Installed" instead of "Resolved",
+    optionally expose REST commands, submit to the app store and write a short article
+
+    2. **Route B, script (hours)** - Compute the score as a data-frame column in R or Python, create the network from
+    data frames in a running desktop application, map color to the column
+
+    3. **Route C, service app** - Write a REST service in Python or R that returns network updates and register it by
+    pasting its URL
+
+    4. **Check** - Compare the result with the lab's spreadsheet
+
+
+    **Decision Points**:
+
+    - Write a reusable reader or convert once by script?
+
+    - Share with lab mates as an installable app, a script, or a URL?
+
+
+    **Information Needs**:
+
+    - A complete copyable example closest to the lab's file
+
+    - A preview that predicts import settings
+
+    - Row-level error messages naming the line and the expected value
+
+
+    **Pain Points**:
+
+    - Java, Maven, OSGi and dependency embedding for a 72 KB reader
+
+    - Bundles stuck in "Installed" with no explanation
+
+    - Scripted routes need the desktop application running locally
+
+    - Readers that fail the whole file on one bad row
+
+
+    **Data Flow**:
+
+    - Input: Lab file, lab score formula or a precomputed score column
+
+    - Transformations: Custom parsing, score computation, attribute join, color mapping
+
+    - Output: A network colored by the lab's score, a figure, and a reader or script lab mates reuse
+success_criteria:
+    - metric: Time to first working reader
+      target: One afternoon, editing a copied example in about three places, with no build step
+    - metric: Error clarity
+      target: Every parse error names the file row and the expected value
+sources:
+    - title: AMatReader (GitHub)
+      url: https://github.com/idekerlab/aMatReader
+      summary: Adjacency-matrix reader app, about 72 KB of Java, with a pip wrapper for its REST endpoints
+    - title: AMatReader (F1000Research)
+      url: https://f1000research.com/articles/7-823/v2
+      summary: Preview that predicts import settings
+    - title: dot-app (F1000Research)
+      url: https://f1000research.com/articles/5-2543/v2
+      summary: Graphviz import and export app
+    - title: cytoscape-samples
+      url: https://github.com/cytoscape/cytoscape-samples
+      summary: App project template
+    - title: Cytoscape API - InputStreamTaskFactory
+      url: https://cytoscape.org/javadoc/3.10.0/org/cytoscape/io/read/InputStreamTaskFactory.html
+      summary: Reader interface registered from the activator
+    - title: cytoscape-discuss - app stuck in Installed
+      url: https://groups.google.com/g/cytoscape-discuss/c/xYU8gO-hRHE
+      summary: Dependency problems leave bundles Installed rather than Resolved
+    - title: RCy3 - Importing data
+      url: https://bioconductor.org/packages/release/bioc/vignettes/RCy3/inst/doc/Importing-data.html
+      summary: createNetworkFromDataFrames against a running Cytoscape
+    - title: Cytoscape Web - Extending
+      url: https://cytoscape-web.readthedocs.io/en/latest/Extending.html
+      summary: Service Apps registered by URL
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

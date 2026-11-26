@@ -272,7 +272,7 @@ import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema"
 import { type ExportGraphOptions, type ExportResult, exportSession } from "./data/export";
 import { WRITABLE_LANE, writableLane } from "./data/lane";
 import { fetchBytes, sampleOf } from "./data/source-bytes";
-import type { Edge } from "./Edge";
+import { type Edge, edgeInternals } from "./Edge";
 import { GraphtyError, isGraphtyError } from "./errors";
 import type { GraphtyErrorCode } from "./errors/codes";
 import {
@@ -878,8 +878,10 @@ export interface FileLoadOptions {
     /**
      * `"recommended"` chooses a layout for what was loaded once it is loaded: `fixed`, which draws
      * each node where the file put it, when every node arrived with a position, and a computed one
-     * otherwise. `"placed"` chooses `fixed` in the same case and otherwise leaves the layout as it
-     * is. `"keep"` (the default) leaves the layout as it is.
+     * otherwise. `"placed"` chooses `fixed` in the same case, else the layout the file asks for (a
+     * DOT file's Graphviz program; with file styles, the force layout keeping the gap the file's
+     * program keeps between nodes, as an OGDF file's), and otherwise leaves the layout as it is.
+     * `"keep"` (the default) leaves the layout as it is.
      */
     layout?: "recommended" | "placed" | "keep";
     /**
@@ -5867,6 +5869,18 @@ export class Graph implements GraphContext {
                     this.renderManager.requestFrame();
                 },
                 settled: () => !this.isRunning() || this.layoutManager.layoutEngine?.isSettled !== false,
+                outside: (row, centre) => {
+                    // a row a `Node` draws (one dragged, read or hovered) is measured by that `Node`, building none
+                    const measure =
+                        this.#nodeBatches?.columnRowOf(row) ??
+                        dataManagerInternals.builtNodeAtRow(this.dataManager, row);
+                    return measure === undefined ? null : edgeInternals.outside(measure, centre);
+                },
+                edgesJoining: (source, target) => dataManagerInternals.edgesJoining(this.dataManager, source, target),
+                refused: (row) => {
+                    this.getStylePainter()?.queue("edge", row);
+                    this.renderManager.requestFrame();
+                },
             });
             const batches = this.#nodeBatches;
             const target = new NodeIdTarget(this.scene, {
@@ -8273,6 +8287,9 @@ export class Graph implements GraphContext {
         return {
             forEachShown: (visit, only) => {
                 lines.forEachShown(visit, only);
+            },
+            forEachShownCurve: (visit, only) => {
+                lines.forEachShownCurve(visit, only);
             },
             idOf: (row) => dataManagerInternals.unbuiltEdgeId(this.dataManager, row),
         };

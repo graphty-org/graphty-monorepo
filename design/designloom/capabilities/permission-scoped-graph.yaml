@@ -1,0 +1,19 @@
+id: permission-scoped-graph
+name: Permission-Scoped Graph
+category: analysis
+description: The host supplies the visible record set; nodes found only in hidden records are dropped and counts recomputed.
+status: planned
+notes: "Research trace: ediscovery-and-legal-communication-analysis.md section 10, requirement R4 (Must)."
+algorithms: []
+used_by_workflows:
+    - W363
+    - W1012
+implemented_by_components: []
+requirements:
+    - "Must: Permission-scoped graph: the host supplies the visible record set; nodes only in hidden records are dropped
+      and counts recomputed"
+sources:
+    - title: eDiscovery, litigation review and internal-investigation teams who use communication graphs (section 10,
+          requirement R4)
+      url: design/user-research/ediscovery-and-legal-communication-analysis.md
+      summary: "Must in the research. Covered by Designloom when researched: Not covered"

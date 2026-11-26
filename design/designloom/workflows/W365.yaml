@@ -1,0 +1,123 @@
+id: W365
+name: Privilege Screen and Names Legend
+category: analysis
+validated: false
+personas:
+    - ediscovery-case-associate
+    - litigation-support-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - node-merging
+    - computed-attributes
+    - visual-encoding-nodes
+    - legend-display
+    - filtering
+    - search
+    - annotation
+    - data-export
+    - entity-resolution-review
+    - seeded-score-propagation
+suggested_components:
+    - attribute-table-join-dialog
+    - data-table-panel
+    - visual-encoding-panel
+    - legend-panel
+    - filter-panel
+    - annotation-toolbar
+    - graph-canvas
+    - data-export-dialog
+starting_state:
+    data_type: normalized people graph plus an attorney list (email address, full name, role, optional legal-role start and end dates)
+    node_count: hundreds to thousands of entities
+    edge_density: medium
+    user_expertise: advanced
+goal: >-
+    **Intent**: Find every document that involves an attorney, decide which people confer privilege and which break
+    it (third parties), route those documents to a privilege team, and produce a privilege log whose people carry
+    affiliations and lawyer status.
+
+
+    **Mental Model**: "Mark the lawyers and the outsiders, then follow the mail." Attorney nodes are privilege
+    conferring; an outside domain on a message can break privilege.
+
+
+    **Task Phases**:
+
+    1. **Build the attorney list** - A CSV of attorney emails (Microsoft Purview sets HasAttorney and IsPrivilege),
+    or Known Attorneys with email, full name, role and dates of the legal role, one record per address
+
+    2. **Map onto entities** - Mark entities Legal Role or Not Legal Role; a Privilege Breaker annotation on a domain
+    makes every entity with an alias there a breaker
+
+    3. **Screen** - Documents with an attorney participant or domain go to a privilege team
+
+    4. **Iterate** - New attorney names found in review are added and the screen rerun
+
+    5. **Log** - The privilege log lists author and recipients of each withheld document; the names legend gives
+    each person's affiliation and lawyer status
+
+    6. **Graph as algorithm input (research)** - A directed people network from headers, counsel labeled from
+    signatures, and scores propagated from counsel nodes to rank likely privileged communications
+
+
+    **Decision Points**:
+
+    - Is this person acting in a legal role at the date of this message?
+
+    - Does this outside domain break privilege or is it an agent of the client?
+
+    - Which unlisted people who often write to counsel should be checked as attorneys?
+
+
+    **Information Needs**:
+
+    - Each entity's role classification and its source (list, annotation, inferred)
+
+    - Documents per attorney and per breaker domain
+
+    - People who communicate heavily with attorneys but are not on the list
+
+    - All aliases of a person on the log, so the legend is complete
+
+
+    **Pain Points**:
+
+    - A mis-merged alias puts the wrong person on a privilege log
+
+    - Attorney roles that change over time
+
+    - Recipient variants hidden by inclusive-only views
+
+    - The legend is assembled by hand from entity tables
+
+
+    **Data Flow**:
+
+    - Input: Attorney list CSV, normalized entities with aliases and domains, document sender and recipient fields
+
+    - Transformations: Role classification joined onto entities, domain-level breaker rule, document screen, optional
+    seeded score propagation from counsel
+
+    - Output: Privilege screen document set, privilege log people table with affiliation and lawyer status
+success_criteria:
+    - metric: Screen completeness
+      target: Every document with a listed attorney or breaker domain participant is in the screen set
+    - metric: Legend accuracy
+      target: Every person on the log has role, affiliation and all aliases listed
+sources:
+    - title: Microsoft Purview - Attorney-client privilege detection
+      url: https://learn.microsoft.com/en-us/purview/ediscovery-attorney-privilege-detection
+      summary: Attorney list CSV setting HasAttorney and IsPrivilege
+    - title: Relativity aiR for Privilege - Entities (search excerpt; page not directly readable)
+      url: https://help.relativity.com/RelativityOne/Content/Relativity/aiR_for_Privilege/Entities.htm
+      summary: Legal Role and Not Legal Role entity annotations; Privilege Breaker domain annotation
+    - title: Relativity aiR for Privilege - Known items (search excerpt; page not directly readable)
+      url: https://help.relativity.com/RelativityOne/Content/Relativity/aiR_for_Privilege/Known_items.htm
+      summary: Known Attorneys with email, full name, role and optional dates, one record per address
+    - title: Zhang, Qin and Huber-Fliflet (arXiv, 2025)
+      url: https://arxiv.org/abs/2512.08073
+      summary: Directed people network from headers with score propagation from counsel to rank privileged communications
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,151 @@
+id: W176
+name: Metrics, Communities and a Publication Figure for a Historical Network (Gephi Style)
+category: analysis
+validated: false
+personas:
+    - correspondence-historian
+    - letters-archive-data-steward
+    - literary-network-scholar
+    - chinese-prosopography-historian
+requires_capabilities:
+    - data-import
+    - data-validation
+    - centrality-degree
+    - centrality-betweenness
+    - centrality-closeness
+    - centrality-eigenvector
+    - community-detection
+    - basic-statistics
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - layout-force-directed
+    - legend-display
+    - metric-histograms
+    - statistics-panel
+    - export-image
+    - data-export
+    - parallel-edge-aggregation
+    - geographic-layout
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - data-table-panel
+    - algorithm-panel
+    - algorithm-card
+    - ranked-node-table
+    - community-panel
+    - visual-encoding-panel
+    - gradient-editor
+    - layout-panel
+    - legend-panel
+    - graph-canvas
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: node CSV (with latitude and longitude) and edge CSV of letters or ties
+    node_count: 100-2,000
+    edge_density: sparse
+    user_expertise: novice
+goal: >-
+    **Intent**: Compute who sent the most letters, who could act as a broker and which groups exist, then produce one
+    clean figure for an article or a web page. This is the standard Gephi sequence taught in DH courses (Grandjean,
+    Leiden, Harvard histecon) and still matches Gephi 0.10 and 0.11.
+
+
+    **Mental Model**: "Size is importance, color is group, position is closeness." Readers read the figure that way,
+    so the scholar must know what the layout and each measure actually did.
+
+
+    **Task Phases**:
+
+    1. **Import** - Nodes first, with latitude and longitude as numbers; then edges appended to the same
+    workspace with "create missing nodes" unchecked so unknown ids surface
+
+    2. **First look** - Size by degree; ForceAtlas 2 with prevent overlap, or Yifan Hu
+
+    3. **Statistics** - Weighted degree, network diameter (which yields betweenness and closeness),
+    eigenvector, modularity with a resolution between 0.1 and 2
+
+    4. **Appearance** - Color by betweenness, or partition by modularity class
+
+    5. **Interpretation** - Who sent the most letters; who can act as a broker; read the top 20 against the
+    letters and archive bias
+
+    6. **Geography** - Place nodes by latitude and longitude (GeoLayout draws no base map, so the SVG is laid
+    over a map in Inkscape; Gephi Lite 1.1 adds a map background)
+
+    7. **Preview and export** - Curved edges, about 70 percent opacity, SVG or PDF; clean labels in Inkscape
+
+    8. **Web publication** (optional) - Sigma.js exporter or Retina
+
+
+    **Decision Points**:
+
+    - Weighted or unweighted degree, given that one person's archive survives better than another's?
+
+    - Which modularity resolution gives groups that make historical sense?
+
+    - Separate graphs per relation type, or one graph with typed edges?
+
+    - Force layout or geographic positions for the figure?
+
+
+    **Information Needs**:
+
+    - Top-ranked people by each measure, side by side
+
+    - Plain-language meaning of betweenness ("sits between groups", position is not necessarily influence)
+
+    - Modularity class sizes and members
+
+    - Distribution of each metric to choose color and size ranges
+
+
+    **Pain Points**:
+
+    - One edge per pair forces separate graphs per relation type
+
+    - Java and memory problems on students' machines; Gephi Lite has no Preview and exports images only
+
+    - Geographic layout has no base map in desktop Gephi
+
+    - Communities shift with small changes in data or resolution
+
+
+    **Data Flow**:
+
+    - Input: Node CSV and edge CSV (or GEXF)
+
+    - Transformations: Weighted degree, betweenness, closeness, eigenvector, modularity; ranking and partition
+    mappings; force or geographic layout
+
+    - Output: SVG or PDF figure with legend, top-20 metric table, sigma.js web export
+success_criteria:
+    - metric: Time from two CSVs to a sized, colored, laid-out network
+      target: Under 20 minutes (design goal; no source measures it)
+    - metric: Interpretability
+      target: User can say in plain words why the top broker ranks high
+    - metric: Figure readiness
+      target: Vector export with legend that needs no Inkscape cleanup
+sources:
+    - title: Martin Grandjean - Gephi introduction
+      url: https://www.martingrandjean.ch/gephi-introduction
+      summary: Letters exercise with import, statistics, appearance, Geo Layout and Inkscape finishing
+    - title: Leiden DMT - SNA exercises
+      url: https://bookandbyte.universiteitleiden.nl/DMT/SNA/sna-exercises.php
+      summary: Gephi exercise questions, who sent most letters and who can act as a broker
+    - title: Harvard histecon - Visualizing historical networks
+      url: https://histecon.fas.harvard.edu/visualizing/index.html
+      summary: One edge per pair forces separate graphs per relation type
+    - title: Gephi GeoLayout plugin
+      url: https://gephi.org/desktop/plugins/geolayout-plugin
+      summary: GeoLayout 1.0.1 for Gephi 0.10 and 0.11 places nodes by latitude and longitude
+    - title: Gephi Lite - Differences with Gephi
+      url: https://docs.gephi.org/lite/user-manual/differences-with-gephi
+      summary: No dynamic graphs, no plugins, no Preview, image-only export
+    - title: Gephi FAQ
+      url: https://gephi.org/faq
+      summary: Gephi Lite background map for nodes with latitude and longitude
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

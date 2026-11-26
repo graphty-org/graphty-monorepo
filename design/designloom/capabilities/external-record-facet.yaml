@@ -1,0 +1,22 @@
+id: external-record-facet
+name: External Record List Facet
+category: analysis
+description: "Two-way link between the graph and a host's record list: a selection emits a neutral query descriptor
+    (sender-in, recipient-in, pair, role filter, or record ids) and the graph rebuilds when the host's record set
+    changes."
+status: planned
+notes: "Research trace: ediscovery-and-legal-communication-analysis.md section 10, requirement R1 (Must)."
+algorithms: []
+used_by_workflows:
+    - W363
+    - W364
+    - W366
+implemented_by_components: []
+requirements:
+    - "Must: Two-way link to an external record list: a selection emits a neutral query descriptor (sender-in,
+      recipient-in, pair, role filter, or record IDs); when the host's record set changes, the graph rebuilds"
+sources:
+    - title: eDiscovery, litigation review and internal-investigation teams who use communication graphs (section 10,
+          requirement R1)
+      url: design/user-research/ediscovery-and-legal-communication-analysis.md
+      summary: "Must in the research. Covered by Designloom when researched: Not covered"

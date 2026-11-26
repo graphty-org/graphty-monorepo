@@ -1,0 +1,68 @@
+id: spatial-omics-tissue-analyst
+name: Spatial Omics Tissue Analyst
+roster_persona: genomics-cytoscape-user
+tier: A
+scope: in-scope
+role: Computational Biologist or Computational Pathologist, Spatial Transcriptomics and Multiplexed Tissue Imaging
+quote: I have half a million cells on one tissue section, each pinned where the microscope saw it. I need to know which cell types sit next to each other more than chance, and to see those cells on the tissue, not just a heat map.
+bio: >-
+    Dr. Matteo Ferraro works in a cancer and immunology group that profiles tissue sections with 10x Xenium and
+    Visium HD, and with multiplexed protein imaging (CODEX and imaging mass cytometry) from a partner pathology lab. A
+    Xenium section holds 10^5 to 10^6 segmented cells; a CODEX study he follows has 258,385 cells across 140 tissue
+    regions. Each cell is a node fixed at its centroid, labeled with a cell type from clustering or marker gating. He
+    builds a spatial neighbor graph per section in Squidpy or Giotto (Delaunay, k nearest neighbors or a radius),
+    tests which cell-type pairs are neighbors more or less often than label permutations predict, and clusters each
+    cell's neighbor make-up into recurrent cellular neighborhoods that he paints on the tissue and compares between
+    patient groups. He looks at graph edges mainly to check how the graph was built; the results he publishes are a
+    cell-type pair heat map and neighborhood maps over the tissue image. He codes fluently in Python and R.
+characteristics:
+    expertise: advanced
+    time_pressure: medium
+    graph_literacy: intermediate
+    domain_knowledge: expert
+motivations:
+    - Find which cell types are neighbors in the tissue more, or less, often than chance
+    - Discover recurrent multicellular neighborhoods and how their make-up differs between patient groups or tracks survival
+    - See statistics and cells together, on the tissue image, down to single cells
+    - Know that a result does not depend on the graph rule chosen (Delaunay, k, radius)
+behaviors:
+    - Builds a spatial graph per section with squidpy.gr.spatial_neighbors (6 nearest neighbors by default, Delaunay or a radius on request) or Giotto createSpatialNetwork (Delaunay with an automatic maximum edge length)
+    - Checks the graph by plotting one cell and its neighbors, or the whole network over the cells
+    - Runs nhood_enrichment or cellProximityEnrichment with 1,000 label permutations and reads the cell-type pair z-score heat map
+    - Clusters 10-nearest-neighbor windows of cell-type counts into about 10 cellular neighborhoods (MiniBatchKMeans) or runs Leiden on neighborhood profiles
+    - Paints neighborhoods on the tissue as colored cells or Voronoi tiles and checks them against the H&E or fluorescence image
+frustrations:
+    - The graph rule changes every downstream statistic, yet is taken from defaults; a wrong radius can give a graph with no edges
+    - The enrichment heat map has no way back to the cells and edges that produced each pair
+    - Neighborhood maps, the graph and the tissue image live in different plots or tools
+    - Interactive views of 10^5 to 10^6 cells with their edges over a large image are rare
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W2066
+sources:
+    - title: Palla et al. 2022 - Squidpy (Nature Methods)
+      url: https://doi.org/10.1038/s41592-021-01358-2
+      summary: Spatial graphs, neighborhood enrichment, interaction matrix and centrality on AnnData; 1,313 citations in OpenAlex on 2026-11-25
+    - title: Dries et al. 2021 - Giotto (Genome Biology)
+      url: https://doi.org/10.1186/s13059-021-02286-2
+      summary: Delaunay and kNN spatial networks, cell proximity enrichment; 1,043 citations in OpenAlex on 2026-11-25
+    - title: Schapiro et al. 2017 - histoCAT (Nature Methods)
+      url: https://doi.org/10.1038/nmeth.4391
+      summary: Neighborhood permutation test for imaging mass cytometry; 724 citations in OpenAlex on 2026-11-25
+    - title: Schurch et al. 2020 - Coordinated cellular neighborhoods (Cell)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC7479520/
+      summary: 10-nearest-neighbor windows over 258,385 CODEX cells clustered with MiniBatchKMeans k = 10 into 9 neighborhoods, drawn as Voronoi maps over the tissue
+    - title: Squidpy - building a spatial graph
+      url: https://squidpy.readthedocs.io/en/stable/notebooks/examples/graph/compute_spatial_neighbors.html
+      summary: Grid, kNN, Delaunay and radius graphs; edges drawn for one cell to check the graph; a radius example with no edges
+    - title: Xenium Human Lung Preview Data (10x Genomics)
+      url: https://www.10xgenomics.com/datasets/xenium-human-lung-preview-data-1-standard
+      summary: 295,883 and 531,165 cells detected on two lung sections
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

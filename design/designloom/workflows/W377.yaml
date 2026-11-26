@@ -1,0 +1,140 @@
+id: W377
+name: Exploratory Graph Analysis in Scale Development
+category: analysis
+validated: false
+personas:
+    - network-psychometrics-methodologist
+requires_capabilities:
+    - data-import
+    - community-detection
+    - community-profiling
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-force-directed
+    - comparison-view
+    - computed-attributes
+    - metric-histograms
+    - tooltip-display
+    - analysis-history
+    - export-image
+    - data-export
+    - matrix-import
+    - node-ring-glyph
+    - shared-fixed-layout
+    - stability-facts
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - graph-canvas
+    - community-panel
+    - cluster-table
+    - visual-encoding-panel
+    - legend-panel
+    - node-chart-overlay
+    - ranked-node-table
+    - comparison-view
+    - analysis-history-panel
+    - image-export-dialog
+starting_state:
+    data_type: EGAnet output -- item network weights, community (dimension) per item, item stability (0-1) per item, dimension frequencies, typical (median) network and its communities, UVA redundancy pairs with weighted topological overlap
+    node_count: 10-60 items
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Decide how many dimensions a questionnaire has and which items are redundant or unstable, so the scale
+    can be scored and items kept or dropped. EGAnet had more 2025 CRAN downloads than bootnet.
+
+
+    **Mental Model**: "Communities in the item network are the scale's dimensions, and an item that keeps switching
+    community across bootstrap samples does not belong anywhere yet."
+
+
+    **Task Phases**:
+
+    1. **Item matrix** - Respondents by items, for example the 25 bfi items
+
+    2. **Redundancy** - UVA flags locally dependent pairs by weighted topological overlap; values above 0.25
+    need action; keep one item of each pair (for example "Get angry easily." dropped at 0.431)
+
+    3. **Estimate dimensions** - EGA with glasso and walktrap (check defaults per version); network colored by
+    dimension; number of communities and TEFI fit index
+
+    4. **Bootstrap** - 500 parametric replicates; how often each number of dimensions appeared (5
+    in 94.2 percent in one example); typical (median) structure
+
+    5. **Stability** - Item stability per node (proportion of replicates in its empirical dimension), drawn
+    on the network as opacity or a ring and as a dot chart; dimension stability per community; guideline 0.70,
+    applied papers often 0.75
+
+    6. **Revise and re-run** (repeat) - Remove or reassign unstable or redundant items and repeat estimation and
+    bootstrap until the structure is stable
+
+    7. **Report** - Network colored by dimension, item stability plot, dimension frequencies, TEFI comparisons;
+    variants hierEGA, riEGA and dynamic EGA
+
+
+    **Decision Points**:
+
+    - Which redundant item of a pair to keep?
+
+    - Which items fall below the stability threshold, and drop or reassign them?
+
+    - Does the empirical structure match the typical structure?
+
+    - Which structure fits better by TEFI?
+
+
+    **Information Needs**:
+
+    - Community per item and its stability, on the node
+
+    - Empirical vs typical structure on one layout
+
+    - Redundancy pairs with their overlap values
+
+    - History of item removals across iterations
+
+
+    **Pain Points**:
+
+    - Defaults documented inconsistently across EGAnet versions
+
+    - Its own plotting conventions, separate from qgraph
+
+    - The revise loop is not prescribed anywhere step by step; each iteration is a fresh static plot
+
+
+    **Data Flow**:
+
+    - Input: Item network weights, community table, item stability table, typical-structure weights and communities,
+    UVA pairs
+
+    - Transformations: Community coloring with stability as opacity or ring, empirical vs typical side by side on one
+    layout, iteration history
+
+    - Output: Dimension-colored network, item stability chart, recorded item decisions, exported figures
+success_criteria:
+    - metric: Unstable items visible
+      target: Items below the chosen stability threshold are identifiable on the network at a glance
+    - metric: Iteration traceability
+      target: User can list which items were removed in which iteration and why
+sources:
+    - title: EGAnet EGA reference
+      url: https://search.r-project.org/CRAN/refmans/EGAnet/html/EGA.html
+      summary: Arguments and documented defaults (corr, model, algorithm, uni.method)
+    - title: EGAnet bootEGA reference
+      url: https://search.r-project.org/CRAN/refmans/EGAnet/html/bootEGA.html
+      summary: Replicate samples, dimension frequencies, typical structure
+    - title: EGAnet itemStability reference
+      url: https://search.r-project.org/CRAN/refmans/EGAnet/html/itemStability.html
+      summary: Per-item proportion of replicates in the empirical dimension
+    - title: Christensen and Golino 2021 - bootEGA
+      url: https://www.mdpi.com/2624-8611/3/3/32
+      summary: Item and dimension stability; 0.70 guideline
+    - title: Worked EGA course chapter
+      url: https://rafavsbastos.quarto.pub/psychometrics/07-EGA.html
+      summary: UVA threshold 0.25, item dropped at 0.431, TEFI -24.989, 94.2 percent five-dimension frequency
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

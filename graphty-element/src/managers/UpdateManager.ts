@@ -161,6 +161,8 @@ export interface ColumnFraming {
     readonly root: TransformNode | null;
     /** Where a row's box is centered about its place, unscaled; the place itself when not given. */
     readonly boxCenterOf?: (row: number) => Readonly<{ x: number; y: number; z: number }> | undefined;
+    /** The curves drawn with no `Edge`, whose points can reach outside their nodes' box (`EdgeRowLines.forEachShownCurve`). */
+    readonly curves?: (visit: (row: number, points: Float32Array) => void) => void;
 }
 
 /**
@@ -404,6 +406,17 @@ export function framingBox(
         growForLabel(box, edge.arrowTailText?.labelMesh);
         growForCurve(box, curve ?? []);
     }
+
+    const world = columns?.root?.getWorldMatrix() ?? null;
+    columns?.curves?.((_, points) => {
+        const curve: Vector3[] = [];
+        for (let at = 0; at < points.length; at += 4) {
+            const point = new Vector3(points[at], points[at + 1], points[at + 2]);
+            curve.push(world === null ? point : Vector3.TransformCoordinates(point, world));
+        }
+
+        growForCurve(box, curve);
+    });
 
     return box;
 }
@@ -2017,12 +2030,7 @@ export class UpdateManager implements Manager {
     private repaintPulledOffEnds(painter: StylePainter | undefined): void {
         const table = this.graphContext.getRowTable?.() ?? null;
         const lines = this.graphContext.getEdgeRowLines?.() ?? null;
-        if (
-            painter === undefined ||
-            table === null ||
-            lines === null ||
-            (table.roundWrites === this.roundWritesSeen && this.endRows.size === 0)
-        ) {
+        if (painter === undefined || table === null || lines === null || !this.pulledEndsUnchecked()) {
             return;
         }
 
@@ -2052,6 +2060,23 @@ export class UpdateManager implements Manager {
             this.forceEdgeWalk();
             this.meshesAdded();
         }
+    }
+
+    /**
+     * Whether a row's outline turned, or a style hid or showed a node, since {@link UpdateManager.repaintPulledOffEnds}
+     * last checked the pulled edges' ends. A node's paint turns its row (seen through, round) in the middle of a pass,
+     * after that pass checked, so the edges on it are queued only by the next pass: until then the picture is not
+     * final, or a wait that ends between the two passes reads a line still drawn to a translucent node's center.
+     * @returns True while a check is owed; never when there are no pulled edges or no painter to queue them.
+     */
+    private pulledEndsUnchecked(): boolean {
+        const table = this.graphContext.getRowTable?.() ?? null;
+        return (
+            table !== null &&
+            this.graphContext.getStylePainter?.() !== undefined &&
+            (this.graphContext.getEdgeRowLines?.() ?? null) !== null &&
+            (table.roundWrites !== this.roundWritesSeen || this.endRows.size > 0)
+        );
     }
 
     /** Whether the layout's map arced edges when the row lines were last checked ({@link repaintRowLinesForMap}). */
@@ -2757,6 +2782,9 @@ export class UpdateManager implements Manager {
                 edge.invalidatePositionCache();
                 this.edgesToPlace.push(edge);
             }
+
+            // ...and its curves drawn with no `Edge`, cut again at its new outline
+            this.graphContext.getEdgeRowLines?.()?.endChanged(row);
         }
 
         this.sceneChanged = true;
@@ -2781,8 +2809,13 @@ export class UpdateManager implements Manager {
      * @param place - False to leave placing them to a walk of every edge already owed.
      */
     private remeasureEdgesOf(resized: ReadonlySet<Node>, place = true): void {
+        const lines = this.graphContext.getEdgeRowLines?.() ?? null;
         for (const node of resized) {
             this.remeasureEdgesAt(node.id, place);
+            // the curves drawn with no `Edge` on it are cut again at its new outline (`EdgeRowLines.endChanged`)
+            if (node.index !== INVALID_INDEX) {
+                lines?.endChanged(node.index);
+            }
         }
     }
 
@@ -2837,6 +2870,7 @@ export class UpdateManager implements Manager {
         for (const edge of this.builtEdges()) {
             edge.invalidatePositionCache();
         }
+        this.graphContext.getEdgeRowLines?.()?.placeEveryCurve();
         this.forceEdgeWalk();
         this.updateEdges();
     }
@@ -3298,6 +3332,11 @@ export class UpdateManager implements Manager {
             "sizing",
             "an edge has not been trimmed to its nodes at the new scale yet",
             () => this.retrimPending,
+        );
+        // A node's outline turned (seen through, round) or its style hid it, and the edges drawn to it are not checked
+        // yet: the next pass paints them again (`repaintPulledOffEnds`).
+        work.watch("style", "an edge drawn to a node whose outline changed has not been checked yet", () =>
+            this.pulledEndsUnchecked(),
         );
         work.watch(
             "sizing",
@@ -4415,6 +4454,9 @@ export class UpdateManager implements Manager {
             table,
             root: this.graphContext.getScene().getTransformNodeByName("graph-root"),
             boxCenterOf: (row) => batches.columnRowOf(row)?.drawnBoxCenter,
+            curves: (visit) => {
+                this.graphContext.getEdgeRowLines?.()?.forEachShownCurve(visit);
+            },
         };
     }
 
@@ -4600,6 +4642,12 @@ export class UpdateManager implements Manager {
             this.edgesToPlace = [];
         } else {
             this.placeTouchedEdges(walk);
+        }
+
+        // the curves drawn with no `Edge` are placed after the edges, as a walk places them (`EdgeRowLines.placeCurves`);
+        // while a load holds the draw they wait with the edges, so their pieces' order does not follow the paint batches
+        if (!this.dataManager.drawHeld) {
+            this.graphContext.getEdgeRowLines?.()?.placeCurves();
         }
 
         this.settleEnds();
@@ -4950,8 +4998,19 @@ export class UpdateManager implements Manager {
             return false;
         }
 
-        for (const { edges } of joined) {
+        const lines = this.graphContext.getEdgeRowLines?.() ?? null;
+        const painter = this.graphContext.getStylePainter?.();
+        for (const { edges, rows } of joined) {
             this.edgesToPlace.push(...edges);
+            // a curve drawn with no `Edge` is a lone curve: one whose pair now holds more fans out of it, so it is
+            // painted again, and its `Edge` draws it (`EdgeRowLines.curveRow`)
+            if (edges.length + rows.length > 1) {
+                for (const row of rows) {
+                    if (lines?.isCurve(row) === true) {
+                        painter?.queue("edge", row);
+                    }
+                }
+            }
         }
 
         return true;
@@ -4993,6 +5052,16 @@ export class UpdateManager implements Manager {
      * @param edgeVersion - The store's edge set.
      */
     private walkedEverything(edgeCount: number, edgeVersion: number): void {
+        // A walk of every edge places each fan; a curve drawn with no `Edge` is a lone curve, so one whose pair the
+        // edges that came or went made a bundle is painted again, and its `Edge` draws it in its fan slot. Only the
+        // edge set changing can do that; an edit whose pairs are known is handled by `placeChangedPairs`.
+        if (edgeVersion !== this.lastWalkedEdgeVersion) {
+            const painter = this.graphContext.getStylePainter?.();
+            for (const row of this.graphContext.getEdgeRowLines?.()?.bundledCurveRows() ?? []) {
+                painter?.queue("edge", row);
+            }
+        }
+
         this.lastWalkedEdgeCount = edgeCount;
         this.lastWalkedEdgeVersion = edgeVersion;
         // The table's moves too: left behind, the next frame took every row as moved and compared each batched row
@@ -5567,6 +5636,10 @@ export class UpdateManager implements Manager {
      * @internal
      */
     placeEdgesOfNode(node: Node): void {
+        if (node.index !== INVALID_INDEX) {
+            this.graphContext.getEdgeRowLines?.()?.endChanged(node.index);
+        }
+
         // Placed by the frame that next places edges (`placeTouchedEdges` keeps them while a load holds the draw).
         for (const edge of this.edgesAt(node.id)) {
             edge.invalidatePositionCache();
@@ -5722,6 +5795,14 @@ export class UpdateManager implements Manager {
         for (const edge of this.builtEdges()) {
             if (ids.has(edge.srcId) || ids.has(edge.dstId)) {
                 edge.invalidatePositionCache();
+            }
+        }
+
+        // ...and the curves drawn with no `Edge` on them are cut again at the new ring (`EdgeRowLines.endChanged`)
+        const lines = this.graphContext.getEdgeRowLines?.() ?? null;
+        for (const node of resized) {
+            if (node.index !== INVALID_INDEX) {
+                lines?.endChanged(node.index);
             }
         }
 

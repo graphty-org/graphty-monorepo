@@ -1,0 +1,131 @@
+id: W437
+name: Embedded Network View for a Herb-Ingredient-Target Database
+category: exploration
+validated: false
+personas:
+    - tcm-database-platform-developer
+    - network-pharmacology-graduate-student
+requires_capabilities:
+    - graph-rendering
+    - progressive-loading
+    - large-graph-rendering
+    - neighborhood-expansion
+    - ego-network
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-force-directed
+    - layout-radial
+    - filtering
+    - search
+    - hover-highlight
+    - tooltip-display
+    - details-on-demand
+    - zoom-pan
+    - export-image
+    - data-export
+    - provenance-tracking
+    - embeddable-query-viewer
+suggested_components:
+    - graph-canvas
+    - progressive-loader
+    - search-input
+    - context-menu
+    - ego-network-dialog
+    - filter-panel
+    - filter-chip
+    - node-tooltip
+    - node-details-panel
+    - legend-panel
+    - layout-panel
+    - zoom-controls
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: query subgraph returned by a server from millions of known and predicted ingredient-target edges, as JSON
+    node_count: hundreds to low thousands per query
+    edge_density: medium; each compound capped at its top N predicted targets
+    user_expertise: advanced
+goal: >-
+    **Intent**: Give every visitor of a TCM database a network view of what the resource knows around a herb,
+    ingredient, formula or target, without the developer writing and maintaining a viewer. Every database visit starts
+    here; it is the resource's front door.
+
+
+    **Mental Model**: "Seed in the middle, the database around it." The queried entity sits at the center, its typed
+    neighbors around it; predicted edges are thinner when less confident; clicking a node grows the network.
+
+
+    **Task Phases**:
+
+    1. **Query** - The visitor enters a herb, ingredient, formula, target or gene list in one of several identifier types
+
+    2. **Fetch a capped subgraph** - The server returns, for example, the top 20 predicted targets per compound
+
+    3. **Render** - Typed nodes, seed central, known and predicted edges distinguished, edge width from confidence
+
+    4. **Explore** - Expand a node's neighbors on click, choose which entity types to show, filter, relayout, follow a
+    link to the record page
+
+    5. **Export** - SVG or JPG image; GraphML, XGMML or CX2 for Cytoscape and NDEx; bulk download and JSON API beside the
+    view
+
+
+    **Decision Points**:
+
+    - How many neighbors to return per expansion before the view becomes unreadable?
+
+    - Show predicted edges by default, or known only?
+
+    - Which entity types are visible on first load?
+
+
+    **Information Needs**:
+
+    - Node type, identifier and link-out URL per node
+
+    - Edge evidence class (known or predicted) and confidence score
+
+    - Counts of hidden neighbors so the visitor knows what an expansion will add
+
+
+    **Pain Points**:
+
+    - Each resource builds its own viewer
+
+    - Existing embeddable explorers model proteins and drugs, not herbs, ingredients and formulas
+
+    - Static images do not let the visitor expand or export
+
+
+    **Data Flow**:
+
+    - Input: JSON subgraph from the resource's API, with node types, scores and link-out URLs
+
+    - Transformations: Typed rendering, confidence-to-width mapping, incremental expansion from server calls, type
+    filtering
+
+    - Output: Interactive on-page view, image export, CX2, GraphML or XGMML for desktop tools
+success_criteria:
+    - metric: Embedding effort
+      target: A developer shows a typed subgraph on a page in about 15 lines of code
+    - metric: Expansion
+      target: Clicking a node adds its neighbors from the server without resetting the layout
+    - metric: Round-trip
+      target: An exported CX2 or GraphML file opens in desktop Cytoscape with types and scores intact
+sources:
+    - title: BATMAN-TCM 2.0 (PMC10767940)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10767940
+      summary: Eight identifier types, top 20 predicted targets per compound, edge width proportional to confidence, JSON API
+    - title: ETCM v2.0 (PMC10326295)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10326295
+      summary: JavaScript network tool with editing, layout control, filtering and SVG or JPG export
+    - title: Drugst.One (PMC10274948)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10274948
+      summary: Embeds in 21 tools with about three lines of code; expansion, ranking and GraphML export
+    - title: Cytoscape Web (Ono et al. 2025)
+      url: https://idekerlab.ucsd.edu/wp-content/uploads/2025/05/Ono-NucleicAcidsRes-2025.pdf
+      summary: Exchanges networks with desktop Cytoscape and NDEx through CX2
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,129 @@
+id: W277
+name: Explore, Prune and Annotate an Attribution Graph (Adjacent, Deferred)
+category: analysis
+validated: false
+scope: deferred
+personas:
+    - model-graph-and-interpretability-users
+requires_capabilities:
+    - data-import
+    - layout-hierarchical
+    - filtering
+    - hover-highlight
+    - details-on-demand
+    - node-selection
+    - node-merging
+    - annotation
+    - path-highlighting
+    - visual-encoding-edges
+    - view-bookmarks
+    - fixed-node-positions
+    - cumulative-weight-pruning
+suggested_components:
+    - data-import-dialog
+    - graph-canvas
+    - range-slider
+    - node-tooltip
+    - node-details-panel
+    - node-merge-dialog
+    - annotation-toolbar
+    - visual-encoding-panel
+    - share-dialog
+starting_state:
+    data_type: attribution graph JSON for one prompt (features, input tokens, error terms, output logits; edges are direct effects) with layer and token position per node
+    node_count: 27-236 after pruning (unpruned edges can reach millions)
+    edge_density: dense
+    user_expertise: expert
+goal: >-
+    **Scope**: Deferred. The graph is generic JSON with a published schema and small after pruning, so graphty-element
+    could draw it, but the work depends on feature dashboards and steering that need the model running, which
+    Neuronpedia owns, and no source counts the researchers.
+
+
+    **Intent**: Trace which interpretable features carry a model's behavior on one prompt, from an output logit back to
+    input tokens, then group and label them into a shareable explanation.
+
+
+    **Mental Model**: "A wiring diagram from tokens to answer." Every node sits at a layer and a token position, so the
+    graph is a DAG; pruning by cumulative influence leaves the circuit worth reading.
+
+
+    **Task Phases**:
+
+    1. **Generate** (in code) - circuit-tracer runs attribution, prunes and writes JSON; `--server` starts a local
+    viewer; `--max_feature_nodes` caps feature nodes
+
+    2. **Prune by influence** - node_threshold (default 0.8) and edge_threshold (default 0.98) keep the smallest
+    sets reaching that cumulative influence; one prompt gave 236 nodes at 0.95, 137 at 0.90, 55 at 0.80, 27 at 0.70
+
+    3. **Trace** - Start at an output logit, hover and click nodes to read what each feature responds to, follow
+    the strongest edges back toward the input tokens
+
+    4. **Pin and label** - Ctrl or Cmd-click pins a node into a subgraph pane; Edit annotates it
+
+    5. **Group** - Hold G and click features to merge them into a labeled supernode ("600+" features to "30-50"
+    supernodes in one preprint)
+
+    6. **Test** - On Neuronpedia, pin a node and Steer to change its value and watch the output
+
+    7. **Share** - Saved state includes pinned node ids; upload needs the model hosted on Neuronpedia
+
+
+    **Decision Points**:
+
+    - Which pruning threshold keeps the behavior without drowning in edges?
+
+    - Which features belong in one supernode?
+
+    - Does steering confirm the hypothesis?
+
+
+    **Information Needs**:
+
+    - Layer and token position per node as layout coordinates
+
+    - Edge weight as width or opacity, with a cumulative-influence pruning control
+
+    - What each feature responds to (feature dashboards, outside the graph)
+
+    - Pinned set, groups and labels saved with the graph
+
+
+    **Pain Points**:
+
+    - Manual analysis takes about 2 hours per prompt for an experienced tracer
+
+    - Unpruned graphs grow to millions of edges
+
+    - Tools bound to transcoders and hosted models
+
+
+    **Data Flow**:
+
+    - Input: Attribution graph JSON
+
+    - Transformations: Influence pruning, layer-by-position layout, pinning, grouping into supernodes, annotation
+
+    - Output: Annotated, shared graph with pinned ids and supernode labels
+success_criteria:
+    - metric: Not a current Graphty target
+      target: Carry-over needs (pruning by cumulative weight, grouping into labeled supernodes) tracked under in-scope workflows
+sources:
+    - title: circuit-tracer README
+      url: https://github.com/safety-research/circuit-tracer
+      summary: CLI generates, prunes and serves attribution graphs; node and edge threshold defaults; max_feature_nodes
+    - title: Circuit tracing - attribution graph methods
+      url: https://transformer-circuits.pub/2025/attribution-graphs/methods.html
+      summary: Graph definition, pruning by cumulative influence, node counts by threshold
+    - title: Probe prompting preprint
+      url: https://arxiv.org/html/2511.07002v1
+      summary: About 2 hours per prompt; 600+ features reduced to 30-50 supernodes
+    - title: Neuronpedia graph schema validator
+      url: https://www.neuronpedia.org/graph/validator
+      summary: Published graph JSON schema including pinnedIds
+    - title: Anthropic - open-source circuit tracing
+      url: https://anthropic.com/research/open-source-circuit-tracing
+      summary: Neuronpedia front end for visualizing, annotating, sharing and steering
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

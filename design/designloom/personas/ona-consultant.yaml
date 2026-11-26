@@ -1,0 +1,76 @@
+id: ona-consultant
+name: Independent ONA Consultant
+roster_persona: ona-practitioner
+tier: B
+scope: in-scope
+role: Independent Organizational Network Analysis Consultant for change and post-merger programs
+quote: The client doesn't want a network diagram. They want to know which twelve people to put on the integration team and who needs a deputy by next quarter.
+bio: >-
+    Adrian Hale is a former strategy consultant who now runs three to six organizational network analysis engagements
+    a year, mostly for change programs and post-merger integrations. Each client sends a roster of 150 to 5,000 people
+    with the attributes they happen to keep (legacy company, region, function, level), and he fields a 3 to 6 question
+    relationship survey through a network survey tool such as Polinode, OrgMapper or Optimice. He analyzes in UCINET or
+    Gephi, publishes a clickable map in Kumu for the client team, and rebuilds the same 20 PowerPoint slides for every
+    engagement. Occasionally a client also hands over 15 weeks of email logs to compare with the survey. He is strong on
+    interpretation and client conversation and light on code; he knows betweenness, brokerage and the E-I index, and
+    he knows executives will over-read a force-directed picture if he lets them.
+characteristics:
+    expertise: intermediate
+    time_pressure: high
+    graph_literacy: advanced
+    domain_knowledge: advanced
+motivations:
+    - Deliver a readout that leaders act on inside the engagement -- deputies for overloaded leaders, decision-rights changes, cross-boundary forums, a list of change agents
+    - Sell a follow-up wave that measures the impact of those actions
+    - Show legacy-company or regional silos in a merger with numbers, not just pictures
+    - Reuse his own analysis recipe and slide set across clients instead of rebuilding each time
+behaviors:
+    - Cleans each client's roster by hand -- duplicate names, contractors, leavers mid-survey -- before generating the network
+    - Overlays nomination counts and the share of people wanting more access on the org chart with span of control for each leader
+    - Ranks influencers by in-degree on energy or influence questions and looks for the smallest set that reaches most of the organization within two steps
+    - Tests which attributes (location, rank, sub-function, legacy company) explain community membership with network regression
+    - Compares survey ties with email ties when both exist
+    - Publishes a Kumu map with connection types as filters for the client project team
+    - Validates network findings with interviews and observation before presenting
+frustrations:
+    - Every client's roster is different and the matching of nominees to roster entries is manual
+    - Rebuilding the same 20 slides by hand for each client
+    - No clean way to compare wave 1 with wave 2 when the org chart changed in between
+    - Executives who over-read a force-directed picture and draw conclusions from where nodes happen to land
+    - Moving data between a survey tool, UCINET or Gephi, Kumu and PowerPoint with a different format at each step
+context:
+    frequency: weekly
+    devices:
+        - laptop
+    voluntary: true
+workflows:
+    - W187
+    - W189
+    - W190
+    - W192
+    - W316
+sources:
+    - title: Activate Networks - The network approach to change initiatives (telecom case)
+      url: https://www.slideshare.net/slideshow/the-network-approach-to-change-initiatives/26073709
+      summary: Top 200 leaders, org chart annotated with nomination counts and access percentages, network regression on legacy group and sub-function, survey versus 15 weeks of email
+    - title: Optimice ONA practitioner course - Setting up the survey
+      url: https://www.slideshare.net/slideshow/organizational-network-analysis-ona-practitioner-course-setting-up-the-survey/28663045
+      summary: Numeric rating codes, roster versus snowball design, pilot before launch
+    - title: Kumu documentation - SNA and network mapping
+      url: https://docs.kumu.io/disciplines/sna-network-mapping
+      summary: Connection types as filters, decorate by metric, presentations and share links for clients
+    - title: Carta - The shadow organizational chart
+      url: https://carta.com/sg/en/blog/the-shadow-organizational-chart/
+      summary: Top four influencers held 171 nominations; two steps from the top ten reached all 250 employees
+    - title: Innovisor - Why you should not map networks during workshops
+      url: https://www.innovisor.com/2025/12/02/why-you-should-not-map-networks-during-workshops/
+      summary: Survey-based influencer mapping and the rule of finding the 3 percent who influence 90 percent
+    - title: Hanneman - Working with network data (UCINET)
+      url: https://faculty.ucr.edu/~hanneman/nettext/C6_Working_with_data.html
+      summary: UCINET data handling and DL formats used by academic-style consultants
+    - title: Umbrex - Organizational Network Analysis framework
+      url: https://umbrex.com/resources/frameworks/organization-frameworks/organizational-network-analysis-ona/
+      summary: Engagement phases, action plans and re-measurement in 3 to 6 months; warns against over-interpreting pictures
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,167 @@
+id: W88
+name: Seed-and-Pivot Expansion from One Selector
+category: exploration
+validated: false
+personas:
+    - osint-investigator
+    - osint-disinformation-investigator
+requires_capabilities:
+    - neighborhood-expansion
+    - node-selection
+    - filtering
+    - node-merging
+    - annotation
+    - layout-force-directed
+    - layout-hierarchical
+    - visual-encoding-nodes
+    - centrality-betweenness
+    - centrality-degree
+    - details-on-demand
+    - analysis-history
+    - data-export
+    - export-image
+    - provenance-tracking
+    - external-lookup-expansion
+    - attribute-projection
+    - leaf-grouping
+suggested_components:
+    - graph-canvas
+    - context-menu
+    - node-details-panel
+    - cluster-collapse-control
+    - annotation-toolbar
+    - layout-panel
+    - data-table-panel
+    - algorithm-panel
+    - ranked-node-table
+    - analysis-history-panel
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: one seed selector (email, alias, domain, phone number, tracking tag id or wallet address), grown by external lookups
+    node_count: 1 growing to tens to a few thousand (Maltego Community Edition caps a graph at 10,000 entities)
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Start from a single identifier and grow a network of related entities by running lookups against
+    outside sources (WHOIS, DNS, breach records, company registries, sanctions lists, tracking tags), prune what does
+    not belong, and end with a defensible pivot chain that attributes accounts, sites or companies to a person or an
+    organization. This is the daily core of OSINT work in Maltego, followed by metrics in Gephi.
+
+
+    **Mental Model**: "Pull the thread." Each lookup is a pivot that may or may not hold; a link is a lead until
+    several independent weak signals agree. The graph is a record of reasoning, not a picture of truth.
+
+
+    **Task Phases**:
+
+    1. **Drop the seed** - New graph; add one entity of a typed kind (domain, alias, email, phone) and set its
+    value; choose a distinctive string, because common strings return profiles belonging to unrelated people
+
+    2. **Set result volume** - Pick a per-lookup result limit (Maltego offers Small, Balanced and Large;
+    Large noticeably increases graph complexity and load time)
+
+    3. **Run lookups** - Domain to WHOIS emails, to DNS names, then multi-select DNS names to IP addresses;
+    for a person, alias profile search, leaked-records search, then extraction of personal details; in one published
+    case, tracking tag ids from six seed sites led through lookups to seven more sites sharing them
+
+    4. **Prune** - Delete non-matching profiles and disposable emails; keep nothing from a generic alias
+    without corroboration; same-type results that share parents and children fold into a collapsed group (Maltego's
+    default minimum is 25); pin an entity to pull it out; entities with notes are never folded
+
+    5. **Repeat** (iterative) - Treat each new alias or email as a new, independent seed; stop when searches yield
+    nothing new, credits run out or the question is answered
+
+    6. **Arrange and read** - Switch among block, hierarchical, circular and organic layouts; size by link
+    count or entity weight; read the graph as a table in a list view
+
+    7. **Export and measure** - Export GraphML (Maltego, yEd or Gephi dialect, optionally selected entities
+    only) or CSV; in Gephi compute betweenness to find gatekeepers; save GEXF with metrics and layout; encrypt the saved
+    graph if it is sensitive
+
+    8. **Hand off** - A report with the pivot chain, hashed page captures and the graph file
+
+
+    **Decision Points**:
+
+    - Is the seed distinctive enough to expand without flooding the graph with namesakes?
+
+    - Which lookups are worth their credit cost for this question?
+
+    - Is this new entity the same person or an unrelated profile that shares a string?
+
+    - Do several independent signals agree, or do they all trace to one original source?
+
+    - When to stop expanding?
+
+
+    **Information Needs**:
+
+    - Which lookup, with which input, produced each entity and link, and when
+
+    - Count of results per lookup before they are added, so a flood can be refused
+
+    - Notes and source captures attached to checked entities
+
+    - Collapsed groups with their member count and the ability to pull one member out
+
+    - Betweenness or link counts to find gatekeepers between sub-networks
+
+
+    **Pain Points**:
+
+    - Lookups that flood the graph with irrelevant results
+
+    - Per-lookup credit budgets
+
+    - A graph that looks more convincing than its evidence supports
+
+    - GraphML that does not round-trip between tools, losing entity types, notes and layout
+
+    - Losing the order of pivots, so the chain cannot be reconstructed for the report
+
+
+    **Data Flow**:
+
+    - Input: One seed value of a typed entity kind; results of outside lookups (registries, DNS, breach data, tag
+    lookups)
+
+    - Transformations: Iterative expansion with per-step result limits, pruning, grouping of same-type leaves, notes,
+    layout, betweenness and degree
+
+    - Output: Pivot-chain report, GraphML or GEXF with types, notes and metrics, image of the final graph
+success_criteria:
+    - metric: Pivot traceability
+      target: Every entity and link shows the lookup and input that produced it
+    - metric: Flood control
+      target: User sees the result count of a lookup and can cap it before the graph grows
+    - metric: Round trip
+      target: Exported graph reopens in Gephi or yEd with entity types, notes and positions intact
+sources:
+    - title: Maltego - Beginner's guide, charting my first Maltego graph
+      url: https://www.maltego.com/blog/beginners-guide-to-maltego-charting-my-first-maltego-graph/
+      summary: Seed entity from the palette, domain to WHOIS email, DNS names and IP transforms, layouts
+    - title: Maltego Academy - Digital footprint workflow
+      url: https://academy.maltego.com/workflow-digital-footprint-desktop
+      summary: Alias profile search, leaked records, personal-detail extraction; each new alias is a new seed; distinctive seeds
+    - title: Maltego - Setting the transform result limit slider
+      url: https://support.maltego.com/en/support/solutions/articles/15000061694-setting-the-transform-result-limit-slider
+      summary: Small, Balanced and Large result limits; Large increases graph complexity and load time
+    - title: Maltego - Collections tab
+      url: https://docs.maltego.com/support/solutions/articles/15000010775-collections-tab
+      summary: Same-type entities sharing parents and children fold into collections (minimum 25); pinning; noted entities never collected
+    - title: Maltego - Graph sidebar
+      url: https://docs.maltego.com/support/solutions/articles/15000009615-graph-sidebar
+      summary: Sizing by links, entity rank or weight; list view of the graph
+    - title: Maltego - Export graph as XML (GraphML)
+      url: https://docs.maltego.com/support/solutions/articles/15000019396-export-graph-as-xml
+      summary: GraphML in Maltego, yEd and Gephi dialects, optionally selected entities only, or CSV
+    - title: Maltego - The networks behind the headlines (Google Tag case)
+      url: https://www.maltego.com/blog/the-networks-behind-the-headlines/
+      summary: Tag ids from six seed sites led to seven more sites sharing them
+    - title: EBU Spotlight - Investigative network mapping and link analysis
+      url: https://spotlight.ebu.ch/p/investigative-network-mapping-link
+      summary: Run only transforms that yield relevant data; betweenness in Gephi for gatekeepers; GEXF keeps metrics and layout (read via search summary)
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

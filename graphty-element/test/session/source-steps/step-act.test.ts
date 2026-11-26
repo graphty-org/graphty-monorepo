@@ -104,6 +104,24 @@ describe("source-steps: a join step's act", () => {
         session.dispose();
     });
 
+    it("reads a merge saved with one aggregate per column back as that one reduction (#10108)", async () => {
+        const DUPES = csv("dupes.csv", "badge,dept,site", "B1,Ops,N", "B1,Lab,S", "B2,Sales,N");
+        const { session } = await people();
+        const dupes = await session.data.stage(DUPES, { key: "badge" });
+        const draft = session.data.draft();
+        draft.merge({
+            from: { source: dupes, field: "badge" },
+            into: { space: "person" },
+            aggregate: { dept: "list", site: "list" },
+        });
+        const at = draft.steps().findIndex((s) => s.op === "join.merge");
+        assert.strictEqual(draft.steps()[at]?.act?.repeated, "list");
+        draft.editStep(at, { aggregate: { dept: "list", site: "count" } });
+        assert.isNull(draft.steps()[at]?.act?.repeated, "two reductions are no one rule");
+        draft.dispose();
+        session.dispose();
+    });
+
     it("refuses a repeated reduction on a step other than a merge", async () => {
         const { session } = await people();
         const entries = await session.data.stage(ENTRIES, { key: "entry", type: "entry" });

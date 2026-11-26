@@ -7,6 +7,36 @@ implements_capabilities:
     - data-export
 used_in_workflows:
     - W25
+    - W103
+    - W139
+    - W142
+    - W143
+    - W145
+    - W15
+    - W187
+    - W202
+    - W205
+    - W211
+    - W234
+    - W239
+    - W240
+    - W246
+    - W261
+    - W277
+    - W313
+    - W317
+    - W318
+    - W382
+    - W412
+    - W414
+    - W417
+    - W423
+    - W50
+    - W54
+    - W58
+    - W67
+    - W68
+    - W89
 dependencies: []
 props: {}
 sources: []

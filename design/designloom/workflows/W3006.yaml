@@ -1,0 +1,155 @@
+id: W3006
+name: Asset Correlation Trees Over Rolling Windows
+category: analysis
+validated: false
+personas:
+    - economic-network-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - correlation-filtered-graphs
+    - backbone-extraction
+    - per-window-metrics
+    - centrality-degree
+    - temporal-navigation
+    - layout-force-directed
+    - visual-encoding-nodes
+    - legend-display
+    - details-on-demand
+    - comparison-view
+    - export-image
+    - data-export
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - algorithm-panel
+    - temporal-controls
+    - range-slider
+    - graph-canvas
+    - layout-panel
+    - legend-panel
+    - node-details-panel
+    - statistics-panel
+    - comparison-view
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: daily closing prices (or returns) of N assets in one table, one column per asset, plus a sector table
+        (asset, sector, industry, country) from an industry classification
+    node_count: 100-500 assets (116 and 477 NYSE stocks in Onnela et al.; 418 banks in Craig and Saldias)
+    edge_density: complete before filtering; N - 1 edges per window as a tree, 3(N - 2) as a planar graph
+    user_expertise: expert
+goal: >-
+    **Intent**: Turn the co-movement of asset prices into a network, read which assets move together (and whether the
+    groups match their sectors), and watch the structure tighten in a crisis. Econophysicists publish it as an
+    economic taxonomy; portfolio researchers use the position of an asset in the tree (central or peripheral) to
+    choose diversified holdings; central bank and IMF staff use networks of bank stock returns to study how
+    interconnected banks are.
+
+
+    **Mental Model**: "The tree is the skeleton of the correlation matrix." Every pair of assets has a correlation,
+    so the raw network is complete and unreadable; the analyst keeps only the strongest links that still form a tree
+    (or a planar graph) and colors each asset by its sector, so a branch of one color is a sector the market itself
+    recognizes. Over time it is one dynamic tree, not a set of unrelated pictures.
+
+
+    **Task Phases**:
+
+    1. **Load** - Load prices and the sector table; align trading days, drop or fill assets with gaps, compute log
+    returns
+
+    2. **Window** - Choose window length and step (Onnela et al. used 1,000 trading days stepped monthly, about 21
+    days, giving 195 windows over 1980-1999)
+
+    3. **Correlate and transform** - One correlation matrix per window (Pearson, or a rank or robust estimator),
+    distance sqrt(2(1 - rho))
+
+    4. **Filter** - Minimum spanning tree, planar maximally filtered graph or a threshold graph per window
+
+    5. **Read one window** - Draw the tree with nodes colored by sector; find the central vertex and its branches;
+    check which branches are one sector and which are mixed
+
+    6. **Read the series** - Plot normalized tree length, mean occupation layer and edge survival per window; step
+    through windows around a crash and compare a calm window with a crisis window side by side
+
+    7. **Use and export** - Rank assets by centrality or peripherality for a portfolio; export the per-window table
+    and the drawn trees for the paper
+
+
+    **Decision Points**:
+
+    - Window length and step: short windows are noisy, long windows smooth over events (Onnela et al. call it a
+    trade-off)
+
+    - Correlation estimator, and whether to remove the market mode first
+
+    - Tree, planar graph or threshold, and which central vertex rule
+
+    - Which sector classification colors the nodes
+
+
+    **Information Needs**:
+
+    - Per window: the filtered graph with correlation and distance on each edge, tree length, central vertex, mean
+    occupation layer
+
+    - Per asset: sector, degree and level in the tree, how its neighbors change between windows
+
+    - Which edges persist from one window to the next
+
+
+    **Pain Points**:
+
+    - The complete correlation network cannot be drawn, so every study rebuilds the filter in its own code
+
+    - Each window's tree is laid out from scratch, so the same asset jumps around between frames and a crash is hard
+    to see
+
+    - Library plotting draws one window with clusters colored but no time axis (riskfolio-lib plot_network)
+
+
+    **Data Flow**:
+
+    - Input: Price table, sector table
+
+    - Transformations: Returns, rolling correlation, distance transform, tree or planar filter, per-window metrics
+
+    - Output: Sector-colored trees per window, a time series of tree measures, an asset ranking, exported tables and
+    figures
+success_criteria:
+    - metric: Parameter transparency
+      target: Window length, step, estimator, distance and filter shown on every drawing and export
+    - metric: Stable reading over time
+      target: An asset keeps a recognizable position between consecutive windows so a structural change is visible
+    - metric: Taxonomy check
+      target: Sector colors and a per-branch sector count visible without leaving the canvas
+sources:
+    - title: Mantegna, Hierarchical structure in financial markets (European Physical Journal B 11, 1999)
+      url: https://arxiv.org/abs/cond-mat/9802256
+      summary: Minimum spanning tree from daily log price changes; branches match an economic taxonomy; 2,512 citing
+          works in OpenAlex on 2026-11-25
+    - title: Onnela et al., Dynamics of market correlations (Physical Review E 68, 056110, 2003)
+      url: https://arxiv.org/abs/cond-mat/0302546
+      summary: Dynamic asset tree, central vertex, mean occupation layer; Markowitz portfolio assets sit on the outer
+          leaves
+    - title: Chakraborti et al., Econophysics review I (arXiv 0909.1974)
+      url: https://arxiv.org/pdf/0909.1974
+      summary: Distance sqrt(2(1 - rho)); 1,000-day windows stepped about 21 days, 195 windows; 116-stock tree colored
+          by 12 Forbes sectors
+    - title: Tumminello et al., planar maximally filtered graph (PNAS 2005)
+      url: https://api.openalex.org/works/doi:10.1073/pnas.0500298102
+      summary: Planar filter keeping the tree; 1,047 citing works in OpenAlex on 2026-11-25
+    - title: Pozzi, Di Matteo and Aste, Spread of risk across financial markets (Scientific Reports 2013)
+      url: https://www.nature.com/articles/srep01665
+      summary: Peripheral stocks in filtered graphs give better diversified portfolios
+    - title: Craig and Saldias, Spatial dependence and data-driven networks of international banks (Cleveland Fed WP
+          16-27, IMF WP 16/184)
+      url: https://www.imf.org/en/publications/wp/issues/2016/12/31/spatial-dependence-and-data-driven-networks-of-international-banks-44271
+      summary: Daily stock returns of 418 banks, 1999-2014; reviews MST and planar filtered graphs as the standard
+    - title: riskfolio-lib plot_network source
+      url: https://riskfolio-lib.readthedocs.io/en/latest/_modules/PlotFunctions.html
+      summary: MST (or a planar graph with DBHT linkage) colored by cluster in a networkx spring, planar, circular or
+          Kamada-Kawai layout; one window only
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

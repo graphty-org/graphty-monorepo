@@ -1,0 +1,136 @@
+id: W412
+name: Candidate-Gene Prioritization in VR (VRNetzer)
+category: analysis
+validated: false
+personas:
+    - network-medicine-vr-researcher
+requires_capabilities:
+    - data-import
+    - data-validation
+    - large-graph-rendering
+    - graph-rendering
+    - animated-transitions
+    - search
+    - node-selection
+    - saved-filters
+    - component-analysis
+    - neighborhood-expansion
+    - computed-attributes
+    - hover-highlight
+    - details-on-demand
+    - export-image
+    - annotation
+    - fixed-node-positions
+    - immersive-xr-session
+suggested_components:
+    - data-import-dialog
+    - gene-set-import-dialog
+    - layout-panel
+    - graph-canvas
+    - search-panel
+    - filter-panel
+    - ranked-node-table
+    - node-details-panel
+    - enrichment-results-table
+    - annotation-toolbar
+    - image-export-dialog
+    - share-dialog
+starting_state:
+    data_type: human interactome with binary annotation features, plus candidate and seed gene lists and precomputed layouts
+    node_count: 16,376 (subnetworks of 334 to 10,915)
+    edge_density: sparse (309,355 interactions)
+    user_expertise: expert
+goal: >-
+    **Intent**: Decide which of a rare-disease patient's candidate genes most plausibly causes the phenotype by
+    exploring the whole interactome around a curated disease module in VR, then show the reasoning to clinicians.
+
+
+    **Mental Model**: "The disease lives in a neighborhood of the interactome." A good candidate sits close to the
+    module of known disease genes and shares its functions.
+
+
+    **Task Phases**:
+
+    1. **Narrow variants outside VR** - Sequencing, filtering and pedigree comparison leave about 15 candidate
+    genes
+
+    2. **Upload in the web module** - Map candidates (13 of 15 mapped) and 276 curated seeds (247 mapped) onto
+    HIPPIE (16,376 proteins, 309,355 interactions) with GO, DisGeNET, OMIM, HPO, pathway and tissue features
+
+    3. **Precompute layouts** (offline) - Force-directed, random-walk and t-SNE functional landscapes from node
+    feature matrices; DataDiVR packs positions into image textures
+
+    4. **Enter VR** - On a GPU PC with a tethered Quest or an HTC Vive; over 100 Hz reported at hundreds of
+    thousands of nodes and links
+
+    5. **Explore** - Two-handed grab to move, rotate and scale; point to select; a hand-held panel with a stylus
+    for search (up to four AND/OR clauses), node sets, settings and analytics; animated layout switches; a link fade
+    showing random subsets of edges for about a second each
+
+    6. **Analyze in VR** - The seed module's largest connected component (152 of 247, z = 5.8 against random
+    draws); random walk with restart from the module ranks candidates (DOK3, DOCK2, DDX31); DOCK2's immune neighborhood
+    makes it the lead
+
+    7. **Leave VR** - Results go to the web module for collaborators to review, annotate, download and share;
+    the engine renders screenshots and videos
+
+
+    **Decision Points**:
+
+    - Which layout (topological, functional, embedding) shows the candidate's relation to the module best?
+
+    - Is the module significant enough to rank against?
+
+    - Which candidate's neighborhood fits the phenotype well enough to send for validation?
+
+
+    **Information Needs**:
+
+    - Count of genes that did and did not map to the interactome
+
+    - Module size and z-score against random draws
+
+    - Ranked list of candidates by random walk score with their neighbors and annotations
+
+    - Node annotations readable up close inside the headset
+
+
+    **Pain Points**:
+
+    - Windows-only executable, GPU PC and Python backend that a lab engineer must maintain
+
+    - Layouts must be precomputed outside the headset
+
+    - Findings must be carried out of VR to a separate web page
+
+    - Session trace recording is only a prototype, so the path to a finding is not kept
+
+
+    **Data Flow**:
+
+    - Input: Interactome edge list, node feature matrices, candidate and seed lists, precomputed layout positions
+
+    - Transformations: Identifier mapping, connected component and z-score, random walk with restart, layout switching,
+    search and node sets
+
+    - Output: Ranked candidates, annotated node sets in a web module, screenshots and videos
+success_criteria:
+    - metric: Candidate ranking
+      target: User can state each candidate's rank and its path to the disease module
+    - metric: Scale
+      target: Whole interactome (about 16k nodes, 300k edges) stays interactive on the target hardware
+    - metric: Hand-off
+      target: Selections and rankings are available outside the headset without re-entry
+sources:
+    - title: Pirch et al. 2021 - VRNetzer
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8065164
+      summary: Full workflow from upload through in-VR analytics to the web module; frame rates and hardware
+    - title: Networks become virtual reality (authors' blog)
+      url: https://communities.springernature.com/posts/networks-become-virtual-reality
+      summary: The rare-disease case from 15 candidates
+    - title: DataDiVR WebApp README
+      url: https://github.com/menchelab/DataDiVR_WebApp/blob/main/README.md
+      summary: Upload, texture-packed layouts, hosted sessions, WebGL preview
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

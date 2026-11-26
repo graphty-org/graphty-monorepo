@@ -1,0 +1,99 @@
+id: notebook-graph-data-scientist
+name: Notebook Graph Data Scientist
+roster_persona: notebook-graph-data-scientist
+tier: B
+scope: in-scope
+role: Senior Data Scientist / Product Analytics or Risk Team, Python or R
+quote: I built the graph from a DataFrame in five lines. Now I need to see whether it is one blob, a few hubs or something real, without leaving the notebook.
+bio: >-
+    Kavya is a senior data scientist on a product analytics or risk team with five-plus years of pandas, scikit-learn
+    and Jupyter. Her graphs are never files: she builds them from tables of transactions, messages, co-purchases or
+    co-authorships (10^3 to 10^6 rows) with `nx.from_pandas_edgelist`, attaches node attributes from a second table, and
+    computes degree, PageRank, sampled betweenness and Louvain communities with NetworkX. When NetworkX is too slow she
+    reaches for igraph or networkit, sets `NX_CUGRAPH_AUTOCONFIG=True` on a GPU, or at lakehouse scale runs GraphFrames
+    in Databricks and pulls one component or neighborhood back with `toPandas()`. Her first picture is `nx.draw`, which
+    is a hairball above a few hundred nodes; then pyvis, ipysigma or Plotly for something interactive, or a GEXF export
+    to Gephi when the figure matters. The picture is a check on a construction and one slide for stakeholders; the real
+    hand-off is a DataFrame of node metrics that feeds a tabular model such as XGBoost. R users on her team do the same
+    with igraph, ggraph and visNetwork.
+characteristics:
+    expertise: advanced
+    time_pressure: medium
+    graph_literacy: intermediate
+    domain_knowledge: advanced
+motivations:
+    - Check that the graph she built from a table looks like what she thinks it is (one blob, many components, a few hubs)
+    - Find the important nodes and the groups, and sanity-check the top-10 list against what she knows
+    - Turn graph metrics into features that lift a tabular fraud or risk model
+    - Produce one clear figure for a slide deck without leaving the notebook
+    - Open one high-scoring account and judge whether it is a real ring or an artifact
+behaviors:
+    - Builds every graph from a DataFrame or SQL query; decides node identity, drops self-pairs, aggregates repeated pairs into a weight column
+    - Checks node count, connected components and the degree histogram before drawing anything
+    - Computes metrics as dicts (pagerank, betweenness with k sampling, louvain_communities with seed=42) and writes them back to node attributes and a DataFrame
+    - Precomputes positions with spring_layout(seed=42) and turns pyvis physics off for graphs of thousands of nodes
+    - Stringifies list and dict attributes with json.dumps before write_gexf or write_graphml because the writers reject them
+    - Switches representation (matrix, arc, circos, hive plots grouped by an attribute) when the node-link drawing is a hairball
+    - At warehouse scale aggregates in Spark (component sizes, top-k), extracts one piece and continues in pandas
+    - Saves pipeline output as Parquet edge and node tables (to_parquet, DuckDB COPY, Spark) and expects a viewer to open them with column types intact
+    - Returns to the data cleaning step when a hub turns out to be a test account or default merchant id
+frustrations:
+    - Hairballs that communicate only that the graph is complex
+    - pyvis physics freezing on large graphs, and pyvis in Streamlit stopping loading above about 1,000 nodes
+    - Plotly network charts that cannot hover an edge
+    - GraphML export failing on list or dict attributes ("GraphML writer does not support <type> as data values")
+    - NetworkX being slow at scale (PageRank 33.5 s against 0.1 s in networkit on one benchmark)
+    - Leaving the notebook for Gephi and losing attribute types on the way
+    - Interactive HTML that does not survive in GitHub or nbviewer, and pictures reproducible only from code plus a seed
+context:
+    frequency: weekly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W266
+    - W270
+    - W274
+    - W1120
+    - W318
+sources:
+    - title: Network Analysis Made Simple - Visualizing graphs
+      url: https://ericmjl.github.io/Network-Analysis-Made-Simple/01-introduction/03-viz
+      summary: Hairballs "don't really communicate much else" than complexity; matrix, arc, circos and hive plots as alternatives
+    - title: NetworkX drawing reference
+      url: https://networkx.org/documentation/stable/reference/drawing.html
+      summary: NetworkX's main goal is analysis, not visualization; points users to Cytoscape, Gephi and Graphviz
+    - title: pyvis tutorial
+      url: https://pyvis.readthedocs.io/en/stable/tutorial.html
+      summary: Network(notebook=True), from_nx, show to HTML; physics toggles
+    - title: Streamlit forum - pyvis error when displaying large network
+      url: https://discuss.streamlit.io/t/streamlit-pyvis-error-when-displaying-large-network/28501
+      summary: A pyvis network in Streamlit stops loading above about 1,000 nodes
+    - title: Plotly network graphs in Python
+      url: https://plotly.com/python/network-graphs/
+      summary: Network drawn as scatter traces; edges cannot carry hover information
+    - title: NetworkX GraphML writer source
+      url: https://networkx.org/documentation/latest/_modules/networkx/readwrite/graphml.html
+      summary: Raises "GraphML writer does not support <type> as data values" on list or dict attributes
+    - title: LightGraphs benchmark study (Julia Discourse)
+      url: https://discourse.julialang.org/t/lightgraphs-benchmark-study-take-2/39297.md
+      summary: PageRank on the Google web graph took 33.5 s in NetworkX, 2.4 s in igraph, 0.1 s in networkit
+    - title: nx-cugraph - how it works
+      url: https://docs.nvidia.com/cugraph/latest/nx_cugraph/how-it-works/
+      summary: Unchanged NetworkX code on a GPU via NX_CUGRAPH_AUTOCONFIG; vendor benchmark of betweenness from minutes to seconds
+    - title: Databricks GraphFrames user guide
+      url: https://docs.databricks.com/aws/en/integrations/graphframes/user-guide-scala
+      summary: connectedComponents, pageRank and labelPropagation over vertex and edge DataFrames, results returned as tables
+    - title: Graph Machine Learning (Packt)
+      url: https://www.packtpub.com/en-us/product/graph-machine-learning-9781803248066
+      summary: Book notes that Gephi may also be required for visualization beyond NetworkX
+    - title: Katya Ognyanova - Network analysis and visualization with R and igraph
+      url: https://kateto.net/polnet2024.html
+      summary: R workflow from graph_from_data_frame through igraph, ggraph and visNetwork
+    - title: ipysigma on PyPI
+      url: https://pypi.org/project/ipysigma/
+      summary: WebGL sigma.js widget in a notebook cell mapping metrics to visual variables
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

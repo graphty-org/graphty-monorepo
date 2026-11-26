@@ -1,0 +1,126 @@
+id: aml-investigator
+name: AML Investigator
+roster_persona: aml-investigator
+tier: A
+scope: in-scope
+role: Level 2 Anti-Money-Laundering Investigator at a bank (consolidated; KYC and ownership, blockchain and FIU analysts as variants)
+quote: The alert is one account. The case is the network around it. Give me the summed flows, the other open alerts and the reason each link exists, and let me write the narrative from that.
+bio: >-
+    Rebecca Whitfield is a Level 2 AML investigator at a mid-size US bank and the consolidated persona for the analysts who
+    work an escalated alert or a generated case through to a file or no-file decision. Cases reach her from a vendor
+    case manager (Actimize, Oracle FCCM, Verafin) or from a graph platform's alert list (Linkurious, Quantexa), where a
+    saved detection query or a scored model raised them. She pulls 6 to 12 months of transactions for every subject,
+    sums hundreds of parallel wires and ACH payments per account pair and direction, groups free-text counterparty
+    spellings, checks the subject's 1 to 2 hop neighborhood for other open alerts and prior SARs, and tests typologies
+    (fan-in, fan-out, pass-through, cycles, structuring) on the summed graph. Her output is a decision, a narrative with
+    the five essential elements, and supporting documentation retained for five years. Most alerts are false positives
+    (working-paper estimates of 70 to 95 percent), so the ranked case list and a fast, explainable dismissal matter as
+    much as the deep investigation. Variants: corporate KYC and beneficial-ownership analysts, blockchain tracers, FIU
+    and tax intelligence analysts; the forensic accountant splits between this persona and trial exhibit work. She does
+    not code; graph literacy is operational (hops, linked, cluster, summed edge).
+characteristics:
+    expertise: intermediate
+    time_pressure: high
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Reach a supported, reasonable file or no-file decision inside the 30-day deadline
+    - Work a connected network once, as one case, instead of five alerts five times
+    - Dismiss false positives quickly with a rationale a quality-control reviewer accepts
+    - Explain every link (which identifier, transaction, filing or registry record) in the narrative
+    - Feed confirmed and dismissed outcomes back so the detection rules improve
+behaviors:
+    - Starts from the case list, sorted by score, amount or age, and opens the case graph rather than loading a file
+    - Assigns cases, comments on them and moves them through Open, In progress, Confirmed or Dismissed
+    - Collapses parallel transactions into one edge per pair and direction with count, sum, first and last date
+    - Checks the subject's neighborhood for open alerts, prior SARs and shared identifiers, discounting identifiers shared by very many accounts
+    - Filters by time window and amount and follows directed, time-ordered paths
+    - Requests 314(b) information from peer banks and merges their legs into the case with the source recorded
+    - Writes the narrative and saves the case graph and tables as supporting documentation
+frustrations:
+    - Alert queues dominated by false positives, with no explanation of why a case scored high
+    - Hairballs from unsummed parallel transactions
+    - The trail goes dark where money leaves the bank
+    - Nothing drawn in the graph flows into the narrative or the case record
+    - Dispositions that never reach the people tuning the rules
+context:
+    frequency: daily
+    devices:
+        - desktop
+    voluntary: false
+workflows:
+    - W3024
+    - W336
+    - W06
+    - W118
+    - W120
+    - W142
+    - W143
+    - W147
+    - W149
+    - W315
+    - W323
+sources:
+    - title: FFIEC BSA/AML Examination Manual - Suspicious Activity Reporting
+      url: https://bsaaml.ffiec.gov/manual/AssessingComplianceWithBSARegulatoryRequirements/04
+      summary: Alert generation, alert management (Level 1, Level 2, quality control) and the SAR decision as separate components
+    - title: 31 CFR 1020.320 - Reports by banks of suspicious transactions
+      url: https://www.ecfr.gov/current/title-31/subtitle-B/chapter-X/part-1020/subpart-C/section-1020.320
+      summary: 30-day filing deadline from detection (up to 60 with no suspect); five-year retention of supporting documentation
+    - title: Linkurious Enterprise user manual 4.2 - Alert setup
+      url: https://doc.linkurious.com/user-manual/4.2/alert-setup/
+      summary: Alerts are Cypher or Gremlin read queries grouped by a target entity, run hourly by default, producing cases in a case list
+    - title: Linkurious Enterprise user manual 3.0 - Investigating alerts
+      url: https://doc.linkurious.com/user-manual/3.0/alert-investigate
+      summary: Case statuses Open, In progress, Confirmed and Dismissed with optional notes; assignment and comments logged in case history
+    - title: Linkurious Enterprise user manual 4.2 - Edge grouping
+      url: https://doc.linkurious.com/user-manual/4.2/edgegrouping/
+      summary: Parallel edges grouped with count, sum, average, min, max and first and last date per type and direction
+    - title: Redhead - SWIFT Institute / RUSI working paper on transaction monitoring (2021)
+      url: https://swift.com/swift-resource/252235/download
+      summary: False-positive rates about 70 to 95 percent and alert-to-report conversion 2 to 10 percent (read through search summary)
+    - title: FinCEN - SAR supporting documentation guidance
+      url: https://www.fincen.gov/index.php/resources/statutes-regulations/guidance/suspicious-activity-report-supporting-documentation
+      summary: Supporting documentation is deemed filed and must be produced on request
+    - title: FinCEN SAR FAQs, October 2025 (NCUA copy)
+      url: https://ncua.gov/regulation-supervision/regulatory-compliance-resources/bank-secrecy-act-resources/frequently-asked-questions-regarding-suspicious-activity-reporting
+      summary: 30-day filing deadline, optional 90-day continuing-activity review with filing at 120 days, no-file documentation encouraged but not required
+    - title: FinCEN - Suggestions for addressing common errors noted in suspicious activity reporting
+      url: https://www.fincen.gov/resources/statutes-regulations/guidance/suggestions-addressing-common-errors-noted-suspicious
+      summary: The narrative must cover the five essential elements; attachments are not accepted
+    - title: Bank of America - Global Financial Crimes investigator posting
+      url: https://careers.bankofamerica.com/en-us/job-detail/24017594/global-financial-crimes-gfc-investigator-multiple-locations
+      summary: Investigator and SAR writer role that works alerts end to end
+    - title: Linkurious - AML investigation solution
+      url: https://linkurious.com/aml-investigation-solution
+      summary: Vendor; subject neighborhood styled by open alerts and prior SARs
+    - title: Morrison Foerster - FinCEN expands section 314(b) information-sharing guidance
+      url: https://www.mofo.com/resources/insights/260617-fincen-expands-section-314-b-information-sharing-guidance
+      summary: June 2026 fact sheet; suspected fraud alone qualifies, real-time sharing allowed, SARs themselves may not be shared
+    - title: Open Ownership - What graph visualisation teaches us about beneficial ownership
+      url: https://www.openownership.org/en/blog/what-graph-visualisation-teaches-us-about-beneficial-ownership/
+      summary: Graph tools such as Linkurious and Neo4j Bloom liked but their expense and steep learning curve excluded many users
+    - title: BforBank detects fraud with Linkurious
+      url: https://linkurious.com/blog/bforbank-detects-fraud-with-linkurious/
+      summary: Data sources (customers, transfers, checks, IP, email, address); ring of 11 found in half an hour; 2 minutes to hours before
+    - title: European bank using Neo4j Bloom
+      url: https://neo4j.com/?p=435908
+      summary: Daily Bloom use across anti-financial crime teams; 10,000 payments in a list quote; on-premises deployment
+    - title: Ria accelerates AML investigations with graph technology
+      url: https://thepaypers.com/fraud-and-fincrime/thought-leader-insights/ria-accelerates-aml-investigations-5x-with-graph-technology
+      summary: Money transfer firm using Linkurious for AML investigation
+    - title: Linkurious top 10 query templates
+      url: https://linkurious.com/blog/top-10-query-templates-to-accelerate-your-investigations/
+      summary: Investigation templates such as UBOs above 20 percent and common neighbors
+    - title: Linkurious advanced settings
+      url: https://doc.linkurious.com/admin-manual/4.1/advanced-settings
+      summary: Selective expand above 50 neighbors, supernode threshold 10,000
+    - title: Aura Explore feedback - I can't see all my nodes
+      url: https://aura.feedback.neo4j.com/explore/p/i-cant-see-all-my-nodes
+      summary: User sees 38 of 236 nodes and assumes data is missing; Bloom not built to load a whole graph
+    - title: Neo4j Bloom tips and tricks for domain experts
+      url: https://neo4j.com/blog/graph-visualization/neo4j-bloom-tips-tricks-domain-knowledge-experts/
+      summary: Shortest path may not be the one expected; good data model needed
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

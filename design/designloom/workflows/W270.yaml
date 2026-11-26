@@ -1,0 +1,116 @@
+id: W270
+name: Embeddings Against Communities and Labels
+category: analysis
+validated: false
+personas:
+    - gnn-model-debugger
+    - ml-engineer-recsys
+    - notebook-graph-data-scientist
+requires_capabilities:
+    - data-import
+    - community-detection
+    - visual-encoding-nodes
+    - legend-display
+    - node-selection
+    - selection-statistics
+    - comparison-view
+    - hover-highlight
+    - details-on-demand
+    - large-graph-rendering
+    - fixed-node-positions
+suggested_components:
+    - data-import-dialog
+    - graph-canvas
+    - comparison-view
+    - visual-encoding-panel
+    - legend-panel
+    - community-panel
+    - node-details-panel
+    - statistics-panel
+starting_state:
+    data_type: graph plus per-node embedding vectors (64-404 dimensions) and their 2D projection, with label, prediction and community columns
+    node_count: 1000-20000
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Check whether learned node embeddings separate the classes or communities expected, and move between the
+    embedding view and the graph to investigate a cluster.
+
+
+    **Mental Model**: "Do the two maps agree?" One map is the graph's topology, the other is the embedding space;
+    selecting a group in one should show where it lands in the other.
+
+
+    **Task Phases**:
+
+    1. **Extract embeddings** (in code) - Hidden layer output, node2vec, or `gds.graph.nodeProperties.stream(G,
+    ["embedding"])` returned as a DataFrame
+
+    2. **Reduce** (in code or on load) - Embed at moderate dimension (for example 128), then UMAP or t-SNE to 2D;
+    reducing node2vec directly to 2D does not preserve communities
+
+    3. **Color** - Color points by true label, predicted label, Louvain community or item category (TensorBoard
+    users write a metadata TSV with those columns)
+
+    4. **Read** - Do classes separate? Do graph communities correspond to embedding clusters? Select a focal
+    group in one space and see where it lands in the others (topology, latent, features)
+
+    5. **Act** - Continue training, change hyperparameters, or open a cluster in the graph and go to node
+    diagnosis
+
+
+    **Decision Points**:
+
+    - Are we there yet (stop training) or are we lost (model not learning structure)?
+
+    - Which disagreeing cluster is worth investigating in the graph?
+
+
+    **Information Needs**:
+
+    - A 2D layout from supplied coordinates beside the force or community layout of the same nodes
+
+    - Linked selection between the two views
+
+    - Label, prediction and community as switchable colorings with legends
+
+    - Counts of labels inside a selection
+
+
+    **Pain Points**:
+
+    - Graph view and embedding projector are separate tools (TensorBoard's projector has no link to the data graph)
+
+    - CorGIE was built because the views do not link
+
+    - Projection quality depends on the reduction pipeline
+
+
+    **Data Flow**:
+
+    - Input: Graph edges, node table with embedding vectors or precomputed 2D coordinates, label, prediction, community
+
+    - Transformations: Dimensionality reduction (or supplied coordinates), categorical coloring, linked selection
+
+    - Output: A training decision; a cluster handed to node diagnosis
+success_criteria:
+    - metric: Linked selection
+      target: Selecting a group in the embedding view highlights the same nodes in the graph view, and back
+    - metric: Supplied-coordinate layout
+      target: User can place nodes by imported 2D coordinates without writing layout code
+sources:
+    - title: CorGIE
+      url: https://ar5iv.labs.arxiv.org/html/2106.12839
+      summary: Select a focal group in topology, latent or feature space and see where it lands in the others; design target up to 20,000 nodes
+    - title: TensorBoard embedding projector
+      url: https://www.tensorflow.org/tensorboard/tensorboard_projector_plugin
+      summary: Metadata TSV colors embedding points by label
+    - title: node2vec then UMAP guidance
+      url: https://arxiv.org/pdf/2602.24069
+      summary: Reduce from a moderate embedding dimension; direct 2D node2vec does not preserve communities
+    - title: Neo4j GDS client - graph object API
+      url: https://neo4j.com/docs/graph-data-science-client/current/api/graph
+      summary: nodeProperties.stream returns embeddings as a DataFrame
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,20 @@
+id: plugin-layout-algorithm-contract
+name: Layout and Algorithm Plugin Contract
+category: visualization
+description: "Register layouts and algorithms with parity to built-ins: a simple fn(graph, options) path and a
+    typed-array advanced path, progress, cancel, worker and GPU access, and registration that fails at once naming the
+    plugin and the bad field."
+status: planned
+notes: "Research trace: developers-embedding-and-extending-graph-visualization.md section 10, table row 19 (Must)."
+algorithms: []
+used_by_workflows:
+    - W285
+    - W290
+implemented_by_components: []
+requirements:
+    - "Must: Plugin contract for layouts and algorithms with parity to built-ins (simple fn(graph, options) path,
+      typed-array advanced path, progress, cancel, worker and GPU access)"
+sources:
+    - title: Developers Who Embed Graph Visualization in Products or Extend It With Plugins (section 10, table row 19)
+      url: design/user-research/developers-embedding-and-extending-graph-visualization.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

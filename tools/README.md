@@ -365,6 +365,11 @@ only.
   the commit being the change or its merge. The row then passes, marked `accepted` with the reason, while the candidate contains the commit and
   nightly does not, and only within x1.2 of nightly x the ratio. Once nightly holds the commit the entry stops
   applying and can be deleted. This replaces re-pinning the results file.
+- **An entry counts only with the owner's proof**: its required `approval` field is the URL of a comment on an issue or
+  pull request of this repository (`.../issues/N#issuecomment-ID` or `.../pull/N#issuecomment-ID`) written by
+  `apowers313` and naming the row. The check reads the comment from the GitHub API on every run; an entry without one,
+  or whose comment is by someone else or does not name the row, is ignored with a message, and an API error fails the
+  check. Agents post as graphty-agent, so they cannot approve their own slowdown, and the owner never merges for it.
 
 ## Storybook
 

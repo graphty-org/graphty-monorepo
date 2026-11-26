@@ -1,0 +1,18 @@
+id: identifier-normalization
+name: Identifier and Time Normalization
+category: data
+description: Normalize phone numbers (country and dialling codes) and convert mixed time zones per column at import.
+status: planned
+notes: "Research trace: law-enforcement-and-intelligence-analysts.md section 10, requirement 26 (Should)."
+algorithms: []
+used_by_workflows:
+    - W100
+    - W97
+implemented_by_components: []
+requirements:
+    - "Should: Normalization helpers for phone numbers and time zones"
+sources:
+    - title: Law enforcement crime and intelligence analysts, and defense and national intelligence analysts (section
+          10, requirement 26)
+      url: design/user-research/law-enforcement-and-intelligence-analysts.md
+      summary: "Should in the research. Covered by Designloom when researched: Gap"

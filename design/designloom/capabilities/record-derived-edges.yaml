@@ -1,0 +1,23 @@
+id: record-derived-edges
+name: Edges Derived from Records
+category: analysis
+description: Build edges from records with explicit counting rules (one record = one communication per sender-recipient
+    pair, top segment or all segments, dedupe by record key) and report edge weights as record counts.
+status: planned
+notes: "Research trace: ediscovery-and-legal-communication-analysis.md section 10, requirement R3 (Must)."
+algorithms: []
+used_by_workflows:
+    - W363
+    - W364
+    - W367
+    - W369
+    - W1090
+implemented_by_components: []
+requirements:
+    - "Must: Edges derived from records with explicit counting rules: one record = one communication per
+      sender-recipient pair; top segment or all segments; dedupe by record key; edge count shown as records"
+sources:
+    - title: eDiscovery, litigation review and internal-investigation teams who use communication graphs (section 10,
+          requirement R3)
+      url: design/user-research/ediscovery-and-legal-communication-analysis.md
+      summary: "Must in the research. Covered by Designloom when researched: Not covered"

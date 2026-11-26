@@ -1,0 +1,152 @@
+id: W83
+name: Network Troubleshooting and Site Documentation
+category: analysis
+validated: false
+personas:
+    - network-topology-engineer
+requires_capabilities:
+    - data-import
+    - filtering
+    - search
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-force-directed
+    - layout-hierarchical
+    - view-bookmarks
+    - shortest-path
+    - path-highlighting
+    - removal-impact-analysis
+    - comparison-view
+    - tooltip-display
+    - details-on-demand
+    - export-image
+    - multiplex-relations
+    - group-collapse
+    - graph-diff
+    - dependency-format-import
+    - orthogonal-port-layout
+suggested_components:
+    - data-import-dialog
+    - filter-panel
+    - search-input
+    - graph-canvas
+    - layout-panel
+    - bookmark-panel
+    - path-finder-dialog
+    - impact-analysis-dialog
+    - comparison-view
+    - node-tooltip
+    - node-details-panel
+    - legend-panel
+    - image-export-dialog
+starting_state:
+    data_type: network inventory and neighbor data (SNMP, CDP/LLDP neighbors with local and remote ports, ARP and MAC tables, VLANs, prefixes and VRFs, routing tables, NetBox devices, cables, sites, racks, roles)
+    node_count: 20-2,000 devices per site
+    edge_density: sparse, different edge sets per layer over the same devices
+    user_expertise: expert
+goal: >-
+    **Intent**: Keep accurate physical and logical diagrams of each site that regenerate from the source of truth, and
+    during an outage find the fault domain and the path traffic actually takes.
+
+
+    **Mental Model**: "One set of devices, three maps." Cables (Layer 1), VLANs and switch links (Layer 2) and subnets
+    and routes (Layer 3) are separate edge sets over the same devices, grouped by site, rack and role.
+
+
+    **Task Phases** (no source gives per-step durations):
+
+    Documenting a site:
+
+    1. **Discover** - Poll devices by SNMP; collect neighbor, ARP, forwarding, IP and VLAN tables
+
+    2. **Infer cabling** - Use Layer 2 neighbors to guess Layer 1 cables; populate the source of truth with devices,
+    cables, IP addresses and prefixes; group IPs into prefixes per VRF
+
+    3. **Render** - Draw connections from cables, filtered by name, site, tag and device role; physics layout until the
+    engineer drags devices, positions saved in named coordinate groups; or layers ordered by role
+
+    4. **Deliver** - Export draw.io XML or PNG per site and per layer
+
+    Troubleshooting:
+
+    1. **Locate the fault domain** - On the Layer 2 view find the down link or device and the hosts behind it; switch
+    between physical, Layer 2 and Layer 3 views
+
+    2. **Trace the path** - Emulate forwarding from A to B through routing tables and ACLs; compare the live path with
+    the cached healthy baseline
+
+    3. **Hand off** - The path and the failing hop go to the device owner or carrier
+
+
+    **Decision Points**:
+
+    - Which layer view answers this question?
+
+    - Is an inferred cable real when an interface has several neighbors?
+
+    - Where does the live path diverge from the baseline?
+
+
+    **Information Needs**:
+
+    - Interface (port) endpoints on every edge, visible on hover and usable in filters
+
+    - Device role, site and rack for grouping and layering
+
+    - Hosts that lose connectivity when a link or device fails
+
+    - Live versus baseline path differences
+
+
+    **Pain Points**:
+
+    - Most tools show one edge set; layers must be separate diagrams
+
+    - Neighbor protocols are less complete than SNMP
+
+    - Interfaces with several LLDP neighbors break cable inference
+
+    - Diagrams drift unless regenerated, and regeneration loses hand-placed positions
+
+
+    **Data Flow**:
+
+    - Input: SNMP and neighbor tables, NetBox export (devices, cables, sites, racks, prefixes)
+
+    - Transformations: Cable inference, per-layer edge selection, role layering, saved positions, path emulation,
+    path comparison
+
+    - Output: Per-site, per-layer draw.io or PNG diagrams; failing hop and path handed to owners
+success_criteria:
+    - metric: Layer switching
+      target: User switches between Layer 1, 2 and 3 edge sets over the same placed devices without losing positions
+    - metric: Fault domain
+      target: User can list the hosts behind a failed link or device
+    - metric: Deliverable
+      target: Site diagram exports with saved positions and port labels
+sources:
+    - title: netbox-topology-views
+      url: https://github.com/netbox-community/netbox-topology-views
+      summary: Connections from NetBox cables, filters, physics layout with saved coordinate groups, draw.io XML or PNG export
+    - title: NextBox UI plugin
+      url: https://github.com/iDebugAll/nextbox-ui-plugin
+      summary: Device layers ordered by role, layered or automatic layout
+    - title: NetDoc wiki
+      url: https://github.com/dainok/netdoc/wiki
+      summary: L2 neighbors used to guess L1 cabling; populates NetBox; L2 and L3 draw.io exports
+    - title: SolarWinds Network Topology Mapper
+      url: https://www.solarwinds.com/network-topology-mapper/use-cases/network-mapping
+      summary: SNMP and neighbor-protocol discovery
+    - title: Auvik support - Topology data sources
+      url: https://support.auvik.com/hc/en-us/articles/202956414
+      summary: Neighbor protocols less complete than SNMP
+    - title: NetBrain - A/B path
+      url: https://www.netbraintech.com/docs/12ac1ue0to/help/HTML/a-b-path.html
+      summary: Layer 2, Layer 3 and Layer 3 Active path modes
+    - title: NetBrain - The science of A/B path calculation
+      url: https://www.netbraintech.com/blog/the-science-of-a-b-path-calculation
+      summary: Baseline a healthy path and compare the live path during an incident
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,169 @@
+id: W303
+name: Multilayer and Multiplex Data Import and First Assessment
+category: analysis
+validated: false
+personas:
+    - crime-intelligence-analyst
+    - graph-data-wrangler
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - filtering
+    - comparison-view
+    - basic-statistics
+    - degree-analysis
+    - component-analysis
+    - visual-encoding-edges
+    - legend-display
+    - multilayer-networks
+    - edge-merge-policy
+    - multilayer-format-import
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - network-list-panel
+    - comparison-view
+    - statistics-panel
+    - filter-panel
+    - legend-panel
+    - graph-canvas
+starting_state:
+    data_type: Several tie types, modalities, sites or time windows over the same nodes - one file per layer, a layer column, or an extended edge list
+    node_count: 68-400 per layer (brain), about 100 per layer (criminal networks), up to a few thousand
+    edge_density: varies by layer
+    user_expertise: advanced
+goal: >-
+    **Intent**: Load data where the same nodes are tied in several distinct ways (advice, friendship and trust; phone
+    calls and meetings; structural and functional brain layers; sites or seasons) without merging the layers, optionally
+    add links between a node and its copies in other layers, then compare layers and compute cross-layer measures.
+
+
+    **Mental Model**: "Several networks on one cast." Each layer is its own network; the interesting questions are how
+    they overlap and who is active in several.
+
+
+    **Task Phases** (no source gives step timings):
+
+    1. **Recognize the encoding** - One edge list or matrix per layer with shared node ids (ONA per survey question,
+    ecology one matrix per site, connectomics one matrix per modality or window); one edge table with a layer column
+    (Cytoscape interaction type, multinet lines, pymnet); per-layer files tied by a configuration file (muxViz); an
+    extended edge list of node, layer, node, layer, weight (muxViz, emln); a supra-adjacency matrix (neuroscience)
+
+    2. **Import without fusing** - muxViz needs sequential integer ids unless a label option and a full layout file are
+    given; emln builds from a list of layers plus interlayer links and layer attributes, and its igraph export drops
+    interlayer links; multinet declares each layer directed or undirected and can align every actor in every layer;
+    Gephi has no layer model and its duplicate-edge merge silently fuses layers that share a pair (a user saw parallel
+    GML edges merged with weight 2); GEXF 1.3 added an edge kind for parallel edges; in Cytoscape and igraph the layer is
+    an edge attribute filtered per layer
+
+    3. **Declare interlayer links** - An analytic choice: tie a species to itself across 12 patches, tie across time
+    periods, or none for a node-aligned multiplex; directed interlayer links should go both ways; brain time windows tie
+    each region to itself with a coupling weight that is swept
+
+    4. **Report per layer, then across** - Per-layer size, density, components and centrality, then the union; overlap
+    (pairs tied in both relations over pairs, or a coefficient tested by permutation); mean edge overlap and layer degree
+    correlations; overlapping degree and multiplex participation coefficient; versatility, because per-layer or
+    aggregate centrality can mislead; reducibility and multilayer modularity with sweeps
+
+    5. **Draw it** - Stacked translucent planes in 3D, small multiples, one graph with edges colored by layer, or
+    matrices for large dense layers; positions per layer or shared from one layer or the aggregate
+
+
+    **Decision Points**:
+
+    - Which column or file defines the layer?
+
+    - Interlayer links: none, identity links, or weighted coupling?
+
+    - Shared positions across layers, or per-layer layouts?
+
+    - Stacked, side-by-side, edge-colored or flattened view?
+
+
+    **Information Needs**:
+
+    - Per-layer node and edge counts, and nodes present in several layers
+
+    - Warning before any merge that would fuse edges from different layers
+
+    - Overlap between layers and per-node participation across layers
+
+    - Per-layer and aggregate metrics side by side
+
+
+    **Pain Points**:
+
+    - Read by a plain edge-list reader, an extended edge list takes node and layer as the two endpoints
+
+    - muxViz needs sequential integer ids, or a layout file listing every label
+
+    - Most general tools merge parallel edges across layers into one weight
+
+    - Multilayer tools are R or Python only, with strict id and layout-file rules
+
+    - Exports to single-layer formats drop interlayer links
+
+    - No source found for a layer or node count at which a stacked view stops being readable; a VR study of 3- and
+    7-layer networks found no overall winner among 2D, 2.5D and 3D
+
+
+    **Data Flow**:
+
+    - Input: Per-layer files, a layered edge table, an extended edge list (node, layer, node, layer, weight), a muxViz
+    configuration file with its layer, layer-info and layout files, a multinet text file (#LAYERS, #ACTORS,
+    #VERTICES, #EDGES), or a supra-adjacency matrix
+
+    - Transformations: Layer-preserving import, optional interlayer links, per-layer and cross-layer metrics
+
+    - Output: Multilayer graph with layers kept distinct, layer comparison metrics, and stacked or colored views
+success_criteria:
+    - metric: No silent fusion
+      target: Edges from different layers are never merged without the user choosing it
+    - metric: Layer comparison
+      target: User sees per-layer counts and overlap immediately after import
+sources:
+    - title: muxViz README
+      url: https://github.com/manlius/muxViz/blob/master/gui-old/README.md
+      summary: Configuration file plus per-layer edge lists, extended edge lists, integer ids or label option with layout file
+    - title: De Domenico, Porter and Arenas 2015 - MuxViz
+      url: https://arxiv.org/html/1405.0843v2
+      summary: Multilayer visualization modes, aggregate, annular plots, per-layer or shared positions
+    - title: emln - multilayer network guide
+      url: https://ecological-complexity-lab.github.io/emln_package/multilayer.html
+      summary: Interlayer link choices; directed interlayer links should go both ways; node-aligned multiplex example
+    - title: emln - reference manual
+      url: https://cran.r-project.org/web/packages/emln/refman/emln.html
+      summary: create_multilayer_network arguments; get_igraph drops interlayer links
+    - title: multinet - IO reference
+      url: https://search.r-project.org/CRAN/refmans/multinet/html/IO.html
+      summary: LAYERS and EDGES sections, multilayer type, aligned read
+    - title: pymnet
+      url: https://github.com/mnets/pymnet
+      summary: Layer as part of the edge key
+    - title: McGee et al. - The state of the art in multilayer network visualization
+      url: https://ar5iv.arxiv.org/html/1902.06815
+      summary: Matrices more readable than node-link for large dense graphs; no shown 3D usability gains outside stereo
+    - title: Gephi blueprint - parallel edges
+      url: https://blueprints.launchpad.net/gephi/+spec/parallel-edges
+      summary: Attributes to qualify edges as the workaround for multiple relations
+    - title: rgexf issue 23 - Gephi sees multiple edges as one
+      url: https://bitbucket.org/gvegayon/rgexf/issues/23/gephi-sees-multiple-edges-between-nodes-as
+      summary: Parallel edges merged with weight 2
+    - title: GEXF history
+      url: https://gephi.org/gexf/history.html
+      summary: GEXF 1.3 added edge kind for parallel edges
+    - title: UNC Nang Rong project - Multiplexity handout
+      url: https://www.cpc.unc.edu/projects/nangrong/socnet/multiplex.pdf
+      summary: Multiplexity as pairs tied in both relations; coefficient tested by permutation
+    - title: De Domenico et al. 2015 - Ranking in interconnected multilayer networks reveals versatile nodes
+      url: https://www.nature.com/articles/ncomms7868
+      summary: Per-layer or aggregate centrality can lead to misleading results
+    - title: Feyer et al. 2023 - 2D, 2.5D or 3D for multilayer networks in VR
+      url: https://arxiv.org/abs/2307.10674
+      summary: No overall winner for 3- and 7-layer networks
+version: 1.1.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

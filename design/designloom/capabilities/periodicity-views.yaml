@@ -1,0 +1,18 @@
+id: periodicity-views
+name: Periodicity and Pattern of Life
+category: visualization
+description: Hour-of-day and day-of-week activity for selected entities (scale wrapping), and selection lines that mark
+    a selected entity's events on the time bar.
+status: planned
+notes: "Research trace: temporal-and-dynamic-networks.md section 11, requirement T15 (Should)."
+algorithms: []
+used_by_workflows:
+    - W305
+implemented_by_components: []
+requirements:
+    - "Should: Periodicity views: hour of day, day of week (scale wrapping)"
+sources:
+    - title: Temporal and Dynamic Network Data and Analysis (section 11, requirement T15)
+      url: design/user-research/temporal-and-dynamic-networks.md
+      summary: "Should in the research (the document says: Should for investigators). Covered by Designloom when
+          researched: No"

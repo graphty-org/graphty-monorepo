@@ -1316,12 +1316,16 @@ interface StepAct {
 
 /**
  * A merge's aggregate read back as `repeated` (#10056): its rule for every column without one of its
- * own, except `"first"` and `"last"`, which `repeated` spells as a row winning.
+ * own (`"*"`), or else the one rule every column entry names (#10108), except `"first"` and
+ * `"last"`, which `repeated` spells as a row winning.
  * @param aggregate - The step's aggregate.
  * @returns The rule, or null.
  */
 function everyReduction(aggregate: Aggregate | undefined): JoinReduce | null {
-    const rule = aggregate?.["*"];
+    const every = aggregate?.["*"];
+    const rules = new Set(Object.values(aggregate ?? {}));
+    const [only] = rules;
+    const rule = every ?? (rules.size === 1 ? only : undefined);
     return rule !== undefined && rule !== "first" && rule !== "last" ? rule : null;
 }
 

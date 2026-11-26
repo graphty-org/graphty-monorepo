@@ -1,0 +1,168 @@
+id: W52
+name: CiteSpace Co-citation with Time Slicing, Bursts and Timeline
+category: analysis
+validated: false
+personas:
+    - bibliometric-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - temporal-analysis
+    - temporal-navigation
+    - filtering
+    - community-detection
+    - community-profiling
+    - centrality-betweenness
+    - layout-hierarchical
+    - visual-encoding-nodes
+    - legend-display
+    - details-on-demand
+    - analysis-history
+    - export-image
+    - data-export
+    - analysis-provenance
+    - bibliographic-record-import
+    - record-projection
+    - burst-detection
+    - time-axis-layout
+    - cluster-labeling
+suggested_components:
+    - data-import-dialog
+    - data-preview-table
+    - temporal-controls
+    - range-slider
+    - algorithm-panel
+    - community-panel
+    - cluster-table
+    - ranked-node-table
+    - visual-encoding-panel
+    - legend-panel
+    - graph-canvas
+    - node-details-panel
+    - analysis-history-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: Web of Science records with cited references (or Scopus converted to Web of Science format), spanning 10-30 publication years
+    node_count: about 100 nodes per one-year slice; 500-1,000 in the merged network
+    edge_density: sparse to medium
+    user_expertise: intermediate+
+goal: >-
+    **Intent**: Show how the intellectual base of a field developed over time: build a co-citation network per year,
+    merge the slices, cluster and label the merged network, find references with citation bursts, and draw a timeline
+    with one row per cluster. The "Top N references with the strongest citation bursts" table and the timeline view are
+    what reviewers ask for when they ask for CiteSpace.
+
+
+    **Mental Model**: "A field as tree rings." Each year adds a ring of citations; a reference that suddenly gets cited
+    a lot "bursts", and a cluster is a research front whose lifetime can be read along its timeline row.
+
+
+    **Task Phases**:
+
+    1. **Set up data** - Files named "download_*.txt"; other databases converted to Web of Science
+    format ("quite tricky"; 97% of Scopus references converted in one example)
+
+    2. **Deduplicate** - Web of Science records win over duplicates from other sources; matching fails when
+    author forms differ
+
+    3. **Configure** - One-year slices; node type (cited reference, author, keyword); selection per slice by
+    g-index (k=25 is common), Top N or Top N%; optional Pathfinder or minimum-spanning-tree pruning; record a parameter
+    string such as "g-index k=25, LRF=2.5, L/N=10, LBY=5"
+
+    4. **Run** - One network per slice merged into a synthesized network
+
+    5. **Cluster and label** - Aim for about 7-10 major clusters, silhouette above 0.70; label clusters from
+    citing articles' titles or keywords by log-likelihood ratio (usually best), LSI or mutual information
+
+    6. **Detect bursts** - Kleinberg's burst detection with gamma and minimum duration (5 years gave 31 bursts);
+    export the burst table
+
+    7. **Timeline view** - One row per cluster, nodes at publication year, red rings for bursts, purple trims
+    for high betweenness, ring thickness for yearly citations
+
+    8. **Validate** - Check pivotal papers with domain experts; note citation variants that stayed unmerged
+
+
+    **Decision Points**:
+
+    - Slice length and node selection criterion per slice?
+
+    - Prune or not, and with which method?
+
+    - Which labeling method gives readable cluster names?
+
+    - Which burst parameters, and how many bursts to report?
+
+    - Which high-betweenness nodes are genuine turning points?
+
+
+    **Information Needs**:
+
+    - Records per year and references matched across slices
+
+    - Cluster quality (modularity Q, mean silhouette) and cluster sizes
+
+    - Candidate labels per cluster from each labeling method side by side
+
+    - Burst table with strength, begin and end year for each reference
+
+    - Per-node citation history by year
+
+
+    **Pain Points**:
+
+    - A steep learning curve: numerous buttons, menus and options
+
+    - Only Web of Science format is native; conversion is fragile
+
+    - Citation variants of the same reference are not merged
+
+    - Key features in the paid edition
+
+    - Parameter strings are cryptic and are copied by hand into the methods section
+
+
+    **Data Flow**:
+
+    - Input: Records with publication years and cited references
+
+    - Transformations: Deduplication, per-year co-citation networks with per-slice node selection, merge, optional
+    pruning, clustering, cluster labeling from citing text, burst detection, betweenness centrality
+
+    - Output: Clustered co-citation map, timeline figure, burst table, cluster summary table, parameter string
+success_criteria:
+    - metric: Burst table
+      target: Burst table with strength, begin and end years exports as CSV without a second tool
+    - metric: Timeline readability
+      target: A reader can identify each cluster's active years and its bursting references from the figure alone
+    - metric: Parameter reporting
+      target: Slice, selection, pruning, labeling and burst parameters export as one plain-text list
+sources:
+    - title: Issues in Science and Technology Librarianship - CiteSpace case study
+      url: https://journals.library.ualberta.ca/istl/index.php/istl/article/download/2779/2822?inline=1
+      summary: 3,561 records to 857 nodes; 5-year minimum burst duration gave 31 bursts; citation variants unmerged
+    - title: CiteSpace 101 - node selection
+      url: https://sites.google.com/site/citespace101/6-configure-a-citespace-run/6-4-node-selection
+      summary: g-index, Top N and Top N% selection per slice; about 100 nodes per slice
+    - title: CiteSpace 101 - clustering
+      url: https://sites.google.com/site/citespace101/first-example/4-2-clustering
+      summary: 7-10 major clusters, silhouette above 0.70, LLR labeling usually best
+    - title: CiteSpace 101 - interpreting results
+      url: https://sites.google.com/site/citespace101/first-example/4-3-interpret-results
+      summary: Timeline view, burst rings, betweenness trims, citation tree rings
+    - title: CiteSpace glossary - burstness
+      url: https://citespace.podia.com/glossary-burstness
+      summary: Top N references with the strongest citation bursts table
+    - title: Chen 2004 - Searching for intellectual turning points (PNAS)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC387312
+      summary: Per-slice networks merged into a synthesized network; betweenness for turning points
+    - title: SMU Libraries - CiteSpace for power users
+      url: https://library.smu.edu.sg/topics-insights/citespace-bibliometric-mapping-tool-power-users-reviews-business
+      summary: Steep learning curve; non-Web of Science conversion is tricky
+    - title: CiteSpace Scopus conversion blog
+      url: https://citespace.podia.com/blog/48cc06cd-a615-45e8-9eb4-fcbaff26c424
+      summary: 97.0% of Scopus references converted in one example
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

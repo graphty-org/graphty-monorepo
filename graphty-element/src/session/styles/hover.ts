@@ -8,6 +8,7 @@
 import type { AdjacencyView, GraphSnapshot } from "@graphty/graph-format";
 
 import type { LiveHover } from "./predicate";
+import type { ElementIndices } from "./repaint";
 
 /**
  * Marks one node's row of an adjacency: the far end and the edge of each of its arcs.
@@ -140,4 +141,63 @@ export function hoverRowsToRepaint(
     }
 
     return { node: [...rows.node], edge: [...rows.edge] };
+}
+
+/**
+ * Coalesce hover repaints: rows asked for while an earlier hover pass is still waiting its turn
+ * join that pass, so a run of pointer moves during a long pass costs one more pass, not one per
+ * move. The pass reads which rows to paint when it begins, and reads the pointer as it paints.
+ * @param start - Queues one pass over the rows it is handed when the pass begins; settles when it ends.
+ * @param counts - The element counts now, for a pass over every element.
+ * @returns Ask for rows, or null for every element.
+ */
+export function coalescedHoverRepaint(
+    start: (dirty: ElementIndices) => Promise<unknown>,
+    counts: () => { readonly nodeCount: number; readonly edgeCount: number },
+): (rows: { readonly node: readonly number[]; readonly edge: readonly number[] } | null) => void {
+    let waiting: { node: Set<number>; edge: Set<number>; every: boolean } | null = null;
+
+    return (rows) => {
+        if (waiting !== null) {
+            waiting.every ||= rows === null;
+            for (const at of rows?.node ?? []) {
+                waiting.node.add(at);
+            }
+            for (const at of rows?.edge ?? []) {
+                waiting.edge.add(at);
+            }
+            return;
+        }
+
+        const pass = { node: new Set(rows?.node), edge: new Set(rows?.edge), every: rows === null };
+        waiting = pass;
+        let taken: ElementIndices | null = null;
+        const take = (): ElementIndices => {
+            if (taken === null) {
+                if (waiting === pass) {
+                    waiting = null;
+                }
+                const all = (count: number): number[] => Array.from({ length: count }, (_, index) => index);
+                const { nodeCount, edgeCount } = counts();
+                taken = pass.every
+                    ? { node: all(nodeCount), edge: all(edgeCount) }
+                    : { node: [...pass.node], edge: [...pass.edge] };
+            }
+            return taken;
+        };
+        const settle = (): void => {
+            // A pass that ended without beginning (the session closed) takes no more rows.
+            if (waiting === pass) {
+                waiting = null;
+            }
+        };
+        start({
+            get node() {
+                return take().node;
+            },
+            get edge() {
+                return take().edge;
+            },
+        }).then(settle, settle);
+    };
 }

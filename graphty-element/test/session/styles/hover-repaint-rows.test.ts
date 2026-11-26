@@ -84,6 +84,32 @@ describe("a hover layer's repaint on a hover move", () => {
         );
     });
 
+    it("joins pointer moves that arrive while a pass waits into that pass", async () => {
+        /**
+         * The elements visited while the pointer enters and leaves a node some times, unawaited.
+         * @param times - How many times.
+         * @returns The visits.
+         */
+        const visitsFor = (times: number): Promise<number> =>
+            withConsumerStrictState(async () => {
+                const session = ringSession(1_000);
+                await session.styles.add(FADE_REST);
+                const visits = await visitsDuring(async () => {
+                    for (let move = 0; move < times; move++) {
+                        // An inverted layer turning on and off repaints every element each time.
+                        session.selection.hover(`n${String(move)}`);
+                        session.selection.hover(null);
+                    }
+                    await session.styles.settled();
+                });
+                session.dispose();
+                return visits;
+            });
+        const once = await visitsFor(1);
+        const twenty = await visitsFor(20);
+        assert.isAtMost(twenty, 3 * once, `${String(once)} visits for one move, ${String(twenty)} for twenty`);
+    });
+
     it("paints the same picture as a repaint of the whole graph", async () => {
         const session = ringSession(40);
         const layer = await session.styles.add(FADE_REST);

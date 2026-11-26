@@ -33,17 +33,17 @@ percentile of each cell against the bands.
 
 ### Condition codes used in the tables
 
-| code | condition                                       | values the suite uses                                                                                                             |
-| ---- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| N    | graph size (nodes; edges about twice the nodes) | 100, 1k, 10k, 50k, 100k                                                                                                           |
-| P    | render path                                     | objects (the default), batched                                                                                                    |
-| S    | look                                            | plain (no style layers), default (graphty-element's default layers: Everything, Selected, Hovered, Pinned), heavy (see section 3) |
-| D    | dimension                                       | 3D, 2D                                                                                                                            |
-| R    | device pixel ratio                              | 1, 2                                                                                                                              |
-| L    | layout state                                    | settled, force layout running                                                                                                     |
-| A    | app panels (app only)                           | closed, Inspector Style tab open, table open, timeline open                                                                       |
-| Sel  | current selection size                          | 1, 100, all                                                                                                                       |
-| Deg  | degree of the node under the input              | low (2), hub (top 1 percent)                                                                                                      |
+| code | condition                                       | values the suite uses                                       |
+| ---- | ----------------------------------------------- | ----------------------------------------------------------- |
+| N    | graph size (nodes; edges about twice the nodes) | 100, 1k, 10k, 50k, 100k                                     |
+| P    | render path                                     | objects (the default), batched                              |
+| S    | look                                            | plain, default, styled, heavy, file (section 3.1)           |
+| D    | dimension                                       | 3D, 2D                                                      |
+| R    | device pixel ratio                              | 1, 2                                                        |
+| L    | layout state                                    | settled, force layout running                               |
+| A    | app panels (app only)                           | closed, Inspector Style tab open, table open, timeline open |
+| Sel  | current selection size                          | 1, 100, all                                                 |
+| Deg  | degree of the node under the input              | low (2), hub (top 1 percent)                                |
 
 "Harness" names the runner's interaction id when it already times the input, or says **gap**.
 
@@ -51,18 +51,18 @@ percentile of each cell against the bands.
 
 ### 2.1 Pointer on the canvas: hover
 
-| input                                          | drive                                                       | result visible                                                                                                                           | cost driven by                                                                                                 | harness                                                             |
-| ---------------------------------------------- | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| Pointer onto a node                            | `mouse.move` from empty canvas onto the node's screen point | box at the node changes to the Hovered look; with no hover look in the style, state only (hovered node) and the row is marked no-visible | N, P (batched reads the node ID target back a frame or more later), S (Hovered layer, data-bound styles), R, L | hover-node, hover-node-cold, hover-node-running-layout (state only) |
-| Pointer off a node onto empty canvas           | move from the node to an empty point                        | box at the node returns to the unhovered look                                                                                            | as above                                                                                                       | pointer-leaves-node                                                 |
-| Pointer from one node straight onto a neighbor | move between two adjacent node points                       | old box loses, new box gains the Hovered look                                                                                            | N, P (stale async picks dropped), S                                                                            | hover-neighbor                                                      |
-| Pointer out of the element while hovering      | move from a node to a point outside the element             | hover look gone at the node; edge tooltip removed                                                                                        | S, tooltips                                                                                                    | pointer-leaves-element (edge tooltip removal not checked)           |
-| Hover sweep across a dense area                | 60 and 120 Hz `mouse.move` burst across many nodes          | each frame's Hovered box matches the node under the pointer at most one pick late; lag after the last move, dropped frames               | N, P, S, R                                                                                                     | burst-hover-sweep-60hz/120hz                                        |
-| Pointer onto an edge                           | move onto the midpoint of an edge (straight and curved)     | edge box changes to the hover look, or edge-hover state when no look                                                                     | edge count, P (batched on WebGPU reads the edge ID target back), curves, arrowheads, R                         | hover-edge                                                          |
-| Hover a node until its tooltip shows           | move onto a node with a node.tooltip layer                  | tooltip card pixels appear beside the node                                                                                               | tooltip text, fonts, N                                                                                         | hover-node-tooltip, app-tooltip-node                                |
-| Hover an edge until its tooltip shows          | move onto an edge with an edge.tooltip layer                | tooltip pixels at the pointer                                                                                                            | edge pick cost, P                                                                                              | hover-edge-tooltip, app-tooltip-edge                                |
-| Pointer over a label card's close button       | move onto the x                                             | cursor style changes (read `getComputedStyle(canvas).cursor`; no pixel change)                                                           | label count                                                                                                    | **gap**                                                             |
-| Pen hover                                      | CDP `Input.dispatchMouseEvent` with `pointerType: "pen"`    | as mouse hover                                                                                                                           | as mouse                                                                                                       | pen-hover                                                           |
+| input                                          | drive                                                       | result visible                                                                                                                                                     | cost driven by                                                                                                 | harness                                                             |
+| ---------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Pointer onto a node                            | `mouse.move` from empty canvas onto the node's screen point | box at the node changes to the Hovered look (the suite gives the Hovered layer a color; section 3.1); a cell whose change is not seen is timed to state and marked | N, P (batched reads the node ID target back a frame or more later), S (Hovered layer, data-bound styles), R, L | hover-node, hover-node-cold, hover-node-running-layout (state only) |
+| Pointer off a node onto empty canvas           | move from the node to an empty point                        | box at the node returns to the unhovered look                                                                                                                      | as above                                                                                                       | pointer-leaves-node                                                 |
+| Pointer from one node straight onto a neighbor | move between two adjacent node points                       | old box loses, new box gains the Hovered look                                                                                                                      | N, P (stale async picks dropped), S                                                                            | hover-neighbor                                                      |
+| Pointer out of the element while hovering      | move from a node to a point outside the element             | hover look gone at the node; edge tooltip removed                                                                                                                  | S, tooltips                                                                                                    | pointer-leaves-element (edge tooltip removal not checked)           |
+| Hover sweep across a dense area                | 60 and 120 Hz `mouse.move` burst across many nodes          | each frame's Hovered box matches the node under the pointer at most one pick late; lag after the last move, dropped frames                                         | N, P, S, R                                                                                                     | burst-hover-sweep-60hz/120hz                                        |
+| Pointer onto an edge                           | move onto the midpoint of an edge (straight and curved)     | edge box changes to the hover look, or edge-hover state when no look                                                                                               | edge count, P (batched on WebGPU reads the edge ID target back), curves, arrowheads, R                         | hover-edge                                                          |
+| Hover a node until its tooltip shows           | move onto a node with a node.tooltip layer                  | tooltip card pixels appear beside the node                                                                                                                         | tooltip text, fonts, N                                                                                         | hover-node-tooltip, app-tooltip-node                                |
+| Hover an edge until its tooltip shows          | move onto an edge with an edge.tooltip layer                | tooltip pixels at the pointer                                                                                                                                      | edge pick cost, P                                                                                              | hover-edge-tooltip, app-tooltip-edge                                |
+| Pointer over a label card's close button       | move onto the x                                             | cursor style changes (read `getComputedStyle(canvas).cursor`; no pixel change)                                                                                     | label count                                                                                                    | **gap**                                                             |
+| Pen hover                                      | CDP `Input.dispatchMouseEvent` with `pointerType: "pen"`    | as mouse hover                                                                                                                                                     | as mouse                                                                                                       | pen-hover                                                           |
 
 ### 2.2 Pointer on the canvas: click, select, context
 
@@ -297,18 +297,18 @@ app's own additions.
 
 ### 2.14 App: analysis and layout
 
-| input                                                      | drive           | result visible                                                           | cost driven by                             | harness                                                         |
-| ---------------------------------------------------------- | --------------- | ------------------------------------------------------------------------ | ------------------------------------------ | --------------------------------------------------------------- |
-| Analyze button                                             | click           | popover with list, filter focused                                        | catalog size                               | **gap** (inside timed rows only)                                |
-| Type in Filter analyses                                    | type            | list narrowed per keystroke                                              | catalog size                               | **gap**                                                         |
-| Analyze > Degree > Run                                     | click           | running row shown (first response); layer listed and drawn (work length) | N, algorithm, GPU or CPU, suggested styles | app-run-analysis                                                |
-| Other algorithms (PageRank, Louvain, betweenness), Run all | click           | as above                                                                 | algorithm cost                             | app-run-pagerank (PageRank only)                                |
-| Shortest path between two nodes                            | form, Find path | path layer drawn                                                         | N, combobox search                         | app-shortest-path                                               |
-| Simulate removing (node or edge menu)                      | click           | effect drawn                                                             | N, measures re-run                         | **gap**                                                         |
-| Layout > Circle or Grid > Apply                            | click           | first moved frame; settled                                               | N, transition                              | app-layout-apply                                                |
-| Layout > Force > Apply / Re-run                            | click           | first moved frame; settled                                               | N, GPU or CPU                              | app-layout-rerun-force                                          |
-| Other layouts, layout options, Reshuffle seed              | click / type    | first moved frame; settled                                               | algorithm, worker                          | **gap** (element-layout-switch times setLayout, not real input) |
-| Map layout: address, map source, image upload              | type / click    | map drawn, nodes placed                                                  | tiles, gazetteer, N                        | **gap**                                                         |
+| input                                                      | drive           | result visible                                                           | cost driven by                             | harness                                                                                    |
+| ---------------------------------------------------------- | --------------- | ------------------------------------------------------------------------ | ------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| Analyze button                                             | click           | popover with list, filter focused                                        | catalog size                               | **gap** (inside timed rows only)                                                           |
+| Type in Filter analyses                                    | type            | list narrowed per keystroke                                              | catalog size                               | **gap**                                                                                    |
+| Analyze > Degree > Run                                     | click           | running row shown (first response); layer listed and drawn (work length) | N, algorithm, GPU or CPU, suggested styles | app-run-analysis                                                                           |
+| Other algorithms (PageRank, Louvain, betweenness), Run all | click           | as above                                                                 | algorithm cost                             | app-run-pagerank (PageRank only)                                                           |
+| Shortest path between two nodes                            | form, Find path | path layer drawn                                                         | N, combobox search                         | app-shortest-path                                                                          |
+| Simulate removing (node or edge menu)                      | click           | effect drawn                                                             | N, measures re-run                         | **gap**                                                                                    |
+| Layout > Circle or Grid > Apply                            | click           | first moved frame; settled                                               | N, transition                              | app-layout-apply                                                                           |
+| Layout > Force > Apply / Re-run                            | click           | first moved frame; settled                                               | N, GPU or CPU                              | app-layout-rerun-force                                                                     |
+| Other layouts, layout options, Reshuffle seed              | click / type    | first moved frame; settled                                               | algorithm, worker                          | **gap** in the app (element-layout-switch clicks a consumer's button that calls setLayout) |
+| Map layout: address, map source, image upload              | type / click    | map drawn, nodes placed                                                  | tiles, gazetteer, N                        | **gap**                                                                                    |
 
 ### 2.15 App: start, project, views, notes, assistant, export, dialogs
 
@@ -339,95 +339,111 @@ app's own additions.
 ### 3.1 Looks
 
 - **plain**: no style layers; nodes and edges in the element's base look.
-- **default**: graphty-element's default layers (Everything, Selected, Hovered, Pinned), which the app also uses.
-- **heavy**: default layers plus labels on every node, arrowheads, curved edges (3D), node and edge tooltips, node
-  color bound to a numeric column and node size bound to degree. This is the most expensive look a reader can
-  reasonably build on graphty-element alone; file styles come with an imported file and are timed in the app (A3).
-  The runner also keeps `styled` (default layers, labels and arrowheads).
+- **default**: graphty-element's default layers (Everything, Selected, Hovered, Pinned), which the app also uses,
+  with two looks the suite adds untimed through the public styles API. The default Hovered layer selects the hovered
+  node and sets nothing, so a hover would draw no change at all and could only be timed to its state; the suite
+  gives it a magenta node color (`#ff00ff`, which no other layer uses). The element pages also set the app's Pinned
+  look (a gray halo), so letting go of a dragged node, which pins it, draws a change. The app pages get the same
+  hover look; the app has its own Pinned look.
+- **styled**: default plus labels on every node and arrowheads.
+- **heavy**: styled plus curved edges (3D), node and edge tooltips, node color bound to a numeric column and node
+  size bound to degree. This is the most expensive look a reader can reasonably build on graphty-element alone.
+- **file**: in the app with `?features=file-styles`, the styles an imported file carries: Les Miserables (A3), the
+  yEd Live diagram (A9), and a generated 50k file whose nodes carry yEd fills and shapes (A7).
 
 ### 3.2 Why not the full cross product
 
-Sizes (5) times paths (2) times looks (3) times dimensions (2) times pixel ratios (2) times layout states (2) is
-240 element pages; at the measured 8 to 13 minutes a page (a 44-cell page at 5 repetitions took 10 to 13 minutes
-at 1k and 7 to 30 minutes at 10k) that is more than 40 hours. The runner's own defaults today are 48 element
-pages and 36 app pages, well over 10 hours. The suite instead holds one anchor condition and moves one or two
-axes at a time from it, plus the corners where costs multiply (100k, batched, heavy, pixel ratio 2).
+Sizes (5) times paths (2) times looks (4) times dimensions (2) times pixel ratios (2) times layout states (2) is
+320 element pages; at 8 to 13 minutes a page that is more than 50 hours. The suite instead holds one anchor
+condition and moves one or two axes at a time from it, plus the corners where costs multiply (100k, batched,
+heavy, pixel ratio 2).
 
 Anchor: 10k nodes, objects path (the default), default look, 3D, pixel ratio 1, layout settled, app panels closed.
 
-Every page loads once and runs a fixed list of inputs; inputs that need special graphs (map, group outlines,
-network source, time field) run on their own small pages. Repetitions: 3 in the full tier (the 95th percentile
-is then the worst of 3 per page, kept honest by the nightly history), 3 in the quick tier.
+Every page loads once and runs a fixed list of inputs, except the cold inputs (the first hover, click and
+right-click after load; in the app also the first Inspector, menu, restyle and table), each of which gets a page
+of its own, loaded fresh, with its target found from drawn positions rather than by picking. Repetitions: 3 in
+both tiers (the 95th percentile is then the worst of 3 per page, kept honest by the history).
 
-### 3.3 Quick tier (every change to graphty-element or the app; about 30 minutes of GPU lock)
+### 3.3 Quick tier (every change to graphty-element's input, picking, selection, styles or render loop, or to the app's canvas, Inspector and table)
 
-Core inputs only: hover-node, pointer-leaves-node, hover-edge, click-select-node, click-empty-deselect,
-drag-node, drop-node, drag-orbit-3d (drag-pan in 2D), wheel-zoom, key-camera-turn-or-pan, touch-tap-select,
-burst-drag-node-60hz, burst-orbit-60hz, and on the app page app-click-inspector, app-escape-deselect,
-app-select-all, app-restyle-color, app-table-open, app-layer-visibility.
+Core inputs: hover-node, pointer-leaves-node, hover-edge, click-select-node, click-empty-deselect, drag-node,
+drop-node, drag-orbit-3d (drag-pan in 2D), drag-pan, wheel-zoom, key-camera-turn-or-pan, touch-tap-select,
+burst-drag-node-60hz, burst-orbit-60hz, the cold hover, click and right-click, and on the app page the same with
+app-click-select-node in place of click-select-node, plus app-first-select-inspector (cold), app-click-inspector,
+app-escape-deselect, app-select-all, app-restyle-color, app-table-open and app-layer-visibility.
+`node interaction-latency.mjs check` fails when a tier names an input no page of its kind runs.
 
-| page                            | N    | P       | look    | D   | R   | L       | est. minutes |
-| ------------------------------- | ---- | ------- | ------- | --- | --- | ------- | ------------ |
-| element                         | 10k  | objects | default | 3D  | 1   | settled | 6            |
-| element                         | 10k  | batched | default | 3D  | 1   | settled | 6            |
-| element                         | 100k | batched | default | 3D  | 1   | settled | 9            |
-| app (gen-10k, default features) | 10k  | objects | default | 3D  | 1   | settled | 9            |
-| total                           |      |         |         |     |     |         | about 30     |
+| page | what                            | N    | P       | look    | D   | R   | L       |
+| ---- | ------------------------------- | ---- | ------- | ------- | --- | --- | ------- |
+| Q1   | element                         | 10k  | objects | default | 3D  | 1   | settled |
+| Q2   | element                         | 10k  | batched | default | 3D  | 1   | settled |
+| Q3   | element                         | 100k | batched | default | 3D  | 1   | settled |
+| Q4   | app (gen-10k, default features) | 10k  | objects | default | 3D  | 1   | settled |
 
-### 3.4 Full tier (nightly, or on demand; about 2 hours 50 minutes of GPU lock)
+### 3.4 Full tier (nightly, or on demand)
 
-All catalog inputs the runner can drive, on these pages:
+"all" runs every input the runner drives on that kind of page; "quick" runs the quick tier's inputs.
 
-| page  | purpose                                                                                                                      | N                           | P                              | look    | D   | R   | L       | est. minutes |
-| ----- | ---------------------------------------------------------------------------------------------------------------------------- | --------------------------- | ------------------------------ | ------- | --- | --- | ------- | ------------ |
-| E1    | size sweep                                                                                                                   | 100                         | objects                        | default | 3D  | 1   | settled | 7            |
-| E3    | anchor, then force layout running phase                                                                                      | 10k                         | objects                        | default | 3D  | 1   | both    | 12           |
-| E4    | size sweep, default path at scale (quick-tier inputs only)                                                                   | 100k                        | objects                        | default | 3D  | 1   | settled | 8            |
-| E5    | render path, then running phase                                                                                              | 10k                         | batched                        | default | 3D  | 1   | both    | 12           |
-| E6    | render path at scale, then running phase                                                                                     | 100k                        | batched                        | default | 3D  | 1   | both    | 14           |
-| E7    | size sweep                                                                                                                   | 50k                         | batched                        | default | 3D  | 1   | settled | 10           |
-| E8    | 2D                                                                                                                           | 10k                         | objects                        | default | 2D  | 1   | settled | 9            |
-| E9    | 2D at scale                                                                                                                  | 100k                        | batched                        | default | 2D  | 1   | settled | 12           |
-| E10   | look: plain                                                                                                                  | 10k                         | objects                        | plain   | 3D  | 1   | settled | 8            |
-| E11   | look: heavy                                                                                                                  | 10k                         | objects                        | heavy   | 3D  | 1   | settled | 10           |
-| E12   | look: heavy at scale                                                                                                         | 100k                        | batched                        | heavy   | 3D  | 1   | settled | 14           |
-| E14   | worst corner, and pixel ratio 2                                                                                              | 100k                        | batched                        | heavy   | 3D  | 2   | settled | 14           |
-| E15   | special graphs (map, group outlines, stub network source, label cards), plus the 1k point for core pointer and camera inputs | 1k                          | objects                        | default | 3D  | 1   | settled | 6            |
-| A1    | app anchor, with Style tab, table and timeline phases                                                                        | gen-10k                     | objects                        | default | 3D  | 1   | settled | 14           |
-| A2    | app at scale                                                                                                                 | gen-100k                    | batched (if the app offers it) | default | 3D  | 1   | settled | 14           |
-| A3    | app real file with file styles                                                                                               | lesmis, file-styles feature | objects                        | file    | 3D  | 1   | settled | 8            |
-| A4    | app 2D                                                                                                                       | gen-10k                     | objects                        | default | 2D  | 1   | settled | 9            |
-| total |                                                                                                                              |                             |                                |         |     |     |         | about 181    |
+| page | purpose                               | N           | P                       | look    | D   | R   | L       | inputs |
+| ---- | ------------------------------------- | ----------- | ----------------------- | ------- | --- | --- | ------- | ------ |
+| E1   | size sweep                            | 100         | objects                 | default | 3D  | 1   | settled | all    |
+| E2   | size sweep                            | 1k          | objects                 | default | 3D  | 1   | settled | quick  |
+| E3   | anchor, then the force layout running | 10k         | objects                 | default | 3D  | 1   | both    | all    |
+| E4   | default path at scale                 | 100k        | objects                 | default | 3D  | 1   | settled | quick  |
+| E5   | render path, then running             | 10k         | batched                 | default | 3D  | 1   | both    | all    |
+| E6   | render path at scale, then running    | 100k        | batched                 | default | 3D  | 1   | both    | all    |
+| E7   | size sweep                            | 50k         | batched                 | default | 3D  | 1   | settled | all    |
+| E8   | 2D                                    | 10k         | objects                 | default | 2D  | 1   | settled | all    |
+| E9   | 2D at scale                           | 100k        | batched                 | default | 2D  | 1   | settled | all    |
+| E10  | look: plain                           | 10k         | objects                 | plain   | 3D  | 1   | settled | all    |
+| E11  | look: heavy                           | 10k         | objects                 | heavy   | 3D  | 1   | settled | all    |
+| E12  | look: heavy at scale                  | 100k        | batched                 | heavy   | 3D  | 1   | settled | all    |
+| E13  | look: styled (labels, arrowheads)     | 10k         | objects                 | styled  | 3D  | 1   | settled | all    |
+| E14  | worst corner, pixel ratio 2           | 100k        | batched                 | heavy   | 3D  | 2   | settled | all    |
+| E15  | pixel ratio 2 at the anchor           | 10k         | objects                 | default | 3D  | 2   | settled | quick  |
+| E16  | heavy look in 2D                      | 10k         | objects                 | heavy   | 2D  | 1   | settled | quick  |
+| E17  | default path at 50k                   | 50k         | objects                 | default | 3D  | 1   | settled | quick  |
+| E18  | default path, 2D at scale             | 100k        | objects                 | default | 2D  | 1   | settled | quick  |
+| A1   | app anchor, every phase, then running | gen-10k     | objects                 | default | 3D  | 1   | both    | all    |
+| A2   | app at scale, batched                 | gen-100k    | batched (`cosmograph`)  | default | 3D  | 1   | settled | all    |
+| A3   | real file with file styles            | lesmis      | objects (`file-styles`) | file    | 3D  | 1   | settled | all    |
+| A4   | app 2D                                | gen-10k     | objects                 | default | 2D  | 1   | settled | all    |
+| A5   | app batched at the anchor             | gen-10k     | batched (`cosmograph`)  | default | 3D  | 1   | settled | quick  |
+| A6   | app at pixel ratio 2                  | gen-10k     | objects                 | default | 3D  | 2   | settled | quick  |
+| A7   | file styles at scale                  | gen-50k-yed | objects (`file-styles`) | file    | 3D  | 1   | settled | quick  |
+| A8   | the studio's 50k staff file           | staff-50k   | objects                 | default | 3D  | 1   | settled | quick  |
+| A9   | yEd Live diagram with its file styles | yed-live    | objects (`file-styles`) | file    | 3D  | 1   | settled | quick  |
+| A10  | app size sweep                        | gen-1k      | objects                 | default | 3D  | 1   | settled | quick  |
 
-The estimates come from the runner's 1k and 10k pages on this machine (about 3 seconds per repetition of one
-input, plus load). The suite must record each page's own wall time and print the total, so a run that drifts
-past 3 hours shows which page grew. Each page holds the GPU lock from load to teardown, so page minutes are lock
-minutes. If the run grows, the first cut is E10 (plain look), then A4 (app 2D). Pixel ratio 2 is covered only at
-the worst corner (E14); a 10k pixel-ratio-2 page is the first addition if the budget frees up.
+The app turns on the batched path only with `?features=cosmograph` (graphty/src/workspace/ElementHost.tsx), so A2
+and A5 run with it. Each page records its own wall time; `tools/interaction-latency.mjs record` prints them, so a
+run that grows shows which page grew. Each page holds the GPU lock from load to teardown.
 
 ### 3.5 Tracking
 
-`node tools/interaction-latency.mjs run quick|full` runs a tier and appends one line per cell to
-`benchmarks/results/interaction-latency-history.jsonl`, keyed by commit, tier and machine: drawn median and 95th
-percentile, state, settled, dropped frames. `compare` judges the newest run against the one before it: a cell is
-slower when its median and 95th percentile both rose by more than 20 percent and more than one frame (16.7 ms), and
-a move into a worse band is marked. `report` lists every cell over 300 ms, then every cell between 150 and 300 ms.
-Only the owner accepts a slowdown (`benchmarks/interaction-latency-accepted.json`, with his comment as proof, as for
-load time). See INTERACTION-LATENCY.md.
+`node tools/interaction-latency.mjs run quick|full` checks that the bench page and graphty/dist were built from
+HEAD's sources, runs a tier, and appends one line per cell to `benchmarks/results/interaction-latency-history.jsonl`,
+keyed by commit, tier and machine (CPU, Chromium version, GPU renderer and NVIDIA driver): drawn median and 95th
+percentile (a timed-out repetition counts at its cap), state, settled, dropped frames, and what the drawn time ends
+on. `compare` judges the newest run against the one before it and the oldest of the ten before it, and fails a cell
+that is slower (median and 95th percentile both up 20 percent and one frame), slower in the tail alone past 150 ms,
+creeping (the same rise against the oldest run), newly over 300 ms, no longer measured, or missing. `report` lists
+every cell over 300 ms, every cell between 150 and 300 ms, the unmeasured cells, and the cells timed to state because
+the canvas change was not seen. Only the owner accepts a slowdown (`benchmarks/interaction-latency-accepted.json`,
+with his comment as proof, as for load time). See INTERACTION-LATENCY.md.
 
 ## 4. Gaps in the current runner
 
 ### 4.1 Conditions
 
-1. The heavy look on the element page has no file style: file styles come with an imported file, so they are
-   covered by the app page on Les Miserables with `?features=file-styles` (A3).
-2. Node degree is chosen only for the drag (`drag-hub-node`); hover and click targets are whatever nodes are
+1. Node degree is chosen only for the drag (`drag-hub-node`); hover and click targets are whatever nodes are
    pickable.
-3. Selection size is not varied: deselect and select-all run at the sizes the case leaves (1, 2, or all).
-4. With a layout running, inputs end on state only; reading the look's color at the node's moving position (below)
-   is not built.
-5. App panels: the Style tab, the table and the timeline (generated graphs) are crossed with the canvas inputs; the
+2. Selection size is not varied: deselect and select-all run at the sizes the case leaves (1, 2, or all).
+3. App panels: the Style tab, the table and the timeline (generated graphs) are crossed with the canvas inputs; the
    left panel on the Data place is not.
+4. No page builds the special graphs some inputs need: a map, group outlines, a stub network source to expand, label
+   cards, a 3D model. Their rows in section 2 stay **gap**.
 
 ### 4.2 Inputs not timed
 
@@ -438,18 +454,23 @@ join screen); the rest are app controls with no cost that grows with the graph (
 
 ### 4.3 What is measured
 
-1. Bursts end on the tracked state (camera, node position, hovered node, table rows), not on pixels: reading pixels
-   every frame would itself drop frames.
-2. Several app rows end on the DOM or state only (table row select, menus, dialogs, focus moves).
+1. Bursts end on the canvas pixels (a thumbnail read only from the second-last input on); the tracked state (camera,
+   node position, hovered node) stands in when the pixels never change, and the table scroll burst ends on its rows.
+2. Several app rows end on the DOM or state only (table row select, menus, dialogs, focus moves); the history's
+   `endsOn` says which.
 3. Animation length is reported for the Focus selected glide, fit, F, the dimension switch, a camera preset, layout
-   apply and the element's layout switch; saved cameras, the minimap transition and tours are not.
+   apply and the layout button; saved cameras, the minimap transition and tours are not.
+4. While a force layout runs, camera inputs (orbit, pan, wheel, keys, pinch) and node drags still end on state:
+   every pixel moves every frame, and a dragged node already shows its look a few pixels away.
 
 ### 4.4 Reading pixels while a layout runs
 
 Every pixel changes every frame while a force layout runs, so "the box at the target differs" proves nothing.
-Instead, read the target node's current screen position through the public API on each frame and test the box
-there for the look's own color (the Selected or Hovered layer's color, read from
-`session.styles.explain`). A drag is visible when the node's box under the pointer shows the node's color.
+Instead, each frame the runner reads the target node's current screen position through the public API and tests
+the box there for the look's own color: the hover color for hover and pointer-leaves (present, then absent), the
+Selected layer's halo color for click and deselect. Saturated colors match by hue, so 3D shading still matches.
+Before each repetition the runner checks that nodes are still moving (restarting the layout once if they settled),
+and marks a repetition whose layout had settled by its end.
 
 ## 5. Inputs a headless browser cannot drive
 

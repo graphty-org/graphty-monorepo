@@ -8,6 +8,7 @@ import {
     band,
     cellStatus,
     compareRuns,
+    CREEP_RUNS,
     FLOOR_MS,
     lastTwo,
     overBudget,
@@ -46,7 +47,7 @@ describe("interaction-latency", () => {
         assert.equal(whereOf(elementRow("x", 1, 1)), "element objects 3d default dpr1 10k");
         assert.equal(
             whereOf({ surface: "graphty app", graph: "generated 10k (file)", features: "default", dim: "3d" }),
-            "app generated 10k (file) default 3d",
+            "app generated 10k (file) default 3d dpr1",
         );
     });
 
@@ -60,6 +61,7 @@ describe("interaction-latency", () => {
         assert.equal(lines.length, 1);
         assert.equal(lines[0].cell, "element objects 3d default dpr1 10k | hover-node");
         assert.equal(lines[0].p95Ms, 30);
+        assert.equal(lines[0].noVisible, 0);
         assert.equal(lines[0].commit, "abc");
     });
 
@@ -78,17 +80,26 @@ describe("interaction-latency", () => {
             line("r3", "a", 12, 12, { tier: "full" }),
             line("r4", "a", 13, 13),
         ];
-        const { now, before } = lastTwo(lines, "quick");
+        const { now, before, reference } = lastTwo(lines, "quick");
         assert.equal(now[0].run, "r4");
         assert.equal(before[0].run, "r1");
+        assert.deepEqual(reference, []);
         assert.deepEqual(lastTwo([line("r1", "a", 1, 1)], "quick").before, []);
+    });
+
+    it("takes the creep reference from the oldest of the last runs", () => {
+        const lines = Array.from({ length: CREEP_RUNS + 3 }, (_, i) => line(`r${i}`, "a", 10, 10));
+        const { now, before, reference } = lastTwo(lines);
+        assert.equal(now[0].run, `r${CREEP_RUNS + 2}`);
+        assert.equal(before[0].run, `r${CREEP_RUNS + 1}`);
+        assert.equal(reference[0].run, "r2");
     });
 
     it("calls a cell slower only when median and p95 both rose past the factor and one frame", () => {
         const before = line("r1", "a", 100, 120);
         assert.equal(cellStatus(line("r2", "a", 130, 150), before), "slower");
-        // p95 alone rose: noise in one repetition
-        assert.equal(cellStatus(line("r2", "a", 105, 200), before), "ok");
+        // p95 alone rose, still under the preferred bar: noise in one repetition
+        assert.equal(cellStatus(line("r2", "a", 105, 145), before), "ok");
         // past the factor but under a frame
         assert.equal(
             cellStatus(line("r2", "a", 10 * THRESHOLD + 1, 12 * THRESHOLD + 1), line("r1", "a", 10, 12)),
@@ -97,7 +108,32 @@ describe("interaction-latency", () => {
         assert.ok(FLOOR_MS > 16 && FLOOR_MS < 17);
         assert.equal(cellStatus(line("r2", "a", 50, 60), before), "faster");
         assert.equal(cellStatus(line("r2", "a", 50, 60), undefined), "new");
-        assert.equal(cellStatus(line("r2", "a", null, null), before), "unmeasured");
+        assert.equal(cellStatus(line("r2", "a", null, null), undefined), "unmeasured");
+    });
+
+    it("fails a cell that was measured before and is not now, or is gone", () => {
+        const before = line("r1", "a", 100, 120);
+        assert.equal(cellStatus(line("r2", "a", null, null), before), "lost");
+        assert.equal(cellStatus(undefined, before), "missing");
+        const { cells, failing } = compareRuns([line("r2", "b", 10, 10)], [before, line("r1", "b", 10, 10)]);
+        assert.equal(failing, 1);
+        assert.equal(cells.find((c) => c.cell === "a").status, "missing");
+    });
+
+    it("fails a slowdown in the tail alone only when the tail is over 150 ms", () => {
+        assert.equal(cellStatus(line("r2", "a", 105, 200), line("r1", "a", 100, 120)), "tail");
+        assert.equal(cellStatus(line("r2", "a", 50, 100), line("r1", "a", 50, 60)), "ok");
+    });
+
+    it("fails a cell that moved over 300 ms, however little it rose", () => {
+        assert.equal(cellStatus(line("r2", "a", 200, 305), line("r1", "a", 200, 295)), "fails");
+        assert.equal(cellStatus(line("r2", "a", 200, 310), line("r1", "a", 200, 305)), "ok");
+    });
+
+    it("fails creep against the oldest run of the window", () => {
+        const ref = line("r0", "a", 100, 120);
+        assert.equal(cellStatus(line("r9", "a", 125, 145), line("r8", "a", 115, 135), undefined, ref), "creep");
+        assert.equal(cellStatus(line("r9", "a", 105, 125), line("r8", "a", 100, 120), undefined, ref), "ok");
     });
 
     it("lets an accepted slowdown pass only within its ratio", () => {
@@ -107,11 +143,11 @@ describe("interaction-latency", () => {
     });
 
     it("counts slowdowns and marks a move into a worse band", () => {
-        const { cells, slower } = compareRuns(
+        const { cells, failing } = compareRuns(
             [line("r2", "a", 200, 320), line("r2", "b", 100, 140), line("r2", "c", 10, 10)],
             [line("r1", "a", 100, 120), line("r1", "b", 100, 140)],
         );
-        assert.equal(slower, 1);
+        assert.equal(failing, 1);
         const a = cells.find((c) => c.cell === "a");
         assert.equal(a.status, "slower");
         assert.equal(a.crossed, true);
@@ -120,8 +156,8 @@ describe("interaction-latency", () => {
     });
 
     it("lists the cells over 300 ms and between 150 and 300 ms, slowest first", () => {
-        const { over300, over150, unmeasured } = overBudget([
-            line("r", "a", 1, 400),
+        const { over300, over150, unmeasured, stateOnly } = overBudget([
+            line("r", "a", 1, 400, { noVisible: 2, samples: 3 }),
             line("r", "b", 1, 200),
             line("r", "c", 1, 350),
             line("r", "d", 1, 20),
@@ -138,6 +174,10 @@ describe("interaction-latency", () => {
         assert.deepEqual(
             unmeasured.map((l) => l.cell),
             ["e"],
+        );
+        assert.deepEqual(
+            stateOnly.map((l) => l.cell),
+            ["a"],
         );
     });
 });

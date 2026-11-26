@@ -375,11 +375,14 @@ only.
 
 - **`node tools/interaction-latency.mjs run quick`** (or `full`) times every input of
   `benchmarks/compare/INPUT-CATALOG.md` -- hover, click, drag, camera, keys, touch, pen, menus and panels -- from the
-  input event to the first frame that shows the result, on the real NVIDIA card under the GPU lock, appends the run
-  to `benchmarks/results/interaction-latency-history.jsonl` keyed by commit, and prints every cell over 150 and
-  300 ms and every cell slower than the run before (`compare`, exit 1). Only the owner accepts a slowdown, in
-  `benchmarks/interaction-latency-accepted.json`, with the same owner-comment proof as load time. It never runs in
-  CI (no GPU there). How to run each tier and read the report: `benchmarks/compare/INTERACTION-LATENCY.md`.
+  input event to the first frame whose pixels show the result, on the real NVIDIA card under the GPU lock and
+  reserved cores, after checking the bench page and graphty/dist were built from HEAD. It appends the run to
+  `benchmarks/results/interaction-latency-history.jsonl` keyed by commit and machine (CPU, Chromium, GPU, driver),
+  prints every cell over 150 and 300 ms, and `compare` exits 1 when a cell got slower (median and p95, the tail
+  alone over 150 ms, or creeping across ten runs), moved over 300 ms, or stopped being measured. Only the owner
+  accepts a slowdown, in `benchmarks/interaction-latency-accepted.json`, with the same owner-comment proof as load
+  time. `--smoke` checks every case drives on SwiftShader. It never runs in CI (no GPU there). Setting up the
+  machine, running each tier and reading the report: `benchmarks/compare/INTERACTION-LATENCY.md`.
 
 ## Storybook
 

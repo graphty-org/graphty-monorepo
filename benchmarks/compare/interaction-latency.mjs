@@ -11,6 +11,7 @@
 //                                    [--graphs lesmis,yed-live,gen-1k,gen-10k,staff-50k,gen-100k]
 //                                    [--app-dims 3d,2d] [--reps 5] [--only <regex>]
 //   node interaction-latency.mjs report <results.jsonl>             Markdown tables, slowest first
+//   node interaction-latency.mjs check                              every input a tier names is one a page runs
 //
 // Latency is measured in the page, from the input event's own timeStamp (the moment the browser received the real
 // mouse, wheel, key or touch input Playwright sent) to the frame after the result is DRAWN: the canvas pixels at the
@@ -26,7 +27,16 @@
 // JSON line per interaction cell to the results file. LAT_SMOKE=1 runs on any renderer (SwiftShader), for checking
 // that every case drives, never for numbers.
 import { spawnSync } from "node:child_process";
-import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+    appendFileSync,
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readFileSync,
+    rmSync,
+    statSync,
+    writeFileSync,
+} from "node:fs";
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
@@ -64,8 +74,8 @@ const PROBE = () => {
     const scratch = document.createElement("canvas");
     const g2 = scratch.getContext("2d", { willReadFrequently: true });
     // A region of the drawn canvas as RGBA bytes: `pix` is { x, y, w, h } in page pixels around a point, or "all" for
-    // a 96 x 72 thumbnail of the whole canvas. The canvas keeps its last drawn frame (graphty-element's
-    // preserveDrawingBuffer, on by default), so this reads what is on screen.
+    // a 256 x 200 thumbnail of the whole canvas (one node's halo still covers tens of its pixels). The canvas keeps
+    // its last drawn frame (graphty-element's preserveDrawingBuffer, on by default), so this reads what is on screen.
     const grab = (pix) => {
         const c = canvasOf();
         if (!c) return null;
@@ -76,8 +86,8 @@ const PROBE = () => {
             sy = 0,
             sw = c.width,
             sh = c.height,
-            dw = 96,
-            dh = 72;
+            dw = 256,
+            dh = 200;
         if (pix !== "all") {
             const w = pix.w ?? 12,
                 h = pix.h ?? 12;
@@ -85,8 +95,8 @@ const PROBE = () => {
             sy = Math.max(0, Math.round((pix.y - h / 2 - r.top) * ky));
             sw = Math.max(1, Math.min(c.width - sx, Math.round(w * kx)));
             sh = Math.max(1, Math.min(c.height - sy, Math.round(h * ky)));
-            dw = Math.min(sw, 64);
-            dh = Math.min(sh, 64);
+            dw = Math.min(sw, 256);
+            dh = Math.min(sh, 256);
         }
         if (scratch.width !== dw) scratch.width = dw;
         if (scratch.height !== dh) scratch.height = dh;
@@ -94,13 +104,70 @@ const PROBE = () => {
         g2.drawImage(c, sx, sy, sw, sh, 0, 0, dw, dh);
         return g2.getImageData(0, 0, dw, dh).data;
     };
-    // Changed: at least one pixel in 500 (and at least one) moved by more than 24 levels in a channel.
+    // Changed: at least one pixel in 2000 (and at least two) moved by more than 24 levels in a channel. A canvas
+    // cleared by a resize (every pixel transparent) is not a drawn result.
+    const blank = (a) => {
+        for (let i = 3; i < a.length; i += 4) if (a[i] !== 0) return false;
+        return true;
+    };
     const differs = (a, b) => {
-        if (!a || !b || a.length !== b.length) return false;
+        if (!a || !b || a.length !== b.length || blank(a)) return false;
         let n = 0;
         for (let i = 0; i < a.length; i += 4)
             if (Math.max(Math.abs(a[i] - b[i]), Math.abs(a[i + 1] - b[i + 1]), Math.abs(a[i + 2] - b[i + 2])) > 24) n++;
-        return n >= Math.max(1, a.length / 4 / 500);
+        return n >= Math.max(2, a.length / 4 / 2000);
+    };
+    // How many pixels of a box are drawn in `rgb`: a look's own color, where it is drawn now. A saturated color is
+    // matched by hue (within 25 degrees, saturation over 0.35), so 3D shading that darkens a lit node still
+    // matches; a gray one by distance (within 70 levels).
+    const hsv = (r, g, b) => {
+        const mx = Math.max(r, g, b),
+            mn = Math.min(r, g, b),
+            d = mx - mn;
+        let h = 0;
+        if (d && mx === r) h = ((g - b) / d) % 6;
+        else if (d && mx === g) h = (b - r) / d + 2;
+        else if (d) h = (r - g) / d + 4;
+        return [(h * 60 + 360) % 360, mx ? d / mx : 0, mx / 255];
+    };
+    const near = (a, [r0, g0, b0]) => {
+        const [h0, s0] = hsv(r0, g0, b0);
+        let n = 0;
+        for (let i = 0; i < a.length; i += 4) {
+            if (a[i + 3] === 0) continue;
+            if (s0 > 0.35) {
+                const [h, sat, v] = hsv(a[i], a[i + 1], a[i + 2]);
+                const dh = Math.min(Math.abs(h - h0), 360 - Math.abs(h - h0));
+                if (dh < 25 && sat > 0.35 && v > 0.15) n++;
+            } else if (Math.hypot(a[i] - r0, a[i + 1] - g0, a[i + 2] - b0) < 70) n++;
+        }
+        return n;
+    };
+    // `look`: { id | x, y, w, h, rgb, absent } -- the box at node id's position this frame (or at x, y) shows the
+    // color rgb (or, with absent, no longer shows it). For a graph a layout moves every frame, where "the box
+    // changed" proves nothing (INPUT-CATALOG.md, section 4.4).
+    const lookSeen = (look) => {
+        let at = look;
+        if (look.id !== undefined) {
+            const e = el();
+            // "@hovered" and "@selected": whichever node is hovered or selected now (on a moving graph the node
+            // under the pointer is not known until it is there).
+            const sel = e.session.selection;
+            const id = { "@hovered": sel.hovered, "@selected": sel.nodes[0] }[look.id] ?? look.id;
+            if (id === null || id === undefined) return false;
+            const p = e.nodeScreenPosition(id);
+            if (!p?.visible) return false;
+            const r = e.getBoundingClientRect();
+            at = { x: r.left + p.x, y: r.top + p.y };
+        }
+        const a = grab({ x: at.x, y: at.y, w: look.w ?? 30, h: look.h ?? 30 });
+        if (!a || blank(a)) return false;
+        const n = near(a, look.rgb);
+        return look.absent ? n < 3 : n >= 6;
+    };
+    const canvasSize = () => {
+        const c = canvasOf();
+        return c ? `${c.width}x${c.height}` : "";
     };
     // A camera animation the element's stable frame does not wait for (the app's Focus selected glide): up to 60
     // frames for the camera to start moving, then until it holds still for three frames.
@@ -123,13 +190,16 @@ const PROBE = () => {
     globalThis.__lat = {
         grab,
         differs,
+        canvasSize,
         // Watches for the first `type` input event; from then, each frame, for `cond` (an expression over el, the
         // element; s, this measurement; p, the params) to hold and, with `pix`, for the pixels there to change.
         // With `settle`, then waits for waitForStableFrame (a layout or a glide finishing) as settledMs.
         // With `startNow` (a change no input event carries: a pixel ratio change), the clock starts at arming.
-        arm({ type, cond, params, event, capMs, pix, settle, startNow }) {
+        arm({ type, cond, params, event, capMs, pix, look, settle, startNow }) {
             const s = { tInput: null, tState: null, tPix: null, tEvent: null, frames: 0, cam0: cam() };
             const base = pix ? grab(pix) : null;
+            // A look already drawn before the input means the case's setup failed, as for cond below.
+            if (look && lookSeen(look)) s.preTrue = true;
             if (startNow) {
                 s.tInput = performance.now();
                 s.wallInput = performance.timeOrigin + s.tInput;
@@ -148,6 +218,13 @@ const PROBE = () => {
             };
             addEventListener(type, onInput, { capture: true });
             if (event) el().addEventListener(event, onEvent);
+            // When a press and its release reach the page: more than 300 ms apart, graphty-element does not count
+            // them as a click (CLICK_MAX_DURATION_MS), so a click case that times out is a dropped click, not a slow one.
+            const press = { down: null, up: null };
+            const onDown = () => (press.down ??= performance.now());
+            const onUp = () => (press.up ??= performance.now());
+            addEventListener("pointerdown", onDown, { capture: true });
+            addEventListener("pointerup", onUp, { capture: true });
             // eslint-disable-next-line sonarjs/code-eval -- the runner's own expressions, in its own page
             const test = new Function("el", "s", "p", `return (${cond});`);
             const wait = { painted: null, after: 0, asked: false, noState: 0 };
@@ -155,21 +232,22 @@ const PROBE = () => {
             if (cond !== "true")
                 try {
                     // eslint-disable-next-line sonarjs/code-eval -- the runner's own expressions, in its own page
-                    s.preTrue = !!test(el(), { ...s }, params ?? {});
+                    s.preTrue ||= !!test(el(), { ...s }, params ?? {});
                 } catch {
                     s.preTrue = false;
                 }
+            const pixSeen = () => (base && differs(grab(pix), base)) || (look && lookSeen(look));
             // One frame after the input: true when the result is drawn, or never will be.
             const over = () => {
                 // The frame after the pixels changed is the one that presents them.
                 if (s.tPix !== null && s.tPixNext === undefined) s.tPixNext = performance.now();
                 // eslint-disable-next-line sonarjs/code-eval -- the runner's own expressions, in its own page
                 if (s.tState === null && test(el(), s, params ?? {})) s.tState = performance.now();
-                if (base && s.tPix === null && differs(grab(pix), base)) s.tPix = performance.now();
+                if (s.tPix === null && pixSeen()) s.tPix = performance.now();
                 // Drawn, but the state never says so (a 2D pinch moves no camera field): ten frames' grace, then done.
                 if (s.tState === null && s.tPix !== null && ++wait.noState >= 10) return true;
                 if (s.tState === null) return false;
-                if (!base || s.tPix !== null) return true;
+                if ((!base && !look) || s.tPix !== null) return true;
                 if (!wait.asked) {
                     wait.asked = true;
                     Promise.resolve(el().waitForPainted?.()).then(() => (wait.painted = performance.now()));
@@ -201,6 +279,9 @@ const PROBE = () => {
                 const tSettled = await settled();
                 removeEventListener(type, onInput, { capture: true });
                 if (event) el().removeEventListener(event, onEvent);
+                removeEventListener("pointerdown", onDown, { capture: true });
+                removeEventListener("pointerup", onUp, { capture: true });
+                const held = press.down !== null && press.up !== null ? press.up - press.down : null;
                 const r = (t) => (t === null || s.tInput === null ? null : +(t - s.tInput).toFixed(1));
                 // A result the canvas never shows: its state time stands in.
                 const end = s.noVisible ? s.tState : (s.tPixNext ?? tDrawn);
@@ -215,31 +296,52 @@ const PROBE = () => {
                     frames: s.frames,
                     sawInput: s.tInput !== null,
                     timeout: !!s.timeout,
+                    capMs,
+                    endsOn: base || look ? "pixels" : "state",
+                    ...(held !== null && held > 300 ? { clickWindowMissed: +held.toFixed(1) } : {}),
                     ...(s.preTrue ? { preTrue: true } : {}),
                 };
             })();
             armed = s;
         },
         result: () => armed.done,
-        // A burst: records every `type` input and, each frame, `track` (an expression over el and p); `end()` waits
-        // until `track` holds still for `still` frames after the last input, then reports the lag from the last input
-        // to the frame after `track` first changed following it, and the frames dropped from the first input to it.
-        burst({ type, track, params, still = 6 }) {
+        // A burst: records every `type` input (each coalesced pointer event too) and, each frame, `track` (an
+        // expression over el and p); `end()` waits until `track` holds still for `still` frames after the last input.
+        // The lag is from the last input to the frame after the canvas pixels first changed following it (a
+        // 256 x 200 thumbnail, read only from `tail()`, called just before the last input, so the readback costs the
+        // burst nothing); `track` stands in when the pixels never change (noVisible) or `pix` is false (a DOM
+        // result). `close()` stops counting inputs, so the burst's own release is not one. Frames dropped are counted
+        // against 60 Hz.
+        burst({ type, track, params, still = 6, pix = true }) {
             // eslint-disable-next-line sonarjs/code-eval -- the runner's own expressions, in its own page
             const read = new Function("el", "p", `return JSON.stringify(${track});`);
             const inputs = [];
             const frames = [];
-            const onInput = (e) => inputs.push(e.timeStamp);
+            const onInput = (e) => {
+                const all = e.getCoalescedEvents?.() ?? [];
+                if (all.length) for (const c of all) inputs.push(c.timeStamp);
+                else inputs.push(e.timeStamp);
+            };
             addEventListener(type, onInput, { capture: true });
-            const run = { on: true };
+            const run = { on: true, tail: false };
             const loop = (async () => {
                 while (run.on) {
                     await raf();
                     // eslint-disable-next-line sonarjs/code-eval -- the runner's own expressions, in its own page
-                    frames.push({ t: performance.now(), v: read(el(), params ?? {}) });
+                    const f = { t: performance.now(), v: read(el(), params ?? {}), n: inputs.length };
+                    if (pix && run.tail) f.px = grab("all");
+                    frames.push(f);
                 }
             })();
             return {
+                async tail() {
+                    run.tail = true;
+                    await raf();
+                    await raf();
+                },
+                close() {
+                    removeEventListener(type, onInput, { capture: true });
+                },
                 async end() {
                     const t0 = performance.now();
                     for (;;) {
@@ -257,23 +359,35 @@ const PROBE = () => {
                     await loop;
                     removeEventListener(type, onInput, { capture: true });
                     const last = inputs.at(-1);
-                    if (last === undefined) return { sawInput: false, timeout: false, ms: null };
+                    const sent = inputs.slice(0, -1);
+                    if (last === undefined) return { sawInput: false, timeout: true, ms: null, capMs: 10000 };
                     const before = frames.findLast((f) => f.t <= last);
                     const seen = frames.find((f) => f.t > last && f.v !== before?.v);
-                    const next = seen && frames.find((f) => f.t > seen.t);
+                    const basePx = frames.findLast((f) => f.t <= last && f.px)?.px;
+                    const seenPx = basePx && frames.find((f) => f.t > last && f.px && differs(f.px, basePx));
+                    const shown = seenPx ?? seen;
+                    const next = shown && frames.find((f) => f.t > shown.t);
                     const span = frames.filter((f) => f.t >= inputs[0] && f.t <= (next?.t ?? last));
                     const gaps = span.slice(1).map((f, i) => f.t - span[i].t);
-                    const period = globalThis.__lat.period ?? 16.7;
-                    const drops = gaps.reduce((a, g) => a + Math.max(0, Math.round(g / period) - 1), 0);
+                    const drops = gaps.reduce((a, g) => a + Math.max(0, Math.round(g / (1000 / 60)) - 1), 0);
+                    // The rate over the inputs sent back to back (the last waits for the page, then for tail()).
+                    const inSpan = (sent.at(-1) ?? last) - inputs[0];
                     return {
                         ms: next ? +(next.t - last).toFixed(1) : null,
                         stateMs: seen ? +(seen.t - last).toFixed(1) : null,
+                        pixMs: seenPx ? +(seenPx.t - last).toFixed(1) : null,
+                        noVisible: !!seen && !seenPx && !!pix,
+                        endsOn: seenPx ? "pixels" : "state",
                         drops,
                         maxGapMs: gaps.length ? +Math.max(...gaps).toFixed(1) : null,
                         inputs: inputs.length,
-                        spanMs: +((next?.t ?? last) - inputs[0]).toFixed(1),
+                        spanMs: +inSpan.toFixed(1),
+                        achievedHz:
+                            sent.length > 1 && inSpan > 0 ? +(((sent.length - 1) * 1000) / inSpan).toFixed(1) : null,
+                        idlePeriodMs: globalThis.__lat.period ?? null,
                         sawInput: true,
-                        timeout: !seen,
+                        timeout: !shown,
+                        capMs: 10000,
                     };
                 },
             };
@@ -329,8 +443,9 @@ const PROBE = () => {
  * @returns {Promise<object>} The measurement.
  */
 async function timed(page, spec, act) {
-    // While a layout moves every node, every pixel changes every frame: such a phase ends on state alone.
-    const s = STATE_ONLY.has(page) ? { ...spec, pix: undefined } : spec;
+    // While a layout moves every node, every pixel changes every frame, so "the box changed" proves nothing: such a
+    // phase reads the look's own color at the node's position each frame (`moving`), or ends on state alone.
+    const s = STATE_ONLY.has(page) ? { ...spec, pix: undefined, look: spec.look ?? spec.moving } : spec;
     await page.evaluate((a) => globalThis.__lat.arm(a), { capMs: CAP_MS, ...s });
     await act();
     return page.evaluate(() => globalThis.__lat.result());
@@ -530,24 +645,31 @@ function edgeTarget(page, skip = 0) {
  * @param {import("playwright").Page} page - The page.
  * @param {{x: number, y: number, id: string}} t - The node.
  */
+// The untimed set-up steps throw when they did not reach their state, so a case whose set-up failed (a click the
+// element dropped on a slow frame) reads as a set-up error, not as a slow or timed-out input.
 async function hoverUntimed(page, t) {
     await page.mouse.move(t.x, t.y);
-    await until(page, "String(el.session.selection.hovered) === p.id", { id: t.id }, 600);
+    if (!(await until(page, "String(el.session.selection.hovered) === p.id", { id: t.id }, 600)))
+        throw new Error(`set-up: the pointer on node ${t.id} did not hover it`);
 }
 
 async function clickEmptyUntimed(page, ctx) {
+    // A cold page starts with nothing selected; a click on the canvas would warm the picking a cold input times.
+    if (ctx.cold) return;
     await page.mouse.move(ctx.empty.x, ctx.empty.y);
     await frames(page, 2);
     await page.mouse.down();
     await page.mouse.up();
-    await until(page, "el.session.selection.nodes.length === 0 && el.session.selection.edges.length === 0");
+    if (!(await until(page, "el.session.selection.nodes.length === 0 && el.session.selection.edges.length === 0")))
+        throw new Error("set-up: a click on empty canvas did not clear the selection");
 }
 
 async function selectUntimed(page, t) {
     await hoverUntimed(page, t);
     await page.mouse.down();
     await page.mouse.up();
-    await until(page, SEL_IS, { id: t.id });
+    if (!(await until(page, SEL_IS, { id: t.id })))
+        throw new Error(`set-up: a click on node ${t.id} did not select it`);
 }
 
 const clickHere = async (page) => {
@@ -590,24 +712,57 @@ async function measuredDrag(
 }
 
 /**
- * A burst of inputs at `hz`: `send(i)` sends input i of `count`; the in-page recorder reports the lag from the last
- * input to the frame showing it, and the frames dropped during the burst.
+ * A burst of inputs at `hz`: `send(i)` sends input i of `count` through the page's CDP session (`ctx.cdp`) without
+ * waiting for the page to handle it, so a slow page cannot slow the sender (Playwright's mouse waits for each). The
+ * in-page recorder reports the lag from the last input to the frame showing it, the rate the page received, and
+ * the frames dropped during the burst.
  */
-async function burst(page, { type, track, params, hz, count, send, before, after }) {
+async function burst(page, { type, track, params, hz, count, send, before, after, pix = true }) {
     await page.evaluate(() => globalThis.__lat.measurePeriod());
     if (before) await before();
-    await page.evaluate((a) => (globalThis.__burst = globalThis.__lat.burst(a)), { type, track, params });
+    await page.evaluate((a) => (globalThis.__burst = globalThis.__lat.burst(a)), { type, track, params, pix });
     const period = 1000 / hz;
     const t0 = performance.now();
-    for (let i = 0; i < count; i++) {
-        await send(i);
+    const sent = [];
+    for (let i = 0; i < count - 1; i++) {
+        sent.push(send(i));
         const wait = t0 + (i + 1) * period - performance.now();
         if (wait > 0) await new Promise((r) => setTimeout(r, wait));
     }
+    const sentHz = +(((count - 2) * 1000) / (performance.now() - t0 - period)).toFixed(1);
+    // Each input is answered once the page has handled it: then the pixels before the last input are read, the
+    // last is sent, and counting stops before the burst's own release.
+    await Promise.all(sent);
+    await page.evaluate(() => globalThis.__burst.tail());
+    await send(count - 1);
+    await page.evaluate(() => globalThis.__burst.close());
     if (after) await after();
     const r = await page.evaluate(() => globalThis.__burst.end());
-    return { ...r, hz };
+    return { ...r, hz, sentHz };
 }
+
+// Raw mouse input for bursts: a move (with `button` held, or none) or a wheel tick, as Playwright's mouse sends it.
+const BUTTONS = { none: 0, left: 1, right: 2 };
+const rawMove = (cdp, x, y, button = "none") =>
+    cdp.send("Input.dispatchMouseEvent", {
+        type: "mouseMoved",
+        x,
+        y,
+        button,
+        buttons: BUTTONS[button],
+        // As Playwright sends a move with a button held: a pressed pointer has pressure.
+        force: button === "none" ? 0 : 0.5,
+    });
+const rawWheel = (cdp, x, y, deltaY, modifiers = 0) =>
+    cdp.send("Input.dispatchMouseEvent", { type: "mouseWheel", x, y, deltaX: 0, deltaY, modifiers });
+/**
+ * Lets go of a button held through a burst, where the burst left the pointer (Playwright's mouse thinks it is
+ * still where it pressed).
+ */
+const releaseAt = async (page, x, y, button = "left") => {
+    await page.mouse.move(x, y);
+    await page.mouse.up({ button });
+};
 
 const NODE_AT = (id) =>
     `(() => { const a = el.nodeScreenPosition(${JSON.stringify(id)}); return a ? [Math.round(a.x), Math.round(a.y)] : null; })()`;
@@ -623,6 +778,7 @@ function bursts(hzs) {
                     const t = (await nodeTargets(page, 1, 1500 + rep))[0];
                     if (!t) return { skip: "no node to drag" };
                     const dir = t.x < 600 ? 1 : -1;
+                    const xAt = (i) => t.x + dir * (6 + 4 * (i + 1));
                     await page.mouse.move(t.x, t.y);
                     await frames(page, 2);
                     await page.mouse.down();
@@ -633,9 +789,9 @@ function bursts(hzs) {
                         track: NODE_AT(t.id),
                         hz,
                         count: 30,
-                        send: (i) => page.mouse.move(t.x + dir * (6 + 4 * (i + 1)), t.y + (i % 2)),
+                        send: (i) => rawMove(ctx.cdp, xAt(i), t.y + (i % 2), "left"),
                     });
-                    await page.mouse.up();
+                    await releaseAt(page, xAt(29), t.y + 1);
                     await camStill(page);
                     return r;
                 },
@@ -646,6 +802,7 @@ function bursts(hzs) {
                 async run(page, ctx, rep) {
                     const s = ctx.empty;
                     const dir = rep % 2 ? -1 : 1;
+                    const at = (i) => [s.x + dir * 4 * (i + 1), s.y + (i % 3)];
                     return burst(page, {
                         type: "pointermove",
                         track: CAM,
@@ -656,8 +813,8 @@ function bursts(hzs) {
                             await camStill(page);
                             await page.mouse.down();
                         },
-                        send: (i) => page.mouse.move(s.x + dir * 4 * (i + 1), s.y + (i % 3)),
-                        after: () => page.mouse.up(),
+                        send: (i) => rawMove(ctx.cdp, ...at(i), "left"),
+                        after: () => releaseAt(page, ...at(29)),
                     });
                 },
             },
@@ -668,6 +825,7 @@ function bursts(hzs) {
                     const s = ctx.empty;
                     const button = ctx.dim === "3d" ? "right" : "left";
                     const dir = rep % 2 ? -1 : 1;
+                    const at = (i) => [s.x + (i % 3), s.y + dir * 4 * (i + 1)];
                     return burst(page, {
                         type: "pointermove",
                         track: CAM,
@@ -678,8 +836,8 @@ function bursts(hzs) {
                             await camStill(page);
                             await page.mouse.down({ button });
                         },
-                        send: (i) => page.mouse.move(s.x + (i % 3), s.y + dir * 4 * (i + 1)),
-                        after: () => page.mouse.up({ button }),
+                        send: (i) => rawMove(ctx.cdp, ...at(i), button),
+                        after: () => releaseAt(page, ...at(29), button),
                     });
                 },
             },
@@ -698,7 +856,7 @@ function bursts(hzs) {
                             await page.mouse.move(ctx.center.x, ctx.center.y);
                             await camStill(page);
                         },
-                        send: () => page.mouse.wheel(0, dir * 40),
+                        send: () => rawWheel(ctx.cdp, ctx.center.x, ctx.center.y, dir * 40),
                     });
                 },
             },
@@ -724,8 +882,9 @@ function bursts(hzs) {
                                 dy = t.y - from.y;
                             const len = Math.hypot(dx, dy);
                             const f = i < 29 ? ((i + 1) / 29) * ((len - 60) / len) : 1;
-                            return page.mouse.move(from.x + dx * f, from.y + dy * f);
+                            return rawMove(ctx.cdp, from.x + dx * f, from.y + dy * f);
                         },
+                        after: () => page.mouse.move(t.x, t.y),
                     });
                 },
             },
@@ -743,7 +902,7 @@ function bursts(hzs) {
                             await page.mouse.move(ctx.center.x, ctx.center.y);
                             await camStill(page);
                         },
-                        send: (i) => page.mouse.wheel(0, dir * (2 + (i % 3))),
+                        send: (i) => rawWheel(ctx.cdp, ctx.center.x, ctx.center.y, dir * (2 + (i % 3))),
                     });
                 },
             },
@@ -753,7 +912,7 @@ function bursts(hzs) {
                 async run(page, ctx, rep) {
                     // The 60 and 120 Hz bursts go opposite ways, so zooming never runs into its limit.
                     const dir = (rep + (hz === 120 ? 1 : 0)) % 2 ? 1 : -1;
-                    const r = await burst(page, {
+                    return burst(page, {
                         type: "wheel",
                         track: CAM,
                         hz,
@@ -761,12 +920,10 @@ function bursts(hzs) {
                         before: async () => {
                             await page.mouse.move(ctx.center.x, ctx.center.y);
                             await camStill(page);
-                            await page.keyboard.down("Control");
                         },
-                        send: () => page.mouse.wheel(0, dir * 6),
-                        after: () => page.keyboard.up("Control"),
+                        // Ctrl as the wheel event's own modifier, as a trackpad pinch arrives.
+                        send: () => rawWheel(ctx.cdp, ctx.center.x, ctx.center.y, dir * 6, 2),
                     });
-                    return r;
                 },
             },
         );
@@ -882,7 +1039,12 @@ const ELEMENT = [
             await frames(page, 3);
             return timed(
                 page,
-                { type: "pointermove", cond: "el.session.selection.hovered === null", pix: at(t, 40, 40) },
+                {
+                    type: "pointermove",
+                    cond: "el.session.selection.hovered === null",
+                    pix: at(t, 40, 40),
+                    moving: ctx.hoverRgb && { id: t.id, rgb: ctx.hoverRgb, absent: true },
+                },
                 () => page.mouse.move(ctx.empty.x, ctx.empty.y),
             );
         },
@@ -1010,7 +1172,12 @@ const ELEMENT = [
             await frames(page, 3);
             return timed(
                 page,
-                { type: "pointerdown", cond: "el.session.selection.nodes.length === 0", pix: at(t, 40, 40) },
+                {
+                    type: "pointerdown",
+                    cond: "el.session.selection.nodes.length === 0",
+                    pix: at(t, 40, 40),
+                    moving: ctx.selRgb && { id: t.id, rgb: ctx.selRgb, absent: true, w: 50, h: 50 },
+                },
                 () => clickHere(page),
             );
         },
@@ -1045,7 +1212,7 @@ const ELEMENT = [
     },
     {
         id: "drop-node",
-        name: "Let go of a dragged node (node-drag-end event)",
+        name: "Let go of a dragged node (it is drawn pinned: the Pinned look's halo at the node)",
         event: true,
         async run(page, ctx, rep) {
             const t = (await nodeTargets(page, 1, 900 + rep))[0];
@@ -1057,8 +1224,17 @@ const ELEMENT = [
                 await page.mouse.move(t.x + 8 * i, t.y);
                 await frames(page, 1);
             }
-            return timed(page, { type: "pointerup", cond: "s.tEvent !== null", event: "graphty-node-drag-end" }, () =>
-                page.mouse.up(),
+            await frames(page, 3);
+            const now = await whereIs(page, t.id);
+            return timed(
+                page,
+                {
+                    type: "pointerup",
+                    cond: "s.tEvent !== null",
+                    event: "graphty-node-drag-end",
+                    pix: at(now, 50, 50),
+                },
+                () => page.mouse.up(),
             );
         },
     },
@@ -2016,64 +2192,92 @@ const TOUCH = [
     },
 ];
 
-// Switching the layout through graphty-element's own config (an API call, not an input): from the call to the first
-// frame whose drawing moved, and to the settled frame.
+// Switching the layout: graphty-element has no layout control of its own, so the page gets the button a consumer
+// would add (its click calls setLayout), and the real click on it is the input: to the first frame whose drawing
+// changed, and to the settled frame.
 const LAYOUTS = [
     {
         id: "element-layout-switch",
-        name: "Set the layout config (circular / grid alternately): first moved frame; settled",
+        name: "Click a consumer's layout button (circular / grid alternately): first changed frame; settled",
         async run(page, ctx, rep) {
             const type = rep % 2 ? "grid" : "circular";
-            return page.evaluate(
-                async ([type, capMs]) => {
-                    const el = document.querySelector("graphty-element");
-                    const raf = () => new Promise((r) => requestAnimationFrame(r));
-                    const base = globalThis.__lat.grab("all");
-                    const t0 = performance.now();
-                    const done = el.setLayout(type);
-                    let moved = null;
-                    while (moved === null && performance.now() - t0 < capMs) {
-                        await raf();
-                        if (globalThis.__lat.differs(globalThis.__lat.grab("all"), base)) moved = performance.now();
-                    }
-                    await raf();
-                    const drawn = performance.now();
-                    await done;
-                    await Promise.race([el.waitForStableFrame(), new Promise((r) => setTimeout(r, capMs))]).catch(
-                        () => {},
+            const box = await page.evaluate((type) => {
+                let b = document.getElementById("latency-layout-button");
+                if (!b) {
+                    b = document.createElement("button");
+                    b.id = "latency-layout-button";
+                    b.style.cssText = "position:fixed;right:8px;bottom:8px;z-index:10;padding:8px";
+                    b.addEventListener("click", () =>
+                        document.querySelector("graphty-element").setLayout(b.dataset.type),
                     );
-                    const settled = performance.now();
-                    return {
-                        ms: moved === null ? null : +(drawn - t0).toFixed(1),
-                        stateMs: moved === null ? null : +(moved - t0).toFixed(1),
-                        settledMs: +(settled - t0).toFixed(1),
-                        sawInput: true,
-                        timeout: moved === null,
-                    };
+                    document.body.append(b);
+                }
+                b.dataset.type = type;
+                b.textContent = type;
+                const r = b.getBoundingClientRect();
+                return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+            }, type);
+            await page.mouse.move(box.x, box.y);
+            await frames(page, 2);
+            const before = await page.evaluate(() => document.querySelector("graphty-element").layout ?? null);
+            return timed(
+                page,
+                {
+                    type: "pointerdown",
+                    cond: "(el.layout ?? null) !== p.before",
+                    params: { before },
+                    pix: "all",
+                    settle: true,
                 },
-                [type, CAP_MS],
+                () => page.mouse.click(box.x, box.y),
             );
         },
     },
 ];
 
 // While a force layout keeps moving the graph, last: it changes the drawing for good. Pixels change every frame
-// here, so these end on state alone.
+// here, so these read the look's color at the node's position each frame (`look`), or end on state.
+
+// Grabs a node of a moving graph: the pointer onto a drawn node until some node is hovered (on a moving graph the
+// node under the pointer may be another than the one aimed at), untimed.
+async function hoverMoving(page, rep, seed) {
+    const t0 = (await nodeTargets(page, 1, seed + rep))[0];
+    if (!t0) return null;
+    // A pick runs on a pointer move, not when a node slides under a still pointer: follow the node, up to 20 moves.
+    for (let i = 0; i < 20; i++) {
+        const t = await whereIs(page, t0.id);
+        await page.mouse.move(t.x + (i % 2), t.y);
+        if (await until(page, "el.session.selection.hovered !== null", {}, 3)) {
+            const id = await page.evaluate(() =>
+                String(document.querySelector("graphty-element").session.selection.hovered),
+            );
+            return { ...t, id };
+        }
+    }
+    return null;
+}
+const awayFromNodes = async (page, ctx) => {
+    await page.mouse.move(ctx.empty.x, ctx.empty.y);
+    await until(page, "el.session.selection.hovered === null", {}, 60);
+};
+
 const RUNNING = [
     {
         id: "hover-node-running-layout",
-        name: "Hover a node while a force layout runs (state only)",
+        name: "Hover a node while a force layout runs (the hover color at whichever node is hovered)",
         async run(page, ctx, rep) {
-            await page.mouse.move(ctx.empty.x, ctx.empty.y);
-            await until(page, "el.session.selection.hovered === null");
-            const t = (await nodeTargets(page, 1, 300 + rep))[0];
-            if (!t) return { skip: "no node in view" };
+            await awayFromNodes(page, ctx);
+            const t0 = (await nodeTargets(page, 1, 300 + rep))[0];
+            if (!t0) return { skip: "no node in view" };
+            // Where the node is drawn now: finding it took frames in which it moved.
+            const t = await whereIs(page, t0.id);
             return timed(
                 page,
                 {
                     type: "pointermove",
                     cond: "el.session.selection.hovered !== null",
                     event: "graphty-node-hover",
+                    look: ctx.hoverRgb && { id: "@hovered", rgb: ctx.hoverRgb },
                     capMs: 3000,
                 },
                 () => page.mouse.move(t.x, t.y),
@@ -2081,37 +2285,82 @@ const RUNNING = [
         },
     },
     {
-        id: "click-select-running-layout",
-        name: "Click a node while a force layout runs (state only)",
+        id: "pointer-leaves-node-running-layout",
+        name: "Move the pointer off a node while a force layout runs (its hover color gone)",
         async run(page, ctx, rep) {
-            await clickEmptyUntimed(page, ctx);
-            const t = (await nodeTargets(page, 1, 700 + rep))[0];
-            if (!t) return { skip: "no node in view" };
-            await page.mouse.move(t.x, t.y);
-            await until(page, "el.session.selection.hovered !== null", {}, 60);
-            return timed(page, { type: "pointerdown", cond: "el.session.selection.nodes.length === 1" }, () =>
-                clickHere(page),
+            const t = await hoverMoving(page, rep, 400);
+            if (!t) return { skip: "no node stayed under the pointer" };
+            return timed(
+                page,
+                {
+                    type: "pointermove",
+                    cond: "el.session.selection.hovered === null",
+                    look: ctx.hoverRgb && { id: t.id, rgb: ctx.hoverRgb, absent: true },
+                    capMs: 3000,
+                },
+                () => page.mouse.move(ctx.empty.x, ctx.empty.y),
+            );
+        },
+    },
+    {
+        id: "click-select-running-layout",
+        name: "Click a node while a force layout runs (the Selected halo at whichever node is selected)",
+        async run(page, ctx, rep) {
+            await page.evaluate(() => document.querySelector("graphty-element").session.selection.clear());
+            const t = await hoverMoving(page, rep, 700);
+            if (!t) return { skip: "no node stayed under the pointer" };
+            return timed(
+                page,
+                {
+                    type: "pointerdown",
+                    cond: "el.session.selection.nodes.length === 1",
+                    look: ctx.selRgb && { id: "@selected", rgb: ctx.selRgb, w: 50, h: 50 },
+                    capMs: 3000,
+                },
+                () => clickHere(page),
+            );
+        },
+    },
+    {
+        id: "click-empty-deselect-running-layout",
+        name: "Click empty canvas while a force layout runs (the Selected halo gone)",
+        async run(page, ctx, rep) {
+            const t = await hoverMoving(page, rep, 800);
+            if (!t) return { skip: "no node stayed under the pointer" };
+            await clickHere(page);
+            if (!(await until(page, "el.session.selection.nodes.length === 1", {}, 60)))
+                return { skip: "the moving node slid out from under the click" };
+            const id = await page.evaluate(() =>
+                String(document.querySelector("graphty-element").session.selection.nodes[0]),
+            );
+            await page.mouse.move(ctx.empty.x, ctx.empty.y);
+            await frames(page, 2);
+            return timed(
+                page,
+                {
+                    type: "pointerdown",
+                    cond: "el.session.selection.nodes.length === 0",
+                    look: ctx.selRgb && { id, rgb: ctx.selRgb, absent: true, w: 50, h: 50 },
+                    capMs: 3000,
+                },
+                () => clickHere(page),
             );
         },
     },
     {
         id: "drag-node-running-layout",
-        name: "Drag a node while a force layout runs (per move; node under the pointer)",
+        name: "Drag a node while a force layout runs (per move; node under the pointer; state only)",
         moves: 8,
         async run(page, ctx, rep) {
-            const t = (await nodeTargets(page, 1, 1100 + rep))[0];
-            if (!t) return { skip: "no node in view" };
-            const rect = await page.evaluate(() => {
-                const r = document.querySelector("graphty-element").getBoundingClientRect();
-                return { left: r.left, top: r.top };
-            });
+            const t = await hoverMoving(page, rep, 1100);
+            if (!t) return { skip: "no node stayed under the pointer" };
+            const rect = await elementRect(page);
             const near =
                 "(() => { const a = el.nodeScreenPosition(p.id); return a && Math.hypot(a.x - p.x, a.y - p.y) <= 3; })()";
             const out = [];
-            await page.mouse.move(t.x, t.y);
             await page.mouse.down();
             let x = t.x;
-            const dir = t.x < 600 ? 1 : -1;
+            const dir = t.x < rect.left + rect.width / 2 ? 1 : -1;
             for (let i = 0; i < 9; i++) {
                 x += 10 * dir;
                 out.push(
@@ -2121,6 +2370,8 @@ const RUNNING = [
                             type: "pointermove",
                             cond: near,
                             params: { id: t.id, x: x - rect.left, y: t.y - rect.top },
+                            // State only: the dragged node already shows its hover color 10 px away, so its color
+                            // under the pointer cannot tell this move's frame from the last one's.
                             capMs: 5000,
                         },
                         () => page.mouse.move(x, t.y),
@@ -2144,9 +2395,12 @@ function stats(xs) {
 
 function row(base, inter, samples, reps, extra = {}) {
     const flat = samples.flat().filter(Boolean);
-    const ms = flat.map((r) => r.ms);
+    // A repetition that timed out counts at its cap, so it raises the median and the 95th percentile instead of
+    // leaving them; a cell whose every repetition timed out reads as its cap, over every bar.
+    const ms = flat.map((r) => (r.timeout ? (r.capMs ?? CAP_MS) : r.ms));
     const st = stats(ms);
     const med = (k) => stats(flat.map((r) => r[k]))?.median ?? null;
+    const ends = new Set(flat.filter((r) => !r.timeout).map((r) => (r.noVisible ? "state" : (r.endsOn ?? "state"))));
     return {
         ...base,
         interaction: inter.id,
@@ -2156,6 +2410,14 @@ function row(base, inter, samples, reps, extra = {}) {
         timeouts: flat.filter((r) => r.timeout).length,
         noInput: flat.filter((r) => r.sawInput === false).length,
         noVisible: flat.filter((r) => r.noVisible).length,
+        // Repetitions whose press and release reached the page more than 300 ms apart: no click to the element.
+        ...(flat.some((r) => r.clickWindowMissed)
+            ? { clickWindowMissed: flat.filter((r) => r.clickWindowMissed).length }
+            : {}),
+        // What the drawn time ends on: "pixels", "state" (a DOM or state result, or one never seen drawn), or
+        // "mixed".
+        endsOn: ends.size > 1 ? "mixed" : ([...ends][0] ?? null),
+        ...(flat.some((r) => r.layoutStill) ? { layoutStill: flat.filter((r) => r.layoutStill).length } : {}),
         median_ms: st?.median ?? null,
         p95_ms: st?.p95 ?? null,
         worst_ms: st?.worst ?? null,
@@ -2165,6 +2427,11 @@ function row(base, inter, samples, reps, extra = {}) {
         settled_median_ms: med("settledMs"),
         drops_median: med("drops"),
         max_gap_median_ms: med("maxGapMs"),
+        inputs_median: med("inputs"),
+        input_span_median_ms: med("spanMs"),
+        achieved_hz_median: med("achievedHz"),
+        sent_hz_median: med("sentHz"),
+        idle_period_median_ms: med("idlePeriodMs"),
         perceivable: st ? st.p95 > PERCEIVED_MS : null,
         raw: ms,
         rawState: flat.map((r) => r.stateMs ?? null),
@@ -2172,23 +2439,51 @@ function row(base, inter, samples, reps, extra = {}) {
     };
 }
 
+/**
+ * A "layout running" cell must time a moving graph: restarts the layout once if it settled.
+ * @returns whether it moves
+ */
+async function keepMoving(page, ctx) {
+    if (await layoutMoving(page)) return true;
+    await ctx.restartLayout?.();
+    await frames(page, 3);
+    if (!(await layoutMoving(page))) return false;
+    Object.assign(ctx, await pageContext(page, ctx));
+    return true;
+}
+
+/** Marks a running cell's samples whose layout had settled by the end of the repetition. */
+async function markStill(page, r) {
+    if (await layoutMoving(page)) return;
+    for (const x of [r].flat()) if (x) x.layoutStill = true;
+}
+
+/** A camera move or a layout changes where everything is drawn: finds the targets again (never on a cold page). */
+async function refreshTargets(page, ctx) {
+    if (!ctx.moving) await camStill(page);
+    if (ctx.cold || !(ctx.moving || ctx.dirty || (await camOf(page)) !== ctx.cam)) return;
+    Object.assign(ctx, await pageContext(page, ctx));
+    // A glide can leave the camera close on one node: fit the graph again and look once more.
+    if (ctx.nodes.length < 2 && ctx.refit) {
+        await ctx.refit();
+        Object.assign(ctx, await pageContext(page, ctx));
+    }
+    ctx.dirty = false;
+}
+
 /** One repetition of one interaction, into `g`; a rep that throws is recorded and its held keys let go. */
 async function oneRep(page, ctx, inter, rep, cdp, g) {
+    const had = [g.samples.length, g.errors.length];
     try {
-        // A camera move or a layout changes where everything is drawn: find the targets again.
-        if (!ctx.moving) await camStill(page);
-        if (ctx.moving || ctx.dirty || (await camOf(page)) !== ctx.cam) {
-            Object.assign(ctx, await pageContext(page, ctx));
-            // A glide can leave the camera close on one node: fit the graph again and look once more.
-            if (ctx.nodes.length < 2 && ctx.refit) {
-                await ctx.refit();
-                Object.assign(ctx, await pageContext(page, ctx));
-            }
-            ctx.dirty = false;
-        }
+        await refreshTargets(page, ctx);
         if (ctx.prep) await ctx.prep(page, ctx);
+        if (ctx.moving && !(await keepMoving(page, ctx))) {
+            g.errors.push("the force layout had stopped moving and did not restart");
+            return;
+        }
         const t0 = Date.now();
         const r = await inter.run(page, ctx, rep, cdp);
+        if (ctx.moving) await markStill(page, r);
         if ([r].flat().some((x) => x?.preTrue))
             g.errors.push("the result held before the input: the case's setup did not leave the state it needs");
         else if (r?.skip) g.skip = r.skip;
@@ -2209,7 +2504,11 @@ async function oneRep(page, ctx, inter, rep, cdp, g) {
         await page.keyboard.press("Escape").catch(() => {});
         ctx.dirty = true;
     }
-    console.log(rep, inter.id, JSON.stringify(g.samples.at(-1))?.slice(0, 200) ?? g.skip ?? g.errors.at(-1));
+    // What this repetition gave: its sample, its error, or the reason it was skipped.
+    let said = g.skip;
+    if (g.samples.length > had[0]) said = JSON.stringify(g.samples.at(-1)).slice(0, 200);
+    else if (g.errors.length > had[1]) said = "error: " + g.errors.at(-1);
+    console.log(rep, inter.id, said);
 }
 
 /**
@@ -2252,6 +2551,41 @@ const wanted = (list, spec) =>
 
 // ------------------------------------------------------------------ element pages
 
+// graphty-element's default Hovered layer selects the hovered node and sets nothing, so a hover draws no change and
+// could only ever be timed to its state. Every look but plain (and the app) gets this hover look, set untimed on the
+// Hovered layer through the public styles API: a node color no other layer here uses. Its fill, not its halo, so a
+// pinned node's halo still shows under the pointer.
+const HOVER_HEX = "#ff00ff";
+const HOVER_RGB = [255, 0, 255];
+// The app's Pinned look (graphty/src/workspace/Workspace.tsx), given to the element pages too, so a drop pins a
+// node into a look the canvas draws.
+const PINNED_LOOK = { color: "#868e96", scale: 1.3, opacity: 1 };
+
+async function addHoverLook(page) {
+    const ok = await page.evaluate(async (hex) => {
+        const el = document.querySelector("graphty-element");
+        const hovered = el.session.styles.list().find((l) => l.name === "Hovered");
+        if (!hovered) return false;
+        await el.session.styles.update(hovered.id, { set: { ...hovered.set, "node.color": hex } });
+        await el.waitForPainted();
+        return true;
+    }, HOVER_HEX);
+    if (!ok) throw new Error("no Hovered layer to give a hover look");
+}
+
+/** The Selected layer's halo color, as [r, g, b], or null when it sets none. */
+const selectedRgb = (page) =>
+    page.evaluate(() => {
+        const l = document
+            .querySelector("graphty-element")
+            .session.styles.list()
+            // A row targeting nodes and edges is a layer for each: the node one sets the halo.
+            .find((x) => x.name === "Selected" && x.set?.["node.haloColor"]);
+        const c = l?.set?.["node.haloColor"];
+        const m = typeof c === "string" && /^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})/i.exec(c);
+        return m ? [1, 2, 3].map((i) => Number.parseInt(m[i], 16)) : null;
+    });
+
 /** The heavy look's style layers beyond labels, arrowheads and curves (INPUT-CATALOG.md, section 3.1). */
 async function heavyLook(page) {
     await addTooltips(page);
@@ -2284,8 +2618,6 @@ async function heavyLook(page) {
 
 // Camera, wheel, key and touch-free inputs again while a force layout runs (state only: every pixel moves).
 const RUNNING_IDS = [
-    "pointer-leaves-node",
-    "click-empty-deselect",
     "drag-orbit-3d",
     "drag-pan",
     "wheel-zoom",
@@ -2293,41 +2625,35 @@ const RUNNING_IDS = [
     "key-camera-zoom",
     "pinch-ctrl-wheel",
 ];
-const runningVariants = () => variant(ELEMENT, RUNNING_IDS, "running-layout", "force layout running; state only");
+const runningVariants = () =>
+    variant(ELEMENT, RUNNING_IDS, "running-layout", "force layout running; camera inputs end on state");
 
-async function elementPage(spec, out) {
-    const build = process.env.BENCH_BUILD ?? join(HERE, "builds", process.env.BENCH_LABEL ?? "interaction-latency");
-    const server = process.env.BENCH_URL ? null : await serve(build);
-    const url = process.env.BENCH_URL ?? `http://127.0.0.1:${server.address().port}/`;
-    const dpr = spec.dpr ?? 1;
-    const t0Page = Date.now();
+/**
+ * Loads the bench page in a new browser: the graph, the look and the hover and pinned looks, settled and painted.
+ * @returns the browser (b) and its page
+ */
+async function loadElement(spec, url, base) {
+    const dpr = base.dpr;
     const b = await launch({ width: 1280, height: 1000 }, dpr);
-    const base = {
-        surface: "graphty-element",
-        tierPage: spec.page,
-        path: spec.path,
-        dim: spec.dim,
-        mode: spec.mode ?? "plain",
-        dpr,
-        n: spec.n,
-        smoke: SMOKE || undefined,
-        at: new Date().toISOString(),
-        loadavg: loadavg()[0],
-        cpus: /Cpus_allowed_list:\s*(\S+)/.exec(readFileSync("/proc/self/status", "utf8"))?.[1],
-    };
     try {
         const { page } = b;
         await page.goto(url);
         await page.waitForFunction(() => globalThis.B);
         const info = await page.evaluate(() => B.info());
-        Object.assign(base, { sha: info.build?.sha, dirty: info.build?.dirty, renderer: info.webgl });
+        Object.assign(base, {
+            sha: info.build?.sha,
+            dirty: info.build?.dirty,
+            elementBuilt: info.build?.distBuilt,
+            renderer: info.webgl,
+            browser: await page.evaluate(() => /Chrome\/([\d.]+)/.exec(navigator.userAgent)?.[1] ?? null),
+        });
         checkRenderer(info.webgl);
         const gen = await page.evaluate(([n]) => B.gen(n, 2 * n), [spec.n]);
         base.edges = gen.m;
         const look = base.mode;
         // plain: no style layers. default: graphty-element's default layers (Everything, Selected, Hovered,
-        // Pinned). styled: default plus labels and arrowheads. heavy: styled plus curved edges, tooltips, color
-        // bound to a number column and size bound to degree (INPUT-CATALOG.md, section 3.1).
+        // Pinned) with the hover look. styled: default plus labels and arrowheads. heavy: styled plus curved edges,
+        // tooltips, color bound to a number column and size bound to degree (INPUT-CATALOG.md, section 3.1).
         const labelled = look === "styled" || look === "heavy";
         await page.evaluate((o) => B.setup("graphty", o), {
             mode: "plain",
@@ -2340,32 +2666,91 @@ async function elementPage(spec, out) {
             curves: look === "heavy" && spec.dim !== "2d",
         });
         if (look !== "plain")
-            await page.evaluate(() =>
-                document.querySelector("graphty-element").session.config.set({ startingRows: true }),
+            await page.evaluate(
+                (pinnedStyle) =>
+                    document.querySelector("graphty-element").session.config.set({ startingRows: true, pinnedStyle }),
+                PINNED_LOOK,
             );
         const load = await page.evaluate(() => B.load());
         if (load.error) throw new Error("load failed: " + load.error);
         if (look === "heavy") await heavyLook(page);
         await page.evaluate(() => B.adapter.settle());
+        if (look !== "plain") await addHoverLook(page);
         await page.evaluate(() => document.querySelector("graphty-element").waitForPainted());
         base.renderPathDrawn = await page.evaluate(() => document.querySelector("graphty-element").renderPath);
+        b.cdp = await b.ctx.newCDPSession(page);
+        return b;
+    } catch (e) {
+        await b.close();
+        throw e;
+    }
+}
+
+/**
+ * Runs each cold input (the first of its kind after load) on its own fresh page, with targets found from drawn
+ * positions alone: finding them by picking (elementAt) would warm the very path the cold input times.
+ */
+async function coldPages(list, load, contextOf, base, out) {
+    for (const inter of list) {
+        let b = null;
+        try {
+            b = await load();
+            const ctx = await contextOf(b.page);
+            ctx.cdp = b.cdp;
+            if (ctx.nodes.length < 1) throw new Error("no isolated node drawn for a cold input");
+            await roundRobin(b.page, ctx, [inter], 1, base, out, b.cdp);
+        } catch (e) {
+            const err = String(e?.message ?? e)
+                .split("\n")[0]
+                .slice(0, 200);
+            appendFileSync(out, JSON.stringify(row(base, inter, [], 0, { errors: [err] })) + "\n");
+        } finally {
+            await b?.close();
+        }
+    }
+}
+
+async function elementPage(spec, out) {
+    const build = process.env.BENCH_BUILD ?? join(HERE, "builds", process.env.BENCH_LABEL ?? "interaction-latency");
+    const server = process.env.BENCH_URL ? null : await serve(build);
+    const url = process.env.BENCH_URL ?? `http://127.0.0.1:${server.address().port}/`;
+    const t0Page = Date.now();
+    const base = {
+        surface: "graphty-element",
+        tierPage: spec.page,
+        path: spec.path,
+        dim: spec.dim,
+        mode: spec.mode ?? "plain",
+        dpr: spec.dpr ?? 1,
+        n: spec.n,
+        smoke: SMOKE || undefined,
+        at: new Date().toISOString(),
+        loadavg: loadavg()[0],
+        cpus: /Cpus_allowed_list:\s*(\S+)/.exec(readFileSync("/proc/self/status", "utf8"))?.[1],
+    };
+    let b = null;
+    try {
+        const cold = wanted(variant(ELEMENT, COLD_ELEMENT, "cold", "first after load"), spec);
+        await coldPages(
+            cold,
+            () => loadElement(spec, url, base),
+            (page) => coldContext(page, spec),
+            base,
+            out,
+        );
+        b = await loadElement(spec, url, base);
+        const { page, cdp } = b;
+        const look = base.mode;
         const ctx = await pageContext(page, spec);
+        ctx.cdp = cdp;
+        ctx.hoverRgb = look === "plain" ? null : HOVER_RGB;
+        ctx.selRgb = await selectedRgb(page);
         console.log("targets", JSON.stringify({ nodes: ctx.nodes, empty: ctx.empty, edges: ctx.edges }));
         if (ctx.nodes.length < 2 || !ctx.empty) throw new Error("no two pickable nodes or no empty point");
         ctx.refit = async () => {
             await page.evaluate(() => document.querySelector("graphty-element").zoomToFit());
             await camStill(page);
         };
-        const cdp = await b.ctx.newCDPSession(page);
-        await roundRobin(
-            page,
-            ctx,
-            wanted(variant(ELEMENT, COLD_ELEMENT, "cold", "first after load"), spec),
-            1,
-            base,
-            out,
-            cdp,
-        );
         await roundRobin(page, ctx, wanted(ELEMENT, spec), spec.reps, base, out, cdp);
         await newPhase(ctx);
         await roundRobin(page, ctx, wanted(bursts([60, 120]), spec), spec.reps, base, out, cdp);
@@ -2385,27 +2770,79 @@ async function elementPage(spec, out) {
             await roundRobin(page, ctx, wanted(LAYOUTS, spec), spec.reps, base, out);
         }
         const running = spec.running === false ? [] : wanted([...RUNNING, ...runningVariants()], spec);
-        if (running.length) {
-            await page.evaluate(() => document.querySelector("graphty-element").setLayout("ngraph"));
-            await frames(page, 30);
-            ctx.moving = true;
-            STATE_ONLY.add(page);
-            await roundRobin(page, ctx, running, spec.reps, base, out, cdp);
-        }
+        if (running.length) await runningPhase(page, ctx, running, spec.reps, base, out, cdp);
     } catch (e) {
         appendFileSync(
             out,
-            JSON.stringify({ ...base, failure: String(e?.message ?? e).slice(0, 300), errors: b.errors }) + "\n",
+            JSON.stringify({ ...base, failure: String(e?.message ?? e).slice(0, 300), errors: b?.errors }) + "\n",
         );
         console.log("failure", e?.message);
     } finally {
         appendFileSync(out, JSON.stringify({ ...base, wall: true, wallMs: Date.now() - t0Page }) + "\n");
-        await b.close();
+        await b?.close();
         server?.close();
     }
 }
 
-const camOf = (page) => page.evaluate(() => JSON.stringify(document.querySelector("graphty-element").getCameraState()));
+/**
+ * Starts a force layout and runs `list` while it moves. A (re)start scatters the nodes first (the random layout),
+ * so the force layout has somewhere to move them from: starting it on a settled drawing moves nothing.
+ */
+async function runningPhase(page, ctx, list, reps, base, out, cdp) {
+    ctx.layoutSeed = 1;
+    ctx.restartLayout = () =>
+        page.evaluate(async (seed) => {
+            const el = document.querySelector("graphty-element");
+            await el.setLayout("random", { seed });
+            await el.setLayout("ngraph", { seed });
+        }, ctx.layoutSeed++);
+    await ctx.restartLayout();
+    await frames(page, 3);
+    ctx.moving = true;
+    STATE_ONLY.add(page);
+    await roundRobin(page, ctx, list, reps, base, out, cdp);
+    ctx.moving = false;
+    STATE_ONLY.delete(page);
+}
+
+/**
+ * Whether a layout is still moving nodes: any of 40 drawn nodes moved over three frames while the camera held
+ * still. The camera is given ten frames to come to rest (inertia from the last input); one still moving after that
+ * is the element framing a moving layout, which counts as moving.
+ */
+async function layoutMoving(page) {
+    return page.evaluate(async () => {
+        const el = document.querySelector("graphty-element");
+        const raf = () => new Promise((r) => requestAnimationFrame(r));
+        const all = el.session.data.nodes();
+        const step = Math.max(1, Math.floor(all.length / 40));
+        const ids = all.filter((_, i) => i % step === 0).map((n) => n.id);
+        const where = () => ids.map((id) => el.nodeScreenPosition(id)).map((p) => (p ? [p.x, p.y] : null));
+        const cam = () => JSON.stringify(el.getCameraState());
+        let c = cam();
+        let same = 0;
+        for (let i = 0; i < 10 && same < 2; i++) {
+            await raf();
+            same = cam() === c ? same + 1 : 0;
+            c = cam();
+        }
+        if (same < 2) return true;
+        const a = where();
+        for (let i = 0; i < 3; i++) await raf();
+        if (cam() !== c) return true;
+        const b = where();
+        return a.some((p, i) => p && b[i] && Math.hypot(p[0] - b[i][0], p[1] - b[i][1]) > 0.5);
+    });
+}
+
+// What decides where things are drawn: the camera, and the element's box (a panel opening beside the canvas moves
+// every node on screen without moving the camera).
+const camOf = (page) =>
+    page.evaluate(() => {
+        const el = document.querySelector("graphty-element");
+        const r = el.getBoundingClientRect();
+        return JSON.stringify([el.getCameraState(), r.left, r.top, r.width, r.height]);
+    });
 
 async function pageContext(page, spec) {
     const cam = await camOf(page);
@@ -2430,13 +2867,80 @@ async function pageContext(page, spec) {
     return { nodes, empty, edges, center, cam, outside, dim: spec.dim, n: spec.n };
 }
 
+/**
+ * Targets for a cold input, from drawn positions alone (no picking): the three nodes in the canvas's middle with the
+ * most room around them (the nearest other node's center farthest beyond their edge), and, as the empty point, a point outside the element (the
+ * pointer starts there, so its first move onto the node is the first pick). Clicking empty canvas is skipped.
+ */
+async function coldContext(page, spec) {
+    const found = await page.evaluate(() => {
+        const el = document.querySelector("graphty-element");
+        const r = el.getBoundingClientRect();
+        const pts = [];
+        for (const n of el.session.data.nodes()) {
+            const p = el.nodeScreenPosition(n.id);
+            if (p?.visible) pts.push({ id: String(n.id), x: p.x, y: p.y, rad: p.radius ?? 5 });
+        }
+        const cell = 40;
+        const grid = new Map();
+        const key = (x, y) => `${Math.floor(x / cell)},${Math.floor(y / cell)}`;
+        for (const p of pts) {
+            const k = key(p.x, p.y);
+            if (!grid.has(k)) grid.set(k, []);
+            grid.get(k).push(p);
+        }
+        // How far the nearest other node's center is beyond this node's edge (80 px or more counts as 80).
+        const clearance = (p) => {
+            const gx = Math.floor(p.x / cell),
+                gy = Math.floor(p.y / cell);
+            let d = 80;
+            for (let dx = -2; dx <= 2; dx++)
+                for (let dy = -2; dy <= 2; dy++)
+                    for (const q of grid.get(`${gx + dx},${gy + dy}`) ?? [])
+                        if (q !== p) d = Math.min(d, Math.hypot(q.x - p.x, q.y - p.y) - p.rad);
+            return d;
+        };
+        const mid = (p) => p.x > 0.2 * r.width && p.x < 0.8 * r.width && p.y > 0.2 * r.height && p.y < 0.8 * r.height;
+        // The three clearest (a diagram of large nodes side by side has none 30 px clear), at least 4 px clear.
+        const ranked = pts
+            .filter((p) => mid(p))
+            .map((p) => ({ p, c: clearance(p) }))
+            .filter(({ c }) => c >= 4)
+            .sort((a, b) => b.c - a.c);
+        const nodes = [];
+        for (const { p } of ranked) {
+            if (nodes.length >= 3) break;
+            const top = document.elementFromPoint(r.left + p.x, r.top + p.y);
+            if (top === el || el.contains(top)) nodes.push({ id: p.id, x: r.left + p.x, y: r.top + p.y });
+        }
+        const outs = [
+            { x: r.left + 20, y: r.top - 10 },
+            { x: r.right + 20, y: r.top + 20 },
+            { x: r.left - 10, y: r.top + 20 },
+            { x: r.left + 20, y: r.bottom + 10 },
+        ];
+        const outside = outs.find((p) => p.x > 0 && p.y > 0 && p.x < innerWidth && p.y < innerHeight) ?? { x: 1, y: 1 };
+        return { nodes, outside, center: { x: r.left + r.width / 2, y: r.top + r.height / 2 } };
+    });
+    return {
+        ...found,
+        empty: found.outside,
+        edges: [],
+        cam: await camOf(page),
+        dim: spec.dim,
+        n: spec.n,
+        cold: true,
+    };
+}
+
 // ------------------------------------------------------------------ the graphty app
 
 /**
  * A G(n, 2n) GraphML file shaped like staff-50k.graphml (name, dept), plus a number (score) to bind a style to and
- * a year to step a timeline through. Seeded: every run writes the same file.
+ * a year to step a timeline through. Seeded: every run writes the same file. With `yed`, every node also carries
+ * yEd graphics (a fill color and shape by dept), which the app turns into file styles with ?features=file-styles.
  */
-function writeGraph(n, file) {
+function writeGraph(n, file, yed = false) {
     let a = 79 >>> 0;
     const rnd = () => {
         a = (a * 1664525 + 1013904223) >>> 0;
@@ -2445,7 +2949,8 @@ function writeGraph(n, file) {
     const depts = ["Facilities", "Research", "Finance", "Library", "Legal", "Grants", "Payroll", "Security"];
     const lines = [
         '<?xml version="1.0" encoding="UTF-8"?>',
-        '<graphml xmlns="http://graphml.graphdrawing.org/xmlns">',
+        '<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:y="http://www.yworks.com/xml/graphml">',
+        ...(yed ? ['<key id="g" for="node" yfiles.type="nodegraphics"/>'] : []),
         '<key id="name" for="node" attr.name="name" attr.type="string"/>',
         '<key id="dept" for="node" attr.name="dept" attr.type="string"/>',
         '<key id="score" for="node" attr.name="score" attr.type="double"/>',
@@ -2456,8 +2961,12 @@ function writeGraph(n, file) {
         const d = depts[Math.floor(rnd() * depts.length)];
         const s = (rnd() * 100).toFixed(2);
         const y = 2000 + Math.floor(rnd() * 20);
+        const k = depts.indexOf(d);
+        const gfx = yed
+            ? `<data key="g"><y:ShapeNode><y:Fill color="${YED_FILLS[k]}"/><y:Shape type="${k % 2 ? "ellipse" : "roundrectangle"}"/></y:ShapeNode></data>`
+            : "";
         lines.push(
-            `<node id="n${i}"><data key="name">Person ${i}</data><data key="dept">${d}</data><data key="score">${s}</data><data key="year">${y}</data></node>`,
+            `<node id="n${i}">${gfx}<data key="name">Person ${i}</data><data key="dept">${d}</data><data key="score">${s}</data><data key="year">${y}</data></node>`,
         );
     }
     const seen = new Set();
@@ -2473,9 +2982,10 @@ function writeGraph(n, file) {
     writeFileSync(file, lines.join("\n") + "\n");
 }
 
-const genFile = (n, dir) => {
-    const f = join(dir, `latency-${K(n)}.graphml`);
-    if (!existsSync(f)) writeGraph(n, f);
+const YED_FILLS = ["#E8A33D", "#3D8FE8", "#5BBE6A", "#C7563F", "#8E6BD1", "#3FB7B0", "#D16BA5", "#7F8C8D"];
+const genFile = (n, dir, yed = false) => {
+    const f = join(dir, `latency-${K(n)}${yed ? "-yed" : ""}.graphml`);
+    if (!existsSync(f)) writeGraph(n, f, yed);
     return f;
 };
 
@@ -2484,7 +2994,7 @@ const GRAPHS = {
     "yed-live": {
         label: "yEd Live WaveNet (file)",
         open: (page) =>
-            openFile(page, process.env.LAT_YED_LIVE ?? join(MAIN, "tmp/interaction-latency/yed-live.graphml")),
+            openFile(page, process.env.LAT_YED_LIVE ?? join(REPO, "graphty/public/samples/programs/yed-live.graphml")),
     },
     "staff-50k": {
         label: "staff-50k.graphml (file)",
@@ -2496,26 +3006,40 @@ const GRAPHS = {
             { label: `generated ${K(n)} (file)`, open: (page, dir) => openFile(page, genFile(n, dir)), time: true },
         ]),
     ),
+    ...Object.fromEntries(
+        [1000, 10000, 50000].map((n) => [
+            `gen-${K(n)}-yed`,
+            {
+                label: `generated ${K(n)} with yEd styles (file)`,
+                open: (page, dir) => openFile(page, genFile(n, dir, true)),
+            },
+        ]),
+    ),
 };
 
-// Opening is timed from the real click (the sample button, or the file chooser's button) to the first frame that
-// draws the nodes (graph-first-frame) and to the settled picture: one cold row per page.
+// Opening is timed from the real click that opens the graph (the sample's card, or the file chooser's button: the
+// last press before the graph draws) to the first frame that draws its nodes (graph-first-frame from a
+// graphty-element that was not on the page when the watch began: never the start page's own hero graph), and to the
+// settled picture: one cold row per page.
 async function watchOpen(page) {
     await page.evaluate(() => {
-        globalThis.__open = { first: null, input: null };
+        const o = (globalThis.__open = { first: null, input: null });
         addEventListener(
             "pointerdown",
             (e) => {
-                if (globalThis.__open.input === null) globalThis.__open.input = e.timeStamp;
+                if (o.first === null) o.input = e.timeStamp;
             },
             { capture: true },
         );
+        const there = new Set(document.querySelectorAll("graphty-element"));
         const hook = () => {
-            const el = document.querySelector("graphty-element");
-            if (!el) return requestAnimationFrame(hook);
-            el.addEventListener("graph-first-frame", () => (globalThis.__open.first ??= performance.now()), {
-                once: true,
-            });
+            if (o.first !== null) return;
+            for (const el of document.querySelectorAll("graphty-element"))
+                if (!there.has(el)) {
+                    there.add(el);
+                    el.addEventListener("graph-first-frame", () => (o.first ??= performance.now()), { once: true });
+                }
+            requestAnimationFrame(hook);
         };
         hook();
     });
@@ -2798,18 +3322,28 @@ const APP = [
                 () => page.keyboard.press("5"),
             );
             await stable(page);
+            // Back to the page's own dimension, untimed: the inputs after this one assume it.
+            await page.keyboard.press("5");
+            await until(page, "el.session.layout.dimension === p.before", { before });
+            await stable(page);
             ctx.dirty = true;
             return r;
         },
     },
     {
         id: "app-table-open",
-        name: "Shift+T opens the table (first data row shown; DOM)",
+        name: "Shift+T opens the table (first data row shown, and the canvas redrawn at its new size)",
         async run(page, ctx) {
             await clickEmptyUntimed(page, ctx);
+            const size = await page.evaluate(() => globalThis.__lat.canvasSize());
             const r = await timed(
                 page,
-                { type: "keydown", cond: `!!${TABLE}?.querySelector('[role=gridcell], [role=cell]')` },
+                {
+                    type: "keydown",
+                    cond: `!!${TABLE}?.querySelector('[role=gridcell], [role=cell]') && globalThis.__lat.canvasSize() !== p.size`,
+                    params: { size },
+                    pix: "all",
+                },
                 () => page.keyboard.press("Shift+T"),
             );
             await page.keyboard.press("Shift+T");
@@ -2848,7 +3382,7 @@ const APP = [
                 .getByRole("row")
                 .nth(2 + (rep % 3))
                 .getByRole("gridcell")
-                .nth(1);
+                .first();
             const r = await clickTimed(page, cell, { cond: "el.session.selection.nodes.length === 1" });
             await page.keyboard.press("Escape");
             await page.keyboard.press("Shift+T");
@@ -2926,6 +3460,14 @@ const APP = [
                 `(() => { const el = document.querySelector("graphty-element"); return ${COLOR_OF(ctx.nodes[0].id)}; })()`,
             );
             const [color, hex] = now === "#FF0000" ? ["blue", "#0000FF"] : ["red", "#FF0000"];
+            // A layer above Everything (a file's styles) decides this node's color: the restyle draws no change.
+            const decidedBy = await page.evaluate((id) => {
+                const st = document.querySelector("graphty-element").session.styles;
+                const c = st.explain({ node: id }).channels.find((x) => x.channel === "node.color");
+                return c ? (st.get(c.layerId)?.name ?? null) : null;
+            }, ctx.nodes[0].id);
+            if (decidedBy && decidedBy !== "Everything")
+                return { skip: `the ${decidedBy} layer, above Everything, decides the node's color` };
             await everythingStyle(page);
             const field = page.getByRole("textbox", { name: /^Node color/ });
             await field.click();
@@ -2976,7 +3518,7 @@ const APP = [
             return r;
         },
     },
-    ...["drag-node", "drag-orbit-3d", "drag-pan", "wheel-zoom", "pinch-ctrl-wheel"].map((id) => ({
+    ...["drag-node", "drop-node", "drag-orbit-3d", "drag-pan", "wheel-zoom", "pinch-ctrl-wheel"].map((id) => ({
         ...ELEMENT.find((i) => i.id === id),
     })),
 ];
@@ -2998,7 +3540,7 @@ const nodeColor = (page, id) =>
 /** Escape until no dialog or menu is left open (untimed). */
 async function dismiss(page) {
     for (let i = 0; i < 3; i++) {
-        if (!(await page.evaluate(`${DIALOG_SHOWN} || ${MENU_SHOWN}`))) return;
+        if (!(await page.evaluate(`${DIALOG_SHOWN} || ${MENU_SHOWN} || ${ANALYZE_SHOWN}`))) return;
         await page.keyboard.press("Escape");
         await frames(page, 3);
     }
@@ -3270,7 +3812,8 @@ const APP_MORE = [
         "app-assistant-key",
         "Ctrl+I opens the assistant (DOM)",
         "Control+i",
-        `${SHOWN('[aria-label="Assistant place"], [aria-label="Assistant"]')}`,
+        // The rail's Assistant button is always there; its place being the current one is the assistant shown.
+        `!!document.querySelector('[data-assistant-door][aria-current="page"]')`,
         { skipOnTimeout: "the assistant place is hidden in this build" },
     ),
     {
@@ -3526,8 +4069,9 @@ const TABLE_SCROLL = {
             track: `[...(document.querySelector('section[aria-label="Table"] [role=grid]')?.querySelectorAll('[role=row]') ?? [])].slice(1, 3).map((r) => r.textContent).join('|')`,
             hz: 60,
             count: 20,
+            pix: false,
             before: () => page.mouse.move(grid.x, grid.y),
-            send: () => page.mouse.wheel(0, dir * 60),
+            send: () => rawWheel(ctx.cdp, grid.x, grid.y, dir * 60),
         });
     },
 };
@@ -3882,28 +4426,17 @@ async function latePhase(page, ctx, sp, reps, base, out) {
     }
 }
 
-async function appPage(spec, out) {
-    const dist = resolve(spec.dist);
-    const server = await serve(dist);
-    const query = spec.features ? "?features=" + spec.features : "";
-    const origin = `http://127.0.0.1:${server.address().port}/${query}`;
-    const t0Page = Date.now();
-    const b = await launch({ width: 1440, height: 900 });
-    const g = GRAPHS[spec.graph];
-    const base = {
-        surface: "graphty app",
-        tierPage: spec.page,
-        graph: g.label,
-        features: spec.features || "default",
-        smoke: SMOKE || undefined,
-        at: new Date().toISOString(),
-        loadavg: loadavg()[0],
-        cpus: /Cpus_allowed_list:\s*(\S+)/.exec(readFileSync("/proc/self/status", "utf8"))?.[1],
-    };
+/**
+ * Opens the built app in a new browser on the spec's graph, features, dimension and pixel ratio, with the hover look.
+ * @returns the browser (b), with opened (the open's input and first-frame times) and facts (the graph drawn)
+ */
+async function openApp(spec, origin, base, out) {
+    const b = await launch({ width: 1440, height: 900 }, spec.dpr ?? 1);
     try {
         const { page } = b;
         base.renderer = await rendererOf(page);
         checkRenderer(base.renderer);
+        base.browser = await page.evaluate(() => /Chrome\/([\d.]+)/.exec(navigator.userAgent)?.[1] ?? null);
         await page.goto(origin);
         // The usage-data question sits over the drawing until answered.
         await page
@@ -3912,18 +4445,23 @@ async function appPage(spec, out) {
             .catch(() => {});
         await watchOpen(page);
         const t0 = Date.now();
-        await g.open(page, dirname(out));
+        await GRAPHS[spec.graph].open(page, dirname(out));
         await stable(page);
-        base.openMs = Date.now() - t0;
-        const opened = await page.evaluate(() => ({ ...globalThis.__open, now: performance.now() }));
+        b.openMs = Date.now() - t0;
+        b.opened = await page.evaluate(() => ({ ...globalThis.__open, now: performance.now() }));
         // A control the walk cannot find fails that rep after a minute, not the whole page after ten.
         page.setDefaultTimeout(60000);
         if (spec.dim === "2d") {
-            await page.getByRole("button", { name: /^Mode, / }).click();
-            await page.getByRole("menuitemradio", { name: "2D" }).click();
+            // The app's 5 key, not the Mode menu: no menu opens before the cold inputs.
+            await page.keyboard.press("5");
+            if (!(await until(page, "el.session.layout.dimension === '2d'", {}, 300))) {
+                await page.getByRole("button", { name: /^Mode, / }).click();
+                await page.getByRole("menuitemradio", { name: "2D" }).click();
+            }
             await stable(page);
         }
-        const facts = await page.evaluate(() => {
+        await addHoverLook(page);
+        b.facts = await page.evaluate(() => {
             const el = document.querySelector("graphty-element");
             const n0 = el.session.data.nodes()[0] ?? {};
             return {
@@ -3934,6 +4472,57 @@ async function appPage(spec, out) {
                 hasYear: "year" in (n0.data ?? n0),
             };
         });
+        b.cdp = await b.ctx.newCDPSession(page);
+        return b;
+    } catch (e) {
+        await b.close();
+        throw e;
+    }
+}
+
+async function appPage(spec, out) {
+    const dist = resolve(spec.dist);
+    const server = await serve(dist);
+    const query = spec.features ? "?features=" + spec.features : "";
+    const origin = `http://127.0.0.1:${server.address().port}/${query}`;
+    const t0Page = Date.now();
+    const g = GRAPHS[spec.graph];
+    const base = {
+        surface: "graphty app",
+        tierPage: spec.page,
+        graph: g.label,
+        features: spec.features || "default",
+        dpr: spec.dpr ?? 1,
+        // The build timed: when graphty/dist was written (tools/interaction-latency.mjs checks it against HEAD).
+        appBuilt: statSync(join(dist, "index.html")).mtime.toISOString(),
+        smoke: SMOKE || undefined,
+        at: new Date().toISOString(),
+        loadavg: loadavg()[0],
+        cpus: /Cpus_allowed_list:\s*(\S+)/.exec(readFileSync("/proc/self/status", "utf8"))?.[1],
+    };
+    let b = null;
+    try {
+        const sp0 = { ...spec, dim: spec.dim === "2d" ? "2d" : "3d" };
+        const cold = wanted(
+            [...COLD_APP, ...variant(APP, COLD_APP_IDS, "cold", "first after opening")].map((i) =>
+                i.id.endsWith("-cold") ? i : { ...i, id: `${i.id}-cold` },
+            ),
+            sp0,
+        );
+        await coldPages(
+            cold,
+            async () => {
+                const c = await openApp(spec, origin, base, out);
+                Object.assign(base, { path: c.facts.renderPath, n: c.facts.nodes, edges: c.facts.edges });
+                return c;
+            },
+            (page) => coldContext(page, sp0),
+            base,
+            out,
+        );
+        b = await openApp(spec, origin, base, out);
+        const { page, cdp, opened, facts } = b;
+        base.openMs = b.openMs;
         Object.assign(base, { path: facts.renderPath, n: facts.nodes, edges: facts.edges, dim: facts.dim });
         appendFileSync(
             out,
@@ -3952,7 +4541,9 @@ async function appPage(spec, out) {
                                     : null,
                             settledMs: opened.input !== null ? +(opened.now - opened.input).toFixed(1) : null,
                             sawInput: opened.input !== null,
-                            timeout: false,
+                            timeout: opened.first === null,
+                            capMs: CAP_MS,
+                            endsOn: "pixels",
                         },
                     ],
                     1,
@@ -3960,6 +4551,9 @@ async function appPage(spec, out) {
             ) + "\n",
         );
         const ctx = await pageContext(page, { dim: facts.dim, n: facts.nodes });
+        ctx.cdp = cdp;
+        ctx.hoverRgb = HOVER_RGB;
+        ctx.selRgb = await selectedRgb(page);
         ctx.nodeCount = facts.nodes;
         ctx.hasYear = facts.hasYear;
         ctx.refit = async () => {
@@ -3977,14 +4571,9 @@ async function appPage(spec, out) {
         console.log("targets", JSON.stringify({ nodes: ctx.nodes, empty: ctx.empty, edges: ctx.edges }));
         if (ctx.nodes.length < 2 || !ctx.empty) throw new Error("no two pickable nodes or no empty point");
         const sp = { ...spec, dim: facts.dim };
-        const cold = [...COLD_APP, ...variant(APP, COLD_APP_IDS, "cold", "first after opening")].map((i) =>
-            i.id.endsWith("-cold") ? i : { ...i, id: `${i.id}-cold` },
-        );
-        await roundRobin(page, ctx, wanted(cold, sp), 1, base, out);
-        await roundRobin(page, ctx, wanted(APP, sp), spec.reps, base, out);
+        await roundRobin(page, ctx, wanted(APP, sp), spec.reps, base, out, cdp);
         await newPhase(ctx);
-        await roundRobin(page, ctx, wanted(bursts([60, 120]), sp), spec.reps, base, out);
-        const cdp = await b.ctx.newCDPSession(page);
+        await roundRobin(page, ctx, wanted(bursts([60, 120]), sp), spec.reps, base, out, cdp);
         await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
         await page.mouse.move(ctx.empty.x, ctx.empty.y);
         await newPhase(ctx);
@@ -4015,15 +4604,21 @@ async function appPage(spec, out) {
         }
         await tablePhase(page, ctx, sp, spec.reps, base, out);
         await latePhase(page, ctx, sp, spec.reps, base, out);
+        // Last, a force layout running under the canvas inputs (it changes the drawing for good).
+        const running = spec.running ? wanted([...RUNNING, ...runningVariants()], sp) : [];
+        if (running.length) {
+            await newPhase(ctx);
+            await runningPhase(page, ctx, running, spec.reps, base, out, cdp);
+        }
     } catch (e) {
         appendFileSync(
             out,
-            JSON.stringify({ ...base, failure: String(e?.message ?? e).slice(0, 300), errors: b.errors }) + "\n",
+            JSON.stringify({ ...base, failure: String(e?.message ?? e).slice(0, 300), errors: b?.errors }) + "\n",
         );
         console.log("failure", e?.message);
     } finally {
         appendFileSync(out, JSON.stringify({ ...base, wall: true, wallMs: Date.now() - t0Page }) + "\n");
-        await b.close();
+        await b?.close();
         server.close();
     }
 }
@@ -4043,13 +4638,15 @@ function report(file) {
     const fmt = (x) => (x === null || x === undefined ? "-" : String(Math.round(x)));
     const where = (r) =>
         r.surface === "graphty app"
-            ? `app ${r.graph} ${r.features} ${r.dim} (${r.path}, ${K(r.n)})`
+            ? `app ${r.graph} ${r.features} ${r.dim} dpr${r.dpr ?? 1} (${r.path}, ${K(r.n)})`
             : `element ${r.path} ${r.dim} ${r.mode ?? "plain"} dpr${r.dpr ?? 1} ${K(r.n)}`;
     const note = (r) =>
         [
             r.notMeasured,
             r.noVisible ? `${r.noVisible} of ${r.samples} never drawn a change (state time shown)` : "",
-            r.timeouts ? r.timeouts + " timeouts" : "",
+            r.timeouts ? r.timeouts + " timeouts (counted at the cap)" : "",
+            r.clickWindowMissed ? `${r.clickWindowMissed} presses released over 300 ms later (no click)` : "",
+            r.layoutStill ? `${r.layoutStill} with the layout settled by the end` : "",
             r.errors ? r.errors.length + " errors: " + r.errors[0] : "",
         ]
             .filter(Boolean)
@@ -4059,26 +4656,26 @@ function report(file) {
     const out = [
         "## Input to result drawn",
         "",
-        "| interaction | where | reps | drawn median ms | drawn p95 ms | worst ms | state median ms | settled median ms | note |",
-        "|---|---|---|---|---|---|---|---|---|",
+        "| interaction | where | reps | drawn median ms | drawn p95 ms | worst ms | ends on | state median ms | settled median ms | note |",
+        "|---|---|---|---|---|---|---|---|---|---|",
     ];
     for (const r of input.sort((a, b) => (b.p95_ms ?? -1) - (a.p95_ms ?? -1)))
         out.push(
-            `| ${r.interaction} | ${where(r)} | ${r.reps} | ${fmt(r.median_ms)} | ${fmt(r.p95_ms)} | ${fmt(r.worst_ms)} | ${fmt(r.state_median_ms)} | ${fmt(r.settled_median_ms)} | ${note(r)} |`,
+            `| ${r.interaction} | ${where(r)} | ${r.reps} | ${fmt(r.median_ms)} | ${fmt(r.p95_ms)} | ${fmt(r.worst_ms)} | ${r.endsOn ?? "-"} | ${fmt(r.state_median_ms)} | ${fmt(r.settled_median_ms)} | ${note(r)} |`,
         );
-    for (const f of fails) out.push(`| (page failed) | ${where(f)} | | | | | | | ${f.failure} |`);
+    for (const f of fails) out.push(`| (page failed) | ${where(f)} | | | | | | | | ${f.failure} |`);
     const b = cells.filter((r) => BURST.test(r.interaction));
     if (b.length) {
         out.push(
             "",
             "## Bursts: lag after the last input, and frames dropped",
             "",
-            "| interaction | where | reps | lag median ms | lag p95 ms | dropped frames (median) | longest frame gap (median) ms |",
-            "|---|---|---|---|---|---|---|",
+            "| interaction | where | reps | lag median ms | lag p95 ms | ends on | sent / received Hz (median) | dropped frames (median) | longest frame gap (median) ms |",
+            "|---|---|---|---|---|---|---|---|---|",
         );
         for (const r of b.sort((x, y) => (y.p95_ms ?? -1) - (x.p95_ms ?? -1)))
             out.push(
-                `| ${r.interaction} | ${where(r)} | ${r.reps} | ${fmt(r.median_ms)} | ${fmt(r.p95_ms)} | ${fmt(r.drops_median)} | ${fmt(r.max_gap_median_ms)} |`,
+                `| ${r.interaction} | ${where(r)} | ${r.reps} | ${fmt(r.median_ms)} | ${fmt(r.p95_ms)} | ${r.endsOn ?? "-"} | ${fmt(r.sent_hz_median)} / ${fmt(r.achieved_hz_median)} | ${fmt(r.drops_median)} | ${fmt(r.max_gap_median_ms)} |`,
             );
     }
     const glide = cells.filter((r) => animation(r));
@@ -4131,8 +4728,11 @@ const QUICK_ELEMENT = [
     "burst-drag-node-60hz",
     "burst-orbit-60hz",
 ];
+// The app's own click (selection drawn, the Inspector named) stands for the element's click-select-node there.
 const QUICK_APP = [
-    ...QUICK_ELEMENT,
+    ...QUICK_ELEMENT.filter((id) => id !== "click-select-node"),
+    "app-click-select-node",
+    "app-first-select-inspector",
     "app-click-inspector",
     "app-escape-deselect",
     "app-select-all",
@@ -4151,26 +4751,31 @@ const elSpec = (page, n, path, mode, dim, { dpr = 1, running = false, only } = {
     running,
     ...(only ? { only } : {}),
 });
-const appSpec = (page, graph, features, dim, only) => ({
+const appSpec = (page, graph, features, dim, { only, dpr = 1, running = false } = {}) => ({
     kind: "app",
     page,
     graph,
     features,
     dim,
+    dpr,
+    running,
     ...(only ? { only } : {}),
 });
+const QE = { only: ids(QUICK_ELEMENT) };
+const QA = { only: ids(QUICK_APP) };
 /** Every page of a tier: its name (as INPUT-CATALOG.md's tables), its conditions and the inputs it runs. */
 const TIERS = {
     quick: [
-        elSpec("Q1", 10000, "objects", "default", "3d", { only: ids(QUICK_ELEMENT) }),
-        elSpec("Q2", 10000, "batched", "default", "3d", { only: ids(QUICK_ELEMENT) }),
-        elSpec("Q3", 100000, "batched", "default", "3d", { only: ids(QUICK_ELEMENT) }),
-        appSpec("Q4", "gen-10k", "", "3d", ids(QUICK_APP)),
+        elSpec("Q1", 10000, "objects", "default", "3d", QE),
+        elSpec("Q2", 10000, "batched", "default", "3d", QE),
+        elSpec("Q3", 100000, "batched", "default", "3d", QE),
+        appSpec("Q4", "gen-10k", "", "3d", QA),
     ],
     full: [
         elSpec("E1", 100, "objects", "default", "3d"),
+        elSpec("E2", 1000, "objects", "default", "3d", QE),
         elSpec("E3", 10000, "objects", "default", "3d", { running: true }),
-        elSpec("E4", 100000, "objects", "default", "3d", { only: ids(QUICK_ELEMENT) }),
+        elSpec("E4", 100000, "objects", "default", "3d", QE),
         elSpec("E5", 10000, "batched", "default", "3d", { running: true }),
         elSpec("E6", 100000, "batched", "default", "3d", { running: true }),
         elSpec("E7", 50000, "batched", "default", "3d"),
@@ -4179,16 +4784,78 @@ const TIERS = {
         elSpec("E10", 10000, "objects", "plain", "3d"),
         elSpec("E11", 10000, "objects", "heavy", "3d"),
         elSpec("E12", 100000, "batched", "heavy", "3d"),
+        elSpec("E13", 10000, "objects", "styled", "3d"),
         elSpec("E14", 100000, "batched", "heavy", "3d", { dpr: 2 }),
-        elSpec("E15", 1000, "objects", "default", "3d", { only: ids(QUICK_ELEMENT) }),
-        appSpec("A1", "gen-10k", "", "3d"),
-        appSpec("A2", "gen-100k", "", "3d"),
+        elSpec("E15", 10000, "objects", "default", "3d", { dpr: 2, ...QE }),
+        elSpec("E16", 10000, "objects", "heavy", "2d", QE),
+        elSpec("E17", 50000, "objects", "default", "3d", QE),
+        elSpec("E18", 100000, "objects", "default", "2d", QE),
+        appSpec("A1", "gen-10k", "", "3d", { running: true }),
+        appSpec("A2", "gen-100k", "cosmograph", "3d"),
         appSpec("A3", "lesmis", "file-styles", "3d"),
         appSpec("A4", "gen-10k", "", "2d"),
+        appSpec("A5", "gen-10k", "cosmograph", "3d", QA),
+        appSpec("A6", "gen-10k", "", "3d", { dpr: 2, ...QA }),
+        appSpec("A7", "gen-50k-yed", "file-styles", "3d", QA),
+        appSpec("A8", "staff-50k", "", "3d", QA),
+        appSpec("A9", "yed-live", "file-styles", "3d", QA),
+        appSpec("A10", "gen-1k", "", "3d", QA),
     ],
 };
 
+// Every input id a page of each kind can run, for checking a tier's lists: a name no page runs is an error, never a
+// cell silently left out.
+const ELEMENT_IDS = () =>
+    [
+        ...ELEMENT,
+        ...variant(ELEMENT, COLD_ELEMENT, "cold", ""),
+        ...bursts([60, 120]),
+        ...TOUCH,
+        ...TIPS,
+        ...LAYOUTS,
+        ...RUNNING,
+        ...runningVariants(),
+    ].map((i) => i.id);
+const APP_IDS = () =>
+    [
+        ...APP,
+        ...COLD_APP,
+        ...variant(APP, COLD_APP_IDS, "cold", ""),
+        ...bursts([60, 120]),
+        ...TOUCH,
+        ...APP_TOUCH,
+        ...variant(APP, STYLE_OPEN_IDS, "style-open", ""),
+        ...variant(APP, PANEL_IDS, "table-open", ""),
+        ...variant(APP, PANEL_IDS, "timeline-open", ""),
+        TABLE_SCROLL,
+        ...APP_LATE,
+        ...APP_LATE_MORE,
+        ...RUNNING,
+        ...runningVariants(),
+    ].map((i) => i.id);
+/** The tier lists' ids that no page of their kind runs. */
+function unknownIds() {
+    const have = { element: new Set(ELEMENT_IDS()), app: new Set(APP_IDS()) };
+    const named = { element: QUICK_ELEMENT, app: QUICK_APP };
+    return Object.entries(named).flatMap(([kind, list]) =>
+        list.filter((id) => !have[kind].has(id)).map((id) => `${kind}: ${id}`),
+    );
+}
+
 // ------------------------------------------------------------------ main
+
+/**
+ * A smoke run's page: the same conditions on a small graph. On SwiftShader a frame of a 10k graph takes about
+ * 500 ms, longer than the element's 300 ms click window (CLICK_MAX_DURATION_MS), so every click there would be
+ * dropped and a broken click case would look the same as a slow renderer. A smoke run checks that each case
+ * drives, never its numbers.
+ */
+function smokeSize(p) {
+    if (p.kind === "element") return { n: Math.min(p.n, 200) };
+    if (/-yed$/.test(p.graph)) return { graph: "gen-1k-yed" };
+    if (/^gen-|^staff-/.test(p.graph)) return { graph: "gen-1k" };
+    return {};
+}
 
 const [cmd, file, ...rest] = process.argv.slice(2);
 const { values: o } = parseArgs({
@@ -4209,6 +4876,16 @@ const { values: o } = parseArgs({
         page: { type: "string" },
     },
 });
+// `check`: that every input a tier names is one a page of its kind runs (no browser).
+if (cmd === "check") {
+    const bad = unknownIds();
+    for (const [t, pages] of Object.entries(TIERS)) console.log(t, pages.map((p) => p.page).join(" "));
+    if (bad.length) {
+        console.error("not run by any page: " + bad.join(", "));
+        process.exit(1);
+    }
+    process.exit(0);
+}
 if (!file) throw new Error("usage: see the top of interaction-latency.mjs");
 let out = resolve(file);
 if (cmd !== "tier") mkdirSync(dirname(out), { recursive: true });
@@ -4219,7 +4896,11 @@ else if (cmd === "page") {
     // A page that hangs is ended after 60 minutes from its start (after the lock), recorded as failed.
     setTimeout(
         () => {
-            appendFileSync(out, JSON.stringify({ ...spec, failure: "the page did not finish in 60 minutes" }) + "\n");
+            appendFileSync(
+                out,
+                JSON.stringify({ ...spec, tierPage: spec.page, failure: "the page did not finish in 60 minutes" }) +
+                    "\n",
+            );
             process.exit(1);
         },
         60 * 60 * 1000,
@@ -4233,9 +4914,18 @@ else if (cmd === "page") {
         // `tier <quick|full> <results.jsonl>`: the file is the second word here.
         const [name, file2] = [file, rest[0]];
         if (!TIERS[name]) throw new Error(`unknown tier ${name}: quick or full`);
+        const bad = unknownIds();
+        if (bad.length) throw new Error(`tier lists name inputs no page runs: ${bad.join(", ")}`);
         for (const p of TIERS[name])
             if (!o.page || o.page.split(",").includes(p.page))
-                specs.push({ ...p, reps: Number(o.reps ?? 3), dist: o.dist, tier: name, only: o.only ?? p.only });
+                specs.push({
+                    ...p,
+                    ...(SMOKE ? smokeSize(p) : {}),
+                    reps: Number(o.reps ?? 3),
+                    dist: o.dist,
+                    tier: name,
+                    only: o.only ?? p.only,
+                });
         out = resolve(file2 ?? "");
     } else if (cmd === "element") {
         const dpr2 = new Set(o["dpr2-sizes"].split(",").filter(Boolean));
@@ -4256,6 +4946,16 @@ else if (cmd === "page") {
         const argv = [fileURLToPath(import.meta.url), "page", out, "--spec", JSON.stringify(spec)];
         console.log("==", JSON.stringify(spec));
         const [bin, ...args] = wrap.length ? [...wrap, process.execPath, ...argv] : [process.execPath, ...argv];
-        spawnSync(bin, args, { stdio: "inherit" });
+        const r = spawnSync(bin, args, { stdio: "inherit" });
+        // A page process that died (a crash, a signal, the lock wrapper failing) leaves a failure, never silence.
+        if (r.status !== 0)
+            appendFileSync(
+                out,
+                JSON.stringify({
+                    ...spec,
+                    tierPage: spec.page,
+                    failure: `the page process exited ${r.status ?? r.signal}`,
+                }) + "\n",
+            );
     }
 } else throw new Error(`unknown command ${cmd}`);

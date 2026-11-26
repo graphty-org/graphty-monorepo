@@ -951,7 +951,7 @@ describe("Package exports", () => {
                 } satisfies Record<keyof PublicTypeSurface, true>;
                 const names = Object.keys(listed);
 
-                expect(names).toHaveLength(147);
+                expect(names).toHaveLength(149);
             });
         });
 

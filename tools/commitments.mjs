@@ -30,6 +30,8 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { readJson } from "./issue-round-idle-hook.mjs";
+
 const MIN = 60 * 1000;
 const FILE_MS = 30 * MIN;
 const ROUND_MS = 75 * MIN;
@@ -43,15 +45,6 @@ const KINDS = ["task", "pid", "file", "cron", "round", "servherd", "pr", "issue"
  * @returns the main checkout
  */
 export const mainRoot = (dir) => dir.split("/.worktrees/")[0];
-
-const readJson = (path) => {
-    try {
-        return JSON.parse(readFileSync(path, "utf8"));
-    } catch (error) {
-        if (error.code === "ENOENT" || error instanceof SyntaxError) return null;
-        throw error;
-    }
-};
 
 const mtime = (path) => {
     try {

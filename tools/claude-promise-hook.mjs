@@ -19,7 +19,7 @@
 //
 //   echo '{"session_id":"...","last_assistant_message":"..."}' | node tools/claude-promise-hook.mjs
 import { createHash } from "node:crypto";
-import { appendFileSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -40,13 +40,14 @@ const PROMISES = [
     /\b(once|when|after)\b[^.\n]{0,80}\b(lands?|merges?|merged|passes|finish(es|ed)?|completes?|is green|goes green|is done)\b[^.\n]{0,40}\b(I'll|I will|we'll)\b/i,
     // "the routine will pick them up", "issue-round picks it up", "the next round handles it"
     /\b(routine|loop|issue-round|pipeline-round|round|watcher|cron)\b[^.\n]{0,40}\b(will|would|should|is going to)\s+(pick|start|handle|take|catch|run|get to|fix)\b/i,
-    /\b(routine|loop|issue-round|pipeline-round|round|watcher)\b[^.\n]{0,40}\bpicks? (it|them|this|these|that) up\b/i,
+    // present tense: "the routine that starts issue work picks up the high-priority ones", "the loop handles them"
+    /\b(routine|loop|issue-round|pipeline-round|round|watcher)\b[^.\n]{0,40}\b(picks? up|picks? (it|them|this|these|that) up|(handles|starts|takes) (it|them|this|these|those))\b/i,
 ];
 const OFFER = /\b(if you|want me to|would you like|shall I|should I|let me know)\b/i;
 const WAITING =
     /\b(wait(ing)? (for|on|until)|until)\b[^.\n]{0,40}\b(CI|checks?|PRs?|pull requests?|merges?|builds?|full run|tests?|agents?|workflows?|auto-?merge|green)\b|\bonce (CI|the checks?|checks|the PRs?|the pull requests?|it|they)\b[^.\n]{0,20}\b(pass(es)?|merges?|lands?|is green|go(es)? green)\b/i;
 const REMAINING =
-    /\b(remaining|still to do|left to do|not (yet )?started|next up|after that)\b|^\s*[-*]?\s*(next|remaining|left|todo)\s*:/im;
+    /\b(remaining|still to do|left to do|not (yet )?started|next up)\b|^\s*[-*]?\s*(next|remaining|left|todo)\s*:/im;
 
 /**
  * The reply with quotes, code and ACTION NEEDED lines removed: only what the session says in its own voice.
@@ -201,11 +202,17 @@ export function hook(text, root, now = Date.now()) {
         const session = input.session_id;
         const hash = createHash("sha1").update(String(input.last_assistant_message)).digest("hex").slice(0, 16);
         mkdirSync(dir, { recursive: true });
-        const state = readJson(join(dir, "state.json")) ?? {};
-        const s = state[session] ?? { at: 0, hashes: [] };
-        if (s.hashes.includes(hash) || now - s.at < QUIET_MS) return "";
-        state[session] = { at: now, hashes: [...s.hashes.slice(-19), hash] };
-        writeFileSync(join(dir, "state.json"), `${JSON.stringify(state)}\n`);
+        // a corrupt state file is replaced, never allowed to throw (that would silence this hook for the session)
+        const read = readJson(join(dir, "state.json"));
+        const state = read && typeof read === "object" && !Array.isArray(read) ? read : {};
+        const s = state[session];
+        const hashes = Array.isArray(s?.hashes) ? s.hashes : [];
+        const at = Number(s?.at) || 0;
+        if (hashes.includes(hash) || now - at < QUIET_MS) return "";
+        state[session] = { at: now, hashes: [...hashes.slice(-19), hash] };
+        const tmp = join(dir, `state.json.${process.pid}`);
+        writeFileSync(tmp, `${JSON.stringify(state)}\n`);
+        renameSync(tmp, join(dir, "state.json"));
         const excerpt = String(input.last_assistant_message).slice(-600);
         appendFileSync(
             join(dir, "log.jsonl"),

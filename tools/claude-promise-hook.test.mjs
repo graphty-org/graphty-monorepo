@@ -110,6 +110,31 @@ describe("claude-promise-hook", () => {
         assert.equal(decide({ ...fixture("unbacked-promise"), agent_id: "sub1" }, root), null, "a subagent");
     });
 
+    it("blocks the 2026-11-25 present-tense sentence, and allows a wait whose reply only says 'after that'", () => {
+        const root = checkout();
+        const say = (last_assistant_message) => ({ ...fixture("plain-answer"), last_assistant_message });
+        assert.match(
+            decide(say("The routine that starts issue work picks up the high-priority ones."), root),
+            /picks up the high-priority ones/,
+        );
+        assert.match(decide(say("After #10129 merges I'll open the follow-up."), root), /follow-up/);
+        assert.equal(decide(say("Waiting for CI on PR 5. After that, nothing is left."), root), null);
+    });
+
+    it("survives a corrupt state file or ledger entry instead of going silent for the session", () => {
+        const root = checkout();
+        mkdirSync(join(root, "tmp", "promise-hook"), { recursive: true });
+        const text = JSON.stringify(fixture("unbacked-promise"));
+        for (const bad of ['{"x":1,"a67d7fa8-0000-4000-8000-000000000001":{"at":0}}', '"x"', "[1]"]) {
+            writeFileSync(join(root, "tmp", "promise-hook", "state.json"), bad);
+            assert.equal(JSON.parse(hook(text, root)).decision, "block", bad);
+        }
+        mkdirSync(join(root, "tmp", "commitments"), { recursive: true });
+        const ledger = { commitments: [null, { session: "a67d7fa8-0000-4000-8000-000000000001" }] };
+        writeFileSync(join(root, "tmp", "commitments", "ledger.json"), JSON.stringify(ledger));
+        assert.match(decide(fixture("unbacked-promise"), root), /promises later work/);
+    });
+
     it("blocks a reply once and a session at most once per 10 minutes, logging each block", () => {
         const root = checkout();
         const text = JSON.stringify(fixture("unbacked-promise"));
@@ -156,6 +181,26 @@ describe("commitments", () => {
         assert.match(bad.out, /STALE: PR 5 is merged or closed/);
         assert.equal(cli(["done", id], root, env).code, 0);
         assert.match(cli(["check"], root, env).out, /1 open, 0 stale/);
+    });
+
+    it("keeps every entry when sessions add at the same instant", async () => {
+        const root = checkout();
+        const CLI = new URL("./commitments.mjs", import.meta.url).pathname;
+        const { spawn } = await import("node:child_process");
+        const runs = Array.from(
+            { length: 12 },
+            (_, i) =>
+                new Promise((ok) => {
+                    const p = spawn(process.execPath, [CLI, "add", `x${i}`, "owner", "--session", "s"], {
+                        env: { ...process.env, CLAUDE_PROJECT_DIR: root },
+                    });
+                    p.on("exit", ok);
+                }),
+        );
+        await Promise.all(runs);
+        const ids = cli(["list"], root, { CLAUDE_CODE_SESSION_ID: "s" }).out.split("\n");
+        assert.equal(ids.length, 12);
+        assert.equal(new Set(ids.map((l) => l.split(" ")[0])).size, 12, "distinct ids");
     });
 
     it("does not call a PR newer than the PR status merged, and stores file paths absolute", () => {

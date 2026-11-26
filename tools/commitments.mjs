@@ -24,7 +24,8 @@
 //   node tools/commitments.mjs check [--all] [--refresh]                 exit 1 when any is stale
 // --session defaults to $CLAUDE_CODE_SESSION_ID; list and check show that session's entries unless --all.
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import { mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -67,13 +68,47 @@ const ledgerPath = (root) => join(root, "tmp", "commitments", "ledger.json");
  * @param root the main checkout
  * @returns the entries, oldest first
  */
-export const readLedger = (root) => readJson(ledgerPath(root))?.commitments ?? [];
+export const readLedger = (root) => {
+    const list = readJson(ledgerPath(root))?.commitments;
+    // a hand-edited or half-written entry is skipped, never allowed to throw in the Stop hook
+    return Array.isArray(list)
+        ? list.filter((c) => c && typeof c.id === "string" && typeof c.backing === "string")
+        : [];
+};
 
-const writeLedger = (root, commitments) => {
-    mkdirSync(join(root, "tmp", "commitments"), { recursive: true });
-    const tmp = `${ledgerPath(root)}.${process.pid}`;
-    writeFileSync(tmp, `${JSON.stringify({ commitments }, null, 1)}\n`);
-    renameSync(tmp, ledgerPath(root)); // ponytail: no lock; two sessions adding in the same instant can lose one
+const LOCK_STALE_MS = 10_000;
+const pause = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
+/**
+ * Rewrites the ledger under a lock, so sessions adding at the same instant never lose an entry.
+ * @param root the main checkout
+ * @param change maps the current entries to the new ones
+ * @returns what change returned
+ */
+const updateLedger = (root, change) => {
+    const dir = join(root, "tmp", "commitments");
+    mkdirSync(dir, { recursive: true });
+    const lock = join(dir, "ledger.lock");
+    for (;;) {
+        try {
+            mkdirSync(lock);
+            break;
+        } catch (error) {
+            if (error.code !== "EEXIST") throw error;
+            const at = mtime(lock);
+            if (at !== null && Date.now() - at > LOCK_STALE_MS) rmSync(lock, { recursive: true, force: true });
+            else pause(5);
+        }
+    }
+    try {
+        const next = change(readLedger(root));
+        const tmp = `${ledgerPath(root)}.${process.pid}`;
+        writeFileSync(tmp, `${JSON.stringify({ commitments: next }, null, 1)}\n`);
+        renameSync(tmp, ledgerPath(root));
+        return next;
+    } finally {
+        rmSync(lock, { recursive: true, force: true });
+    }
 };
 
 /**
@@ -101,12 +136,11 @@ export function backingError(backing) {
 export function add(root, what, backing, session, now = Date.now()) {
     const error = backingError(backing);
     if (error) throw new Error(error);
-    const all = readLedger(root);
-    const id = `c${now.toString(36)}${all.length.toString(36)}`;
+    const id = `c${now.toString(36)}${randomBytes(2).toString("hex")}`;
     // a file backing is stored absolute: the CLI and the hook run from different directories
     const stored = backing.startsWith("file:") ? `file:${resolve(backing.slice(5))}` : backing;
     const entry = { id, what, backing: stored, session: session ?? null, at: new Date(now).toISOString() };
-    writeLedger(root, [...all, entry]);
+    updateLedger(root, (all) => [...all, entry]);
     return entry;
 }
 
@@ -118,12 +152,11 @@ export function add(root, what, backing, session, now = Date.now()) {
  * @returns the ids not found
  */
 export function done(root, ids, now = Date.now()) {
-    const all = readLedger(root);
-    const missing = ids.filter((id) => !all.some((c) => c.id === id && !c.done));
-    writeLedger(
-        root,
-        all.map((c) => (ids.includes(c.id) && !c.done ? { ...c, done: new Date(now).toISOString() } : c)),
-    );
+    let missing = [];
+    updateLedger(root, (all) => {
+        missing = ids.filter((id) => !all.some((c) => c.id === id && !c.done));
+        return all.map((c) => (ids.includes(c.id) && !c.done ? { ...c, done: new Date(now).toISOString() } : c));
+    });
     return missing;
 }
 

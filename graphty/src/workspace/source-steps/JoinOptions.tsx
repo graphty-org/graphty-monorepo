@@ -246,6 +246,8 @@ interface OptionProps {
     readonly session: GraphSession;
     readonly draft: SourceDraft;
     readonly step: SourceStepRow;
+    /** Every step of the card: a card of two merges asks Both have of each. */
+    readonly steps: readonly SourceStepRow[];
     readonly lines: readonly CardLine[];
     /** The outcome the step makes. */
     readonly outcome: SourceJoinOutcome;
@@ -281,12 +283,16 @@ interface OptionRows {
  * @returns the rows
  */
 function fieldsOptions(props: OptionProps): OptionRows {
-    const { step, result, onSet, onPatch, onShowCells } = props;
-    // In one order, whatever changed last.
-    const differing = [...step.valuesDiffer].sort((a, b) => a.params.column.localeCompare(b.params.column));
+    const { step, steps, result, onSet, onPatch, onShowCells } = props;
+    // Each merge of the card, in step order, its columns in one order, whatever changed last.
+    const differing = (steps.length === 0 ? [step] : steps).flatMap((each) =>
+        [...each.valuesDiffer].sort((a, b) => a.params.column.localeCompare(b.params.column)),
+    );
     // Asked once a node takes several rows, of each column whose values differ or that has a way of its own.
     const own = Object.keys(step.act?.aggregate ?? {}).filter((column) => column !== "*");
-    const asked = takesSeveral(step) ? differing.map(({ params }) => params.column) : [];
+    const asked = takesSeveral(step)
+        ? differing.flatMap(({ params }) => (params.step === step.index ? [params.column] : []))
+        : [];
     const reduced = [...new Set([...asked, ...own])].sort((a, b) => a.localeCompare(b));
     return {
         basic: (
@@ -301,18 +307,18 @@ function fieldsOptions(props: OptionProps): OptionRows {
                 />
                 {differing.map(({ params }) => (
                     <DifferRow
-                        key={params.column}
+                        key={`${String(params.step)}:${params.column}`}
                         column={params.column}
                         rule={params.rule}
                         rules={params.rules}
                         onRule={(rule) => {
                             const picked = params.rules.find((each) => each === rule);
                             if (picked !== undefined) {
-                                onPatch(step.index, { clash: { [params.column]: picked } });
+                                onPatch(params.step, { clash: { [params.column]: picked } });
                             }
                         }}
                         onShow={() => {
-                            onShowCells(step.index, params.column);
+                            onShowCells(params.step, params.column);
                         }}
                     />
                 ))}

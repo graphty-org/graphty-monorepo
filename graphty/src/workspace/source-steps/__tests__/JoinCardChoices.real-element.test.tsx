@@ -427,6 +427,27 @@ describe("a join card's choices (source-steps)", () => {
         assert.strictEqual(ruleOf(), "min", "and its rule");
     });
 
+    it("a card of two merges asks Both have of the second one's fields too, and its rule lands on that merge", async () => {
+        // doors' name clashes with people's, in the second merge of the card (doors onto people by entries' door).
+        const { session, modal } = await opened(
+            ["doors.csv", "door,name\nD1,North\nD2,South"],
+            ["entries.csv", ENTRIES],
+        );
+        await match(modal, "entries");
+        await addMatch(modal, 2, ["entries", "door"], ["doors", "door"]);
+        await joinAs(modal, "Fields of entries and doors on people");
+        await choose(modal, "Both have name", "Use incoming");
+        await waitFor(() => {
+            const rules = draftOf(session)
+                .steps()
+                .flatMap((step) => step.valuesDiffer.filter((each) => each.params.column === "name"));
+            assert.deepStrictEqual(
+                rules.map((each) => each.params.rule),
+                ["overwrite"],
+            );
+        });
+    });
+
     it("Enter on an open list, a switch or the Before radio commits nothing", async () => {
         const { session, modal } = await opened(["hr.csv", `${HR}\nb3,Ops,3`]);
         const steps = session.history.steps.length;

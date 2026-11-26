@@ -474,6 +474,7 @@ export function JoinCardBody(props: JoinCardBodyProps): React.JSX.Element {
                     session={session}
                     draft={draft}
                     step={step}
+                    steps={card.steps}
                     lines={lines}
                     outcome={current}
                     result={result}

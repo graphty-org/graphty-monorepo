@@ -412,6 +412,7 @@ import { unknownFollowed } from "./session/commands/view";
 import {
     addSetsUsers,
     dispatcherOf,
+    draftDrawingOfSession,
     handGraphPaintToRenderer,
     paintAddedRows,
     repaintGraphPass,
@@ -1899,6 +1900,8 @@ export class Graph implements GraphContext {
         // way to the array, a new snapshot reloads the layout without starting it.
         this.layoutManager.onRest = () => {
             dispatcherOf(this.session).arrangement.rest();
+            // A layout woken and at rest again within one pass left no pending work for that pass to see.
+            this.#spreadOwed = layoutManagerInternals.draftHeld(this.layoutManager) !== null;
         };
         this.layoutManager.onMotion = (motion) => {
             this.session.layoutMotion(motion);
@@ -2135,6 +2138,15 @@ export class Graph implements GraphContext {
                 return declutter instanceof LabelDeclutter && !declutter.published();
             },
             "wait",
+        );
+        // A source draft's After written to the graph beside the queue, or taken off it again: until it lands the
+        // graph is halfway between Before and After.
+        this.updateManager.pending.watch(
+            "draft",
+            "a source draft's preview is still being drawn",
+            () => draftDrawingOfSession(this.session).pending(),
+            "wait",
+            () => draftDrawingOfSession(this.session).settled(),
         );
         // A load that holds a place in the session's load line and has not dispatched its step yet:
         // its module import, download, unzip or format detection is still running.
@@ -8014,10 +8026,12 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Push a held draft preview's new nodes off the graph's each time the picture comes to rest under it, once
+     * Push a held draft preview's new nodes off the graph's each time the picture has changed under it, once
      * nothing else is changing it. Taken only when the layout rested, the push read the nodes as they were drawn
      * then: a new node not shown yet, or still drawn at its size from before the preview's style, was left where it
-     * was, over a node the graph holds, in one load and pushed clear of it in the next.
+     * was, over a node the graph holds, in one load and pushed clear of it in the next. Owed by every pass that
+     * sees other work pending and by every rest of the layout, which a static layout woken by the last push
+     * reaches within one pass, so no pass sees it running.
      */
     private spreadWhenStill(): void {
         if (layoutManagerInternals.draftHeld(this.layoutManager) === null) {
@@ -8097,6 +8111,11 @@ export class Graph implements GraphContext {
         }
 
         layoutManagerInternals.holdDraftAt(this.layoutManager, places);
+        if (places.size > 0) {
+            // Drawn now: on a slow machine the place reached the position array while the node stayed drawn where
+            // it was, under the node it was pushed off, for good.
+            this.updateManager.redrawArrangement();
+        }
     }
 
     /**

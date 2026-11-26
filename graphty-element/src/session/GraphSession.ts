@@ -4920,6 +4920,17 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     };
     // Settles once the graph draws what the draft shows now: After landed, or taken off again.
     let drawing: Promise<void> = Promise.resolve();
+    // Whether the graph is still on its way to what the draft shows: the latest drawing has not settled.
+    let drawingDraft = false;
+    const drawTo = (next: Promise<void>): void => {
+        drawing = next;
+        drawingDraft = true;
+        void next.finally(() => {
+            if (drawing === next) {
+                drawingDraft = false;
+            }
+        });
+    };
     /**
      * Dispatch one of After's writes through its transaction, past the open draft's refusal.
      * @param tx - The transaction.
@@ -5021,7 +5032,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 land();
             });
         afterDrawn = true;
-        drawing = landed;
+        drawTo(landed);
         after = {
             marks,
             committed,
@@ -5041,7 +5052,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             keepPlaces(committed);
         }
         after = null;
-        drawing = ended;
+        drawTo(ended);
         afterDrawn = false;
         data.drawnAfter(null);
         abort();
@@ -6011,6 +6022,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     sessionScopes.set(session, scope);
     sessionWorking.set(session, working);
     sessionNotifiers.set(session, notifier);
+    sessionDraftDrawing.set(session, { pending: () => drawingDraft, settled: () => draftDrawn() });
     sessionHostUsers.set(session, hostUsers);
 
     return session;
@@ -6321,6 +6333,33 @@ export function workingGraphOfSession(session: GraphSession): WorkingGraph {
     }
 
     return working;
+}
+
+/** Each session's source draft drawing, for the element's waits for the final picture. */
+const sessionDraftDrawing = new WeakMap<GraphSession, DraftDrawing>();
+
+/** Whether a session's graph is still on its way to what its source draft shows, and how to wait for it. */
+export interface DraftDrawing {
+    /** True while the draft's After is landing or being taken off again. */
+    pending(): boolean;
+    /** Settles once the graph draws what the draft shows now. */
+    settled(): Promise<void>;
+}
+
+/**
+ * A session's source draft drawing: a drawn After is written to the graph beside the queue, so a wait for the
+ * final picture asks this as well, or it could end on the graph halfway between Before and After. Internal.
+ * @param session - a session this module built
+ * @returns its draft drawing
+ * @throws An Error for a session this module did not build.
+ */
+export function draftDrawingOfSession(session: GraphSession): DraftDrawing {
+    const drawing = sessionDraftDrawing.get(session);
+    if (drawing === undefined) {
+        throw new Error("Not a session built by createGraphSession.");
+    }
+
+    return drawing;
 }
 
 /** Each session's scope resolver, for the internal readers that want its bitmaps. */

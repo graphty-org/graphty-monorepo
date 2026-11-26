@@ -61,12 +61,18 @@ function where(element: Graphty, id: string): Vector3 {
 
 it("a node dragged sideways while the layout runs keeps its depth", async () => {
     const element = await mountedLayingOut();
+    // Held still only while the press lands, so it lands on the node where it is drawn: a running
+    // layout could carry the node out from under a point read a frame before the press.
+    await element.session.layout.pause();
+    await drawnFrames(element.graph.getScene(), 1);
     const spot = element.nodeScreenPosition("n0");
     assert.exists(spot);
     assert.isTrue(spot.visible, "n0 is on screen");
     const from = { x: spot.x, y: spot.y };
 
     await press(element, from);
+    await element.session.layout.play();
+    assert.strictEqual(element.session.layout.motion, "running", "the layout runs under the held press");
     const places: Vector3[] = [];
     let forward: Vector3 | null = null;
     for (let step = 1; step <= 20; step++) {
@@ -79,6 +85,9 @@ it("a node dragged sideways while the layout runs keeps its depth", async () => 
     }
     await release(element, { x: from.x + 80, y: from.y });
     await applied(element);
+
+    // The press took the node: it followed the pointer across, rather than the camera turning.
+    assert.isAbove(places[19].x - places[1].x, 1, "the node followed the pointer");
 
     // From the second move on only the pointer moves the node, across the drag plane, so it keeps its depth.
     assert.exists(forward);

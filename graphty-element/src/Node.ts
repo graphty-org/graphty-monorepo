@@ -98,7 +98,7 @@ import type { ModelMarkLook } from "./models/NodeOutlineLayers";
 import { noteImageDrawn, publishImageFailure, TextureCache } from "./models/TextureCache";
 import { NodeBehavior, NodeDragHandler, nodePointerRosterOf } from "./NodeBehavior";
 import { edgeDrawChanges } from "./render/EdgeIdTarget";
-import { rowScanOf } from "./render/PickService";
+import { nodeMeshMoves, rowScanOf } from "./render/PickService";
 import { exactOf, type RowTable } from "./render/RowTable";
 import { dispatcherOf } from "./session/GraphSession";
 import { frozenRecord } from "./session/project/draft";
@@ -745,6 +745,7 @@ export class Node implements ModelUser {
     set mesh(value: AbstractMesh) {
         this.#mesh = value;
         this.#anchor = value;
+        nodeMeshMoves.count++;
     }
 
     /** The shared mesh a batch draws this node from, or null while it has its own. */
@@ -1949,7 +1950,12 @@ export class Node implements ModelUser {
      */
     setMeshPosition(x: number, y: number, z: number): void {
         notePlaced(this, true);
-        this.#anchor.position.set(x, y, z);
+        const at = this.#anchor.position;
+        if (at.x !== x || at.y !== y || at.z !== z) {
+            nodeMeshMoves.count++;
+        }
+
+        at.set(x, y, z);
         const table = this.batchTable;
         const held = table?.isHeld(this.row);
         this.rowTable?.place(this.row, x, y, z);

@@ -399,15 +399,19 @@ describe("the edge ID target", () => {
         assert.isBelow(edgePickWork.measured - before, EDGES / 4, "no click or move walks every edge");
     });
 
-    it("measures every edge on a move on the objects path, as before", async () => {
+    it("has no target on the objects path, which measures only the edges near a still pointer", async () => {
         const element = await edgeGraph("2d", "objects");
         assert.isNull(element.graph.getEdgeIdTarget());
+        // The first moves put every edge on screen once (test/browser/edge-pick-objects-index.test.ts).
         await hover(element, { x: 1, y: 1 });
+        await element.waitForStableFrame();
+        await hover(element, { x: 1, y: 2 });
+        await element.waitForStableFrame();
         const before = edgePickWork.measured;
         await hover(element, { x: 2, y: 2 });
-        assert.strictEqual(edgePickWork.measured - before, EDGES + 1, "the walk measures each edge");
+        assert.strictEqual(edgePickWork.measured - before, 1, "over empty canvas only the loop is measured");
         const press = edgePickWork.measured;
         element.graph.elementAt({ x: 2, y: 2 });
-        assert.strictEqual(edgePickWork.measured - press, EDGES + 1, "elementAt measures each edge");
+        assert.strictEqual(edgePickWork.measured - press, 1, "elementAt measures only the loop there too");
     });
 });

@@ -34,7 +34,7 @@ import { isCloseLabel } from "../meshes/labelClose";
 import { ON_TOP_RENDERING_GROUP } from "../meshes/RichTextLabel";
 import type { NodeIdType } from "../Node";
 import { pickAtLayout, transitionUnderWay } from "../transitions/LayoutTransitionRunner";
-import type { EdgeCandidates, EdgeIdTarget } from "./EdgeIdTarget";
+import { type EdgeCandidates, edgeDrawChanges, type EdgeIdTarget } from "./EdgeIdTarget";
 import { ID_NONE, ID_OBJECT, type IdDrawn, type IdPick, type NodeIdTarget } from "./NodeIdTarget";
 
 /**
@@ -46,9 +46,17 @@ export const pickWork = { meshPicks: 0, rowScans: 0, pointerPicks: 0 };
 
 /**
  * How many edges the exact edge test measured: `measured` on screen, each with a `worldToScreen`
- * per point, and `fromRows` with both ends read from the rows on the `"batched"` path.
+ * per point, and `fromRows` with both ends read from the rows on the `"batched"` path. `indexed` counts
+ * the edges put on screen to build the objects path's index of edges on screen ({@link EdgeScreenIndex}).
  */
-export const edgePickWork = { measured: 0, fromRows: 0, rowLines: 0 };
+export const edgePickWork = { measured: 0, fromRows: 0, rowLines: 0, indexed: 0 };
+
+/**
+ * How many times a node's mesh was put somewhere it was not (`Node.setMeshPosition`) or handed another mesh: the
+ * objects path's index of edges on screen ({@link EdgeScreenIndex}) is rebuilt when this moved.
+ * ponytail: one count for every graph, as {@link edgeDrawChanges} is; a count per scene if that shows up.
+ */
+export const nodeMeshMoves = { count: 0 };
 
 /**
  * The edges drawn with no `Edge` on the `"batched"` path (`EdgeRowLines`), as an edge pick reads them: each shown
@@ -1517,12 +1525,183 @@ export function hoverEdgeAt(
 ): EdgeId | undefined | Promise<EdgeId | undefined> {
     const near = edgesNear(scene, x, y);
     if (near === null) {
-        return pickEdgeId(scene, edges(), x, y, toScreen, lines);
+        return pickEdgeId(scene, wholeWalk(scene, edges, x, y), x, y, toScreen, lines);
     }
 
     const measure = (candidates: EdgeCandidates): EdgeId | undefined =>
         pickEdgeId(scene, candidates.edges, x, y, toScreen, lines, candidates.rows);
     return near instanceof Promise ? near.then(measure) : measure(near);
+}
+
+/**
+ * The edges a walk over every edge must measure at a canvas point. On the `"batched"` path they all are (the rows
+ * place their ends). On the objects path only those {@link EdgeScreenIndex} finds near the point, in the same order,
+ * so the exact test names the same edge.
+ * @param scene - The scene.
+ * @param edges - The graph's edges.
+ * @param x - X in CSS pixels.
+ * @param y - Y in CSS pixels.
+ * @returns The edges to measure.
+ */
+function wholeWalk(scene: Scene, edges: () => Iterable<Edge>, x: number, y: number): Iterable<Edge> {
+    return edgeIdTargets.has(scene) ? edges() : edgesOnScreenNear(scene, edges, x, y);
+}
+
+/**
+ * Every straight edge's two ends on screen, as the exact test puts them there, read once for a still picture: a
+ * pointer move then puts on screen only the edges near it, not every edge's two ends (issue #10301). It holds what
+ * it was built from, and is rebuilt when any of it changed: the camera, the canvas, graph-root, any node's place
+ * ({@link nodeMeshMoves}) or any edge added, removed, shown, hidden or changed between straight and bent
+ * ({@link edgeDrawChanges}, which the edge ID target keeps its list by too).
+ * ponytail: a typed walk over every edge per move, with no object or projection per edge; a grid of cells if
+ * millions of edges on the objects path need it.
+ */
+interface EdgeScreenIndex {
+    /** What it was built from: the view projection, graph-root's world matrix, the canvas and both counts. */
+    key: Float64Array;
+    /** The edges, in the order the walk took them. */
+    edges: Edge[];
+    /** Each edge's two ends on screen (x0, y0, x1, y1); NaN for an edge measured whole each pick (a curve). */
+    ends: Float64Array;
+    /**
+     * The frame it holds for only, or null for every frame. A node put somewhere after a frame placed its mesh keeps
+     * that frame's world place until the next frame (Babylon keeps a world matrix for the frame it was worked out
+     * in), so ends read then are good until that frame only.
+     */
+    renderId: number | null;
+}
+
+/** Each objects-path scene's {@link EdgeScreenIndex}. */
+const edgeScreenIndexes = new WeakMap<Scene, EdgeScreenIndex>();
+
+/** {@link nodeMeshMoves} as each scene's last frame ended. */
+const movesAtFrameEnd = new WeakMap<Scene, number>();
+
+/** Floats in an {@link EdgeScreenIndex} key: two matrices, the canvas's width, height and scaling, and two counts. */
+const SCREEN_KEY_FLOATS = 37;
+
+/**
+ * What the edges on screen are drawn from now, as an {@link EdgeScreenIndex} key.
+ * @param scene - The scene.
+ * @param viewProjection - The camera's view projection.
+ * @returns The key.
+ */
+function screenKey(scene: Scene, viewProjection: Matrix): Float64Array {
+    const key = new Float64Array(SCREEN_KEY_FLOATS);
+    key.set(viewProjection.m, 0);
+    const root = scene.getTransformNodeByName("graph-root");
+    key.set(root === null ? Matrix.IdentityReadOnly.m : root.computeWorldMatrix().m, 16);
+    const engine = scene.getEngine();
+    key[32] = engine.getRenderWidth();
+    key[33] = engine.getRenderHeight();
+    key[34] = engine.getHardwareScalingLevel();
+    key[35] = nodeMeshMoves.count;
+    key[36] = edgeDrawChanges.count;
+    return key;
+}
+
+/**
+ * The edges within the pick tolerance of a point by the scene's {@link EdgeScreenIndex}, built first if what it was
+ * built from changed, plus every edge it measures whole. The exact test then measures these and no others: the
+ * same edges in the same order as a walk over all of them would find there, so it names the same one.
+ * @param scene - The scene.
+ * @param edges - The graph's edges.
+ * @param x - X in CSS pixels.
+ * @param y - Y in CSS pixels.
+ * @returns The edges to measure.
+ */
+function edgesOnScreenNear(scene: Scene, edges: () => Iterable<Edge>, x: number, y: number): Iterable<Edge> {
+    const camera = scene.activeCamera;
+    if (!camera || scene.getFrameId() === 0) {
+        return edges();
+    }
+
+    const key = screenKey(scene, camera.getViewMatrix().multiply(camera.getProjectionMatrix()));
+    const index = edgeScreenIndexes.get(scene);
+    const held =
+        index !== undefined &&
+        (index.renderId === null || index.renderId === scene.getRenderId()) &&
+        index.key.every((value, i) => value === key[i]);
+    const near = held ? nearInIndex(index, edges(), x, y) : null;
+    if (near !== null) {
+        return near;
+    }
+
+    const built = buildEdgeScreenIndex(scene, camera, [...edges()], key);
+    edgeScreenIndexes.set(scene, built);
+    return nearInIndex(built, built.edges, x, y) ?? built.edges;
+}
+
+/**
+ * The edges of an {@link EdgeScreenIndex} within the pick tolerance of a point, and those it measures whole.
+ * @param index - The index.
+ * @param edges - The graph's edges now.
+ * @param x - X in CSS pixels.
+ * @param y - Y in CSS pixels.
+ * @returns They, in the index's order; null when the graph's edges are not the index's.
+ */
+function nearInIndex(index: EdgeScreenIndex, edges: Iterable<Edge>, x: number, y: number): Edge[] | null {
+    // A half-pixel wider than the exact test, so an end put on screen a last bit apart never drops an edge.
+    const reach = EDGE_PICK_TOLERANCE_PX + 0.5;
+    const { ends } = index;
+    const near: Edge[] = [];
+    let i = 0;
+    for (const edge of edges) {
+        if (index.edges[i] !== edge) {
+            return null;
+        }
+
+        const k = 4 * i++;
+        const whole = Number.isNaN(ends[k]);
+        if (
+            whole ||
+            distanceToSegment(x, y, { x: ends[k], y: ends[k + 1] }, { x: ends[k + 2], y: ends[k + 3] }) <= reach
+        ) {
+            near.push(edge);
+        }
+    }
+
+    return i === index.edges.length ? near : null;
+}
+
+/**
+ * Put every straight edge's two ends on screen once, for an {@link EdgeScreenIndex}.
+ * @param scene - The scene.
+ * @param camera - Its active camera.
+ * @param edges - The graph's edges.
+ * @param key - What the edges on screen are drawn from now ({@link screenKey}).
+ * @returns The index.
+ */
+function buildEdgeScreenIndex(scene: Scene, camera: Camera, edges: Edge[], key: Float64Array): EdgeScreenIndex {
+    if (!movesAtFrameEnd.has(scene)) {
+        // Not known until a frame ends: the first index holds for this frame only.
+        movesAtFrameEnd.set(scene, Number.NaN);
+        scene.onAfterRenderObservable.add(() => {
+            movesAtFrameEnd.set(scene, nodeMeshMoves.count);
+        });
+    }
+
+    const renderId = movesAtFrameEnd.get(scene) === nodeMeshMoves.count ? null : scene.getRenderId();
+    const project = screenProjector(scene, camera);
+    const ends = new Float64Array(4 * edges.length);
+    for (let i = 0; i < edges.length; i++) {
+        const edge = edges[i];
+        const k = 4 * i;
+        if (edge.isDisposed() || drawnCurveInWorld(edge) !== null) {
+            ends.fill(Number.NaN, k, k + 4);
+            continue;
+        }
+
+        edgePickWork.indexed++;
+        const a = project(edge.srcNode.drawnWorldPosition);
+        const b = project(edge.dstNode.drawnWorldPosition);
+        ends[k] = a.x;
+        ends[k + 1] = a.y;
+        ends[k + 2] = b.x;
+        ends[k + 3] = b.y;
+    }
+
+    return { key, edges, ends, renderId };
 }
 
 /**
@@ -1545,7 +1724,7 @@ export function pressEdgeAt(...args: Parameters<typeof hoverEdgeAt>): EdgeId | u
     const [scene, edges, x, y, toScreen, lines = null] = args;
     const near = scene.getEngine().isWebGPU ? heldNear(scene, x, y, true) : edgesNear(scene, x, y);
     if (near === null || near instanceof Promise) {
-        return pickEdgeId(scene, edges(), x, y, toScreen, lines);
+        return pickEdgeId(scene, wholeWalk(scene, edges, x, y), x, y, toScreen, lines);
     }
 
     const found = pickEdgeId(scene, near.edges, x, y, toScreen, lines, near.rows);

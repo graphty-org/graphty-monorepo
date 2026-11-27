@@ -48,6 +48,7 @@ import {
     writeIn,
 } from "./row";
 import { ScrubSlots } from "./scrubSlots";
+import { tippedWord } from "./segmentTips";
 import {
     focusLineNext,
     focusSectionNext,
@@ -1731,7 +1732,7 @@ export function VarySlot({
                                 onChange={(next) => {
                                     setPicked(Number(next));
                                 }}
-                                data={which.map((each, at) => ({ value: String(at), label: each.name }))}
+                                data={which.map((each, at) => ({ value: String(at), label: tippedWord(each.name) }))}
                             />
                         )
                     }

@@ -34,6 +34,7 @@ import { shownChannel } from "../offered";
 import { ValueListbox } from "../parts/ValueListbox";
 import { Field, FieldLine, type RowContext, VarySlot, type VaryTarget } from "../PropertyRow";
 import { lineIn, needsFor, writeIn } from "../row";
+import { tippedWord } from "../segmentTips";
 import { ValueField } from "../ValueField";
 import { channelWord, failureWords, fieldName, scrubLetter, takesBinding } from "../words";
 import { BesidePopover } from "./dataLines";
@@ -427,7 +428,12 @@ export function SegmentsLine({
                 return {
                     value: option.value,
                     disabled: option.disabled,
-                    label: dim(option, pictured && Glyph !== undefined ? segmentGlyph(option, Glyph) : wordsOf(option)),
+                    label: dim(
+                        option,
+                        pictured && Glyph !== undefined
+                            ? segmentGlyph(option, Glyph)
+                            : tippedWord(option.name, option.dimmed ?? option.tip),
+                    ),
                 };
             })}
         />
@@ -435,46 +441,32 @@ export function SegmentsLine({
 }
 
 /**
- * A pictured option's label: its glyph with its word beside it (a worded option), else its glyph with its word as
- * its tooltip.
+ * A pictured option's label: its glyph, its word beside it (a worded option) or hidden, and its word -- or why it is
+ * dimmed -- as its tooltip.
  * @param option - the option.
  * @param option.name - its word.
  * @param option.worded - its word drawn beside its glyph.
+ * @param option.dimmed - why it is dimmed.
  * @param Glyph - its glyph.
  * @returns the label.
  */
 function segmentGlyph(
-    option: Readonly<{ name: string; worded?: true }>,
+    option: Readonly<{ name: string; worded?: true; dimmed?: string }>,
     Glyph: (typeof GLYPHS)[keyof typeof GLYPHS],
 ): React.ReactNode {
-    return option.worded === true ? (
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-            <Glyph size={14} aria-hidden />
-            {option.name}
-        </span>
-    ) : (
-        <Tooltip label={option.name}>
-            <span style={{ display: "inline-flex" }}>
-                <Glyph size={14} aria-hidden />
-                <VisuallyHidden>{option.name}</VisuallyHidden>
-            </span>
-        </Tooltip>
-    );
-}
-
-/**
- * A word option's label: its word, with its long words as its hover tooltip where it has them.
- * @param option - the option.
- * @param option.name - its word.
- * @param option.tip - its long words.
- * @returns the label.
- */
-function wordsOf(option: Readonly<{ name: string; tip?: string }>): React.ReactNode {
-    return option.tip === undefined ? (
-        option.name
-    ) : (
-        <Tooltip label={option.tip}>
-            <span>{option.name}</span>
+    return (
+        <Tooltip label={option.dimmed ?? option.name}>
+            {option.worded === true ? (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    <Glyph size={14} aria-hidden />
+                    {option.name}
+                </span>
+            ) : (
+                <span style={{ display: "inline-flex" }}>
+                    <Glyph size={14} aria-hidden />
+                    <VisuallyHidden>{option.name}</VisuallyHidden>
+                </span>
+            )}
         </Tooltip>
     );
 }

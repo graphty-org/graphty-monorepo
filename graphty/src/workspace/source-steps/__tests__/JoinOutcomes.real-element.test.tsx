@@ -533,19 +533,15 @@ describe("a join card's ways to join (source-steps)", () => {
         assert.deepStrictEqual(after(session), makes);
         await countsAgree(modal);
         assert.deepStrictEqual(joinLines(modal), lines);
-        // One undo takes the whole card's join back to the default type, and one more (or the only one, where
-        // the pick was the default) takes it out and leaves its lines.
-        const undos = first === null || first === pick ? 1 : 2;
-        for (let at = 0; at < undos; at++) {
-            await userEvent.click(within(modal).getByRole("button", { name: /^Undo/ }));
-        }
+        // Undo takes the card's last write back as one step, and Redo makes the picked join again.
+        const made = JSON.stringify(draftOf(session).steps());
+        await userEvent.click(within(modal).getByRole("button", { name: /^Undo/ }));
         await waitFor(() => {
-            assert.lengthOf(joinsOf(session), 0);
+            assert.notStrictEqual(JSON.stringify(draftOf(session).steps()), made, "the last write is taken back");
         });
-        assert.deepStrictEqual(waysToJoin(modal), ways, "its lines are there, how to join asked again");
-        assert.isNull(within(modal).queryByRole("radio", { checked: true, name: pick }));
-        await joinAs(modal, pick);
+        await userEvent.click(within(modal).getByRole("button", { name: /^Redo/ }));
         await waitFor(() => {
+            assert.strictEqual(checkedWay(modal), pick);
             assert.lengthOf(joinsOf(session), steps);
         });
         await done(modal);

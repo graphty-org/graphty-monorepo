@@ -358,7 +358,7 @@ export const JoinWorkspaceSharedValue: Story = {
     },
 };
 
-/** Several joins, one line each, with a source added as it is. */
+/** Several joins, one colored card each, with a source added as it is. */
 export const JoinList: Story = {
     ...freshStore(DOORS),
     play: async (context) => {
@@ -371,9 +371,9 @@ export const JoinList: Story = {
         await match(modal, ["people", "badge"], ["entries", "badge"]);
         await joinAs(modal, ENTRY_NODES);
         await userEvent.click(within(modal).getByRole("button", { name: "Join" }));
-        const list = await within(modal).findByRole("grid", { name: "Joins" });
+        const cards = await within(modal).findByRole("group", { name: "Joins" });
         await waitFor(async () => {
-            await expect(within(list).getAllByRole("row")).toHaveLength(3);
+            await expect(cards.querySelectorAll("[data-card-id]")).toHaveLength(3);
         });
         await session.styles.settled();
     },

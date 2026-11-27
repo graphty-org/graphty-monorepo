@@ -6,12 +6,14 @@
  * elements; `{path|rank}` is this element's value's 1-based place among them, sorted. A line with
  * any value missing is left out, which is how a row about a result disappears before the result
  * exists. Every substituted value is escaped, so data can never inject label markup. The consumer
- * writes every word; nothing here adds one.
+ * writes every word; nothing here adds one. `{=key}` writes the binding's `values[key]`: a path
+ * with its own format and missing-value rule, or fixed words.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { Channel, Path } from "../../catalog/types";
+import { formatNumber, formatValue } from "../../catalog/data-lists";
+import type { BindingNumberFormat, Channel, Path, TemplateValue } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import { escapeLabelMarkup } from "../../utils/labelMarkup";
 import { compareGroupKeys } from "../results/types";
@@ -24,8 +26,16 @@ export const TEMPLATE_CHANNELS: readonly Channel[] = Object.freeze([
     "edge.tooltip",
 ]);
 
-/** What a placeholder asks of its path. */
-type Placeholder = { readonly path: Path; readonly op: "value" | "count" | "rank" };
+/** What a placeholder asks of its path, and, for a `{=key}` one, how its value is written. */
+type Placeholder = {
+    readonly path: Path;
+    readonly op: "value" | "count" | "rank";
+    readonly format?: BindingNumberFormat;
+    readonly missing?: "drop" | "skip" | { readonly text: string };
+};
+
+/** The values a template's `{=key}` placeholders write. */
+type Values = Readonly<Record<string, TemplateValue>> | undefined;
 
 /** One parsed line: literal text and placeholders, in order. */
 type Line = readonly (string | Placeholder)[];
@@ -51,13 +61,54 @@ function badTemplate(message: string, details: Readonly<Record<string, unknown>>
 }
 
 /**
+ * The value a `{=key}` placeholder names, checked, when `values` holds the key.
+ * @param raw - The placeholder's text before any `|`.
+ * @param values - The binding's values.
+ * @returns The value, or undefined when the placeholder is a path.
+ * @throws A `GraphtyError` with code `E_BAD_LAYER` when the value is neither a path nor words, or its
+ *   format is one `Intl.NumberFormat` refuses.
+ */
+function keyedValue(raw: string, values: Values): TemplateValue | undefined {
+    const key = raw.startsWith("=") ? raw.slice(1) : undefined;
+    if (key === undefined || values === undefined || !Object.hasOwn(values, key)) {
+        return undefined;
+    }
+
+    const value = values[key] as unknown;
+    const ok =
+        typeof value === "object" &&
+        value !== null &&
+        (("path" in value && typeof value.path === "string" && value.path.trim() !== "") ||
+            ("text" in value && typeof value.text === "string"));
+    if (!ok) {
+        throw badTemplate(`values.${key} is not a value: write { path } or { text }.`, { key, value });
+    }
+
+    const { format } = value as { format?: BindingNumberFormat };
+    if (format !== undefined) {
+        try {
+            formatNumber(0, format);
+        } catch (error) {
+            throw badTemplate(`values.${key}.format is not one Intl.NumberFormat accepts.`, {
+                key,
+                format,
+                reason: error instanceof Error ? error.message : String(error),
+            });
+        }
+    }
+
+    return value as TemplateValue;
+}
+
+/**
  * Find a template's placeholders.
  * @param template - The lines, as authored.
+ * @param values - The binding's `values`, which `{=key}` placeholders write.
  * @returns The parsed template.
  * @throws A `GraphtyError` with code `E_BAD_LAYER` when the template is not a list of strings, a
  *   placeholder names no path, or it asks for something other than `count` or `rank`.
  */
-export function parseTemplate(template: unknown): ParsedTemplate {
+export function parseTemplate(template: unknown, values?: Values): ParsedTemplate {
     if (!Array.isArray(template) || !template.every((line) => typeof line === "string")) {
         throw badTemplate('A template is a list of lines, such as ["<bold>{data.name}</bold>"].', { template });
     }
@@ -70,6 +121,23 @@ export function parseTemplate(template: unknown): ParsedTemplate {
         for (const match of text.matchAll(PLACEHOLDER)) {
             const path = match[1].trim();
             const op = match[2]?.trim() ?? "value";
+            const keyed = match[2] === undefined ? keyedValue(path, values) : undefined;
+
+            if (keyed !== undefined) {
+                // Fixed words are the template's own text; a path is a placeholder with its own format.
+                parts.push(
+                    text.slice(from, match.index),
+                    "text" in keyed
+                        ? keyed.text
+                        : { path: keyed.path.trim(), op: "value", format: keyed.format, missing: keyed.missing },
+                );
+                if ("path" in keyed) {
+                    paths.add(keyed.path.trim());
+                }
+
+                from = match.index + match[0].length;
+                continue;
+            }
 
             if (path === "" || (op !== "value" && op !== "count" && op !== "rank")) {
                 throw badTemplate(`"${match[0]}" is not a placeholder: write {path}, {path|count} or {path|rank}.`, {
@@ -178,7 +246,16 @@ export function prepareTemplate(
     const fill = (part: Placeholder, read: (path: Path) => unknown): string | undefined => {
         const value = read(part.path);
         if (isMissing(value)) {
-            return undefined;
+            const { missing } = part;
+            if (missing === "skip") {
+                return "";
+            }
+
+            return typeof missing === "object" ? escapeLabelMarkup(missing.text) : undefined;
+        }
+
+        if (part.format !== undefined) {
+            return escapeLabelMarkup(formatValue(value, part.format));
         }
 
         const table = tables.get(part.path);
@@ -279,4 +356,156 @@ export function labelTemplateLine(row: LabelTemplateRow): string {
     const line = `${escapeLabelMarkup(row.text)}{${path}}`;
 
     return row.bold === true ? `<bold>${line}</bold>` : line;
+}
+
+/**
+ * One part of a formatted label's line, as an editor shows it: words, or a value.
+ * Words are the template's own text, label markup included. A value reads a path; `op` asks for
+ * how many distinct values the path holds (`count`) or this element's place among them (`rank`);
+ * `format` and `missing` are its own (see {@link TemplateValue}).
+ * @since 3.71.0
+ */
+export type LabelTemplatePart =
+    | { readonly text: string }
+    | {
+          readonly path: Path;
+          readonly op?: "count" | "rank";
+          readonly format?: BindingNumberFormat;
+          readonly missing?: "drop" | "skip" | { readonly text: string };
+      };
+
+/**
+ * One line of a formatted label: its parts in order, and whether the whole line is bold.
+ * @since 3.71.0
+ */
+export interface LabelTemplateParts {
+    readonly bold: boolean;
+    readonly parts: readonly LabelTemplatePart[];
+}
+
+/**
+ * The part one placeholder is: fixed words, or a value with its own format and missing-value rule.
+ * @param match - The placeholder's match of {@link PLACEHOLDER}.
+ * @param values - The binding's values.
+ * @returns The part.
+ */
+function placeholderPart(match: RegExpMatchArray, values: Values): LabelTemplatePart {
+    const raw = match[1].trim();
+    const keyed = match[2] === undefined ? keyedValue(raw, values) : undefined;
+    if (keyed === undefined) {
+        const op = match[2]?.trim();
+        return op === "count" || op === "rank" ? { path: raw, op } : { path: raw };
+    }
+
+    if ("text" in keyed) {
+        return { text: keyed.text };
+    }
+
+    const { path, format, missing } = keyed;
+    return {
+        path: path.trim(),
+        ...(format === undefined ? {} : { format }),
+        ...(missing === undefined ? {} : { missing }),
+    };
+}
+
+/** A whole line in bold: `<bold>...</bold>`. */
+const BOLD_LINE = /^<bold>([\s\S]*)<\/bold>$/;
+
+/**
+ * Read a `{ template }` binding as lines of parts, for an editor: `writeLabelTemplate` writes them
+ * back as the same template (its `{=key}` keys numbered anew). A `{path}` without a value of its own
+ * is a part with no format, which the binding's `format` writes.
+ * @param binding - The binding's lines and values.
+ * @param binding.template - The lines, as authored.
+ * @param binding.values - The values its `{=key}` placeholders write.
+ * @returns The lines.
+ * @throws A `GraphtyError` with code `E_BAD_LAYER` when the template does not parse.
+ * @since 3.71.0
+ */
+export function parseLabelTemplate(binding: {
+    readonly template: readonly string[];
+    readonly values?: Readonly<Record<string, TemplateValue>>;
+}): LabelTemplateParts[] {
+    // Throws for a template that does not parse, before it is read part by part.
+    parseTemplate(binding.template, binding.values);
+
+    return binding.template.map((line): LabelTemplateParts => {
+        const bold = BOLD_LINE.exec(line);
+        const inner = bold === null ? line : bold[1];
+        const parts: LabelTemplatePart[] = [];
+        const words = (text: string): void => {
+            const last = parts.at(-1);
+            if (text === "") {
+                return;
+            }
+
+            if (last !== undefined && "text" in last) {
+                parts[parts.length - 1] = { text: last.text + text };
+            } else {
+                parts.push({ text });
+            }
+        };
+        let from = 0;
+        for (const match of inner.matchAll(PLACEHOLDER)) {
+            words(inner.slice(from, match.index));
+            from = match.index + match[0].length;
+            const part = placeholderPart(match, binding.values);
+            if ("text" in part) {
+                words(part.text);
+            } else {
+                parts.push(part);
+            }
+        }
+
+        words(inner.slice(from));
+        return { bold: bold !== null, parts };
+    });
+}
+
+/**
+ * Write lines of parts as a `{ template }` binding's lines and values; `parseLabelTemplate` reads
+ * them back as the same lines. A value with no format or missing-value rule of its own is a plain
+ * `{path}`; any other is a `{=key}` with its entry in `values`, and words holding `{` or `}` are a
+ * `{ text }` value.
+ * @param lines - The lines.
+ * @returns The template, and its values when it has any.
+ * @since 3.71.0
+ */
+export function writeLabelTemplate(lines: readonly LabelTemplateParts[]): {
+    template: string[];
+    values?: Record<string, TemplateValue>;
+} {
+    const values: Record<string, TemplateValue> = {};
+    const keyFor = (value: TemplateValue): string => {
+        const key = `v${String(Object.keys(values).length + 1)}`;
+        values[key] = value;
+        return `{=${key}}`;
+    };
+    const template = lines.map(({ bold, parts }) => {
+        const text = parts
+            .map((part) => {
+                if ("text" in part) {
+                    return /[{}]/.test(part.text) ? keyFor({ text: part.text }) : part.text;
+                }
+
+                const path = part.path.trim();
+                if (part.op !== undefined) {
+                    return `{${path}|${part.op}}`;
+                }
+
+                const plain = part.format === undefined && (part.missing === undefined || part.missing === "drop");
+                return plain && !/[{}|]/.test(path) && !path.startsWith("=")
+                    ? `{${path}}`
+                    : keyFor({
+                          path,
+                          ...(part.format === undefined ? {} : { format: part.format }),
+                          ...(part.missing === undefined || part.missing === "drop" ? {} : { missing: part.missing }),
+                      });
+            })
+            .join("");
+        return bold ? `<bold>${text}</bold>` : text;
+    });
+
+    return Object.keys(values).length === 0 ? { template } : { template, values };
 }

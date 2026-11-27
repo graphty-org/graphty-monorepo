@@ -1228,7 +1228,7 @@ function prepareTemplateBinding(
     }
 
     const text = prepareTemplate(
-        parseTemplate(binding.template),
+        parseTemplate(binding.template, binding.values),
         (path) => options.columnOf?.(path) ?? [],
         numberWriter(descriptor, binding.format),
     );

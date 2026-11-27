@@ -14,10 +14,12 @@ import {
     type DataEntryFact,
     type DataFacts,
     formatValue,
+    type GraphMeasure,
     writeChannelList,
 } from "@graphty/graphty-element/catalog";
 import type { NodeId } from "@graphty/graphty-element/session";
-import React, { useEffect, useId, useState } from "react";
+import { Button, Group } from "@mantine/core";
+import React, { useId, useState } from "react";
 
 import { useWorkspace } from "../../state/WorkspaceContext";
 import type { RowContext } from "../PropertyRow";
@@ -79,22 +81,23 @@ function fixedStart(ctx: RowContext, thing: string, start: Channel): Partial<Rec
 type Find = "next" | "undrawn" | "missing";
 
 /** A new Graph value's first definition: a count of the node's edges, which Calculate then edits. */
-const NEW_GRAPH: DataEntry = { graph: { over: "edges", measure: "count" } };
+const NEW_MEASURE: GraphMeasure = { over: "edges", measure: "count" };
+/** A new Graph value entry. */
+const NEW_GRAPH: DataEntry = { graph: NEW_MEASURE };
 
 /**
  * The row's entries picker: adds entries, a multi-pick of the node's columns and results not yet in the list, kept
  * as a draft and written after the entries there on Done (one undo step); Escape writes nothing. It only adds: an
  * entry's own Field picker changes which field it reads and its minus removes it, so each has one path (owner,
  * 2026-11-25: "there should only be one path to any control"). "Fixed" turns the thing back into fixed values; a Record's "Text"
- * adds a fixed text entry and keeps the list open; "Calculate..." writes the draft with a new Graph value after it
- * and opens that value's Calculate pop-over.
+ * adds a fixed text entry and keeps the list open; "Calculate..." opens a new Graph value's Calculate pop-over as a
+ * draft, written with the picked entries on its Done (one undo step), dropped by Escape or a click outside.
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.channel - the data channel
  * @param props.thing - the thing's id
  * @param props.start - the thing's start channel, for "Fixed"
  * @param props.title - the thing's name
- * @param props.onCalculate - called with the new Graph value's place, once it is written
  * @param props.picking - just added: the list opens at once
  * @returns The picker
  */
@@ -104,7 +107,6 @@ function DataPicker({
     thing,
     start,
     title,
-    onCalculate,
     picking,
 }: Readonly<{
     ctx: RowContext;
@@ -112,7 +114,6 @@ function DataPicker({
     thing: string;
     start: Channel;
     title: string;
-    onCalculate: (at: number) => void;
     picking: boolean;
 }>): React.JSX.Element {
     const { store } = useWorkspace();
@@ -120,6 +121,12 @@ function DataPicker({
     // The entries picked to add, not yet written.
     // on reload: fresh: in flight: entries picked to add, not yet written
     const [draft, setDraft] = useState<readonly DataEntry[] | null>(null);
+    // A Graph value Calculate is defining, not yet written; with the entries picked before it.
+    // on reload: fresh: in flight: a Graph value being defined, not yet written
+    const [calculating, setCalculating] = useState<{
+        readonly graph: GraphMeasure;
+        readonly before: readonly DataEntry[];
+    } | null>(null);
     const held = spec?.entries ?? [];
     const added = draft ?? [];
     const entries = [...held, ...added];
@@ -129,53 +136,85 @@ function DataPicker({
     );
     const record = channel === "node.recordData";
     return (
-        <DataFieldPicker
-            multiple
-            defaultOpened={picking}
-            label={`${title} data`}
-            fields={fieldsFor(ctx.session, channel, added).filter((field) => !inList.has(field.id))}
-            values={added.map((entry, at) => entryId(entry, at))}
-            shown={shownEntries(ctx, held)}
-            actions={[
-                { id: "fixed", label: FIXED },
-                ...(record ? [{ id: "text", label: "Text", keepsOpen: true }] : []),
-                { id: "calculate", label: "Calculate..." },
-            ]}
-            actionValue={spec === undefined && draft === null ? "fixed" : undefined}
-            onChange={(checked) => {
-                setDraft(draftAfter(added, checked));
-            }}
-            onMatch={(query, except) => {
-                setDraft([...added, except ? { pattern: query, except: true } : { pattern: query }]);
-            }}
-            onAction={(id) => {
-                if (id === "text") {
-                    setDraft([...added, { text: "Text" }]);
-                    return;
-                }
-                setDraft(null);
-                if (id === "calculate") {
-                    writeSpec(ctx, channel, { ...spec, entries: [...entries, NEW_GRAPH] })
-                        .then(() => {
-                            onCalculate(entries.length);
-                        })
-                        .catch(failed(store, title));
-                    return;
-                }
-                if (spec !== undefined) {
-                    writeSpec(ctx, channel, undefined, fixedStart(ctx, thing, start)).catch(failed(store, title));
-                }
-            }}
-            onDone={() => {
-                if (draft !== null && draft.length > 0) {
-                    writeSpec(ctx, channel, { ...spec, entries }).catch(failed(store, title));
-                }
-                setDraft(null);
-            }}
-            onCancel={() => {
-                setDraft(null);
-            }}
-        />
+        <>
+            <DataFieldPicker
+                multiple
+                defaultOpened={picking}
+                label={`${title} data`}
+                fields={fieldsFor(ctx.session, channel, added).filter((field) => !inList.has(field.id))}
+                values={added.map((entry, at) => entryId(entry, at))}
+                shown={shownEntries(ctx, held)}
+                actions={[
+                    { id: "fixed", label: FIXED },
+                    ...(record ? [{ id: "text", label: "Text", keepsOpen: true }] : []),
+                    { id: "calculate", label: "Calculate..." },
+                ]}
+                actionValue={spec === undefined && draft === null ? "fixed" : undefined}
+                onChange={(checked) => {
+                    setDraft(draftAfter(added, checked));
+                }}
+                onMatch={(query, except) => {
+                    setDraft([...added, except ? { pattern: query, except: true } : { pattern: query }]);
+                }}
+                onAction={(id) => {
+                    if (id === "text") {
+                        setDraft([...added, { text: "Text" }]);
+                        return;
+                    }
+                    setDraft(null);
+                    if (id === "calculate") {
+                        setCalculating({ graph: NEW_MEASURE, before: entries });
+                        return;
+                    }
+                    if (spec !== undefined) {
+                        writeSpec(ctx, channel, undefined, fixedStart(ctx, thing, start)).catch(failed(store, title));
+                    }
+                }}
+                onDone={() => {
+                    if (draft !== null && draft.length > 0) {
+                        writeSpec(ctx, channel, { ...spec, entries }).catch(failed(store, title));
+                    }
+                    setDraft(null);
+                }}
+                onCancel={() => {
+                    setDraft(null);
+                }}
+            />
+            <BesidePopover
+                title="Calculate"
+                opened={calculating !== null}
+                onOpenChange={(open) => {
+                    // Escape or a click outside drops the draft: only Done writes.
+                    if (!open) {
+                        setCalculating(null);
+                    }
+                }}
+            >
+                {calculating === null ? null : (
+                    <>
+                        <CalculateLines
+                            session={ctx.session}
+                            graph={calculating.graph}
+                            put={(graph) => {
+                                setCalculating({ ...calculating, graph });
+                            }}
+                        />
+                        <Group justify="flex-end">
+                            <Button
+                                size="compact-sm"
+                                onClick={() => {
+                                    const entries = [...calculating.before, { graph: calculating.graph }];
+                                    setCalculating(null);
+                                    writeSpec(ctx, channel, { ...spec, entries }).catch(failed(store, title));
+                                }}
+                            >
+                                Done
+                            </Button>
+                        </Group>
+                    </>
+                )}
+            </BesidePopover>
+        </>
     );
 }
 
@@ -978,8 +1017,6 @@ function SpecLines({
  * @param props.fact - its facts on the sample
  * @param props.write - writes the entries
  * @param props.color - the color graphty-element draws the entry in, when it is one part
- * @param props.calculate - open its Calculate pop-over from its Graph value once it is drawn
- * @param props.onCalculating - called once the Calculate pop-over is asked open
  * @returns The line
  */
 function EntryLine({
@@ -990,8 +1027,6 @@ function EntryLine({
     fact,
     write,
     color,
-    calculate,
-    onCalculating,
 }: Readonly<{
     ctx: RowContext;
     channel: DataChannel;
@@ -1000,8 +1035,6 @@ function EntryLine({
     fact: DataEntryFact | undefined;
     write: (entries: readonly DataEntry[]) => void;
     color: string | undefined;
-    calculate: boolean;
-    onCalculating: () => void;
 }>): React.JSX.Element {
     const entry = spec.entries[at];
     const name = entryName(ctx.session, entry);
@@ -1021,13 +1054,6 @@ function EntryLine({
         beside,
         setBeside,
     };
-    // Asked once, when the picker adds this Graph value: its Calculate pop-over opens from the line's Graph value.
-    useEffect(() => {
-        if (calculate) {
-            setBeside("calculate");
-            onCalculating();
-        }
-    }, [calculate, onCalculating]);
     return (
         // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- catches Alt+ArrowUp/Down bubbling from the line's own controls to move the entry; the line's controls are the keyboard's doors
         <div
@@ -1115,9 +1141,6 @@ export function DataRow({
     const [picked, setPicked] = useState<NodeId | null>(null);
     // on reload: fresh: pointer: a pop-over held open by its control
     const [open, setOpen] = useState(false);
-    // The place of a Graph value the picker just added, whose Calculate pop-over opens once its line is drawn.
-    // on reload: fresh: request: a one-time open of the Calculate pop-over
-    const [calculating, setCalculating] = useState<number | null>(null);
     const spec = specOf(ctx, channel);
     const facts = spec === undefined ? undefined : sampleFacts(ctx, channel, picked);
     const write = (entries: readonly DataEntry[]): void => {
@@ -1142,9 +1165,6 @@ export function DataRow({
                 </div>
             </RowSettings>
         );
-    const calculated = React.useCallback(() => {
-        setCalculating(null);
-    }, []);
     return (
         <>
             <LineFrame
@@ -1159,7 +1179,6 @@ export function DataRow({
                         thing={thing}
                         start={start}
                         title={title}
-                        onCalculate={setCalculating}
                         picking={picking}
                     />
                 }
@@ -1181,8 +1200,6 @@ export function DataRow({
                         fact={facts?.entries[at]}
                         write={write}
                         color={facts?.categories.find((each) => each.key === partKey(entry, at))?.color}
-                        calculate={calculating === at}
-                        onCalculating={calculated}
                     />
                 ),
             )}

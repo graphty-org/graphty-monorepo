@@ -1369,6 +1369,30 @@ export interface BindingStop {
 }
 
 /**
+ * One value a template writes where its `{=key}` placeholder stands: a value read from a path, or
+ * fixed words (for words holding `{` or `}`, which the template's own text cannot). Each placeholder
+ * has its own key, so one path read twice can be written two ways.
+ *
+ * `missing` is what a value read from a path does when an element has none: `"drop"` (the default)
+ * leaves the whole line out, `"skip"` leaves out only this value, `{ text }` writes the text instead
+ * (an empty text is `"skip"`).
+ * @since 3.71.0
+ */
+export type TemplateValue =
+    | {
+          /** The value's path, in the dialect of a `by` binding, such as `data.name`. */
+          readonly path: Path;
+          /** How it is written: a number, percent, money or date format, with text before and after. */
+          readonly format?: BindingNumberFormat;
+          /** What a missing value writes. */
+          readonly missing?: "drop" | "skip" | { readonly text: string };
+      }
+    | {
+          /** Words written as they are, label markup included, as the template's own text is. */
+          readonly text: string;
+      };
+
+/**
  * One channel's binding: a literal, a declarative mapping from a value in the data, or text
  * built from several values.
  *
@@ -1377,7 +1401,9 @@ export interface BindingStop {
  * `by`; `{path|count}` is the number of distinct values of that path over the graph's nodes (its
  * edges, for `edge.label` and `edge.tooltip`); `{path|rank}` is this element's value's 1-based place among those values, sorted. A line with
  * any value missing is left out, and every substituted value is escaped so data cannot inject
- * label markup. The consumer writes every word: the element adds none.
+ * label markup. The consumer writes every word: the element adds none. `{=key}` writes
+ * `values[key]` (a {@link TemplateValue}) with its own format and missing-value rule; a key
+ * `values` does not hold is read as a path, as before.
  */
 export type Binding =
     | {
@@ -1395,6 +1421,11 @@ export type Binding =
            * @since 3.40.0
            */
           format?: BindingNumberFormat;
+          /**
+           * The values `{=key}` placeholders write, by key. See {@link TemplateValue}.
+           * @since 3.71.0
+           */
+          values?: Readonly<Record<string, TemplateValue>>;
       }
     | {
           /** The value each element is painted by, such as `data.age` or `results.pagerank.score`. */

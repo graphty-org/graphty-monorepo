@@ -20,7 +20,7 @@ import type { LabelStyle } from "@graphty/graphty-element/schema";
 import type { Encoding, Layer } from "@graphty/graphty-element/session";
 
 import type { RowContext } from "../PropertyRow";
-import { type DataBinding, type Line, lineIn, lineOf, writeLine } from "../row";
+import { type DataBinding, type Line, lineIn, lineOf, type TemplateWrite, writeLine } from "../row";
 import { lookOf, PLAIN_LOOK } from "./kindGroups";
 import { TEXT_THINGS } from "./labelRubric";
 
@@ -235,7 +235,8 @@ export interface EntryChange {
     /** Its name, as the reader typed it. */
     readonly name?: string;
     readonly text?: string;
-    readonly binding?: DataBinding;
+    /** A value or a formatted string the words are drawn from. */
+    readonly binding?: DataBinding | TemplateWrite;
     /** Its whole style; an empty one takes the style off. */
     readonly style?: Readonly<LabelStyle>;
 }

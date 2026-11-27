@@ -280,6 +280,31 @@ The lines are one label: they are drawn stacked, never overlapping, and declutte
 `count` and `rank` are written as before; `locale` chooses the decimal and grouping marks, the
 runtime's own when absent. The same `format` works on a `by` binding to a text channel.
 
+To give one value its own format, or something to show when it is missing, write `{=key}` and put
+the value under that key in `values`. `missing` is `"drop"` (leave the line out, the default),
+`"skip"` (leave out only this value) or `{ text }` (write the text instead):
+
+```typescript
+await element.session.styles.add({
+    name: "Gene and degree",
+    target: "node",
+    selector: { match: "everything" },
+    encode: {
+        "node.label": {
+            template: ["{data.gene}{=deg}", "opened {=when}"],
+            values: {
+                deg: { path: "data.degree", format: { prefix: " (", suffix: ")" }, missing: "skip" },
+                when: { path: "data.opened", format: { date: { style: "relative" } }, missing: { text: "new" } },
+            },
+        },
+    },
+});
+```
+
+A key `values` does not hold is read as a path, as before. `parseLabelTemplate` and
+`writeLabelTemplate` (from `@graphty/graphty-element/schema`) turn a template into lines of words
+and values and back, for an editor.
+
 ## One node's label
 
 `element.labelOf(id)` returns the label of one node as the element draws it: `{ text, drawn }`, or

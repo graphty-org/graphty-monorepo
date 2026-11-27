@@ -73,6 +73,7 @@ export type {
     ShaderParamAddress,
     StaticStyle,
     StyleDocument,
+    TemplateValue,
     ThemeDescriptor,
 } from "./src/catalog/types";
 export { isResultShape, RESULT_SHAPES } from "./src/catalog/types";
@@ -164,8 +165,13 @@ export { hexToRgb, interpolatePalette, MISSING_DATA_COLOR } from "./src/utils/st
 // Label templates: a `{ template }` line read as a row (words and one value) and written back
 // ---------------------------------------------------------------------------------------------
 
-export type { LabelTemplateRow } from "./src/session/styles/labelTemplate";
-export { labelTemplateLine, labelTemplateRow } from "./src/session/styles/labelTemplate";
+export type { LabelTemplatePart, LabelTemplateParts, LabelTemplateRow } from "./src/session/styles/labelTemplate";
+export {
+    labelTemplateLine,
+    labelTemplateRow,
+    parseLabelTemplate,
+    writeLabelTemplate,
+} from "./src/session/styles/labelTemplate";
 
 /**
  * A rule tree: what the visibility filter keeps.

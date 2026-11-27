@@ -8592,7 +8592,7 @@ export class RenderManager implements Manager {
     relightBatches(): void;
     requestFrame(): void;
     // @internal
-    resize(): void;
+    resize(): boolean;
     // (undocumented)
     scene: Scene;
     setPixelRatio(ratio: PixelRatio): void;

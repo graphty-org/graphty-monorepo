@@ -2428,7 +2428,7 @@ export class UpdateManager implements Manager {
             });
         });
 
-        return { painted, taken, resized, rebuilt: !stops };
+        return { painted, taken, resized, rebuilt: rebuilt.length > 0 };
     }
 
     /**

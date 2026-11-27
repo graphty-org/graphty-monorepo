@@ -1926,6 +1926,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             return false;
         }
 
+        slideCounters.windowChecks++;
         const active = upToDate();
         const rule = ruleNow();
         const window = slid && slidTo !== null ? slidTo.window : dispatcher.state.visibility.window;

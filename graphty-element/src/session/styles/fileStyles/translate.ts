@@ -912,6 +912,7 @@ function channelPlans(
             ["labelTextAlign", [label("labelTextAlign")]],
             ["labelPosition", [location("node")]],
             ["labelItalic", [label("labelItalic")]],
+            ["labelUnderline", [label("labelUnderline")]],
             ...labelBox,
             ...labelBoxShape,
             // a picture in the label (yEd's label icon), sized and placed in the label's units as its padding is
@@ -1111,6 +1112,7 @@ function channelPlans(
         ["labelTextAlign", [label("labelTextAlign")]],
         ["labelPosition", [location("edge")]],
         ["labelItalic", [label("labelItalic")]],
+        ["labelUnderline", [label("labelUnderline")]],
         // in the scene's units, as a node label's wrap width is
         ["labelWrapWidth", [length("edge.labelWrapWidth", factors.node * SCENE_PER_UNIT.node)]],
         ["labelWrapEllipsis", [id("edge.labelWrapEllipsis")]],

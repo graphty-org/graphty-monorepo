@@ -147,6 +147,8 @@ export const RichTextStyle = z.strictObject({
     fontWeight: z.string().default("normal").optional(),
     /** The font style. Default "normal". */
     fontStyle: z.enum(["normal", "italic"]).default("normal").optional(),
+    /** Whether a line is drawn under the words, in their color, as long as each line of them; unset, none. */
+    underline: z.boolean().optional(),
     /** The height of one line, as a multiple of what `lineBox` measures. Default 1.2. */
     lineHeight: z.number().default(1.2).optional(),
     /**

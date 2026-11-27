@@ -1452,6 +1452,7 @@ export const EdgeStyle: z.ZodObject<{
                 normal: "normal";
                 italic: "italic";
             }>>>;
+            underline: z.ZodOptional<z.ZodBoolean>;
             lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             lineBox: z.ZodOptional<z.ZodEnum<{
                 font: "font";
@@ -1755,6 +1756,7 @@ export const EdgeStyle: z.ZodObject<{
                 normal: "normal";
                 italic: "italic";
             }>>>;
+            underline: z.ZodOptional<z.ZodBoolean>;
             lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             lineBox: z.ZodOptional<z.ZodEnum<{
                 font: "font";
@@ -2223,6 +2225,7 @@ export const EdgeStyle: z.ZodObject<{
             normal: "normal";
             italic: "italic";
         }>>>;
+        underline: z.ZodOptional<z.ZodBoolean>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         lineBox: z.ZodOptional<z.ZodEnum<{
             font: "font";
@@ -2472,6 +2475,7 @@ export const EdgeStyle: z.ZodObject<{
             normal: "normal";
             italic: "italic";
         }>>>;
+        underline: z.ZodOptional<z.ZodBoolean>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         lineBox: z.ZodOptional<z.ZodEnum<{
             font: "font";
@@ -2721,6 +2725,7 @@ export const EdgeStyle: z.ZodObject<{
             normal: "normal";
             italic: "italic";
         }>>>;
+        underline: z.ZodOptional<z.ZodBoolean>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         lineBox: z.ZodOptional<z.ZodEnum<{
             font: "font";
@@ -6429,6 +6434,8 @@ class Node_2 implements ModelUser {
     // @internal
     get screenBorder(): boolean;
     // @internal
+    get selectionShowsOnlyHalo(): boolean;
+    // @internal
     setMeshPosition(x: number, y: number, z: number): void;
     setRenderState(state: NodeRenderState): boolean;
     setSelected(selected: boolean): boolean;
@@ -7172,6 +7179,7 @@ export const NodeStyle: z.ZodObject<{
             normal: "normal";
             italic: "italic";
         }>>>;
+        underline: z.ZodOptional<z.ZodBoolean>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         lineBox: z.ZodOptional<z.ZodEnum<{
             font: "font";
@@ -7421,6 +7429,7 @@ export const NodeStyle: z.ZodObject<{
             normal: "normal";
             italic: "italic";
         }>>>;
+        underline: z.ZodOptional<z.ZodBoolean>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         lineBox: z.ZodOptional<z.ZodEnum<{
             font: "font";
@@ -7670,6 +7679,7 @@ export const NodeStyle: z.ZodObject<{
             normal: "normal";
             italic: "italic";
         }>>>;
+        underline: z.ZodOptional<z.ZodBoolean>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         lineBox: z.ZodOptional<z.ZodEnum<{
             font: "font";
@@ -8582,7 +8592,7 @@ export class RenderManager implements Manager {
     relightBatches(): void;
     requestFrame(): void;
     // @internal
-    resize(): void;
+    resize(): boolean;
     // (undocumented)
     scene: Scene;
     setPixelRatio(ratio: PixelRatio): void;
@@ -8700,6 +8710,7 @@ export const RichTextStyle: z.ZodObject<{
         normal: "normal";
         italic: "italic";
     }>>>;
+    underline: z.ZodOptional<z.ZodBoolean>;
     lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     lineBox: z.ZodOptional<z.ZodEnum<{
         font: "font";
@@ -9656,6 +9667,8 @@ export class UpdateManager implements Manager {
     get frameIsStable(): boolean;
     // @internal
     framing: GraphFraming | undefined;
+    // @internal
+    frozenListEpoch(): number | null;
     getRenderFrameCount(): number;
     // @internal
     gpuFrames: {
@@ -9663,6 +9676,8 @@ export class UpdateManager implements Manager {
         finished: (frame: number) => boolean;
     } | null;
     get graphIsDrawn(): boolean;
+    // @internal
+    haloTouched(mesh: AbstractMesh, built: boolean): void;
     holdSelectionFollow(following?: readonly Node_2[]): void;
     // @internal
     holdsMesh(node: Node_2): void;

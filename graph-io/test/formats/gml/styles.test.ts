@@ -134,6 +134,23 @@ describe("GML styles: who wrote the file", () => {
         expect(resolveStyles(styles, "edge", "targetPort", snapshot)).toEqual(["-1,0", "0,-1"]);
     });
 
+    it("draws no head where a yEd edge's bend sits on its port, as yEd loses it there", async () => {
+        const { snapshot, styles } = await load(
+            [
+                'Creator "yFiles"',
+                "graph [",
+                "  node [ id 0 graphics [ x 0 y 0 w 40 h 40 ] ] node [ id 1 graphics [ x 100 y 0 w 40 h 40 ] ]",
+                '  edge [ source 0 target 1 graphics [ targetArrow "white_diamond" Line [ point [ x 0 y 0 ]',
+                "    point [ x 0 y 20 ] point [ x 100 y 20 ] point [ x 100 y 0 ] ] ] edgeAnchor [ yTarget 1.0 ] ]",
+                '  edge [ source 0 target 1 graphics [ targetArrow "white_diamond" Line [ point [ x 0 y 0 ]',
+                "    point [ x 0 y 30 ] point [ x 100 y 30 ] point [ x 100 y 0 ] ] ] edgeAnchor [ yTarget 1.0 ] ]",
+                "]",
+            ].join("\n"),
+        );
+        // the first edge's last bend is its target port (the bottom side's middle): its last leg has no direction
+        expect(resolveStyles(styles, "edge", "targetArrow", snapshot)).toEqual(["none", "diamond-open"]);
+    });
+
     it("draws yEd's stars as yEd does: inscribed in the ellipse of the box, star5 and star6 pointing down", async () => {
         const { snapshot, styles } = await load(
             [

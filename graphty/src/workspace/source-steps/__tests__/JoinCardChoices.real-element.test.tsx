@@ -139,14 +139,20 @@ describe("a join card's choices (source-steps)", () => {
         const { session, modal } = await opened(["doors.csv", DOORS], ["entries.csv", ENTRIES]);
         const steps = draftOf(session).steps().length;
         const card = modal.querySelector<HTMLElement>("[data-join-editor]") ?? modal;
+        // The boxes the reader can pick from: the Join type is named from the start, off until a match is whole.
         const boxes = (): string[] =>
             within(card)
                 .getAllByRole<HTMLInputElement>("combobox")
+                .filter((box) => !box.disabled)
                 .map((box) => `${box.getAttribute("aria-label") ?? ""}: ${box.value}`);
         assert.deepStrictEqual(boxes(), ["Source 1: ", "Source 2: "], "a new card is two blank pickers");
+        assert.isTrue(
+            within(card).getByRole<HTMLInputElement>("combobox", { name: "Join type" }).disabled,
+            "and its join type, named and waiting",
+        );
         assert.lengthOf(within(card).queryAllByRole("button", { name: /Add as is|Match|Remove/ }), 0);
         await choose(modal, "Source 1", "people");
-        assert.lengthOf(within(card).queryAllByRole("combobox"), 2, "fields wait for both sources");
+        assert.lengthOf(boxes(), 2, "fields wait for both sources");
         await choose(modal, "Source 2", "entries");
         assert.deepStrictEqual(boxes(), ["Source 1: people", "Source 2: entries", "Field 1: ", "Field 2: "]);
         await userEvent.click(within(modal).getByRole("combobox", { name: "Field 2" }));

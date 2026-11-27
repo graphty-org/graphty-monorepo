@@ -275,7 +275,9 @@ describe("a picture taken back out while it downloads", () => {
         const element = await mount();
         const { assets } = element.session;
         const heard = new Promise<AssetRecord>((resolve) => {
-            void assets.add(`${base}cube.gltf`, { onWaiting: resolve });
+            // The other pictures still download when the test ends: removing the element stops
+            // them, and that stop rejects this add (#10329).
+            assets.add(`${base}cube.gltf`, { onWaiting: resolve }).catch(() => undefined);
         });
         const early = await heard;
         const first = early.problems.find((p) => p.code === "E_MODEL_MISSING_FILE");

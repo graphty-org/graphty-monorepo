@@ -25,13 +25,13 @@ const KINDS = ["request", "in flight", "notice", "read", "derived", "pointer"];
  * reload drops, each tracked by its issue. Only lower it, but for a name moved out of
  * screen-state-baseline.json into a gap, which MAX_BASELINE lowers by as much.
  */
-const MAX_COMPONENT_GAPS = 12;
+const MAX_COMPONENT_GAPS = 6;
 
 /**
  * The most files, and the most names, screen-state-baseline.json may excuse: it may only shrink.
  * Adding a name to it is how new undeclared state would get past the rule (issue #9973). Only lower them.
  */
-const MAX_BASELINE = { files: 107, names: 380 };
+const MAX_BASELINE = { files: 106, names: 371 };
 
 const tester = new RuleTester({
     languageOptions: { parser: tseslint.parser, parserOptions: { ecmaFeatures: { jsx: true } } },

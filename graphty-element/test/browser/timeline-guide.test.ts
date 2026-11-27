@@ -5,7 +5,7 @@
 import "../../src/graphty-element";
 
 import { afterEach, assert, describe, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import type { TimeStepEvent } from "../../session.js";
 
@@ -46,7 +46,7 @@ describe("the timeline guide's first example", () => {
         const ended = new Promise((r) => {
             g.session.on("time:end", r);
         });
-        await userEvent.click(document.querySelector("#play")!);
+        await userEvent.click(page.getByRole("button", { name: "Play", exact: true }));
         assert.isTrue(time.playing);
         await ended;
         assert.isTrue(steps.some((step) => step.entered.edges > 0));

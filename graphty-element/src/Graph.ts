@@ -163,7 +163,58 @@ function pushOff(disc: PlaneDisc, others: readonly PlaneDisc[]): PlaneMove | nul
         now.y += push.y;
     }
 
-    return now.x === disc.x && now.y === disc.y ? null : { x: now.x - disc.x, y: now.y - disc.y };
+    const free = clearSpot({ ...now, radius: disc.radius }, disc, others) ?? now;
+    return free.x === disc.x && free.y === disc.y ? null : { x: free.x - disc.x, y: free.y - disc.y };
+}
+
+/** How many spots around a node a disc squeezed between nodes tries, to get out. */
+const DRAFT_SPREAD_ANGLES = 16;
+
+/**
+ * Where a disc the pushes left drawn over others goes instead: the pushes off two nodes on either side cancel out,
+ * so it tries each spot just clear of a node it is drawn over and takes the one clear of all nearest where it began.
+ * @param at - Where the pushes left it.
+ * @param disc - Where it began.
+ * @param others - The others.
+ * @returns The spot; `at` when it is clear already, or null when no spot tried is clear.
+ */
+function clearSpot(at: PlaneDisc, disc: PlaneDisc, others: readonly PlaneDisc[]): PlaneMove | null {
+    const over = (x: number, y: number): PlaneDisc[] =>
+        others.filter((other) => shortOf({ x, y, radius: at.radius }, other) > 0);
+    const under = over(at.x, at.y);
+    if (under.length === 0) {
+        return at;
+    }
+
+    // ponytail: tries DRAFT_SPREAD_ANGLES spots round each node it is over, each against every other node.
+    let best: PlaneMove | null = null;
+    let bestDistance = Infinity;
+    for (const other of under) {
+        // A little past the gap, so the spot found is clear of the node it was tried round.
+        const reach = (at.radius + other.radius) * (1 + DRAFT_SPREAD_GAP) * 1.001;
+        for (let k = 0; k < DRAFT_SPREAD_ANGLES; k++) {
+            const angle = (2 * Math.PI * k) / DRAFT_SPREAD_ANGLES;
+            const x = other.x + Math.cos(angle) * reach;
+            const y = other.y + Math.sin(angle) * reach;
+            const distance = Math.hypot(x - disc.x, y - disc.y);
+            if (distance < bestDistance && over(x, y).length === 0) {
+                best = { x, y };
+                bestDistance = distance;
+            }
+        }
+    }
+
+    return best;
+}
+
+/**
+ * How much nearer one disc is to another than the gap allows; zero or less when they are apart.
+ * @param disc - The one.
+ * @param other - The other.
+ * @returns The shortfall, in scene units.
+ */
+function shortOf(disc: PlaneDisc, other: PlaneDisc): number {
+    return (disc.radius + other.radius) * (1 + DRAFT_SPREAD_GAP) - Math.hypot(disc.x - other.x, disc.y - other.y);
 }
 
 /**
@@ -176,7 +227,7 @@ function addPush(push: PlaneMove, disc: PlaneDisc, other: PlaneDisc): void {
     const dx = disc.x - other.x;
     const dy = disc.y - other.y;
     const apart = Math.hypot(dx, dy);
-    const short = (disc.radius + other.radius) * (1 + DRAFT_SPREAD_GAP) - apart;
+    const short = shortOf(disc, other);
     if (short <= 0) {
         return;
     }
@@ -365,7 +416,7 @@ import { onRewriteMissed } from "./meshes/RowPullPlugin";
 import { loadChunk, loadModel, ModelLoadFailure } from "./models/loadModel";
 import { type ModelTemplate, optionsOf } from "./models/ModelCache";
 import { TextureCache } from "./models/TextureCache";
-import { Node, releaseNodeMesh } from "./Node";
+import { keepNodeMeshForDimension, Node, releaseNodeMesh } from "./Node";
 import { nodeActionManagerOf, nodePointerRosterOf, pointerEventTime } from "./NodeBehavior";
 import { EdgeIdTarget } from "./render/EdgeIdTarget";
 import { NodeIdTarget } from "./render/NodeIdTarget";
@@ -1258,6 +1309,33 @@ export class Graph implements GraphContext {
     /** Aborted by `shutdown()`, so no whole-graph repaint runs against a torn-down graph. */
     readonly #teardown = new AbortController();
 
+    /**
+     * Style paint has been applied to the meshes and no frame has drawn it yet: applied outside a frame (a layout
+     * reading node sizes, `update()` pumped by hand), or in the update of a frame still to render. Cleared by the
+     * next drawn frame, so `waitForPainted` never takes paint the meshes hold for paint the canvas shows (#10322).
+     */
+    #paintUndrawn = false;
+
+    /** Clear {@link Graph.#paintUndrawn} on every frame the scene draws; called again for a new renderer's scene. */
+    #notePaintDrawnOnFrames(): void {
+        this.scene.onAfterRenderObservable.add(() => {
+            this.#paintUndrawn = false;
+        });
+    }
+
+    /**
+     * Run what may apply arrived style paint to the meshes, and note when it did.
+     * @param apply - The update or the paint apply.
+     */
+    #notingAppliedPaint(apply: () => void): void {
+        const painter = this.getStylePainter();
+        const had = painter.hasPending;
+        apply();
+        if (had && !painter.hasPending) {
+            this.#paintUndrawn = true;
+        }
+    }
+
     /** Aborted and replaced each time the data is cleared, so a repaint in flight stops. */
     #dataGeneration = new AbortController();
 
@@ -1550,6 +1628,7 @@ export class Graph implements GraphContext {
         // Get references from RenderManager for backward compatibility
         this.engine = this.renderManager.engine;
         this.scene = this.renderManager.scene;
+        this.#notePaintDrawnOnFrames();
         this.camera = this.renderManager.camera;
         this.#hookCamera();
 
@@ -1688,7 +1767,8 @@ export class Graph implements GraphContext {
                 this.statsManager.startLayoutSession();
                 this.#placementOwed = true;
                 this.layoutManager.running = true;
-                if (dirty.has(NODES_ADDED)) {
+                // A drawn draft that keeps the camera adds its nodes into the view the reader already has.
+                if (dirty.has(NODES_ADDED) && !sessionDataOf(this.session).draftKeepsCamera()) {
                     this.autoFrame();
                 }
             }
@@ -1825,12 +1905,15 @@ export class Graph implements GraphContext {
 
         // `view.camera` moves this renderer's camera; a session with no renderer refuses it.
         dispatcherOf(this.session).services.camera = {
-            pose: (follows) => {
-                try {
-                    return this.#savedPose({ follows });
-                } catch {
-                    return undefined;
-                }
+            poser: () => {
+                const context = this.#sharedViewContext();
+                return (follows) => {
+                    try {
+                        return this.#savedPose({ follows }, context);
+                    } catch {
+                        return undefined;
+                    }
+                };
             },
             current: () => {
                 const immersive = this.#immersiveProblem();
@@ -2070,7 +2153,9 @@ export class Graph implements GraphContext {
             finished: (frame) => this.renderManager.gpuFinishedFrame(frame),
         };
         this.layoutManager.drawArrivedPaint = () => {
-            this.updateManager.drawArrivedPaint();
+            this.#notingAppliedPaint(() => {
+                this.updateManager.drawArrivedPaint();
+            });
         };
         // A change on its way through the derivation lane is paint on its way: its styles hook runs
         // after the graph and layout hooks it awaits, so until the pass ends the framing a
@@ -2227,10 +2312,15 @@ export class Graph implements GraphContext {
         for (const type of ["pointerdown", "pointerup", "contextmenu"]) {
             this.element.addEventListener(type, pressMenu, { capture: true, signal: this.#teardown.signal });
         }
-        this.session.on("selection:changed", ({ cause, added, removed }) => {
+        this.session.on("selection:changed", ({ cause, added, removed, nodes }) => {
             const causes = this.styles.config.behavior.camera.pivotOnSelectionCauses;
             if (!menuPress && (causes === undefined || causes.includes(cause))) {
                 pivoted = true;
+                // The last node left: the glide ends on what was selected, even when no frame has
+                // run since it was selected to start the glide (Escape right after a click, #10256).
+                if (nodes === 0 && removed.length > 0) {
+                    this.updateManager.glideToCleared(removed.flatMap((id) => this.dataManager.getNode(id) ?? []));
+                }
                 return;
             }
 
@@ -2977,6 +3067,7 @@ export class Graph implements GraphContext {
         });
         this.engine = this.renderManager.engine;
         this.scene = this.renderManager.scene;
+        this.#notePaintDrawnOnFrames();
         this.camera = this.renderManager.camera;
         this.#hookCamera();
         this.camera.setViewInsets(this.#viewInsets);
@@ -3525,7 +3616,9 @@ export class Graph implements GraphContext {
 
         this.statsManager.measure("Graph.update", () => {
             this.statsManager.measure("Graph.updateManager", () => {
-                this.updateManager.update(frameMs);
+                this.#notingAppliedPaint(() => {
+                    this.updateManager.update(frameMs);
+                });
             });
 
             // The map follows the layout's frame and its `map` option; nothing happens unless one changed.
@@ -7608,18 +7701,33 @@ export class Graph implements GraphContext {
         // Every mesh goes in one bulk teardown, then every mesh is built again. Disposed one
         // element at a time, each mesh, action manager and drag handler left scene-wide lists by
         // a search, so the switch cost the size of the scene per element (issue #2895).
-        disposeReleased(nodes, edges, () => {
-            // Disposes every cached source mesh and line batch, and with them each instance and
-            // batched line drawn from them.
-            this.dataManager.meshCache.clear();
-            for (const node of nodes) {
-                releaseNodeMesh(node);
+        // Each node's own instance is kept and drawn from its new source below, rather than disposed
+        // and built again: what hangs from it is rebuilt as before.
+        const kept = new Set<AbstractMesh>();
+        for (const node of nodes) {
+            const mesh = keepNodeMeshForDimension(node);
+            if (mesh !== null) {
+                kept.add(mesh);
             }
+        }
 
-            for (const edge of edges) {
-                disposeEdgeMeshes(edge);
-            }
-        });
+        disposeReleased(
+            nodes,
+            edges,
+            () => {
+                // Disposes every cached source mesh and line batch, and with them each instance and
+                // batched line drawn from them.
+                this.dataManager.meshCache.clear();
+                for (const node of nodes) {
+                    releaseNodeMesh(node);
+                }
+
+                for (const edge of edges) {
+                    disposeEdgeMeshes(edge);
+                }
+            },
+            kept,
+        );
         this.writeSceneDimension(twoD);
 
         // Activate camera BEFORE mesh recreation so that is2DMode() checks
@@ -8072,9 +8180,10 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Under a held draft preview at rest, push each node the draft adds off every node the graph holds that it
-     * is drawn over, in the plane facing the camera, and hold it there: the layout keeps nodes apart in the world,
-     * and in 3D one can still sit right behind another, where the reader cannot see that it is there.
+     * Under a held draft preview at rest, push each node the draft adds off every node the graph holds, and off
+     * every node the draft adds that was placed before it, that it is drawn over, in the plane facing the camera,
+     * and hold it there: the layout keeps nodes apart in the world, and in 3D one can still sit right behind
+     * another, where the reader cannot see that it is there.
      *
      * Measured in scene units, at each node's size before the view sizes it (`node.sizeSpace`), so only the way the
      * camera faces counts, never how near it stands: measured in screen pixels, the push read whatever zoom the
@@ -8093,8 +8202,8 @@ export class Graph implements GraphContext {
             spot.node === null ? spot.at.visible : spot.node.getRenderState() === "visible",
         );
         const fresh = spots.filter((spot) => !held.has(spot.id));
-        // ponytail: every new node against every held one, O(new x held); DRAFT_SPREAD_LIMIT bounds it.
-        if (fresh.length === 0 || fresh.length * (spots.length - fresh.length) > DRAFT_SPREAD_LIMIT) {
+        // ponytail: every new node against every node placed before it, O(new x all); DRAFT_SPREAD_LIMIT bounds it.
+        if (fresh.length === 0 || fresh.length * spots.length > DRAFT_SPREAD_LIMIT) {
             return;
         }
 
@@ -8121,7 +8230,10 @@ export class Graph implements GraphContext {
         const toLocal = this.scene.getTransformNodeByName("graph-root")?.computeWorldMatrix(true).clone().invert();
         const places = new Map<string | number, { x: number; y: number; z: number }>();
         for (const node of fresh) {
-            const push = pushOff(discOf(node), kept);
+            const disc = discOf(node);
+            const push = pushOff(disc, kept);
+            // Where it ends up is in the way of every new node after it.
+            kept.push({ x: disc.x + (push?.x ?? 0), y: disc.y + (push?.y ?? 0), radius: disc.radius });
             if (push === null) {
                 continue;
             }
@@ -8578,7 +8690,10 @@ export class Graph implements GraphContext {
      * Resolve once every style change made so far is drawn on the canvas: the repaint passes have
      * ended (`styles.settled()`) and the renderer has applied their last batch. A large graph's
      * repaint is spread over many frames, so `styles.settled()` alone resolves while the canvas
-     * still shows the old colors (ws-polish 3). It does not wait for the layout or the camera, as
+     * still shows the old colors (ws-polish 3), and paint applied to the meshes is not on the canvas until a frame
+     * draws it: a layout reading node sizes, or `update()` pumped by hand, applies it between frames (#10322).
+     * Called before an edit is made (in a listener that runs ahead of the one making it), it does not wait for that
+     * edit. It does not wait for the layout or the camera, as
      * {@link Graph.waitForStableFrame} does, and it never rejects: a graph shut down ends the wait.
      * @returns Promise that resolves once the last repaint batch has been applied.
      * @beta
@@ -8588,7 +8703,7 @@ export class Graph implements GraphContext {
         const painter = this.getStylePainter();
         const teardown = this.#teardown.signal;
 
-        if (!painter.hasPending || teardown.aborted) {
+        if ((!painter.hasPending && !this.#paintUndrawn) || teardown.aborted) {
             return;
         }
 
@@ -8622,7 +8737,11 @@ export class Graph implements GraphContext {
             await this.untilNothingIsAhead();
             // Then the frame, and what only frames end: the picture, and the label counts it drew.
             await this.untilNothingIsOwed(wait);
-        } while (!wait.gaveUp && !this.updateManager.nothingIsOwed());
+            // A canvas whose box changed (a panel opened beside it) is drawn at its old size until the element's
+            // ResizeObserver runs, after the page's animation frames, and a frame loop at rest does not look: the
+            // picture is not final, and `nodeScreenPosition` and `elementAt` read a framing for the old size
+            // (issue #10320). Taken now, a refit it starts is waited for by the next round.
+        } while (!wait.gaveUp && (this.renderManager.resize() || !this.updateManager.nothingIsOwed()));
     }
 
     /**
@@ -11219,18 +11338,33 @@ export class Graph implements GraphContext {
      * The pose a saved view gives now: its fixed camera, or the camera view it follows computed
      * with its default scope for whatever is drawn.
      * @param saved - The saved view.
+     * @param context - The whole graph's camera-view context; measured anew by default.
      * @returns The camera state.
      * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA` `{ name }` when the followed camera view is
      *     no longer registered, or as `resolveCameraView` refuses.
      */
-    #savedPose(saved: SavedView): import("./screenshot/types.js").CameraState {
+    #savedPose(
+        saved: SavedView,
+        context: () => CameraViewContext = () => this.cameraViewContext(this.boundsToFrame()),
+    ): import("./screenshot/types.js").CameraState {
         if (saved.follows === undefined) {
             return saved.camera ?? {};
         }
         if (!isCameraViewName(saved.follows)) {
             throw unknownFollowed(saved.follows);
         }
-        return resolveCameraView(saved.follows, this.cameraViewContext(this.boundsToFrame()));
+        return resolveCameraView(saved.follows, context());
+    }
+
+    /**
+     * The whole graph's camera-view context, measured on the first call and shared by every call
+     * after: a save that writes many following views measures every node once, not once a view
+     * (issue #10314).
+     * @returns The getter.
+     */
+    #sharedViewContext(): () => CameraViewContext {
+        let context: CameraViewContext | undefined;
+        return () => (context ??= this.cameraViewContext(this.boundsToFrame()));
     }
 
     /**
@@ -11239,9 +11373,12 @@ export class Graph implements GraphContext {
      * @returns Each name with its pose, in project order.
      */
     #savedPoses(): [string, import("./screenshot/types.js").CameraState][] {
+        const context = this.#sharedViewContext();
         return [...this.session.views].flatMap(([name, saved]) => {
             try {
-                return [[name, this.#savedPose(saved)] as [string, import("./screenshot/types.js").CameraState]];
+                return [
+                    [name, this.#savedPose(saved, context)] as [string, import("./screenshot/types.js").CameraState],
+                ];
             } catch {
                 return [];
             }

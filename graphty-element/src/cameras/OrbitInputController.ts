@@ -60,8 +60,8 @@ function axisOf(plus: boolean, minus: boolean): number {
 export class OrbitInputController implements GestureEndHooks {
     /** Told once when a reader's camera gesture ends; see `camera:gesture-end`. */
     public onGestureEnd: ((kind: CameraGestureKind) => void) | null = null;
-    /** Asks the render loop for one more frame; see {@link WheelRun}. */
-    public requestFrame: (() => void) | null = null;
+    /** Told at each press, the moment it happens; see the camera manager's `onPress`. */
+    public onPress: (() => void) | null = null;
     /** What the pointer drag under way has done, once it moved the camera. */
     private dragKind: CameraGestureKind | null = null;
     /** Whether the pinch under way has moved the camera. */
@@ -108,6 +108,7 @@ export class OrbitInputController implements GestureEndHooks {
         const pans = PAN_BUTTONS.has(evt.button);
         if ((evt.button === 0 || pans) && !this.isMultiTouch) {
             this.isPointerDown = true;
+            this.onPress?.();
             this.isPanning = pans;
             this.panTravel = 0;
             this.pressedButton = evt.button;
@@ -524,7 +525,7 @@ export class OrbitInputController implements GestureEndHooks {
             this.onGestureEnd?.(kind);
         }
 
-        if (this.wheelRun.frame(this.requestFrame)) {
+        if (this.wheelRun.frame()) {
             this.onGestureEnd?.("zoom");
         }
 

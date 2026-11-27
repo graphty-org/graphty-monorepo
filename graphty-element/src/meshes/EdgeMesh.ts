@@ -72,6 +72,8 @@ interface EdgeMeshOptions {
     styleId: string;
     width: number;
     color: string;
+    /** The share of a solid line's width left undrawn down its middle (`JoinedLineOptions.hollow`); default 0. */
+    hollow?: number;
 }
 
 export interface ArrowHeadOptions {
@@ -613,7 +615,7 @@ export class EdgeMesh {
                         scene,
                         widened,
                         style.line?.minScreenWidth,
-                        { fade, opaque },
+                        { fade, opaque, hollow: options.hollow },
                     ),
                 ),
                 scene,
@@ -1282,6 +1284,7 @@ export class EdgeMesh {
                 opacity: this.opacityOf(style),
                 widened,
                 minScreenWidth: style.line?.minScreenWidth,
+                hollow: options.hollow,
                 fade: widened ? this.fadeOf(style) : undefined,
                 opaque: this.drawsOpaque(style),
                 pulled: pulled !== false,

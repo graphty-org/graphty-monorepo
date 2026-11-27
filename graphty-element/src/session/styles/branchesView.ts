@@ -9,7 +9,7 @@ import type { CompiledLayer, LayerCheck } from "./Layer";
 import type { SelectorTarget } from "./predicate";
 import { selectorStates } from "./selector";
 import { badCommand } from "./styleErrors";
-import type { BranchesView, DraftIdsQuery, DraftView, StylesSources } from "./StylesApi";
+import type { BranchesView, DraftIdsQuery, DraftRing, DraftView, StylesSources } from "./StylesApi";
 import { drawsOutsideWindow, hidesOutsideWindow } from "./tree";
 
 /**
@@ -369,17 +369,17 @@ function untouchedLook(color: string): LayerSpec["set"] {
 }
 
 /**
- * The rings a draft view's `focus` draws over every other ring: on the nodes every focused step merges, so they read
- * apart from what other steps merged, and from what only some of a join's steps reach (the identifiers reach every
- * account, the watchlist read through them only some).
+ * The steps a draft view's `focus` rings, with what each merges, and the nodes every one of them merges: a step that
+ * merges no node (one that adds a source, or brings only edges) takes no node out.
  * @param view - The view.
  * @param ids - The session ids of the drawn draft's elements.
- * @returns The layers, none without a focus.
+ * @returns The steps, and the nodes their ring is drawn on.
  */
-function focusLayers(view: DraftView, ids: DraftIds): LayerSpec[] {
-    const { focus } = view;
-    // A step that merges no node (one that adds a source, or brings only edges) takes no node out.
-    const focused = (focus?.steps ?? [])
+function focusReach(
+    view: DraftView,
+    ids: DraftIds,
+): { focused: { step: number; merged: readonly NodeId[] }[]; reached: Set<NodeId> } {
+    const focused = (view.focus?.steps ?? [])
         .map((step) => ({ step, merged: ids({ step, buckets: STEP_MARKS.merged })?.nodes ?? [] }))
         .filter(({ merged }) => merged.length > 0);
     const reached = new Set(focused[0]?.merged ?? []);
@@ -391,11 +391,43 @@ function focusLayers(view: DraftView, ids: DraftIds): LayerSpec[] {
             }
         }
     }
+    return { focused, reached };
+}
+
+/**
+ * The rings a draft view's `focus` draws over every other ring: on the nodes every focused step merges, so they read
+ * apart from what other steps merged, and from what only some of a join's steps reach (the identifiers reach every
+ * account, the watchlist read through them only some).
+ * @param view - The view.
+ * @param ids - The session ids of the drawn draft's elements.
+ * @returns The layers, none without a focus.
+ */
+function focusLayers(view: DraftView, ids: DraftIds): LayerSpec[] {
+    const { focused, reached } = focusReach(view, ids);
     return focused.flatMap(({ step, merged }) => {
         const color = view.steps?.find((each) => each.step === step)?.color ?? view.merged;
-        const ring = { ...mergedLook(color), "node.haloScale": focus?.ring ?? MERGED_AGAIN_SCALE };
+        const ring = { ...mergedLook(color), "node.haloScale": view.focus?.ring ?? MERGED_AGAIN_SCALE };
         return idLayers("Focus", { nodes: merged.filter((node) => reached.has(node)), edges: [] }, ring);
     });
+}
+
+/**
+ * The rings a draft view draws wider than the merged ring, each kind with the nodes it is drawn on: a node two
+ * listed steps merge (`mergedAgain`), and a node every focused step merges (`focus`, drawn over the other).
+ * @param view - The view.
+ * @param draftIds - The session ids of the drawn draft's elements.
+ * @returns The kinds drawn on at least one node.
+ */
+export function draftRings(view: DraftView, draftIds?: DraftIds): DraftRing[] {
+    const ids: DraftIds = draftIds ?? ((): null => null);
+    const { focused, reached } = focusReach(view, ids);
+    const focus = focused.length > 0 ? reached : new Set<NodeId>();
+    const again = mergedAgain((view.steps ?? []).map(({ step }) => ids({ step, buckets: ["merged"] }))).nodes;
+    const rings: DraftRing[] = [
+        { kind: "mergedAgain", scale: MERGED_AGAIN_SCALE, nodes: again.filter((node) => !focus.has(node)).length },
+        { kind: "focus", scale: view.focus?.ring ?? MERGED_AGAIN_SCALE, nodes: focus.size },
+    ];
+    return rings.filter((ring) => ring.nodes > 0);
 }
 
 /**

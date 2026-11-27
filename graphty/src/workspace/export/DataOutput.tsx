@@ -568,7 +568,7 @@ export function DataOutput({
                 return;
             }
             setStyleLosses(null);
-            await element.downloadGraph(choices.format, { ...options, fileName: name });
+            await element.downloadGraph(result, { fileName: name });
             count("export_done", {
                 kind: "graph",
                 format: allowlisted(choices.format, new Set(formats.map((entry) => entry.id))),

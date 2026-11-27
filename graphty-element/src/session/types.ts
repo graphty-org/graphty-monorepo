@@ -4315,8 +4315,8 @@ export interface ImportOptions {
     /**
      * `"data"` also pins, in the same step, every node the file marks fixed -- a Graphviz node
      * written `pos="x,y!"` or `pin=true`, a Cytoscape.js node with `"locked": true`, any column
-     * graph-io gives the `fixed` role -- so a layout keeps those nodes where the file put them and
-     * lays out the rest. `"keep"` (the default) pins nothing. Undoing the load undoes the pins.
+     * graph-io gives the `fixed` role, a sample dataset's `fixed` column -- so a layout keeps those
+     * nodes where the file put them and lays out the rest. `"keep"` (the default) pins nothing. Undoing the load undoes the pins.
      * @since 3.40.0
      */
     readonly pins?: "data" | "keep";

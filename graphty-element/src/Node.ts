@@ -63,7 +63,7 @@ import {
     type TableDecoration,
 } from "./meshes/NodeDecorationMesh";
 import { NodeEffects } from "./meshes/NodeEffects";
-import { NodeMesh, styleOpacity } from "./meshes/NodeMesh";
+import { NodeMesh, paintedBodyOpacity } from "./meshes/NodeMesh";
 import {
     NodeShaderDrawing,
     type NodeShaderLook,
@@ -2449,13 +2449,13 @@ export class Node implements ModelUser {
     }
 
     /**
-     * The opacity its style draws its body at (`node.opacity`), whatever draws it: a line's end shows through a body
-     * drawn under 1, so it stops at the outline (`RowTable.measure`, `Edge.bareEnd`).
+     * The opacity its style draws its body at (`node.opacity`, 0 for a wireframe), whatever draws it: a line's end
+     * shows through a body drawn under 1, so it stops at the outline (`RowTable.measure`, `Edge.bareEnd`).
      * @returns The opacity.
      * @internal
      */
     get paintedOpacity(): number {
-        return styleOpacity(this.drawnStyle?.texture);
+        return paintedBodyOpacity(this.drawnStyle);
     }
 
     /**

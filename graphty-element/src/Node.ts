@@ -240,6 +240,9 @@ const CONTEXT_POINT_ALPHA = 0.18;
 /** The smallest size an overlay is drawn at, so a zero-sized style still leaves something to see. */
 const MIN_OVERLAY_SIZE = 0.2;
 
+/** The node source meshes a spare selection halo was built for (`Node.prepareHalo`). */
+const haloPrepared = new WeakSet<Mesh>();
+
 /** How deep a group following its members is drawn, as a fraction of its smaller side. */
 const GROUP_DEPTH_RATIO = 0.02;
 
@@ -2227,7 +2230,52 @@ export class Node implements ModelUser {
         drawInRowOrder(mesh, this);
         this.#anchor = this.#mesh = mesh;
         this.#source = mesh instanceof InstancedMesh ? mesh.sourceMesh : mesh;
+        this.prepareHalo();
         return mesh;
+    }
+
+    /**
+     * Build a spare selection halo for this node's source mesh, if no node of it has yet: the first selection then
+     * takes it (`takeSpareHalo`) as every later one does, instead of building the halo's source mesh.
+     *
+     * THE FIRST SELECTION AFTER A LOAD PAID FOR BUILDING IT (issue #10124). A new source mesh in the scene is more than
+     * the halos a selection reports (`UpdateManager.haloTouched`), so it thawed the frozen list of what is drawn, and
+     * its material was built with the whole graph in the scene: at 99,000 nodes the first click took about 340 ms and
+     * later ones 55 to 93 ms.
+     * Built with the first node of its source, before the list is first frozen, it costs about nothing. The spare
+     * instance also holds the source in the cache (`MeshCache.prune` disposes a source with none).
+     */
+    private prepareHalo(): void {
+        const shape = this.nodeSourceMesh();
+        if (shape === null || haloPrepared.has(shape)) {
+            return;
+        }
+
+        haloPrepared.add(shape);
+        const look = this.selectionStyle();
+        if (look.opacity === 0) {
+            return;
+        }
+
+        const own = this.haloKey;
+        const halo = this.createOverlay("halo", look);
+        halo.setEnabled(false);
+        this.spareHalo(this.haloSourceKey(look), halo);
+        this.haloKey = own;
+    }
+
+    /**
+     * Keep a hidden halo no node draws for the next node to draw a halo in its look (`takeSpareHalo`).
+     * @param key - The cache key of its source.
+     * @param halo - The halo.
+     */
+    private spareHalo(key: string, halo: AbstractMesh): void {
+        const scene = this.context.getScene();
+        const byKey = spareHalos.get(scene) ?? new Map<string, AbstractMesh[]>();
+        spareHalos.set(scene, byKey);
+        const spare = byKey.get(key) ?? [];
+        byKey.set(key, spare);
+        spare.push(halo);
     }
 
     /**
@@ -3424,6 +3472,7 @@ export class Node implements ModelUser {
         drawInRowOrder(mesh, this);
         this.#fit = { meshKey: fit.meshKey, style: fit.style };
         this.#source = source;
+        this.prepareHalo();
         this.meshKey = meshKey;
         this.drawnStyle = o;
         this.drawnColor = color;
@@ -4304,12 +4353,7 @@ export class Node implements ModelUser {
         if (kind === "halo" && existing && !existing.isDisposed() && this.haloKey !== null) {
             // Given back, hidden, for the next node to draw a halo in this look (`takeSpareHalo`).
             this.context.getUpdateManager?.().haloTouched(existing, false);
-            const scene = this.context.getScene();
-            const byKey = spareHalos.get(scene) ?? new Map<string, AbstractMesh[]>();
-            spareHalos.set(scene, byKey);
-            const spare = byKey.get(this.haloKey) ?? [];
-            byKey.set(this.haloKey, spare);
-            spare.push(existing);
+            this.spareHalo(this.haloKey, existing);
             this.halo = null;
             this.haloKey = null;
         }

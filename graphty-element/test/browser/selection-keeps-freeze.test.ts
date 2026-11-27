@@ -3,7 +3,9 @@
  * thaws nothing and freezes nothing again, and the frames it draws evaluate a number of meshes that does not grow
  * with the graph. Before, the selection's new halo mesh thawed the list, so the next frame evaluated every mesh in
  * the scene and uploaded every instance's matrix again, and the next quiet frame walked them all once more to
- * freeze it: about 200 ms of a click at 99,000 nodes (issue #10128). Counted with the real mouse, never timed.
+ * freeze it: about 200 ms of a click at 99,000 nodes (issue #10128). The first click on a page also built the halo's
+ * source mesh, which thawed the list once: it is now built with the nodes (issue #10124), so the first click costs
+ * what a later one does. Counted with the real mouse, never timed.
  */
 
 import "../../src/graphty-element";
@@ -78,12 +80,12 @@ async function grid(size: number): Promise<{ element: Graphty; middle: string[] 
  * click cost.
  * @param element - The element.
  * @param id - The node.
- * @returns The thaws, freezes and mesh evaluations from the press to two frames after the selection.
+ * @returns The thaws, freezes, mesh evaluations and meshes built from the press to two frames after the selection.
  */
 async function clickCounted(
     element: Graphty,
     id: string,
-): Promise<{ thaws: number; freezes: number; evaluated: number; meshPicks: number }> {
+): Promise<{ thaws: number; freezes: number; evaluated: number; meshPicks: number; built: number }> {
     const { scene } = element.graph;
     const at = element.nodeScreenPosition(id);
     assert.isTrue(at?.visible === true, `${id} is on screen`);
@@ -97,7 +99,10 @@ async function clickCounted(
         assert.isTrue(frozen(scene), "the list is frozen again after the hover");
     });
 
-    const counts = { thaws: 0, freezes: 0, evaluated: 0, meshPicks: 0 };
+    const counts = { thaws: 0, freezes: 0, evaluated: 0, meshPicks: 0, built: 0 };
+    const added = scene.onNewMeshAddedObservable.add(() => {
+        counts.built++;
+    });
     const unfreeze = scene.unfreezeActiveMeshes.bind(scene);
     const freeze = scene.freezeActiveMeshes.bind(scene);
     scene.unfreezeActiveMeshes = () => {
@@ -128,6 +133,7 @@ async function clickCounted(
         await element.waitForStableFrame();
     } finally {
         AbstractMesh.prototype.computeWorldMatrix = evaluate;
+        added.remove();
         scene.unfreezeActiveMeshes = unfreeze;
         scene.freezeActiveMeshes = freeze;
     }
@@ -162,17 +168,19 @@ describe("a click that selects a node on the objects path", () => {
         await assertScalesLinearly(
             async (size) => {
                 const { element, middle } = await grid(size);
-                // The first halo builds the source mesh every halo is an instance of; then a click on a new node
-                // adds a halo instance and hides the old one, and a click back shows the old one again.
-                await clickCounted(element, middle[11]);
+                // The first click shows the spare halo built with the nodes; then a click on a new node adds a halo
+                // instance and hides the old one, and a click back shows the old one again.
+                const first = await clickCounted(element, middle[11]);
+                assert.strictEqual(first.built, 0, `the first click builds no mesh: ${JSON.stringify(first)}`);
                 const fresh = await clickCounted(element, middle[55]);
                 assert.isTrue(await haloDrawn(element, middle[55]), "the new halo is drawn on the frozen list");
                 assert.isFalse(await haloDrawn(element, middle[11]), "the old halo is taken off the frozen list");
                 const again = await clickCounted(element, middle[11]);
                 assert.isTrue(await haloDrawn(element, middle[11]), "the halo shown again is drawn");
                 assert.isFalse(await haloDrawn(element, middle[55]), "the halo hidden again is not");
-                seen[size] = { fresh, again };
-                for (const counts of [fresh, again]) {
+                assert.strictEqual(again.built, 0, `a click back builds no mesh: ${JSON.stringify(again)}`);
+                seen[size] = { first, fresh, again };
+                for (const counts of [first, fresh, again]) {
                     assert.strictEqual(counts.thaws, 0, `no thaw at ${String(size)} nodes: ${JSON.stringify(seen)}`);
                     assert.strictEqual(
                         counts.freezes,
@@ -182,7 +190,7 @@ describe("a click that selects a node on the objects path", () => {
                 }
 
                 element.remove();
-                return fresh.evaluated + again.evaluated;
+                return first.evaluated + fresh.evaluated + again.evaluated;
             },
             { sizes: [500, 2000], growth: "constant", counter: () => `meshes evaluated ${JSON.stringify(seen)}` },
         );

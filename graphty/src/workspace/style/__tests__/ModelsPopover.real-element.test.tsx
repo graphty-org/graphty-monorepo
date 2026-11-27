@@ -27,6 +27,7 @@ import {
     written,
 } from "./modelHarness";
 import { quadGlb } from "./quadGlb";
+import { switchView } from "./v2Harness";
 
 // These tests drive the Style panel the app shows with file styles off; the panel by part of the
 // drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
@@ -253,6 +254,32 @@ describe("models in the Shape field, on the real element", () => {
             assert.equal(store.get().announcement, "Node shape removed");
         });
         assert.isUndefined(written(session, "node.shape"), "the shape kept under the model goes with it");
+    });
+
+    it("hides Model settings' Light row in 2D, which graphty-element draws only in 3D", async () => {
+        const { session, tab } = await openShapes();
+        await openModels(tab);
+        await focusOn("Box");
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.equal(written(session, "node.model"), "asset:sample/box");
+        });
+        const open = async (): Promise<HTMLElement> => {
+            await userEvent.click(within(tab).getByRole("button", { name: "Model settings" }));
+            return screen.findByRole("dialog", { name: "Model settings" });
+        };
+        const close = async (): Promise<void> => {
+            await userEvent.click(screen.getByRole("button", { name: "Close model settings" }));
+            await waitFor(() => {
+                assert.isNull(screen.queryByRole("dialog", { name: "Model settings" }));
+            });
+        };
+        assert.isNotNull((await open()).querySelector('[data-line="node.unlit"]'), "Light in 3D");
+        await close();
+        await switchView("2D");
+        const flat = await open();
+        assert.isNull(flat.querySelector('[data-line="node.unlit"]'), "no Light in 2D");
+        assert.isNotNull(flat.querySelector('[data-line="node.wireframe"]'), "Wireframe draws in both views");
     });
 
     it("opens the Load custom model dialog in its place from Add custom model...", async () => {

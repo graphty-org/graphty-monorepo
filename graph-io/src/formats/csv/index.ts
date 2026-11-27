@@ -40,6 +40,7 @@ import {
     PADDED_ID_CODE,
     POSSIBLE_HEADER_CODE,
     ROLE_TAKEN_CODE,
+    ROWS_AS_NODES_CODE,
     SINGLE_COLUMN_CODE,
     STRAY_QUOTE_CODE,
     TRAILING_DELIMITER_CODE,
@@ -94,6 +95,11 @@ export const CSV_ISSUE = Object.freeze({
      */
     NO_UNIQUE_ID: NO_UNIQUE_ID_CODE,
     /**
+     * The header names neither an edge's ends nor an id, and under `unnamed: "nodes"` every row was read as a node,
+     * so the file holds no edge. Pass `sourceColumn` and `targetColumn` to read the rows as edges.
+     */
+    ROWS_AS_NODES: ROWS_AS_NODES_CODE,
+    /**
      * A row with a different number of fields than the header; the row is skipped. An adjacency list read without
      * `table: "adjacency"` gives one per long row, and the first one's message suggests the option.
      */
@@ -113,7 +119,11 @@ export const CSV_ISSUE = Object.freeze({
     QUOTE: BAD_QUOTE_CODE,
     /** A header and no data rows. */
     NO_DATA_ROWS: NO_DATA_ROWS_CODE,
-    /** A node table row repeating an id. */
+    /**
+     * A node table row repeating an id. Its values overwrite the earlier row's; when the id column was
+     * guessed from the values (`unnamed: "nodes"`), the row is left out instead, the first row's
+     * values stand, and the issue's `params.record` holds the row left out, by column name.
+     */
     DUPLICATE_NODE: DUPLICATE_NODE_CODE,
     /** An edge row repeating an edge id (skipped). */
     DUPLICATE_EDGE_ID: DUPLICATE_EDGE_ID_CODE,

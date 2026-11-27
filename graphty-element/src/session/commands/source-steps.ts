@@ -33,6 +33,7 @@ import {
     projectBuild,
     type ProjectedEdge,
     type ProjectedGraph,
+    settleIds,
     SOURCE_COPIES_VALUE,
     SOURCE_EDGE_IDS_VALUE,
     SOURCE_STEPS_VALUE,
@@ -92,8 +93,10 @@ function actSource(act: StepsAct): string | null {
         case "merge":
         case "connect":
             return act.options.from.source;
+        case "link":
+            return act.options.source;
         case "replace-step":
-            return act.with.options.from.source;
+            return actSource(act.with);
         case "rename":
             return act.rename.source;
         case "remove-step":
@@ -110,6 +113,7 @@ const ACT_LABELS: Readonly<Record<StepsAct["act"], string>> = {
     merge: "Merged a source",
     connect: "Made edges from a source",
     extract: "Extracted nodes from a column",
+    link: "Linked nodes sharing a value",
     "move-columns": "Moved columns onto nodes",
     rename: "Renamed a column",
     pick: "Picked a value",
@@ -272,6 +276,8 @@ function listed(
             tables: src.tables,
             ...(src.tableRows === undefined ? {} : { tableRows: src.tableRows }),
             ...(src.input === undefined ? {} : { input: src.input }),
+            ...(src.read?.size === undefined ? {} : { size: src.read.size }),
+            ...(src.read?.at === undefined ? {} : { loadedAt: src.read.at }),
             added: Object.freeze({ nodes: own?.added.nodes ?? 0, edges: own?.added.edges ?? 0 }),
             counts,
             state: sourceState(value, src.id),
@@ -528,6 +534,7 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
         "merge",
         "connect",
         "extract",
+        "link",
         "move-columns",
         "rename",
         "pick",
@@ -554,8 +561,9 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
         const edgeIds = valueOf<Readonly<Record<string, EdgeId>>>(ctx, SOURCE_EDGE_IDS_VALUE, {});
         const all = command.copies === undefined ? priorCopies : { ...priorCopies, ...command.copies };
         const known = ctx.services.config?.().data.knownFields;
-        const edited = withRepeated(applyEdit(prior, command.edit, all), known?.repeatedEdges);
-        const copies = copiesOf(edited, all);
+        const asked = withRepeated(applyEdit(prior, command.edit, all), known?.repeatedEdges);
+        const copies = copiesOf(asked, all);
+        const edited = settledFrom(command.edit, prior, priorCopies, asked, copies);
         const idPath = known?.nodeIdPath ?? "id";
         const after = projectBuild(refusingDuplicates(buildOf(edited, copies)), edited, idPath);
         const { edit } = command;
@@ -609,6 +617,26 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
         refreshDerivedAfter(ctx);
     },
 };
+
+/**
+ * The edited value with its NodeIds settled: after the value before it, unless the edit begins anew.
+ * @param edit - The edit.
+ * @param prior - The value before.
+ * @param priorCopies - Its rows as read.
+ * @param asked - The value the edit makes.
+ * @param copies - Its rows as read.
+ * @returns The value.
+ */
+function settledFrom(
+    edit: StepsEdit,
+    prior: SourceSteps,
+    priorCopies: Copies,
+    asked: SourceSteps,
+    copies: Copies,
+): SourceSteps {
+    const anew = edit.kind === "restore" || (edit.kind === "add" && edit.replace === true);
+    return anew ? settleIds(EMPTY_STEPS, {}, asked, copies) : settleIds(prior, priorCopies, asked, copies);
+}
 
 /**
  * A build, refused when it holds a repeated edge under `repeatedEdges` "error", as a load without the

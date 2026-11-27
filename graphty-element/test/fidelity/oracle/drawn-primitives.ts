@@ -111,6 +111,7 @@ function textOf(d: DrawnLabel): PText {
         family: d.family,
         weight: d.weight,
         style: d.style === "italic" || d.style === "oblique" ? d.style : "normal",
+        ...((d.underlines?.length ?? 0) > 0 ? { underline: true as const } : {}),
         anchor: "middle",
         rotation: d.rotation,
         color: d.color,

@@ -2790,6 +2790,9 @@ function readLabelFont(f: ReturnType<References["deref"]>, put: PutValue, at: Si
     if (/^(italic|oblique)$/i.test(treeAttr(f.e, "fontStyle") ?? "")) {
         put("labelItalic", true);
     }
+    if (/\bUNDERLINE\b/i.test(treeAttr(f.e, "textDecoration") ?? "")) {
+        put("labelUnderline", true);
+    }
 }
 
 /** A label style's `horizontalTextAlignment`, as the neutral text alignment. */

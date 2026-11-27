@@ -71,7 +71,7 @@ import type { ModelCheck, ModelCheckOptions, ModelPreview, ModelPreviewOptions }
 import type { RenderPath, RowCounts } from "./meshes/NodeBatch";
 import type { ModelThumbnailOptions, NodeThumbnailOptions } from "./meshes/NodeThumbnail";
 import { type Antialias, antialiasDefault } from "./meshes/PulledLineBatch";
-import { exportFigure, type FigureOptions, type FigureResult } from "./screenshot/figure.js";
+import type { FigureOptions, FigureResult } from "./screenshot/figure.js";
 import type { ScreenshotLegendPosition, ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import type { GraphSession } from "./session";
 import {
@@ -4616,6 +4616,8 @@ export class Graphty extends LitElement {
      */
     async exportFigure(options?: FigureOptions): Promise<FigureResult> {
         await this.#graph.waitForStableFrame();
+        // Loaded on first use: most pages never export a figure.
+        const { exportFigure } = await import("./screenshot/figure.js");
         return exportFigure(this.#graph, options);
     }
 

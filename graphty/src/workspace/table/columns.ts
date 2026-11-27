@@ -45,6 +45,8 @@ export interface TableColumnChoice {
     readonly attribute?: string;
     /** Read from the graph's structure (`attribute` holds its path), not from the record. */
     readonly structure?: boolean;
+    /** The type each element is of, which a join or an import gave it: no record holds it. */
+    readonly ofType?: true;
     /** The run's id, for a result column. */
     readonly run?: string;
     /** The element's column, for an attribute column: what Type, Role, Rename and Hide change. */
@@ -145,7 +147,7 @@ export function columnChoices(session: GraphSession, kind: RecordKind, roles = h
             const role = roleOf(attribute, sources, roles) ?? located.get(attribute.name);
             return {
                 id: `a:${attribute.name}`,
-                header: attribute.name,
+                header: attribute.plainName,
                 group: "attribute",
                 numeric: attribute.type === "number" || attribute.type === "integer",
                 attribute: attribute.name,
@@ -197,7 +199,30 @@ export function columnChoices(session: GraphSession, kind: RecordKind, roles = h
         .map((column): TableColumnChoice => ({ ...column, group: "key" }));
     const isKeyed = (column: TableColumnChoice): boolean => keyed.some((key) => key.id === column.id);
     const attributes = loaded.filter((column) => !isKeyed(column) && !keys.some((key) => key.id === column.attribute));
-    return [...keys, ...keyed, ...attributes, ...results];
+    return [...keys, ...keyed, ...attributes, ...typeColumn(session, kind), ...results];
+}
+
+/**
+ * The column of the types joins and imports gave a kind's elements, once some element has one.
+ * @param session - the element's session.
+ * @param kind - nodes or edges.
+ * @returns the column, or none.
+ */
+function typeColumn(session: GraphSession, kind: RecordKind): TableColumnChoice[] {
+    const path = "graphty.type";
+    const type = session.data.readableValues().find((value) => value.path === path && value.on === kind);
+    return type === undefined
+        ? []
+        : [
+              {
+                  id: `a:${path}`,
+                  header: type.plainName,
+                  group: "attribute",
+                  numeric: false,
+                  attribute: path,
+                  ofType: true,
+              },
+          ];
 }
 
 /**
@@ -393,6 +418,7 @@ const ISSUE_WORDS: Readonly<Partial<Record<string, readonly [one: string, many: 
     "case-variant": ["case variant", "case variants"],
     "blank-id": ["blank id", "blank ids"],
     "refused-row": ["row refused", "rows refused"],
+    "rows-as-nodes": ["row read as a node", "rows read as nodes"],
     "mixed-type": ["mixed types", "mixed types"],
     "could-be-yes-no": ["value could be yes/no", "values could be yes/no"],
 };

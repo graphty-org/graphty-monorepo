@@ -45,6 +45,7 @@ import {
     createLucideIcon,
     Database,
     Disc,
+    EqualApproximately,
     Eye,
     EyeOff,
     FilePlus,
@@ -309,6 +310,8 @@ export const GLYPHS = {
     next: ChevronRight,
     // The current choice in a list.
     check: Check,
+    // The likeliest choice, not picked.
+    suggested: EqualApproximately,
     expand: ChevronDown,
     show: Eye,
     hide: EyeOff,

@@ -42,7 +42,7 @@ export function glideTowards(from: Vector3, to: Vector3, frames = 1): boolean {
 
 export interface CameraController {
     camera: Camera;
-    zoomToBoundingBox(min: Vector3, max: Vector3, spots?: readonly FramingSpot[]): void;
+    zoomToBoundingBox(min: Vector3, max: Vector3, spots?: readonly FramingSpot[], moving?: boolean): void;
     /** Margins of the canvas something else covers, in CSS pixels, that every fit keeps clear. */
     viewInsets?: ViewInsets;
     /**
@@ -188,10 +188,11 @@ export class CameraManager {
      * @param min - The minimum corner of the bounding box
      * @param max - The maximum corner of the bounding box
      * @param spots - What the box holds, for a fit that frames the nodes rather than the box.
+     * @param moving - Whether the graph is still moving and will be framed again next frame.
      */
-    public zoomToBoundingBox(min: Vector3, max: Vector3, spots?: readonly FramingSpot[]): void {
+    public zoomToBoundingBox(min: Vector3, max: Vector3, spots?: readonly FramingSpot[], moving?: boolean): void {
         if (this.activeCameraController) {
-            this.activeCameraController.zoomToBoundingBox(min, max, spots);
+            this.activeCameraController.zoomToBoundingBox(min, max, spots, moving);
         }
     }
 

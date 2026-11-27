@@ -558,6 +558,32 @@ describe("OrbitCameraController", () => {
                 assert.isBelow(centeringWork.outlined, (count * 8 * 2) / 20);
             });
 
+            test("a moving graph's fit does the same work whatever the node count (issue #10154)", async () => {
+                await assertScalesLinearly(
+                    (count) => {
+                        const { spots, min, max } = ball(count);
+                        centeringWork.walked = 0;
+                        centeringWork.outlined = 0;
+                        centeringWork.corners = 0;
+                        controller.zoomToBoundingBox(min, max, spots, true);
+                        return centeringWork.walked + centeringWork.outlined + centeringWork.corners;
+                    },
+                    { sizes: [2_000, 8_000], growth: "constant", counter: "nodes and corners walked" },
+                );
+            });
+
+            test("the fit a moving graph settles on is the one it gets without moving first", () => {
+                const { spots, min, max } = shaped("blobs", 3_000, 10154);
+                controller.zoomToBoundingBox(min, max, spots);
+                const settled = [...controller.pivot.position.asArray(), controller.cameraDistance];
+
+                controller.zoomToBoundingBox(min, max, spots, true);
+                // the same distance while moving; the drawing is centered on its box instead
+                assert.strictEqual(controller.cameraDistance, settled[3]);
+                controller.zoomToBoundingBox(min, max, spots);
+                assert.deepEqual([...controller.pivot.position.asArray(), controller.cameraDistance], settled);
+            });
+
             test("nodes well inside the others change the fit not at all", () => {
                 const { spots, min, max } = ball(500);
                 controller.zoomToBoundingBox(min, max, spots);

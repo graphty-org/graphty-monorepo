@@ -54,6 +54,7 @@ import {
     sideOf,
     stepCard,
     usedPaths,
+    waitingSource,
     WHILE,
     withReference,
 } from "./values";
@@ -284,7 +285,9 @@ function ValueField({
     return (
         <AddCondition
             // The lists are read only while the picker is open: on a large graph they are not free.
-            fields={open ? pickerFields(session, sideOf(rule), rule.within, perAlgorithm) : []}
+            fields={
+                open ? pickerFields(session, sideOf(rule), rule.within, perAlgorithm, waitingSource(session, rule)) : []
+            }
             used={usedPaths(rule, branch)}
             placeholder="Find attributes, results"
             sections={open ? [...hostPicks, ...pickSections(session, rule, choose, host, perAlgorithm)] : []}
@@ -561,13 +564,14 @@ export function StepPane({
             ?.focus();
     });
     const side: Side = sideOf(rule);
-    const { value } = rowWords(session, step, side, reading);
+    const waiting = waitingSource(session, rule);
+    const { value } = rowWords(session, step, side, reading, waiting);
     // Typing in a box is held and written when committed (Enter, leaving the box): one undo step.
     const [draft, setDraft] = useState<Card | null>(null);
     // Read once per reading, never per render: it reads the step's values and their spread.
     const read = useMemo(
-        () => stepCard(session, step, reading, side, rule.within),
-        [session, step, reading, side, rule.within],
+        () => stepCard(session, step, reading, side, rule.within, waiting),
+        [session, step, reading, side, rule.within, waiting],
     );
     // A Keep or Except step's checklist counts what comes into the step (spec 5); an Add step's
     // counts the base, since what it adds comes from there.

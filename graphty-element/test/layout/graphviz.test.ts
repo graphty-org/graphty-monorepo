@@ -652,14 +652,8 @@ describe("nodes Graphviz sizes to their labels (nodeSize: label)", () => {
             ]),
         });
 
-        assert.include(
-            dot,
-            String.raw`n0 [shape="box", fixedsize="false", width="0.75", height="0.5", label="say \"hi\"\n"];`,
-        );
-        assert.include(
-            dot,
-            'n1 [shape="ellipse", fixedsize="false", width="0.75", height="0.5", label=<<b>bold</b>>];',
-        );
+        assert.include(dot, String.raw`n0 [shape="box", fixedsize="false", label="say \"hi\"\n"];`);
+        assert.include(dot, 'n1 [shape="ellipse", fixedsize="false", label=<<b>bold</b>>];');
         assert.include(dot, "n2 [width=1, height=1];", "a node with nothing to size it by keeps its drawn size");
     });
 
@@ -703,6 +697,40 @@ describe("nodes Graphviz sizes to their labels (nodeSize: label)", () => {
             const [ox, oy] = own.get(id) ?? [Number.NaN, Number.NaN];
             assert.closeTo(x, ox, 0.01, `${id} x`);
             assert.closeTo(y, oy, 0.01, `${id} y`);
+        }
+    });
+
+    it("sizes a regular shape to its label as Graphviz sizes the file's, which states no least size", async () => {
+        const file = String.raw`digraph { node [fontname="Helvetica", fontsize=12];
+            a [shape=circle, label="circle"]; b [shape=hexagon, regular=true, label="regular"]; a -> b }`;
+        const snapshot = graph(true, [["a", "b"]]);
+        const font = { fontname: "Helvetica", fontsize: 12 };
+        const structure = graphvizStructure(
+            (id) => snapshot.ids.indexOf(id),
+            [{ srcId: "a", dstId: "b", data: {} }],
+            new Map(),
+            [],
+            new Map<number, Record<string, unknown>>([
+                [snapshot.ids.requireIndex("a"), { shape: "circle", label: "circle", ...font }],
+                [snapshot.ids.requireIndex("b"), { shape: "hexagon", regular: "true", label: "regular", ...font }],
+            ]),
+            { idOf: (row) => String(snapshot.ids.idOf(row)) },
+        );
+        const ours = await layout(toDot(snapshot, {}, [0.2, 0.2], undefined, new Map(), structure), "dot");
+        const theirs = await layout(file, "dot");
+
+        assert.isTrue(ours.ok && theirs.ok);
+        const widths = (json: string): Map<string, number> =>
+            new Map(
+                (JSON.parse(json) as { objects: { name: string; width?: string }[] }).objects.map((o) => [
+                    o.name,
+                    Number(o.width),
+                ]),
+            );
+        const mine = widths(ours.ok ? ours.json : "{}");
+        const own = widths(theirs.ok ? theirs.json : "{}");
+        for (const id of ["a", "b"]) {
+            assert.closeTo(mine.get(`n${snapshot.ids.requireIndex(id)}`) ?? Number.NaN, own.get(id) ?? 0, 1e-4, id);
         }
     });
 

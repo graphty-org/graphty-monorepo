@@ -81,6 +81,62 @@ it("the restored draft commits what the reader had drafted", async () => {
     second.dispose();
 });
 
+it("a draft that changed what a staged source's rows are reads them that way after a restore", async () => {
+    const store = memoryAutosaveStore();
+    const { session: first } = await phase2();
+    const csv = (name: string, data: string): Parameters<typeof first.data.stage>[0] => ({
+        type: "csv",
+        config: { data },
+        name,
+    });
+    // One source staged before the draft (the project holds its rows), one staged by it.
+    const held = await first.data.stage(csv("pays.csv", "payer,payee\nA-1,A-2\nA-2,A-9"), { key: "payer" });
+    const writer = new Autosaver({ key: KEY, session: first, store, clock: new FakeClock(), locks: new FakeLocks() });
+    const draft = first.data.draft();
+    const own = await draft.stage(csv("calls.csv", "from,to\nA-1,A-9\nA-9,A-2"), { key: "from" });
+    for (const [source, from, to] of [
+        [held, "payer", "payee"],
+        [own, "from", "to"],
+    ]) {
+        draft.setMapping(source, { rows: "edges", edges: { source: from, target: to } });
+        draft.add(source);
+    }
+    const tables = (d: NonNullable<ReturnType<typeof first.data.currentDraft>>): unknown =>
+        [held, own].map((source) => d.sourceTable(source).summary().tables);
+    const before = { steps: JSON.stringify(draft.steps()), marks: draft.preview().marks, tables: tables(draft) };
+    assert.strictEqual(before.marks.edges.new, 4);
+    await writer.flush();
+    const id = writer.status.entry ?? "";
+    writer.stop();
+    first.dispose();
+
+    const second = createGraphSession({ features: ["source-steps"] });
+    const reader = new Autosaver({ key: KEY, session: second, store, clock: new FakeClock(), locks: new FakeLocks() });
+    await reader.restore(id, true);
+    const back = second.data.currentDraft();
+    if (back === null) {
+        throw new Error("the draft did not come back");
+    }
+    assert.deepStrictEqual(
+        { steps: JSON.stringify(back.steps()), marks: back.preview().marks, tables: tables(back) },
+        before,
+    );
+    // Undo goes back to the rows as they were read: nodes, of both sources.
+    for (let i = 0; i < 4; i++) {
+        back.undo();
+    }
+    const rowsAre = [held, own].map((source) => back.sourceTable(source).summary());
+    assert.deepStrictEqual(
+        rowsAre.map((facts) => [facts.mapping.rows, facts.tables.map((table) => [table.table, table.rows])]),
+        [
+            ["nodes", [["nodes", 2]]],
+            ["nodes", [["nodes", 2]]],
+        ],
+    );
+    reader.stop();
+    second.dispose();
+});
+
 it("a kept draft whose rows are gone is not opened", async () => {
     const session = createGraphSession({ features: ["source-steps"] });
     const reopened = await sourceDraftHooks(session.data)?.reopen({
@@ -92,4 +148,110 @@ it("a kept draft whose rows are gone is not opened", async () => {
     assert.isFalse(reopened);
     assert.isNull(session.data.currentDraft());
     session.dispose();
+});
+
+for (const act of ["link", "extract", "connect"] as const) {
+    it(`a first write made while a ${act} is drawn After holds the committed graph, not the draft's`, async () => {
+        const store = memoryAutosaveStore();
+        const first = createGraphSession({ features: ["source-steps"] });
+        const writer = new Autosaver({
+            key: KEY,
+            session: first,
+            store,
+            clock: new FakeClock(),
+            locks: new FakeLocks(),
+        });
+        const people = { type: "csv", config: { data: "person,dept\np1,x\np2,x\np3,y" }, name: "people.csv" };
+        await first.data.import(people, { key: "person" });
+        const source = first.data.sources()[0]?.key ?? "";
+        const draft = first.data.draft();
+        if (act === "link") {
+            draft.link({ source, columns: ["dept"] });
+        } else if (act === "extract") {
+            draft.extract(source, { column: "dept" });
+        } else {
+            const entries = { type: "csv", config: { data: "entry,person\ne1,p1\ne2,p2" }, name: "entries.csv" };
+            const e = await draft.stage(entries, { key: "entry", type: "entry" });
+            draft.connect({
+                from: { source: e, field: "person" },
+                into: { space: draft.spaces()[0]?.space ?? "" },
+            });
+        }
+        await draft.display(true);
+        const { after } = draft.preview();
+        const drawn = (session: typeof first): number[] => [session.data.nodes().length, session.data.edges().length];
+        assert.deepStrictEqual(drawn(first), [after.nodes, after.edges]);
+        await writer.flush();
+        await draft.display(true);
+        assert.deepStrictEqual(drawn(first), [after.nodes, after.edges], "the write leaves the draft drawn");
+        const id = writer.status.entry ?? "";
+        writer.stop();
+        first.dispose();
+
+        const second = createGraphSession({ features: ["source-steps"] });
+        const reader = new Autosaver({
+            key: KEY,
+            session: second,
+            store,
+            clock: new FakeClock(),
+            locks: new FakeLocks(),
+        });
+        await reader.restore(id, true);
+        const back = second.data.currentDraft();
+        await back?.display(true);
+        assert.deepStrictEqual(drawn(second), [after.nodes, after.edges]);
+        await back?.commit();
+        assert.deepStrictEqual(drawn(second), [after.nodes, after.edges]);
+        await second.undo();
+        assert.deepStrictEqual(drawn(second), [3, 0]);
+        reader.stop();
+        second.dispose();
+    });
+}
+
+it("writes made while a draft is drawn leave it drawn, and the graph is written as it was and as it is left", async () => {
+    const store = memoryAutosaveStore();
+    const clock = new FakeClock();
+    const first = createGraphSession({ features: ["source-steps"] });
+    const writer = new Autosaver({ key: KEY, session: first, store, clock, locks: new FakeLocks() });
+    const people = { type: "csv", config: { data: "person,dept\np1,x\np2,x\np3,y" }, name: "people.csv" };
+    await first.data.import(people, { key: "person" });
+    const source = first.data.sources()[0]?.key ?? "";
+    const draft = first.data.draft();
+    await writer.settled();
+    const id = writer.status.entry ?? "";
+    assert.isAbove(writer.status.revision, 0, "opening the draft writes what the graph held, before any timer");
+
+    const data = first.data as unknown as { withoutDrawnDraft: (read: () => unknown) => unknown };
+    const { withoutDrawnDraft } = data;
+    let taken = 0;
+    data.withoutDrawnDraft = (read) => {
+        taken++;
+        return withoutDrawnDraft.call(first.data, read);
+    };
+    draft.link({ source, columns: ["dept"] });
+    await draft.display(true);
+    for (const move of [() => draft.undo(), () => draft.redo(), () => draft.undo(), () => draft.redo()]) {
+        move();
+        await draft.display(true);
+        clock.advance(20_000);
+        await writer.settled();
+    }
+    assert.strictEqual(taken, 0, "no write takes the drawing off");
+    assert.strictEqual(writer.status.state, "saved");
+    assert.lengthOf(first.data.edges(), 1);
+
+    draft.dispose();
+    await first.data.setRole({ kind: "node", name: "dept" }, "label");
+    clock.advance(20_000);
+    await writer.settled();
+    writer.stop();
+    first.dispose();
+    const second = createGraphSession({ features: ["source-steps"] });
+    const reader = new Autosaver({ key: KEY, session: second, store, clock, locks: new FakeLocks() });
+    await reader.restore(id, true);
+    assert.isNull(second.data.currentDraft());
+    assert.deepStrictEqual([second.data.nodes().length, second.data.edges().length], [3, 0]);
+    reader.stop();
+    second.dispose();
 });

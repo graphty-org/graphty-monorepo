@@ -247,6 +247,7 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
         ["node.labelTextAlign", plan(text, "labelTextAlign")],
         ["node.labelLocation", plan(text, "labelPosition")],
         ["node.labelItalic", plan(flag, "labelItalic")],
+        ["node.labelUnderline", plan(flag, "labelUnderline")],
         ["node.labelRotation", plan(number, "labelRotation")],
         // The scene's units, written in a node size's, which a file graphty wrote is read back in.
         ["node.labelWrapWidth", plan((value) => scaled(value, 1 / SCENE_PER_UNIT.node), "labelWrapWidth")],
@@ -294,6 +295,7 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
         ["edge.labelTextAlign", plan(text, "labelTextAlign")],
         ["edge.labelLocation", plan(text, "labelPosition")],
         ["edge.labelItalic", plan(flag, "labelItalic")],
+        ["edge.labelUnderline", plan(flag, "labelUnderline")],
         ["edge.labelMinScreenSize", plan(number, "labelMinScreenSize")],
         ["edge.labelOnTop", plan(flag, "labelOnTop")],
     ]),

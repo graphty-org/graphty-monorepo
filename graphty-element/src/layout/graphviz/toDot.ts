@@ -46,12 +46,15 @@ export interface DotStructure {
     readonly labelSized?: boolean;
 }
 
-/** Graphviz's own defaults for a node it sizes to its label: an ellipse at least 0.75 by 0.5 inch, grown to fit. */
+/**
+ * Graphviz's own defaults for a node it sizes to its label: an ellipse, grown to fit. Its least size, 0.75 by 0.5
+ * inch, is left unwritten, as in a file that states none: a regular shape (circle, square, `regular=true`) given a
+ * width and a height is sized from the larger, where one given neither is sized from the smaller (shapes.c
+ * `userSize`), so writing Graphviz's defaults would size it otherwise than the file does.
+ */
 const LABEL_SIZED_DEFAULTS: Readonly<Record<string, string>> = {
     shape: "ellipse",
     fixedsize: "false",
-    width: "0.75",
-    height: "0.5",
 };
 
 /**

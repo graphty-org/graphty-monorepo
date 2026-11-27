@@ -1517,14 +1517,14 @@ const ELEMENT = [
                 list?.focus();
                 return !!list && el.shadowRoot.activeElement === list;
             });
-            if (!ok) return { skip: "the node list did not take focus" };
+            if (!ok) return nodeListOff(page, { skip: "the node list did not take focus" });
             const before = await page.evaluate(() =>
                 document
                     .querySelector("graphty-element")
                     .shadowRoot.querySelector("[part~=node-list]")
                     .getAttribute("aria-activedescendant"),
             );
-            return timed(
+            const r = await timed(
                 page,
                 {
                     type: "keydown",
@@ -1533,6 +1533,8 @@ const ELEMENT = [
                 },
                 () => page.keyboard.press("ArrowDown"),
             );
+            await nodeListOff(page);
+            return r;
         },
     },
     {
@@ -1547,7 +1549,7 @@ const ELEMENT = [
                 list?.focus();
                 return !!list && el.shadowRoot.activeElement === list;
             });
-            if (!ok) return { skip: "the node list did not take focus" };
+            if (!ok) return nodeListOff(page, { skip: "the node list did not take focus" });
             // The list's cursor onto a node drawn in view (the list is in graphty-element's own order, the visible
             // nodes' page): selecting one off screen changes no pixel.
             const steps = await page.evaluate(() => {
@@ -1559,14 +1561,14 @@ const ELEMENT = [
                     return p?.visible && p.x > 20 && p.y > 20 && p.x < r.width - 20 && p.y < r.height - 20;
                 });
             });
-            if (steps < 0) return { skip: "none of the list's first 200 nodes is drawn in view" };
+            if (steps < 0) return nodeListOff(page, { skip: "none of the list's first 200 nodes is drawn in view" });
             await page.keyboard.press("Home");
             for (let i = 0; i < steps; i++) await page.keyboard.press("ArrowDown");
             await frames(page, 3);
             // At a random point in the frame, as a reader's key lands, not just as one starts.
             // eslint-disable-next-line sonarjs/pseudo-random -- a moment in a frame to press at, nothing secret
             await new Promise((r) => setTimeout(r, Math.random() * 16));
-            return timed(
+            const r = await timed(
                 page,
                 {
                     type: "keydown",
@@ -1576,6 +1578,9 @@ const ELEMENT = [
                 },
                 () => page.keyboard.press("Enter"),
             );
+            await nodeListOff(page);
+            await clickEmptyUntimed(page, ctx);
+            return r;
         },
     },
 ];
@@ -1874,8 +1879,34 @@ const ELEMENT_MORE = [
         async run(page, ctx) {
             await setBehavior(page, "selection", { region: "lasso" });
             await clickEmptyUntimed(page, ctx);
-            const c = ctx.center;
             const rad = 120;
+            // Earlier drags move nodes: the circle goes where it holds drawn nodes (the canvas center when it does,
+            // else around a drawn node), checked before the timed release. None found is a set-up failure.
+            const c = await page.evaluate(
+                ({ rad, cx, cy }) => {
+                    const el = document.querySelector("graphty-element");
+                    const r = el.getBoundingClientRect();
+                    const { records } = el.session.data.nodePage({ limit: 500, scope: "visible" });
+                    const pts = [];
+                    for (const rec of records) {
+                        const p = el.nodeScreenPosition(rec.id);
+                        if (p?.visible) pts.push({ x: r.left + p.x, y: r.top + p.y });
+                    }
+                    // Well inside the 16-sided path drawn on the circle, and the circle inside the canvas.
+                    const holds = (c) => pts.some((p) => Math.hypot(p.x - c.x, p.y - c.y) < rad * 0.8);
+                    const fits = (c) =>
+                        c.x - rad > r.left + 10 &&
+                        c.x + rad < r.right - 10 &&
+                        c.y - rad > r.top + 10 &&
+                        c.y + rad < r.bottom - 10;
+                    return [{ x: cx, y: cy }, ...pts].find((c) => fits(c) && holds(c)) ?? null;
+                },
+                { rad, cx: ctx.center.x, cy: ctx.center.y },
+            );
+            if (!c) {
+                await setBehavior(page, "selection", { region: "rectangle" });
+                throw new Error("set-up: no lasso circle that fits in the canvas holds a drawn node");
+            }
             await page.keyboard.down("Shift");
             await page.mouse.move(c.x + rad, c.y);
             await page.mouse.down();
@@ -3495,6 +3526,19 @@ async function openStyleTab(page, ctx) {
     await clickEmptyUntimed(page, ctx);
 }
 
+/**
+ * Turns the accessible node list off again after a node-list case, and gives back `out`. Left on, every later input
+ * on the page runs with one list option per node in the DOM while its cell still says "default".
+ */
+async function nodeListOff(page, out) {
+    await page.evaluate(() => {
+        document.querySelector("graphty-element").accessibleNodeList = false;
+    });
+    await until(page, "!el.shadowRoot.querySelector('[part~=node-list]')", {}, 120);
+    await frames(page, 3);
+    return out;
+}
+
 const undoUntimed = async (page, ctx) => {
     await page.keyboard.press("Escape");
     await clickEmptyUntimed(page, ctx);
@@ -4397,12 +4441,28 @@ const APP_LATE_MORE = [
             }
             await opt.click();
             const before = await page.evaluate(TREE_COUNT);
+            const RUNS = "document.querySelector('graphty-element').session.runs.list().length";
+            const runs = await page.evaluate(RUNS);
             const r = await clickTimed(page, page.getByRole("button", { name: /^Run PageRank/ }), {
                 cond: `${TREE_COUNT} > p.before`,
                 params: { before },
                 pix: "all",
             });
+            // A click that started no run is a set-up failure, and is never followed by an undo: the undo would take
+            // back earlier history instead (it once emptied the graph for every later repetition).
+            if ((await page.evaluate(RUNS)) <= runs) {
+                await dismiss(page);
+                throw new Error("set-up: the Run click started no PageRank run");
+            }
             await undoUntimed(page, ctx);
+            // The next repetition starts only once the run and its layer are gone.
+            const gone = await until(
+                page,
+                `el.session.runs.list().length === p.runs && ${TREE_COUNT} === p.before`,
+                { runs, before },
+                300,
+            );
+            if (!gone) throw new Error("set-up: the undo after the run did not remove the run and its layer");
             return r;
         },
     },

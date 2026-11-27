@@ -243,6 +243,7 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
                         Type: [
                             "node.labelWeight",
                             "node.labelItalic",
+                            "node.labelUnderline",
                             "node.labelLetterSize",
                             "node.labelLineHeight",
                             "node.labelLineBox",
@@ -527,6 +528,7 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
                         Type: [
                             "edge.labelWeight",
                             "edge.labelItalic",
+                            "edge.labelUnderline",
                             "edge.labelLetterSize",
                             "edge.labelLineHeight",
                             "edge.labelLineBox",

@@ -27,6 +27,7 @@ import {
     joinsOf,
     newest,
     openJoins,
+    pickableWays,
     pickFields,
     pickSources,
     selectJoin,
@@ -625,7 +626,8 @@ describe("a join card's ways to join (source-steps)", () => {
         await userEvent.click(within(modal).getByRole("button", { name: "Join" }));
         await pickSources(modal, "accounts", "watch");
         await pickFields(modal, "account", "value");
-        assert.deepStrictEqual(waysToJoin(modal), [], "no account is a watched value");
+        assert.isNotEmpty(waysToJoin(modal), "no account is a watched value: its ways still show");
+        assert.deepStrictEqual(pickableWays(modal), [], "and none can be picked");
         await pickFields(modal, "phone", "value");
         await joinAs(modal, "Fields of watch on accounts");
         await newest(session, (step) => step.act?.into.field === "phone", "on the phones the first card brought");

@@ -638,14 +638,18 @@ export class NodeMesh {
     }
 
     /**
-     * What a ring's cache key adds for a model node: its first group, so a node of one style drawn as its shape
-     * while its model loads, then as the model, gets a ring round each rather than the shape's round the model.
+     * A ring's cache key: its kind, the node's style and view, and for a model node its first group, so a node of
+     * one style drawn as its shape while its model loads, then as the model, gets a ring round each rather than the
+     * shape's round the model.
+     * @param kind - The ring's kind ("node-border", "node-outer-border").
+     * @param options - The node's mesh options.
      * @param fill - The node's own mesh.
-     * @returns The suffix, empty for any other node.
+     * @returns The key.
      */
-    private static modelKey(fill: AbstractMesh): string {
+    private static ringKey(kind: string, options: NodeMeshOptions, fill: AbstractMesh): string {
         const groups = this.modelGroups(fill);
-        return groups === null ? "" : `-model-${String(groups[0].uniqueId)}`;
+        const model = groups === null ? "" : `-model-${String(groups[0].uniqueId)}`;
+        return `${kind}-${options.styleId}-${options.is2D ? "2d" : "3d"}${model}`;
     }
 
     /**
@@ -945,8 +949,7 @@ export class NodeMesh {
         }
 
         const flat = isFlatShape(shape.type);
-        const key = `node-border-${options.styleId}-${options.is2D ? "2d" : "3d"}${this.modelKey(fill)}`;
-        const instance = cache.get(key, () => {
+        const instance = cache.get(this.ringKey("node-border", options, fill), () => {
             const extents = this.fillExtents(sized, inset);
             const outline = flat ? this.flatOutline(shape, extents) : this.solidOutline(fill);
             const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
@@ -1003,8 +1006,7 @@ export class NodeMesh {
         // out past the border's outer edge, wherever the border is drawn (a border at opacity 0 still takes its room)
         const gap = ring + (outerBorder?.offset ?? 0) * perSize;
         const flat = isFlatShape(shape.type);
-        const key = `node-outer-border-${options.styleId}-${options.is2D ? "2d" : "3d"}${this.modelKey(fill)}`;
-        const instance = cache.get(key, () => {
+        const instance = cache.get(this.ringKey("node-outer-border", options, fill), () => {
             const extents = this.fillExtents(sized, inset);
             const outline = flat ? this.flatOutline(shape, extents) : this.solidOutline(fill);
             const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;

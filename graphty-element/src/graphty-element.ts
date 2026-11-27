@@ -17,6 +17,7 @@ import type {
 import type { GraphOverview, OverviewOptions } from "./camera/overview";
 import type { SkippedPreset } from "./camera/presets";
 import type { CameraViewExtent, ViewInsets } from "./camera/types";
+import type { CameraKeysRoot } from "./cameras/cameraKeysRoot";
 import { layoutDescriptor, layoutIdForEngine } from "./catalog/layouts";
 import type { AlgorithmKey, DrawnShaders, ElementAtResult, FormatId, Scope, ScopeInput } from "./catalog/types";
 import type {
@@ -4334,6 +4335,37 @@ export class Graphty extends LitElement {
         const oldValue = this.zoomToPointer;
         this.#graph.setZoomToPointer(value);
         this.requestUpdate("zoomToPointer", oldValue);
+    }
+
+    /**
+     * Where the camera keys (the arrows, W, A, S, D and the others in `CANVAS_KEY_DESCRIPTORS`)
+     * are heard besides the focused canvas.
+     * @remarks
+     * Null (the default), only the focused canvas answers them, so a click on anything else on the
+     * page stops them until the canvas is clicked again. Set to `document` (or any element around
+     * the graph), they keep working while focus is anywhere inside it, except in a control that
+     * takes those keys itself: a text field, a select, a list, a menu, a slider, a tab list, a
+     * tree, a grid, editable text or a modal dialog. A press already handled (`defaultPrevented`)
+     * is left alone too. With two graphs on one root, both answer. A preference of this view, not
+     * part of the project: no undo step, not saved. A property only; it has no attribute.
+     * @since 3.40.0
+     * @example
+     * ```typescript
+     * element.cameraKeysRoot = document;
+     * ```
+     * @returns The root, or null for the focused canvas only
+     */
+    @property({ attribute: false })
+    get cameraKeysRoot(): CameraKeysRoot | null {
+        return this.#graph.getCameraKeysRoot();
+    }
+    /**
+     * Sets where the camera keys are heard besides the focused canvas.
+     */
+    set cameraKeysRoot(value: CameraKeysRoot | null) {
+        const oldValue = this.cameraKeysRoot;
+        this.#graph.setCameraKeysRoot(value);
+        this.requestUpdate("cameraKeysRoot", oldValue);
     }
 
     /**

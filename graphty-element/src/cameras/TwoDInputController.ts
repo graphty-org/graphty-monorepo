@@ -5,6 +5,7 @@ import Hammer from "hammerjs";
 
 import { type CanvasKeyAction, canvasKeyAction } from "../catalog/canvasKeys";
 import { firstSight } from "../input/first-sight";
+import { type CameraKeysRoot, listenForCameraKeys } from "./cameraKeysRoot";
 import { type CameraGestureKind, type GestureEndHooks, WheelRun } from "./gestureEnd";
 import { wheelZoomFactor } from "./InputUtils";
 import { TwoDCameraController, TwoDCameraControlsConfigType } from "./TwoDCameraController";
@@ -48,6 +49,50 @@ export class InputController implements GestureEndHooks {
     private gestureSession: GestureSession | null = null;
     private hammer: HammerManager | null = null;
     private enabled = false;
+    /** Where the camera keys are also heard; see `graphty-element`'s `cameraKeysRoot`. */
+    #keysRoot: CameraKeysRoot | null = null;
+    /**
+     * Stops listening on {@link keysRoot}.
+     * @returns Nothing.
+     */
+    #detachKeysRoot = (): void => undefined;
+
+    /**
+     * Where the camera keys are also heard besides the focused canvas, or null for the canvas only.
+     * @returns The root.
+     */
+    public get keysRoot(): CameraKeysRoot | null {
+        return this.#keysRoot;
+    }
+    /**
+     * Hear the camera keys on a root as well, or on the focused canvas only.
+     * @param root - The root, or null.
+     */
+    public set keysRoot(root: CameraKeysRoot | null) {
+        this.#keysRoot = root;
+        if (this.enabled) {
+            this.#listenOnKeysRoot();
+        }
+    }
+
+    /** Listen on {@link keysRoot} afresh, or stop listening when there is none. */
+    #listenOnKeysRoot(): void {
+        this.#detachKeysRoot();
+        this.#detachKeysRoot =
+            this.#keysRoot === null
+                ? () => undefined
+                : listenForCameraKeys(
+                      this.#keysRoot,
+                      this.canvas,
+                      (event) => {
+                          this.keyDownHandler(event);
+                          // Off the canvas, so the render loop, resting, was not woken by it.
+                          this.requestFrame?.();
+                      },
+                      this.keyUpHandler,
+                      this.releaseKeys,
+                  );
+    }
 
     // Store observable subscriptions for cleanup
     private pointerObserverHandle: Observer<PointerInfo> | null = null;
@@ -297,6 +342,7 @@ export class InputController implements GestureEndHooks {
 
         this.canvas.addEventListener("keydown", this.keyDownHandler);
         this.canvas.addEventListener("keyup", this.keyUpHandler);
+        this.#listenOnKeysRoot();
         this.canvas.addEventListener("blur", this.releaseKeys);
         document.addEventListener("visibilitychange", this.releaseKeys);
 
@@ -318,6 +364,8 @@ export class InputController implements GestureEndHooks {
 
         this.canvas.removeEventListener("keydown", this.keyDownHandler);
         this.canvas.removeEventListener("keyup", this.keyUpHandler);
+        this.#detachKeysRoot();
+        this.#detachKeysRoot = () => undefined;
         this.canvas.removeEventListener("blur", this.releaseKeys);
         document.removeEventListener("visibilitychange", this.releaseKeys);
         this.releaseKeys();

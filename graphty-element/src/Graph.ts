@@ -135,6 +135,7 @@ import {
     type TourPlanContext,
 } from "./camera/tour.js";
 import type { CameraState, CameraViewExtent, DrawingMode, GraphBounds, ViewInsets } from "./camera/types.js";
+import type { CameraKeysRoot } from "./cameras/cameraKeysRoot";
 import { type CameraController, cameraForViewMode, type CameraKey, CameraManager } from "./cameras/CameraManager";
 import type { CameraGestureKind } from "./cameras/gestureEnd";
 import { OrbitCameraController } from "./cameras/OrbitCameraController";
@@ -1019,6 +1020,8 @@ export class Graph implements GraphContext {
     #autoFrame = true;
     /** Whether the wheel zooms toward the pointer; see {@link setZoomToPointer}. */
     #zoomToPointer = false;
+    /** Where the camera keys are also heard; see {@link setCameraKeysRoot}. */
+    #cameraKeysRoot: CameraKeysRoot | null = null;
     /** How the 3D nodes are lit; see {@link setLighting}. */
     #lighting: Lighting = DEFAULT_LIGHTING;
     /** The node thumbnails drawn so far, by what they draw. */
@@ -2871,6 +2874,7 @@ export class Graph implements GraphContext {
         this.#hookScene();
         this.camera.setViewInsets(this.#viewInsets);
         this.camera.setZoomToPointer(this.#zoomToPointer);
+        this.camera.setKeysRoot(this.#cameraKeysRoot);
         this.camera.setInstantGlides(this.#cameraMoveMs() === 0);
         // Where a consumer put the camera while WebGPU opened. Read before the old one is disposed.
         this.camera.takeViewOf(previous.camera);
@@ -6761,6 +6765,25 @@ export class Graph implements GraphContext {
         this.#zoomToPointer = on;
         // On a map the wheel always zooms toward the pointer, as every map does.
         this.camera.setZoomToPointer(on || this.#geoFrame() !== null);
+    }
+
+    /**
+     * Where the camera keys are heard besides the focused canvas.
+     * @returns The root, or null (the default) for the focused canvas only
+     */
+    getCameraKeysRoot(): CameraKeysRoot | null {
+        return this.#cameraKeysRoot;
+    }
+
+    /**
+     * Hear the camera keys on a root around the canvas -- the document, say -- as well as on the
+     * focused canvas, so they keep working after a click moves focus elsewhere; null (the
+     * default) hears them on the focused canvas only. A preference of the view, not saved.
+     * @param root - The root, or null.
+     */
+    setCameraKeysRoot(root: CameraKeysRoot | null): void {
+        this.#cameraKeysRoot = root;
+        this.camera.setKeysRoot(root);
     }
 
     /**

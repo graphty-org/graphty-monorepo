@@ -448,6 +448,7 @@ export type {
     TourStop,
 } from "./src/camera/tour";
 export type { CameraViewExtent, ViewInsets } from "./src/camera/types";
+export type { CameraKeysRoot } from "./src/cameras/cameraKeysRoot";
 export type { FigureOptions, FigureResult } from "./src/screenshot/figure";
 export type {
     CameraAnimationOptions,

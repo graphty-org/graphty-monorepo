@@ -610,6 +610,9 @@ export interface CameraAnimationOptions {
 }
 
 // @public
+export type CameraKeysRoot = Pick<EventTarget, "addEventListener" | "removeEventListener">;
+
+// @public
 export interface CameraState {
     alpha?: number;
     beta?: number;
@@ -3392,6 +3395,7 @@ export class Graph implements GraphContext {
     getApiKeyManager(): ApiKeyManager | null;
     getAutoFrame(): boolean;
     getCameraController(): CameraController | null;
+    getCameraKeysRoot(): CameraKeysRoot | null;
     // @deprecated
     getCameraPresets(): Record<string, CameraState | {
         builtin: true;
@@ -3573,6 +3577,7 @@ export class Graph implements GraphContext {
     setAntialias(value: Antialias): boolean;
     setAutoFrame(on: boolean): void;
     setBackground(background: GraphBackgroundConfig): void;
+    setCameraKeysRoot(root: CameraKeysRoot | null): void;
     setCameraMode(mode: CameraKey, options?: QueueableOptions): Promise<void>;
     setCameraPan(pan: {
         x: number;
@@ -3902,6 +3907,8 @@ export class Graphty extends LitElement {
     set background(value: GraphBackgroundConfig | undefined);
     get basemapStatus(): BasemapStatus;
     batchOperations(fn: (tx: TransactionScope_2) => Promise<void> | void, label?: string): Promise<void>;
+    get cameraKeysRoot(): CameraKeysRoot | null;
+    set cameraKeysRoot(value: CameraKeysRoot | null);
     get cameraPlaced(): boolean;
     get cameraTransitionDuration(): number | undefined;
     set cameraTransitionDuration(value: number | undefined);

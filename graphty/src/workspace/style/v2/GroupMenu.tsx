@@ -18,9 +18,6 @@ export const MORE_NAME = "More settings";
 /** A group pop-over's width: the settings pop-over's own. */
 const GROUP_WIDTH = 264;
 
-/** The gap between a pop-over and a group pop-over beside it. */
-const GROUP_GAP = 8;
-
 /** A group in the "..." menu: its name, and the heading it is listed under (a label's Placement, Letters, ...). */
 export interface MenuGroup {
     readonly name: string;
@@ -119,7 +116,6 @@ export function GroupMenu<G extends MenuGroup>({
                     <Popout.Panel
                         width={GROUP_WIDTH}
                         placement="beside"
-                        gap={GROUP_GAP}
                         header={{ variant: "title", title: group.name }}
                         closeLabel={`Close ${group.name}`}
                         actions={

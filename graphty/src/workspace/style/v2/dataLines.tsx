@@ -256,7 +256,6 @@ export function BesidePopover({
             <Popout.Panel
                 width={BESIDE_WIDTH}
                 placement="beside"
-                gap={8}
                 header={{ variant: "title", title }}
                 closeLabel={`Close ${title}`}
             >

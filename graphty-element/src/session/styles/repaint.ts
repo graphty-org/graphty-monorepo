@@ -58,6 +58,7 @@
 import type { ShaderUse } from "../../catalog/shaders";
 import type { Binding, Channel, GraphtyErrorCode, LabelStyle, LayerId, Path } from "../../catalog/types";
 import { isGraphtyError } from "../../errors";
+import { nextTask } from "../nextTask";
 import { isNotePath } from "../notes/paths";
 import { withLabelLook } from "./carried";
 import {
@@ -1853,9 +1854,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         }
 
         const left = now();
-        await new Promise<void>((resume) => {
-            setTimeout(resume, 0);
-        });
+        await nextTask();
 
         if (context.signal.aborted) {
             throw context.signal.reason as Error; // rethrows the abort signal's reason, as the platform does

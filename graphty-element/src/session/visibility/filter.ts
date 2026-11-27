@@ -62,6 +62,7 @@ import type {
 import { rowOfEitherSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError } from "../../errors";
 import { quoteEach } from "../../utils/quote-each";
+import { nextTask } from "../nextTask";
 import { rankEntries, topOfRanking } from "../results/statistics";
 import { type ComponentLabels, edgeSpaceOf, type ElementMask } from "../scope/index";
 import {
@@ -3246,9 +3247,7 @@ export async function runPassInSlices(
         }
 
         report(completed, total);
-        await new Promise<void>((resume) => {
-            setTimeout(resume, 0);
-        });
+        await nextTask();
 
         if (signal.aborted) {
             throw signal.reason as Error; // rethrows the abort signal's reason, as the platform does

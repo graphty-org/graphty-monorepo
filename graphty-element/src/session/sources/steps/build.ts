@@ -12,6 +12,7 @@
  */
 
 import { reduce } from "../../join";
+import { whenIdle } from "../../nextTask";
 import { readsAsDate, readTimeValue, type TimeUnit } from "../../time/parse";
 import type { JoinReduce, SourceRefreshIssue, SourceRoleName } from "../../types";
 import { escapeKey, keylessEdgeKeys, keylessNodeKeys } from "../rowKeys";
@@ -3543,9 +3544,9 @@ function remember(checkpoint: Checkpoint): void {
     held.splice(HELD);
 }
 
-/** Once the current task is done, make the checkpoints waiting, then the first checkpoints' spare copies. */
+/** Once the current task is done and no pass waits on a turn it gave the host, make the checkpoints waiting, then the first checkpoints' spare copies. */
 function idleLater(): void {
-    const timer: unknown = setTimeout(() => {
+    whenIdle(() => {
         for (const make of later.splice(0)) {
             make();
         }
@@ -3556,9 +3557,7 @@ function idleLater(): void {
                 each.spares.push(each.state.copyInto(new Builder(each.input, each.copies)));
             }
         });
-    }, 0);
-    // In Node, the idle work keeps no process alive.
-    (timer as { unref?: () => void }).unref?.();
+    });
 }
 
 /**

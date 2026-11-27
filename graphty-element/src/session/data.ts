@@ -168,6 +168,7 @@ import {
 } from "./join";
 import type { RenderLimits } from "./limits";
 import { historyMark, type LoadLine, type LoadTurn, supersededError } from "./loadLine";
+import { nextTask } from "./nextTask";
 import { overRepresentedValues } from "./overRepresented";
 import type { SessionCommand } from "./planning";
 import type { Dispatcher } from "./project/Dispatcher";
@@ -1012,16 +1013,6 @@ function* rankFirst(
     const place = { exact: 0, "starts-with": 1, contains: 2 } as const;
     const rankOf = (row: number): number => place[ranked(row)?.rank ?? "contains"];
     return Uint32Array.from(Array.from(rows).sort((a, b) => rankOf(a) - rankOf(b)));
-}
-
-/**
- * Hand the thread back to the host for one task, so input and drawing run between two slices.
- * @returns settles on the next task
- */
-function nextTask(): Promise<void> {
-    return new Promise((resolve) => {
-        setTimeout(resolve, 0);
-    });
 }
 
 /**

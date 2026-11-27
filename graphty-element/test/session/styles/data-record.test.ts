@@ -32,6 +32,7 @@ async function recordOf(node: Record<string, unknown>, record: RecordData): Prom
 
 interface Table {
     readonly cellPadding?: number;
+    readonly shrinkToNode?: boolean;
     readonly rows: readonly {
         readonly rule?: boolean;
         readonly cells: readonly {
@@ -83,6 +84,7 @@ describe("a record from data", () => {
         assert.isAbove(table.cellPadding ?? 0, 0, "a gap between a row's name and its value");
         // The table measures in the node's size, its letters one node size tall: a gap, not ten node sizes.
         assert.isBelow(table.cellPadding ?? 0, 0.5, "a gap a fraction of a letter");
+        assert.isTrue(table.shrinkToNode, "the record fits inside its node");
     });
 
     it("puts a header first, draws rules or zebra rows, and caps the rows with a +n row", async () => {

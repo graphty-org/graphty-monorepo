@@ -2023,11 +2023,18 @@ function resolveRecord(
             ? { cells: row.cells.map((cell) => ({ ...cell, fill: ZEBRA_FILL })) }
             : {}),
     }));
-    // Each cell padded, so a value never runs into its row's name ("label Farm A", not "labelFarm A").
+    // Each cell padded, so a value never runs into its row's name ("label Farm A", not "labelFarm A"); the table is
+    // drawn smaller to fit inside a node that does not grow round it.
     return {
         entries,
         undrawn: null,
-        fills: { "node.labelTable": JSON.stringify({ cellPadding: RECORD_CELL_PADDING, rows: tableRows }) },
+        fills: {
+            "node.labelTable": JSON.stringify({
+                cellPadding: RECORD_CELL_PADDING,
+                shrinkToNode: true,
+                rows: tableRows,
+            }),
+        },
     };
 }
 

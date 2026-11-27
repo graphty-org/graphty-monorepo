@@ -55,6 +55,14 @@ const FILES = join(REPO, "design/ui/studio/tool/files");
 const CAP_MS = Number(process.env.LAT_CAP_MS ?? 30000);
 const SMOKE = process.env.LAT_SMOKE === "1";
 const PERCEIVED_MS = 300;
+/** A page process that makes no progress for this long has hung: its case is recorded as died and it exits. */
+const STALL_MS = Number(process.env.LAT_STALL_MS ?? 10 * 60 * 1000);
+/** A page process that dies this way exits with this code, and the parent starts it again past its done cases. */
+const DIED_EXIT = 3;
+/** The browser or page went away under a case: nothing after it on that page can run. */
+const DEAD = /has been closed|Target crashed|browser has disconnected|Browser closed/;
+/** What the page process is doing, for the stall watchdog: the case (its row base and samples so far) and since when. */
+const doing = { out: null, spec: null, base: null, inter: null, g: null, what: "starting", since: Date.now() };
 const K = (n) => (n >= 1000 ? `${n / 1000}k` : String(n));
 const SIZES = { 100: 100, 200: 200, "1k": 1000, "10k": 10000, "50k": 50000, "100k": 100000 };
 
@@ -2478,6 +2486,40 @@ async function refreshTargets(page, ctx) {
     ctx.dirty = false;
 }
 
+/** Tells the stall watchdog what the page process is doing now: a case of a row base, or a step between cases. */
+function beat(what, inter = null, base = null, g = null) {
+    Object.assign(doing, { what, inter, base, g, since: Date.now() });
+}
+
+/**
+ * The case in flight died (the browser went away, or nothing moved for STALL_MS): its row is written with
+ * `died` and what it measured before, and the process exits DIED_EXIT so the parent runs the page's other cases
+ * in a fresh browser. A death between cases is a page failure row instead.
+ */
+function died(reason) {
+    if (doing.inter && doing.base) {
+        const g = doing.g ?? { samples: [], reps: 0, errors: [] };
+        appendFileSync(
+            doing.out,
+            JSON.stringify(
+                row(doing.base, doing.inter, g.samples, g.reps, { died: reason, errors: [...g.errors, reason] }),
+            ) + "\n",
+        );
+    } else
+        appendFileSync(
+            doing.out,
+            JSON.stringify({ ...(doing.base ?? doing.spec), failure: `died while ${doing.what}: ${reason}` }) + "\n",
+        );
+    console.log("died", doing.inter?.id ?? doing.what, reason);
+    process.exit(DIED_EXIT);
+}
+
+/** A case's error that says the browser or page went away: the case died (see {@link died}). */
+function dieIfGone(e) {
+    const msg = String(e?.message ?? e);
+    if (DEAD.test(msg)) died(msg.split("\n")[0].slice(0, 200));
+}
+
 /** One repetition of one interaction, into `g`; a rep that throws is recorded and its held keys let go. */
 async function oneRep(page, ctx, inter, rep, cdp, g) {
     const had = [g.samples.length, g.errors.length];
@@ -2501,6 +2543,7 @@ async function oneRep(page, ctx, inter, rep, cdp, g) {
         if (inter.moves) ctx.dirty = true;
         if (Date.now() - t0 > 10000 && ctx.n >= 100000) g.slow = true;
     } catch (e) {
+        dieIfGone(e);
         g.errors.push(
             String(e?.message ?? e)
                 .split("\n")[0]
@@ -2528,7 +2571,11 @@ async function roundRobin(page, ctx, list, reps, base, out, cdp) {
         for (const inter of list) {
             const g = got.get(inter.id);
             // At 100,000 nodes a rep over 10 s gets three reps, not five.
-            if (!g.slow || rep < 3) await oneRep(page, ctx, inter, rep, cdp, g);
+            if (!g.slow || rep < 3) {
+                beat(`${inter.id} rep ${rep}`, inter, base, g);
+                await oneRep(page, ctx, inter, rep, cdp, g);
+                beat(`after ${inter.id} rep ${rep}`, null, base);
+            }
         }
     for (const inter of list) {
         const g = got.get(inter.id);
@@ -2553,8 +2600,14 @@ const variant = (list, ids, suffix, label) =>
         .filter(Boolean)
         .map((i) => ({ ...i, id: `${i.id}-${suffix}`, name: `${i.name} (${label})` }));
 
+// `spec.skip`: the cases an earlier process of this page already recorded (it died, and this one carries on).
 const wanted = (list, spec) =>
-    list.filter((i) => (!i.dims || i.dims.includes(spec.dim)) && (!spec.only || new RegExp(spec.only).test(i.id)));
+    list.filter(
+        (i) =>
+            (!i.dims || i.dims.includes(spec.dim)) &&
+            (!spec.only || new RegExp(spec.only).test(i.id)) &&
+            !spec.skip?.includes(i.id),
+    );
 
 // ------------------------------------------------------------------ element pages
 
@@ -2701,6 +2754,7 @@ async function coldPages(list, load, contextOf, base, out) {
     for (const inter of list) {
         let b = null;
         try {
+            beat(`loading a fresh page for ${inter.id}`, inter, base);
             b = await load();
             const ctx = await contextOf(b.page);
             ctx.cdp = b.cdp;
@@ -2734,6 +2788,7 @@ async function elementPage(spec, out) {
         at: new Date().toISOString(),
         loadavg: loadavg()[0],
         cpus: /Cpus_allowed_list:\s*(\S+)/.exec(readFileSync("/proc/self/status", "utf8"))?.[1],
+        caseKey: spec.key,
     };
     let b = null;
     try {
@@ -2745,6 +2800,7 @@ async function elementPage(spec, out) {
             base,
             out,
         );
+        beat("loading the page", null, base);
         b = await loadElement(spec, url, base);
         const { page, cdp } = b;
         const look = base.mode;
@@ -2784,6 +2840,7 @@ async function elementPage(spec, out) {
             JSON.stringify({ ...base, failure: String(e?.message ?? e).slice(0, 300), errors: b?.errors }) + "\n",
         );
         console.log("failure", e?.message);
+        process.exitCode = DIED_EXIT;
     } finally {
         appendFileSync(out, JSON.stringify({ ...base, wall: true, wallMs: Date.now() - t0Page }) + "\n");
         await b?.close();
@@ -4517,6 +4574,7 @@ async function appPage(spec, out) {
         at: new Date().toISOString(),
         loadavg: loadavg()[0],
         cpus: /Cpus_allowed_list:\s*(\S+)/.exec(readFileSync("/proc/self/status", "utf8"))?.[1],
+        caseKey: spec.key,
     };
     let b = null;
     try {
@@ -4538,36 +4596,38 @@ async function appPage(spec, out) {
             base,
             out,
         );
+        beat("opening the app", null, base);
         b = await openApp(spec, origin, base, out);
         const { page, cdp, opened, facts } = b;
         base.openMs = b.openMs;
         Object.assign(base, { path: facts.renderPath, n: facts.nodes, edges: facts.edges, dim: facts.dim });
-        appendFileSync(
-            out,
-            JSON.stringify(
-                row(
-                    base,
-                    {
-                        id: "app-open-cold",
-                        name: "Open the graph: click to first frame with nodes (ms) and to settled",
-                    },
-                    [
+        if (!spec.skip?.includes("app-open-cold"))
+            appendFileSync(
+                out,
+                JSON.stringify(
+                    row(
+                        base,
                         {
-                            ms:
-                                opened.input !== null && opened.first !== null
-                                    ? +(opened.first - opened.input).toFixed(1)
-                                    : null,
-                            settledMs: opened.input !== null ? +(opened.now - opened.input).toFixed(1) : null,
-                            sawInput: opened.input !== null,
-                            timeout: opened.first === null,
-                            capMs: CAP_MS,
-                            endsOn: "pixels",
+                            id: "app-open-cold",
+                            name: "Open the graph: click to first frame with nodes (ms) and to settled",
                         },
-                    ],
-                    1,
-                ),
-            ) + "\n",
-        );
+                        [
+                            {
+                                ms:
+                                    opened.input !== null && opened.first !== null
+                                        ? +(opened.first - opened.input).toFixed(1)
+                                        : null,
+                                settledMs: opened.input !== null ? +(opened.now - opened.input).toFixed(1) : null,
+                                sawInput: opened.input !== null,
+                                timeout: opened.first === null,
+                                capMs: CAP_MS,
+                                endsOn: "pixels",
+                            },
+                        ],
+                        1,
+                    ),
+                ) + "\n",
+            );
         const ctx = await pageContext(page, { dim: facts.dim, n: facts.nodes });
         ctx.cdp = cdp;
         ctx.hoverRgb = HOVER_RGB;
@@ -4634,6 +4694,7 @@ async function appPage(spec, out) {
             JSON.stringify({ ...base, failure: String(e?.message ?? e).slice(0, 300), errors: b?.errors }) + "\n",
         );
         console.log("failure", e?.message);
+        process.exitCode = DIED_EXIT;
     } finally {
         appendFileSync(out, JSON.stringify({ ...base, wall: true, wallMs: Date.now() - t0Page }) + "\n");
         await b?.close();
@@ -4660,6 +4721,7 @@ function report(file) {
             : `element ${r.path} ${r.dim} ${r.mode ?? "plain"} dpr${r.dpr ?? 1} ${K(r.n)}`;
     const note = (r) =>
         [
+            r.died ? "DIED: " + r.died : "",
             r.notMeasured,
             r.noVisible ? `${r.noVisible} of ${r.samples} never drawn a change (state time shown)` : "",
             r.timeouts ? r.timeouts + " timeouts (counted at the cap)" : "",
@@ -4851,6 +4913,106 @@ const APP_IDS = () =>
         ...RUNNING,
         ...runningVariants(),
     ].map((i) => i.id);
+/**
+ * Every case a page of `spec` sets out to run, as elementPage and appPage run them, for the parent's exit test:
+ * each must end with a row. (The timeline-open cases run only when an earlier case opened the timeline: left out.)
+ */
+function planOf(spec) {
+    const sp = { ...spec, skip: undefined, dim: spec.dim === "2d" ? "2d" : "3d" };
+    const runs = (on) => (on ? wanted([...RUNNING, ...runningVariants()], sp) : []);
+    const list =
+        spec.kind === "app"
+            ? [
+                  ...wanted(
+                      [...COLD_APP, ...variant(APP, COLD_APP_IDS, "cold", "")].map((i) =>
+                          i.id.endsWith("-cold") ? i : { ...i, id: `${i.id}-cold` },
+                      ),
+                      sp,
+                  ),
+                  { id: "app-open-cold" },
+                  ...wanted(APP, sp),
+                  ...wanted(bursts([60, 120]), sp),
+                  ...wanted([...TOUCH, ...APP_TOUCH], sp),
+                  ...wanted(variant(APP, STYLE_OPEN_IDS, "style-open", ""), sp),
+                  ...wanted(variant(APP, ["app-click-select-node", "app-click-inspector"], "focus-off", ""), sp),
+                  ...wanted([...variant(APP, PANEL_IDS, "table-open", ""), TABLE_SCROLL], sp),
+                  ...wanted([...APP_LATE, ...APP_LATE_MORE], sp),
+                  ...runs(spec.running),
+              ]
+            : [
+                  ...wanted(variant(ELEMENT, COLD_ELEMENT, "cold", ""), sp),
+                  ...wanted(ELEMENT, sp),
+                  ...wanted(bursts([60, 120]), sp),
+                  ...wanted(TOUCH, sp),
+                  ...wanted(TIPS, sp),
+                  ...wanted(LAYOUTS, sp),
+                  ...runs(spec.running !== false),
+              ];
+    return [...new Set(list.map((i) => i.id))];
+}
+
+/** Rows for the cases of a page that never ran: each says it died and why, so none goes missing silently. */
+function neverRan(spec, out, missing, why) {
+    const where =
+        spec.kind === "app"
+            ? { surface: "graphty app", graph: GRAPHS[spec.graph]?.label, features: spec.features || "default" }
+            : { surface: "graphty-element" };
+    for (const id of missing)
+        appendFileSync(
+            out,
+            JSON.stringify({
+                ...spec,
+                ...where,
+                caseKey: spec.key,
+                interaction: id,
+                samples: 0,
+                median_ms: null,
+                p95_ms: null,
+                died: `never ran: ${why}`,
+            }) + "\n",
+        );
+}
+
+/**
+ * Runs one page in child processes until each case of its plan has a row. A process that dies (a crash, a stall,
+ * a signal) is started again past the cases already recorded, as long as the last one recorded something; a case
+ * left without a row after that gets one saying it died, so a dead case never ends a run silently.
+ */
+function runPage(spec, out, wrap) {
+    const plan = planOf(spec);
+    const recorded = () =>
+        new Set(
+            readFileSync(out, "utf8")
+                .split("\n")
+                .filter(Boolean)
+                .map((l) => JSON.parse(l))
+                .filter((r) => r.caseKey === spec.key && r.interaction)
+                .map((r) => r.interaction),
+        );
+    let last = "";
+    for (let attempt = 0; ; attempt++) {
+        const done = recorded();
+        const s = { ...spec, attempt, skip: [...done] };
+        const argv = [fileURLToPath(import.meta.url), "page", out, "--spec", JSON.stringify(s)];
+        const [bin, ...args] = wrap.length ? [...wrap, process.execPath, ...argv] : [process.execPath, ...argv];
+        const r = spawnSync(bin, args, { stdio: "inherit" });
+        last = `the page process exited ${r.status ?? r.signal}`;
+        const now = recorded();
+        const missing = plan.filter((id) => !now.has(id));
+        if (r.status !== 0) appendFileSync(out, JSON.stringify({ ...s, tierPage: spec.page, failure: last }) + "\n");
+        if (!missing.length) return;
+        // Exit 0 with cases missing is a plan the page did not run; a dead process that recorded nothing new
+        // would die the same way again.
+        if (r.status === 0 || now.size === done.size || attempt >= 8) {
+            neverRan(spec, out, missing, `${last} after ${attempt + 1} attempts`);
+            return;
+        }
+        console.log(
+            `== page ${spec.key} died with ${missing.length} cases left: starting it again (attempt ${attempt + 2})`,
+        );
+    }
+}
+
 /** The tier lists' ids that no page of their kind runs. */
 function unknownIds() {
     const have = { element: new Set(ELEMENT_IDS()), app: new Set(APP_IDS()) };
@@ -4911,18 +5073,12 @@ if (cmd !== "tier") mkdirSync(dirname(out), { recursive: true });
 if (cmd === "report") report(out);
 else if (cmd === "page") {
     const spec = JSON.parse(o.spec);
-    // A page that hangs is ended after 60 minutes from its start (after the lock), recorded as failed.
-    setTimeout(
-        () => {
-            appendFileSync(
-                out,
-                JSON.stringify({ ...spec, tierPage: spec.page, failure: "the page did not finish in 60 minutes" }) +
-                    "\n",
-            );
-            process.exit(1);
-        },
-        60 * 60 * 1000,
-    ).unref();
+    // The stall watchdog: a page process that makes no progress for STALL_MS (a case's repetition, a load, a
+    // phase's set-up) records the case in flight as died and exits, and the parent carries on without it.
+    Object.assign(doing, { out, spec: { ...spec, tierPage: spec.page }, since: Date.now() });
+    setInterval(() => {
+        if (Date.now() - doing.since > STALL_MS) died(`no progress for ${Math.round(STALL_MS / 1000)} s`);
+    }, 5000).unref();
     if (spec.kind === "app") await appPage(spec, out);
     else await elementPage(spec, out);
 } else if (cmd === "element" || cmd === "app" || cmd === "tier") {
@@ -4960,20 +5116,11 @@ else if (cmd === "page") {
                     specs.push({ kind: "app", graph, features, dim, dist: o.dist, reps, only: o.only });
     mkdirSync(dirname(out), { recursive: true });
     const wrap = (process.env.LAT_WRAP ?? "").split(" ").filter(Boolean);
-    for (const spec of specs) {
-        const argv = [fileURLToPath(import.meta.url), "page", out, "--spec", JSON.stringify(spec)];
+    if (!existsSync(out)) appendFileSync(out, "");
+    const runTag = Date.now().toString(36);
+    specs.forEach((spec, i) => {
+        spec.key = `${runTag}-${i}`;
         console.log("==", JSON.stringify(spec));
-        const [bin, ...args] = wrap.length ? [...wrap, process.execPath, ...argv] : [process.execPath, ...argv];
-        const r = spawnSync(bin, args, { stdio: "inherit" });
-        // A page process that died (a crash, a signal, the lock wrapper failing) leaves a failure, never silence.
-        if (r.status !== 0)
-            appendFileSync(
-                out,
-                JSON.stringify({
-                    ...spec,
-                    tierPage: spec.page,
-                    failure: `the page process exited ${r.status ?? r.signal}`,
-                }) + "\n",
-            );
-    }
+        runPage(spec, out, wrap);
+    });
 } else throw new Error(`unknown command ${cmd}`);

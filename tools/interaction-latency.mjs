@@ -16,6 +16,9 @@
  *   node tools/interaction-latency.mjs compare [--tier <t>] [--history <file>]
  *       each cell of the newest run against the run before it and the oldest of the ten before it (same tier and
  *       machine): exit 1 when a cell failed the comparison and the owner has not accepted it
+ *   node tools/interaction-latency.mjs guard <latency.jsonl> [--baseline <matrix.jsonl>]
+ *       exit 1 when a cell the committed matrix run (benchmarks/results/interaction-latency/latency.jsonl) measured
+ *       at or under 300 ms (median) is now over it, died, or was not measured; cells over 300 ms there are listed
  *   node tools/interaction-latency.mjs report [--tier <t>] [--history <file>]
  *       every cell of the newest run over 300 ms, then between 150 and 300 ms, then the unmeasured cells and the
  *       cells timed to state because the canvas change was not seen
@@ -111,6 +114,7 @@ export function toHistory(rows, run) {
             ...(r.layoutStill ? { layoutStill: r.layoutStill } : {}),
             ...(r.clickWindowMissed ? { clickWindowMissed: r.clickWindowMissed } : {}),
             ...(r.notMeasured ? { notMeasured: r.notMeasured } : {}),
+            ...(r.died ? { died: r.died } : {}),
             ...(r.errors ? { errors: r.errors.length } : {}),
         }));
 }
@@ -239,6 +243,40 @@ export function overBudget(now) {
         unmeasured: now.filter((l) => band(l.p95Ms) === "none"),
         stateOnly: now.filter((l) => l.noVisible > 0),
     };
+}
+
+/** The committed matrix run a guarded run is held to (issue #10181). */
+export const MATRIX_FILE = join(REPO, "benchmarks/results/interaction-latency/latency.jsonl");
+
+/**
+ * The guard: every cell the baseline matrix measured at or under FAIL_MS (median) must stay there. A covered cell
+ * whose median is now over FAIL_MS, that died, or that the new run measured nothing for, fails; a cell already over
+ * FAIL_MS in the baseline is a known defect (its own issue) and is listed, never failed, so it fails the guard
+ * only once it has been fixed and then goes back over.
+ * @param baseline - the baseline runner rows
+ * @param rows - the new run's runner rows
+ * @returns failing and known cells, by name
+ */
+export function guardCells(baseline, rows) {
+    const cellOf = (r) => `${whereOf(r)} | ${r.interaction}`;
+    const cells = (rs) => new Map(rs.filter((r) => r.interaction && !r.wall && !r.failure).map((r) => [cellOf(r), r]));
+    const now = cells(rows);
+    const failing = [];
+    const known = [];
+    for (const [cell, b] of cells(baseline)) {
+        if (typeof b.median_ms !== "number" || b.died) continue;
+        const r = now.get(cell);
+        if (b.median_ms > FAIL_MS) {
+            if (r) known.push({ cell, before: b.median_ms, now: r.median_ms ?? null });
+            continue;
+        }
+        if (!r) continue;
+        if (r.died || typeof r.median_ms !== "number")
+            failing.push({ cell, before: b.median_ms, now: null, why: r.died ?? "nothing measured" });
+        else if (r.median_ms > FAIL_MS)
+            failing.push({ cell, before: b.median_ms, now: r.median_ms, why: "over 300 ms" });
+    }
+    return { failing, known };
 }
 
 // ------------------------------------------------------------------ the commands
@@ -533,6 +571,7 @@ async function main(argv) {
             page: { type: "string" },
             reps: { type: "string" },
             smoke: { type: "boolean", default: false },
+            baseline: { type: "string" },
         },
     });
     const history = resolve(o.history ?? HISTORY_FILE);
@@ -547,6 +586,19 @@ async function main(argv) {
         return 0;
     }
     if (cmd === "run") return run(positionals[0], o, history);
+    if (cmd === "guard") {
+        if (!positionals[0]) throw new Error("guard <latency.jsonl> [--baseline <matrix.jsonl>]");
+        const read = (f) =>
+            readFileSync(f, "utf8")
+                .split("\n")
+                .filter(Boolean)
+                .map((l) => JSON.parse(l));
+        const { failing, known } = guardCells(read(resolve(o.baseline ?? MATRIX_FILE)), read(resolve(positionals[0])));
+        for (const k of known) console.log(`known over 300 ms: ${k.cell}: ${fmt(k.before)} -> ${fmt(k.now)} ms`);
+        for (const f of failing) console.log(`FAILS: ${f.cell}: ${fmt(f.before)} -> ${fmt(f.now)} ms (${f.why})`);
+        console.log(`${failing.length} covered cells failed, ${known.length} known over 300 ms`);
+        return failing.length ? 1 : 0;
+    }
     throw new Error("usage: run | record | compare | report (see the top of tools/interaction-latency.mjs)");
 }
 

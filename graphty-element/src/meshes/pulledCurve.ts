@@ -45,7 +45,8 @@ export const MAX_PIECES = 64;
  * one draw slot, as the object path's line batch draws it from one slot (`EdgeLineBatch.placeCurve`, #10046); only a
  * line through more bends takes a run of entries.
  */
-export const CURVE_STRIDE = MAX_PIECES;
+// ponytail: the same number as MAX_PIECES, written out so the two read as their own names; keep them equal
+export const CURVE_STRIDE = 64;
 
 /** A route block's first texel is written as (texel % ROUTE_SPLIT, texel / ROUTE_SPLIT): see {@link curveShape}. */
 export const ROUTE_SPLIT = 65_536;

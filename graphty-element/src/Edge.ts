@@ -1648,7 +1648,15 @@ export class Edge {
             return null;
         }
 
-        const flat = curvePath(run.src, run.dst, run.span);
+        return Edge.cardPoints(curvePath(run.src, run.dst, run.span));
+    }
+
+    /**
+     * Points in the floats the card holds them in, as fresh vectors.
+     * @param flat - The points, flat x, y, z.
+     * @returns The points.
+     */
+    private static cardPoints(flat: readonly number[]): Vector3[] {
         return Array.from(
             { length: flat.length / 3 },
             (_, j) => new Vector3(Math.fround(flat[3 * j]), Math.fround(flat[3 * j + 1]), Math.fround(flat[3 * j + 2])),
@@ -1688,12 +1696,7 @@ export class Edge {
             // a pulled curve's points, as its pieces place them (`meshes/pulledCurve.ts`), in the floats the card
             // holds them in, as the object path reads its slots: the camera frames the graph by these points, and a
             // frame placed from doubles sits a last bit off the object path's and moves a sample (ThreeDBends)
-            const flat = curvePath(path.src, path.dst, path.span);
-            return Array.from(
-                { length: flat.length / 3 },
-                (_, j) =>
-                    new Vector3(Math.fround(flat[3 * j]), Math.fround(flat[3 * j + 1]), Math.fround(flat[3 * j + 2])),
-            );
+            return Edge.cardPoints(curvePath(path.src, path.dst, path.span));
         }
 
         if (this.mesh instanceof PatternedLineMesh) {

@@ -84,6 +84,7 @@ interface Watch extends PendingItem {
 /** The record of pending picture work; see the file comment. */
 export class PendingWork {
     #epoch = 0;
+    #content = 0;
     #released = 0;
     #nextToken = 0;
     readonly #open = new Map<number, PendingItem>();
@@ -113,8 +114,27 @@ export class PendingWork {
         return this.#released;
     }
 
+    /**
+     * The content counter: moved on as the epoch is, except by {@link PendingWork.viewChanged}. While it stands
+     * still, the scene draws what it drew before from another place, so an answer about its meshes -- whether
+     * every one has its shader -- still holds.
+     * @returns The current count.
+     */
+    get contentEpoch(): number {
+        return this.#content;
+    }
+
     /** Say that the picture changed, so a frame drawn before now is no longer the final one. */
     changed(): void {
+        this.#content++;
+        this.viewChanged();
+    }
+
+    /**
+     * Say that only the view changed -- the camera moved, or node sizes followed it -- so a frame drawn before now
+     * is no longer the final one, but the meshes, materials and effects drawn are the ones drawn before.
+     */
+    viewChanged(): void {
         this.#epoch++;
         for (const listener of this.#listeners) {
             listener();

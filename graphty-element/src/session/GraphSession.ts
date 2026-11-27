@@ -6011,6 +6011,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             results: () => results,
             projectShaders: () => shaders.descriptors(),
             nodeValues: (path) => planning.nodeValues?.(path) ?? null,
+            // The input tick less the pointer's moves: a write, a freeze or a run moves a column.
+            columnsRevision: () => inputs.tick.value - pointerTicks,
             fileStyles: fileStylesOn,
             timeCandidates: () => time.api.candidates(),
             query: {

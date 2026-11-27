@@ -63,6 +63,7 @@ import type {
 } from "../catalog/types";
 import { catalogFormatDescriptors } from "../catalog/writerRegistry";
 import { isGraphtyError } from "../errors";
+import type { ColumnFit } from "../layout/locationMap/source";
 import { transitionDescriptors } from "../transitions/registry";
 import { describeMetrics, type MetricsSource } from "./metrics";
 import { optionsFor, type OptionsForSource } from "./optionsFor";
@@ -337,8 +338,28 @@ export function createSessionCatalog(
             readonly timeCandidates?: () => readonly { readonly kind: "node" | "edge"; readonly column: string }[];
             /** What `validate` checks expressions against; absent, no path is reported unresolved. */
             readonly query?: CatalogQuerySource;
+            /** Moves whenever a node column may have changed; absent, `optionsFor` keeps no column reading. */
+            readonly columnsRevision?: () => number;
         },
 ): SessionCatalogApi {
+    /** The location column fits by role, read under one columns revision. */
+    let fits: { revision: number; byRole: Map<string, readonly ColumnFit[]> } | null = null;
+    const { columnsRevision } = source;
+    const keptFits =
+        columnsRevision === undefined
+            ? undefined
+            : (role: string, read: () => readonly ColumnFit[]): readonly ColumnFit[] => {
+                  const revision = columnsRevision();
+                  if (fits?.revision !== revision) {
+                      fits = { revision, byRole: new Map() };
+                  }
+                  let kept = fits.byRole.get(role);
+                  if (kept === undefined) {
+                      kept = read();
+                      fits.byRole.set(role, kept);
+                  }
+                  return kept;
+              };
     const fileStyles = (): boolean => source.fileStyles?.() !== false;
     const layouts = (): readonly LayoutDescriptor[] =>
         fileStyles() ? SESSION_CATALOG_TABLES.layouts() : layoutsWithoutStyles(SESSION_CATALOG_TABLES.layouts());
@@ -427,6 +448,7 @@ export function createSessionCatalog(
                         attributes: source.attributes,
                         results: source.results,
                         nodeValues: source.nodeValues,
+                        ...(keptFits === undefined ? {} : { keptFits }),
                     },
                     key,
                     scope,

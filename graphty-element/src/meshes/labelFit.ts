@@ -27,6 +27,28 @@ const BOXES: ReadonlySet<string> = new Set([
     "none",
 ]);
 
+/**
+ * How much smaller a table is drawn to fit inside a node that does not grow round it (`shrinkToNode`): inside a
+ * box-shaped node the table's box fits the node's box, inside any other its corners reach the ellipse through the
+ * node's box; never larger than its own size.
+ * @param type - The node's shape type.
+ * @param box - The table's box, in the units of the node's size.
+ * @param width - The node's width, in the same units.
+ * @param height - The node's height.
+ * @returns The scale, 1 when the table already fits.
+ */
+export function tableShrink(type: string | undefined, box: LabelBox, width: number, height: number): number {
+    if (box.width <= 0 || box.height <= 0 || width <= 0 || height <= 0) {
+        return 1;
+    }
+
+    const across = box.width / width;
+    const down = box.height / height;
+    // ponytail: a polygon or a star counts as its ellipse; its own reach (labelFitExtent) when a table sits in one
+    const scale = BOXES.has(type ?? "") ? 1 / Math.max(across, down) : 1 / Math.hypot(across, down);
+    return Math.min(1, scale);
+}
+
 /** The regular polygons, by their number of sides: a box inside one reaches 1 / cos(pi / sides) less far. */
 const SIDES: ReadonlyMap<string, number> = new Map([
     ["triangle", 3],

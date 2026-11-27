@@ -176,6 +176,34 @@ function tappedNode(scene: Scene, roster: NodePointerRoster, pointerInfo: Pointe
     return id === undefined ? undefined : roster.byId.get(id);
 }
 
+/**
+ * Deliver a press to the node under it.
+ *
+ * A SECOND FINGER MAKES IT A PINCH. A press on a node switches the camera's input off, its pinch
+ * recognizer with it, so a pinch whose first finger landed on a node moved nothing at all. A press
+ * by a later finger drops every press that has not started dragging, which gives the camera its
+ * input back (see {@link NodeDragHandler.cancelPress}), and presses no node.
+ * @param scene - The scene.
+ * @param roster - The scene's nodes.
+ * @param pointerInfo - The press.
+ */
+function deliverPress(scene: Scene, roster: NodePointerRoster, pointerInfo: PointerInfoPre): void {
+    if ((pointerInfo.event as Partial<PointerEvent>).isPrimary === false) {
+        for (const handler of roster.engaged) {
+            handler.cancelPress();
+        }
+
+        return;
+    }
+
+    // nodeId from mesh metadata works with both regular and instanced meshes
+    const pickedId = pickPressedNodeId(scene);
+    roster.pressed = { id: pickedId, x: scene.pointerX, y: scene.pointerY };
+    if (pickedId !== undefined) {
+        roster.byId.get(pickedId)?.dragHandler?.onPointerDown(pointerInfo);
+    }
+}
+
 /** The roster of each scene; see {@link nodePointerRosterOf}. */
 const nodePointerRosters = new WeakMap<Scene, NodePointerRoster>();
 
@@ -194,28 +222,9 @@ function deliverPointerEvent(scene: Scene, roster: NodePointerRoster, pointerInf
     }
 
     switch (pointerInfo.type) {
-        case PointerEventTypes.POINTERDOWN: {
-            // A SECOND FINGER MAKES IT A PINCH. A press on a node switches the camera's input off,
-            // its pinch recognizer with it, so a pinch whose first finger landed on a node moved
-            // nothing at all. A press that has not started dragging gives the camera its input back,
-            // and no finger after the first presses a node.
-            if ((pointerInfo.event as Partial<PointerEvent>).isPrimary === false) {
-                for (const handler of roster.engaged) {
-                    handler.cancelPress();
-                }
-
-                break;
-            }
-
-            // nodeId from mesh metadata works with both regular and instanced meshes
-            const pickedId = pickPressedNodeId(scene);
-            roster.pressed = { id: pickedId, x: scene.pointerX, y: scene.pointerY };
-            if (pickedId !== undefined) {
-                roster.byId.get(pickedId)?.dragHandler?.onPointerDown(pointerInfo);
-            }
-
+        case PointerEventTypes.POINTERDOWN:
+            deliverPress(scene, roster, pointerInfo);
             break;
-        }
         case PointerEventTypes.POINTERMOVE: {
             for (const handler of roster.engaged) {
                 handler.onPointerMove();

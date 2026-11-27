@@ -33,6 +33,7 @@ import {
 import { type EdgeLineBatch, stackByDrawOrder } from "./EdgeLineBatch";
 import { parseBends } from "./edgeRoute";
 import { FilledArrowRenderer, HALF_OPEN_MEETS, TEE_DEPTH } from "./FilledArrowRenderer";
+import { FLAT_CAP_LIFT } from "./flatHalo";
 import { FrameRoster } from "./FrameRoster";
 import { MaterialHelper } from "./MaterialHelper";
 import type { MeshCache } from "./MeshCache";
@@ -986,7 +987,7 @@ export class EdgeMesh {
                 scene,
                 `2d|image|${src}|${String(opacity)}${widthKey}`,
                 () => widened(this.createImageCap(src, opacity, scene), breadth),
-                { scale: length, billboard: false },
+                { scale: length, billboard: false, lift: FLAT_CAP_LIFT },
             );
         }
 
@@ -1039,7 +1040,7 @@ export class EdgeMesh {
                     source.visibility = opacity;
                     return source;
                 },
-                { scale: length, billboard: false },
+                { scale: length, billboard: false, lift: FLAT_CAP_LIFT },
             );
         }
 

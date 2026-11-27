@@ -32039,11 +32039,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.97,
+            "raster.arrowhead": 0.98,
             "raster.canvas": 0.99,
-            "raster.edge": 0.95,
+            "raster.edge": 0.97,
             "raster.label": 0.86,
-            "raster.nodeBody": 0.97,
+            "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.95,
             "edge.wiggle": 1,
             "edge.dashPeriod": 1
@@ -32086,11 +32086,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.97,
+            "raster.arrowhead": 0.98,
             "raster.canvas": 0.99,
-            "raster.edge": 0.93,
-            "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.96,
+            "raster.edge": 0.97,
+            "raster.nodeBody": 0.99,
+            "raster.nodeOutline": 0.97,
             "edge.wiggle": 1,
             "edge.dashPeriod": 1
         },
@@ -32173,11 +32173,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.97,
+            "raster.arrowhead": 0.98,
             "raster.canvas": 0.99,
-            "raster.edge": 0.94,
+            "raster.edge": 0.97,
             "raster.label": 0.86,
-            "raster.nodeBody": 0.97,
+            "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.95,
             "edge.wiggle": 1,
             "edge.dashPeriod": 1
@@ -32316,12 +32316,12 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.95,
+            "raster.arrowhead": 0.97,
             "raster.canvas": 0.99,
-            "raster.edge": 0.94,
+            "raster.edge": 0.98,
             "raster.label": 0.88,
-            "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.94,
+            "raster.nodeBody": 0.98,
+            "raster.nodeOutline": 0.95,
             "edge.wiggle": 1
         },
         "pajek-specimen-edge-labels-p2": {
@@ -32362,12 +32362,12 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.95,
+            "raster.arrowhead": 0.97,
             "raster.canvas": 0.99,
-            "raster.edge": 0.95,
+            "raster.edge": 0.99,
             "raster.label": 0.86,
-            "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.94,
+            "raster.nodeBody": 0.98,
+            "raster.nodeOutline": 0.95,
             "edge.wiggle": 1
         },
         "pajek-specimen-edge-labels-p2@matched": {
@@ -32502,11 +32502,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.94,
+            "raster.arrowhead": 0.96,
             "raster.canvas": 0.99,
-            "raster.edge": 0.96,
+            "raster.edge": 0.99,
             "raster.label": 0.86,
-            "raster.nodeBody": 0.97,
+            "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.95,
             "edge.wiggle": 1,
             "edge.dashPeriod": 1
@@ -32549,11 +32549,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.94,
+            "raster.arrowhead": 0.96,
             "raster.canvas": 0.99,
-            "raster.edge": 0.94,
+            "raster.edge": 0.97,
             "raster.label": 0.86,
-            "raster.nodeBody": 0.97,
+            "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.95,
             "edge.wiggle": 1
         },
@@ -32635,11 +32635,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.92,
+            "raster.arrowhead": 0.94,
             "raster.canvas": 0.99,
-            "raster.edge": 0.97,
+            "raster.edge": 0.99,
             "raster.label": 0.86,
-            "raster.nodeBody": 0.97,
+            "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.95,
             "edge.wiggle": 1,
             "edge.dashPeriod": 1
@@ -32723,11 +32723,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.94,
+            "raster.arrowhead": 0.97,
             "raster.canvas": 0.99,
-            "raster.edge": 0.95,
+            "raster.edge": 0.98,
             "raster.label": 0.86,
-            "raster.nodeBody": 0.97,
+            "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.95,
             "edge.wiggle": 1
         },
@@ -32809,11 +32809,11 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.96,
+            "raster.arrowhead": 0.97,
             "raster.canvas": 0.99,
-            "raster.edge": 0.97,
+            "raster.edge": 0.98,
             "raster.label": 0.86,
-            "raster.nodeBody": 0.97,
+            "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.95,
             "edge.wiggle": 1
         },
@@ -32974,7 +32974,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.89,
             "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.96
+            "raster.nodeOutline": 0.97
         },
         "pajek-specimen-labels-p2@matched": {
             "node.present": 1,
@@ -33114,7 +33114,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.87,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.96
+            "raster.nodeOutline": 0.97
         },
         "pajek-specimen-mappings-bypass-p2": {
             "node.present": 1,
@@ -33139,7 +33139,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.87,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.96
+            "raster.nodeOutline": 0.97
         },
         "pajek-specimen-mappings-bypass-p2@matched": {
             "node.present": 1,
@@ -33185,7 +33185,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.87,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.96
+            "raster.nodeOutline": 0.97
         },
         "pajek-specimen-mappings-bypass-p3@matched": {
             "node.present": 1,
@@ -33252,7 +33252,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.86,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.96
+            "raster.nodeOutline": 0.97
         },
         "pajek-specimen-node-fills-borders-p2": {
             "node.present": 1,
@@ -33277,7 +33277,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.85,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.96
+            "raster.nodeOutline": 0.97
         },
         "pajek-specimen-node-fills-borders-p2@matched": {
             "node.present": 1,
@@ -33323,7 +33323,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.86,
             "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.96
         },
         "pajek-specimen-node-fills-borders-p3@matched": {
             "node.present": 1,
@@ -33390,7 +33390,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.87,
             "raster.nodeBody": 0.98,
-            "raster.nodeOutline": 0.96
+            "raster.nodeOutline": 0.97
         },
         "pajek-specimen-node-shapes-p2": {
             "node.present": 1,
@@ -33482,7 +33482,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.85,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.96
         },
         "pajek-specimen-node-sizes-opacity-p2": {
             "node.present": 1,
@@ -33507,7 +33507,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.85,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.94
+            "raster.nodeOutline": 0.95
         },
         "pajek-specimen-node-sizes-opacity-p2@matched": {
             "node.present": 1,

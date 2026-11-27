@@ -457,6 +457,7 @@ export type {
     LoadStyleReport,
 } from "./src/session";
 export { COLUMN_ROLES, LOAD_ROLES } from "./src/session";
+export { TYPE_PATH } from "./src/session/sources/steps/paths";
 export {
     EXPORT_FLATTEN_REASONS,
     EXPORT_LOSS_CODES,

@@ -9969,6 +9969,9 @@ export interface TransactionOptions {
 export type TransactionScope = Omit<GraphSession, "undo" | "redo" | "history" | "dispose">;
 
 // @public
+export const TYPE_PATH = "graphty.type";
+
+// @public
 export interface TypeChangePreview {
     readonly converts: number;
     readonly examples: readonly {

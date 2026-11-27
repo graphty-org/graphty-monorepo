@@ -21,6 +21,7 @@ import {
     click,
     doubleClick,
     drag,
+    holdPinch,
     hover,
     nextFrame,
     pinch,
@@ -997,6 +998,34 @@ describe("touch", () => {
         const end = at(element, "a");
         assert.closeTo(end.x - start.x, 40, 3, "the drawing followed the finger across");
         assert.closeTo(end.y - start.y, -80, 3, "the drawing followed the finger up");
+    });
+
+    // The browser sends no touchmove until a finger passes its touch slop (about 15 px), but it does
+    // send pointer moves: a short drag must pan with its first move.
+    it("a finger's first 10 px move pans the 2D view, inside the browser's touch slop", async () => {
+        const element = await mounted("2d");
+        const start = at(element, "a");
+
+        await touchDrag(element, EMPTY, { x: EMPTY.x + 10, y: EMPTY.y }, 1);
+        await applied(element);
+
+        const end = at(element, "a");
+        assert.closeTo(end.x - start.x, 10, 2, "the drawing followed the finger's one short move");
+        assert.closeTo(end.y - start.y, 0, 2, "and did not move up or down");
+    });
+
+    it("after a pinch, a one-finger drag pans the 2D view by its own move, without a jump", async () => {
+        const element = await mounted("2d");
+        const lift = await holdPinch(element, { x: WIDTH / 2, y: HEIGHT / 2 }, 120, 90);
+        await lift();
+        const start = at(element, "a");
+
+        await touchDrag(element, EMPTY, { x: EMPTY.x + 30, y: EMPTY.y + 20 }, 3);
+        await applied(element);
+
+        const end = at(element, "a");
+        assert.closeTo(end.x - start.x, 30, 3, "the drawing followed the finger across");
+        assert.closeTo(end.y - start.y, 20, 3, "the drawing followed the finger down");
     });
 
     it("spreading two fingers zooms the 2D view in", async () => {

@@ -1589,9 +1589,10 @@ export class RenderManager implements Manager {
      * once, so the frame the page paints after a resize holds the graph rather than the canvas the
      * resize cleared. Every resize goes through here: the element's ResizeObserver and the
      * window's resize event alike, since either one can be the call that assigns the new size.
+     * @returns Whether the canvas's render size changed.
      * @internal
      */
-    resize(): void {
+    resize(): boolean {
         // Only a canvas whose size changed was cleared; the observer's first delivery or a box
         // change that keeps the render size are not. An XR session draws in its own frames, so
         // nothing is drawn outside them.
@@ -1603,6 +1604,8 @@ export class RenderManager implements Manager {
         if (resized && (xrState === undefined || xrState === WebXRState.NOT_IN_XR)) {
             this.drawNow();
         }
+
+        return resized;
     }
 
     /**

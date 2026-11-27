@@ -56,6 +56,22 @@ export const COMMON_FAMILIES: readonly string[] = [
     "Impact",
 ];
 
+/** What FontPicker calls each generic family by default; the value it writes stays the CSS name. */
+export const GENERIC_NAMES: Readonly<Partial<Record<string, string>>> = {
+    "sans-serif": "Sans serif",
+    serif: "Serif",
+    monospace: "Monospace",
+    cursive: "Cursive",
+    fantasy: "Fantasy",
+    "system-ui": "System UI",
+    "ui-sans-serif": "UI sans serif",
+    "ui-serif": "UI serif",
+    "ui-monospace": "UI monospace",
+    "ui-rounded": "UI rounded",
+    math: "Math",
+    emoji: "Emoji",
+};
+
 const GENERIC = new Set(GENERIC_FAMILIES);
 
 /** The file endings a font upload takes. */

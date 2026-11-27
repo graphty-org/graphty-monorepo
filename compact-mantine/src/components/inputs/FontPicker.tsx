@@ -16,6 +16,7 @@ import {
     type FontFormat,
     fontFormatOf,
     GENERIC_FAMILIES,
+    GENERIC_NAMES,
     localFontsGranted,
     localFontsSupported,
     queryLocalFamilies,
@@ -60,6 +61,8 @@ export interface FontPickerLabels {
     showLocal: string;
     /** The button that opens the file picker for a font. */
     upload: string;
+    /** The names the generic families show under, by CSS name; a family missing here shows its CSS name. */
+    genericNames: Readonly<Partial<Record<string, string>>>;
     /** The search box's placeholder and name. */
     search: string;
     /** What the list says when nothing matches what was typed. */
@@ -73,6 +76,7 @@ const DEFAULT_LABELS: FontPickerLabels = {
     local: "On this computer",
     common: "Common fonts",
     generic: "Generic families",
+    genericNames: GENERIC_NAMES,
     showLocal: "Show fonts on this computer",
     upload: "Upload font",
     search: "Find font",
@@ -234,7 +238,14 @@ function FontPickerBody({
                     options: plain([...(local ?? [])].sort((a, b) => collator.compare(a, b))),
                 },
                 { key: "common", label: labels.common, options: plain(families.filter((family) => canDraw(family))) },
-                { key: "generic", label: labels.generic, options: plain(GENERIC_FAMILIES) },
+                {
+                    key: "generic",
+                    label: labels.generic,
+                    options: GENERIC_FAMILIES.map((family) => ({
+                        family,
+                        label: labels.genericNames[family] ?? family,
+                    })),
+                },
             ],
             held,
             "common",
@@ -454,7 +465,7 @@ export function FontPicker(props: Readonly<FontPickerProps>): React.JSX.Element 
     return (
         <PickerPopout
             label={label}
-            value={held}
+            value={labels.genericNames[held] ?? held}
             placeholder={placeholder}
             disabled={disabled}
             disabledReason={disabledReason}

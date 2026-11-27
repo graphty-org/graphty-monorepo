@@ -10,6 +10,7 @@ import { afterEach, assert, describe, expect, it, vi } from "vitest";
 import { commands, userEvent } from "vitest/browser";
 
 import { PopoutManager } from "../../../src";
+import { GENERIC_NAMES } from "../../../src/components/inputs/fontFamilies";
 import { FontPicker, type FontPickerProps } from "../../../src/components/inputs/FontPicker";
 import { renderThemed, resetHarness } from "../../harness/measure";
 
@@ -51,6 +52,15 @@ async function list(): Promise<HTMLElement> {
     return screen.findByRole("listbox", { name: "Label font" });
 }
 
+/**
+ * The CSS family an option's name stands for: a generic family shows a plain name.
+ * @param name - an option's shown name
+ * @returns the family it writes
+ */
+function familyOf(name: string | null | undefined): string {
+    return Object.entries(GENERIC_NAMES).find(([, shown]) => shown === name)?.[0] ?? name ?? "";
+}
+
 /** @returns the names of the options shown */
 function optionNames(): string[] {
     return screen.getAllByRole("option").map((option) => option.textContent ?? "");
@@ -76,21 +86,21 @@ describe("FontPicker", () => {
     it("opens from a click, filters by word start, picks with Enter and gives focus back", async () => {
         const onPicked = vi.fn();
         await renderThemed(<Harness label="Label font" onPicked={onPicked} />);
-        assert.strictEqual(trigger().value, "sans-serif");
+        assert.strictEqual(trigger().value, "Sans serif");
         await userEvent.click(trigger());
         const listbox = await list();
         assert.isNotNull(within(listbox).getByRole("group", { name: "Generic families" }));
         await expect.poll(() => document.activeElement?.getAttribute("placeholder")).toBe("Find font");
         await userEvent.keyboard("mono");
         const names = optionNames();
-        assert.include(names, "monospace");
-        assert.include(names, "ui-monospace");
+        assert.include(names, "Monospace");
+        assert.include(names, "UI monospace");
         assert.isTrue(
             names.every((name) => /(^|[^a-z])mono/i.test(name)),
             names.join(", "),
         );
         await userEvent.keyboard("{Enter}");
-        await expect.poll(() => onPicked.mock.calls).toEqual([[names[0]]]);
+        await expect.poll(() => onPicked.mock.calls).toEqual([[familyOf(names[0])]]);
         await expect.poll(() => document.activeElement).toBe(trigger());
         assert.strictEqual(trigger().value, names[0]);
     });
@@ -108,7 +118,7 @@ describe("FontPicker", () => {
         const last = options.at(-1);
         assert.strictEqual(search.getAttribute("aria-activedescendant"), last?.id);
         await userEvent.keyboard("{Enter}");
-        await expect.poll(() => onPicked.mock.calls).toEqual([[last?.textContent]]);
+        await expect.poll(() => onPicked.mock.calls).toEqual([[familyOf(last?.textContent)]]);
     });
 
     it("draws every option in its own face", async () => {
@@ -117,7 +127,7 @@ describe("FontPicker", () => {
         await list();
         for (const option of screen.getAllByRole("option")) {
             const family = getComputedStyle(option.querySelector(".cm-listbox-label") as Element).fontFamily;
-            assert.include(family.split('"').join(""), option.textContent ?? "", family);
+            assert.include(family.split('"').join(""), familyOf(option.textContent), family);
         }
     });
 
@@ -154,7 +164,7 @@ describe("FontPicker", () => {
             within(generic)
                 .getAllByRole("option")
                 .map((option) => option.textContent),
-            "monospace",
+            "Monospace",
         );
     });
 

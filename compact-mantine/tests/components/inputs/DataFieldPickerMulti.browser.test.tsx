@@ -70,7 +70,11 @@ async function renderMulti(): Promise<{ trigger: HTMLElement; seen: Seen }> {
                         shown="Fixed"
                     />
                 </div>
-                <button type="button">Outside</button>
+                {/* In the far corner: right under the trigger, the open pop-out covered it, and a real click on a
+                    covered button never lands (Playwright waits for it to take the pointer). */}
+                <button type="button" style={{ position: "fixed", right: 0, bottom: 0 }}>
+                    Outside
+                </button>
             </PopoutManager>
         );
     }
@@ -114,7 +118,8 @@ describe("DataFieldPicker, multi mode", () => {
         const list = await open(trigger);
         const word = within(list).getByRole("option", { name: /^word/ });
         assert.include(word.getAttribute("aria-label") ?? "", "Holds words, not amounts");
-        await userEvent.click(word);
+        // Forced: Playwright waits for an aria-disabled element to become enabled before it clicks.
+        await userEvent.click(word, { force: true });
         assert.lengthOf(seen.changes, 0);
     });
 

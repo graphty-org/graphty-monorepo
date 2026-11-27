@@ -206,12 +206,17 @@ describe("Style panel v2's Text section", () => {
         );
         const shadow = await openGroup(pop, "Text shadow");
         assertNamedUncut(shadow);
-        // A Text shadow color set while its switch is off switches the shadow on (no tick first).
+        // Its Color, Blur and Offset are left out while its switch, beside them, is off; ticking it shows them.
+        assert.isNull(shadow.querySelector('[data-line="node.labelStyle.shadowColor"]'), "no color while off");
+        await userEvent.click(within(await lineOf(shadow, "node.labelStyle.shadow")).getByRole("checkbox"));
+        await waitFor(() => {
+            assert.isTrue(labelStyle(session, id).shadow, "the switch turns the text shadow on");
+        });
         const color = await lineOf(shadow, "node.labelStyle.shadowColor");
         await userEvent.click(within(color).getByRole("textbox"));
         await userEvent.keyboard("{Control>}a{/Control}FF0000{Enter}");
         await waitFor(() => {
-            assert.isTrue(labelStyle(session, id).shadow, "the color switches the text shadow on");
+            assert.match(String(labelStyle(session, id).shadowColor), /^#FF0000/i, "the color is written");
         });
         // The group's own minus, in its pop-over's header (its Text shadow line has one of its own).
         const header = shadow

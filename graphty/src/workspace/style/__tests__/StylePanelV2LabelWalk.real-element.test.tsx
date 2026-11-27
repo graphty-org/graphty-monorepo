@@ -624,8 +624,8 @@ describe("every label field is reachable from the Label row and draws (E673)", (
                     }
                     case "text":
                         if (rule === "R13") {
-                            // FontPicker lists a CSS generic family as written.
-                            await pickOption(line, "monospace");
+                            // FontPicker lists a CSS generic family by its plain name and writes its CSS name.
+                            await pickOption(line, "Monospace");
                         } else if (rule === "R16") {
                             // A picture (R16): chosen in the Picture pop-over, written as the picture's asset.
                             await userEvent.click(inputs()[0]);

@@ -164,15 +164,19 @@ function sayKeymapAction(session: GraphSession, store: WorkspaceStore): (report:
         const command = undo ? "history.undo" : "history.redo";
         detail("command_run", { command });
         const say = historyNotice(session, undo, store);
-        report.done.then(say, (error: unknown) => {
-            // A source card's draft holds the history: ask Commit / Discard / Cancel, as the buttons do.
-            if (askIfDraftOpen(store, error, () => undoOrRedo(session, undo, store))) {
-                return;
-            }
-            const code = isGraphtyError(error) && isGraphtyErrorCode(error.code) ? error.code : undefined;
-            detail("command_failed", { command, code });
-            store.set({ notice: { message: errorWords(`${undo ? "Undo" : "Redo"} failed`, error) } });
-        });
+        // Said once the step is on the screen, so the words' re-render never holds back that frame.
+        report.done.then(
+            () => session.afterFrame().then(say),
+            (error: unknown) => {
+                // A source card's draft holds the history: ask Commit / Discard / Cancel, as the buttons do.
+                if (askIfDraftOpen(store, error, () => undoOrRedo(session, undo, store))) {
+                    return;
+                }
+                const code = isGraphtyError(error) && isGraphtyErrorCode(error.code) ? error.code : undefined;
+                detail("command_failed", { command, code });
+                store.set({ notice: { message: errorWords(`${undo ? "Undo" : "Redo"} failed`, error) } });
+            },
+        );
     };
 }
 

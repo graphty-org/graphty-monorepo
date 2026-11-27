@@ -9975,6 +9975,21 @@ export interface GraphSession {
         options?: SessionListenOptions,
     ): () => void;
     /**
+     * Wait until every style change made so far is on the screen: settles in a task of its own,
+     * right after the frame that draws the last of it. Work that follows a write -- reading
+     * `styles.counts()` for a receipt, re-rendering a panel -- awaits this so it never holds back
+     * the frame that shows the change. With no frame coming (a hidden page, a stopped render loop,
+     * a session that draws nothing) it settles in the next task. Never rejects.
+     * @example
+     * ```ts
+     * await session.styles.update(id, { set: { "node.color": "red" } });
+     * await session.afterFrame();
+     * status.textContent = "Node color now red";
+     * ```
+     * @returns Settles as above.
+     */
+    afterFrame(): Promise<void>;
+    /**
      * Release what this session owns: the accelerator it attached, the store it built, and every
      * run still in flight.
      *

@@ -1819,6 +1819,7 @@ export interface GraphKinds {
 // @public
 export interface GraphSession {
     acceleration: AccelerationPolicy;
+    afterFrame(): Promise<void>;
     readonly annotations: SessionAnnotations;
     readonly assets: AssetsApi;
     calibrate(options?: Pick<RunOptions, "signal">): Promise<Readonly<DefaultableLimits>>;

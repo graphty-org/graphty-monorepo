@@ -118,4 +118,31 @@ describe("a listener asking to hear events after the frame", () => {
         assert.deepEqual(told, ["told"]);
         assert.deepEqual(heard, [], "a listener stopped before the frame is not called");
     });
+
+    test("session.afterFrame() settles only after a frame has drawn the write before it", async () => {
+        const element = await mountElement();
+        const s = element.session;
+        await s.data.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
+        await element.waitForSettled();
+
+        const scene = element.graph.getScene();
+        const painter = element.graph.getStylePainter();
+        let frames = 0;
+        const counting = scene.onAfterRenderObservable.add(() => {
+            frames++;
+        });
+        await s.styles.add({
+            name: "Red",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#ff0000" },
+        });
+        const framesAtWrite = frames;
+        await s.afterFrame();
+        scene.onAfterRenderObservable.remove(counting);
+
+        // Counted work: frames drawn between the write and the wait settling, and paint left.
+        assert.isAbove(frames, framesAtWrite, "a frame was drawn before it settled");
+        assert.isFalse(painter.hasPending, "the write's paint was applied before it settled");
+    });
 });

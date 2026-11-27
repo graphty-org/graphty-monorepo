@@ -1696,6 +1696,18 @@ class Session implements ElementSession {
     }
 
     /**
+     * See {@link GraphSession.afterFrame}.
+     * @returns Settles in the task after the frame that draws every style change made so far.
+     */
+    async afterFrame(): Promise<void> {
+        await this.styles.settled().catch(() => undefined);
+        await this.paintDrawn();
+        await new Promise<void>((resolve) => {
+            setTimeout(resolve, 0);
+        });
+    }
+
+    /**
      * Watch the session.
      * @param event - Which event.
      * @param handler - Called with the event's detail.

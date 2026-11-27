@@ -489,6 +489,20 @@ session.on("style:batch-changed", () => drawKey(session.styles.legend()), { afte
 Each detail is still delivered, in order. With no frame coming (a hidden page, a session that draws
 nothing) it arrives in the next task.
 
+Work that follows a write of your own, such as a status line that counts what the write reached,
+can wait the same way with `session.afterFrame()`:
+
+```typescript
+await session.styles.update(id, { set: { "node.color": "red" } });
+await session.afterFrame();
+status.textContent = `Node color now red, on ${session.styles.counts(id).matched} nodes`;
+```
+
+Only listen after the frame to the events a repaint announces as it finishes (`style:changed`,
+`style:batch-changed`, `project:derived`). An event that fires before its repaint has arrived, such
+as `history:changed` at the moment of an edit, is heard after the next frame, in the middle of the
+repaint, and pushes the repaint later.
+
 ## Event Timing
 
 Some events fire asynchronously. Understand the order:

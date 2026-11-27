@@ -3131,7 +3131,7 @@ describe("no outside download at run time (#6308, #6390)", () => {
         it(`${file}: a cache hit installs the T4 container's packages with dpkg and never runs apt`, () => {
             const r = bootstrap(file, { hit: "true", cached: ["a.deb", "b.deb"] });
             assert.equal(r.status, 0, r.stdout + r.stderr);
-            assert.match(r.calls, /^dpkg -i \S+\/a\.deb \S+\/b\.deb\n$/);
+            assert.match(r.calls, /^dpkg -i --auto-deconfigure \S+\/a\.deb \S+\/b\.deb\n$/);
         });
 
         it(`${file}: a cache hit that installed too little fails the bootstrap`, () => {
@@ -3276,7 +3276,7 @@ describe("apt in the workflows", () => {
     it("mesa-lavapipe: a hit installs with dpkg alone and never runs apt", () => {
         const r = runLavapipe(2, { env: { HIT: "true", NEEDED: "true" }, cached: ["a.deb", "b.deb"] });
         assert.equal(r.status, 0, r.stdout + r.stderr);
-        assert.match(r.calls, /^dpkg -i \S+\/a\.deb \S+\/b\.deb\n$/);
+        assert.match(r.calls, /^dpkg -i --auto-deconfigure \S+\/a\.deb \S+\/b\.deb\n$/);
     });
 
     it("mesa-lavapipe: a miss installs from the image's index, and updates the index only when that fails", () => {
@@ -3512,7 +3512,7 @@ echo "${aptSays}"`,
     it("on a hit installs exactly the cached files with dpkg and never runs apt", () => {
         const r = run({ hit: "true", cached: ["a.deb", "b.deb"] });
         assert.equal(r.status, 0, r.stdout + r.stderr);
-        assert.match(r.calls, /^dpkg -i \S+\/a\.deb \S+\/b\.deb\n/m);
+        assert.match(r.calls, /^dpkg -i --auto-deconfigure \S+\/a\.deb \S+\/b\.deb\n/m);
         assert.doesNotMatch(r.calls, /install-deps chromium/);
         assert.match(r.stdout, /All 2 packages Chromium needs are installed/);
     });

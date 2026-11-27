@@ -960,7 +960,16 @@ export class UpdateManager implements Manager {
         const pictureChanged = (): void => {
             this.pending.changed();
         };
-        this.meshAddedWatcher = scene.onNewMeshAddedObservable.add(pictureChanged);
+        // Babylon announces a new mesh a timer after it is built, so the finished frame may already
+        // have drawn it: its count still matches and nothing was removed since (a removal moves the
+        // counter), so the scene holds the meshes it drew. Moving the counter then made a wait for
+        // the final picture start over and wait out two more frames and their fences: about 40 ms
+        // of selecting a node at 10k nodes.
+        this.meshAddedWatcher = scene.onNewMeshAddedObservable.add(() => {
+            if (!this.drawnFrameIsFinished) {
+                this.pending.changed();
+            }
+        });
         this.meshRemovedWatcher = scene.onMeshRemovedObservable.add(pictureChanged);
         this.watchHandDrawnFrames(scene);
         this.lendShaderRepaint();
@@ -3185,6 +3194,9 @@ export class UpdateManager implements Manager {
     /** Callers of {@link UpdateManager.onceNothingIsOwed} still waiting. */
     private readonly owedWaiters = new Set<() => void>();
 
+    /** Whether {@link UpdateManager.pollGpuWhileOnlyItIsOwed} has a check queued. */
+    private gpuPollQueued = false;
+
     /**
      * Whether nothing is still owed to the picture: nothing in {@link UpdateManager.pending} is
      * pending, a queued operation included, and the frame drawn is the finished one. The one question `waitForStableFrame()` asks.
@@ -3243,7 +3255,12 @@ export class UpdateManager implements Manager {
 
     /** Calls back every {@link UpdateManager.onceNothingIsOwed} waiter when nothing is owed now. */
     private wakeOwedWaiters(): void {
-        if (this.owedWaiters.size === 0 || !this.nothingIsOwed()) {
+        if (this.owedWaiters.size === 0) {
+            return;
+        }
+
+        if (!this.nothingIsOwed()) {
+            this.pollGpuWhileOnlyItIsOwed();
             return;
         }
 
@@ -3251,6 +3268,25 @@ export class UpdateManager implements Manager {
             queueMicrotask(callback);
         }
         this.owedWaiters.clear();
+    }
+
+    /**
+     * Asks again from a task of its own while the GPU finishing the final frame is all a waiter
+     * waits for. Asked only at the next pass, the fence was seen two frames after the frame it
+     * marks: the browser updates a fence's status only once control has gone back to it, so the
+     * pass after the frame read the old status. That cost a selection at 10k nodes about 15 ms.
+     * It stops once the fence signals, a waiter is woken or something else is owed.
+     */
+    private pollGpuWhileOnlyItIsOwed(): void {
+        if (this.gpuPollQueued || !this.frameIsStable || this.pending.firstPending("wait") !== null) {
+            return;
+        }
+
+        this.gpuPollQueued = true;
+        setTimeout(() => {
+            this.gpuPollQueued = false;
+            this.wakeOwedWaiters();
+        }, 0);
     }
 
     /**

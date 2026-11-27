@@ -195,6 +195,26 @@ function seenGrowth(distance: number, radius: number, back: number): number {
 }
 
 /**
+ * What a ring's cache key adds so a solid in a 3D view gets a ring of its own per node: a solid shows the camera a
+ * different outline from each direction, and in perspective each node is seen from its own direction, so one ring
+ * shared by a style fits only the node it was built for (issue #10373). A sphere's outline is the same from every
+ * direction, so a style's spheres share one ring, each instance turned to its own line of sight (`faceEachNode`).
+ *
+ * ponytail: a ring source, a draw call and an outline rebuilt on every camera move per bordered solid that is not a
+ * sphere; share rings across nodes seen from near enough the same direction if large graphs of such nodes get slow.
+ * @param shape - The node's shape block.
+ * @param is2D - Whether the view is 2D.
+ * @param fill - The node's own mesh.
+ * @returns The suffix: the node's mesh id, or nothing.
+ */
+function ownRingSuffix(shape: NodeStyleConfig["shape"], is2D: boolean, fill: AbstractMesh): string {
+    const type = shape?.type;
+    const own = !is2D && type !== undefined && type !== "sphere" && !isFlatShape(type);
+
+    return own ? `-${String(fill.uniqueId)}` : "";
+}
+
+/**
  * Turn every node's instance of a solid's ring to face the camera along the line to that node's own middle, and size
  * it for that node's distance, so each node gets the ring the nearest one was built for, seen as it would see it.
  * A ring turned only with the camera, square to the middle of the view, is round on a node in the middle of the view
@@ -960,7 +980,8 @@ export class NodeMesh {
         }
 
         const flat = isFlatShape(shape.type);
-        const instance = cache.get(`node-border-${options.styleId}-${options.is2D ? "2d" : "3d"}`, () => {
+        const key = `node-border-${options.styleId}-${options.is2D ? "2d" : "3d"}${ownRingSuffix(shape, options.is2D, fill)}`;
+        const instance = cache.get(key, () => {
             const extents = this.fillExtents(sized, inset);
             const outline = flat ? this.flatOutline(shape, extents) : this.solidOutline(fill);
             const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
@@ -1017,7 +1038,8 @@ export class NodeMesh {
         // out past the border's outer edge, wherever the border is drawn (a border at opacity 0 still takes its room)
         const gap = ring + (outerBorder?.offset ?? 0) * perSize;
         const flat = isFlatShape(shape.type);
-        const instance = cache.get(`node-outer-border-${options.styleId}-${options.is2D ? "2d" : "3d"}`, () => {
+        const key = `node-outer-border-${options.styleId}-${options.is2D ? "2d" : "3d"}${ownRingSuffix(shape, options.is2D, fill)}`;
+        const instance = cache.get(key, () => {
             const extents = this.fillExtents(sized, inset);
             const outline = flat ? this.flatOutline(shape, extents) : this.solidOutline(fill);
             const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
@@ -1077,7 +1099,9 @@ export class NodeMesh {
         const pad = (halo?.padding ?? 0) * perSize;
         const sized = this.extentsOf(shape, Math.max(shape.size ?? options.size, MIN_NODE_SIZE));
         const flat = isFlatShape(shape.type);
-        const instance = cache.get(`node-${kind}-${options.styleId}-${options.is2D ? "2d" : "3d"}`, () => {
+        const ownRing =
+            halo?.shape !== undefined && isFlatShape(halo.shape) ? "" : ownRingSuffix(shape, options.is2D, fill);
+        const instance = cache.get(`node-${kind}-${options.styleId}-${options.is2D ? "2d" : "3d"}${ownRing}`, () => {
             const own = halo?.shape;
             const corner = halo?.cornerRadius === undefined ? undefined : halo.cornerRadius * perSize;
             let outline: Point2[];
@@ -1171,7 +1195,7 @@ export class NodeMesh {
         for (let layer = 0; layer < count; layer++) {
             // outermost first; layers at the middles of `count` equal steps across the edge
             const pad = count === 1 ? 0 : Math.max(blur * (1 - (2 * layer + 1) / count), -deepest);
-            const key = `node-shadow-${String(layer)}-${options.styleId}-${options.is2D ? "2d" : "3d"}`;
+            const key = `node-shadow-${String(layer)}-${options.styleId}-${options.is2D ? "2d" : "3d"}${ownRingSuffix(shape, options.is2D, fill)}`;
             const instance = cache.get(key, () => {
                 const nodeOutline = flat ? this.flatOutline(shape, sized) : this.solidOutline(fill);
                 const piecesOf = (round: Point2[]): RingPiece[] => {

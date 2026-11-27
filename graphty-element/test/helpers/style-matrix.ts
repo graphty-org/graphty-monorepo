@@ -22,7 +22,7 @@
  * - a shadow is the node's outline moved `shadowOffsetX` right and `shadowOffsetY` down;
  * - a halo is the node's own shape scaled `haloScale` about its center;
  * - an outline stays against the node's edge (node-outline-perspective.test.ts);
- * - a label at "bottom" sits beyond the node's side, off the node;
+ * - a label at "bottom" sits beyond the node's outline (it may lie over the rings round it);
  * - an edge stops at the outer edge of the border;
  * - under `sizeSpace: "screen"` two nodes at different depths are drawn the same pixel size.
  */
@@ -510,15 +510,18 @@ export function partIndex(part: Part): number {
 /** How far (RGB distance) a pixel may be from its part's color and still count as it. */
 export const CLASS_DISTANCE = 40;
 
+/** The clear color the browser runner sets: a node can cover any corner of the frame, so it is never sampled. */
+export const BACKGROUND = [255, 255, 255] as const;
+
 /**
- * Sort every pixel into a part by its nearest palette color, the background measured off the frame's corner.
+ * Sort every pixel into a part by its nearest palette color.
  * @param frame - The frame.
+ * @param background - The frame's clear color.
  * @returns The parts, rows top-down.
  */
-export function classify(frame: Frame): Classes {
+export function classify(frame: Frame, background: readonly number[] = BACKGROUND): Classes {
     const { data, width, height } = frame;
-    const bg = [data[0], data[1], data[2]];
-    const colors: [number, number[]][] = [[0, bg]];
+    const colors: [number, number[]][] = [[0, [...background]]];
     PARTS.forEach((part, i) => {
         if (part !== "bg" && part !== "mixed") {
             colors.push([i, [...PALETTE[part]]]);
@@ -1102,6 +1105,15 @@ export function measureNode(
             if (!Number.isFinite(fillEnd)) {
                 return;
             }
+            // a ring under one device pixel along this ray (a flat slab seen near edge-on) cannot be seen, so the
+            // ray is not read; a solid's ring faces the camera (NODE_BORDER_CAVEAT in channels.ts) and its plane is
+            // the camera's, so this never drops one of its rays
+            const [fx, fy] = toScreen(plane, fillEnd * Math.cos(angles[i]), fillEnd * Math.sin(angles[i]));
+            const ringEnd = fillEnd + expectedWidth;
+            const [rx, ry] = toScreen(plane, ringEnd * Math.cos(angles[i]), ringEnd * Math.sin(angles[i]));
+            if (Math.hypot(rx - fx, ry - fy) < 1) {
+                return;
+            }
             // what the ray meets first past the fill: the ring, background (no ring here), or another part over it
             const next = runs.find((r, k) => k > 0 && r.part !== partIndex("mixed"));
             if (next !== undefined && next.part !== BORDER && next.part !== partIndex("bg")) {
@@ -1352,10 +1364,11 @@ export function measureNode(
                     last = r;
                 }
             }
-            // where the shadow's edge should be, another part drawn in front of it hides it: no reading
+            // where the shadow's edge should be, another part drawn in front of it (or the blended seam between two
+            // rings over it) hides it: no reading
             const before = expected - edgeTol;
             const there = partAt(full, plane, ou + before * Math.cos(a), ov + before * Math.sin(a));
-            if (there !== SHADOW && there !== partIndex("bg") && there !== partIndex("mixed")) {
+            if (there !== SHADOW && there !== partIndex("bg")) {
                 return;
             }
             misses.push(Number.isFinite(last) ? Math.abs(last - expected) * ppu.max : Infinity);
@@ -1472,20 +1485,17 @@ export function measureNode(
     }
 
     if (s.label === "bottom" && frames.labelReadable) {
-        const outerReach =
-            s.outer === "none"
-                ? 0
-                : ((s.outer === "gap" ? AMOUNTS.outerGap : 0) + AMOUNTS.outerWidth) * PER_SIZE * sizeFactor;
-        checks.push(...measureLabel(full, plane, window, (u, v) => signed(u, v) < borderEdge + outerReach - edgeTol));
+        // the element places a label against the node's outline (Node.ts createLabelOptions), not past its rings, so
+        // only the outline itself is the node here
+        checks.push(...measureLabel(full, plane, window, (u, v) => signed(u, v) < -edgeTol));
     }
 
     return { checks, numbers };
 }
 
 /**
- * The label checks: the label's box (the bounds of its background below the node) holds no point of the
- * node as drawn -- its fill, border and outer border, placed by their promises round the fill's own
- * outline -- and sits below the node's center.
+ * The label checks: the label's box (the bounds of its background below the node) holds no point inside
+ * the node's outline, and sits below the node's center.
  * @param full - The classified full frame.
  * @param plane - The node's plane.
  * @param window - The node's window in pixels.

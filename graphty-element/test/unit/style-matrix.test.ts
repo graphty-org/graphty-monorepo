@@ -8,8 +8,10 @@ import { assert, describe, it } from "vitest";
 
 import {
     allCases,
+    BACKGROUND,
     CLASS_DISTANCE,
     type Classes,
+    classify,
     CONDITION_FACTORS,
     covering,
     measureNode,
@@ -129,7 +131,7 @@ describe("style combination matrix", () => {
         // the fill, so those blends must never land on a third part; a blend between two rings is one pixel
         // and inside the checks' edge tolerance.
         const colors = Object.values(PALETTE) as (readonly number[])[];
-        const neighbors = [[255, 255, 255], PALETTE.fill] as (readonly number[])[];
+        const neighbors = [BACKGROUND, PALETTE.fill] as (readonly number[])[];
         for (const [ik, k] of colors.entries()) {
             for (const [ia, a] of colors.entries()) {
                 if (ia !== ik) {
@@ -151,6 +153,13 @@ describe("style combination matrix", () => {
                 }
             }
         }
+    });
+
+    it("classifies against the clear color, not a corner a node covers", () => {
+        // a 2 by 1 frame: fill in the corner pixel, background beside it
+        const frame = { data: new Uint8Array([...PALETTE.fill, 255, ...BACKGROUND, 255]), width: 2, height: 1 };
+        const { parts } = classify(frame, BACKGROUND);
+        assert.deepEqual([...parts], [partIndex("fill"), partIndex("bg")]);
     });
 
     it("passes a ring that is its width wide, against the fill and centered", () => {

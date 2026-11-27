@@ -28,6 +28,7 @@ import { convexHull } from "../../src/meshes/shapeOutlines";
 import {
     allCases,
     AMOUNTS,
+    BACKGROUND,
     borderEdgeWorld,
     cameraOf,
     type Check,
@@ -144,6 +145,10 @@ function planeFor(id: string, shape: string): { plane: Plane; mesh: AbstractMesh
         const world = mesh.getWorldMatrix();
         ex = Vector3.TransformNormal(Vector3.Right(), world).normalize();
         ey = Vector3.TransformNormal(Vector3.Up(), world).normalize();
+    } else if (view === "2d") {
+        // the 2D camera looks down the graph's z and may be rolled: a shadow's offset is along the graph's x and y
+        ex = Vector3.Right();
+        ey = Vector3.Up();
     } else {
         ex = camera.getDirection(Vector3.Right()).normalize();
         ey = camera.getDirection(Vector3.Up()).normalize();
@@ -315,7 +320,7 @@ async function runCase(c: MatrixCase, override: Expectations = {}): Promise<{ re
     }
     await restyle(nodeStyle(c.settings, "plain"), c.settings.edges === "on");
     const plainFrame = await draw(c);
-    const plain = classify(plainFrame);
+    const plain = classify(plainFrame, BACKGROUND);
     // a node's view scale under "pivot" or "screen": its fill mesh's reach over its reach under "scene"
     const meshReach = (id: string): number => {
         const { plane, mesh } = planeFor(id, c.settings.shape);
@@ -333,7 +338,7 @@ async function runCase(c: MatrixCase, override: Expectations = {}): Promise<{ re
     }
     await restyle(nodeStyle(c.settings, "full"), c.settings.edges === "on");
     const frame = await draw(c);
-    const full = classify(frame);
+    const full = classify(frame, BACKGROUND);
 
     const result: CaseResult = {
         id: c.id,
@@ -385,7 +390,13 @@ async function runCase(c: MatrixCase, override: Expectations = {}): Promise<{ re
             result.nodes[id] = { measured: false, numbers: { ...numbers, meshReach } };
             continue;
         }
-        sizes.push(numbers.plainRadiusPx);
+        // the fill mesh's extent on screen: a ray radius reads a flat slab's foreshortening and the pixel grid
+        const screen = hull.map((p) => toScreen(plane, p[0], p[1]));
+        const extent = (k: 0 | 1): number =>
+            Math.max(...screen.map((p) => p[k])) - Math.min(...screen.map((p) => p[k]));
+        if (screen.length > 0) {
+            sizes.push(Math.max(extent(0), extent(1)));
+        }
         result.nodes[id] = { measured: true, numbers, checks };
     }
     if (c.settings.sizeSpace === "screen" && sizes.length === 2) {
@@ -412,6 +423,11 @@ async function mount(): Promise<void> {
     element.style.display = "block";
     element.style.width = `${String(WIDTH)}px`;
     element.style.height = `${String(HEIGHT)}px`;
+    // the classifier's background is this clear color, never a frame corner a node may cover
+    element.background = {
+        backgroundType: "color",
+        color: `#${BACKGROUND.map((v) => v.toString(16).padStart(2, "0")).join("")}`,
+    };
     document.body.appendChild(element);
     await element.updateComplete;
     await element.session.data.addNodes(NODES);

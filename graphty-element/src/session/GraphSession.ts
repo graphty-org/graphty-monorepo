@@ -4800,7 +4800,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             // With the base look in the Everything row, what no shown layer paints is not drawn.
             hideUnpainted: () => dispatcher.state.config.get("editableBase") === true,
             ...(internals.now === undefined ? {} : { now: internals.now }),
-            ...(internals.batched === undefined ? {} : { uniformFill: internals.batched }),
+            // On both render paths: the keys come out the same either way, and on "objects" hiding a layer over
+            // 10,000 nodes interned every row one by one, most of the pass before its first frame (issue #10323).
+            uniformFill: () => true,
             onProblem: (problem) => {
                 reportRepaintFailure({
                     cause: "layer",

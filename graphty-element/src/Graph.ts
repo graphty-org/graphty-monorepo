@@ -11105,7 +11105,8 @@ export class Graph implements GraphContext {
     /**
      * The `Node` of every row stored with no `Node` that no batch draws yet (its paint has not been
      * applied): only its `Node` knows where it is and how big, so it gets one, as every row did
-     * before #8204.
+     * before #8204. A row its style hides is painted, and draws nothing to measure: a box read while a
+     * layer was hidden (the app's autosave) built a `Node` for every row it hid (issue #10323).
      * @returns The `Node`s.
      */
     #unpaintedNodes(): Node[] {
@@ -11119,7 +11120,7 @@ export class Graph implements GraphContext {
         dataManagerInternals.buildRowsTogether(this.dataManager, () => {
             for (const row of unbuilt) {
                 const id =
-                    batches?.columnRowOf(row) === undefined
+                    batches?.columnRowOf(row) === undefined && !this.updateManager.rowHiddenByStyle(row)
                         ? dataManagerInternals.unbuiltAt(this.dataManager, row)
                         : undefined;
                 const node = id === undefined ? undefined : dataManagerInternals.buildRow(this.dataManager, id);

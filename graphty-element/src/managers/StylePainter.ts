@@ -1088,14 +1088,19 @@ function sameStyle(a: ResolvedStyle, b: ResolvedStyle): boolean {
 
 /**
  * Whether an edge's paint follows from its key alone: every channel it carries keys its mesh, or
- * is the color or the opacity the key folds back in. Content (a label, a bend) and the visible
- * flag are per edge and are not in the key.
+ * is the color, the opacity or the visible flag, which the paint's shared identity carries beside
+ * the key ({@link StylePainter.edgePaint}). Content (a label, a bend) is per edge.
  * @param resolved - Everything the stack painted this edge.
  * @returns True when two edges with the same key are painted the same.
  */
 function paintedByKeyAlone(resolved: ResolvedStyle): boolean {
     for (const channel in resolved) {
-        if (channel !== "edge.color" && channel !== "edge.opacity" && channelRole(channel as Channel) !== "mesh") {
+        if (
+            channel !== "edge.color" &&
+            channel !== "edge.opacity" &&
+            channel !== "edge.visible" &&
+            channelRole(channel as Channel) !== "mesh"
+        ) {
             return false;
         }
     }
@@ -2001,7 +2006,9 @@ export class StylePainter {
         // not thousands, and an edge handed the paint it is already drawn from skips by reference.
         // The interned mesh style is held beside it because a released mesh key is minted again
         // for another style.
-        const identity = edgeIdentity(resolved, meshKey, directed);
+        // The visible flag is not in the paint's mesh key (hiding an edge keeps its mesh), so it joins the shared
+        // identity here: hiding a layer over 20,000 edges built one paint per edge (issue #10323).
+        const identity = `${edgeIdentity(resolved, meshKey, directed)}|${String(resolved["edge.visible"])}`;
         const mesh = paint.meshStyleOf("edge", meshKey);
         const known = this.edgePaints.get(identity);
 

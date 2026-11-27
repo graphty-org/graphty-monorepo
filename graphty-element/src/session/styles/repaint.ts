@@ -180,9 +180,9 @@ export interface RepaintSources {
     /**
      * Whether a pass may fill the mesh keys of a dirty set in one go when every mesh-keying
      * channel is absent or the same over it, interning one sequence instead of one per element.
-     * Read at the start of every interning; absent is off. The element turns it on under
-     * `render-path="batched"` (design/rendering/cosmos-gap.md, G6); the keys come out the same
-     * either way, so this is a cost switch and nothing else.
+     * Read at the start of every interning; absent is off. The element turns it on, on both render
+     * paths (design/rendering/cosmos-gap.md, G6); the keys come out the same either way, so this is
+     * a cost switch and nothing else.
      * @returns True to allow the fill.
      */
     readonly uniformFill?: () => boolean;
@@ -1932,19 +1932,45 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
     };
 
     /**
-     * Give the event loop a turn when this slice has held the thread long enough.
+     * How long the passes have held the thread themselves: the time their runs of work took, and
+     * never the time other work took between them. A slice's deadline is read on this clock.
+     *
+     * NOT THE WALL CLOCK. A pass resumes in a microtask, so whatever the input that started it
+     * queued runs between its runs -- a React render of 30 ms in the click that selects 5,000
+     * nodes -- and on the wall clock that spent the slice: the pass, with under a millisecond of
+     * its own work left, waited for a timer behind the next frame and the frame after showed
+     * nothing new (issue #10323).
+     */
+    let ownMs = 0;
+
+    /**
+     * Run one stretch of a pass's own work, counted on {@link ownMs}.
+     * @param work - The work.
+     * @returns What it returns.
+     */
+    const charged = <T>(work: () => T): T => {
+        const from = now();
+        try {
+            return work();
+        } finally {
+            ownMs += now() - from;
+        }
+    };
+
+    /**
+     * Give the event loop a turn when this slice has held the thread long enough ({@link ownMs}).
      *
      * A macrotask rather than a microtask, for the reason the visibility pass gives: a microtask
      * lets progress fire while starving the event loop, so the bar moves, the frame never paints
      * and the Cancel button's handler does not run until the work it was meant to stop is done.
      * The next slice grows with how long the thread was away; see {@link SLICE_SHARE}.
      * @param context - The signal to stop on.
-     * @param deadline - When this slice runs out.
+     * @param deadline - When this slice runs out, on {@link ownMs}.
      * @returns The next slice's deadline.
      * @throws The signal's reason when the pass has been canceled.
      */
     const breathe = async (context: RepaintContext, deadline: number): Promise<number> => {
-        if (now() < deadline) {
+        if (ownMs < deadline) {
             return deadline;
         }
 
@@ -1958,7 +1984,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         }
 
         const back = now();
-        return back + sliceAfter(back - left);
+        return ownMs + sliceAfter(back - left);
     };
 
     /**
@@ -2062,13 +2088,15 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         const { reading } = sources.elements;
         for (let from = 0; from < total; from += CHUNK) {
             const to = Math.min(from + CHUNK, total);
-            if (reading === undefined) {
-                paintSlice(from, to);
-            } else {
-                reading(() => {
+            charged(() => {
+                if (reading === undefined) {
                     paintSlice(from, to);
-                });
-            }
+                } else {
+                    reading(() => {
+                        paintSlice(from, to);
+                    });
+                }
+            });
 
             slice = await breathe(context, slice);
         }
@@ -2146,12 +2174,13 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
 
         // THE UNIFORM FILL: when no mesh channel varies over the dirty set, one sequence keys every
         // element in it, so it is interned once and the rest only move their counts.
-        const uniform =
+        const uniform = charged(() =>
             sources.uniformFill?.() === true &&
             store.dirtyCount > 0 &&
             uniformOver(columns, store.dirty, store.dirtyCount)
                 ? keyOf(store.dirty[0])
-                : undefined;
+                : undefined,
+        );
 
         /**
          * Intern one run of elements.
@@ -2193,7 +2222,9 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         };
 
         for (let from = 0; from < store.dirtyCount; from += CHUNK) {
-            internSlice(from, Math.min(from + CHUNK, store.dirtyCount));
+            charged(() => {
+                internSlice(from, Math.min(from + CHUNK, store.dirtyCount));
+            });
             slice = await breathe(context, slice);
         }
 
@@ -2311,13 +2342,17 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         // Clearing is what makes a removal and an update correct, and it is exactly what the
         // add-on-top path does not have to do: nothing below the new layer changed, so what those
         // layers painted is already right where it needs to be.
-        const before = store.meshWritten ? meshValuesOf(store) : null;
-        for (let at = 0; at < store.dirtyCount; at++) {
-            store.unkeyed[store.dirty[at]] = 1;
-        }
-        if (from === 0) {
-            clearDirty(store);
-        }
+        const before = charged(() => {
+            const kept = store.meshWritten ? meshValuesOf(store) : null;
+            for (let at = 0; at < store.dirtyCount; at++) {
+                store.unkeyed[store.dirty[at]] = 1;
+            }
+            if (from === 0) {
+                clearDirty(store);
+            }
+
+            return kept;
+        });
 
         let slice = deadline;
 
@@ -2337,8 +2372,10 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             slice = await paintLayer(store, entry, layer, context, slice, reached);
         }
 
-        hideUnreached(store, reached);
-        hideHidden(store);
+        charged(() => {
+            hideUnreached(store, reached);
+            hideHidden(store);
+        });
 
         // Interning is skipped entirely while no layer has ever painted a channel that keys a
         // mesh, which is the ordinary case: a color encoding moves no element to another mesh.
@@ -2385,7 +2422,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         const total = nodes.dirtyCount + edges.dirtyCount;
         context.report({ phase: "painting", completed: 0, total });
 
-        const deadline = now() + SLICE_MS;
+        const deadline = ownMs + SLICE_MS;
         const node = await paintTarget(nodes, stack, context, deadline, skipBelow);
         context.report({ phase: "painting", completed: node.painted, total });
         const edge = await paintTarget(edges, stack, context, node.deadline, skipBelow);

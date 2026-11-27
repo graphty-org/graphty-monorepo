@@ -377,6 +377,14 @@ export function adoptNodeRecord(node: Node, record: AdHocData<string | number>):
     writeRecord(node, record);
 }
 
+/** The last two styles a node compared (`Node.compareDrawn`), and what the comparison found. */
+let lastCompared: {
+    style: NodeStyleConfig;
+    drawn: NodeStyleConfig | null;
+    equal: boolean;
+    equalButFill: boolean;
+} | null = null;
+
 /** Reads whether a paint rebuilds a node's mesh; see {@link nodeRebuildsFor}. */
 let rebuildsFor: (node: Node, paint: NodePaint) => boolean;
 
@@ -641,7 +649,7 @@ export class Node implements ModelUser {
             decorations: node.decorations,
         });
         rebuildsFor = (node, paint) => {
-            if (node.disposed) {
+            if (node.disposed || node.hidesOverDrawn(paint.style)) {
                 return false;
             }
 
@@ -3434,11 +3442,21 @@ export class Node implements ModelUser {
             return kept;
         }
 
+        // Nodes of one look share their drawn style and are handed one style, so the last pair compared answers the
+        // next node too: showing a layer over 10,000 nodes compared the same two styles deeply 20,000 times
+        // (issue #10323). A paint's style is never written after it is built, so the answer holds.
+        const shared = lastCompared;
+        if (shared?.style === o && shared.drawn === drawn) {
+            this.comparedDrawn = shared;
+            return shared;
+        }
+
         // The painter shares one style per look, so an unchanged node is handed the style it drew.
         const same = drawn === o;
         const equalButFill = same || (drawn !== null && isEqual(withoutFill(o), withoutFill(drawn)));
         const equal = same || (equalButFill && isEqual(o.texture, drawn?.texture));
         this.comparedDrawn = { style: o, drawn, equal, equalButFill };
+        lastCompared = this.comparedDrawn;
         return this.comparedDrawn;
     }
 
@@ -3630,6 +3648,47 @@ export class Node implements ModelUser {
     }
 
     /**
+     * Whether a paint that hides this node can leave the mesh it draws as it is, hidden, rather than build the
+     * paint's own: a hidden node draws nothing, so the mesh it would be built from is never seen. Hiding a layer
+     * over 10,000 nodes built every node's mesh again for the look under it, and showing the layer built them back
+     * (issue #10323); kept, showing it finds the mesh it had (`keepsMeshFor`). Only a plain node drawn as it is:
+     * a filter's context point, a group's region, a model and a shader drawing are painted in full.
+     * @param o - The paint's style.
+     * @returns True when the paint only hides the node.
+     */
+    private hidesOverDrawn(o: NodeStyleConfig): boolean {
+        return (
+            o.visible === false &&
+            this.drawnStyle !== null &&
+            this.drawnStyle.visible !== false &&
+            this.renderState === "visible" &&
+            !this.drawnAsGroup &&
+            this.shaderPath === null &&
+            this.drawnModel === null &&
+            this.#kept === null &&
+            this.#mesh !== null &&
+            !this.#anchor.isDisposed()
+        );
+    }
+
+    /** Hide this node over the mesh it draws: see {@link Node.hidesOverDrawn}. */
+    private hideOverDrawn(): void {
+        this.hiddenOverDrawn = true;
+        if (!this.styleHidden) {
+            this.styleHidden = true;
+            this.applyRenderState();
+            // an edge pulled from the row table onto this node's row draws nothing to a hidden row: its edges look again
+            this.context.getUpdateManager?.()?.noteEndsChanged(this.index);
+        }
+    }
+
+    /**
+     * Whether this node is hidden over a mesh drawn for an earlier paint ({@link Node.hidesOverDrawn}), so a mask
+     * that draws it in context paints it in full first.
+     */
+    private hiddenOverDrawn = false;
+
+    /**
      * Draw a paint as it is, with its shader path taken into account: see `paintFrom` and
      * `shadedPaint`.
      * @param paintKey - Which source mesh the paint draws from.
@@ -3653,6 +3712,12 @@ export class Node implements ModelUser {
      * @param color - The per-instance color.
      */
     private drawShadedPaint(paintKey: string, paintStyle: NodeStyleConfig, color: Rgba | null): void {
+        if (this.hidesOverDrawn(paintStyle)) {
+            this.hideOverDrawn();
+            return;
+        }
+
+        this.hiddenOverDrawn = false;
         const shaded = this.shadedPaint(paintKey, paintStyle);
         const { meshKey, style: o } = shaded;
         this.shaderPath = shaded.path;
@@ -3972,6 +4037,13 @@ export class Node implements ModelUser {
         }
 
         this.renderState = state;
+        const paint = this.sessionPaint;
+        if (this.hiddenOverDrawn && state === "context" && paint !== null) {
+            // drawn in context from its own paint, as it was before it kept the mesh it was shown with
+            this.paintFrom(paint.meshKey, paint.style, paint.color);
+            this.measureRow();
+        }
+
         this.applyRenderState();
 
         return true;

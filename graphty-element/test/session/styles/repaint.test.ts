@@ -1334,3 +1334,28 @@ describe("an edit that moves no element to another mesh (issue #10302)", () => {
         assert.isTrue(after.every((key, index) => key !== before[index]));
     });
 });
+
+describe("a pass's slice is its own work (issue #10323)", () => {
+    it("hands the thread back for none of the time other work took between its runs", async () => {
+        let clock = 0;
+        const h = makeHarness(NODES, { now: () => clock });
+        await h.styles.add({ name: "Boxes", selector: { match: "everything" }, set: { "node.shape": "box" } });
+        await h.styles.add({ name: "Red", selector: { match: "everything" }, set: { "node.color": "#ff0000" } });
+        await h.paintAll();
+        let timerRan = false;
+        setTimeout(() => {
+            timerRan = true;
+        }, 0);
+
+        const pass = h.engine.repaintAll(h.stack(), quietContext());
+        // what the input that started the pass queued behind it: a render that holds the thread for 50 ms
+        queueMicrotask(() => {
+            clock += 50;
+        });
+        const painted = await pass;
+
+        assert.strictEqual(painted.nodes, NODES.length);
+        assert.isAbove(clock, 0, "the other work ran between the pass's runs");
+        assert.isFalse(timerRan, "the pass finished without waiting for a timer behind the other work");
+    });
+});

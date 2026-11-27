@@ -183,7 +183,11 @@ describe("UpdateManager view masks", () => {
             onMeshRemovedObservable: observable,
             getEngine: () => ({ onResizeObservable: observable }),
         };
-        const graphContext = { getScene: () => scene } as unknown as GraphContext;
+        // the starting rows off: a selected row is drawn by its own `Node`, as these masks expect
+        const graphContext = {
+            getScene: () => scene,
+            getStyles: () => ({ config: { graph: {} } }),
+        } as unknown as GraphContext;
 
         return new UpdateManager(null as never, null as never, null as never, dataManager, null as never, graphContext);
     }

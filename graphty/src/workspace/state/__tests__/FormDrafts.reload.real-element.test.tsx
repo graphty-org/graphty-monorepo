@@ -1,6 +1,7 @@
 /**
  * A reload of this tab puts back what the reader typed or chose in a form that reopens (issue
- * #9702): the Path popover's From and To, the join screen's match, and Save as's name. Safari ends
+ * #9702): the Path popover's From and To, the join screen's match, Save as's name, the shader
+ * editor's code and the Export dialog's Report words. Safari ends
  * a background tab and loads it again, often with its session storage emptied, so each case runs
  * with that storage kept and with it emptied. Real element, real autosave, real input.
  */
@@ -8,6 +9,7 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
+import { EditorView } from "@codemirror/view";
 import { afterEach, assert, beforeAll, beforeEach, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
@@ -54,6 +56,32 @@ async function pickEnd(form: HTMLElement, field: string, name: string): Promise<
         assert.strictEqual((box as HTMLInputElement).value, name);
     });
 }
+
+/**
+ * What a shader editor's code box holds.
+ * @param box - the code box.
+ * @returns its text.
+ */
+function codeOf(box: HTMLElement): string {
+    const view = EditorView.findFromDOM(box);
+    assert.isNotNull(view, "the box is a code editor");
+    return view.state.doc.toString();
+}
+
+/**
+ * The shader editor's code box, once its code editor has loaded.
+ * @returns the code box.
+ */
+async function shaderCode(): Promise<HTMLElement> {
+    const dialog = await screen.findByRole("dialog", { name: "New shader" });
+    await waitFor(() => {
+        assert.isNotNull(dialog.querySelector('[data-editor="ready"]'), "the code editor has loaded");
+    });
+    return within(dialog).getByRole("textbox", { name: "Shader code" });
+}
+
+/** A shader body the reader typed. */
+const TYPED_SHADER = "vec4 shade(NodeInput n) {\n    return n.color * 0.5;\n}\n";
 
 const LINKS = "source,target\nB1,B2\nB2,B3";
 /** Floors by badge, to join onto the people the links name. */
@@ -118,6 +146,41 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
             const after = await reload({ store, view }, { lostSession });
             const back = await screen.findByRole("region", { name: "Join depts.csv" });
             assert.isTrue(within(back).getByRole<HTMLInputElement>("checkbox", { name: /^Ignore case/ }).checked);
+            after.view.unmount();
+        });
+
+        it("reopens the shader editor on the code the reader typed", async () => {
+            const before = await openAutosaved("Les Miserables");
+            await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+            await userEvent.click(await screen.findByRole("menuitem", { name: "Add Shader..." }));
+            await userEvent.fill(await shaderCode(), TYPED_SHADER);
+
+            const after = await reload(before, { lostSession });
+            assert.strictEqual(codeOf(await shaderCode()), TYPED_SHADER);
+            after.view.unmount();
+        });
+
+        it("reopens Export on the Report the reader was writing", async () => {
+            const before = await openAutosaved("Les Miserables");
+            (await elementNow()).focus();
+            await userEvent.keyboard("{Control>}e{/Control}");
+            const dialog = await screen.findByRole("dialog", { name: "Export" });
+            await userEvent.click(
+                within(within(dialog).getByRole("grid", { name: "What to export" })).getByText("Report"),
+            );
+            await userEvent.type(await within(dialog).findByRole("textbox", { name: "Title" }), "Ring study");
+            await userEvent.type(within(dialog).getByRole("textbox", { name: "Summary" }), "Half written.");
+
+            const after = await reload(before, { lostSession });
+            const back = await screen.findByRole("dialog", { name: "Export" });
+            assert.strictEqual(
+                (await within(back).findByRole<HTMLInputElement>("textbox", { name: "Title" })).value,
+                "Ring study",
+            );
+            assert.strictEqual(
+                within(back).getByRole<HTMLTextAreaElement>("textbox", { name: "Summary" }).value,
+                "Half written.",
+            );
             after.view.unmount();
         });
 

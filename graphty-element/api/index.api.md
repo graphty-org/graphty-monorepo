@@ -3926,7 +3926,7 @@ export class Graphty extends LitElement {
     set directed(value: boolean | "auto" | undefined);
     disableAiControl(): void;
     disconnectedCallback(): void;
-    downloadGraph(format: FormatId, options?: ExportGraphOptions & {
+    downloadGraph(format: FormatId | ExportResult, options?: ExportGraphOptions & {
         readonly fileName?: string;
     }): Promise<ExportResult>;
     downloadProject(options?: ProjectSaveOptions & {

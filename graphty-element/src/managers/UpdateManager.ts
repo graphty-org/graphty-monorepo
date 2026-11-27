@@ -77,6 +77,9 @@ interface FramingBox {
 /** A framing box's corners alone, kept after a fit to tell whether the extent moved. */
 type FittedBox = Pick<FramingBox, "min" | "max">;
 
+/** A selected node as the camera follows it: its `Node`, or a row stored with none (`UpdateManager.selectedPlaces`). */
+type SelectedPlace = Pick<Node, "id" | "dragging" | "drawnPosition">;
+
 /**
  * The box the nodes alone occupy: every visible node, where it is in world space, out to its size.
  * This is what the 2D/3D view-mode switch frames. Zoom-to-fit frames {@link framingBox}, which
@@ -655,7 +658,7 @@ export class UpdateManager implements Manager {
      * The selection the camera is still gliding to: once the selection is cleared mid-glide, the
      * glide carries on to it; see `followSelection`.
      */
-    private glidingTo: readonly Node[] = [];
+    private glidingTo: readonly SelectedPlace[] = [];
     /**
      * Whether `camera.autoRotate` turned the camera on the last pass. It keeps a graph drawn on
      * demand drawing, and nothing else: the picture is finished when the layout and the styles
@@ -3767,12 +3770,12 @@ export class UpdateManager implements Manager {
      * the change arrived (issue #5097). Not when the camera had already stopped following it.
      * @param following - The selection the camera was following before the change.
      */
-    holdSelectionFollow(following: readonly Node[] = []): void {
+    holdSelectionFollow(following: readonly SelectedPlace[] = []): void {
         if (following.length > 0 && !isHeld(following, this.heldSelection)) {
             this.finishGlideTo(following);
         }
 
-        const nodes = this.graphContext.getSelectionManager?.()?.getSelectedNodes() ?? [];
+        const nodes = this.selectedPlaces();
         this.heldSelection = nodes.length === 0 ? null : selectionKey(nodes);
         this.followingSelection = false;
         this.glidingTo = [];
@@ -3783,7 +3786,7 @@ export class UpdateManager implements Manager {
      * while the element is framing the graph or a node of it is dragged (see `followSelection`).
      * @param nodes - The selection.
      */
-    private finishGlideTo(nodes: readonly Node[]): void {
+    private finishGlideTo(nodes: readonly SelectedPlace[]): void {
         if (
             !this.graphContext.getStyles().config.behavior.camera.pivotOnSelection ||
             nodes.some((node) => node.dragging) ||
@@ -3795,6 +3798,45 @@ export class UpdateManager implements Manager {
         if (this.camera.followPoint(selectionCenter(nodes), 1, true)) {
             this.viewMoved();
         }
+    }
+
+    /**
+     * The selected nodes where they are drawn, building no `Node`: a built node is its `Node`, and a row stored with
+     * none is read from the row table, where a batched `Node` reads its own place (`Node.drawnPosition`) too. Asking
+     * for the `Node`s built one for each of 5,000 selected rows, in the frame that drew a select-all.
+     * @returns The places, in selection order.
+     */
+    private selectedPlaces(): SelectedPlace[] {
+        const manager = this.graphContext.getSelectionManager?.();
+        const ids = manager?.getSelectedNodeIds() ?? null;
+        if (manager === undefined || ids === null) {
+            return manager?.getSelectedNodes() ?? [];
+        }
+
+        const table = this.graphContext.getRowTable?.() ?? null;
+        const places: SelectedPlace[] = [];
+        for (const id of ids) {
+            const built = dataManagerInternals.builtNode(this.dataManager, id);
+            const row = built === undefined ? dataManagerInternals.rowOf(this.dataManager, id) : INVALID_INDEX;
+            if (built !== undefined) {
+                places.push(built);
+            } else if (table !== null && row >= 0 && row < table.rows) {
+                places.push({
+                    id,
+                    dragging: false,
+                    get drawnPosition() {
+                        return table.centerOf(row);
+                    },
+                });
+            } else {
+                const node = this.dataManager.getNode(id);
+                if (node !== undefined) {
+                    places.push(node);
+                }
+            }
+        }
+
+        return places;
     }
 
     /**
@@ -3820,7 +3862,7 @@ export class UpdateManager implements Manager {
         // and so where every node is drawn, depended on how many frames ran before the clear, and a
         // node the reader was about to click could be off the canvas one time and on it the next
         // (issue #10165).
-        const selected = this.graphContext.getSelectionManager?.()?.getSelectedNodes() ?? [];
+        const selected = this.selectedPlaces();
         const nodes = selected.length > 0 ? selected : this.glidingTo;
         this.glidingTo = [];
         if (nodes.length === 0 || nodes.some((node) => node.dragging)) {
@@ -6379,7 +6421,7 @@ function shownMeshesChecksum(scene: Scene): number {
     return sum;
 }
 
-function selectionCenter(nodes: readonly Node[]): Vector3 {
+function selectionCenter(nodes: readonly SelectedPlace[]): Vector3 {
     const center = nodes[0].drawnPosition.clone();
     for (const node of nodes.slice(1)) {
         center.addInPlace(node.drawnPosition);
@@ -6394,7 +6436,7 @@ function selectionCenter(nodes: readonly Node[]): Vector3 {
  * @param held - The held selection's `selectionKey`, or null.
  * @returns True when they hold the same nodes.
  */
-function isHeld(nodes: readonly Node[], held: string | null): boolean {
+function isHeld(nodes: readonly SelectedPlace[], held: string | null): boolean {
     const ids = new Set(held?.split("\u0000"));
     return ids.size === nodes.length && nodes.every((node) => ids.has(String(node.id)));
 }
@@ -6404,6 +6446,6 @@ function isHeld(nodes: readonly Node[], held: string | null): boolean {
  * @param nodes - The selected nodes.
  * @returns Their ids, joined.
  */
-function selectionKey(nodes: readonly Node[]): string {
+function selectionKey(nodes: readonly SelectedPlace[]): string {
     return nodes.map((node) => String(node.id)).join("\u0000");
 }

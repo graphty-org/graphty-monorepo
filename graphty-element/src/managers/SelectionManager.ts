@@ -165,6 +165,14 @@ export class SelectionManager implements Manager {
     }
 
     /**
+     * The selected nodes' ids, in selection order, building no `Node`.
+     * @returns The ids, or null while no session selection is bound (then {@link getSelectedNodes} is the selection).
+     */
+    getSelectedNodeIds(): readonly NodeIdType[] | null {
+        return this.selection?.nodes ?? null;
+    }
+
+    /**
      * The selected nodes that are drawn, in selection order.
      * @returns The nodes.
      */

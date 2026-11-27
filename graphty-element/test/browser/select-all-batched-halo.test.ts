@@ -4,7 +4,8 @@
  * instance of. Before, every selected row was handed to a `Node` of its own (an instance and a halo mesh), so a
  * select-all at 10,000 nodes built 5,000 of them in one 240 ms frame.
  *
- * Counted, never timed: the `Node`s alive before and after the selection. The halo is checked on the canvas
+ * Counted, never timed: the `Node`s alive before and after the selection, with the camera following the selection
+ * as the graphty app has it (which read each selected node as a `Node`, building it). The halo is checked on the canvas
  * against the "objects" path, where every halo is a `Node`'s: the same pixels are drawn in the halo's color.
  */
 import "../../src/graphty-element";
@@ -54,6 +55,8 @@ async function mounted(path: "objects" | "batched", view: "2d" | "3d"): Promise<
     const element = document.createElement("graphty-element");
     element.renderPath = path;
     element.layout = "fixed";
+    // as the graphty app has it: the camera glides to the selection, reading where each selected node is
+    element.layoutBehavior = { camera: { pivotOnSelection: true } };
     element.style.display = "block";
     element.style.width = "400px";
     element.style.height = "300px";

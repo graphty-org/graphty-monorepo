@@ -238,6 +238,9 @@ export function ElementHost({
             // window leave shown (design/working-graph/design.md).
             workingGraph
             zoomToPointer
+            // The camera keys work wherever focus is in the page, not only on the drawing, except
+            // in a field, menu or other control that takes those keys (issue #10377).
+            cameraKeysRoot={document}
             xr={XR_CONFIG}
             {...(autosave ? { autosave: WORKSPACE_AUTOSAVE_KEY, autosaveOptions: WORKSPACE_AUTOSAVE_OPTIONS } : {})}
             // On the tag, so the reader's policy is in force before the element's first GPU probe.

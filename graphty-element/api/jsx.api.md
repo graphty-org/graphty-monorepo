@@ -261,6 +261,7 @@ export interface GraphtyElementJSXProps {
     autosaveOptions?: Graphty["autosaveOptions"];
     autosaveRestore?: Graphty["autosaveRestore"];
     background?: Graphty["background"];
+    cameraKeysRoot?: Graphty["cameraKeysRoot"];
     cameraTransitionDuration?: Graphty["cameraTransitionDuration"];
     colorScheme?: Graphty["colorScheme"];
     dataSource?: Graphty["dataSource"];

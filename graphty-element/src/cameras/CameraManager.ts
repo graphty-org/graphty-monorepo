@@ -6,6 +6,7 @@ import { Scene } from "@babylonjs/core/scene.js";
 import type { ViewInsets } from "../camera/types";
 import type { FitBounds, FitInsets } from "../config/GraphBehavior";
 import type { GraphSceneMetadata } from "../types/sceneMetadata";
+import type { CameraKeysRoot } from "./cameraKeysRoot";
 import type { CameraGestureKind, GestureEndHooks } from "./gestureEnd";
 import type { FramingSpot } from "./OrbitCameraController";
 import type { XRPivotCameraController } from "./XRPivotCameraController";
@@ -77,6 +78,8 @@ interface InputHandler extends GestureEndHooks {
     update(): void;
     /** Whether the wheel zooms toward the point under the pointer; absent, the input has no wheel. */
     zoomToPointer?: boolean;
+    /** Where the camera keys are also heard; absent, the input has no keys. */
+    keysRoot?: CameraKeysRoot | null;
     /** Whether the reader is moving the camera, or the input is switched off for a node drag. */
     readonly busy?: boolean;
 }
@@ -267,6 +270,18 @@ export class CameraManager {
         for (const input of this.inputs.values()) {
             if ("zoomToPointer" in input) {
                 input.zoomToPointer = on;
+            }
+        }
+    }
+
+    /**
+     * Make every camera's keys heard on a root around the canvas as well as on the focused canvas.
+     * @param root - The root, or null for the canvas only.
+     */
+    public setKeysRoot(root: CameraKeysRoot | null): void {
+        for (const input of this.inputs.values()) {
+            if ("keysRoot" in input) {
+                input.keysRoot = root;
             }
         }
     }

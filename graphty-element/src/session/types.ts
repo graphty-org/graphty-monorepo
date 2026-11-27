@@ -5840,6 +5840,11 @@ export interface SourceJoinOutcome {
     readonly fields: readonly string[];
     /** The places of the matches it uses: every one, or one of a set no one join reads. */
     readonly uses: readonly number[];
+    /**
+     * For each of `uses`, in its order: how many of the rows match, read the way the acts read them; 0
+     * when none does. Null for a field matched with itself or with new nodes, which have no other side.
+     */
+    readonly matched: readonly (number | null)[];
     /** Whether the rows are nodes of their own already, before this join. */
     readonly ownNodes: boolean;
     /** For `"edge"`: how many edges already join the nodes its rows name, either way round. */
@@ -5873,8 +5878,9 @@ export interface SourceJoinOutcomes {
     /** The matches read: the ones given, or the step's. */
     readonly matches: readonly SourceJoinMatch[];
     /**
-     * The outcomes whose rows match at least once. With a step and its own matches, its outcome is
-     * always among them, so a join whose matches an earlier removal took away still reads.
+     * Every outcome the matches can make, in an order the comparison choices never change, each with
+     * how many rows it matches (`matched`), 0 included. With a step and its own matches, its outcome
+     * is always among them, so a join whose matches an earlier removal took away still reads.
      */
     readonly outcomes: readonly SourceJoinOutcome[];
 }

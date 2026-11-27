@@ -3921,11 +3921,6 @@ export class Node implements ModelUser {
     }
 
     /**
-     * Say whether this node is selected.
-     * @param selected - What the selection mask says about this node.
-     * @returns True when this changed the state.
-     */
-    /**
      * Whether selecting or deselecting this node only shows, hides or builds its halo instance, which reports itself
      * (`UpdateManager.haloTouched`): it has no label to ring, no shader drawing, no model and no batch.
      * @returns True when it does.

@@ -700,6 +700,8 @@ export class UpdateManager implements Manager {
     private explicitZoomToFit = false;
     private readonly config: Required<UpdateManagerConfig>;
     private layoutStepCount = 0;
+    /** The engine the last layout frame stepped, so a new one's first frame takes one round: see `updateLayout`. */
+    private steppedEngine: WeakRef<LayoutEngine> | undefined;
     private readonly minLayoutStepsBeforeZoom = 10;
     private lastZoomStep = 0;
     private wasSettled = false;
@@ -4103,8 +4105,18 @@ export class UpdateManager implements Manager {
         const { layoutEngine } = this.layoutManager;
         const simulation = layoutEngine instanceof SimulationLayoutEngine;
         const accelerated = simulation && layoutEngine.isAccelerated;
+        // NOT FOR THE TIME BEFORE THE ENGINE EXISTED. The first frame a new engine steps is handed
+        // the frame before it, which built the engine -- a 2D/3D switch, a new layout -- and drew no
+        // step of it. Caught up, that build time ran up to MAX_CATCH_UP_ROUNDS steps before the
+        // engine's first drawn frame: a 2D drawing lifted into 3D (issue #9372) showed up already
+        // risen instead of rising from the plane on a slow machine (issue #10272).
+        const fresh = layoutEngine !== undefined && this.steppedEngine?.deref() !== layoutEngine;
+        if (fresh) {
+            this.steppedEngine = new WeakRef(layoutEngine);
+        }
+
         const rounds =
-            accelerated || minimumWorkPerFrame()
+            accelerated || fresh || minimumWorkPerFrame()
                 ? 1
                 : Math.min(MAX_CATCH_UP_ROUNDS, Math.max(1, Math.floor(frameMs / NOMINAL_FRAME_MS)));
         const started = rounds > 1 ? performance.now() : 0;

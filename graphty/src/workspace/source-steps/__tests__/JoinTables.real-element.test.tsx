@@ -25,6 +25,7 @@ import {
     joinsOf,
     newest,
     openJoins,
+    pickableWays,
     pickFields,
     pickSources,
     waysToJoin,
@@ -159,7 +160,8 @@ describe("the join workspace's two tables (source-steps)", () => {
         await waitFor(() => {
             assert.strictEqual(valueOf(modal, "Field 2"), "door");
         });
-        assert.deepStrictEqual(waysToJoin(modal), [], "no door is a badge");
+        assert.isNotEmpty(waysToJoin(modal), "no door is a badge: the ways still show");
+        assert.deepStrictEqual(pickableWays(modal), [], "and none can be picked");
         await press(modal, "entries", "door");
         await waitFor(() => {
             assert.strictEqual(valueOf(modal, "Field 2"), "");

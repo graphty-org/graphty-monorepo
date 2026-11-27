@@ -65,6 +65,8 @@ interface JoinOutcome {
     readonly fields: readonly string[];
     /** The places of the matches it uses. */
     readonly uses: readonly number[];
+    /** For each of `uses`: how many of its rows match, as the acts read them; null for a field matched with itself or new nodes. */
+    readonly matched: readonly (number | null)[];
     /** Whether the rows are nodes of their own already. */
     readonly ownNodes: boolean;
     /** Edges already joining the nodes its edges would join. */
@@ -251,7 +253,7 @@ function wholeOutcomes(ctx: Ctx, lines: readonly Line[]): JoinOutcome[] {
 }
 
 /**
- * The ways a line can be read whose rows match at least once.
+ * The ways a line can be read, whether or not its rows match: a way matching nothing is still one.
  * @param ctx - The draft.
  * @param line - The line.
  * @param line.at - Its place.
@@ -263,11 +265,11 @@ function waysOf(ctx: Ctx, { at, a, b }: Cross): Way[] {
     return [
         { at, rows: a, into: b },
         { at, rows: b, into: a },
-    ].filter((way) => canBeRows(way.rows) && canBeInto(ctx.value, way.into) && matches(ctx, way));
+    ].filter((way) => canBeRows(way.rows) && canBeInto(ctx.value, way.into));
 }
 
 /**
- * The way a line's rows are read from one side, if they match.
+ * The way a line's rows are read from one side, if they can be.
  * @param ctx - The draft.
  * @param line - The line.
  * @param rows - The side.
@@ -278,13 +280,13 @@ function wayFrom(ctx: Ctx, line: Cross, rows: SideData): Way | undefined {
 }
 
 /**
- * Whether a way matches any row.
+ * How many of a way's rows match.
  * @param ctx - The draft.
- * @param way - The way.
- * @returns True when it does.
+ * @param ways - The ways, one per match an outcome uses.
+ * @returns The counts.
  */
-function matches(ctx: Ctx, way: Way): boolean {
-    return countsOf(ctx.value, ctx.copies, way.rows, way.into, ctx.o).matchedRows > 0;
+function matched(ctx: Ctx, ...ways: readonly Way[]): number[] {
+    return ways.map((way) => countsOf(ctx.value, ctx.copies, way.rows, way.into, ctx.o).matchedRows);
 }
 
 /**
@@ -297,12 +299,14 @@ function matches(ctx: Ctx, way: Way): boolean {
 function outcome(
     rows: readonly SideData[],
     onto: readonly SideData[],
-    rest: Pick<JoinOutcome, "code" | "acts" | "uses"> & Partial<Pick<JoinOutcome, "fields" | "edgesBetween" | "takes">>,
+    rest: Pick<JoinOutcome, "code" | "acts" | "uses"> &
+        Partial<Pick<JoinOutcome, "fields" | "edgesBetween" | "takes" | "matched">>,
 ): JoinOutcome {
     return Object.freeze({
         fields: [],
         edgesBetween: 0,
         takes: TAKES[rest.code],
+        matched: rest.uses.map(() => null),
         ...rest,
         rows: Object.freeze(rows.map((each) => each.side)),
         onto: Object.freeze(onto.map((each) => each.side)),
@@ -354,17 +358,16 @@ function fieldsOf(ctx: Ctx, line: Cross): JoinOutcome[] {
     const { value, copies, o } = ctx;
     return waysOf(ctx, line).flatMap((way) => {
         const { rows, into } = way;
-        const uses = [way.at];
-        const acts = [mergeAct(ctx, way)];
+        const rest = { acts: [mergeAct(ctx, way)], uses: [way.at], matched: matched(ctx, way) };
         if (!rows.data.ownNodes) {
-            return fits(ctx, way) ? [outcome([rows.data], [into.data], { code: "fields", acts, uses })] : [];
+            return fits(ctx, way) ? [outcome([rows.data], [into.data], { code: "fields", ...rest })] : [];
         }
         // whole columns here, never only what matches: a fold takes the graph's own nodes in
         // and a waiting side's field names each value once: two of its rows on one key would be one node of both
         const target = indexOf(value, copies, into, o);
         const one = !target.nodesRepeat && (into.data.ownNodes || !target.rowsRepeat);
         const held = into.data.ownNodes || indexOf(value, copies, rows, o).rowsRepeat;
-        return one && held ? [outcome([rows.data], [into.data], { code: "fold", acts, uses })] : [];
+        return one && held ? [outcome([rows.data], [into.data], { code: "fold", ...rest })] : [];
     });
 }
 
@@ -397,12 +400,15 @@ function landsIn(rows: SideData, value: SourceSteps, ends: readonly FoundField[]
  * @returns The outcome, if it can be made.
  */
 function linkOf(ctx: Ctx, line: Cross): JoinOutcome[] {
-    const at = rowsSide(ctx.value, ctx.copies, line, ctx.o);
+    const at = rowsSide(ctx.value, ctx.copies, line);
     const way = at === null ? undefined : wayFrom(ctx, line, line[at].data);
     if (way === undefined || landsIn(way.rows.data, ctx.value, [way.into])) {
         return [];
     }
-    return [outcome([way.rows.data], [way.into.data], { code: "link", acts: [connectAct(ctx, way)], uses: [way.at] })];
+    const acts = [connectAct(ctx, way)];
+    return [
+        outcome([way.rows.data], [way.into.data], { code: "link", acts, uses: [way.at], matched: matched(ctx, way) }),
+    ];
 }
 
 /**
@@ -438,7 +444,7 @@ function linkOwn(ctx: Ctx, line: Extract<Line, { kind: "own" }>): JoinOutcome[] 
     // a column an earlier step brought is in no row: it can only be named
     const [rows, into] = canBeRows(first) && canBeInto(ctx.value, second) ? [first, second] : [second, first];
     const way = { at: line.at, rows, into };
-    if (!canBeRows(rows) || !canBeInto(ctx.value, into) || !matches(ctx, way)) {
+    if (!canBeRows(rows) || !canBeInto(ctx.value, into)) {
         return [];
     }
     return [
@@ -446,6 +452,7 @@ function linkOwn(ctx: Ctx, line: Extract<Line, { kind: "own" }>): JoinOutcome[] 
             code: "link",
             acts: [connectAct(ctx, way)],
             uses: [line.at],
+            matched: matched(ctx, way),
             fields: [rows.name, into.name],
         }),
     ];
@@ -492,6 +499,7 @@ function edges(ctx: Ctx, x: Cross, y: Cross, rows: SideData): JoinOutcome[] {
     const order = (way: Way): number => rows.own.indexOf(way.rows.name);
     const [from, to] = order(second) < order(first) ? [second, first] : [first, second];
     const uses = [x.at, y.at];
+    const counts = matched(ctx, first, second);
     const fields = oneSide ? [from.rows.name, to.rows.name] : [];
     const onto = [from.into.data, to.into.data];
     const end = { field: to.rows.name, into: intoOf(to.into) };
@@ -499,6 +507,7 @@ function edges(ctx: Ctx, x: Cross, y: Cross, rows: SideData): JoinOutcome[] {
         code: "edge",
         acts: [connectAct(ctx, from, end)],
         uses,
+        matched: counts,
         fields,
         edgesBetween: edgesBetween(ctx, from, to),
     });
@@ -511,6 +520,7 @@ function edges(ctx: Ctx, x: Cross, y: Cross, rows: SideData): JoinOutcome[] {
             code: "middle",
             acts: [connectAct(ctx, from, { ...end, keepRow: true })],
             uses,
+            matched: counts,
             fields,
         }),
     ];
@@ -571,6 +581,7 @@ function either(ctx: Ctx, x: Cross, y: Cross): JoinOutcome[] {
                 code: "fields",
                 acts: [mergeAct(ctx, first), mergeAct(ctx, second)],
                 uses: [x.at, y.at],
+                matched: matched(ctx, first, second),
                 fields: [first.into.name, second.into.name],
             }),
         ];
@@ -620,6 +631,7 @@ function chain(ctx: Ctx, x: Cross, y: Cross): JoinOutcome[] {
                     { act: "merge", options: { from: fieldRef(last.rows), into, ...ctx.choices } },
                 ],
                 uses: [onto.at, other.at],
+                matched: matched(ctx, first, last),
             }),
         ];
     });
@@ -666,6 +678,7 @@ function sharedOf(ctx: Ctx, lines: readonly Extract<Line, { kind: "self" }>[]): 
  * @param lines - The fields matched with themselves.
  * @param options - Where the values are.
  * @param uses - The lines used besides.
+ * @param counts - How many rows each of those matches.
  * @returns The outcomes.
  */
 function links(
@@ -674,13 +687,18 @@ function links(
     lines: readonly Extract<Line, { kind: "self" }>[],
     options: Omit<SourceLinkOptions, "columns">,
     uses: readonly number[] = [],
+    counts: readonly number[] = [],
 ): JoinOutcome[] {
     const columns = lines.map(({ a }) => a.name);
     const act = (more: Partial<SourceLinkOptions>): SourceJoinAct => ({
         act: "link",
         options: { ...options, columns, ...ctx.choices, ...more },
     });
-    const rest = { uses: [...uses, ...lines.map(({ at }) => at)], fields: columns };
+    const rest = {
+        uses: [...uses, ...lines.map(({ at }) => at)],
+        matched: [...counts, ...lines.map(() => null)],
+        fields: columns,
+    };
     const { data } = lines[0].a;
     return [
         outcome([data], [holders], { code: "shared", acts: [act({})], ...rest }),
@@ -703,7 +721,7 @@ function sharedByRows(ctx: Ctx, line: Cross, self: readonly Extract<Line, { kind
         return [];
     }
     const options = { source: way.rows.data.source ?? "", field: way.rows.name, into: intoOf(way.into) };
-    return links(ctx, way.into.data, self, options, [line.at]);
+    return links(ctx, way.into.data, self, options, [line.at], matched(ctx, way));
 }
 
 /**
@@ -745,7 +763,7 @@ function edgeToNew(ctx: Ctx, line: Cross, made: Extract<Line, { kind: "new" }>):
         unmatched: "add" as const,
         type: name,
     };
-    const rest = { uses: [line.at, made.at], fields: [name] };
+    const rest = { uses: [line.at, made.at], matched: [...matched(ctx, way), null], fields: [name] };
     const takes = (code: "edge" | "middle"): readonly OutcomeOption[] => [...TAKES[code], "type"];
     const edge = outcome([data], [way.into.data], {
         code: "edge",
@@ -838,7 +856,11 @@ function stepJoin(value: SourceSteps, copies: Copies, base: SourceSteps, index: 
         space: (name) => sideOf(base, copies, { space: name }),
         made: (matches, onto, rest, of = rows) => ({
             matches,
-            outcome: outcome([of], onto, { ...rest, uses: matches.map((_, i) => i) }),
+            outcome: outcome([of], onto, {
+                ...rest,
+                uses: matches.map((_, i) => i),
+                matched: matches.map((each) => matchedBack(base, copies, each, step)),
+            }),
             ignoreCase: step.ignoreCase === true,
             ignoreSpaces: step.ignoreSpaces === true,
         }),
@@ -861,6 +883,27 @@ function stepJoin(value: SourceSteps, copies: Copies, base: SourceSteps, index: 
         acts: [{ act: "extract", source, options: extract }],
         fields: [extract.column],
     });
+}
+
+/**
+ * How many rows a step's match matches, its first field the rows.
+ * @param base - The value the step was made on.
+ * @param copies - The rows as read.
+ * @param match - The match.
+ * @param step - The step, whose choices compare the values.
+ * @returns The count; null for a field matched with itself or new nodes, or one no longer there.
+ */
+function matchedBack(base: SourceSteps, copies: Copies, match: JoinMatch, step: Step): number | null {
+    try {
+        const { a, b } = foundMatch(base, copies, match);
+        if (b === null || (same(a.data, b.data) && a.name === b.name)) {
+            return null;
+        }
+        return countsOf(base, copies, a, b, step).matchedRows;
+    } catch {
+        // a field an earlier step's removal took away
+        return null;
+    }
 }
 
 /**

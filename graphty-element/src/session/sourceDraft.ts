@@ -71,6 +71,7 @@ import type {
     SourceDraft,
     SourceDraftChange,
     SourceDraftColumn,
+    SourceDraftMadeCounts,
     SourceDraftOptions,
     SourceDraftPreview,
     SourceDraftRow,
@@ -787,6 +788,17 @@ export class SourceDraftHandle implements SourceDraft {
             const { base, state } = this;
             const drawn = draftMarks(base, state);
             // The drill-down reads the state the preview describes; kept off the enumerable data.
+            // A screen asks each card's counts on every draw: each set of steps is counted once per preview.
+            const made = new Map<string, SourceDraftMadeCounts>();
+            const madeOf = (steps: readonly number[]): SourceDraftMadeCounts => {
+                const at = steps.join(",");
+                let out = made.get(at);
+                if (out === undefined) {
+                    out = madeCounts(state, drawn, steps);
+                    made.set(at, out);
+                }
+                return out;
+            };
             const questions = openQuestions(state).map(({ space, count, of, source, sources }) => ({
                 code: "W_SPACE_OVERLAP" as const,
                 params: { space, count, of, source, sources },
@@ -798,7 +810,7 @@ export class SourceDraftHandle implements SourceDraft {
                     elements: { value: (q: DrillQueryArg) => drillElements(state, q) },
                     cells: { value: (q: CellQueryArg) => drillCells(state, q) },
                     marks: { value: Object.freeze(markCounts(state, drawn)), enumerable: true },
-                    made: { value: (steps: readonly number[]) => madeCounts(state, drawn, steps) },
+                    made: { value: madeOf },
                     ids: {
                         value: (q: DrillQueryArg | { readonly refs: readonly SourceElementRef[] }) =>
                             this.idsOf("refs" in q ? q.refs : drillElements(state, q)),

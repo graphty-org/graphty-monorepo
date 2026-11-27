@@ -1,0 +1,88 @@
+id: graphrag-developer
+name: GraphRAG / LLM Extraction Developer
+roster_persona: graphrag-developer
+tier: B
+scope: in-scope
+role: Applied AI Engineer building retrieval over an LLM-extracted knowledge graph
+quote: Before I pay for another indexing run I need to know whether the extraction is any good - and when the assistant
+    answers wrong, which nodes and chunks it used.
+bio: >-
+    Lena Fischer is an applied AI engineer building a question-answering assistant over 5,000 internal PDFs. She is a
+    strong Python developer with little prior graph experience. She takes one of two paths: Microsoft GraphRAG (CLI,
+    parquet tables read with pandas, Gephi by the official guide or a third-party viewer) or the Neo4j-native path
+    (LangChain LLMGraphTransformer or neo4j-graphrag SimpleKGPipeline, inspected in Neo4j Browser or Bloom). A corpus
+    gives her 10^3 to 10^5 entities. For her a graph view is a debugging instrument: she opens it after each run to find
+    noise hubs, duplicate and mistyped entities and incoherent communities, and during evaluation to explain a wrong
+    answer. The corpus is confidential, so she prefers tools that process locally.
+characteristics:
+    expertise: intermediate
+    time_pressure: high
+    graph_literacy: intermediate
+    domain_knowledge: intermediate
+motivations:
+    - Decide whether extraction quality is good enough before paying for more LLM indexing
+    - Find duplicate, mistyped and noise entities and fix prompts, stoplists or merges
+    - Check that communities are coherent and their reports faithful
+    - Explain a wrong answer by tracing it to entities, relationships, chunks and documents
+    - Keep confidential documents on her own machine
+behaviors:
+    - Turns on GraphML snapshots in settings.yaml and opens graph.graphml in Gephi following the official visualization guide
+    - Reads GraphRAG parquet tables (entities, relationships, communities, community_reports, text_units, documents) with pandas
+    - Profiles counts, the log degree histogram, top hubs, components and entities per chunk after every run
+    - Lists near-duplicate names ("Ebenezer Scrooge" vs "Scrooge") and multi-typed entities and adds noise hubs to a stoplist
+    - Declares allowed node and relationship types for schema-guided extraction and checks for types outside the schema
+    - Joins the entity and relationship ids cited in an answer back to the tables by hand
+    - Re-runs extraction after a prompt change and diffs the counts
+frustrations:
+    - GraphRAG has no built-in viewer; several GitHub issues ask how to visualize the graph
+    - Third-party viewers break when the output schema changes (0 nodes on GraphRAG 3.0.6)
+    - Table names and columns changed across GraphRAG v1, v2 and v3; v3 removed UMAP coordinates
+    - Gephi recomputes its own Leiden clusters and ignores GraphRAG's community hierarchy
+    - Answers cite ids that must be joined to tables by hand
+    - Feeling lost in a sea of LLM calls with no trace from answer to graph to chunk
+context:
+    frequency: weekly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W129
+    - W130
+    - W132
+    - W138
+    - W141
+sources:
+    - title: GraphRAG visualization guide
+      url: https://microsoft.github.io/graphrag/visualization_guide/
+      summary: Official procedure to open graph.graphml in Gephi, run Leiden, color, size and lay out
+    - title: GraphRAG index outputs
+      url: https://microsoft.github.io/graphrag/index/outputs/
+      summary: Entities, relationships, communities, community_reports, text_units, documents and covariates tables
+    - title: GraphRAG breaking changes
+      url: https://raw.githubusercontent.com/microsoft/graphrag/main/breaking-changes.md
+      summary: Renamed tables and columns across v1, v2 and v3; removed UMAP and embed_graph in v3
+    - title: GraphRAG issue 340 - how to visualize the graph
+      url: https://github.com/microsoft/graphrag/issues/340
+      summary: Users asking for a way to see the indexed graph
+    - title: GraphRAG issue 2272 - viewer shows 0 nodes
+      url: https://github.com/microsoft/graphrag/issues/2272
+      summary: Third-party viewer broken by a schema change in 3.0.6
+    - title: GraphRAG issue 1086 - cited ids
+      url: https://github.com/microsoft/graphrag/issues/1086
+      summary: Answers cite ids users must join back to the tables themselves
+    - title: XGraphRAG - interactive tracing of GraphRAG
+      url: https://arxiv.org/html/2506.13782
+      summary: Experts felt overwhelmed and lost in the sea of LLM calls without tracing from answer to graph
+    - title: Neo4j blog - Microsoft GraphRAG output in Neo4j
+      url: https://neo4j.com/blog/developer/microsoft-graphrag-neo4j/
+      summary: Duplicates such as Ebenezer Scrooge vs Scrooge and noise hubs such as Project Gutenberg
+    - title: LlamaIndex property graph basics
+      url: https://developers.llamaindex.ai/python/examples/property_graph/property_graph_basic/
+      summary: PropertyGraphIndex with save_networkx_graph for quick HTML looks
+    - title: GraphRAG Visualizer
+      url: https://dev.to/noworneverev/graphrag-visualizer-an-easy-way-to-visualize-microsofts-graphrag-artifacts-c0c
+      summary: Browser viewer for parquet output advertising local processing
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

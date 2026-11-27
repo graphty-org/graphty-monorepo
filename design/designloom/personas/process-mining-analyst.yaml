@@ -1,0 +1,91 @@
+id: process-mining-analyst
+name: Process Mining Analyst
+roster_persona: process-mining-analyst
+tier: A
+scope: in-scope
+role: Process Mining Analyst in a Center of Excellence (consultants, internal auditors and clinical pathway analysts as variants)
+quote: The slider hides the rare paths, and the rare paths are the findings. I need to know the numbers on this map still add up.
+bio: >-
+    Pooja is a Celonis-certified analyst in a manufacturer's process excellence team who writes SQL and PQL, not
+    Python. Her input is not a graph but an event log: one row per activity that happened to a case (a purchase order
+    item, a ticket, a patient stay) at a time, usually by a resource. For SAP purchase-to-pay that is hundreds of
+    thousands of cases and millions of events (the public BPI Challenge 2019 log has 251,734 cases, 1,595,923 events and
+    42 activities). Her first screen is the directly-follows graph: one node per activity, one directed edge per "A was
+    immediately followed by B in the same case", with frequency or waiting time on every node and edge. She moves the
+    activity and path sliders, opens the variant explorer, filters slow cases into a named data set, finds the wait
+    before a rework loop, changes the node attribute from activity to department to see handovers, and checks
+    conformance against a reference model. The graph is small (tens of activities, a few hundred edges) but every
+    filter re-aggregates millions of rows. Variants: operational excellence consultants doing first looks in Disco,
+    internal auditors testing whole populations for skipped approvals and segregation-of-duties violations, and
+    clinical pathway analysts. She uses almost none of the vocabulary of network analysis. Celonis Academy pages claim
+    224,000 to 300,000+ learners.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Find rework, bottlenecks, late payments and skipped controls, and size their value
+    - Trust that a simplified map still tells the truth about frequencies and durations
+    - Hand stakeholders a map and an animation they can read, with the exact filter chain behind every exhibit
+    - Monitor KPIs and conformance over time
+behaviors:
+    - Maps CSV columns to case, activity, timestamp and resource roles before anything is drawn
+    - Lowers the paths slider first, then the activities slider, and returns to 100 percent to check numbers
+    - Switches between frequency and performance (mean, median, total waiting time) overlays
+    - Clicks a path or activity to create a filter, then copies and filters into a named data set
+    - Changes the node attribute (activity, role, department) to see handovers
+    - Replays cases as animated tokens for executives
+    - Exports the map, metrics and filtered log with the filter recipe
+frustrations:
+    - Simplified maps hide the rare paths that are the audit findings, and slider and panel KPIs disagree
+    - Hiding an activity filters edges on the built graph instead of rebuilding it, producing wrong frequencies and durations
+    - Layouts jump when one edge changes, destroying the mental map
+    - Data extraction and event-log building happen outside the tool and take most of the effort
+    - Variant explosion in loosely structured processes
+context:
+    frequency: daily
+    devices:
+        - desktop
+        - laptop
+    voluntary: false
+workflows:
+    - W18
+    - W339
+    - W340
+    - W341
+    - W342
+    - W343
+    - W345
+    - W347
+    - W348
+    - W359
+    - W360
+sources:
+    - title: Fluxicon Disco tutorial
+      url: https://fluxicon.com/book/read/tutorial/
+      summary: 608 purchase orders, column roles, sliders, performance view, copy and filter, animation, handover view
+    - title: Fluxicon - Simplification strategies
+      url: https://fluxicon.com/book/read/simplification/
+      summary: Slider, variation, endpoint and attribute filters; milestones agreed with a domain expert
+    - title: van der Aalst - Process mining and directly-follows graph pitfalls (p1101)
+      url: https://www.vdaalst.com/publications/p1101.pdf
+      summary: Filtering edges instead of rebuilding the DFG gives wrong frequencies and durations in commercial tools
+    - title: Zimmermann, Zerbato and Weber - process mining analyst challenges
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11646219/
+      summary: Distrust of slider-simplified maps; ETL outside the tools; tool knowledge gaps
+    - title: BPI Challenge 2019 report
+      url: https://ckmnet-website-blog.s3.amazonaws.com/CKM_BPI_Challenge2019_FINAL+(SUBMIT).pdf
+      summary: SAP P2P log with 251,734 cases and 1,595,923 events; 3,384 segregation-of-duties cases
+    - title: Celonis docs - KPI calculations
+      url: https://docs.celonis.com/en/kpi-calculations.html
+      summary: Edge KPIs differ between panel mode and slider mode (via search snippet)
+    - title: Microsoft Power Automate Process Mining - process map
+      url: https://learn.microsoft.com/en-us/power-automate/minit/process-map
+      summary: Mining attribute selection recalculates the map by resource, region or department
+    - title: Mennens et al. 2019 - layout stability of process maps (Computer Graphics Forum)
+      url: https://diglib.eg.org/handle/10.1111/cgf13723
+      summary: Dot layout often fails to keep the mental map; one edge can produce a completely different layout
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

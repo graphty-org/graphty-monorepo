@@ -1,0 +1,58 @@
+id: whole-brain-modeler
+name: Whole-Brain Modeler
+roster_persona: none
+tier: none
+scope: out-of-scope
+role: Computational Neuroscientist / Brain Network Simulation
+quote: My connectome is two matrices, weights and tract lengths. If I lesion a region I have to change both, and then hand the result to the simulator.
+bio: >-
+    Dr. Felix Brandauer builds whole-brain simulations on structural connectomes in The Virtual Brain (TVB). Each
+    connectivity he uses is a pair of matrices -- weights and tract lengths -- plus region centers, labels and
+    hemisphere flags. Given a conduction speed, TVB turns tract lengths into time delays, so the two matrices must stay
+    aligned through every edit. He gets matrices from diffusion MRI pipelines (MRtrix with a mean-length matrix,
+    QSIRecon) or from the defaults that ship with TVB. Unlike most network neuroscientists he edits the graph: he
+    selects a subset of regions and sets, scales or removes connections between that subset and the rest to model
+    lesions and stimulation, then saves the result as a new connectivity for the simulator. He is fluent in dynamical
+    systems and Python and uses graph metrics to describe what he changed.
+characteristics:
+    expertise: expert
+    time_pressure: low
+    graph_literacy: advanced
+    domain_knowledge: advanced
+motivations:
+    - Make virtual lesions and parameter changes on a connectome and run simulations on the result
+    - Keep the weight and tract-length matrices in step through every edit
+    - See which connections fall in a given delay range at a given conduction speed
+    - Save named region selections and edited connectivities for reuse
+behaviors:
+    - Views nodes and edges in 3D and in left, top and right 2D projections
+    - Reads the matrix one quadrant at a time (within and between hemispheres)
+    - Selects a node subset and applies set, add, subtract, multiply or divide to edges between selected and unselected nodes
+    - Slices the weights matrix by delay range in the space-time view (for example 0 to 2.84 ms at 9 mm/ms)
+    - Falls back to Euclidean distance between region centers when tract lengths are missing
+frustrations:
+    - General graph tools carry one weight per edge, not a weight and a length kept together
+    - Edits made outside the modeling tool lose the region centers, labels and hemisphere flags
+    - Most connectome viewers are read-only
+context:
+    frequency: weekly
+    devices:
+        - desktop
+    voluntary: true
+workflows:
+    - W152
+    - W155
+    - W158
+sources:
+    - title: The Virtual Brain connectivity editor (User Guide)
+      url: https://docs.thevirtualbrain.org/manuals/UserGuide/UserGuide-UI_Connectivity.html
+      summary: 3D and 2D projection views, matrix quadrants, subset edge operations, space-time delay view, saving connectivities and selections
+    - title: The Virtual Brain complete dataset description
+      url: https://docs.thevirtualbrain.org/manuals/UserGuide/Complete_Dataset_Description.html
+      summary: Connectivity holds weights, tract lengths, region centers, labels and hemispheres; Euclidean lengths when tract lengths are missing
+    - title: MRtrix tck2connectome reference
+      url: https://mrtrix.readthedocs.io/en/latest/reference/commands/tck2connectome.html
+      summary: Weight matrix and mean edge-length matrix from tractography
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

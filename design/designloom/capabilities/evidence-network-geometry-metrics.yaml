@@ -1,0 +1,16 @@
+id: evidence-network-geometry-metrics
+name: "Evidence network geometry metrics"
+category: analysis
+description: "Report the network geometry metrics that NMA reporting asks for: number of treatments, comparisons and studies, density, share of common comparators (nodes with more than one connection), median studies per edge with its IQR, share of strong edges (more than one study), number of independent closed loops and multi-arm studies. Tonin et al. 2019 recommend these after testing eleven; authors count them by hand today."
+status: planned
+notes: "Research trace: network-meta-analysis-evidence-networks.md section 10, table row 7."
+algorithms: []
+used_by_workflows:
+    - W3054
+implemented_by_components: []
+requirements:
+    - "Must: Geometry metrics: nodes, edges, density, share of common comparators, median studies per edge, share of strong edges, number of independent closed loops"
+sources:
+    - title: "Network Meta-Analysis Authors: Treatment Evidence Networks (section 10, table row 7)"
+      url: design/user-research/network-meta-analysis-evidence-networks.md
+      summary: "Must in the research"

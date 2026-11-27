@@ -1,0 +1,18 @@
+id: validation-report-overlay
+name: Validation Report Overlay
+category: export
+description: Load a SHACL validation report or ROBOT QC report alongside the data, color nodes by violation, group by
+    rule, shape and severity, and show counts on the class tree.
+status: planned
+notes: "Research trace: knowledge-graph-engineers-and-graphrag.md section 10, table row 20 (Should)."
+algorithms: []
+used_by_workflows:
+    - W135
+    - W137
+implemented_by_components: []
+requirements:
+    - "Should: SHACL or ROBOT report overlay: color nodes by violation, group by rule, counts on the class tree"
+sources:
+    - title: Knowledge Graph Engineers, Ontologists and GraphRAG Developers (section 10, table row 20)
+      url: design/user-research/knowledge-graph-engineers-and-graphrag.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

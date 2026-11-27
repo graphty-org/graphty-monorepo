@@ -5,7 +5,10 @@ description: Toggle switch for binary on/off settings. Provides clear visual fee
 status: implemented
 notes: "Ships: Mantine Switch, Mantine through compact-mantine, used across graphty/src."
 implements_capabilities: []
-used_in_workflows: []
+used_in_workflows:
+    - W324
+    - W328
+    - W360
 dependencies: []
 props:
     checked: boolean - Whether toggle is on

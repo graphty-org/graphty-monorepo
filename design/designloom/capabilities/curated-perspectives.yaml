@@ -1,0 +1,19 @@
+id: curated-perspectives
+name: Curated Perspectives
+category: analysis
+description: "A role-scoped lens over the schema: which labels, properties and relationship types are visible, under
+    which business names and styles, exportable as a file for version control."
+status: planned
+notes: "Research trace: graph-database-query-and-expand-exploration.md section 10, requirement 11 (Should)."
+algorithms: []
+used_by_workflows:
+    - W142
+    - W145
+implemented_by_components: []
+requirements:
+    - "Should: Perspectives: a curated, role-scoped view of the schema (visible labels, properties, relationship types,
+      styles)"
+sources:
+    - title: Graph Database Users Who Explore by Search, Query and Expand (section 10, requirement 11)
+      url: design/user-research/graph-database-query-and-expand-exploration.md
+      summary: Should in the research.

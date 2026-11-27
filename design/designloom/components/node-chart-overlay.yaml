@@ -8,6 +8,18 @@ implements_capabilities:
     - visual-encoding-nodes
 used_in_workflows:
     - W21
+    - W241
+    - W242
+    - W253
+    - W375
+    - W377
+    - W390
+    - W391
+    - W392
+    - W395
+    - W401
+    - W426
+    - W70
 dependencies: []
 props: {}
 sources: []

@@ -1,0 +1,26 @@
+id: stable-temporal-layout
+name: Stable Layout Across Time
+category: visualization
+description: One layout over the union of all time, or each window seeded from the previous window's positions with
+    optional anchoring strength; incremental placement of new nodes near neighbors; never re-layout every frame by
+    default.
+status: planned
+notes: "Research trace: temporal-and-dynamic-networks.md section 11, requirement T11 (Must)."
+algorithms: []
+used_by_workflows:
+    - W19
+    - W304
+    - W305
+    - W307
+    - W309
+    - W312
+    - W1139
+implemented_by_components: []
+requirements:
+    - "Must: Stable layout across time: one layout over the union, chained seeding from the previous window, optional
+      anchoring strength; never re-layout every frame by default"
+sources:
+    - title: Temporal and Dynamic Network Data and Analysis (section 11, requirement T11)
+      url: design/user-research/temporal-and-dynamic-networks.md
+      summary: "Must in the research. Covered by Designloom when researched: Partly (temporal-navigation says maintain
+          positions); chaining and union not specified"

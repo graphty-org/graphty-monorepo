@@ -1,0 +1,168 @@
+id: W423
+name: Draw a Causal DAG, Mark Roles, Read Adjustment Sets and Report
+category: analysis
+validated: false
+personas:
+    - causal-dag-epidemiologist
+requires_capabilities:
+    - layout-hierarchical
+    - node-selection
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - path-highlighting
+    - all-paths-finding
+    - legend-display
+    - annotation
+    - comparison-view
+    - keyboard-shortcuts
+    - export-image
+    - data-export
+    - journal-figure-export
+    - graph-authoring
+    - causal-node-roles
+    - causal-path-analysis
+    - causal-model-formats
+suggested_components:
+    - graph-canvas
+    - toolbar
+    - context-menu
+    - keyboard-shortcuts-dialog
+    - node-details-panel
+    - layout-panel
+    - legend-panel
+    - annotation-toolbar
+    - comparison-view
+    - network-list-panel
+    - share-dialog
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: a causal question (population, exposure, outcome, estimand) and a list of candidate variables; no data file
+    node_count: 3-28 (median 12)
+    edge_density: moderate (median 29 arrows, IQR 19-42)
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Hand-draw a directed acyclic graph of the causal assumptions behind an observational study, mark which
+    node is the exposure, the outcome and which are unmeasured, and read off the minimal sufficient adjustment sets
+    for the total and direct effect -- then publish the DAG as a clean figure with its model code. This is the
+    DAGitty web app's core use, followed by a second drawing in R (dagitty, ggdag) or TikZ for the paper.
+
+
+    **Mental Model**: "My assumptions, made visible and checkable." Every arrow is a claim; every missing arrow is a
+    stronger claim. Colors tell her which paths are open and biasing (red) versus causal (green), and which nodes are
+    ancestors of the exposure, the outcome or both.
+
+
+    **Task Phases**:
+
+    1. **Define the question** - Population, exposure, outcome and estimand (total or direct effect); only 21% of
+    reviewed DAG papers stated an estimand
+
+    2. **List candidate variables** - Causes of exposure, outcome or selection from literature and experts, including
+    unmeasured ones; merge unmeasured variables with identical arrows; optionally ask an LLM for a draft and review
+    every edge and cited source
+
+    3. **Create the model and draw** - New model asks for exposure and outcome; add a node with a double-click or the n
+    key, rename with r, add an arrow by double-clicking source then target (or c), delete with d; an arrow opposite an
+    existing one becomes bidirected (latent common cause)
+
+    4. **Set roles** - Hover and press e (exposure), o (outcome), u (unobserved), a (adjusted); roles are mutually
+    exclusive in DAGitty
+
+    5. **Lay out by time** - Drag nodes so arrows flow one way; positions are saved into the model code as pos="x,y";
+    consistently directed DAGs had fewer reading errors (30% versus 41%)
+
+    6. **Read the colors and paths** - Ancestor classes on nodes, red biasing and green causal paths; optional moral
+    graph and correlation views
+
+    7. **Get adjustment sets** - All minimal sufficient sets for the total or direct effect, recomputed live on every
+    edit; force a covariate in; adjusting a descendant of the exposure leaves no valid set; unobserved nodes are
+    excluded; ask for instruments when no set exists
+
+    8. **Check alternatives** - Build alternative DAGs where experts disagree and compare their adjustment sets
+
+    9. **Save, share and publish** - Copy the model code or publish a public dagitty.net URL; export PDF, SVG or PNG;
+    rebuild the figure in ggdag or TikZ for subscripts and curved arrows; report the DAG-implied set, the estimate,
+    justified alternatives, and the DAG with its code in the supplement
+
+
+    **Decision Points**:
+
+    - Which variables are worth drawing, including unmeasured ones, and which unmeasured ones can be merged?
+
+    - Which arrows to omit (each omission is a strong assumption)?
+
+    - Draw a latent common cause as an explicit node or as a bidirected arrow (the BMJ guide prefers the node)?
+
+    - Total or direct effect, and which covariate set to report when several minimal sets exist?
+
+    - Which LLM-suggested arrows survive expert review?
+
+
+    **Information Needs**:
+
+    - Which paths between exposure and outcome are open or closed, causal or biasing, given the current conditioning set
+
+    - The list of minimal sufficient adjustment sets, updated on every edit
+
+    - Ancestor class of every node (exposure, outcome, both, irrelevant)
+
+    - Where each arrow came from (expert, literature citation, LLM draft) and whether it was accepted
+
+    - Side-by-side adjustment sets for alternative DAGs
+
+
+    **Pain Points**:
+
+    - The analysis tool's figure is rough (no subscripts, thin lines, crowded labels), so every DAG is drawn twice
+
+    - Sharing is public-only and saving is copy-paste of model code
+
+    - Roles are mutually exclusive, so a node cannot be adjusted and a selection variable at once
+
+    - Dense realistic DAGs become very hard to draw and read
+
+    - No place to record provenance and review state per arrow; ESC-DAGs keeps a separate edge log
+
+
+    **Data Flow**:
+
+    - Input: Hand-entered nodes and arrows, or DAGitty model code or ggdag dagify formulas; optionally an LLM draft
+
+    - Transformations: Role assignment, path classification by d-separation, adjustment-set and instrument
+    computation, one-direction layered layout with stored positions
+
+    - Output: DAG figure (SVG, PDF, PNG), DAGitty model code, adjustment-set statement for the methods section,
+    alternative DAGs for sensitivity analysis
+success_criteria:
+    - metric: Time to draw a 12-node DAG with roles and read its adjustment set
+      target: no source found for a baseline; target comparable to DAGitty web (minutes, no code)
+    - metric: Publication readiness
+      target: Exported figure has subscripts, one-direction flow and readable arrows without redrawing in TikZ or ggdag
+    - metric: Assumption transparency
+      target: Every arrow carries a source and review state that exports with the model
+sources:
+    - title: DAGitty 3.1 manual
+      url: https://dagitty.net/manual-3.x.pdf
+      summary: Keyboard shortcuts, roles, path coloring, live adjustment sets, instruments, public sharing, export formats
+    - title: Tennant et al. 2021 - review of 234 DAG articles
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8128477
+      summary: DAG sizes, 21% stated an estimand, 34% flowed one direction, reading errors 30% versus 41%
+    - title: Feeney, Hartwig and Davies - BMJ 2025 DAG guide
+      url: https://thefeeney.netlify.app/research/TF_2025_DAGs.pdf
+      summary: Consensus with experts, box means conditioning, prefer explicit latent nodes, arrows into arrows have no meaning
+    - title: ggdag introduction vignette
+      url: https://ftp.fau.de/cran/web/packages/ggdag/vignettes/intro-to-ggdag.html
+      summary: dagify formulas, ggdag_adjustment_set, curved edges and subscripts for publication figures
+    - title: Pitts and Fowler - DAG software comparison
+      url: https://arxiv.org/pdf/2305.12006
+      summary: DAGitty is quick but rough; ggdag took about twice as long
+    - title: Huntington-Klein and Murray - LLM confounder judgments
+      url: https://arxiv.org/html/2412.10635v1
+      summary: LLM confounder judgments are inconsistent; repeated prompts agreed as little as 40% of the time
+    - title: CausalChat
+      url: https://arxiv.org/html/2410.14146v1
+      summary: Draws LLM-suggested edges dotted until data confirm them
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,125 @@
+id: W414
+name: Group Comparison of Connectomes in 3D and VR (NeuroCave)
+category: analysis
+validated: false
+personas:
+    - clinical-connectome-researcher
+    - network-neuroscience-researcher
+requires_capabilities:
+    - data-import
+    - graph-rendering
+    - comparison-view
+    - community-detection
+    - filtering
+    - ego-network
+    - node-selection
+    - hover-highlight
+    - visual-encoding-edges
+    - view-bookmarks
+    - export-image
+    - fixed-node-positions
+    - immersive-xr-session
+suggested_components:
+    - data-import-dialog
+    - network-list-panel
+    - comparison-view
+    - layout-panel
+    - graph-canvas
+    - range-slider
+    - community-panel
+    - node-details-panel
+    - bookmark-panel
+    - share-dialog
+    - image-export-dialog
+starting_state:
+    data_type: one adjacency matrix per subject, an index of subjects to groups, topology and clustering files, an atlas
+    node_count: 82-2,514 brain regions; up to 552 subjects in one use case
+    edge_density: dense (weighted, signed functional connectivity) before thresholding
+    user_expertise: expert
+goal: >-
+    **Intent**: Compare the brain networks of two groups (for example patients and controls, or women and men) side by side in 3D, with
+    nodes at anatomical positions or in an abstract space, and share the view.
+
+
+    **Mental Model**: "Two brains, same camera." Differences only count if both groups are seen from the same angle at
+    the same threshold.
+
+
+    **Task Phases**:
+
+    1. **Load a study folder** - Per-subject adjacency matrices, an index file, topology and clustering files,
+    and an atlas (82, 177 or 2,514 regions built in)
+
+    2. **Choose a topology** - Anatomical positions, or an abstract space such as an isomap-based intrinsic
+    space; available topologies are detected automatically
+
+    3. **Cluster** - Modules placed on faces of a Platonic solid; the user enters through an empty face
+
+    4. **Reveal edges from a root node** - Edges are hidden by default and bundled when shown
+
+    5. **Threshold** - By edge strength, for example absolute correlation above 0.1
+
+    6. **Compare two groups** - Synchronized side-by-side 3D views; in VR, thumbsticks navigate, grip
+    highlights and the index trigger selects
+
+    7. **Share** - Generate a link that stores the view; export JPEG or SVG
+
+
+    **Decision Points**:
+
+    - Anatomical or abstract positions for this question?
+
+    - Which root nodes to reveal edges from, and at what threshold?
+
+    - Is a difference real or an effect of viewpoint?
+
+
+    **Information Needs**:
+
+    - Group membership and the number of subjects per group
+
+    - Edge strengths and signs for the revealed edges in both groups
+
+    - The same node highlighted in both views at once
+
+
+    **Pain Points**:
+
+    - Side-by-side comparison is slowest in VR in controlled studies
+
+    - Dense matrices become hairballs unless edges start hidden
+
+    - Research prototype tools without long-term support
+
+
+    **Data Flow**:
+
+    - Input: Per-subject connectivity matrices, atlas coordinates, group index, clustering
+
+    - Transformations: Group aggregation, topology choice, threshold, root-node edge reveal, bundling, synchronized
+    cameras
+
+    - Output: Shareable view link, JPEG or SVG figures
+success_criteria:
+    - metric: Synchronized comparison
+      target: Rotating or selecting in one view updates the other
+    - metric: Clutter control
+      target: User reads a root node's edges in both groups without a hairball
+    - metric: Shareable state
+      target: A colleague opens the same views, threshold and selection from a link
+sources:
+    - title: Keiriz et al. 2018 - NeuroCave (Network Neuroscience)
+      url: https://ar5iv.arxiv.org/html/1706.10297
+      summary: Inputs, topologies, Platonic-solid clusters, hidden and bundled edges, synchronized group views, VR controls
+    - title: NeuroMArVL
+      url: https://immersive.erc.monash.edu/neuromarvl/
+      summary: Generate Link for shared views; JPEG and SVG export
+    - title: Huang, Pfister, Yang 2023 - 2D, 3D and VR graph tasks
+      url: https://ar5iv.labs.arxiv.org/html/2301.11516
+      summary: Side-by-side comparison slowest in VR (276.8 s)
+    - title: Keiriz et al. 2018 - NeuroCave (PubMed Central full text)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6145855/
+      summary: Target users are clinical neuroscientists; VR used for initial exploration; use case 2 compares 319 women and 233 men aged 20 to 30
+version: 1.1.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

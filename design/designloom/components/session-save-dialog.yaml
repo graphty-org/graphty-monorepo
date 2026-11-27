@@ -8,6 +8,21 @@ implements_capabilities:
     - analysis-history
 used_in_workflows:
     - W25
+    - W116
+    - W118
+    - W152
+    - W175
+    - W239
+    - W246
+    - W253
+    - W281
+    - W313
+    - W340
+    - W406
+    - W413
+    - W417
+    - W431
+    - W68
 dependencies: []
 props: {}
 sources: []

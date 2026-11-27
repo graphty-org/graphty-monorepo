@@ -1,0 +1,145 @@
+id: W164
+name: Null-Model Testing and Module Detection
+category: analysis
+validated: false
+personas:
+    - pollination-network-ecologist
+    - ecological-network-synthesis-researcher
+requires_capabilities:
+    - community-detection
+    - community-profiling
+    - metric-histograms
+    - basic-statistics
+    - statistics-panel
+    - algorithm-progress
+    - visual-encoding-nodes
+    - legend-display
+    - analysis-history
+    - report-generation
+    - data-export
+    - null-model-ensembles
+    - bipartite-layout
+    - matrix-view
+    - bipartite-metrics
+suggested_components:
+    - algorithm-panel
+    - algorithm-card
+    - progress-bar
+    - histogram
+    - metric-card
+    - community-panel
+    - cluster-table
+    - heatmap-panel
+    - graph-canvas
+    - analysis-history-panel
+    - report-generator-dialog
+    - data-export-dialog
+starting_state:
+    data_type: one or more weighted bipartite interaction matrices
+    node_count: 30-210
+    edge_density: moderate
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Decide whether an observed network index (nestedness, specialization, modularity) is larger or
+    smaller than chance, given how many species there are and how abundant each is, and find the modules
+    (compartments) of species that interact mostly among themselves. Ecologists treat a raw index as meaningless until
+    it is compared against randomized networks.
+
+
+    **Mental Model**: "Is this pattern real, or just what you get from abundant species meeting abundant species?" The
+    observed value is one line on a histogram of values from randomized webs that keep some constraints (row and
+    column totals, connectance).
+
+
+    **Task Phases**:
+
+    1. **Pick a null model** - Choose what randomization keeps fixed: row and column totals, totals plus
+    connectance, connectance with totals loosely, or interactions drawn in proportion to resource abundance
+
+    2. **Generate replicates** - Produce 1,000 randomized webs per observed web, with progress shown and a
+    recorded seed
+
+    3. **Compute the index on each** - For example weighted nestedness or H2'
+
+    4. **Read the result** - Histogram of null values with the observed value as a vertical line; z-score
+    (observed minus null mean, divided by null standard deviation) and the share of null values more extreme (p)
+
+    5. **Null-model a whole comparison** (optional) - Recompute a between-treatment statistic with one null
+    per web thousands of times to get a p-value for the comparison itself
+
+    6. **Resource-selection nulls** (optional) - Flag links used more or less often than resource abundance predicts
+
+    7. **Find modules** - Run bipartite modularity, redraw the matrix in module blocks and the two-row web
+    colored by module; test modularity against null webs
+
+    8. **Hand off** - Table of observed index, null mean, null standard deviation, z and p; module membership
+    per species; a module-sorted matrix figure
+
+
+    **Decision Points**:
+
+    - Which null model is appropriate, and will reviewers ask for a second one?
+
+    - How many replicates are enough given run time?
+
+    - Is a z-score near the index's bounds trustworthy?
+
+    - Which module algorithm, and is the modularity significant?
+
+
+    **Information Needs**:
+
+    - Name and constraints of the null model in plain terms
+
+    - Progress and estimated time for replicate generation
+
+    - Null distribution, observed value, z and p together
+
+    - Module sizes and members, and which species connect modules
+
+    - Every parameter (null model, replicates, seed) recorded for the methods section
+
+
+    **Pain Points**:
+
+    - Null-model loops over 1,000 replicates and many sites take a long time
+
+    - Without abundance-preserving nulls, sampling intensity creates artifacts
+
+    - z-scores are distorted near the bounds of an index
+
+    - Reviewers ask for another null model, forcing a full rerun
+
+    - General graph tools offer no null models at all
+
+
+    **Data Flow**:
+
+    - Input: Observed weighted bipartite networks; optional resource abundance per lower-level species
+
+    - Transformations: Constrained randomization, index computation per replicate, z and p, module detection
+
+    - Output: Null distribution plots, z-score and p-value table, module membership, module-sorted matrix
+success_criteria:
+    - metric: Statistical completeness
+      target: Every reported index shows observed value, null mean, z and p with the null model named
+    - metric: Reproducibility
+      target: Rerunning with the recorded seed and settings gives identical null values
+    - metric: Responsiveness
+      target: Progress visible and cancelable during replicate generation
+sources:
+    - title: bipartite nullmodel help page
+      url: https://search.r-project.org/CRAN/refmans/bipartite/html/nullmodel.html
+      summary: r2dtable, swap.web, vaznull, shuffle.web and mgen null models and what each preserves
+    - title: bipartite package - Intro2bipartite vignette, sections 6 and 7
+      url: https://cran.r-project.org/web/packages/bipartite/vignettes/Intro2bipartite.pdf
+      summary: Null model replicates take a while; z-scores; whole-analysis nulls; computeModules and plotModuleWeb
+    - title: econullnetr generate_null_net help page
+      url: https://search.r-project.org/CRAN/refmans/econullnetr/html/generate_null_net.html
+      summary: Resource-abundance null models with 1,000 iterations recommended and plots of over- and under-used links
+    - title: Dormann et al. 2009 - Indices, graphs and null models for analyzing bipartite ecological networks
+      url: https://www.biometrie.uni-freiburg.de/Dateien/PDF/dormann2009openecolj.pdf
+      summary: Raw indices merely reflect the number of species unless compared to null models
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

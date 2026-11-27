@@ -1,0 +1,154 @@
+id: W78
+name: Transitive Vulnerability Triage Across a Portfolio
+category: analysis
+validated: false
+personas:
+    - software-supply-chain-security-engineer
+requires_capabilities:
+    - data-import
+    - data-validation
+    - search
+    - pattern-search
+    - all-paths-finding
+    - path-highlighting
+    - computed-attributes
+    - filtering
+    - visual-encoding-nodes
+    - legend-display
+    - layout-hierarchical
+    - layout-radial
+    - details-on-demand
+    - large-graph-rendering
+    - data-export
+    - directed-closure
+    - dependency-format-import
+    - unknown-edge-marking
+suggested_components:
+    - data-import-dialog
+    - search-panel
+    - pattern-search-dialog
+    - path-finder-dialog
+    - graph-canvas
+    - filter-panel
+    - visual-encoding-panel
+    - legend-panel
+    - node-details-panel
+    - ranked-node-table
+    - data-export-dialog
+starting_state:
+    data_type: portfolio of SBOMs (CycloneDX dependencies/dependsOn, SPDX DEPENDS_ON and CONTAINS) and lockfile trees, plus advisories with CVSS, EPSS and KEV flags
+    node_count: 1,000-100,000 across the portfolio (single Syft scans list 5,263 to 87,776 nodes)
+    edge_density: sparse, mostly acyclic, deep chains (log4j paths 5-9 levels)
+    user_expertise: expert
+goal: >-
+    **Intent**: When a vulnerability advisory lands, find every application that ships the vulnerable component,
+    explain the chain from each application root to it, choose the direct dependency to bump, and file prioritized
+    tickets.
+
+
+    **Mental Model**: "Which roots reach the bad node, and through which door?" Every application is a root; the
+    vulnerable package is a target; the fix point is the first hop on the path from the root.
+
+
+    **Task Phases** (no source gives per-step durations):
+
+    1. **Read the advisory** - Exact coordinates and version range (log4j-core, not every "log4j" artifact)
+
+    2. **Portfolio search** - Query the SBOM store for every project containing the component and version; remember
+    that a missing path is not proof of absence (many SBOMs omit edges; SBOMs do not show what is deployed)
+
+    3. **Per-application path** - Explain each installed copy with its chain to the root (npm explain, gradle
+    dependencyInsight, mvn dependency:tree -Dverbose -Dincludes)
+
+    4. **Choose the fix point** - Usually bump a direct dependency; in Maven, fixes propagate from the deepest
+    dependencies first, so some fixes wait on others
+
+    5. **Prioritize** - By CVSS, EPSS, KEV and reachability
+
+    6. **Visualize when text fails** - Color by severity, direct dependencies distinct, others by hop count; sunburst
+    with one ring per level or a layered graph
+
+    7. **Hand off** - Tickets with the path and the direct dependency to bump; policy violations fail CI
+
+
+    **Decision Points**:
+
+    - Is this component and version actually in range?
+
+    - Is a missing edge "no dependency" or "unknown"?
+
+    - Which direct dependency to bump, and does its fixed version exist yet?
+
+    - Which applications first, given exploitability and reachability?
+
+
+    **Information Needs**:
+
+    - All paths from each root to the vulnerable component, deduplicated
+
+    - Hop count and which dependency is direct
+
+    - Same package at several versions shown as distinct nodes, groupable by name
+
+    - Severity, EPSS, KEV, license and reachability attributes on nodes
+
+    - Which SBOMs have no dependency edges (unknown coverage)
+
+
+    **Pain Points**:
+
+    - Dependabot shows only direct dependencies; npm audit is a textual table
+
+    - 52.9% of real SBOMs have no dependency edges
+
+    - Nested JARs hide vulnerable code from dependency trees
+
+    - SBOM graph renderers become unreadable at scale
+
+
+    **Data Flow**:
+
+    - Input: CycloneDX or SPDX SBOMs per build or image, `npm ls --json`, Maven or Gradle trees, advisory feeds
+
+    - Transformations: Portfolio component search, root-to-target path enumeration, severity overlay, hop-count
+    attribute, grouping by package name
+
+    - Output: Affected application list with paths and fix points, prioritized tickets, CI policy results
+success_criteria:
+    - metric: Portfolio answer
+      target: User lists every application containing the component in range, with unknown-coverage SBOMs flagged separately
+    - metric: Fix point
+      target: For each application the user can name the direct dependency to bump from a highlighted path
+    - metric: Readability at scale
+      target: Paths stay readable for chains 5-9 levels deep in graphs of tens of thousands of nodes
+sources:
+    - title: Google Security Blog - Understanding the impact of Apache Log4j
+      url: https://security.googleblog.com/2021/12/understanding-impact-of-apache-log4j.html?m=1
+      summary: Over 80% indirect, most five levels deep, some nine; fixes propagate from the deepest dependencies first
+    - title: npm explain documentation
+      url: https://docs.npmjs.com/cli/v10/commands/npm-explain
+      summary: Each installed copy with its chain to the root
+    - title: Gradle - Viewing and debugging dependencies
+      url: https://docs.gradle.org/current/userguide/viewing_debugging_dependencies.html
+      summary: dependencyInsight with selection reasons
+    - title: InfoWorld - How to detect the log4j vulnerability in your applications
+      url: https://www.infoworld.com/article/3644492/how-to-detect-the-log4j-vulnerability-in-your-applications.amp.html
+      summary: SBOM search is much faster than scanning every Java application
+    - title: SC World - SBOM is an ingredient, not the whole recipe
+      url: https://www.scworld.com/analysis/asset-management/sbom-is-an-ingredient-not-the-whole-recipe-in-preventing-the-next-log4j-breakdown
+      summary: SBOMs do not show what is deployed
+    - title: V-Achilles (arXiv)
+      url: https://arxiv.org/html/2405.09074v1
+      summary: Direct dependencies orange, vulnerable nodes vermillion, others by hop count; 7 of 10 changed fix priority
+    - title: Semgrep - Transitive reachability analysis (vendor)
+      url: https://semgrep.dev/blog/2024/overrated-and-underperforming-transitive-reachability-analysis
+      summary: 31 of 1,614 Dependabot alerts reachable in one project
+    - title: CycloneDX Sunshine
+      url: https://cyclonedx.github.io/Sunshine
+      summary: Sunburst colored by severity, one ring per level
+    - title: Dependency-Track - Triaging policy violations
+      url: https://dependencytrack.github.io/docs/next/guides/user/triaging-policy-violations/
+      summary: Policy violations that can fail CI
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

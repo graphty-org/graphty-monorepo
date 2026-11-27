@@ -1,0 +1,106 @@
+id: W401
+name: Microbiome Tree with Sample Data in EMPress
+category: exploration
+validated: false
+personas:
+    - phylogenomics-comparative-biologist
+requires_capabilities:
+    - data-import
+    - layout-hierarchical
+    - layout-radial
+    - large-graph-rendering
+    - visual-encoding-nodes
+    - legend-display
+    - node-selection
+    - comparison-view
+    - search
+    - export-image
+    - tree-import-and-axes
+    - linked-views-selection
+    - phylogenetic-tree-layout
+    - tip-annotation-tracks
+suggested_components:
+    - data-import-dialog
+    - graph-canvas
+    - comparison-view
+    - node-chart-overlay
+    - legend-panel
+    - search-panel
+    - image-export-dialog
+starting_state:
+    data_type: QIIME 2 rooted tree, feature table, sample metadata, feature taxonomy and a PCoA or biplot
+    node_count: thousands to 756,377 tree nodes; up to 26,035 samples in the ordination
+    edge_density: tree
+    user_expertise: advanced
+goal: >-
+    **Intent**: Read which microbial lineages differ between sample groups by drawing the feature tree with per-tip
+    barplots of sample metadata, linked to an ordination of samples.
+
+
+    **Mental Model**: "Which branches of the tree of life live in which samples?" Selecting a clade lights up the
+    samples that carry it, and selecting samples lights up their lineages.
+
+
+    **Task Phases**:
+
+    1. **Gather artifacts** - Rooted tree, feature table, sample metadata, taxonomy, PCoA or biplot from QIIME 2
+
+    2. **Run EMPress** - qiime empress community-plot with tree, table, metadata, taxonomy, PCoA, filter extra
+    samples, number of features 10; open the .qzv in a browser
+
+    3. **Layout** - Tree sheared to features in the table; rectangular, circular or unrooted
+
+    4. **Barplots** - Stacked bars of each sample category's share per tip, or color- or height-graded bars
+    for continuous metadata (pH)
+
+    5. **Linked views** - Click a tip or clade to highlight samples in the ordination; select samples to
+    highlight tree nodes; biplot arrows highlight their features
+
+
+    **Decision Points**:
+
+    - Which metadata category drives the barplots?
+
+    - Shear the tree to observed features or keep the reference?
+
+    - Which layout?
+
+
+    **Information Needs**:
+
+    - Taxonomy per clade
+
+    - Per-tip share of each sample category
+
+    - Which samples carry a selected clade
+
+
+    **Pain Points**:
+
+    - Bound to QIIME 2 artifacts
+
+    - Static figure export loses the linked ordination
+
+
+    **Data Flow**:
+
+    - Input: QIIME 2 .qza artifacts and metadata TSV
+
+    - Transformations: Tree shearing, per-tip aggregation by sample category, linked selection
+
+    - Output: Interactive .qzv, exported figure
+success_criteria:
+    - metric: Scale
+      target: A 500,000-node tree with tip barplots stays interactive
+    - metric: Two-way linking
+      target: Selection in tree or ordination highlights the other within one second (design goal; no source measures it)
+sources:
+    - title: EMPress (Cantrell et al. 2021)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8546999
+      summary: Barplots, linked ordination, scalable to over 500,000 nodes; 756,377-node demo with 26,035 samples; pH for 4,002 samples
+    - title: EMPress README
+      url: https://github.com/fedarko/empress
+      summary: QIIME 2 community-plot command and options
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

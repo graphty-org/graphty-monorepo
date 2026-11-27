@@ -1,0 +1,72 @@
+id: graph-algorithms-learner
+name: Graph Algorithms Learner
+roster_persona: class-project-student
+tier: none
+scope: deferred
+role: Data Structures and Algorithms or Discrete Mathematics Student
+quote: I need to see why Dijkstra picks that vertex next, and my order has to match the mark scheme exactly.
+bio: >-
+    Quinn is a second-year computer-science student in a data structures and algorithms course, or a discrete-mathematics
+    student, or a 17-year-old taking Further Maths Decision 1. The same persona covers the lecturer who demonstrates an
+    algorithm on a projector. Quinn's graphs are tiny: 5 to 15 vertices with integer weights, copied from a textbook or an
+    exam paper (the June 2023 Edexcel network has vertices A to J). Quinn uses VisuAlgo or Graph Online to draw the graph
+    by clicking, runs BFS, DFS, Dijkstra, Bellman-Ford, Prim or Kruskal one step at a time, and compares each step with
+    a hand trace in the answer book. Here the process is the point, not the result: a tool that jumps to the final
+    answer, or that breaks ties in a different order than the mark scheme expects, is useless for revision.
+characteristics:
+    expertise: novice
+    time_pressure: medium
+    graph_literacy: intermediate
+    domain_knowledge: basic
+motivations:
+    - Understand why the algorithm chooses each vertex or edge at each step
+    - Reproduce the exam's expected order exactly ("You must clearly state the order in which you select the edges of your tree")
+    - Show working, since "Answers without working may not gain full credit"
+    - Revise quickly before an exam by checking many small examples against hand traces
+    - For the lecturer, pause a live run and ask the class what happens next
+behaviors:
+    - Draws the graph by hand in the tool by adding vertices, connecting pairs and typing a weight and direction for each edge
+    - Alternatively types an edge list, adjacency list or adjacency matrix and lets the tool propose a drawing
+    - Loads presets such as negative-cycle or "Bellman-Ford Killer" examples to see edge cases
+    - Picks the algorithm and the start vertex the question fixes ("Use Prim's algorithm, starting at C")
+    - Steps forward and back, watching distance estimates, predecessor edges, vertex states and the current pseudocode line
+    - Compares the chosen-edge order, final distances and route with the answer book
+    - Saves an image, SVG, link or matrix of the graph for homework
+frustrations:
+    - Tools that show only the final shortest path without intermediate distances
+    - Tie-breaking rules that differ from the hand trace (VisuAlgo's DFS visits "the lowest vertex number" first)
+    - Running BFS or DFS on a weighted graph without a warning that the answer is wrong
+    - No ordered list of chosen edges to copy into the working
+    - Edge weights not drawn on the edges the way the exam figure prints them
+context:
+    frequency: weekly
+    devices:
+        - laptop
+        - desktop
+        - tablet
+    voluntary: false
+workflows:
+    - W232
+    - W239
+sources:
+    - title: VisuAlgo - Single-Source Shortest Paths
+      url: https://visualgo.net/en/sssp
+      summary: Built for NUS CS2040 and related courses; edit or type a graph, presets, step-through with pseudocode, e-Lecture mode, BFS/DFS weighted-input warning
+    - title: VisuAlgo - DFS and BFS
+      url: https://visualgo.net/en/dfsbfs
+      summary: DFS visits the lowest vertex number first; tree, back and cross edges shown
+    - title: Graph Online
+      url: https://graphonline.top/en/
+      summary: Click to add vertices and edges, weight and direction dialog, undo, about 25 algorithms, image, SVG, link and matrix export
+    - title: Graph Online help - Find the shortest path
+      url: https://graphonline.ru/en/wiki/Help/FindTheShortestPath
+      summary: Shortest path shows the result without intermediate steps
+    - title: UC Riverside CS 10C interactive graphs
+      url: https://cs.ucr.edu/~tyf/10c/09.graphs/interactive-graphs.html
+      summary: Course step-through of DFS, BFS, Dijkstra and Prim with Unvisited, In Queue and Visited states
+    - title: Pearson Edexcel Further Mathematics Decision 1, June 2023 AS paper
+      url: https://pmt.physicsandmathstutor.com/download/Maths/A-level/Papers/Edexcel-Further/Decision-1-AS/QP/June%202023%20QP.pdf
+      summary: Dijkstra and Prim on a 10-vertex network, route inspection, stated edge order and working required
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

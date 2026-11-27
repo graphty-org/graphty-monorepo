@@ -8,9 +8,69 @@ notes: "Ships: graphty/src/workspace/graph-place/FindBox.tsx with SearchInput, c
 implements_capabilities:
     - search
 used_in_workflows:
+    - W3024
     - W02
     - W06
     - W13
+    - W110
+    - W115
+    - W118
+    - W122
+    - W123
+    - W124
+    - W125
+    - W127
+    - W130
+    - W131
+    - W132
+    - W133
+    - W134
+    - W135
+    - W136
+    - W138
+    - W140
+    - W141
+    - W142
+    - W143
+    - W146
+    - W149
+    - W156
+    - W182
+    - W213
+    - W240
+    - W273
+    - W278
+    - W281
+    - W287
+    - W327
+    - W329
+    - W332
+    - W40
+    - W409
+    - W416
+    - W420
+    - W437
+    - W55
+    - W67
+    - W68
+    - W69
+    - W76
+    - W77
+    - W79
+    - W80
+    - W81
+    - W82
+    - W83
+    - W84
+    - W87
+    - W89
+    - W1006
+    - W1012
+    - W1013
+    - W252
+    - W1132
+    - W105
+    - W3096
 dependencies:
     - text-input
     - icon-button

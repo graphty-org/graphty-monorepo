@@ -4888,9 +4888,16 @@ export function associate(
         WANTED_LINE_GAP,
     );
     const reachOf = (n: PNode): number => 3 * Math.max(n.w, n.h, 20);
+    // within reach by the words' nearest edge, not their middle: a long label set from its node's middle outward
+    // (Cytoscape desktop's small-molecule squares in cx2-signor-aml, "prostaglandin E2(1-)" starting under node 41)
+    // has its middle over 60 px out, though its first letter sits under the node
+    const reaches = (p: Prim, n: PNode): boolean =>
+        boxGap(p.box, { x0: n.cx, y0: n.cy, x1: n.cx, y1: n.cy }) <= reachOf(n);
     // a label the program wraps at other words than graphty: its stacked lines are wanted as one text
     for (const w of wanting) {
         const whole = w.lines.join(" ");
+        // by the middle here: the nearest edge would reach a neighbor's own stacked label and take it for this node's
+        // lines wrapped otherwise (cytoscapejs-specimen-labels-p2: label-newline's "two lines" beside line-height-2)
         const near = (p: Prim): boolean => Math.hypot(cx(p.box) - w.n.cx, cy(p.box) - w.n.cy) <= reachOf(w.n);
         if (w.lines.length > 1 && textPrims.some((p) => norm(p.text?.content ?? "") === whole && near(p))) {
             w.lines = [whole];
@@ -4924,7 +4931,6 @@ export function associate(
         return [n.cx + k * (cx(g.label.box) - g.cx), n.cy + k * (cy(g.label.box) - g.cy)];
     };
     const candidates = wanting.flatMap((w) => {
-        const reach = reachOf(w.n);
         const own = ownPlace(w.n);
         return w.lines.flatMap((line, li) =>
             [...textPrims, ...wantedRuns]
@@ -4934,7 +4940,7 @@ export function associate(
                     const rank = twinNear(w.n, line) ? Math.hypot(cx(p.box) - own[0], cy(p.box) - own[1]) : d;
                     return { w, li, p, d, rank };
                 })
-                .filter((c) => c.d <= reach),
+                .filter((c) => reaches(c.p, w.n)),
         );
     });
     candidates.sort(

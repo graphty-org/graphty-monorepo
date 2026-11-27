@@ -1,0 +1,82 @@
+id: phylogenomics-comparative-biologist
+name: Phylogenomicist and Comparative Biologist
+roster_persona: phylogeographer-population-geneticist
+tier: A
+scope: in-scope
+role: Faculty Member in Phylogenomics and Comparative Biology
+quote: Two thousand gene trees and a species tree. I need to see, branch by branch, how many genes agree, how many disagree, and whether hybridization explains it.
+bio: >-
+    Dr. Mira Okonkwo is a faculty member resolving a clade from hundreds of loci and testing trait evolution on the
+    result. Her data are 50 to 500 taxa by 300 to 5,000 gene trees, dated species trees, trait tables, and reference
+    trees of 5,000 to 350,000 tips (birds, mammals, seed plants). She runs IQ-TREE (including gene and site concordance
+    factors), ASTRAL, PhyParts with its pie-chart script, DiscoVista and DensiTree; she scripts figures in R with ape,
+    phytools, BioGeoBEARS, TreeDist and ggtree; she uses Dendroscope and SplitsTree for tanglegrams and split networks,
+    and PhyloNetworks and SNaQ in Julia when hybridization is suspected. Her students also work on microbiome data,
+    placing 16S features on a reference tree and viewing it beside sample metadata and an ordination in EMPress. She is
+    fluent in code and in graph concepts specific to trees and networks (splits, reticulations, Robinson-Foulds
+    distance), and she publishes every figure from a script.
+characteristics:
+    expertise: expert
+    time_pressure: medium
+    graph_literacy: advanced
+    domain_knowledge: expert
+motivations:
+    - Show where gene trees agree and conflict on each branch of the species tree
+    - Compare concatenation and coalescent trees and say which differences matter
+    - Draw a phylogenetic network with hybrid edges and inheritance proportions
+    - Map traits and ancestral ranges onto large dated trees legibly
+    - Explore reference trees of hundreds of thousands of tips without a desktop viewer stalling
+behaviors:
+    - Computes gene and site concordance factors and reads "bootstrap / gCF / sCF" branch labels
+    - Runs PhyParts and draws per-branch pies of concordant, top alternative, other conflict and uninformative genes
+    - Overlays hundreds of gene or bootstrap trees in DensiTree and compares against a consensus
+    - Builds tanglegrams in Dendroscope or phytools cophylo and computes tree distances with TreeDist
+    - Runs SNaQ for 0, 1, 2 reticulations and plots networks with gamma on hybrid edges
+    - Joins trait and metadata tables to tips and draws heatmaps, bars and ancestral-state pies
+    - Writes extended Newick, NEXUS and phyloXML and expects tools to read them losslessly
+frustrations:
+    - PhyParts needs Maven, Java and git to build
+    - BioGeoBEARS node pies become obscured and unreadable when slices are small
+    - Tanglegrams scale poorly to large trees
+    - Classic viewers cannot display trees with more than a few thousand nodes
+    - Writing a network for Dendroscope loses gamma values
+    - Tree, conflict and network figures each need a different program
+context:
+    frequency: weekly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W393
+    - W395
+    - W400
+    - W401
+sources:
+    - title: Lanfear - gene and site concordance factors
+      url: http://www.robertlanfear.com/blog/files/concordance_factors.html
+      summary: Concatenated tree, single-locus trees, then gCF and sCF in IQ-TREE; concord.cf.tree and concord.cf.stat outputs
+    - title: Assessment of phylogenetic conflict (HybSeq course slides 2025)
+      url: https://botany.natur.cuni.cz/fer/hybseqcourse/presentations2025/Assessment_of_phylogenetic_conflict.pdf
+      summary: PhyParts pie colors and reading
+    - title: MetaCentrum wiki - PhyParts
+      url: https://wiki.metacentrum.cz/wiki/Phyparts
+      summary: PhyParts installation with Maven, Java and git
+    - title: BioGeoBEARS group - obscured node pies (2025)
+      url: https://groups.google.com/g/biogeobears/c/0gkmjDG_Qnw
+      summary: Node pies "completely obscured and impossible to interpret because the slices are way too small"
+    - title: Phylo.io
+      url: https://arxiv.org/pdf/1602.04258
+      summary: Tanglegrams scale poorly to large trees
+    - title: Pavlopoulos et al. 2010 - tree viewer review
+      url: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2844399/
+      summary: Classic viewers cannot display trees with more than a few thousand nodes
+    - title: PhyloNetworks plotting manual
+      url: https://juliaphylo.github.io/PhyloNetworks.jl/dev/man/net_plot
+      summary: showgamma, major and minor hybrid edges, extended Newick with gamma
+    - title: EMPress (Cantrell et al. 2021)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8546999
+      summary: Microbiome tree with barplots linked to ordination; 756,377-node demo
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

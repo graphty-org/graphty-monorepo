@@ -1,0 +1,42 @@
+id: render-context-lifecycle
+name: Rendering Context Lifecycle
+category: visualization
+description: The element handles its own GPU rendering context from start to end. It reports when WebGL or WebGPU is
+    unavailable as an error code the page can act on, it loads safely during server-side rendering, it recovers after
+    the browser drops the context, and it releases every GPU resource and window listener when removed from the page.
+status: planned
+notes: "Research trace: developers-embedding-and-extending-graph-visualization.md section 5.5 (3D embedding). The
+    element is a web component, so it does not touch window at import time; the remaining work is reporting and
+    recovery."
+algorithms: []
+used_by_workflows:
+    - W283
+implemented_by_components: []
+requirements:
+    - "Must: Importing the element in a server-side render (Next.js App Router, Gatsby) does not throw; the graph
+      renders on the client without the consumer writing a dynamic import with ssr false or a client-only wrapper,
+      which react-force-graph users need and which breaks ref method calls"
+    - "Must: When neither WebGL nor WebGPU can be created, raise an error event with a code (no English text) so the
+      page can show its own fallback, such as a table or a static image"
+    - "Should: Recover from a lost WebGL context (GPU memory exhausted, driver reset) by rebuilding the scene, and
+      report the loss and the recovery as events"
+    - "Must: Removing the element from the page releases its renderer, scene objects, camera controls and window
+      listeners, so a single-page app that mounts and unmounts the graph does not leak"
+sources:
+    - title: react-force-graph issue 155, window is not defined in Next.js
+      url: https://github.com/vasturiano/react-force-graph/issues/155
+      summary: Maintainer says SSR is not compatible and to bypass SSR and make the import dynamic; still open
+    - title: react-force-graph issue 324, dynamic import breaks ref methods
+      url: https://github.com/vasturiano/react-force-graph/issues/324
+      summary: cameraPosition is not a function after a Next.js dynamic import; the workaround wrapper still fails for
+          some users on Next.js 15
+    - title: react-force-graph issue 475, self is not defined in the Next.js App Router
+      url: https://github.com/vasturiano/react-force-graph/issues/475
+      summary: The umbrella package imports A-Frame on the server; fixed by importing react-force-graph-3d directly
+          and a dynamic import
+    - title: 3d-force-graph issue 595, WebGL context loss
+      url: https://github.com/vasturiano/3d-force-graph/issues/595
+      summary: Context loss on big graphs with custom node meshes; maintainer says the GPU ran out of resources
+    - title: 3d-force-graph issue 732, destructor leaks
+      url: https://github.com/vasturiano/3d-force-graph/issues/732
+      summary: 2026 report that unmounting left controls, renderer and scene undisposed; now handled in a dependency

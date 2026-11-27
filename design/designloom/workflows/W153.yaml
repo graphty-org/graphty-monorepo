@@ -1,0 +1,150 @@
+id: W153
+name: Threshold Sweep and Graph Metrics Across Densities
+category: analysis
+validated: false
+personas:
+    - clinical-connectome-researcher
+    - computational-network-neuroscientist
+    - eeg-meg-connectivity-researcher
+    - tract-tracing-connectomics-researcher
+requires_capabilities:
+    - data-import
+    - data-validation
+    - filtering
+    - basic-statistics
+    - clustering-coefficient
+    - centrality-betweenness
+    - centrality-degree
+    - community-detection
+    - computed-attributes
+    - metric-histograms
+    - statistics-panel
+    - analysis-history
+    - data-export
+    - missing-tie-states
+    - matrix-import
+    - threshold-sweep
+    - multi-graph-sets
+suggested_components:
+    - data-import-dialog
+    - network-list-panel
+    - algorithm-panel
+    - range-slider
+    - statistics-panel
+    - metric-card
+    - histogram
+    - data-table-panel
+    - analysis-history-panel
+    - data-export-dialog
+starting_state:
+    data_type: one weighted N x N matrix per subject (Fisher-z correlations or structural weights), with group labels
+    node_count: 90-400 per graph, times 30-200 subjects
+    edge_density: complete before thresholding; 5-50 percent after
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Compute graph metrics for every subject at a sequence of densities, summarize each by area under the
+    curve, and carry the summaries to group statistics, so that no single arbitrary threshold decides the result.
+    Every graph-theory study of brain networks does this, and reviewers attack threshold choices.
+
+
+    **Mental Model**: "Metrics as a function of density." A brain network has no natural threshold, so the result is
+    a curve per subject, not a number.
+
+
+    **Task Phases**:
+
+    1. **Load matrices** - Add one matrix file per subject and assign group IDs
+
+    2. **Choose sign** - Positive only, negative only, or absolute values (negative correlations after global
+    signal regression are described as controversial)
+
+    3. **Choose threshold method** - Sparsity (same edge count for every subject) or absolute value; enter a
+    sequence such as 0.05 to 0.5 in 0.05 steps; or a minimum spanning tree to avoid the choice
+
+    4. **Binary or weighted, plus nulls** - Generate degree-preserving random networks for normalized
+    clustering, path length and small-worldness
+
+    5. **Pick metrics** - Global (efficiency, rich club, assortativity), nodal (clustering, efficiency, degree,
+    betweenness), modular (modularity, participation coefficient)
+
+    6. **Run and read** - One row per subject, one column per threshold; area-under-curve scalars;
+    metric-versus-density curves per group; check small-worldness sigma above 1
+
+    7. **Export** - Subjects x metrics table for statistics
+
+
+    **Decision Points**:
+
+    - Sparsity or absolute threshold, and over what range?
+
+    - Keep negative weights, drop them or take absolute values?
+
+    - Binary or weighted metrics?
+
+    - How many random networks per subject?
+
+
+    **Information Needs**:
+
+    - Which subjects become disconnected at low densities
+
+    - Curves of each metric against density, one line or band per group
+
+    - Area-under-curve values per subject and metric
+
+    - Whether weights were converted to lengths before path-based metrics
+
+
+    **Pain Points**:
+
+    - Absolute thresholds make metrics unstable and can flip group differences
+
+    - Proportional thresholds add weak, noisy edges for subjects with low overall connectivity
+
+    - Path-based metrics need weights converted to lengths, and weighted efficiency needs weights in 0 to 1; easy to get wrong silently
+
+    - Some tools refuse to report a single threshold; others report only one
+
+
+    **Data Flow**:
+
+    - Input: Folder of per-subject matrices, group labels, threshold sequence
+
+    - Transformations: Sign handling, threshold per density, weight-to-length conversion, metrics per subject per density, null normalization, area under curve
+
+    - Output: Subjects x thresholds metric tables, area-under-curve table, density curves per group
+success_criteria:
+    - metric: Sweep setup
+      target: User configures sign, threshold range and metrics once for all subjects
+    - metric: Threshold transparency
+      target: Every reported number names its threshold method and density, or states that it is an area under the curve
+    - metric: Export readiness
+      target: Subjects x metrics table loads directly into a statistics package
+sources:
+    - title: GRETNA manual v2.0
+      url: https://www.nitrc.org/docman/view.php/668/2262/manual_v2.0.0.pdf
+      summary: Sign options, sparsity versus value thresholds, random networks, metric families, area-under-curve outputs
+    - title: Wang et al. 2015, GRETNA
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4485071
+      summary: Tool paper for the pipeline and its metric outputs
+    - title: Example sparsity range 0.05 to 0.5
+      url: https://arxiv.org/pdf/2406.13822
+      summary: Study using a 0.05 to 0.5 sparsity sequence in 0.05 steps
+    - title: CONN graph measures at ROI level
+      url: https://web.conn-toolbox.org/fmri-methods/connectivity-measures/graphs-roi-level
+      summary: Recommends a fixed network cost such as the strongest 10 percent of connections
+    - title: GraphVar manual
+      url: https://nitrc.org/docman/view.php/844/1824/GraphVar%20Manual
+      summary: Significant, relative or absolute thresholds; will not show results for a single threshold
+    - title: Garrison et al. 2015
+      url: https://esfinn.github.io/files/Garrison_NeuroImage2015.pdf
+      summary: Instability of metrics across absolute thresholds
+    - title: van den Heuvel et al. 2017
+      url: https://people.csail.mit.edu/ythomas/publications/2017Threshold-NeuroImage.pdf
+      summary: Proportional thresholding pitfalls
+    - title: brainconn efficiency_wei reference
+      url: https://brainconn.readthedocs.io/en/latest/generated/brainconn.distance.efficiency_wei.html
+      summary: Weighted efficiency expects weights in the 0 to 1 range
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

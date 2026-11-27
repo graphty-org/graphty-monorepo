@@ -1,0 +1,17 @@
+id: comparison-grade-aggregation
+name: "Study attributes aggregated onto each comparison"
+category: data
+description: "When many studies share one edge (one treatment pair), compute edge attributes from the studies: counts and sums (studies, participants) and an ordinal grade by a chosen rule (majority, average or highest), then use them for width, color and labels. Stata networkplot edgecolor(by ...) and CINeMA offer exactly these three rules for risk of bias and indirectness; other tools color edges only from a precomputed column."
+status: planned
+notes: "Research trace: network-meta-analysis-evidence-networks.md section 10, table row 3."
+algorithms: []
+used_by_workflows:
+    - W3054
+    - W3056
+implemented_by_components: []
+requirements:
+    - "Must: Aggregate study attributes to each edge: counts and sums, and majority, average or highest of an ordinal grade"
+sources:
+    - title: "Network Meta-Analysis Authors: Treatment Evidence Networks (section 10, table row 3)"
+      url: design/user-research/network-meta-analysis-evidence-networks.md
+      summary: "Must in the research"

@@ -1,0 +1,71 @@
+id: experience-sampling-dynamics-researcher
+name: Experience Sampling Dynamics Researcher
+roster_persona: symptom-network-researcher
+tier: B
+scope: in-scope
+role: Psychiatry Postdoc Running Experience Sampling (ESM / EMA) Studies
+quote: I have three networks from one model -- what predicts what an hour later, what happens together, and how people differ -- and they have to sit on the same node positions without pretending they share a scale.
+bio: >-
+    Ruben is a postdoc in a psychiatry department running an experience sampling study: 60 to 120 participants answer
+    6 to 12 mood and symptom items on their phones five times a day for 14 to 30 days. The data arrive as a long
+    table, one row per prompt (person, day, beep, timestamp, items scored 0-100 or 1-7). He excludes low-compliance
+    participants, checks stationarity, and fits mlVAR to get a directed lag-1 temporal network with self-loops, an
+    undirected contemporaneous network and an undirected between-subjects network, plus random-effect networks that
+    show how individuals differ. For single patients he fits graphicalVAR, and his lab turns those into the
+    per-patient network sheets therapists receive. He also collects perceived causal networks, where patients rate
+    which symptom they think causes which, and compares them with the data-driven ones.
+characteristics:
+    expertise: advanced
+    time_pressure: medium
+    graph_literacy: intermediate
+    domain_knowledge: expert
+motivations:
+    - Show what predicts what over time within persons (directed, lagged) and what co-occurs in the same moment (undirected)
+    - Show how individuals differ from the group model and from each other
+    - Produce one clear network per patient for clinical feedback
+    - Compare a patient's data-driven network with the patient's own perceived causal network
+behaviors:
+    - Works from long-format ESM data with person, day and beep identifiers, not from a graph file
+    - Fits mlVAR for group models, graphicalVAR for single patients and psychonetrics panelgvar for panel data
+    - Draws temporal, contemporaneous and between-subjects networks side by side with shared node positions, usually a circle layout
+    - Gives the temporal panel its own maximum edge weight because lagged coefficients are on a smaller scale
+    - Hides non-significant edges, curves reciprocal edges and keeps self-loops visible
+    - Reports in-strength, out-strength and expected influence for temporal networks
+frustrations:
+    - Three networks on different scales need one layout but separate maxima, which qgraph handles only argument by argument
+    - Self-loops and reciprocal edges clutter small figures
+    - Idiographic models vary widely across participants and differ markedly from patients' own predictions
+    - Small time series per person give unstable estimates; listwise deletion throws data away
+    - Every drawing tool treats the three networks as unrelated graphs
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W374
+    - W376
+    - W372
+sources:
+    - title: Epskamp et al. 2018 - Discovering psychological dynamics (mlVAR paper)
+      url: https://arxiv.org/pdf/1609.04156v2
+      summary: Temporal, contemporaneous and between-subjects networks; temporal network drawn with a different maximum value
+    - title: mlVAR reference
+      url: https://search.r-project.org/CRAN/refmans/mlVAR/html/mlVAR.html
+      summary: mlVAR(data, vars, idvar, dayvar, beepvar, lags = 1) and plot types
+    - title: graphicalVAR vignette
+      url: https://ftp.fau.de/cran/web/packages/idiographic/vignettes/graphical-var.html
+      summary: Single-subject temporal (PDC) and contemporaneous (PCC) networks; mixed overlay plot
+    - title: Scoping review of 43 temporal network articles (Behavior Research Methods)
+      url: https://link.springer.com/content/pdf/10.3758/s13428-022-01839-y.pdf
+      summary: 98 percent used R; median 66 participants, about 60 time points, 7 nodes; strength reported in 87 percent; no replications
+    - title: Idiographic models in the clinic (via search snippet)
+      url: https://pubmed.ncbi.nlm.nih.gov/32838671/
+      summary: Idiographic models varied widely across participants and differed from clients' own predictions
+    - title: PECAN perceived causal networks
+      url: https://pure.uva.nl/ws/files/303680451/How_perceived_causal_networks_can_complement_case_conceptualization_diagnostic_classification_and_data-based_networks.pdf
+      summary: Patients rate which symptom causes which, giving a perceived network to compare with data-based ones
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

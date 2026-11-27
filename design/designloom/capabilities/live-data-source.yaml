@@ -1,0 +1,30 @@
+id: live-data-source
+name: Live Graph Data Source
+category: analysis
+description: Connect to a graph database or warehouse graph (Neo4j Bolt/HTTP, Neptune, Gremlin Server, SPARQL endpoint,
+    BigQuery/Spanner/Fabric/Oracle graphs) and fetch subgraphs on demand instead of importing a file; search, expand and
+    paging run against the store, read-only by default, through a documented adapter so consumers write no fetch or
+    mapping code.
+status: planned
+notes: "Research trace: graph-database-query-and-expand-exploration.md section 10, requirement 1 (Must)."
+algorithms: []
+used_by_workflows:
+    - W3024
+    - W142
+    - W143
+    - W146
+    - W150
+    - W151
+    - W296
+    - W301
+    - W1012
+    - W1013
+implemented_by_components: []
+requirements:
+    - "Must: Live data source: connect to a graph database (Neo4j Bolt/HTTP, Neptune, Gremlin Server, SPARQL endpoint)
+      and fetch subgraphs on demand rather than importing a file"
+    - "Must: Connect to a graph database, SPARQL endpoint or repository with credentials kept locally, show the result count before loading, cap it, expand later, and refresh with stable ids so positions and notes survive."
+sources:
+    - title: Graph Database Users Who Explore by Search, Query and Expand (section 10, requirement 1)
+      url: design/user-research/graph-database-query-and-expand-exploration.md
+      summary: Must in the research.

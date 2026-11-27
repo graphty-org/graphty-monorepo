@@ -1,0 +1,76 @@
+id: phytochemistry-network-pharmacology-researcher
+name: Phytochemistry Network Pharmacology Researcher
+roster_persona: network-pharmacology-graduate-student
+tier: B
+scope: in-scope
+role: Pharmacognosy Lecturer or Natural Products Researcher outside China
+quote: TCMSP does not have my plant. I have my own GC-MS peaks, IMPPAT and twenty papers, and the reviewer wants the Latin name and the plant part on every node.
+bio: >-
+    Dr. Ahmed lectures in pharmacognosy at a university in Pakistan; his counterpart Dr. Nair works on Ayurvedic
+    polyherbal formulations at an Indian pharmacy college. Both study plants that TCMSP does not cover. Their compound
+    lists come from their own GC-MS or LC-MS runs, from IMPPAT (which records phytochemicals per plant part: root,
+    leaf, bark), from Dr. Duke's database and from the literature: 10 to 400 compounds from three sources with no
+    shared key. They use SwissADME for drug-likeness, SwissTargetPrediction for 100 to 600 targets, GeneCards for
+    disease genes, STRING and Cytoscape for the network, ShinyGO or DAVID for enrichment, and PyRx or AutoDock Vina to
+    dock against five to ten proteins, often followed by 100 ns of molecular dynamics. Everything must be free, and
+    nobody in the department has formal Cytoscape training; when time is short the pipeline is sometimes outsourced to
+    a freelancer for 50 to 100 USD. Reviewers increasingly reject in-silico-only work, and in a 36-study review only
+    22.2% included in vitro and 16.7% in vivo experiments. A Northeast Asian variant works on Korean, Kampo and
+    Chinese pharmacopoeial materials with TM-MC 2.0, whose compounds are matched on the first 14 InChIKey characters
+    and whose prescription table links the work to formula mining.
+characteristics:
+    expertise: beginner
+    time_pressure: high
+    graph_literacy: novice
+    domain_knowledge: advanced
+motivations:
+    - Publish a plausible mechanism for a little-studied medicinal plant
+    - Use computation as a cheap substitute for wet-lab screening the department cannot afford
+    - Show Latin binomials and plant parts in every figure, as journals require
+    - Get the whole pipeline done with free tools and without writing code
+behaviors:
+    - Merges compound lists from own GC-MS or LC-MS, IMPPAT, Dr. Duke's database and papers by name, with duplicates and spelling variants
+    - Uses the IMPPAT drug-like subset or SwissADME rules in place of the TCMSP oral bioavailability filter
+    - Records the plant part on each herb-compound edge so the herb tier splits into root, leaf and bark
+    - Docks against five to ten proteins and runs molecular dynamics on the best pair
+    - Follows English and Chinese tutorials step by step and sometimes buys the whole analysis from a freelancer
+frustrations:
+    - Three compound sources with no shared identifier; names, PubChem CIDs and CAS numbers have to be matched by hand
+    - No Cytoscape training and no budget for commercial tools
+    - Reviewers reject in-silico-only manuscripts but the lab cannot run experiments for every paper
+    - Plant part and Latin name drop out of the network once the spreadsheets are joined
+    - Chinese-hosted databases are sometimes unreachable from outside China
+context:
+    frequency: occasional
+    devices:
+        - laptop
+    voluntary: true
+workflows:
+    - W430
+    - W431
+    - W435
+sources:
+    - title: IMPPAT 2.0, Indian medicinal plants, phytochemistry and therapeutics (PMC9996785)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC9996785
+      summary: 4,010 plants, 17,967 phytochemicals, 189,386 plant-part-phytochemical associations, 1,335-compound drug-like subset
+    - title: IMPPAT website
+      url: https://cb.imsc.res.in/imppat/
+      summary: IMPPAT 3.0 with 4,154 plants, 18,314 phytochemicals and 1,576 traditional formulations (read 2026-11-25)
+    - title: F1000Research review of 36 herbal network pharmacology studies
+      url: https://f1000research.com/articles/14-1384
+      summary: 55.6% from China, 25.0% from India; in vitro work in 22.2% and in vivo in 16.7%; no formal risk-of-bias tool
+    - title: Network pharmacology with docking and molecular dynamics (PMC11615512)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11615512
+      summary: Example of a non-TCM plant study docking against several proteins with 100 ns molecular dynamics
+    - title: IMPPAT-based study using BindingDB and Cytoscape 3.7.2 (NIRT)
+      url: https://eprints.nirt.res.in/2165/1/202461.pdf
+      summary: Indian plant pipeline from IMPPAT compounds through BindingDB targets to Cytoscape
+    - title: TM-MC 2.0 (PMC10790428)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10790428/
+      summary: 635 Korean, Chinese and Japanese materials, 5,075 prescriptions; compounds matched on the first 14 InChIKey characters
+    - title: Freelance network pharmacology service (Fiverr)
+      url: https://fiverr.com/qasimghauri/perform-network-pharmacology-and-bioinformatics-analysis-for-your-project
+      summary: Network pharmacology plus docking sold for USD 50-100 with 3-12 day delivery
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

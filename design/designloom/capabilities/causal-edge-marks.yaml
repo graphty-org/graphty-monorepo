@@ -1,0 +1,22 @@
+id: causal-edge-marks
+name: Causal edge types and endpoint marks
+category: visualization
+description: Draw directed, bidirected and undirected edges, PAG endpoint marks (tail, arrowhead, circle) and
+    conflicting x-x links, and show an orientation as uncertain.
+status: planned
+notes: "Research trace: causal-diagrams-and-bayesian-networks.md section 10, requirement 3 (Must)."
+algorithms: []
+used_by_workflows:
+    - W424
+    - W425
+    - W427
+    - W428
+implemented_by_components: []
+requirements:
+    - "Must: Edge types: directed, bidirected, undirected, PAG endpoint marks (tail, arrowhead, circle), conflicting
+      (x-x), uncertain orientation"
+sources:
+    - title: "Causal Diagram Users: DAGs, Bayesian Networks, Causal Discovery, Time-Series Causal Graphs and SEM Path
+          Diagrams (section 10, requirement 3)"
+      url: design/user-research/causal-diagrams-and-bayesian-networks.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

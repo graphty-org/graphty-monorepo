@@ -1,0 +1,142 @@
+id: W232
+name: Algorithms Learner - Draw a Graph, Step Through an Algorithm, Check the Hand Trace
+category: analysis
+validated: false
+personas:
+    - graph-algorithms-learner
+    - network-analysis-instructor
+requires_capabilities:
+    - shortest-path
+    - path-highlighting
+    - algorithm-progress
+    - visual-encoding-edges
+    - node-selection
+    - analysis-history
+    - export-image
+    - keyboard-shortcuts
+    - matrix-view
+    - graph-authoring
+    - undo-redo
+    - algorithm-step-through
+suggested_components:
+    - graph-canvas
+    - toolbar
+    - algorithm-panel
+    - algorithm-card
+    - context-menu
+    - text-input
+    - progress-bar
+    - ranked-node-table
+    - image-export-dialog
+    - keyboard-shortcuts-dialog
+starting_state:
+    data_type: weighted graph copied by hand from a textbook or exam paper, or typed as an edge list or adjacency matrix
+    node_count: 5-15
+    edge_density: sparse to medium
+    user_expertise: novice
+goal: >-
+    **Intent**: Learn how a named graph algorithm works by drawing a small weighted graph, running BFS, DFS, Dijkstra,
+    Bellman-Ford, Prim, Kruskal, route inspection or maximum flow one step at a time, and checking every step against a
+    hand trace. Used weekly during a data structures, discrete mathematics or Decision 1 course and heavily before exams;
+    the lecturer runs the same flow on a projector.
+
+
+    **Mental Model**: "Replay the hand trace." The tool is a worked example that can be paused, rewound and compared
+    line by line with the answer book. The order of choices matters as much as the final answer.
+
+
+    **Task Phases**:
+
+    1. **Get the graph** (2-5 min) - Click to add vertices A to J, connect pairs, type each weight and direction; or type
+    an edge list, adjacency list or matrix; or pick a preset such as a negative cycle
+
+    2. **Make weights visible** (instant) - Weights drawn as edge labels the way the exam figure prints them
+
+    3. **Choose the algorithm and start vertex** - The exam fixes the start ("Use Prim's algorithm, starting at C"); the
+    tool warns when BFS or DFS would give a wrong answer on weighted input
+
+    4. **Step through** (5-15 min) - Previous, next, play and speed; watch distance estimates under each vertex,
+    predecessor edges, vertex states (unvisited, in queue, visited), the current pseudocode line, tree, back and cross
+    edges
+
+    5. **Check against the hand trace** - Compare the order of chosen edges, final distances and the route with the
+    working; confirm the tie-break rule (lowest label first)
+
+    6. **Record it** - Export each step's state or the ordered edge list and final image for homework
+
+    7. **Lecturer variant** - Pause on the projector and ask the class what happens next
+
+
+    **Decision Points**:
+
+    - Which algorithm fits the question (weighted or unweighted, negative weights, tree or path)?
+
+    - Which vertex to start from
+
+    - Which tie-break rule matches the mark scheme
+
+    - Whether the tool's valid but different order is acceptable to the grader
+
+
+    **Information Needs**:
+
+    - Current distance and parent for every vertex at every step
+
+    - Queue, stack or priority-queue contents
+
+    - Ordered list of edges chosen so far, with weights and running total
+
+    - The stated tie-break rule
+
+    - Final route and its length
+
+
+    **Pain Points**:
+
+    - Tools that show only the final answer without intermediate distances
+
+    - Tie-breaking that differs from the hand trace
+
+    - No warning when an unweighted traversal is run on a weighted graph
+
+    - Undo missing while drawing the graph by hand
+
+    - No way to export the steps as working
+
+
+    **Data Flow**:
+
+    - Input: Hand-drawn or typed 5-15 vertex weighted graph
+
+    - Transformations: Manual graph editing, stepwise algorithm execution with a fixed tie-break rule
+
+    - Output: Ordered list of chosen edges, distance and parent table, step images for homework
+success_criteria:
+    - metric: Time to draw a 10-vertex exam network by hand
+      target: Under 5 minutes, with undo (design goal; no source measures it)
+    - metric: Trace fidelity
+      target: Stepped order of chosen edges matches the mark scheme when the stated tie-break rule is used
+    - metric: Working export
+      target: Learner can export the ordered edge list and the final distances table for homework
+sources:
+    - title: VisuAlgo - Single-Source Shortest Paths
+      url: https://visualgo.net/en/sssp
+      summary: Edit or type a graph, presets, BellmanFord, BFS, Dijkstra, DFS and DP with step playback, pseudocode trace, weighted-input warning, e-Lecture mode
+    - title: VisuAlgo - DFS and BFS
+      url: https://visualgo.net/en/dfsbfs
+      summary: DFS visits the lowest vertex number first; tree, back and cross edges
+    - title: Graph Online
+      url: https://graphonline.top/en/
+      summary: Add vertex and connect vertices by clicking, weight and direction dialog, Ctrl+Z undo, about 25 algorithms, image, SVG, link and matrix export
+    - title: Graph Online help - Find the shortest path
+      url: https://graphonline.ru/en/wiki/Help/FindTheShortestPath
+      summary: Final answer without intermediate steps
+    - title: UC Riverside CS 10C interactive graphs
+      url: https://cs.ucr.edu/~tyf/10c/09.graphs/interactive-graphs.html
+      summary: Step-through of DFS, BFS, Dijkstra and Prim with vertex states
+    - title: Pearson Edexcel Further Mathematics Decision 1, June 2023 AS paper
+      url: https://pmt.physicsandmathstutor.com/download/Maths/A-level/Papers/Edexcel-Further/Decision-1-AS/QP/June%202023%20QP.pdf
+      summary: State the route and its length, state the order of edge selection, roads traversed twice, show working
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

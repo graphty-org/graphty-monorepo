@@ -1,0 +1,92 @@
+id: publication-figure-author
+name: Publication Figure Author
+roster_persona: publication-figure-author
+tier: facet
+scope: in-scope
+role: Staff Scientist / Core Analyst who prepares network figures and supplementary network deposits for journals
+quote: The figure has to survive being shrunk to an 85 mm column, and the reviewer will ask what threshold I used.
+bio: >-
+    Dr. Hannah Okoro is a staff scientist in a systems biology lab. Her analysis is done; her job is to turn a working
+    network of 100 to 2,000 nodes with 10 to 40 attribute columns into a multi-panel journal figure, a legend that
+    states every encoding and every threshold, a methods paragraph, a saved session and a network deposit reviewers can
+    open. She works in Cytoscape (Export as Image to PDF or SVG, Legend Creator, EnrichmentMap "Show Creation
+    Parameters") and finishes every figure in Illustrator or Inkscape, then deposits the network in NDEx with a private
+    reviewer link and asks for a DOI after acceptance. She writes the caption first, cuts the network to its message,
+    styles for print and grayscale, and expects to rebuild the figure after every round of review. Network
+    neuroscientists, bibliometricians and network scientists making journal figures share most of her steps, adding
+    ordered matrix heatmaps, fixed multi-view 3D figures, methods notes and code deposits.
+characteristics:
+    expertise: advanced
+    time_pressure: medium
+    graph_literacy: intermediate
+    domain_knowledge: expert
+motivations:
+    - Produce a figure that stays legible at 85, 114 or 174 mm wide with 6 to 8 pt labels and meets the journal's format rules
+    - Report every parameter (source and version, thresholds, clustering, layout, seed) without copying it out of dialogs by hand
+    - Give reviewers a private link to the exact network behind the figure, then a DOI once the paper is accepted
+    - Rebuild the figure quickly after a reviewer asks for a change
+    - Keep the session so the figure can be regenerated months later
+behaviors:
+    - Writes the caption first and decides node-link versus adjacency matrix before styling anything
+    - Cuts the network to the message - filters, largest component, collapsed clusters, separate overview and detail panels
+    - Avoids red-green palettes, checks the figure in grayscale and keeps labels at least caption size
+    - Fits the whole network in the view before exporting because only the visible area is exported
+    - Exports vector PDF or SVG for publication, or a 300 to 600 dpi TIFF when the journal asks for a bitmap
+    - Builds the legend with Legend Creator for node mappings and draws edge legends by hand
+    - Assembles panels in Illustrator or Inkscape, one to four hours per figure, repeated after every review round
+    - Saves a zipped session file and deposits the network in NDEx, filling every property so a DOI can be requested
+frustrations:
+    - Only the visible part of the canvas is exported, so framing is manual and error-prone
+    - The DPI field does not control bitmap resolution; zoom does
+    - Legend tools cover node mappings but not edge line style, color or thickness
+    - Export of text as fonts breaks on two-byte characters
+    - Parameters are typed into the legend by hand and go stale when filters change the network
+    - Gephi exports use Preview, not the styled view, so styling is redone, and exports carry no legend
+    - Large PDF exports hang or never finish
+    - Every reviewer change means redoing the Illustrator assembly
+context:
+    frequency: monthly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W15
+    - W313
+    - W318
+    - W321
+    - W322
+sources:
+    - title: Cytoscape User Manual - Export Your Data
+      url: https://manual.cytoscape.org/en/3.10.3/_sources/Export_Your_Data.md.txt
+      summary: Image export formats, PDF recommended for publication as vector, web page export limits, text-as-font caveat for two-byte characters
+    - title: EnrichmentMap protocol - Exporting figures, creating legends and saving work
+      url: https://baderlab.github.io/EnrichmentMap_Protocol/exporting-figures-creating-legends-and-saving-work.html
+      summary: Only the visible part of the map is exported; creation parameters copied into the legend by hand
+    - title: Cytoscape tutorial - Legend Creator
+      url: https://cytoscape.org/cytoscape-tutorials/protocols/legend-creator
+      summary: Legend Creator does not support edge line style, color or thickness
+    - title: Ten simple rules to create biological network figures for communication (Marai et al.)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6762067
+      summary: Caption first, matrix for dense networks, cut to the message, legible labels, avoid red-green, no unjustified 3D
+    - title: NDEx Current Protocols
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8544027
+      summary: Private share URL for reviewers, all properties required for a DOI, official repository for Springer Nature and PLOS since 2017
+    - title: PLOS Medicine - Figures
+      url: https://journals.plos.org/plosmedicine/s/figures
+      summary: 789-2250 px width at 300 dpi, TIFF or EPS, at most 10 MB, captions outside the file
+    - title: Nature research figure guide
+      url: https://research-figure-guide.nature.com/figures/preparing-figures-our-specifications
+      summary: Vector art, RGB and embedded fonts
+    - title: cytoscape-discuss - image export resolution
+      url: https://groups.google.com/g/cytoscape-discuss/c/WyE-wbZU0q0
+      summary: Bitmap resolution comes from zoom, not the DPI field
+    - title: University of Toronto Gephi tutorial - Export visualizations as static images
+      url: https://mdlutoronto.github.io/gephi-visualize-network-dataset/7-g-export-visualizations-as-static-images/
+      summary: Gephi Preview export has no legend; add it in Illustrator or Inkscape
+    - title: Gephi bug 808617 - large PDF export
+      url: https://bugs.launchpad.net/gephi/+bug/808617
+      summary: A 50,000-node PDF export never finished; closed Won't Fix
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

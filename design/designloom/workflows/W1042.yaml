@@ -1,0 +1,161 @@
+id: W1042
+name: Compare Many Networks as Small Multiples (Sites, Subjects, Groups or Periods)
+category: analysis
+validated: false
+personas:
+    - political-networks-scholar
+    - pollination-network-ecologist
+    - ecological-network-synthesis-researcher
+    - interaction-network-ecologist
+    - clinical-connectome-researcher
+    - eeg-meg-connectivity-researcher
+    - literary-network-scholar
+    - symptom-network-researcher
+requires_capabilities:
+    - data-import
+    - matrix-import
+    - network-collection-small-multiples
+    - comparison-view
+    - basic-statistics
+    - statistics-panel
+    - metric-histograms
+    - null-model-ensembles
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - details-on-demand
+    - provenance-tracking
+    - export-image
+    - data-export
+suggested_components:
+    - data-import-dialog
+    - network-list-panel
+    - comparison-view
+    - statistics-panel
+    - histogram
+    - visual-encoding-panel
+    - legend-panel
+    - node-details-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: a set of networks over one shared node list -- one per site or season (ecology), per subject, condition, method or frequency band (connectomics), per play or period (digital humanities), or per group (psychological networks) -- plus a table of network-level covariates
+    node_count: 10-400 per network; 3 to several hundred networks
+    edge_density: sparse to dense (correlation matrices are complete before thresholding)
+    user_expertise: intermediate+
+goal: >-
+    **Intent**: Put many networks that share one node list side by side, with the same positions and the same scales,
+    so that differences between sites, subjects, groups or periods are differences in the data and not in the drawing;
+    then step from the grid to the per-network numbers and back. This is the multi-network case that W24 (two
+    conditions) does not cover. The ecology, connectomics and digital humanities documents each list it as a missing
+    capability ("W24 compares two").
+
+
+    **Mental Model**: "One sheet of small maps of the same place." Every panel uses one node list, one layout and one
+    color and width scale; a node that is absent in a panel is shown as absent, not dropped.
+
+
+    **Task Phases** (no source gives per-step durations):
+
+    1. **Assemble comparable networks** - Split a long observation table into one network per site or season, or load
+    one matrix per subject or per play, padded to one shared node list (bipartite webs2array; NBS reads one N x N
+    matrix per subject from a folder in alphanumeric order, so names are zero-padded)
+
+    2. **Check comparability** - Sampling completeness per network in ecology; equal edge counts (proportional
+    thresholds) versus an absolute cutoff in connectomics, because absolute thresholds "could confound between-group
+    comparisons"; the same estimator and items per group for psychological networks
+
+    3. **Compute per-network metrics** - One row per network (and per threshold where a sweep is used), with null-model
+    corrected indices where the field requires them, joined to the covariate table
+
+    4. **Fix one layout and shared scales** - One layout for all panels (qgraph averageLayout; bipartiteD3 shared
+    colors and ordering; atlas coordinates for brains) and one maximum edge weight for every panel
+
+    5. **Show the grid** - Small multiples along one dimension (site, subject group, method, frequency band, period),
+    with a slider or facet choice for the others; select a node in one panel and see it in all
+
+    6. **Read differences** - Edge or link turnover between networks, group statistics, and drill from a panel back to
+    its source rows (the scene, the subject, the site)
+
+    7. **Hand off** - A multi-panel figure with identical maxima stated in the caption, the per-network metric table,
+    and the matrices
+
+
+    **Decision Points**:
+
+    - Which dimension becomes the grid, and which stay as sliders?
+
+    - One shared layout or independent layouts? The psychological network reporting standards warn that "equal layouts
+    might suggest that network structures are more similar than they actually are"
+
+    - Pad to a shared node list, or show each network's own nodes only?
+
+    - Proportional or absolute threshold across networks?
+
+    - Pool a season or keep finer windows? Pooling makes "many network topology measures ... inaccurate"
+
+
+    **Information Needs**:
+
+    - Per-network counts and metrics in one table beside the grid
+
+    - Which nodes are absent from which networks
+
+    - The edge-weight maximum and minimum each panel uses
+
+    - Sampling completeness or threshold per network
+
+
+    **Pain Points**:
+
+    - No side-by-side view of dozens of play networks (digital humanities)
+
+    - Metric computed in one tool and drawn in another; figures assembled by hand
+
+    - Re-layout per network makes panels incomparable
+
+    - A two-network comparison view does not scale to sites x seasons or subjects x conditions x bands
+
+
+    **Data Flow**:
+
+    - Input: Long observation table with a grouping column, or a folder of per-network matrices, plus a covariate table
+
+    - Transformations: Split or stack into a network set over one node list, per-network metrics, shared layout and scales
+
+    - Output: Small-multiples figure, per-network metric table, matrices with provenance
+success_criteria:
+    - metric: Shared drawing
+      target: Every panel uses one node list, one layout and one edge-weight maximum, and the figure states them
+    - metric: Absent nodes visible
+      target: A node missing from one network is shown as absent in that panel, not dropped
+    - metric: Panel to numbers
+      target: Selecting a panel or node shows its per-network metric row and its source records
+sources:
+    - title: bipartiteD3 vignette - faceting a list of webs with shared colors and ordering
+      url: https://cran.r-project.org/web/packages/bipartiteD3/vignettes/bipartiteD3_Intro.html
+      summary: Side-by-side bipartite webs per site with shared species ordering (ecology Workflow 3)
+    - title: bipartite betalinkr reference
+      url: https://search.r-project.org/CRAN/refmans/bipartite/html/betalinkr.html
+      summary: Link turnover across an array of webs padded to one species list
+    - title: NBS Connectome v1.2 reference manual
+      url: https://NITRC.org/docman/view.php/629/1249/Reference_Manual_NBS_v1.2.pdf
+      summary: One symmetric N x N matrix per subject in a folder plus a design matrix for group comparison
+    - title: Network sparsity versus absolute thresholds in GRETNA-style analysis
+      url: https://arxiv.org/pdf/2406.13822
+      summary: Absolute cutoffs could confound between-group comparisons; sparsity sweeps keep equal edge counts
+    - title: qgraph averageLayout reference
+      url: https://search.r-project.org/CRAN/refmans/qgraph/html/averageLayout.html
+      summary: One layout shared by several networks so panels can be compared
+    - title: Jones, Mair and McNally 2018 - visualizing psychological networks
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6156459/
+      summary: Same layout and same maximum across panels, with the warning that equal layouts can overstate similarity
+    - title: Archambault, Purchase and Pinaud 2011 - animation, small multiples and mental map
+      url: https://pubmed.ncbi.nlm.nih.gov/20498503/
+      summary: Small multiples were significantly faster than animation with no overall error difference
+    - title: Pooling interactions over a season (ESA 2017 abstract)
+      url: https://eco.confex.com/eco/2017/webprogram/Paper62566.html
+      summary: Pooling makes many network topology measures inaccurate
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

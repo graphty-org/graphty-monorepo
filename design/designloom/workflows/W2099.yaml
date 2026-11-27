@@ -1,0 +1,149 @@
+id: W2099
+name: Clustered Match Matrix from a Vendor Autocluster Report
+category: analysis
+validated: false
+personas:
+    - family-historian-dna
+    - unknown-parentage-search-angel
+    - professional-genetic-genealogist
+    - endogamous-heritage-dna-researcher
+starting_state:
+    data_type: an autocluster report of a DNA match list - a reordered match-by-match grid with a member list, as HTML and CSV
+    node_count: 100-500
+    edge_density: moderate
+    user_expertise: novice
+goal: >-
+    **Intent**: Read a clustered match-by-match matrix: the grid of a tester's matches, reordered so each cluster forms
+    a colored square on the diagonal, with the cells of matches that belong to more than one cluster marked apart.
+    Every consumer DNA vendor now ships this view, and it is how most people first meet their match network.
+
+
+    **Mental Model**: "Squares on the diagonal are family lines." A cell is two matches who both match the tester and
+    each other; a colored block is a group descended from one couple; an off-diagonal or multi-cluster cell is a person
+    who belongs to two lines, often a close relative.
+
+
+    **Task Phases**:
+
+    1. **Request the run** - Choose the kit; the report is generated on the vendor's side and arrives in the
+    page or by email, with the matches that were left out listed separately
+
+    2. **Read the thresholds that were used** - The minimum and maximum shared centimorgans with the tester and
+    the minimum between two matches, which the report states rather than the user choosing
+
+    3. **Read the matrix** - A cell means two matches share with each other; a color is a cluster; cells for a
+    match in several clusters are marked apart; blank means less than the pair threshold, not zero
+
+    4. **Read the member list** - Each cluster's members with their shared centimorgans and tree links, plus
+    the matches that met the criteria and clustered with nobody
+
+    5. **Label each cluster** - Work out the family line from members already known, and write the label where
+    it survives the next run
+
+    6. **Place a new match** - Read the match's row across the grid to see every cluster it touches, and put it
+    on the line that fits
+
+
+    **Decision Points**:
+
+    - Which family line does each colored block represent?
+
+    - Is a multi-cluster match a close relative, a double cousin, or a sign of intermarried lines?
+
+    - Are the thresholds the vendor chose right for this tester, and is a rerun with different ones worth it?
+
+    - Which unclustered matches are worth chasing anyway?
+
+
+    **Information Needs**:
+
+    - The thresholds actually used, stated with the report
+
+    - A cluster's members with their shared centimorgans and whether they have a tree
+
+    - Every cluster a given match belongs to, readable without a side spreadsheet
+
+    - Which matches were excluded and why
+
+    - The same data as a node-link graph, when the matrix hides who connects to whom
+
+
+    **Pain Points**:
+
+    - The matrix is the only view: there is no node-link picture of the same graph
+
+    - Thresholds are chosen for the user, or fixed, and a rerun may be limited to once a day per kit
+
+    - The grid is shown only up to a size limit, and clusters may be recomputed on each visit
+
+    - A match in two clusters is listed under one, so full membership is rebuilt by hand
+
+    - The labels the user assigns live outside the report, in a spreadsheet or in the vendor's colored groups
+
+    - There may be no export at all
+
+
+    **Data Flow**:
+
+    - Input: An autocluster report - a reordered grid and a cluster member list, as HTML and CSV
+
+    - Transformations: Cluster seriation of the match-by-match matrix, multi-cluster marking, cluster labeling by the
+    user
+
+    - Output: Labeled clusters assigned to family lines, placements for new matches, group labels written back to the
+    match list
+success_criteria:
+    - metric: One graph, two views
+      target: The same clustered data can be read as a matrix and as a node-link graph without a second import
+    - metric: Threshold visibility
+      target: The thresholds in force are shown with the view and adjustable by the user
+    - metric: Multi-cluster honesty
+      target: Every cluster a match belongs to is listed for that match
+sources:
+    - title: MyHeritage - Introducing AutoClusters for DNA matches
+      url: https://magazine.myheritage.com/myheritage-news/introducing-autoclusters-for-dna-matches/
+      summary: Colored cells as intersections, gray cells for matches in no single cluster, automatic thresholds listed in the report, HTML plus CSV plus ReadMe by email, one run per kit per day
+    - title: Your DNA Guide - MyHeritage AutoClusters
+      url: https://www.yourdnaguide.com/ydgblog/myheritage-autoclusters
+      summary: Read the excluded-match PDF first, open the HTML chart, use the member list below it, label clusters from known matches
+    - title: DNA Explained - AutoClustering by Genetic Affairs
+      url: https://dna-explained.com/2018/12/04/autoclustering-by-genetic-affairs/
+      summary: A cell is a three-way match and not triangulation; gray squares for matches in more than one cluster; grid CSV, match list and HTML outputs
+    - title: DNA Explained - How to use Ancestry's new match clusters
+      url: https://dna-explained.com/2025/07/10/how-to-use-ancestrys-new-match-clusters-and-what-they-mean/
+      summary: 65-1,300 cM with the tester and 20 cM between matches, blank cells below that, grid only to 100 matches, recomputed each visit, a multi-cluster match listed once, no export
+    - title: GEDmatch - What are DNA AutoClusters
+      url: https://www.gedmatch.com/blog/what-are-dna-autoclusters/
+      summary: Matches on both axes, a color per cluster, matches in multiple clusters shown in gray, white for little or no shared DNA, intermarriage causing overlap
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z
+requires_capabilities:
+    - shared-match-pair-import
+    - overlapping-cluster-membership
+    - cluster-seriated-matrix-view
+    - user-cluster-labels
+    - data-import
+    - matrix-import
+    - matrix-view
+    - community-profiling
+    - cluster-labeling
+    - cluster-identity-across-runs
+    - annotation
+    - legend-display
+    - details-on-demand
+    - layout-force-directed
+    - de-identified-display
+    - data-export
+    - analysis-provenance
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - heatmap-panel
+    - cluster-table
+    - community-panel
+    - cluster-collapse-control
+    - annotation-toolbar
+    - legend-panel
+    - graph-canvas
+    - data-export-dialog

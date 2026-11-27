@@ -1,0 +1,120 @@
+id: W3078
+name: Find Code Only One Person Knows Before They Leave
+category: analysis
+validated: false
+personas:
+    - version-control-collaboration-analyst
+requires_capabilities:
+    - version-control-history-import
+    - temporal-data-model-import
+    - entity-resolution-review
+    - bipartite-projection
+    - knowledge-distribution-metrics
+    - containment-hierarchy-rollup
+    - filtering
+    - visual-encoding-nodes
+    - details-on-demand
+    - data-export
+suggested_components:
+    - file-drop-zone
+    - graph-canvas
+    - filter-panel
+    - node-details-panel
+    - data-table-panel
+    - temporal-controls
+    - data-export-dialog
+starting_state:
+    data_type: git history (git log with per-file change counts) plus a developer-to-team table and a list of people who have left; a file-to-component mapping
+    node_count: tens to thousands of developers and thousands to millions of files (Linux 7.1 merged 15,849 non-merge changesets from 2,479 developers in one release); no source gives a typical company size
+    edge_density: two-mode developer-file graph; most files have few authors, a few files have many
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Before a departure, a reorganization or a handover, find the code that only one active person
+    understands, and the code dominated by people who already left, rolled up to components and teams. Engineering
+    managers do this in CodeScene's knowledge maps; open-source community managers compute the CHAOSS Contributor
+    Absence Factor; researchers estimate the truck factor. The persona is version-control-collaboration-analyst.
+
+
+    **Mental Model**: "Every file has authors; the risk is files whose authors are one person or are gone."
+
+
+    **Task Phases** (no source gives per-step durations):
+
+    1. **Export the history** - `git log --all --numstat --date=short --pretty=format:'--%h--%ad--%aN' --no-renames
+    --after=DATE`, excluding vendored and generated paths with pathspecs (code-maat)
+
+    2. **Merge identities** - Map each developer's names and emails to one person (.mailmap, SortingHat, gambit);
+    flag bots
+
+    3. **Choose the window** - For team analyses, start at the last organizational change (CodeScene); a window
+    shorter than the code's life leaves some files "Inconclusive"
+
+    4. **Map people to teams and mark departures** - Developer-to-team table; ex-developers
+
+    5. **Compute ownership** - Main developer and author shares per file; knowledge islands; knowledge loss; truck
+    factor or Contributor Absence Factor
+
+    6. **Roll up and read** - Color the folder hierarchy by main developer or team, drill into a component, list
+    files with one active author
+
+    7. **Hand over** - Export the at-risk files with their current and suggested owners
+
+
+    **Decision Points**:
+
+    - Which aliases are the same person, and which commits are bots?
+
+    - Which window reflects the current organization?
+
+    - Which knowledge islands are in code that still changes often and matters?
+
+
+    **Information Needs**:
+
+    - Main developer and author shares per file, with the window stated
+
+    - Files and components whose knowledgeable authors have left
+
+    - The identity merges behind every count
+
+
+    **Pain Points**:
+
+    - Counts are wrong until aliases are merged; CodeScene computes knowledge by committer name
+
+    - Results depend on the window, which is easy to lose when a chart is shared
+
+
+    **Data Flow**:
+
+    - Input: git log, identity table or .mailmap, developer-to-team table, departures, file-to-component mapping
+
+    - Transformations: Identity merge, developer-file graph, ownership per file, roll-up to components and teams
+
+    - Output: Knowledge map, list of at-risk files and owners, truck factor
+success_criteria:
+    - metric: Identities
+      target: User sees and can undo every alias merge before ownership is computed
+    - metric: Knowledge risk
+      target: User lists files and components whose only knowledgeable author is one active person or a departed one
+    - metric: Roll-up
+      target: User reads the same result per team and per component, with the window shown
+sources:
+    - title: CodeScene - Knowledge distribution
+      url: https://codescene.io/docs/guides/social/knowledge-distribution.html
+      summary: Knowledge islands, knowledge loss, Inconclusive files, team mapping, start date at the last organizational change
+    - title: code-maat (Adam Tornhill)
+      url: https://github.com/adamtornhill/code-maat
+      summary: git log export command; main-dev and entity-ownership analyses
+    - title: CHAOSS - Contributor Absence Factor
+      url: https://chaoss.community/kb/metric-contributor-absence-factor/
+      summary: Smallest number of contributors responsible for 50% of contributions; formerly Bus Factor
+    - title: "What is the Truck Factor of popular GitHub applications? A first assessment (preprint)"
+      url: https://peerj.com/preprints/1233v2.html
+      summary: 46% of 133 popular GitHub applications had truck factor 1
+    - title: LWN - The 7.1 kernel development cycle
+      url: https://lwn.net/Articles/1077425/
+      summary: 15,849 non-merge changesets from 2,479 developers in one release
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

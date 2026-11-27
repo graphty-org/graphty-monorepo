@@ -1,0 +1,21 @@
+id: external-lookup-expansion
+name: Seed-and-Pivot Expansion Through Lookups
+category: analysis
+description: Expand a node through pluggable outside lookups (registries, DNS, sanctions, explorer APIs, internal data)
+    with a per-step result limit, a result count shown before adding, a recorded pivot chain, and undo.
+status: planned
+notes: "Research trace: investigative-journalism-and-osint.md section 10, requirement R8 (Should)."
+algorithms: []
+used_by_workflows:
+    - W88
+    - W95
+    - W1090
+implemented_by_components: []
+requirements:
+    - "Should: Seed-and-pivot expansion from one node through pluggable lookups (registry, DNS, sanctions, internal
+      data) with a per-step result limit and undo"
+sources:
+    - title: Investigative journalists, OSINT investigators and trust-and-safety teams (section 10, requirement R8)
+      url: design/user-research/investigative-journalism-and-osint.md
+      summary: "Should in the research. Covered by Designloom when researched: Not covered (neighborhood-expansion only
+          reveals already-loaded data)"

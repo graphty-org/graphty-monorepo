@@ -1,0 +1,133 @@
+id: W366
+name: "Internal Investigation: Content First, Then People"
+category: analysis
+validated: false
+personas:
+    - internal-investigations-counsel
+requires_capabilities:
+    - search
+    - filtering
+    - ego-network
+    - neighborhood-expansion
+    - temporal-analysis
+    - temporal-navigation
+    - metric-histograms
+    - node-merging
+    - annotation
+    - saved-filters
+    - export-image
+    - data-export
+    - report-generation
+    - analysis-provenance
+    - entity-resolution-review
+    - provenance-tracking
+    - external-record-facet
+suggested_components:
+    - search-panel
+    - graph-canvas
+    - ego-network-dialog
+    - temporal-controls
+    - histogram
+    - node-merge-dialog
+    - annotation-toolbar
+    - image-export-dialog
+    - data-export-dialog
+    - report-generator-dialog
+starting_state:
+    data_type: concept-search hits over custodians' email and chat, with normalized people and sent dates
+    node_count: 10-200 people around the hits
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Start from an auditor's or whistleblower's description, find the emails that matter, then use the
+    people graph to find additional persons of interest and how deeply each took part, and build a dated chronology.
+
+
+    **Mental Model**: "Follow the story, then the people." Content finds the conversation; the graph and timeline
+    show who else was in it and when.
+
+
+    **Task Phases**:
+
+    1. **Frame** - An auditor's description of suspected fraud or bribery frames the search
+
+    2. **Search content** - Concept search on the topics; flag suspicious emails; build new concept searches from key
+    blocks of their text
+
+    3. **Open the people graph on the hits** - See who else participates; add persons of interest
+
+    4. **Open conversations** - For chosen people, a timeline where each dot is an email and lines run from sender to
+    recipients and forwards; "+number" adds excluded recipients; counters show displayable versus returned documents
+
+    5. **Check time** - Drill year, month, day (one example went from 55,259 results to 123 on one day); dates with no
+    data are possible gaps
+
+    6. **Save and export** - Save the search, tag emails, export a metadata CSV and the graph image
+
+    7. **Deliver** - Findings memo, chronology of key emails, interview list; forensic tools add a snapshot report of
+    the current graph and filters
+
+
+    **Decision Points**:
+
+    - Who else belongs on the persons-of-interest list?
+
+    - Are two nodes the same person under a code name or personal address?
+
+    - Is an empty period a real silence or a collection gap?
+
+    - Whom to interview first?
+
+
+    **Information Needs**:
+
+    - People around the hits with their participation (sent, received, copied, forwarded)
+
+    - Timeline of messages per person and per pair, with gaps visible
+
+    - Overlays of sentiment or concept counts per person
+
+    - Which people were collected and which are seen only through others' mail
+
+
+    **Pain Points**:
+
+    - One person split across work, personal and code-name identities
+
+    - Non-collected people visible only through custodians' mail
+
+    - Displayable versus returned counts that do not explain themselves
+
+    - Exports without the filters and merges that produced them
+
+
+    **Data Flow**:
+
+    - Input: Search hits with sender, recipients, sent date, concept and sentiment scores
+
+    - Transformations: Ego network around persons of interest, time filtering and drill, manual merges, overlays
+
+    - Output: Tagged documents, metadata CSV, graph image, chronology and interview list
+success_criteria:
+    - metric: Persons of interest
+      target: User can list every person who took part in the flagged conversations with their participation counts
+    - metric: Time drill
+      target: From full range to a single day in three steps, with empty dates visible
+    - metric: Reproducibility
+      target: Exported image or report includes the search, filters and merges behind it
+sources:
+    - title: Reveal - FCPA compliance audit case study
+      url: https://www.revealdata.com/success-stories/fcpa-compliance-audit
+      summary: Auditor description, concept search, people graph to identify additional persons of interest and level of participation
+    - title: Brainspace - Conversations
+      url: https://docs.revealdata.com/brainspace/docs/conversations
+      summary: Timeline of emails with sender-to-recipient lines, excluded recipients, displayable versus returned counters
+    - title: Proofpoint - Uncovering eDiscovery insights through data visualization
+      url: https://www.proofpoint.com/us/blog/compliance-and-archiving/uncovering-ediscovery-insights-through-data-visualization
+      summary: Year to month to day drill, 55,259 results to 123, dates with no data
+    - title: Autopsy - Communications visualization
+      url: https://sleuthkit.org/autopsy/docs/user-docs/4.18.0/communications_page.html
+      summary: Snapshot Report of the current graph and filters
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

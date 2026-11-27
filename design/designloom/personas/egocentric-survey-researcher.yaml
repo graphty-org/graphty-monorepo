@@ -1,0 +1,74 @@
+id: egocentric-survey-researcher
+name: Personal Network Health Researcher
+roster_persona: survey-network-researcher
+tier: B
+scope: in-scope
+role: Assistant Professor of Public Health or Sociology (Egocentric Network Studies)
+quote: I don't have one network, I have nine hundred tiny ones. I need one row per person for my regression, and a few pictures that show what a lonely network looks like.
+bio: >-
+    Dr. Rafael Reyes studies social support, aging and substance use through personal (ego) networks. Each respondent
+    names 5 to about 50 people (alters) with a name generator, describes each one with name interpreters (kin or not,
+    age, how often they talk), and says which alters know each other. He collects this with Qualtrics using egor's
+    templates or with Network Canvas, whose Architect designs the protocol and whose Interviewer lets participants draw
+    alter-alter ties on a sociogram. The result is three linked tables -- egos, alters and alter-alter ties -- for
+    hundreds to thousands of respondents. He computes ego-level measures in R with egor (size, density, proportion
+    kin, diversity, EI index, effective size, constraint) and hands one row per respondent to a health-outcome
+    regression. He uses a picture mostly to illustrate contrasting network types in a paper or a talk.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: intermediate
+    domain_knowledge: advanced
+motivations:
+    - Get one row of ego-level network measures per respondent into a regression on health outcomes
+    - Compare network composition and structure across groups of respondents
+    - Show readers a few typical egograms that make the measures concrete
+    - Keep sensitive respondent data on his own machine
+behaviors:
+    - Uses capped name generators (the General Social Survey "important matters" item often caps at five)
+    - Exports Network Canvas data as CSV or GraphML, including sociogram positions normalized to 0-1
+    - Imports into egor with onefile_to_egor, threefiles_to_egor or read_egoweb
+    - Computes ego_density, composition, alts_diversity_entropy and EI per ego
+    - Plots vis_clustered_graphs and a handful of egograms with alters grouped by attribute
+    - Extracts ego networks from a whole network when one exists, after symmetrizing it
+frustrations:
+    - Recall bias -- respondents in one web survey named on average 2.7 of an allowed 10 alters
+    - Alter-alter questions grow with the square of the alter count and tire respondents
+    - Whole-network tools assume one big graph and do not handle hundreds of small ones
+    - No good way to view 500 egograms side by side or to sort them by a measure
+    - Reshaping survey exports into the three-table form before any analysis
+context:
+    frequency: monthly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W27
+    - W29
+    - W300
+sources:
+    - title: egor package vignette
+      url: https://cran.r-project.org/web/packages/egor/vignettes/using_egor.html
+      summary: Ego, alter and alter-alter tables; import functions; density, composition, diversity and EI measures
+    - title: egor Qualtrics templates
+      url: https://tilltnet.github.io/egor/articles/qualtrics.html
+      summary: Survey templates for name generators, interpreters and alter-alter questions, and reshaping their export
+    - title: Network Canvas data export
+      url: https://documentation-rlpthbxim-network-canvas-f4790d84.vercel.app/en/desktop/key-concepts/data-export
+      summary: CSV and GraphML export with sociogram positions normalized to 0-1
+    - title: Network Canvas Interviewer roster name generator
+      url: https://github.com/complexdatacollective/Interviewer/wiki/Name-Generator:-Roster-List
+      summary: Roster interfaces and a sociogram stage where participants draw alter-alter ties
+    - title: GSS name generator study
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC9116615
+      summary: The "important matters" generator and its cap
+    - title: Rice et al. (2014) on recall bias and name verification
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4184035
+      summary: Respondents named 2.7 of 10 allowed alters on average; interviews grew a network from 89 to 176 nodes
+    - title: Florida anthropology network analysis syllabus (Johnson, 2019)
+      url: https://anthro.ufl.edu/wp-content/uploads/sites/306/syllabus-network-analysis-Fall2019-Johnson.pdf
+      summary: EgoNet, VennMaker and a 50-alter study design; hand-off to Stata, SPSS or R
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,75 @@
+id: correlation-network-3d-biologist
+name: Correlation Network 3D Biologist
+roster_persona: genomics-cytoscape-user
+tier: A
+scope: in-scope
+role: Senior Postdoc / Omics Core Bioinformatician
+quote: The threshold decides what the graph is. I need to watch the clusters pull apart in 3D, then give my coauthors one flat figure per module.
+bio: >-
+    Dr. Fiona Reid is a senior postdoc in a livestock and immunology genomics group that runs expression atlases and
+    single-cell projects. She learned BioLayout Express3D from its 2009 Nature Protocols paper and moved to its
+    successor Graphia, where a smooth-shaded 3D view is the default. She normalizes data in R, saves a CSV or Excel
+    table with a row identifier, a few annotation columns and a block of numeric columns, and lets Graphia's wizard
+    turn it into a correlation network. Her tables run from a thousand to tens of thousands of rows by tens to about a
+    hundred columns; the published single-cell example from her lab lineage had 12,498 cells and about 143,000 edges.
+    She picks a Pearson threshold by eye from a predicted node and edge "knee" plot, prunes with k nearest neighbors,
+    clusters with MCL, and reads each cluster's expression profile before naming it by enrichment. She rotates the 3D
+    view constantly to see whether clusters really separate, but the paper takes only a flat image.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: intermediate
+    domain_knowledge: advanced
+motivations:
+    - Find co-expression modules in a large table without writing graph code
+    - Choose a correlation threshold she can defend in the methods section
+    - Name each module by its enrichment and show its expression profile next to it
+    - Produce one publication figure per module from a view she found by rotating in 3D
+    - Hand collaborators something they can open without installing a desktop application
+behaviors:
+    - Starts from a numeric table, never from a graph file
+    - Tries several thresholds (0.85 for genes, 0.75 for variant profiles in published work) and watches the live 3D layout settle after each change
+    - Prunes with k nearest neighbors (15, 10 or 3) to cut hundreds of thousands of edges down to a few thousand
+    - Clusters with MCL and tunes granularity (about 1.7 for genes), sometimes Louvain instead
+    - Steps through clusters one at a time and reads the member rows' profiles in a line plot
+    - Switches between 3D and 2D in the View menu and saves the layout so she can reload it
+    - Exports cluster tables and enrichment tables alongside a high-resolution image
+    - Occasionally takes a single-cell project into a VR tool when a collaborator has one set up
+frustrations:
+    - The threshold changes everything and she chooses it by eye from a knee plot
+    - Rotation is needed to see clusters, but the paper figure is a flat image and there is no documented way to save a camera viewpoint
+    - No live 3D view she can send to a coauthor from the desktop application
+    - Huge graphs at low thresholds (BioLayout at r 0.8 or lower produced graphs described as too large)
+    - Many small components and singletons clutter the view until removed
+context:
+    frequency: monthly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W411
+    - W416
+    - W417
+sources:
+    - title: Freeman et al. 2022 - Graphia, a platform for the graph-based visualisation and analysis of high dimensional data
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC9352203
+      summary: 12,498-cell network of about 143k edges, thresholds 0.85 and 0.75, kNN 15/10/3, MCL granularity 1.7, cluster enrichment
+    - title: Freeman et al. 2007 - Construction, visualisation, and clustering of transcription networks (BioLayout Express3D)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC2041979/
+      summary: r 0.9 gave 5,410 nodes and 447,467 edges; graphs at 0.8 or lower were too large
+    - title: Theocharidis et al. 2009 - BioLayout Express3D Nature Protocols
+      url: https://link.springer.com/article/10.1038/nprot.2009.177
+      summary: The protocol this generation of users learned from
+    - title: Graphia user guide - Loading numerical data
+      url: https://graphia.app/guide/section4/1_loading_numerical.html
+      summary: Correlation wizard, Pearson default, minimum threshold 0.7, knee plot, provenance log
+    - title: Graphia user guide - First start up
+      url: https://graphia.app/guide/section2/2_first_start_up.html
+      summary: Default smooth-shaded 3D, flat, orthographic and 2D views; layout save and reload
+    - title: Graphia user guide - Saving and exporting
+      url: https://graphia.app/guide/section3/6_saving.html
+      summary: GraphML, GML, JSON Graph, pairwise text, tables and high-resolution images
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

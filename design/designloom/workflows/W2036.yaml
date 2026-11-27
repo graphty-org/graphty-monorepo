@@ -1,0 +1,149 @@
+id: W2036
+name: Precedent Authority Ranking in a Court Citation Network
+category: analysis
+validated: false
+personas:
+    - legal-citation-network-scholar
+requires_capabilities:
+    - data-import
+    - import-report
+    - data-validation
+    - component-analysis
+    - centrality-degree
+    - centrality-pagerank
+    - per-window-metrics
+    - attribute-axis-layout
+    - layout-tiered-by-attribute
+    - visual-encoding-nodes
+    - legend-display
+    - filtering
+    - details-on-demand
+    - metric-histograms
+    - analysis-provenance
+    - export-image
+    - data-export
+    - court-citation-import
+    - centrality-hits
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - algorithm-panel
+    - ranked-node-table
+    - histogram
+    - temporal-controls
+    - layout-panel
+    - filter-panel
+    - graph-canvas
+    - node-details-panel
+    - legend-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: Court decisions with date, court, court level and identifier, plus decision-to-decision citations from CourtListener, HUDOC metadata or EUR-Lex CELLAR
+    node_count: 500 decisions on one doctrine to 30,000 for a whole court; 1.3 million for the US federal network
+    edge_density: sparse, directed, almost acyclic
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Rank a court's precedents by legal authority, see how that ranking looked at earlier dates, and
+    compare authority across court levels, so the decisions that carried a body of law can be read first and reported.
+
+
+    **Mental Model**: "Who do the judges keep returning to?" A decision cited by many later decisions, or by
+    decisions that are themselves authoritative, holds authority; the answer depends on the date you ask it.
+
+
+    **Task Phases**:
+
+    1. **Import** - Load decisions and citations from a court database export or API; map date, court, court level,
+    subject and identifier columns
+
+    2. **Resolve and check** - See how many citations resolved to a decision in the set and list the ones that did
+    not (parallel citations, free-text references); see how many decisions are isolated
+
+    3. **Rank** - Compute in-degree, PageRank and hub and authority (HITS) scores on the directed citation graph,
+    seeing whether HITS converged and in how many iterations; read the ranked table next to the court's known
+    landmark cases
+
+    4. **Rank as of a date** - Recompute the measures on the network truncated to decisions up to chosen dates, and
+    follow a decision's score over time to see when it gained or lost authority
+
+    5. **Compare court levels** - Place decisions by date on one axis and court level as bands on the other; size by
+    authority; compare score distributions per level
+
+    6. **Report** - Export the ranked table with measure parameters and the figure
+
+
+    **Decision Points**:
+
+    - Which measure stands for authority here: raw citations, PageRank, or authority scores?
+
+    - Keep only decisions of the court, or also citations to other courts?
+
+    - Which cutoff dates show the change best?
+
+    - Are unresolved citations few enough to ignore, or concentrated in one period?
+
+
+    **Information Needs**:
+
+    - Count of citations read, resolved and unresolved, with the unresolved list
+
+    - Isolated decisions and component sizes
+
+    - Ranked table of decisions with each measure, date and court
+
+    - A decision's score at each cutoff date
+
+    - Score distribution per court level
+
+
+    **Pain Points**:
+
+    - As-of-date rankings need custom code today
+
+    - Hub and authority scores can stop short of convergence on a large citation graph at a library's default
+    iteration cap
+
+    - Force layouts mix court levels and periods
+
+    - Citation extraction gaps are invisible unless counted at import
+
+
+    **Data Flow**:
+
+    - Input: Decision table and citation edge list (CSV or JSON from an API or bulk export)
+
+    - Transformations: Citation resolution, centrality measures, cumulative-date recomputation, date-by-level layout
+
+    - Output: Ranked table with parameters, score-over-time table, figure
+success_criteria:
+    - metric: Unresolved citations stated
+      target: The import reports resolved and unresolved citation counts and lists the unresolved ones
+    - metric: As-of-date ranking
+      target: User can rank decisions as of any cutoff date without writing code
+    - metric: Hub and authority scores
+      target: User gets hub and authority scores for every decision, with iterations run and whether they converged, without writing code
+    - metric: Reproducibility
+      target: Exported table names each measure and its parameters
+sources:
+    - title: Fowler et al., Network Analysis and the Law (Political Analysis, 2007)
+      url: https://www.cambridge.org/core/journals/political-analysis/article/network-analysis-and-the-law-measuring-the-legal-importance-of-precedents-at-the-us-supreme-court/D9B2F13BE2594E1527780AAFDD6BF164
+      summary: 26,681 majority opinions 1791-2005; centrality identifies the most legally relevant precedents at any point in time (abstract, search excerpt)
+    - title: Soh, Simulating Subject Communities in Case Law Citation Networks (2021)
+      url: https://frontiersin.org/articles/10.3389/fphy.2021.665563/full
+      summary: Kleinberg hub and authority scores with a 300-iteration cap, time decay and subject-sensitive PageRank
+    - title: Xu, Mariani, Lu and Medo, Unbiased evaluation of ranking metrics (Journal of Informetrics, 2020)
+      url: https://arxiv.org/html/2001.05414
+      summary: HITS authority identifies few milestone papers and patents (0.054 for patents); court citation networks may suit HITS better
+    - title: Adusumilli et al., Structure and Dynamics of Modern US Federal Case Law (2022)
+      url: https://www.frontiersin.org/articles/10.3389/fphy.2021.695219
+      summary: 1,317,233 cases from CourtListener; Supreme Court decisions dominate the top 1,000; scaling by court level
+    - title: Neale, Citation Analysis of Canadian Case Law (2013)
+      url: https://ojs.law.cornell.edu/index.php/joal/article/view/20
+      summary: In-degree and PageRank predict case views; citation life spans vary by jurisdiction
+    - title: CourtListener citations API (v4)
+      url: https://wiki.free.law/c/courtlistener/help/api/rest/v4/citations
+      summary: Cited and citing filters, depth field, bulk export; not every parallel citation known (search excerpt)
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

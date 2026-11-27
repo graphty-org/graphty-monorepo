@@ -1,0 +1,17 @@
+id: reachability-contrast
+name: Reachability Contrast Between Two Node Sets
+category: analysis
+description: Find nodes reachable from one set (active compounds) but not from another (inactive compounds) and
+    partition the graph accordingly, reporting partition purity.
+status: planned
+notes: "Research trace: network-medicine-and-biomedical-knowledge-graphs.md section 10, requirement R13 (Should)."
+algorithms: []
+used_by_workflows:
+    - W258
+implemented_by_components: []
+requirements:
+    - "Should: Contrast reachability from two node sets (active versus inactive compounds)"
+sources:
+    - title: Network Medicine, Drug Discovery and Biomedical Knowledge Graph Researchers (section 10, requirement R13)
+      url: design/user-research/network-medicine-and-biomedical-knowledge-graphs.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

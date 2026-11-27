@@ -1,0 +1,21 @@
+id: spatial-selection
+name: Spatial Selection
+category: analysis
+description: Select nodes inside a radius around a point or inside a drawn or imported polygon (hazard footprint), then
+    hand the selection to propagation or filtering.
+status: planned
+notes: "Research trace: supply-chain-and-physical-infrastructure-networks.md section 10, requirement R4 (Must)."
+algorithms: []
+used_by_workflows:
+    - W216
+    - W220
+    - W221
+    - W1096
+    - W2066
+implemented_by_components: []
+requirements:
+    - "Must: Spatial selection by radius or polygon, then propagate"
+sources:
+    - title: Supply Chain Risk Analysts and Physical Infrastructure Network Engineers (section 10, requirement R4)
+      url: design/user-research/supply-chain-and-physical-infrastructure-networks.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

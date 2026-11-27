@@ -1,0 +1,32 @@
+id: partial-correlation-network
+name: Correlation and partial-correlation network from a samples-by-features table
+category: analysis
+description: Build a weighted, signed network from a samples-by-features table (metabolite concentrations, unknown
+    features allowed) by pairwise correlation or debiased sparse partial correlation (DSPC), with a coefficient and a
+    p-value per edge, filters on both, a top-edges default cut that is shown and recorded, and subnetworks of three or
+    more nodes listed.
+status: planned
+notes: "Research trace: systems-biology-omics-networks.md section 10, requirement 58 (Should)."
+algorithms: []
+used_by_workflows:
+    - W3103
+implemented_by_components: []
+requirements:
+    - "Should: Build a correlation or DSPC partial-correlation network from a samples-by-features table, with
+      p-value and coefficient filters, a recorded top-edge cut, signed edges and unknown features kept as nodes"
+    - "Should: MetaboAnalyst's default keeps the top 20% of edges by p-value when there are fewer than 1,000 edges and
+      the top 100 when there are more; the cut actually applied is reported with the network."
+    - "Should: DSPC assumes the true network is sparse relative to the sample size; the feature and sample counts are
+      recorded so a reader can judge the fit (151 metabolites and 1,020 samples in the KORA benchmark; 192 metabolites
+      and 71 samples in a mouse study)."
+sources:
+    - title: Systems Biologists and Bench Scientists Working With Molecular Interaction Networks (section 10,
+          requirement 58)
+      url: design/user-research/systems-biology-omics-networks.md
+      summary: Should in the research.
+    - title: MetaboAnalyst Network Explorer Tutorial II (DSPC)
+      url: https://api2.xialab.ca/api/download/metaboanalyst/tutorial9.pdf
+      summary: Correlation filters I and II, default top-edge cut, subnetworks of three or more nodes, SIF download
+    - title: Basu et al. 2017 - Sparse network modeling and Metscape-based visualization
+      url: https://doi.org/10.1093/bioinformatics/btx012
+      summary: DSPC method, sparsity assumption, KORA, NOD mouse and SWAN networks, adjusted p-value edge cuts

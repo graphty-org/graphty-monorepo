@@ -1,0 +1,130 @@
+id: W44
+name: Simulating Spreading on a Network
+category: analysis
+validated: false
+personas:
+    - expert-emma
+requires_capabilities:
+    - centrality-degree
+    - node-selection
+    - algorithm-progress
+    - temporal-navigation
+    - animated-transitions
+    - visual-encoding-nodes
+    - comparison-view
+    - data-export
+    - null-model-ensembles
+    - seeded-runs
+    - spreading-simulation
+suggested_components:
+    - algorithm-panel
+    - algorithm-card
+    - slider
+    - progress-bar
+    - temporal-controls
+    - graph-canvas
+    - comparison-view
+    - data-export-dialog
+starting_state:
+    data_type: contact, social or infrastructure graph
+    node_count: 1000-1000000
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Simulate an epidemic, cascade or opinion process on a network, many times with recorded seeds, to see
+    how far and how fast it spreads, where the epidemic threshold lies, and whether network structure beyond degree
+    changes the outcome.
+
+
+    **Mental Model**: "Run the process, many times." One realization is an anecdote; the claim is the distribution of
+    prevalence curves and final sizes across realizations and parameters.
+
+
+    **Task Phases**:
+
+    1. **Choose the process** - SI, SIS, SIR, SEIR, threshold or cascade, or an opinion model (NDlib ships 22
+    epidemic and 14 opinion models; EoN over 100 methods)
+
+    2. **Set parameters** - Transmission and recovery rates (EoN fast_SIR(G, tau, gamma)), thresholds, per-edge
+    or per-node weights
+
+    3. **Choose initial nodes** - A random fraction, named nodes, or a strategy such as highest degree
+
+    4. **Run many realizations** - With recorded random states
+
+    5. **Plot** - Prevalence curves with spread across parameter settings; final size against transmission rate
+    to locate the epidemic threshold, which depends on degree heterogeneity
+
+    6. **Compare against a null** - Rerun on degree-preserving randomizations to see whether clustering or
+    communities, not degree alone, change the outcome
+
+    7. **Watch one run** - Replay every node's status history on the graph
+
+
+    **Decision Points**:
+
+    - Which model and rates match the phenomenon?
+
+    - Random or targeted initial nodes?
+
+    - How many realizations for a stable mean and spread?
+
+    - Does structure beyond the degree sequence matter (null comparison)?
+
+
+    **Information Needs**:
+
+    - Prevalence over time, mean and spread across realizations
+
+    - Final size vs transmission rate
+
+    - Per-node status history for one run
+
+    - Model, parameters, initial nodes and seeds
+
+
+    **Pain Points**:
+
+    - Simulation libraries (NDlib, EoN) are separate from layout and community tools
+
+    - Animating a run requires saving full data and custom drawing code
+
+    - Null comparisons need a separate rewiring step
+
+
+    **Data Flow**:
+
+    - Input: Graph, model, parameters, initial-node rule
+
+    - Transformations: Seeded stochastic simulation over many realizations, parameter sweep, null rerun
+
+    - Output: Prevalence and final-size curves, per-node history animation, provenance record
+success_criteria:
+    - metric: Spread reported
+      target: Every curve shows mean and spread over a stated number of seeded realizations
+    - metric: Threshold located
+      target: Final size vs transmission rate plotted with the threshold region visible
+    - metric: Null compared
+      target: Outcome compared with degree-preserving randomizations
+sources:
+    - title: NDlib - a Python library to model and analyze diffusion processes (Rossetti et al. 2018)
+      url: https://arxiv.org/abs/1801.05854
+      summary: 22 epidemic and 14 opinion models; web front end for non-programmers
+    - title: NDlib model reference
+      url: https://ndlib.readthedocs.io/en/latest/reference/reference.html
+      summary: Model catalog and parameters
+    - title: EoN (Epidemics on Networks) - Miller and Ting
+      url: https://arxiv.org/abs/2001.02436
+      summary: Over 100 methods for simulating and analyzing epidemics on networks
+    - title: EoN fast_SIR
+      url: https://epidemicsonnetworks.readthedocs.io/en/latest/functions/EoN.fast_SIR.html
+      summary: tau, gamma, rho, initial_infecteds and return_full_data for per-node histories
+    - title: Epidemic processes in complex networks (Pastor-Satorras et al., Rev Mod Phys 2015)
+      url: https://arxiv.org/abs/1408.2701
+      summary: Epidemic threshold depends on degree heterogeneity
+    - title: muxViz
+      url: https://www.github.com/manlius/muxViz
+      summary: Animates multilayer dynamics
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

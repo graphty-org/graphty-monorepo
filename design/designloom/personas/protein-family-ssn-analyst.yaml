@@ -1,0 +1,67 @@
+id: protein-family-ssn-analyst
+name: Protein-Family Similarity Network Analyst
+roster_persona: phylogeographer-population-geneticist
+tier: A
+scope: in-scope
+role: Enzymologist / Structural Biochemist (or Viral Ecologist)
+quote: I raise the alignment-score threshold, re-lay out, and look again -- twenty times -- until the clusters line up with known functions. Then I pick the cluster nobody has characterized.
+bio: >-
+    Dr. Hana Kowalski is an enzymologist choosing targets for characterization in an uncharacterized protein family. She
+    submits a Pfam or InterPro family, a BLAST query or a FASTA file to EFI-EST, which runs all-by-all BLAST and returns
+    a sequence similarity network: proteins as nodes, edges above an alignment-score threshold. Networks arrive as XGMML
+    with 10^3 to 10^5 nodes and 10^5 to 10^8 edges, often as representative-node networks where each node stands for a
+    CD-HIT cluster of sequences. She opens them in Cytoscape, filters edges by alignment score, re-runs the organic
+    layout and repeats until clusters with known SwissProt functions separate, then colors and numbers clusters and
+    sends them to EFI-GNT for genome-neighborhood analysis. Viral ecologists in her department follow the same pattern
+    with vConTACT2 gene-sharing networks. She knows connected components and thresholds well but little other graph
+    theory.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: intermediate
+    domain_knowledge: expert
+motivations:
+    - Find the alignment-score threshold at which clusters are isofunctional
+    - Color clusters by known function and spot clusters with no characterized member
+    - Pass chosen clusters on to genome-neighborhood and sequence analysis
+    - Open full networks that a desktop Cytoscape cannot hold
+behaviors:
+    - Reads EFI-EST plots (edges per score, length histogram, identity by score) to pick a starting threshold near 35% identity
+    - Downloads a full or representative-node XGMML network from an emailed link valid 14 days
+    - Imports XGMML into Cytoscape, filters edges below a score, re-lays out, and repeats
+    - Colors nodes by SwissProt function, taxonomy or cluster number
+    - Imports annotation tables keyed on a genome or protein id column
+    - Expands representative nodes to see member UniProt ids
+frustrations:
+    - Full networks are about 500 MB and greater
+    - Desktop Cytoscape handles a few thousand nodes and under about 500,000 edges
+    - A 47.5-million-edge network is too large for most desktop and laptop computers
+    - The threshold-relayout loop is slow and manual
+    - Annotation tables fail to attach unless the right key column is chosen
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - workstation
+    voluntary: true
+workflows:
+    - W402
+sources:
+    - title: EFI-EST analysis tutorial
+      url: https://efi.igb.illinois.edu/efi-est/tutorial_analysis.php
+      summary: Four analysis plots and threshold choice; isofunctional families often share >40% identity, start at 35%
+    - title: EFI-EST download tutorial
+      url: https://efi.igb.illinois.edu/efi-est/tutorial_download.php
+      summary: Full and representative networks, ~500 MB, Cytoscape limits of a few thousand nodes and under ~500,000 edges
+    - title: EFI tools paper 2023
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10291204
+      summary: More than 9,700 users and 90,000 EFI-EST jobs; network sizes; 47.5-million-edge network too large for desktops; utilities
+    - title: vConTACT2 network into Cytoscape (Genomics Aotearoa summer school)
+      url: https://genomicsaotearoa.github.io/metagenomics_summer_school/day3/ex10.2_viruses
+      summary: Viral gene-sharing network imported into Cytoscape with an annotation table
+    - title: vConTACT2 issue 69
+      url: https://bitbucket.org/MAVERICLab/vcontact2/issues/69/cytoscape-visualization-headings-show-up
+      summary: Annotation table fails to attach without the right key column
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

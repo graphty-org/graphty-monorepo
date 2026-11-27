@@ -57,6 +57,7 @@ describe("a static engine that takes the nodes over", () => {
         const observable = { add: () => null, remove: () => true };
         const scene = {
             onAfterRenderObservable: observable,
+            onBeforeRenderObservable: observable,
             onBeforeDrawPhaseObservable: observable,
             onNewMeshAddedObservable: observable,
             onMeshRemovedObservable: observable,

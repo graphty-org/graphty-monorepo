@@ -1,0 +1,138 @@
+id: W281
+name: Building the Query-and-Expand Investigation View
+category: exploration
+validated: false
+personas:
+    - graph-product-frontend-engineer
+requires_capabilities:
+    - search
+    - neighborhood-expansion
+    - progressive-loading
+    - node-merging
+    - filtering
+    - visual-encoding-nodes
+    - annotation
+    - temporal-navigation
+    - details-on-demand
+    - view-bookmarks
+    - export-image
+    - data-export
+    - report-generation
+    - supernode-safeguards
+    - stable-id-data-binding
+    - headless-image-rendering
+suggested_components:
+    - search-input
+    - graph-canvas
+    - context-menu
+    - node-details-panel
+    - cluster-collapse-control
+    - node-merge-dialog
+    - filter-panel
+    - temporal-controls
+    - annotation-toolbar
+    - session-save-dialog
+    - image-export-dialog
+    - report-generator-dialog
+starting_state:
+    data_type: entity search results from a graph database or API (IP addresses, emails, device ids, accounts) with typed relationships
+    node_count: 1-300 initial, growing by up to about 100 per expand
+    edge_density: sparse with occasional supernodes
+    user_expertise: expert developer building for intermediate analysts
+goal: >-
+    **Intent**: Build the core screen of an investigation product: seed a graph from a search, let the analyst expand
+    neighbors, merge and reduce what comes back, annotate it, save the workspace and export a report.
+
+
+    **Mental Model**: "Pull a thread." The canvas starts tiny and grows one deliberate expand at a time; the store
+    behind it holds billions of records the analyst never sees at once.
+
+
+    **Task Phases**:
+
+    1. **Seed** - The analyst searches; the backend returns the matches and their first-degree neighbors
+
+    2. **Cap the payload** - About 300 initial nodes and 100 neighbors per expand (Neo4j Browser defaults); 10,000
+    elements per query (Bloom); a supernode threshold above which the analyst must refine the expand (Linkurious)
+
+    3. **Merge and lay out incrementally** - Merge by id, keep existing positions, place only new nodes
+
+    4. **Enrich and encode** - Type styles, risk badges, annotations, a time bar
+
+    5. **Reduce** - Group duplicates into combos, filter, delete
+
+    6. **Save and share** - Serialize the workspace for a colleague or a later session
+
+    7. **Export** - PDF reports, PNG and SVG images, CSV or Excel tables, often rendered on the server
+
+    8. **Analytics later** - Path finding and centrality follow the expand-and-annotate loop, not precede it
+
+
+    **Decision Points**:
+
+    - How many neighbors to return before asking the analyst to refine?
+
+    - Which entities are duplicates and should be grouped?
+
+    - What belongs in a saved workspace (positions, annotations, filters, time range)?
+
+
+    **Information Needs**:
+
+    - Count of hidden neighbors before an expand, and a supernode warning
+
+    - Which nodes are new after an expand
+
+    - Full properties of a clicked entity and its source feed
+
+
+    **Pain Points**:
+
+    - Raising the neighbor cap to 1,000 makes the UI unresponsive
+
+    - Expands that duplicate nodes or reshuffle the whole layout
+
+    - Reports that must be rebuilt by hand outside the product
+
+    - Admissible-evidence exports in policing need reproducible, documented views
+
+
+    **Data Flow**:
+
+    - Input: Search terms; backend neighbor queries returning entities and relationships
+
+    - Transformations: Capped expand, merge by id, incremental layout, grouping, filtering, annotation
+
+    - Output: Saved workspace, PDF report, images, CSV or Excel tables
+success_criteria:
+    - metric: Expand responsiveness
+      target: An expand of 100 neighbors is placed without moving existing nodes and without a visible freeze
+    - metric: Supernode safety
+      target: An expand above the threshold is refused with a count, never silently truncated or frozen
+    - metric: Workspace round trip
+      target: A saved workspace reloads with identical positions, groups and annotations
+sources:
+    - title: Cambridge Intelligence - Core4ce Cyberscape
+      url: https://cambridge-intelligence.com/core4ce-cyberscape-the-cyber-security-forensics-platform
+      summary: Search-seeded investigation, PDF reports, path finding and centrality as later work
+    - title: Cambridge Intelligence - EclecticIQ case study
+      url: https://cambridge-intelligence.com/eclecticiq-case-study/
+      summary: Saved Workspace feature
+    - title: Cambridge Intelligence - Customer stories
+      url: https://cambridge-intelligence.com/customer-stories/
+      summary: Police and fraud products; TETRAS turns raw data into admissible evidence
+    - title: Linkurious admin manual - Advanced settings
+      url: https://doc.linkurious.com/admin-manual/latest/advanced-settings/
+      summary: Supernode threshold of 10,000 edges and an expand threshold that forces refinement
+    - title: Neo4j Browser settings
+      url: https://neo4j.com/docs/browser-manual/current/operations/browser-settings/
+      summary: initialNodeDisplay 300 and maxNeighbours 100
+    - title: Neo4j Community - Browser node relationship limit
+      url: https://community.neo4j.com/t/browser-node-relationship-limit/69507
+      summary: Raising the cap to 1,000 made the UI unresponsive
+    - title: yFiles - Large graph performance
+      url: https://docs.yworks.com/yfiles-html/dguide/large_graph_performance/
+      summary: Incremental layout for new elements
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,21 @@
+id: parameterized-saved-searches
+name: Parameterized Saved Searches
+category: analysis
+description: Searches and query templates with typed inputs (node, node set, string, number, date, enum) and suggestion
+    lists, written by one user and run by others with one click; may take the current selection as input; read-only
+    unless writes are enabled.
+status: planned
+notes: "Research trace: graph-database-query-and-expand-exploration.md section 10, requirement 9 (Must)."
+algorithms: []
+used_by_workflows:
+    - W142
+    - W143
+    - W145
+implemented_by_components: []
+requirements:
+    - "Must: Saved, parameterized searches (search phrases, templates) with typed inputs and suggestion lists, prepared
+      by one user for others"
+sources:
+    - title: Graph Database Users Who Explore by Search, Query and Expand (section 10, requirement 9)
+      url: design/user-research/graph-database-query-and-expand-exploration.md
+      summary: Must in the research.

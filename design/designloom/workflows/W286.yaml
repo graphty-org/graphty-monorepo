@@ -1,0 +1,103 @@
+id: W286
+name: Security Review and Deployment of an Embedded Graph
+category: administration
+validated: false
+personas:
+    - graph-product-frontend-engineer
+    - plugin-author-frontend-developer
+requires_capabilities:
+    - graph-rendering
+    - large-graph-rendering
+    - sample-datasets
+    - strict-csp-offline-deployment
+suggested_components:
+    - graph-canvas
+    - status-bar
+starting_state:
+    data_type: a built product bundle that includes the graph library, and a customer's security questionnaire
+    node_count: not applicable
+    edge_density: not applicable
+    user_expertise: expert developer
+goal: >-
+    **Intent**: Get the product, with its embedded graph library, through a regulated customer's security review:
+    a strict Content Security Policy, offline or air-gapped installation, license and code-handling rules, and
+    role-based access control.
+
+
+    **Mental Model**: "Nothing runs that the customer did not approve, and nothing calls home." Every script, worker,
+    font and data file is served from the customer's own host under a policy without unsafe exceptions.
+
+
+    **Task Phases**:
+
+    1. **Strict CSP** - Run under the customer's policy; find workers created from blob URLs, `eval` and inline styles
+    that need `unsafe-inline`; users "justifiably reject" allowing `worker-src blob:`
+
+    2. **Fallback when blocked** - Decide what happens when workers or WebGPU are refused; the AntV maintainers' answer
+    to "skip Web workers when they cannot be used" was to upgrade to the next major version
+
+    3. **Offline and air-gapped** - Bundle or self-host every asset (fonts, icons, workers, WebAssembly, optional data);
+    no CDN, telemetry or runtime downloads (no published vendor checklist found)
+
+    4. **License and code handling** - Commercial toolkits forbid shipping source maps and require obfuscation
+
+    5. **RBAC and data minimization** - Enforced in the backend; the graph shows only what the user may see
+
+
+    **Decision Points**:
+
+    - Which CSP directives can the product promise to need?
+
+    - Which optional features are disabled offline?
+
+    - Can a blocked worker or GPU path degrade to a reported, documented alternative?
+
+
+    **Information Needs**:
+
+    - A published CSP the library works under
+
+    - A list of every network request and asset the library may make or load
+
+    - An error code when a worker or WebGPU is blocked
+
+
+    **Pain Points**:
+
+    - Blob-URL workers refused under strict CSP with no way to skip them
+
+    - Assets fetched on demand from a CDN in an air-gapped install
+
+    - Obfuscation and source-map bans from commercial licenses
+
+
+    **Data Flow**:
+
+    - Input: Product bundle, customer CSP and deployment rules
+
+    - Transformations: Asset inventory, CSP testing, self-hosting configuration
+
+    - Output: A passing security review and a deployment guide
+success_criteria:
+    - metric: Strict CSP
+      target: The graph works under a policy with no unsafe-eval, no unsafe-inline and no blob workers
+    - metric: Offline
+      target: Zero network requests beyond configured, self-hosted URLs
+    - metric: Blocked features
+      target: A blocked worker or GPU path produces a documented error code, never a silent failure
+sources:
+    - title: AntV G2 issue 5462
+      url: https://github.com/antvis/G2/issues/5462
+      summary: Worker from a blob URL refused under CSP; request to skip workers; answer was to upgrade
+    - title: graphology - ForceAtlas2
+      url: https://graphology.github.io/standard-library/layout-forceatlas2.html
+      summary: Worker source inlined at publish time, the same blob-style pattern
+    - title: ReGraph getting started
+      url: https://developers.cambridge-intelligence.com/docs/regraph/getting-started
+      summary: Obfuscation required and source maps forbidden
+    - title: Djinni - Senior React Frontend Engineer (Graph)
+      url: https://djinni.co/jobs/806184-senior-react-frontend-engineer-graph-data-vis
+      summary: OIDC and role-based access control listed beside the graph view
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

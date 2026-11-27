@@ -5,110 +5,144 @@ validated: false
 personas:
     - supply-chain-analyst
 requires_capabilities:
-    - centrality-betweenness
+    - data-import
+    - data-validation
     - component-analysis
+    - degree-analysis
+    - computed-attributes
+    - removal-impact-analysis
     - filtering
     - visual-encoding-nodes
+    - legend-display
     - layout-hierarchical
     - statistics-panel
     - comparison-view
-    - removal-impact-analysis
+    - details-on-demand
+    - data-export
+    - group-collapse
+    - geographic-layout
+    - dependency-propagation
+    - scenario-sweep
+    - shared-dependency-analysis
 suggested_components:
+    - file-drop-zone
+    - data-import-dialog
     - graph-canvas
     - statistics-panel
     - filter-panel
     - visual-encoding-panel
     - comparison-view
     - impact-analysis-dialog
+    - ranked-node-table
     - legend-panel
+    - node-details-panel
+    - data-export-dialog
 starting_state:
-    data_type: supply chain network
-    node_count: 100-10000
+    data_type: multi-tier part-at-site supply network (directed, mostly acyclic) with recovery times, inventory, alternates, revenue and coordinates
+    node_count: 100-130000
     edge_density: sparse
     user_expertise: intermediate
 goal: >-
-    **Intent**: Identify vulnerabilities in a supply chain network before disruptions occur. User wants to find single
-    points of failure, assess geographic concentration risk, and model "what if" scenarios.
+    **Intent**: Identify vulnerabilities in a supply chain network before disruptions occur: which sites and parts would
+    cost the most revenue while down, where inventory and alternates do not cover the recovery time, which inputs are
+    single-sourced, and where suppliers cluster geographically. This is the umbrella assessment; the detailed procedures
+    are the time-to-recover stress test (W215), event response (W216) and multi-tier mapping (W217).
 
 
-    **Mental Model**: "Stress testing the chain" - finding weak links before they break. Like earthquake preparedness -
-    identifying which buildings would fall.
+    **Mental Model**: "Stress testing the chain" - knock out each site for as long as it really takes to recover and
+    count what cannot be built. Exposure follows the bill of materials, inventory and alternates, not centrality or spend.
 
 
     **Task Phases**:
 
-    1. **Network Mapping** - Build complete supply network (Tier 1, Tier 2+, logistics routes)
+    1. **Network Mapping** - Build the part-at-site network (tier 1 from ERP, tier 2+ from surveys, trade data or vendors),
+    marking unknown sub-tier links as unknown rather than absent
 
-    2. **Dependency Analysis** - Identify supplier concentration, geographic clustering
+    2. **Dependency Analysis** - Count suppliers per input to find single-sourced parts; find tier-1 suppliers that share
+    a hidden tier-2 source; group suppliers by region to see concentration
 
-    3. **Centrality Assessment** - Find high-betweenness nodes (bottlenecks)
+    3. **Exposure Scoring** - For each node, compute time to survive from inventory and alternates and the impact of a
+    disruption lasting its time to recover; propagate AND across required inputs and OR across alternates; store the
+    impact per node
 
-    4. **Scenario Modeling** - What if supplier X fails? What if region Y is disrupted?
+    4. **Scenario Modeling** - Region, plant or part scenarios (what if region Y is disrupted?) compared against the base
 
-    5. **Mitigation Planning** - Develop alternatives, redundancy, monitoring
+    5. **Mitigation Planning** - Dual sourcing, safety stock or monitoring for high-exposure, low-spend sites; drop
+    zero-exposure sites from monitoring
 
 
     **Decision Points**:
 
-    - How deep into the supply chain to map (Tier 2? Tier 3?)
+    - How deep into the supply chain to map (Tier 2? Tier 3?), and how to treat unknown links?
 
-    - What constitutes "unacceptable" concentration?
+    - Which supplier-reported recovery times are credible?
 
-    - Which scenarios are most likely/impactful to model?
+    - What constitutes unacceptable exposure or concentration?
 
-    - How much redundancy investment is justified?
+    - How much redundancy investment is justified by the impact avoided?
 
 
     **Information Needs**:
 
-    - Complete supplier network with tier information
+    - Supplier network with tier, part and site information and the source of each link
 
-    - Geographic locations of all entities
+    - Recovery time, inventory days, alternates, margin and coordinates per node
 
-    - Capacity and lead time data
-
-    - Alternative supplier options
+    - Per-node impact and time to survive, side by side with spend
 
     - Historical disruption data
 
 
     **Pain Points**:
 
-    - Tier 2+ suppliers often unknown
+    - Tier 2+ suppliers often unknown or self-reported
 
-    - Data scattered across procurement systems
+    - Data scattered across procurement systems, with one supplier under many names
 
-    - Scenario modeling requires assumptions
+    - Betweenness centrality does not track exposure in a bill-of-materials graph (Ford: exposure not correlated with
+    spend; betweenness fits hub networks like ports and airports)
 
-    - Cost of redundancy vs. probability of disruption trade-off
+    - Plain removal analysis treats every downstream node as lost, ignoring alternates and inventory buffers
 
-    - Dynamic nature of supply networks
+    - A per-node scenario sweep is a batch job across tens of thousands of nodes
 
 
     **Data Flow**:
 
-    - Input: Supplier relationship data + geographic data + capacity data
+    - Input: BOM and sourcing data, survey recovery times, inventory, margins, geographic coordinates
 
-    - Transformations: Network construction, centrality analysis, scenario simulation
+    - Transformations: Network construction, single-source and shared-dependency analysis, per-node disruption scenarios
+    with AND/OR propagation and time buffers, regional grouping
 
-    - Output: Risk assessment report + prioritized mitigation recommendations
+    - Output: Ranked exposure table linked to an impact map, single-source list, prioritized mitigation recommendations
 success_criteria:
+    - metric: Exposure coverage
+      target: Every site has a stored impact value over its recovery time
     - metric: Single points of failure identified
-      target: All critical dependencies mapped
+      target: All single-sourced inputs and shared hidden sources listed
     - metric: Scenarios modeled
-      target: Top 5 disruption scenarios quantified
+      target: Top 5 disruption scenarios quantified against the base
     - metric: Mitigation plan
       target: Actionable recommendations with cost/benefit
 sources:
-    - title: Practical Graph Analysis Guide - Chapter 9
-      url: https://graphty.app/docs/
-      summary: Supply Chain Risk Assessment Workflow
+    - title: Simchi-Levi et al., Identifying Risks and Mitigating Disruptions in the Automotive Supply Chain (Interfaces 2015)
+      url: https://hdl.handle.net/1721.1/101782
+      summary: Time-to-recover and time-to-survive exposure model; exposure not correlated with spend
+    - title: Supply chain analysis with Neo4j GDS and Bloom
+      url: https://neo4j.com/developer-blog/supply-chain-neo4j-gds-bloom/
+      summary: Betweenness applied to hub networks such as airports and ports
+    - title: Mungo et al., Reconstructing supply networks
+      url: https://arxiv.org/pdf/2310.00446
+      summary: Hidden second-tier suppliers and missing links
+    - title: Kim, Choi, Yan and Dooley 2011 - Structural investigation of supply networks (Journal of Operations Management 29(3), 194-211)
+      url: https://doi.org/10.1016/j.jom.2010.11.001
+      summary: Applies social network analysis measures to three automotive supply networks from Choi and Hong 2002 and finds it supplements and complements case-based analysis
     - title: Cambridge Intelligence Supply Chain Management
       url: https://cambridge-intelligence.com/supply-chain-management-with-graph-analytics/
       summary: Supply chain visualization with graph analytics
     - title: Neo4j Supply Chain Use Cases
       url: https://neo4j.com/use-cases/supply-chain-management/
       summary: Graph database approach to supply chain risk analysis
-version: 1.0.0
+version: 1.1.0
 created_at: 2026-01-16T16:42:38.131Z
-updated_at: 2026-01-16T16:42:38.131Z
+updated_at: 2026-11-25T00:00:00.000Z

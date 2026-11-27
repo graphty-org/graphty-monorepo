@@ -952,13 +952,14 @@ export class PulledLineBatch {
             return block;
         }
 
-        routes.fill(0, block * TEXEL_FLOATS, (block + size) * TEXEL_FLOATS);
         for (let k = 0; k < count; k++) {
             const texel = (block + k) * TEXEL_FLOATS;
             routes[texel] = points[3 * k];
             routes[texel + 1] = points[3 * k + 1];
             routes[texel + 2] = points[3 * k + 2];
+            routes[texel + 3] = 0;
         }
+        routes.fill(0, (block + count) * TEXEL_FLOATS, (block + size) * TEXEL_FLOATS);
         const first = Math.floor(block / this.routeWidth);
         const last = Math.floor((block + size - 1) / this.routeWidth);
         this.routesFirst = this.routesFirst < 0 ? first : Math.min(this.routesFirst, first);

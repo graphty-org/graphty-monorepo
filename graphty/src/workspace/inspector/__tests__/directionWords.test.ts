@@ -67,5 +67,20 @@ describe("directionWords", () => {
         assert.include(mixed, "Some edges have a direction");
         assert.include(unknown, "Nothing says whether edges have a direction");
         assert.strictEqual(directionWords(stats("unknown", { by: "unsettled", statedBy: null })), "Not settled");
+        assert.strictEqual(directionWords(stats("mixed", { by: "file", statedBy: null })), "Mixed");
+    });
+
+    it("says where the direction came from: the file's format, or nothing yet", () => {
+        // A file that states nothing still settles it by its format (GraphML's default, say).
+        assert.include(directionNote(stats("mixed", { by: "file", statedBy: null })), "From the file's format.");
+        assert.include(
+            directionNote(stats("unknown", { by: "unsettled", statedBy: null })),
+            "Nothing has said yet; set it on the Data page.",
+        );
+        // A directed graph's arrowheads point the edge's way.
+        assert.match(
+            directionNote(stats("directed", { by: "file", statedBy: "digraph" })),
+            /^Each edge goes from its source to its target\. From the file\.$/,
+        );
     });
 });

@@ -1,0 +1,116 @@
+id: W3050
+name: Simulating a Livestock Contact Network Where Movement Data Is Partial
+category: analysis
+validated: false
+scope: deferred
+personas:
+    - veterinary-movement-epidemiologist
+requires_capabilities:
+    - data-import
+    - data-validation
+    - synthetic-network-generation
+    - null-model-ensembles
+    - degree-analysis
+    - component-analysis
+    - spreading-simulation
+    - geographic-layout
+    - comparison-view
+    - statistics-panel
+    - data-export
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - statistics-panel
+    - histogram
+    - comparison-view
+    - graph-canvas
+    - data-export-dialog
+starting_state:
+    data_type: partial movement data (a network survey, a sample of traceability records, permits or census counts) plus holding or village locations
+    node_count: 100-10000
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Where no complete national movement database exists, build a plausible contact network from what
+    is known -- a survey of traders and markets, a sample of records, census counts and locations -- check that it
+    looks like the real one, and run disease spread or control scenarios on it. A 2023 systematic review found 37
+    such models in 52 publications from 2009 to 2022, about 16 of them used to generate networks from limited data.
+
+
+    **Mental Model**: "Fill the gaps with a model, then test the model against what was observed." Routine livestock
+    identification and traceability systems may not exist or may not be shared, "especially in low- and middle-income
+    countries", and targeted network surveys cover specific places and periods. A generated network stands in for the
+    missing data.
+
+
+    **Task Phases**:
+
+    1. **Collect what exists** - Network surveys (calibration data for 13 of the 37 models), traceability records (12),
+    censuses (2) or permits (1), plus holding, village or market locations and sizes. In low- and middle-income
+    countries surveys and snowball sampling are the usual source.
+
+    2. **Pick a generating model** - Mechanistic (configuration models that keep the degree distribution, scale-free
+    or small-world graphs, spatial distance rules, agent-based trading rules) or statistical (gravity models of
+    supply, demand and distance; exponential random graph models, including temporal ones; Bayesian kernel models),
+    and rarely machine learning (one random forest model).
+
+    3. **Fit and generate** - Fit to the observed degree distribution, clustering, distances or flows, and generate
+    many networks rather than one.
+
+    4. **Validate** - Compare structural statistics of generated and observed networks (14 models did this),
+    dyad-level accuracy (6) or epidemic outcomes on both (4). The review warns that calibrating on a few network
+    statistics "is unlikely to be sufficient", and that exponential random graph models can degenerate into
+    unrealistically dense or sparse networks.
+
+    5. **Run scenarios** - Spread a disease across the generated networks and compare control, network change or
+    surveillance scenarios.
+
+
+    **Decision Points**:
+
+    - Which generating model fits the data at hand
+
+    - Which statistics to calibrate and validate on
+
+    - How many generated networks are enough to trust a scenario result
+
+
+    **Information Needs**:
+
+    - Observed and generated networks side by side, with their degree distributions, components and distance profiles
+
+    - The spread of a statistic across many generated networks against the observed value
+
+    - Epidemic outcomes on generated against observed networks where both exist
+
+
+    **Pain Points**:
+
+    - Validation approaches vary widely, so models are hard to compare
+
+    - Generated networks are only as good as the survey behind them, which covers a few places and periods
+
+    - Commercial interests and privacy restrict sharing of the records that would make the model unnecessary
+
+
+    **Data Flow**:
+
+    - Input: survey edges, sampled records, census counts, locations and sizes
+
+    - Transformations: model fitting, repeated generation, structural comparison with the observed data, spread
+    simulation per generated network
+
+    - Output: an ensemble of generated networks, validation tables, scenario results, and exports for R
+success_criteria:
+    - metric: Observed against generated
+      target: The observed network and an ensemble of generated ones can be compared on the same statistics
+sources:
+    - title: Leung, Rudge and Fournie, Simulating contact networks for livestock disease epidemiology - a systematic review (Journal of the Royal Society Interface 2023, 20:20220890)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10189310/
+      summary: 37 models in 52 publications (2009-2022) across seven frameworks (17 mechanistic, 19 statistical, 1 machine learning); calibration data sources; about 16 models used to generate networks from limited data; validation in 23 of 37; traceability systems may be missing or unshared, especially in low- and middle-income countries; ERGM degeneracy and calibration warnings
+    - title: Sequeira et al., A systematic scoping review and thematic analysis of livestock and poultry movement networks (PLoS ONE 2025, 20(7):e0328518)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC12279109/
+      summary: Surveys and snowball sampling as the network source in 43 studies, mainly China, African countries and Southeast Asian low- and middle-income countries; reliance on surveys and aggregated data limits the robustness of network models; network inference as a theme in 3 studies
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

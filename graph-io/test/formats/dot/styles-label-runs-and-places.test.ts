@@ -69,6 +69,12 @@ describe("DOT styles: HTML font runs", () => {
         expect((await nodes(doc, "labelRuns")).a ?? null).toBeNull();
     });
 
+    it("underlines a label underlined whole, and not one underlined in part", async () => {
+        const doc = `digraph { a [label=<<B><I><U>all</U></I></B>>]; b [label=<a<U>bc</U>d>]; c [label=< <U>x</U><BR/><U>y</U> >] }`;
+        const underline = await nodes(doc, "labelUnderline");
+        expect([underline.a, underline.b ?? null, underline.c]).toEqual([true, null, true]);
+    });
+
     it("lines up an HTML label by the ALIGN of its line breaks", async () => {
         const doc = `digraph { a [label=<wide<BR ALIGN="LEFT"/>x<BR ALIGN="LEFT"/>>]; b [label=<w<BR ALIGN="RIGHT"/>x<BR ALIGN="RIGHT"/>>];
             c [label=<w<BR ALIGN="LEFT"/>x<BR/>>] }`;

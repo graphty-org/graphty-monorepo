@@ -3784,6 +3784,19 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * The selection the camera pivots on was cleared: the glide carries on to the nodes that were
+     * selected, as `followSelection` does for a clear made mid-glide. Also when the clear came
+     * before any pass had seen that selection, which otherwise left the camera where it was
+     * (issue #10256).
+     * @param nodes - The nodes the clear took out of the selection.
+     */
+    glideToCleared(nodes: readonly Node[]): void {
+        if (nodes.length > 0) {
+            this.glidingTo = nodes;
+        }
+    }
+
+    /**
      * Put the camera's pivot on a selection's center at once, as the glide to it would end; not
      * while the element is framing the graph or a node of it is dragged (see `followSelection`).
      * @param nodes - The selection.
@@ -3846,6 +3859,8 @@ export class UpdateManager implements Manager {
             // on is not the final one: without this, a stable frame was reported in between, with
             // the pivot on the graph's middle rather than on the selection.
             this.followingSelection = !this.framingHasNothingToFrame;
+            // Kept for the pass after the framing: a clear in between still ends the glide there.
+            this.glidingTo = nodes;
             return;
         }
 
@@ -3928,7 +3943,7 @@ export class UpdateManager implements Manager {
         this.pending.cameraTurnsByItself = this.autoTurning;
 
         // Always update camera
-        this.camera.update();
+        this.camera.update(frameMs);
 
         // Check if layout is running
         if (!this.layoutManager.running) {

@@ -1144,6 +1144,11 @@ interface TargetStore {
     painted: Uint8Array;
     /** Whether any layer has ever painted a channel that keys a source mesh. */
     meshWritten: boolean;
+    /**
+     * Whether a pass painted the columns and was canceled before it interned them, so a key may not match its
+     * element's values: the next pass interns every dirty element, whatever its values were before it.
+     */
+    internPending: boolean;
 }
 
 /** One channel one layer paints, with everything knowable already worked out. */
@@ -1493,6 +1498,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             dirtyCount: 0,
             painted: new Uint8Array(INITIAL_CAPACITY),
             meshWritten: false,
+            internPending: false,
         };
     };
 
@@ -2264,7 +2270,8 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         // Clearing is what makes a removal and an update correct, and it is exactly what the
         // add-on-top path does not have to do: nothing below the new layer changed, so what those
         // layers painted is already right where it needs to be.
-        const before = store.meshWritten ? meshValuesOf(store) : null;
+        const before = store.meshWritten && !store.internPending ? meshValuesOf(store) : null;
+        store.internPending = true;
         if (from === 0) {
             clearDirty(store);
         }
@@ -2295,6 +2302,8 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         if (store.meshWritten) {
             slice = await internDirty(store, context, slice, before);
         }
+
+        store.internPending = false;
 
         for (let at = 0; at < store.dirtyCount; at++) {
             store.painted[store.dirty[at]] = 1;

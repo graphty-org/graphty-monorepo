@@ -200,6 +200,47 @@ describe("styles.counts keeps what a change cannot move", () => {
         session.dispose();
     });
 
+    it("counts the drawn elements again when the time window's layer turns from hiding to ghosting", async () => {
+        /**
+         * A timed chain with a window over its first half, its outside layer in one look.
+         * @param look - The outside layer's look.
+         * @returns The session.
+         */
+        const windowed = async (look: "hidden" | "ghost"): Promise<GraphSession> => {
+            const session = createGraphSession();
+            await session.config.set({ startingRows: true, timelineHiddenLook: look });
+            const nodes = Array.from({ length: 8 }, (_unused, i) => ({ id: `n${String(i)}`, t: i }));
+            await session.data.import({ type: "json", config: { data: JSON.stringify({ nodes, edges: [] }) } });
+            await session.time.setField({ nodes: { start: "t" } });
+            await session.time.window({ from: 0, to: 3 });
+            await session.styles.settled();
+            return session;
+        };
+        const outside = (session: GraphSession): ReturnType<GraphSession["styles"]["list"]>[number] => {
+            const layer = session.styles
+                .list()
+                .find((each) => each.target === "node" && each.selector.match === "state" && each.selector.state === "outsideWindow");
+            assert.isDefined(layer);
+            return layer;
+        };
+        const drawn = (session: GraphSession): readonly unknown[] =>
+            session.styles.list().map((layer) => session.styles.counts(layer.id).visible);
+
+        const session = await windowed("hidden");
+        const ghosted = await windowed("ghost");
+        drawn(session);
+        session.styles.legend();
+        const layer = outside(session);
+        await session.styles.update(layer.id, { set: outside(ghosted).set });
+        await session.styles.settled();
+        // What is drawn reads whether the window's layer hides: the drawn counts are read again.
+        const before = drawnCounters.walks;
+        assert.deepEqual(drawn(session), drawn(ghosted), "the drawn counts follow the look");
+        assert.isAbove(drawnCounters.walks, before, "read again, not kept from the hiding look");
+        session.dispose();
+        ghosted.dispose();
+    });
+
     it("still moves the revision a count carries on every style change", async () => {
         const session = await chain();
         const id = idOf(session, "Kind one");

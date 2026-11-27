@@ -1939,12 +1939,17 @@ function readsReader(value: Scope | RuleTree): boolean {
 
 /**
  * Whether a count reads a channel's fixed value, not only whether it paints: an end caption
- * counts against its arrow's type, a lift against 0, and a shader list use by use.
+ * counts against its arrow's type, a lift against 0, a shader list use by use, and what is drawn
+ * against whether an element is visible.
  * @param channel - The channel.
  * @returns True when the value is read.
  */
 const COUNTED_BY_VALUE = (channel: string): boolean =>
-    channel === "edge.arrowHead" || channel === "edge.arrowTail" || channel === "edge.lift" || channel.includes("shader");
+    channel === "edge.arrowHead" ||
+    channel === "edge.arrowTail" ||
+    channel === "edge.lift" ||
+    channel.endsWith(".visible") ||
+    channel.includes("shader");
 
 /**
  * A layer's fixed values as its counts read them: each value no count reads by value stands as
@@ -2533,25 +2538,11 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         restamped.set(counts, next);
         return next;
     };
-    /**
-     * What a layer selects among the drawn elements, kept while the data, the element states and
-     * the view stand: the key names the layer's own selector, so no other edit moves it.
-     * @param input - The input revision to read.
-     * @param state - The state revision to read.
-     * @returns The cache.
-     */
-    const membershipCache = (
-        input: (() => number) | undefined,
-        state: (() => number) | undefined,
-    ): ReturnType<typeof createReadingCache> =>
-        createReadingCache(() =>
-            input === undefined || state === undefined
-                ? null
-                : [branchesShown, viewPending, input(), state(), sources.setsRevision?.() ?? 0],
-        );
-    const keptMembership = membershipCache(sources.inputRevision ?? ((): number => 0), sources.stateRevision);
+    // What a layer selects among the drawn elements, kept as its counts are: what is drawn reads
+    // the stack too (a hidden look, the time window's layer between ghost and hide).
+    const keptMembership = countCache(sources.inputRevision ?? ((): number => 0), sources.stateRevision);
     /** {@link keptMembership} across selection, hover and pin changes, for a selector that does not follow them. */
-    const keptMembershipPointerFree = membershipCache(
+    const keptMembershipPointerFree = countCache(
         sources.inputRevisionBesidesPointer,
         sources.stateRevisionBesidesPointer,
     );

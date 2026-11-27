@@ -2497,7 +2497,7 @@ function NumberCard({
     );
     // Over the card's base: the whole graph, named, unless it has one.
     const stats = session.data.statistics({ scope: within === "visible" ? "visible" : "all" });
-    const total = side === "node" ? stats.nodeCount : stats.edgeCount;
+    const total = card.field.waiting?.of ?? (side === "node" ? stats.nodeCount : stats.edgeCount);
     const parse = useNumberParser();
     const { store } = useWorkspace();
     const [drafts, setDrafts] = useState<Drafts>({});
@@ -2955,13 +2955,16 @@ function DateCard({
     variant?: CardVariant;
     onChange: OnCard;
 }>): React.JSX.Element {
-    const { name, path, on } = card.field;
+    const { name, path, on, listed: given } = card.field;
     const body = useRef<HTMLDivElement>(null);
     useFocusAfterMode(body, card.match);
     const [drafts, setDrafts] = useState<Partial<Record<DateBox, string>>>({});
     const [refused, setRefused] = useState<DateBox | null>(null);
     const messageId = useId();
-    const counts = useMemo(() => session.data.valueCounts(path, { kind: on, scope: "graph" }), [session, path, on]);
+    const counts = useMemo(
+        () => given ?? session.data.valueCounts(path, { kind: on, scope: "graph" }),
+        [session, path, on, given],
+    );
     // The column's dates as the table writes them, each once, in time order.
     const dates = useMemo(() => {
         const days = counts.values

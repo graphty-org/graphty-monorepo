@@ -55,8 +55,8 @@ The layer name and menu, "Select nodes..." / "Select edges..." (no Style nodes /
 | Unnamed | `.ws-field:not([data-named])`: control spans name and control | panel 176, popover 200                                                  |
 
 The two trailing slots are the same on every line, panel and popover alike: slot one is the
-line's settings ("...") on a thing row, its by-data link on a popover line, and empty on a line under a row
-(2.5); slot two is "-", the right-most icon (Input rules, 2026-11-23, which replace E550's "..." at the far
+line's settings ("...") on a thing row whose pop-over holds more settings, else its by-data link (a thing row with
+no "..." and every popover line), and the by-data link on a line under a row (2.5); slot two is "-", the right-most icon (Input rules, 2026-11-23, which replace E550's "..." at the far
 right).
 
 **Number fields.** Every number field on the Node, Edge and Graph tabs is Figma's scrubbable number input
@@ -143,7 +143,8 @@ Row: `[<> name] [main] [...] [-]` (Input rules, "Slot order").
 ### 2.5 Lines under a row
 
 Under a row show only the lines the layer sets for that thing, in popover order, each named, each with its
-"-". A line appears when its value is set (in the popover, or by "+" writing a required partner, 5.1) and goes
+"-". An advanced setting is never drawn under its row, set or not: a model's Fallback shape stays in the model's
+pop-over (owner, 2026-11-27). A line appears when its value is set (in the popover, or by "+" writing a required partner, 5.1) and goes
 when it is unset; there are no empty lines waiting to be written. Every line is the one common pattern: name,
 value control, "-" (E674). A line under a row carries its by-data link in its second trailing slot, as every line in
 the popover does (2.6, E679), and binds from it or by "=" in its field (2.4). A line that holds no value of its own
@@ -182,9 +183,13 @@ refuses nesting).
 - **Lines**: unset, the control shows the value graphty-element would draw (Input rules, "Every input has a
   value"), with no "-"; writing a value sets it and shows "-". A set boolean unchecked writes
   `false`; "-" unsets it. A location line draws only its segments until written (R2).
-- **Never empty**: a row whose main value can be bound always has its main value line in Main, bound or not,
-  so its "..." always opens lines. A row whose main value cannot be bound and whose thing has no other settings
-  leaves its "..." slot empty (as Figma does) and is drawn `[<> name] [main] [-]`.
+- **Only when there is more**: a row has a "..." only when its pop-over holds a setting the panel does not already
+  show: a line not drawn on the row or under it, a group, a tab strip, a Switch to, a list or a Combine line (owner,
+  2026-11-27: "a style setting should only have an advanced button if it has more settings to show"). A row whose
+  pop-over would only repeat its panel lines (Visibility, Wireframe, a row whose every line is set) has none: its
+  by-data link sits in that slot on the row itself, drawn `[<> name] [main] [link] [-]`, and a row whose main value
+  cannot be bound (a Finish's Shading) leaves the slot empty (as Figma does), drawn `[<> name] [main] [-]`. An open
+  pop-over stays until it is closed, so writing its last unset line never takes it away.
 - **Depth**: panel, the settings popover, a group pop-over beside it, and a dedicated component (a picker,
   the link dialog) beside either; never in place, never a fourth (Input rules, "Nesting"). The popover opens scrolled to its first set line; height follows content, capped at the viewport.
 
@@ -378,7 +383,9 @@ way to Glyph, which no "+" menu offers (E275, E276).
 3. **Shared**: switching to Model keeps `node.shape` (`x-shape-model`), drawn while the model loads or if it
    fails. A model's pop-over has a Fallback shape line, which sets that shape and leaves the model in place, fixed
    or varying by data (owner, 2026-11-25). It is not a second path: a shape picked in the row's drop-down replaces
-   the model, while the Fallback shape line sets the shape drawn under it.
+   the model, while the Fallback shape line sets the shape drawn under it. The Fallback shape is an advanced
+   setting: it is drawn only in the model's pop-over, never as a line under the row, though the layer sets it
+   (owner, 2026-11-27).
 
 ### 5.1 Starting writes
 
@@ -506,6 +513,8 @@ Added 2026-11-24 (one-of choices are tabs; any-of groups are a menu):
   from "...". Only one group pop-over is open at a time. Every group pop-over is at most six rows; a group that
   would be taller is split into two menu entries, never given a "..." of its own.
 - A "..." menu has at most 16 entries, grouped under headings of at most 6 entries each.
+- A row has a "..." only when its pop-over has more settings to show than the panel (2.6, "Only when there is
+  more"); a row whose pop-over would only repeat its lines carries its link on the panel line instead.
 - A group of one line is not a menu entry: it joins the main pop-over.
 - A list of copies of the same thing (pie slices, gradient stops, strands) is neither tabs nor a menu: it stays
   a list with "+". "+" adds copies to a list; it is never used to reveal a group of settings.
@@ -514,6 +523,8 @@ Added 2026-11-27:
 
 - "options that are only available in 3D should be hidden while in 2D; options that are only available in 2D should
   be hidden while in 3D."
+- "a style setting should only have an advanced button if it has more settings to show. ... the link button could
+  just be in the main panel."
 
 This replaces the earlier wording that the Advanced "..." opens a new pop-over: "..." opens a menu of the
 thing's groups when it has more than one, and each opens a new pop-over.
@@ -572,12 +583,12 @@ thing's groups when it has more than one, and each opens a new pop-over.
   `Textarea`, `TextInput` and the rest) and allows them from `@mantine/core`. Only an unthemed Mantine input is
   refused. One the panel uses has no compact-mantine component yet, named as a gap waiting on the owner, never
   rebuilt by the app: a tile button (`UnstyledButton`: model and shader tiles).
-- **Font style.** Bold, Italic, Underline and Strikethrough are toggle icon buttons on one line (compact-mantine
-  `ToggleIconButton` or the existing grouped-button component, lucide glyphs, each with a hover tooltip). Bold
-  toggles the weight between the regular and the bold weight, as a text editor's B does; any other weight (Thin to
-  Black, or a number) is the Letters group's **Weight** line (R5b), as a glyph's is, since every style
-  graphty-element has must be editable in the panel (owner, 2026-11-24). graphty-element's label style carries underline and strikethrough (an additive API change where
-  missing).
+- **Font style.** Italic, Underline and Strikethrough are toggle icon buttons on one line (compact-mantine
+  `ToggleIconButton`, lucide glyphs, each with a hover tooltip). The weight is one **Weight** line (R5b) beside the
+  font: Regular, Bold or any weight graphty-element draws (Thin to Black, or a number), as a glyph's is. There is no
+  Bold toggle as well, since one path to any control wins (owner, 2026-11-27, #10380), and every style
+  graphty-element has stays editable in the panel (owner, 2026-11-24). graphty-element's label style carries
+  underline and strikethrough (an additive API change where missing).
 - **Names above, never beside (approved 2026-11-24).** Names go above inputs, never beside them: every input's
   visible name is a compact-mantine caption (FieldRow label above) or group legend (ControlGroup); app code never
   draws its own name text next to an input. A full-width line (a control with its link and minus) takes a
@@ -692,7 +703,8 @@ thing's groups when it has more than one, and each opens a new pop-over.
   rules test fails a value edited by two different controls. Model... opens the Models gallery beside the list,
   which stays open, and the gallery's Add custom model... is the one way to the Load custom model dialog from the
   Shape. The model varies by data from the Shape's by-data link, whose list opens with a "Which value" choice
-  (Shape or Model): the basic Shape row's link, and while a model draws the Fallback shape line's, so a fixed model
+  (Shape or Model): the basic Shape row's link, and while a model draws the link on its pop-over's Fallback shape
+  line, so a fixed model
   becomes one varying by data without being removed first. A model varying by data is drawn as every bound row is;
   each value of the field draws the model it is mapped to in the binding's group list (a value to a model, picked
   from the Models gallery), and a value mapped to none keeps the fallback shape. A value of the data is never
@@ -731,29 +743,29 @@ is the right-most icon: `[name] [control] [link or ...] [-]`. The link and "..."
 hovered, and shown while focus is within the line, while their pop-out is open, and always under
 `(hover: none)` (Input rules, "Slot order" and "Hover").
 
-| #    | When                                                                                              | Control                                                                                                                                                                                           |
-| ---- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| R1   | A color (with opacity)                                                                            | `CompactColorInput` with its Palettes tab, always a full line                                                                                                                                     |
-| R2   | A label, tooltip or caption location                                                              | R8f Outside / Inside / Auto, then `AlignmentMatrix` once written (Auto disables it); values from the location descriptor (10.2)                                                                   |
-| R3   | A family member or a kind                                                                         | Switch to on the row (section 5)                                                                                                                                                                  |
-| R5   | An open-ended number (no fixed minimum and maximum)                                               | Figma's scrubbable number input (2.2): a letter slot, arrow keys step 1 and Shift 10, no stepper buttons; two related numbers as a pair; shows its default when unset                             |
-| R5s  | A number with a fixed minimum and maximum (opacity, 0-1 or 0-100% values, a fixed range)          | compact-mantine `Slider`, opacity in percent; a pair's ranged half takes its own line                                                                                                             |
-| R5b  | A number with named presets                                                                       | `ComboInput` with the presets as options: mesh detail (Full, Low, or a number); font weight (Regular, Bold, or 1-1000) only in a label's advanced settings, the Bold toggle (R7t) everywhere else |
-| R7   | A boolean                                                                                         | `Checkbox` with its name, checked as graphty-element draws it when unset                                                                                                                          |
-| R7t  | Font style: bold, italic, underline, strikethrough                                                | `ToggleIconButton`s on one line, lucide glyphs, each with a hover tooltip; Bold toggles regular and bold weight                                                                                   |
-| R8   | 2 to 5 exclusive options (fewer than six) fitting the line where they sit                         | `SegmentedControl`, icons when pictured, else words                                                                                                                                               |
-| R8f  | The same, fitting only a popover full line (200)                                                  | `SegmentedControl` on an unnamed popover line under its sub-group legend; popovers only                                                                                                           |
-| R9   | 6 to 12 options, without pictures                                                                 | `PanelField kind="select"`                                                                                                                                                                        |
-| R10  | 6 or more options with pictures (catalog glyphs, or lucide glyphs named in the option-name table) | Existing `ValueListbox`: today's rows and glyphs, one section at a time (section 8), search placeholder "Search"; fewer than 6 pictured options are R8 icon segments                              |
-| R11  | 13 or more options without pictures                                                               | `PanelField` with `{ group, items }` data                                                                                                                                                         |
-| R12  | A data field or text source                                                                       | The existing attribute picker / `ValuePicker`                                                                                                                                                     |
-| R13  | A font                                                                                            | compact-mantine `FontPicker`: the project's fonts (`session.fonts`), common and generic families, this computer's fonts, and an upload saved in the project                                       |
-| R14  | Free text                                                                                         | `TextInput size="xs"`, commits on Enter or blur                                                                                                                                                   |
-| R15  | An ordered list                                                                                   | One line showing the list, opening it beside (Input rules, "Lists in pop-overs"): `ItemListEditor`, "+" on its legend, "-" per line; `GradientEditor` for stops                                   |
-| R15r | A list thing's row control                                                                        | A read-only strip of its swatches (Pie, Stripes) or its first item; opens the popover on the list                                                                                                 |
-| R16  | An image; a model or shader parameters                                                            | An image: compact-mantine `ImagePicker`. A model: `ModelsPopover`; shader parameters: `ShaderParamRows`                                                                                           |
-| R18  | An angle (graphty-element's `angle` on the channel or label field)                                | compact-mantine `AnglePicker`, 0 at the top, clockwise                                                                                                                                            |
-| R17  | A set of sides                                                                                    | Four `ToggleIconButton`s with `GLYPHS` `arrowUpToLine`, `arrowRightToLine`, `arrowDownToLine`, `arrowLeftToLine` on one line                                                                      |
+| #    | When                                                                                              | Control                                                                                                                                                                           |
+| ---- | ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R1   | A color (with opacity)                                                                            | `CompactColorInput` with its Palettes tab, always a full line                                                                                                                     |
+| R2   | A label, tooltip or caption location                                                              | R8f Outside / Inside / Auto, then `AlignmentMatrix` once written (Auto disables it); values from the location descriptor (10.2)                                                   |
+| R3   | A family member or a kind                                                                         | Switch to on the row (section 5)                                                                                                                                                  |
+| R5   | An open-ended number (no fixed minimum and maximum)                                               | Figma's scrubbable number input (2.2): a letter slot, arrow keys step 1 and Shift 10, no stepper buttons; two related numbers as a pair; shows its default when unset             |
+| R5s  | A number with a fixed minimum and maximum (opacity, 0-1 or 0-100% values, a fixed range)          | compact-mantine `Slider`, opacity in percent; a pair's ranged half takes its own line                                                                                             |
+| R5b  | A number with named presets                                                                       | `ComboInput` with the presets as options: mesh detail (Full, Low, or a number); font weight (Regular, Bold, Thin to Black, or 1-1000), a label's and a glyph's one weight control |
+| R7   | A boolean                                                                                         | `Checkbox` with its name, checked as graphty-element draws it when unset                                                                                                          |
+| R7t  | Font style: italic, underline, strikethrough                                                      | `ToggleIconButton`s on one line, lucide glyphs, each with a hover tooltip; the weight is its own R5b line                                                                         |
+| R8   | 2 to 5 exclusive options (fewer than six) fitting the line where they sit                         | `SegmentedControl`, icons when pictured, else words                                                                                                                               |
+| R8f  | The same, fitting only a popover full line (200)                                                  | `SegmentedControl` on an unnamed popover line under its sub-group legend; popovers only                                                                                           |
+| R9   | 6 to 12 options, without pictures                                                                 | `PanelField kind="select"`                                                                                                                                                        |
+| R10  | 6 or more options with pictures (catalog glyphs, or lucide glyphs named in the option-name table) | Existing `ValueListbox`: today's rows and glyphs, one section at a time (section 8), search placeholder "Search"; fewer than 6 pictured options are R8 icon segments              |
+| R11  | 13 or more options without pictures                                                               | `PanelField` with `{ group, items }` data                                                                                                                                         |
+| R12  | A data field or text source                                                                       | The existing attribute picker / `ValuePicker`                                                                                                                                     |
+| R13  | A font                                                                                            | compact-mantine `FontPicker`: the project's fonts (`session.fonts`), common and generic families, this computer's fonts, and an upload saved in the project                       |
+| R14  | Free text                                                                                         | `TextInput size="xs"`, commits on Enter or blur                                                                                                                                   |
+| R15  | An ordered list                                                                                   | One line showing the list, opening it beside (Input rules, "Lists in pop-overs"): `ItemListEditor`, "+" on its legend, "-" per line; `GradientEditor` for stops                   |
+| R15r | A list thing's row control                                                                        | A read-only strip of its swatches (Pie, Stripes) or its first item; opens the popover on the list                                                                                 |
+| R16  | An image; a model or shader parameters                                                            | An image: compact-mantine `ImagePicker`. A model: `ModelsPopover`; shader parameters: `ShaderParamRows`                                                                           |
+| R18  | An angle (graphty-element's `angle` on the channel or label field)                                | compact-mantine `AnglePicker`, 0 at the top, clockwise                                                                                                                            |
+| R17  | A set of sides                                                                                    | Four `ToggleIconButton`s with `GLYPHS` `arrowUpToLine`, `arrowRightToLine`, `arrowDownToLine`, `arrowLeftToLine` on one line                                                      |
 
 **Glyphs.** New `GLYPHS` entries come from lucide-react (as `glyphs.ts` imports it), only those the option-name
 table names for the icon settings below. Catalog shape, arrow and pattern glyphs are never redrawn. Display
@@ -845,18 +857,18 @@ are **Label shadow**, not Shadow, so Find a setting never shows one word for two
 Label shadow, every stroke of the box in Box stroke and the letters' own stroke in Letters, so no look has two
 homes.
 
-| Sub-group           | Lines                                                                                                                                                                                                                     |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Main (always shown) | Show R7 (`enabled`); font R13; Style R7t (Bold, Italic, Underline, Strikethrough toggles; owner, 2026-11-23); textAlign R8 icons; location R2; Unit R8f (`sizeMode`); the look is the row's kind (2.3), never a line here |
-| Position            | attachOffset R5, offset X \| Y, box R8f, onTop R7, shift X \| Y, shiftOf R8, gapOf R8, keepInView R7                                                                                                                      |
-| Letters             | weight R5b (the number; Bold is Main's toggle); opacity, lineHeight, rotation R5; runAlign R8f; Letter outline R1 (`outline`), Letter outline width R5, Letter outline opacity R5                                         |
-| Wrap                | width \| maxLines, Break anywhere R7 (`wrapAnywhere`), Cut long lines R7 (`wrapEllipsis`), Ellipsis at max lines R7, keepBlankLines R7, wrapTrailingSpace R7, wrapSkipEndSpace R7, wrapSpaceCount R5                      |
-| Background          | background R1, opacity R5; backgroundShape R8; cornerRadius R5; padding R5; boxPadding R5; gradient R7, gradientType R8, gradientColors R15, gradientDirection R5                                                         |
-| Box stroke          | borderWidth R5, borderColor R1, borderOpacity R5, borderAlign R8 icons, lineBox R8f; margin top \| right, bottom \| left                                                                                                  |
-| Label shadow        | Text shadow R7 (`shadow`), Text shadow color R1, Text shadow blur R5, Text shadow offset X \| Y; Box shadow R7 (`panelShadow`), Box shadow color R1, Box shadow blur R5, Box shadow offset X \| Y                         |
-| Callout             | pointerDirection R8f, width \| height, pointerOffset R5, pointerCurve R7                                                                                                                                                  |
-| Badge               | badge R9, then its kind's lines: Icon beside text R14 (`icon`), Icon side R8 icons (`iconPosition`); or progress R5; or maxNumber R5, overflowSuffix R14, smartOverflow R7                                                |
-| Behavior            | minScreenSize R5, declutter R8, minNodeScreenSize R5, depthFade R7, near \| far, animation R9, animationSpeed R5, pickable R7, closeButton R7                                                                             |
+| Sub-group           | Lines                                                                                                                                                                                                                                                                 |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Main (always shown) | Show R7 (`enabled`); font R13; Weight R5b (Regular, Bold or any weight; #10380); Style R7t (Italic, Underline, Strikethrough toggles; owner, 2026-11-23); textAlign R8 icons; location R2; Unit R8f (`sizeMode`); the look is the row's kind (2.3), never a line here |
+| Position            | attachOffset R5, offset X \| Y, box R8f, onTop R7, shift X \| Y, shiftOf R8, gapOf R8, keepInView R7                                                                                                                                                                  |
+| Letters             | opacity, lineHeight, rotation R5; runAlign R8f; Letter outline R1 (`outline`), Letter outline width R5, Letter outline opacity R5                                                                                                                                     |
+| Wrap                | width \| maxLines, Break anywhere R7 (`wrapAnywhere`), Cut long lines R7 (`wrapEllipsis`), Ellipsis at max lines R7, keepBlankLines R7, wrapTrailingSpace R7, wrapSkipEndSpace R7, wrapSpaceCount R5                                                                  |
+| Background          | background R1, opacity R5; backgroundShape R8; cornerRadius R5; padding R5; boxPadding R5; gradient R7, gradientType R8, gradientColors R15, gradientDirection R5                                                                                                     |
+| Box stroke          | borderWidth R5, borderColor R1, borderOpacity R5, borderAlign R8 icons, lineBox R8f; margin top \| right, bottom \| left                                                                                                                                              |
+| Label shadow        | Text shadow R7 (`shadow`), Text shadow color R1, Text shadow blur R5, Text shadow offset X \| Y; Box shadow R7 (`panelShadow`), Box shadow color R1, Box shadow blur R5, Box shadow offset X \| Y                                                                     |
+| Callout             | pointerDirection R8f, width \| height, pointerOffset R5, pointerCurve R7                                                                                                                                                                                              |
+| Badge               | badge R9, then its kind's lines: Icon beside text R14 (`icon`), Icon side R8 icons (`iconPosition`); or progress R5; or maxNumber R5, overflowSuffix R14, smartOverflow R7                                                                                            |
+| Behavior            | minScreenSize R5, declutter R8, minNodeScreenSize R5, depthFade R7, near \| far, animation R9, animationSpeed R5, pickable R7, closeButton R7                                                                                                                         |
 
 The **Callout** kind and the **Callout** group are one home: the kind is a look that writes the box fields
 and the Callout group's fields (`pointer`, `pointerDirection`), and those fields show in the Callout group like

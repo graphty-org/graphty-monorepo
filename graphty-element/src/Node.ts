@@ -60,7 +60,7 @@ import {
     type TableDecoration,
 } from "./meshes/NodeDecorationMesh";
 import { NodeEffects } from "./meshes/NodeEffects";
-import { NodeMesh, styleOpacity } from "./meshes/NodeMesh";
+import { NodeMesh, paintedBodyOpacity } from "./meshes/NodeMesh";
 import {
     NodeShaderDrawing,
     type NodeShaderLook,
@@ -358,6 +358,23 @@ let ownAnchor: (node: Node) => TransformNode;
 /** A decoration on a solid in 3D turns about the node's center to look at the camera's position. */
 const FACE_THE_CAMERA = TransformNode.BILLBOARDMODE_ALL | TransformNode.BILLBOARDMODE_USE_POSITION;
 
+/** Keeps a node's mesh through a 2D/3D switch; see {@link keepNodeMeshForDimension}. */
+let keepForDimension: (node: Node) => InstancedMesh | null;
+
+/**
+ * Keep a node's mesh through a 2D/3D switch, for its rebuild to draw from the new dimension's
+ * source (`moveInstance`) instead of disposing it and building another: the instance is taken off
+ * its source here, so the mesh cache's clear does not dispose it, and everything that hangs from it
+ * goes in {@link releaseNodeMesh} as it did with the mesh. Building 10,000 instances and disposing
+ * 10,000 more was most of a switch at 10,000 nodes. Only a shape's own instance is kept: a model, a
+ * group drawn as a region, a row a batch draws and a mesh a consumer read are rebuilt as before.
+ * @param node - A node the switch rebuilds.
+ * @returns The kept mesh, which the teardown must leave alone, or null when it is rebuilt.
+ */
+export function keepNodeMeshForDimension(node: Node): InstancedMesh | null {
+    return keepForDimension(node);
+}
+
 /**
  * The parts a node draws, as the tests that check its drawing read them, typed so a rename in
  * `Node` fails to compile rather than at run time (issue #6988). The class fills it in; no entry
@@ -434,10 +451,22 @@ export function releaseNodeMesh(node: Node): void {
     node.label?.dispose();
     node.label = undefined;
     const anchor = ownAnchor(node);
-    if (!anchor.isDisposed()) {
+    if (anchor.isDisposed()) {
+        return;
+    }
+
+    // A mesh kept through a 2D/3D switch loses only what hangs from it, as a dispose would take.
+    if (anchor === keptOf(node)) {
+        for (const child of anchor.getChildren()) {
+            child.dispose();
+        }
+    } else {
         anchor.dispose();
     }
 }
+
+/** Reads the mesh a node keeps through a 2D/3D switch, or null. */
+let keptOf: (node: Node) => InstancedMesh | null;
 
 /** Collects the nodes whose size or shape changed while {@link collectResizedNodes} runs. */
 let resizedSink: Set<Node> | null = null;
@@ -568,6 +597,8 @@ export class Node implements ModelUser {
             node.shaderDrawing?.dataChanged(node);
         };
         ownAnchor = (node) => node.#anchor;
+        keptOf = (node) => node.#kept;
+        keepForDimension = (node) => node.keepForDimension();
         resizeNode = (node) => {
             node.geometryChanged();
         };
@@ -664,6 +695,8 @@ export class Node implements ModelUser {
     #modelBuilt: { readonly mesh: AbstractMesh; readonly scale: Vector3 } | null = null;
     /** The actions a pick of the node's mesh runs, put back on a mesh rebuilt when a batch lets the row go. */
     #actions: ActionManager | null = null;
+    /** The mesh a 2D/3D switch kept for the next build to draw again; see {@link keepNodeMeshForDimension}. */
+    #kept: InstancedMesh | null = null;
 
     /**
      * The node's own mesh, for a consumer. Nothing in graphty-element reads it: the element reads
@@ -793,6 +826,9 @@ export class Node implements ModelUser {
      * and still cost nothing when the label has not moved.
      */
     private drawnLabelText?: string;
+
+    /** Whether the label drawn now is this node's only drawn part, so it picks the node: {@link Node.textIsNode}. */
+    private drawnTextIsNode = false;
 
     /**
      * The label a node that grows to hold it (`shape.labelFit`) was last fitted to, and the width
@@ -1119,6 +1155,8 @@ export class Node implements ModelUser {
             graphNode: this,
             styleId: paint.meshKey,
             nodeId: this.id,
+            // A mesh channel, so a new order builds a new mesh: a pick in 3D honors it among flat nodes (PickService)
+            drawOrder: o.shape?.drawOrder,
         };
 
         this.syncBorder(fit.meshKey, fit.style);
@@ -1264,11 +1302,16 @@ export class Node implements ModelUser {
      * second time by the render. On a 20,000-node graph that was the root 20,000 times and every node twice a frame
      * (issue #9420). Here the root is computed only when it is itself stale, and a node only when it moved, scaled or
      * its root did.
+     * @returns The anchor's world matrix.
      */
-    private syncWorldMatrix(): void {
+    private syncWorldMatrix(): Matrix {
         const anchor = this.#anchor;
         const { parent } = anchor;
-        if (parent !== null && !anchor.isSynchronizedWithParent()) {
+        // The root only when it is itself out of date: an anchor merely computed before the root's last compute is
+        // brought up to date by its own compute below, while forcing a root that was current bumped its child counter
+        // and left every other node's matrix to compute again, about 45 ms on the next pick at 99,000 nodes once
+        // hovering a node had asked where it is drawn (issue #10116).
+        if (parent !== null && !parent.isSynchronized()) {
             parent.computeWorldMatrix(true);
         }
 
@@ -1277,7 +1320,7 @@ export class Node implements ModelUser {
             anchor.markAsDirty();
         }
 
-        anchor.computeWorldMatrix();
+        return anchor.computeWorldMatrix();
     }
 
     /**
@@ -2186,6 +2229,11 @@ export class Node implements ModelUser {
 
     /** Dispose the node's mesh and its anchor, when they are apart, with what hangs from them. */
     private disposeMesh(): void {
+        if (this.#kept !== null && this.#kept === this.#mesh) {
+            this.dropGroupFill();
+            return;
+        }
+
         if (this.#mesh !== null && !this.#mesh.isDisposed()) {
             this.#mesh.dispose();
         }
@@ -2286,7 +2334,10 @@ export class Node implements ModelUser {
      */
     drawnWorldMatrix(force?: boolean): Matrix {
         this.followRow();
-        return this.#anchor.computeWorldMatrix(force);
+        // Forced through `syncWorldMatrix`, which forces the graph root only when it is out of date.
+        return force === true && !this.#anchor.isDisposed()
+            ? this.syncWorldMatrix()
+            : this.#anchor.computeWorldMatrix();
     }
 
     /**
@@ -2404,13 +2455,13 @@ export class Node implements ModelUser {
     }
 
     /**
-     * The opacity its style draws its body at (`node.opacity`), whatever draws it: a line's end shows through a body
-     * drawn under 1, so it stops at the outline (`RowTable.measure`, `Edge.bareEnd`).
+     * The opacity its style draws its body at (`node.opacity`, 0 for a wireframe), whatever draws it: a line's end
+     * shows through a body drawn under 1, so it stops at the outline (`RowTable.measure`, `Edge.bareEnd`).
      * @returns The opacity.
      * @internal
      */
     get paintedOpacity(): number {
-        return styleOpacity(this.drawnStyle?.texture);
+        return paintedBodyOpacity(this.drawnStyle);
     }
 
     /**
@@ -3107,6 +3158,7 @@ export class Node implements ModelUser {
         const model = this.modelFor(o);
         return (
             sameGeometry &&
+            this.#kept === null &&
             !this.#anchor.isDisposed() &&
             !this.fitIsStale(o) &&
             model === this.drawnModel &&
@@ -3291,8 +3343,11 @@ export class Node implements ModelUser {
      * @returns The mesh.
      */
     private buildMesh(meshKey: string, o: NodeStyleConfig): AbstractMesh {
+        const kept = this.#kept;
+        this.#kept = null;
         const model = this.modelFor(o);
         if (model !== null) {
+            kept?.dispose();
             this.setDrawn(model, null);
             const mesh = NodeMesh.createModelInstance(model, o.shape, `node-model-${String(this.id)}`);
             this.#modelBuilt = { mesh, scale: mesh.scaling.clone() };
@@ -3301,11 +3356,48 @@ export class Node implements ModelUser {
 
         const image = this.imageFor(o);
         this.setDrawn(null, image);
+        if (kept !== null && !kept.isDisposed()) {
+            this.forgetMeasuredMesh();
+            this.drawnRadiusMesh = null;
+            return NodeMesh.reuse(
+                kept,
+                this.context.getMeshCache(),
+                ...this.sourceArgs(meshKey, o, image),
+                this.context.getScene(),
+            );
+        }
+
         return NodeMesh.create(
             this.context.getMeshCache(),
             ...this.sourceArgs(meshKey, o, image),
             this.context.getScene(),
         );
+    }
+
+    /**
+     * Keep this node's mesh through a 2D/3D switch: see {@link keepNodeMeshForDimension}.
+     * @returns The kept mesh, or null when the node is rebuilt as before.
+     */
+    private keepForDimension(): InstancedMesh | null {
+        const mesh = this.#mesh;
+        if (
+            !(mesh instanceof InstancedMesh) ||
+            mesh !== this.#anchor ||
+            mesh.isDisposed() ||
+            this.disposed ||
+            this.#meshHeld ||
+            this.batchSource !== null ||
+            this.drawnModel !== null ||
+            this.drawnAsGroup ||
+            this.groupFill !== null ||
+            this.groupFillKeep !== null
+        ) {
+            return null;
+        }
+
+        mesh.sourceMesh.removeInstance(mesh);
+        this.#kept = mesh;
+        return mesh;
     }
 
     /**
@@ -3382,6 +3474,7 @@ export class Node implements ModelUser {
         return (
             mesh instanceof InstancedMesh &&
             mesh === this.#anchor &&
+            this.#kept === null &&
             !mesh.isDisposed() &&
             drawn !== null &&
             this.drawnModel === null &&
@@ -3717,6 +3810,7 @@ export class Node implements ModelUser {
             graphNode: this,
             styleId: meshKey,
             nodeId: this.id,
+            drawOrder: o.shape?.drawOrder,
         };
 
         // Restore position from layout engine after mesh recreation
@@ -3902,6 +3996,18 @@ export class Node implements ModelUser {
     }
 
     /**
+     * Whether selecting or deselecting this node only shows, hides or builds its halo instance, which reports itself
+     * (`UpdateManager.haloTouched`): it has no label to ring, no shader drawing, no model and no batch.
+     * @returns True when it does.
+     * @internal
+     */
+    get selectionShowsOnlyHalo(): boolean {
+        return (
+            this.label === undefined && this.shaderDrawing === null && this.drawnModel === null && !this.drawnByBatch()
+        );
+    }
+
+    /**
      * Say whether this node is selected.
      * @param selected - What the selection mask says about this node.
      * @returns True when this changed the state.
@@ -3914,6 +4020,10 @@ export class Node implements ModelUser {
         this.selected = selected;
         this.applyRenderState();
         this.shaderStateChanged("selected", selected);
+        if (!this.selectionShowsOnlyHalo) {
+            // Its label rings the halo, or a shader or a model draws the selection: more than the halo it reports.
+            this.context.getUpdateManager?.().meshesShownOrHidden();
+        }
 
         return true;
     }
@@ -4659,13 +4769,20 @@ export class Node implements ModelUser {
         );
         this.labelsWithheld = withheld;
 
-        if (!rebuild && text === this.drawnLabelText && isEqual(wanted, this.drawnLabelStyle)) {
+        const textIsNode = Node.textIsNode(o);
+        if (
+            !rebuild &&
+            text === this.drawnLabelText &&
+            textIsNode === this.drawnTextIsNode &&
+            isEqual(wanted, this.drawnLabelStyle)
+        ) {
             return;
         }
 
         this.label?.dispose();
         this.label = wanted === undefined || withheld ? undefined : this.createLabel(o);
         this.drawnLabelText = text;
+        this.drawnTextIsNode = textIsNode;
 
         // CLONED rather than held. The block belongs to a `NodePaint` that
         // `StylePainter.nodePaint` builds fresh on every call, and a comparison against a
@@ -4717,9 +4834,8 @@ export class Node implements ModelUser {
         };
         // its animation starts with the label's, on the first frame at rest
         oweLabelAnimations(this.#anchor.getScene());
-        this.xlabelLabel = new RichTextLabel(
-            this.#anchor.getScene(),
-            this.createLabelOptions(String(wanted.text), style),
+        this.xlabelLabel = Node.passThrough(
+            new RichTextLabel(this.#anchor.getScene(), this.createLabelOptions(String(wanted.text), style)),
         );
     }
 
@@ -4805,11 +4921,13 @@ export class Node implements ModelUser {
                 ...(look.font === undefined ? {} : { font: look.font }),
                 ...(look.rotation === undefined ? {} : { rotation: look.rotation }),
             });
-            const label = new RichTextLabel(scene, {
-                ...(i < own.length || k === 1 ? options : shrunkLetters(options, k)),
-                offsetX: at.x,
-                offsetY: at.y,
-            });
+            const label = Node.passThrough(
+                new RichTextLabel(scene, {
+                    ...(i < own.length || k === 1 ? options : shrunkLetters(options, k)),
+                    offsetX: at.x,
+                    offsetY: at.y,
+                }),
+            );
             previous = { ...at, label };
             return label;
         });
@@ -4860,10 +4978,19 @@ export class Node implements ModelUser {
         }
 
         const text = this.extractLabelText(this.wantedTooltip);
-        this.tooltip = new RichTextLabel(this.#anchor.getScene(), {
-            ...this.createLabelOptions(text, this.wantedTooltip),
-            onTop: true,
-        });
+        // Empty words draw nothing, as an edge's tooltip and an external label already rule: a file that writes an
+        // empty tooltip on every node (Cytoscape's NODE_TOOLTIP="") would otherwise get a blank box on each hover.
+        // Only white space is as empty: it draws the same box around no visible words.
+        if (text.trim() === "") {
+            return;
+        }
+
+        this.tooltip = Node.passThrough(
+            new RichTextLabel(this.#anchor.getScene(), {
+                ...this.createLabelOptions(text, this.wantedTooltip),
+                onTop: true,
+            }),
+        );
         // drawn on a pointer's arrival, when the graph is already at rest: its animation starts now
         this.tooltip.startAnimation();
         this.context.getNodeBatches?.()?.rewalk(this);
@@ -4925,6 +5052,34 @@ export class Node implements ModelUser {
         return this.wantedTooltip === undefined ? undefined : this.extractLabelText(this.wantedTooltip);
     }
 
+    /**
+     * Let the pointer through one of this node's text planes to whatever is drawn under it.
+     *
+     * Babylon makes a plane pickable, and a node's label, tooltip or shape text carries no node
+     * id, so it took the pick from the node it is drawn over and answered nothing: a click on the
+     * middle of a node with its name inside fell through to an edge ending there, and hovering
+     * there hovered nothing (issue #10116). The edge tooltip already does this (Graph).
+     * @param label - The text.
+     * @returns The same text.
+     */
+    private static passThrough(label: RichTextLabel): RichTextLabel {
+        if (label.labelMesh) {
+            label.labelMesh.isPickable = false;
+        }
+        return label;
+    }
+
+    /**
+     * Whether a node draws nothing but its label: shape "none" with no image and no glyph (Graphviz's `plaintext` and
+     * `plain`). Its words are the node as a reader sees it, so a point on them picks the node (issue #10127); a label
+     * otherwise lets the pointer through. A label style that writes `pickable` decides for itself.
+     * @param o - The resolved style.
+     * @returns True when the label is all that is drawn.
+     */
+    private static textIsNode(o: NodeStyleConfig): boolean {
+        return o.shape?.type === "none" && o.image === undefined && o.glyph === undefined;
+    }
+
     private createLabel(styleConfig: NodeStyleConfig): RichTextLabel {
         const labelText = this.extractLabelText(styleConfig.label);
         const labelOptions = this.createLabelOptions(labelText, styleConfig.label);
@@ -4936,10 +5091,16 @@ export class Node implements ModelUser {
         // Its animation starts on the first frame at rest with no style paint left to draw.
         oweLabelAnimations(scene);
         labelOptions.glyphs = this.context.getStyles().config.behavior.labels.labelText === "glyphs";
-        const label = new RichTextLabel(scene, labelOptions);
-        // The plane is pickable either way (Babylon's default), so unset it takes a click and
-        // answers no node; `pickable` makes `pickNodeId` read this node's id off it.
-        if (styleConfig.label?.pickable === true && label.labelMesh) {
+        const created = new RichTextLabel(scene, labelOptions);
+        // The plane lets the pointer through, so a click on a name drawn over its node reaches the
+        // node; `pickable` makes the plane itself answer this node's id. A card -- a label with a
+        // close button, or one drawn over the whole graph -- still takes the click, as the reader
+        // sees it on top: a click on it reaches no node behind it (`Graph.handledOnCloseLabel`).
+        const card = styleConfig.label?.closeButton === true || styleConfig.label?.onTop === true;
+        const label = card ? created : Node.passThrough(created);
+        // A node drawn only as its words picks by them (issue #10127): unset `pickable` follows Node.textIsNode.
+        if ((styleConfig.label?.pickable ?? Node.textIsNode(styleConfig)) && label.labelMesh) {
+            label.labelMesh.isPickable = true;
             label.labelMesh.metadata = { nodeId: this.id };
         }
         label.setRing(ringed);

@@ -12,12 +12,12 @@ import { useWorkspace } from "../../state/WorkspaceContext";
 import { Field, type RowContext } from "../PropertyRow";
 import { lineIn, writeIn } from "../row";
 import { channelWord, COMBINE_OPTIONS, combineOf, failureWords } from "../words";
-import { channelHidden, dimOf, ruledOut } from "./drawn";
+import { dimOf } from "./drawn";
 import { GroupMenu, type MenuGroup } from "./GroupMenu";
 import { groupSet, unsetIn } from "./lineWrites";
-import { lineChannels, type LineSpec, rubricChannels, type SubGroup, type ThingRubric } from "./rubric";
+import { popoverLines } from "./popoverLines";
+import { lineChannels, type LineSpec, type SubGroup, type ThingRubric } from "./rubric";
 import { LineFrame, RubricLine, SegmentsLine } from "./RubricLine";
-import { setOn } from "./things";
 
 /** A group of the "..." menu whose lines are not rubric lines (a shader's parameters): drawn as given. */
 export interface ExtraGroup extends MenuGroup {
@@ -130,30 +130,8 @@ export function ThingPopover({
     moreGroups?: readonly ExtraGroup[];
 }>): React.JSX.Element {
     const { store } = useWorkspace();
-    // Main starts with the row's main value, which binds from its by-data link like every line (design 2.6).
-    const lines = [...(rubric.common ?? []), ...rubric.main];
-    // The tab strip shows the row's main value when it is the same channel (a route): no line of its own then.
-    const mainLines =
-        head === undefined ||
-        head.channel === rubric.strip?.channel ||
-        lines.some((line) => line.channel === head.channel)
-            ? lines
-            : [head, ...lines];
-    // A line another setting of the row rules out appears once it applies (design "Input rules", "Tabs"). A line drawn
-    // only in the other view is hidden, set or not, and a group of only such lines leaves the "..." menu.
-    const own = [...rubricChannels(rubric), ...(head === undefined ? [] : [head.channel])];
-    const shown = (line: LineSpec): boolean =>
-        !channelHidden(ctx.session, line.channel) &&
-        (!ruledOut(
-            ctx,
-            line.channel,
-            // A condition on the line's own other value (a pair's second number) never hides it.
-            own.filter((channel) => !lineChannels(line).includes(channel)),
-        ) ||
-            lineChannels(line).some((channel) => setOn(ctx, channel)));
-    const groups: readonly (SubGroup | ExtraGroup)[] = [...(rubric.groups ?? []), ...moreGroups].filter(
-        (group) => "node" in group || group.lines.some((line) => !channelHidden(ctx.session, line.channel)),
-    );
+    const { mainLines, shown, groups: own } = popoverLines(ctx, rubric, head);
+    const groups: readonly (SubGroup | ExtraGroup)[] = [...own, ...moreGroups];
     const onUnset = (group: SubGroup | ExtraGroup): void => {
         const done =
             "node" in group

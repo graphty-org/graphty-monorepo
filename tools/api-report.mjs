@@ -344,10 +344,13 @@ const PLAIN_STRING_MEMBERS = new Set([
     "BindingNumberFormat.prefix",
     "BindingNumberFormat.suffix",
     "BindingNumberFormat.currency",
-    // a CSS color the consumer passed to styles.showDraft, handed back by styles.shownDraft
+    // CSS colors the consumer passed to styles.showDraft, handed back by styles.shownDraft
+    "DraftView.removed",
     "DraftView.untouched",
     "JoinChoices.membership",
     "JoinLink.kind",
+    // the separator the consumer's cells hold several values by, as the consumer passed it
+    "SourceExtractOptions.split",
     "SourceHubValue.value",
     "SourceDraftPreview.draft",
     "SourceDraftPreviewIssue.filter",

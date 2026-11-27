@@ -42,6 +42,7 @@ import {
 import type React from "react";
 
 import { wordsFor } from "../analyze/words";
+import { sourceName } from "../data-place/words";
 import { formatNumber } from "../inspector/words";
 import { runName } from "../runWords";
 import { formatCount } from "../settings/numberFormat";
@@ -440,6 +441,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.labelFont": "Label font",
     "node.labelWeight": "Label weight",
     "node.labelItalic": "Label italic",
+    "node.labelUnderline": "Label underline",
     "node.labelWrapWidth": "Label wrap width",
     "node.labelLetterSize": "Label letter size",
     "node.labelWrapTrailingSpace": "Label wraps with a trailing space",
@@ -470,6 +472,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.planar": "Planar",
     "node.zIndex": "Z-index",
     "node.drawOrder": "Draw order",
+    "node.onTop": "On top",
     "node.borderColor": "Border color",
     "node.borderWidth": "Border width",
     "node.borderScreenWidth": "Border width on screen",
@@ -536,6 +539,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelFont": "Label font",
     "edge.labelWeight": "Label weight",
     "edge.labelItalic": "Label italic",
+    "edge.labelUnderline": "Label underline",
     "node.shaders": "Shaders",
     "edge.shaders": "Shaders",
     "node.labels": "Labels",
@@ -1044,7 +1048,8 @@ export function groupRank(session: GraphSession, path: string, value: unknown): 
 
 /**
  * What one value of a value is called, as the key calls it: the name the reader gave it (the
- * element's value label), else a run's group by its rank ("Group 3"), else the value as it is.
+ * element's value label), else a run's group by its rank ("Group 3"), a source by its name, else the
+ * value as it is.
  * @param session - the element's session.
  * @param path - the value's path.
  * @param value - one of its values.
@@ -1056,7 +1061,26 @@ export function valueName(session: GraphSession, path: string, value: unknown): 
         return named;
     }
     const rank = groupRank(session, path, value);
-    return rank === undefined ? String(value) : `Group ${String(rank)}`;
+    return rank === undefined ? (sourceValue(session, path, value) ?? String(value)) : `Group ${String(rank)}`;
+}
+
+/**
+ * The name of the source a value names: the load an element came from, or the ids it is named among
+ * (the source-steps experiment), which the element keeps by the source's key.
+ * @param session - the element's session.
+ * @param path - the value's path.
+ * @param value - one of its values.
+ * @returns the source's name, or undefined for any other value.
+ */
+function sourceValue(session: GraphSession, path: string, value: unknown): string | undefined {
+    let key: unknown;
+    if (path === "graphty.load") {
+        key = value;
+    } else if (path === "graphty.space") {
+        key = session.data.spaces().find((row) => row.space === value)?.ownedBy;
+    }
+    const named = key === undefined ? undefined : session.data.sources().find((each) => each.key === key);
+    return named === undefined ? undefined : sourceName(named);
 }
 
 /**

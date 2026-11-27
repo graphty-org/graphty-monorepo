@@ -33,6 +33,7 @@ import {
     projectBuild,
     type ProjectedEdge,
     type ProjectedGraph,
+    settleIds,
     SOURCE_COPIES_VALUE,
     SOURCE_EDGE_IDS_VALUE,
     SOURCE_STEPS_VALUE,
@@ -92,8 +93,10 @@ function actSource(act: StepsAct): string | null {
         case "merge":
         case "connect":
             return act.options.from.source;
+        case "link":
+            return act.options.source;
         case "replace-step":
-            return act.with.options.from.source;
+            return actSource(act.with);
         case "rename":
             return act.rename.source;
         case "remove-step":
@@ -110,6 +113,7 @@ const ACT_LABELS: Readonly<Record<StepsAct["act"], string>> = {
     merge: "Merged a source",
     connect: "Made edges from a source",
     extract: "Extracted nodes from a column",
+    link: "Linked nodes sharing a value",
     "move-columns": "Moved columns onto nodes",
     rename: "Renamed a column",
     pick: "Picked a value",
@@ -122,23 +126,79 @@ const ACT_LABELS: Readonly<Record<StepsAct["act"], string>> = {
 };
 
 /**
- * The step's fact.
- * @param command - The command.
- * @returns `data.steps-set` with the edit's kind and the source it names.
+ * How many of `of`'s entries `other` does not hold, matched one for one by content.
+ * @param of - The entries counted.
+ * @param other - The entries they are matched against.
+ * @returns The count.
  */
-function factOf(command: DataStepsSetCommand): CodedFact<HistoryCode> {
-    if (command.as !== undefined) {
-        return command.as.fact;
+function unmatched(of: readonly unknown[], other: readonly unknown[]): number {
+    const left = new Map<string, number>();
+    for (const each of other) {
+        const key = JSON.stringify(each);
+        left.set(key, (left.get(key) ?? 0) + 1);
     }
-    const { edit } = command;
+    let count = 0;
+    for (const each of of) {
+        const key = JSON.stringify(each);
+        const held = left.get(key) ?? 0;
+        if (held === 0) {
+            count++;
+        } else {
+            left.set(key, held - 1);
+        }
+    }
+    return count;
+}
+
+/**
+ * What a draft's commit does to the joins and sources: the joins (steps other than `join.add`)
+ * and sources it adds and takes out, a changed join counting as one of each.
+ * @param edit - The edit.
+ * @returns The counts, each null for an edit that is not a draft's commit.
+ */
+function draftChanges(
+    edit: StepsEdit,
+): Record<"joinsAdded" | "joinsRemoved" | "sourcesAdded" | "sourcesRemoved", number | null> {
+    if (edit.kind !== "set" || edit.draftBase === undefined) {
+        return { joinsAdded: null, joinsRemoved: null, sourcesAdded: null, sourcesRemoved: null };
+    }
+    const before = edit.draftBase.value;
+    const after = edit.value;
+    const joins = (value: SourceSteps): readonly unknown[] => value.steps.filter((step) => step.op !== "join.add");
+    const sources = (value: SourceSteps): readonly string[] => Object.keys(value.sources);
+    return {
+        joinsAdded: unmatched(joins(after), joins(before)),
+        joinsRemoved: unmatched(joins(before), joins(after)),
+        sourcesAdded: unmatched(sources(after), sources(before)),
+        sourcesRemoved: unmatched(sources(before), sources(after)),
+    };
+}
+
+/**
+ * The fact of a `data.steps-set` edit.
+ * @param edit - The edit.
+ * @returns `data.steps-set` with the edit's kind, the source it names, and for a draft's commit
+ *   the joins and sources it adds and takes out.
+ */
+export function stepsSetFact(edit: StepsEdit): CodedFact<HistoryCode> {
     return {
         code: "data.steps-set",
         params: {
             kind: edit.kind === "act" ? edit.act.act : edit.kind,
             source: sourceOfEdit(edit),
             name: edit.kind === "add" ? edit.source.label : null,
+            ...draftChanges(edit),
         },
     };
+}
+
+/**
+ * The step's fact.
+ * @param command - The command.
+ * @returns Its door's fact, else {@link stepsSetFact}.
+ */
+function factOf(command: DataStepsSetCommand): CodedFact<HistoryCode> {
+    return command.as === undefined ? stepsSetFact(command.edit) : command.as.fact;
 }
 
 /**
@@ -272,6 +332,8 @@ function listed(
             tables: src.tables,
             ...(src.tableRows === undefined ? {} : { tableRows: src.tableRows }),
             ...(src.input === undefined ? {} : { input: src.input }),
+            ...(src.read?.size === undefined ? {} : { size: src.read.size }),
+            ...(src.read?.at === undefined ? {} : { loadedAt: src.read.at }),
             added: Object.freeze({ nodes: own?.added.nodes ?? 0, edges: own?.added.edges ?? 0 }),
             counts,
             state: sourceState(value, src.id),
@@ -528,6 +590,7 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
         "merge",
         "connect",
         "extract",
+        "link",
         "move-columns",
         "rename",
         "pick",
@@ -554,8 +617,9 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
         const edgeIds = valueOf<Readonly<Record<string, EdgeId>>>(ctx, SOURCE_EDGE_IDS_VALUE, {});
         const all = command.copies === undefined ? priorCopies : { ...priorCopies, ...command.copies };
         const known = ctx.services.config?.().data.knownFields;
-        const edited = withRepeated(applyEdit(prior, command.edit, all), known?.repeatedEdges);
-        const copies = copiesOf(edited, all);
+        const asked = withRepeated(applyEdit(prior, command.edit, all), known?.repeatedEdges);
+        const copies = copiesOf(asked, all);
+        const edited = settledFrom(command.edit, prior, priorCopies, asked, copies);
         const idPath = known?.nodeIdPath ?? "id";
         const after = projectBuild(refusingDuplicates(buildOf(edited, copies)), edited, idPath);
         const { edit } = command;
@@ -609,6 +673,26 @@ const dataStepsSet: UndoableDefinition<DataStepsSetCommand> = {
         refreshDerivedAfter(ctx);
     },
 };
+
+/**
+ * The edited value with its NodeIds settled: after the value before it, unless the edit begins anew.
+ * @param edit - The edit.
+ * @param prior - The value before.
+ * @param priorCopies - Its rows as read.
+ * @param asked - The value the edit makes.
+ * @param copies - Its rows as read.
+ * @returns The value.
+ */
+function settledFrom(
+    edit: StepsEdit,
+    prior: SourceSteps,
+    priorCopies: Copies,
+    asked: SourceSteps,
+    copies: Copies,
+): SourceSteps {
+    const anew = edit.kind === "restore" || (edit.kind === "add" && edit.replace === true);
+    return anew ? settleIds(EMPTY_STEPS, {}, asked, copies) : settleIds(prior, priorCopies, asked, copies);
+}
 
 /**
  * A build, refused when it holds a repeated edge under `repeatedEdges` "error", as a load without the

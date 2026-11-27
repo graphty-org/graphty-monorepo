@@ -27,13 +27,15 @@ function turn(element: Graphty, axis: "x" | "y"): number {
 }
 
 /**
- * Drag across empty canvas from {@link EMPTY} and wait for the camera to come to rest.
+ * Drag across empty canvas and wait for the camera to come to rest. A drag right starts at {@link EMPTY}, near
+ * the left edge; a drag left starts at its mirror near the right edge, so the pointer stays on the test page.
  * @param element - The element.
  * @param dx - How far right, in CSS pixels.
  * @param dy - How far down, in CSS pixels.
  */
 async function dragEmpty(element: Graphty, dx: number, dy: number): Promise<void> {
-    await drag(element, EMPTY, { x: EMPTY.x + dx, y: EMPTY.y + dy });
+    const from = dx < 0 ? { x: WIDTH - EMPTY.x, y: EMPTY.y } : EMPTY;
+    await drag(element, from, { x: from.x + dx, y: from.y + dy });
     await applied(element);
 }
 

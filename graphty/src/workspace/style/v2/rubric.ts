@@ -66,6 +66,8 @@ export interface LineSpec {
     readonly choices?: readonly LineChoice[];
     /** An angle's zero on its dial (R18), where it is not at the top: a gradient's direction runs from the left. */
     readonly zeroAt?: "right";
+    /** An advanced setting: drawn only in its pop-over, never as a line under the row, even when set. */
+    readonly advanced?: true;
 }
 
 /** One choice of a line's value list over several channels. */
@@ -365,8 +367,9 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
     "shape:node.model": {
         main: [
             // The shape drawn while the model loads or if it fails. Not a second path: a shape picked in the row's
-            // drop-down replaces the model, this line sets the shape under it (owner, 2026-11-25).
-            { channel: "node.shape", name: "Fallback shape", rule: "R10" },
+            // drop-down replaces the model, this line sets the shape under it (owner, 2026-11-25). Advanced: never a
+            // line under the row (owner, 2026-11-27).
+            { channel: "node.shape", name: "Fallback shape", rule: "R10", advanced: true },
             // Four choices: grouped buttons (owner's input rules: fewer than six options).
             { channel: "node.modelTint", name: "Tint", rule: "R8f" },
             { channel: "node.modelFit", name: "Fit", rule: "R8f" },
@@ -591,9 +594,9 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
             { channel: "node.glyphSize", name: "Size" },
             { channel: "node.glyphColor", name: "Color" },
         ],
-        // Bold as a text editor's toggle (owner, 2026-11-23), as a text label's; the font is rarer, in Advanced, so
-        // the pop-over stays 6 lines tall.
-        main: [{ channel: "node.glyphWeight", name: "Style", rule: "R7t" }],
+        // The font and one Weight line (Regular, Bold or any weight) in Letters, so the pop-over stays 6 lines tall
+        // under its tabs: a Bold toggle as well would be a second path to the weight (owner, 2026-11-27, #10380).
+        main: [],
         groups: [
             {
                 name: "Letters",

@@ -113,7 +113,10 @@ async function handMade(
  */
 async function clickRow(name: string): Promise<void> {
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(within(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
+    // A locator Playwright resolves when it clicks: the row's name counts its layers, which change after
+    // it first draws (for example "Lines, folder, 0 layers"), so a selector fixed from the element at once
+    // can miss it (#10194).
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
 }
 
 /**

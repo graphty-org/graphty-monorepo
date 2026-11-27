@@ -2,8 +2,8 @@
  * A label's Formatted string (owner, 2026-11-24: "one of the options [must] be 'Formatted string' ... The formatted
  * string editor opens in a popout, allows adding text and values (data, calculated, etc) in a string, and has a live
  * preview"), on the REAL graphty-element and real input: the label's source list offers Formatted string, which
- * starts from the value the label reads and opens its pop-out. Its Text line shows each value by its name and opens
- * the parts list, where words, values and lines are added; a value's Format pop-over sets its own format and what a
+ * starts from the value the label reads and opens its pop-out. Each line is one text field where words are typed and
+ * Insert value puts a value, shown by its name, at the caret; a value's Format pop-over sets its own format and what a
  * missing value shows; the preview steps through the nodes and follows the selection; a further label takes a
  * formatted string too.
  */
@@ -56,19 +56,13 @@ function bound(session: GraphSession, layer: string, channel = "node.label"): Re
 }
 
 /**
- * The parts list, opened from the editor's Text line.
+ * One line's text field in the editor.
  * @param pop - the editor.
- * @returns the list.
+ * @param n - the line, from 1.
+ * @returns the field.
  */
-async function openParts(pop: HTMLElement): Promise<HTMLElement> {
-    if (document.querySelector("[data-template-parts]") === null) {
-        await userEvent.click(within(pop).getByRole("button", { name: /^Node label parts/ }));
-    }
-    return waitFor(() => {
-        const found = document.querySelector<HTMLElement>("[data-template-parts]");
-        assert.isNotNull(found, "the parts list is open");
-        return found;
-    });
+function lineField(pop: HTMLElement, n: number): Promise<HTMLInputElement> {
+    return waitFor(() => within(pop).getByRole<HTMLInputElement>("textbox", { name: `Line ${String(n)}` }));
 }
 
 /**
@@ -107,22 +101,20 @@ describe("Style panel v2's formatted string", () => {
             assert.match(line, /^\{[^{}]+\}$/, "it starts from the label's value");
             return line.slice(1, -1);
         });
-        const text = await within(pop).findByRole("button", { name: /^Node label parts/ });
-        assert.notInclude(text.getAttribute("aria-label") ?? "", "{", "values are shown by name");
+        // The text is typed straight into the line, each value shown by its name in braces, never its path.
+        const first = await lineField(pop, 1);
+        await waitFor(() => {
+            assert.match(first.value, /^\{[^{}]+\}$/, "the value it reads, by its name");
+            assert.notStrictEqual(first.value, `{${path}}`, "never its path");
+        });
         await waitFor(() => {
             assert.notStrictEqual(previewOf(pop), "No words", "the preview shows a node's id");
         });
 
-        // Words added after the value, typed in the parts list.
-        const parts = await openParts(pop);
-        await userEvent.click(within(parts).getByRole("button", { name: "Add words" }));
-        const words = await waitFor(() => {
-            const found = within(parts).getAllByRole("textbox", { name: "Words" });
-            assert.lengthOf(found, 1);
-            return found[0];
-        });
-        await userEvent.clear(words);
-        await userEvent.type(words, " is a person{Enter}");
+        // Words typed after the value, written when the field is left.
+        await userEvent.click(first);
+        await userEvent.keyboard("{End} is a person");
+        await userEvent.tab();
         await waitFor(() => {
             assert.deepEqual(bound(session, nodes)?.template, [`{${path}} is a person`]);
         });
@@ -130,16 +122,28 @@ describe("Style panel v2's formatted string", () => {
             assert.match(previewOf(pop), / is a person$/, "the preview shows the typed words");
         });
 
-        // A new line, then a value from Insert value on it.
-        await userEvent.click(within(parts).getByRole("button", { name: "New line" }));
+        // Insert value puts the value where the caret was: after "Hi " typed at the start.
+        await userEvent.click(await lineField(pop, 1));
+        await userEvent.keyboard("{Home}Hi ");
         await insert(pop, /^Node id/);
         await waitFor(() => {
-            assert.deepEqual(bound(session, nodes)?.template, [`{${path}} is a person`, `{${path}}`]);
+            assert.deepEqual(bound(session, nodes)?.template, [`Hi {${path}}{${path}} is a person`]);
+        });
+
+        // A new line, then a value from Insert value on it.
+        await userEvent.click(within(pop).getByRole("button", { name: "New line" }));
+        await userEvent.click(await lineField(pop, 2));
+        await insert(pop, /^Node id/);
+        await waitFor(() => {
+            assert.deepEqual(bound(session, nodes)?.template, [`Hi {${path}}{${path}} is a person`, `{${path}}`]);
         });
         // The second line bold, from its Bold line.
-        await userEvent.click(within(await openParts(pop)).getByRole("button", { name: "Bold line 2" }));
+        await userEvent.click(within(pop).getByRole("button", { name: "Bold line 2" }));
         await waitFor(() => {
-            assert.deepEqual(bound(session, nodes)?.template, [`{${path}} is a person`, `<bold>{${path}}</bold>`]);
+            assert.deepEqual(bound(session, nodes)?.template, [
+                `Hi {${path}}{${path}} is a person`,
+                `<bold>{${path}}</bold>`,
+            ]);
         });
         await waitFor(async () => {
             assert.isAbove(pixelsApart(before, await picture(element)), 0, "the label is drawn anew");
@@ -158,8 +162,7 @@ describe("Style panel v2's formatted string", () => {
         await waitFor(() => {
             assert.match((bound(session, nodes)?.template as string[])[0], /\{data\.score\}$/);
         });
-        const parts = await openParts(pop);
-        await userEvent.click(await within(parts).findByRole("button", { name: /^score format/ }));
+        await userEvent.click(await within(pop).findByRole("button", { name: /^score format/ }));
         const format = await waitFor(() => {
             const found = document.querySelector<HTMLElement>('[data-beside-pop="Format"]');
             assert.isNotNull(found, "Format is open");

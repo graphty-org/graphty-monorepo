@@ -259,6 +259,10 @@ export interface GraphtyElementJSXProps {
      */
     zoomToPointer?: Graphty["zoomToPointer"];
     /**
+     * Sets where the camera keys are heard besides the focused canvas.
+     */
+    cameraKeysRoot?: Graphty["cameraKeysRoot"];
+    /**
      * Sets how the 3D nodes are lit.
      */
     lighting?: Graphty["lighting"];

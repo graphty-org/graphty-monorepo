@@ -294,6 +294,10 @@ export function sourceName(source: LoadedSource): string {
  */
 export function sourceKindWord(source: LoadedSource): string {
     const id = source.type?.replace(/^source:/, "");
+    // A file at a web address is one kind of thing, whichever form read it.
+    if (id === "url") {
+        return KIND_NAMES.url;
+    }
     const entry = source.kind === "server" ? sourceDescriptors().find((each) => each.id === id) : undefined;
     return entry === undefined ? KIND_NAMES[source.kind] : kindName(entry);
 }
@@ -341,7 +345,7 @@ function matchedUnit(shape: JoinShape): "node" | "edge" | "row" {
  * @param bytes - how many bytes.
  * @returns such as "45 B", "12 KB" or "1.4 MB".
  */
-export function sizeWords(bytes: number): string {
+function sizeWords(bytes: number): string {
     if (bytes < 1000) {
         return `${String(bytes)} B`;
     }
@@ -375,6 +379,8 @@ interface SourceExtras {
     readonly issues: number;
     /** It is an opened project's network load that has not run. */
     readonly waiting: boolean;
+    /** What reading a staged source recorded, until a save: its size, when it was read, and its rows. */
+    readonly read?: { readonly size?: number; readonly loadedAt?: string; readonly rows: number };
     /** A network load's Start, params, Limit and Expand, drawn after its Address. */
     readonly settings?: readonly SourceFact[];
 }
@@ -426,24 +432,35 @@ export function sourceFacts(
 ): { source: SourceFact[]; statistics: SourceFact[]; join: SourceFact[] } {
     const local = source.kind === "file" || source.kind === "join";
     const server = source.kind === "server";
+    const size = source.size ?? extras.read?.size;
+    const loadedAt = source.loadedAt ?? extras.read?.loadedAt;
     const facts: readonly (SourceFact | false)[] = [
         { name: "Type", value: sourceKindWord(source) },
         local && source.fileName !== undefined && { name: "File", value: source.fileName },
-        !local && source.url !== undefined && { name: "Address", value: source.url },
-        ...(extras.settings ?? []),
+        // A network load's settings say its address themselves, by the same word.
+        !local &&
+            source.url !== undefined &&
+            extras.settings?.some((each) => each.value === source.url) !== true && {
+                name: "Address",
+                value: source.url,
+            },
+        ...(extras.settings ?? []).map((each) => (each.value === source.url ? { ...each, name: "Address" } : each)),
         !server && source.type !== undefined && { name: "Format", value: formatWord(source) },
-        local && source.size !== undefined && { name: "Size", value: sizeWords(source.size) },
-        source.loadedAt !== undefined && {
+        size !== undefined && !server && { name: "Size", value: sizeWords(size) },
+        loadedAt !== undefined && {
             name: "Retrieved",
-            value: new Date(source.loadedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }),
+            value: new Date(loadedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }),
         },
         extras.waiting && { name: "Status", value: "Not fetched yet" },
     ];
     const values = source.join?.shape === "node-values" || source.join?.shape === "edge-values";
     const { nodes, edges } = source.counts;
     const statistics: readonly (SourceFact | false)[] = [
-        !values && { name: "Nodes", value: server ? serverCount(nodes, source.total) : nodes },
-        !values && { name: "Edges", value: server ? serverCount(edges, source.totalEdges) : edges },
+        source.state === "staged" && extras.read !== undefined && { name: "Rows", value: extras.read.rows },
+        source.state !== "staged" &&
+            !values && { name: "Nodes", value: server ? serverCount(nodes, source.total) : nodes },
+        source.state !== "staged" &&
+            !values && { name: "Edges", value: server ? serverCount(edges, source.totalEdges) : edges },
         source.leftOut !== undefined && { name: "Rows left out", value: source.leftOut.rows },
         extras.issues > 0 && { name: "Open issues", value: extras.issues },
     ];
@@ -458,52 +475,36 @@ export function sourceFacts(
  * A server load's count beside its name: how many nodes it brought of how many the source holds.
  * @param loaded - the nodes the load brought.
  * @param total - the nodes the source holds, when it says.
- * @returns such as "500 of 40,000", or "500" when the source does not say.
+ * @returns such as "500 of 40,000", or "500" when the source does not say or holds no more.
  */
 export function serverCount(loaded: number, total: number | undefined): string {
-    return total === undefined ? formatNumber(loaded) : `${formatNumber(loaded)} of ${formatNumber(total)}`;
+    return total === undefined || total === loaded
+        ? formatNumber(loaded)
+        : `${formatNumber(loaded)} of ${formatNumber(total)}`;
 }
 
 /**
- * A joined table's match: "52/70", matched rows of all its rows, drawn only when some rows did not
- * join.
- * @param source - the joined load.
- * @returns the words, or null when the load is not a join or every row joined.
- */
-export function joinMatch(source: LoadedSource): string | null {
-    return source.join === undefined || source.join.matched >= source.join.rows
-        ? null
-        : `${formatNumber(source.join.matched)}/${formatNumber(source.join.rows)}`;
-}
-
-/**
- * The join match's name and tooltip, with its unit.
- * @param source - the joined load.
- * @returns such as "17 of 19 rows joined" or "52 nodes matched, 70 table rows", or null when
- * {@link joinMatch} draws nothing.
- */
-export function joinWords(source: LoadedSource): string | null {
-    if (joinMatch(source) === null || source.join === undefined) {
-        return null;
-    }
-    const { matched, rows, shape } = source.join;
-    const unit = matchedUnit(shape);
-    return unit === "row"
-        ? `${formatNumber(matched)} of ${formatNumber(rows)} rows joined`
-        : `${count(matched, unit)} matched, ${formatNumber(rows)} table rows`;
-}
-
-/**
- * A Sources row's count chips in words, their name and tooltip; a count of 0 has no chip, so no words.
+ * A source's node and edge counts in words, 0 among them.
  * @param source - the load.
- * @returns such as "13 nodes, 18 edges", or "4 of 12 nodes" for a server load that says its total.
+ * @returns such as "13 nodes, 18 edges", or "4 of 12 nodes, 0 edges" for a server load that brought part.
  */
 export function countWords(source: LoadedSource): string {
     const { nodes, edges } = source.counts;
-    const plural = source.total === 1 ? "" : "s";
-    const nodeWords =
-        source.total === undefined ? count(nodes, "node") : `${serverCount(nodes, source.total)} node${plural}`;
-    return [...(nodes > 0 ? [nodeWords] : []), ...(edges > 0 ? [count(edges, "edge")] : [])].join(", ");
+    const words = (loaded: number, total: number | undefined, noun: string): string =>
+        // a join can make more than its source holds
+        total === undefined || total <= loaded
+            ? count(loaded, noun)
+            : `${serverCount(loaded, total)} ${noun}${total === 1 ? "" : "s"}`;
+    return `${words(nodes, source.total, "node")}, ${words(edges, source.totalEdges, "edge")}`;
+}
+
+/**
+ * What a source's entry says of one that waits: its rows, which are no nodes or edges until it is joined.
+ * @param rows - its rows.
+ * @returns such as "6 rows".
+ */
+export function stagedCountWords(rows: number): string {
+    return count(rows, "row");
 }
 
 /** Which table of a load a Fields row reads its column from. */

@@ -18,7 +18,7 @@ import {
     type LabelLocationPlace,
 } from "@graphty/graphty-element/catalog";
 import type { LabelStyle } from "@graphty/graphty-element/schema";
-import { Checkbox, Group, Stack } from "@mantine/core";
+import { Box, Checkbox, Group, Stack } from "@mantine/core";
 import React from "react";
 
 import { GLYPHS } from "../../glyphs";
@@ -42,7 +42,7 @@ import {
     type TextThing,
 } from "./labelRubric";
 import { rangeOf } from "./lineWrites";
-import { segmentOptions } from "./rubric";
+import { type OptionName, segmentOptions } from "./rubric";
 import {
     ByDataLink,
     FontSelect,
@@ -417,49 +417,96 @@ function locationControl({ label, field, name }: LineControlArgs): React.ReactNo
 
 /** A font style toggle's glyph and word, by the field it writes. */
 const FONT_TOGGLES: Readonly<Partial<Record<string, { glyph: keyof typeof GLYPHS; word: string }>>> = {
-    weight: { glyph: "fontBold", word: "Bold" },
     italic: { glyph: "fontItalic", word: "Italic" },
     underline: { glyph: "fontUnderline", word: "Underline" },
     strikethrough: { glyph: "fontStrikethrough", word: "Strikethrough" },
 };
 
 /**
- * R7t: a text editor's font style buttons on one line (owner, 2026-11-23), each pressed while the label draws it
- * (unset, graphty-element's default). Bold reads and writes the weight: pressed at "bold" or 600 and over.
+ * R7t: a text editor's font style line (owner, 2026-11-23): the weight's drop-down of named weights (R5b), then a
+ * toggle button for each flag, pressed while the label draws it (unset, graphty-element's default).
  * @param args - the line.
- * @returns The toggles
+ * @returns The line's controls
  */
 function fontToggles(args: LineControlArgs): React.ReactNode {
-    const { label, line } = args;
-    const fields = [line.field, ...(line.toggles ?? [])];
+    const { label, line, field, descriptor } = args;
     return (
         // 8 apart: under a finger each toggle's target is 32 px wide, so 2 apart they would take each other's taps.
-        <Group gap={8} wrap="nowrap" data-font-style="">
-            {fields.map((field) => {
-                const toggle = FONT_TOGGLES[field];
+        // Right padding 8 too: the last toggle's target clears the link slot after the line.
+        <Group gap={8} pr={8} wrap="nowrap" data-font-style="">
+            <Box flex={1} miw={0}>
+                {presetControl(label, field, descriptor, lineName(label.title, "Weight"))}
+            </Box>
+            {(line.toggles ?? []).map((flag) => {
+                const toggle = FONT_TOGGLES[flag];
                 if (toggle === undefined) {
                     return null;
                 }
                 const Glyph = GLYPHS[toggle.glyph];
-                const value = valueOf(label.style, field) ?? labelFieldDescriptor(field)?.default;
-                const on =
-                    field === "weight"
-                        ? value === "bold" || (typeof value === "number" && value >= 600)
-                        : value === true;
+                const on = (valueOf(label.style, flag) ?? labelFieldDescriptor(flag)?.default) === true;
                 return (
                     <ToggleIconButton
-                        key={field}
+                        key={flag}
                         label={toggle.word}
                         icon={<Glyph size={14} aria-hidden />}
                         checked={on}
                         onChange={(next) => {
-                            const bold = next ? "bold" : "normal";
-                            label.write({ [field]: field === "weight" ? bold : next });
+                            label.write({ [flag]: next });
                         }}
                     />
                 );
             })}
         </Group>
+    );
+}
+
+/**
+ * A number line's presets (R5b): every value graphty-element names for the field's own channel (a weight's Thin to
+ * Black), lightest first, each by the panel's name where it has one ("Regular"), else the element's.
+ * @param label - the label.
+ * @param field - the field.
+ * @returns the presets.
+ */
+function presetsOf(label: LabelLineContext, field: LabelField): readonly { id: string; plainName: string }[] {
+    const names: Readonly<Partial<Record<string, OptionName>>> = LABEL_OPTION_NAMES[field] ?? {};
+    const flat = flatOf(label.ctx.side, label.kind.style, field);
+    const values =
+        flat === undefined
+            ? Object.keys(names).map((id) => ({ id, plainName: id }))
+            : label.ctx.session.catalog.channelValues(flat);
+    const order = (id: string): number => WEIGHT_NUMBERS[id] ?? Number(id);
+    return values
+        .map((each) => ({ id: each.id, plainName: names[each.id]?.name ?? each.plainName }))
+        .sort((a, b) => order(a.id) - order(b.id));
+}
+
+/**
+ * A number with named presets (R5b): a weight's Regular, Bold, Thin to Black, or a number typed.
+ * @param label - the label.
+ * @param field - the field.
+ * @param descriptor - its descriptor.
+ * @param name - its accessible name.
+ * @returns The drop-down
+ */
+function presetControl(
+    label: LabelLineContext,
+    field: LabelField,
+    descriptor: ChannelDescriptor,
+    name: string,
+): React.JSX.Element {
+    return (
+        <PresetLine
+            ctx={label.ctx}
+            descriptor={descriptor}
+            label={name}
+            presets={presetsOf(label, field)}
+            value={shownOf(label.style, field)}
+            onWrite={(next) => {
+                // A preset's id is the element's channel value ("600"); the label style field takes its number.
+                const value = typeof next === "string" && Number.isFinite(Number(next)) ? Number(next) : next;
+                label.write({ [field]: value });
+            }}
+        />
     );
 }
 
@@ -479,19 +526,7 @@ function controlOf(args: LineControlArgs, rule: string): React.ReactNode {
         case "R5":
             return numberControl(args);
         case "R5b":
-            return (
-                <PresetLine
-                    ctx={label.ctx}
-                    descriptor={descriptor}
-                    label={name}
-                    presets={Object.entries(LABEL_OPTION_NAMES[field] ?? {}).map(([id, option]) => ({
-                        id,
-                        plainName: option.name,
-                    }))}
-                    value={value}
-                    onWrite={write}
-                />
-            );
+            return presetControl(label, field, descriptor, name);
         case "R7t":
             return fontToggles(args);
         case "R7":

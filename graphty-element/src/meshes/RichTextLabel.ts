@@ -43,7 +43,7 @@ import { drawablePicture } from "./pictureSize";
 import { type ContentArea as PointerContentArea, type PointerDirection, PointerRenderer } from "./PointerRenderer";
 import { RichTextAnimator } from "./RichTextAnimator";
 import { hasWords, measureLine, RichTextParser, wrapLines } from "./RichTextParser";
-import { RichTextRenderer } from "./RichTextRenderer";
+import { type CanvasRect, RichTextRenderer } from "./RichTextRenderer";
 import { pixelsPerUnit } from "./screenSize";
 
 const logger: Logger = GraphtyLogger.getLogger(["graphty", "meshes", "label"]);
@@ -252,6 +252,7 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "wrapUnkerned"
     | "wrapEllipsis"
     | "wrapAnywhere"
+    | "underline"
     | "wrapSpaceCount"
     | "maxLines"
     | "maxLinesEllipsis"
@@ -794,7 +795,6 @@ export class RichTextLabel {
             textOutlineColor: "black",
             textOutlineWidth: 2,
             textOutlineJoin: "round",
-            textUnderline: false,
             textStrikethrough: false,
             pointer: false,
             pointerDirection: "bottom",
@@ -926,10 +926,10 @@ export class RichTextLabel {
             textOutlineColor: this.options.textOutlineColor,
             textOutlineWidth: this.options.textOutlineWidth,
             textOutlineJoin: this.options.textOutlineJoin,
-            textUnderline: this.options.textUnderline,
             textStrikethrough: this.options.textStrikethrough,
             runAlign: this.options.runAlign,
             lineBox: this.options.lineBox,
+            underline: this.options.underline,
         });
 
         this.pointerRenderer = new PointerRenderer();
@@ -1216,6 +1216,16 @@ export class RichTextLabel {
                 );
             }
         }
+    }
+
+    /**
+     * The lines drawn under the words (`underline`), one per run, in canvas units from the label's top left corner;
+     * empty for a label drawn with none.
+     * @returns Each line's box.
+     * @internal
+     */
+    public get underlines(): readonly CanvasRect[] {
+        return this.renderer.underlines;
     }
 
     /**
@@ -1849,6 +1859,7 @@ export class RichTextLabel {
             ctx.drawImage(picture, box.x, box.y, box.width, box.height);
         }
 
+        this.renderer.underlines.length = 0;
         if (this.tableDrawing === null) {
             this.renderer.drawText(ctx, this.parsedContent, textArea);
         } else {
@@ -2478,7 +2489,8 @@ export class RichTextLabel {
         this.mesh.material = this.material;
         // A label with a close button is told apart from other labels by a click; see labelClose.
         // Every label plane is pickable, as Babylon makes it, so one without a button still
-        // stops a click as it always has: a click on it reaches no node behind it.
+        // stops a click as it always has: a click on it reaches no node behind it. A node's own
+        // texts let the pointer through instead (Node.passThrough).
         if (this.options.closeButton) {
             this.unmarkClose = markCloseLabel(this.mesh, () => this.closeBounds);
         }

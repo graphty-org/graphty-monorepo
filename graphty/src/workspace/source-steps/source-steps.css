@@ -1,33 +1,5 @@
-/* The Join card's live counts: three a row, the number over its words. */
-.ss-counts {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 4px;
-    margin: 0;
-}
-
-.ss-count {
-    display: flex;
-    flex-direction: column-reverse;
-    min-width: 0;
-}
-
-.ss-count dd {
-    margin: 0;
-}
-
-/* The dock's Fields tab: the two profiles side by side, then the value list. */
-.ss-fields-tab {
-    padding: 4px 8px;
-}
-
-.ss-profile {
-    flex: 1;
-}
-
-/* Field 1 and Field 2, and each profile: a fieldset for its name, drawn as a plain stack. */
-.ss-field,
-.ss-profile {
+/* A fieldset for its name, drawn as a plain stack. */
+.ss-field {
     display: flex;
     flex-direction: column;
     gap: 4px;
@@ -37,23 +9,11 @@
     border: 0;
 }
 
-.ss-field > legend,
-.ss-profile > legend {
+.ss-field > legend {
     padding: 0;
 }
 
 /* The Before / After chip, at the top center of the canvas while a draft is drawn. */
-.ss-draft-chip {
-    position: absolute;
-    top: 8px;
-    left: 50%;
-    transform: translateX(-50%);
-    padding: 2px 6px;
-    border-radius: var(--mantine-radius-sm);
-    background: var(--mantine-color-body);
-    box-shadow: var(--mantine-shadow-xs);
-    pointer-events: auto;
-}
 
 /* A count or a Values differ column that lists its rows or cells in the dock's Preview tab. */
 .ss-count-show {
@@ -63,9 +23,24 @@
     text-decoration: underline dotted;
 }
 
-/* The join workspace (issue #9796): the selection workspace's frame, sized for iPad and phones. */
+/* The join workspace (issue #9796): the selection workspace's frame, sized for iPad and phones, with a
+   row of its own for the key, so the counts never push Cancel and Done off the header. */
+.sel-ws.sel-modal.jw-modal {
+    grid-template-rows: 40px auto minmax(0, 1fr);
+}
+
 .jw-modal .sel-ws-head {
     overflow-x: auto;
+}
+
+.jw-key {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 12px;
+    align-items: center;
+    min-height: 24px;
+    padding-inline: 12px;
+    border-bottom: 1px solid var(--cm-border);
 }
 
 .jw-lower {
@@ -138,19 +113,159 @@ dialog.jw-modal {
     inset: 0;
 }
 
-/* The key's marks: the ring, dashed and dotted borders the preview draws for each effect. */
+/* The key's marks, large enough to tell apart: a node is a ring, an edge a line, drawn whole, dashed and
+   dotted as the preview draws each effect; what goes is struck through. */
 .jw-key-mark {
+    position: relative;
     display: inline-block;
-    width: 10px;
-    height: 10px;
+    width: 14px;
+    height: 14px;
     border: 2px solid currentcolor;
     border-radius: 50%;
 }
 
-.jw-key-mark[data-mark="new"] {
+.jw-key-mark[data-mark="new"],
+.jw-key-mark[data-mark="edges"] {
     border-style: dashed;
 }
 
+.jw-key-mark[data-mark^="edges"] {
+    width: 18px;
+    height: 0;
+    border-width: 2px 0 0;
+    border-radius: 0;
+}
+
+/* A wider ring, as the preview draws it wider than the merged ring. */
+.jw-key-mark[data-mark^="ring-"] {
+    width: 18px;
+    height: 18px;
+}
+
+.jw-key-mark[data-mark="ring-focus"] {
+    width: 22px;
+    height: 22px;
+}
+
+/* Counted only: the preview draws no mark for it. */
 .jw-key-mark[data-mark="untouched"] {
-    border-style: dotted;
+    display: none;
+}
+
+.jw-key-mark[data-mark$="-changed"] {
+    border-style: double;
+    border-width: 4px;
+}
+
+.jw-key-mark[data-mark="edges-changed"] {
+    border-width: 4px 0 0;
+}
+
+.jw-key-mark[data-mark$="-removed"]::after {
+    position: absolute;
+    inset: 50% -2px auto;
+    height: 2px;
+    content: "";
+    background: currentcolor;
+    transform: translateY(-50%) rotate(-45deg);
+}
+
+.jw-card .mantine-Radio-label,
+.jw-card .mantine-Switch-label {
+    padding-inline-start: 6px;
+}
+
+.jw-card .mantine-Radio-body,
+.jw-card .mantine-Switch-body {
+    align-items: center;
+}
+
+/* A card's named row: its words in one column, so the controls start at one x. The words share the
+   baseline of the controls' first line, so they stay on it when the controls wrap (#10216). */
+.jw-row {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 8px;
+    align-items: first baseline;
+    min-height: 24px;
+}
+
+.jw-row-controls {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    min-width: 0;
+}
+
+.jw-row-controls > .mantine-Select-root,
+.jw-row-controls > .mantine-MultiSelect-root {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+/* A line of a card: its two sources with a field of each under them, and "=" between; a further line's
+   remove sits after them. */
+.jw-line {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 12px minmax(0, 1fr) 20px;
+    gap: 4px;
+    align-items: center;
+}
+
+.jw-line > .jw-line-count {
+    grid-column: 1 / -1;
+}
+
+/* The list of joins takes at most 40% of the left column; the selected one's editor scrolls under it. */
+.jw-modal .jw-left {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    overflow: hidden;
+}
+
+.jw-list {
+    flex: 0 1 auto;
+    max-height: 40%;
+    overflow-y: auto;
+}
+
+.jw-editor {
+    flex: 1 1 0;
+    min-height: 0;
+    padding: 12px;
+    overflow-y: auto;
+}
+
+/* The two sources' rows, one window of lines: their scroll areas are as tall as each other whether or
+   not a table scrolls sideways. */
+.jw-tables {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+}
+
+.jw-tables[data-beside] {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.jw-side {
+    min-width: 0;
+}
+
+.jw-side > .mantine-Text-root {
+    height: 18px;
+}
+
+.jw-tables .cm-dt-viewport {
+    overflow-x: scroll;
+}
+
+.jw-remove {
+    padding: 8px;
+    margin-block-end: 8px;
+}
+
+.jw-counts {
+    font-size: var(--mantine-font-size-xs);
 }

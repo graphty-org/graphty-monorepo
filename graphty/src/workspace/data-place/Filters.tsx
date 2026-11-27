@@ -36,7 +36,7 @@ import { FilterSelection } from "../selection/FilterSelection";
 import { addStep, editBranch, newSelection } from "../selection/model";
 import { type SelectionMenuItem, SelectionMenuItems } from "../selection/SelectionMenu";
 import { useSteps } from "../selection/useSteps";
-import { filterSelection, ruleOfField, sideOf } from "../selection/values";
+import { filterSelection, ruleOfField, sideOf, waitingSource } from "../selection/values";
 import { cardsWords, rowTest, rowWords, shownWords, stepWords, VERB_WORDS } from "../selection/words";
 import { useSessionEvents, VISIBILITY_EVENTS } from "../sessionEvents";
 import type { WorkspaceStore } from "../state/store";
@@ -118,6 +118,17 @@ function newFilterSelection(session: GraphSession, side: Side, field?: CardField
 }
 
 /**
+ * How many nodes and edges a waiting source's rows are read as.
+ * @param session - the element's session.
+ * @param source - the source.
+ * @returns the counts.
+ */
+function waitingRows(session: GraphSession, source: SourceKey): { nodes: number; edges: number } {
+    const { totalNodes, totalEdges } = session.visibility.summaryOf(source);
+    return { nodes: totalNodes, edges: totalEdges };
+}
+
+/**
  * Whether a condition hides anything when it is on: keep and exclude do, select does not.
  * @param condition - the condition.
  * @returns true when it hides.
@@ -149,7 +160,7 @@ export function FiltersSection({
     source?: SourceKey;
     unscoped?: boolean;
     primary?: boolean;
-    headingLevel?: 2 | 3;
+    headingLevel?: 2 | 3 | 4;
 }> = {}): React.JSX.Element {
     const { session, store } = useWorkspace();
     const version = useSessionEvents(session, VISIBILITY_EVENTS);
@@ -170,7 +181,7 @@ export function FiltersSection({
             setOpenId(keptCard);
         }
     }, [keptCard]);
-    const keys = new Set(session?.data.sources().map((each) => each.key) ?? []);
+    const keys = new Set(session?.data.sources({ staged: true }).map((each) => each.key) ?? []);
     // A filter of a load that is gone is listed with the filters of no load, so it can be removed.
     const ownless = (condition: FilterCondition): boolean =>
         condition.source === undefined || !keys.has(condition.source);
@@ -307,6 +318,12 @@ export function FiltersSection({
         }
     }, [asked, session, store, primary]);
 
+    // A source with only edges is filtered by them.
+    const own =
+        session === null || source === undefined
+            ? undefined
+            : (session.data.sources().find((each) => each.key === source)?.counts ?? waitingRows(session, source));
+    const firstSide: Side = own?.nodes === 0 && own.edges > 0 ? "edge" : "node";
     const plus =
         session === null ? null : (
             <span data-filters-plus="">
@@ -316,7 +333,7 @@ export function FiltersSection({
                         data-add
                         aria-label="Add filter"
                         onClick={() => {
-                            open("node");
+                            open(firstSide);
                         }}
                     >
                         <GLYPHS.add size={14} aria-hidden />
@@ -636,13 +653,16 @@ function FilterCard({
         );
     const things = side === "node" ? "nodes" : "edges";
     const matched = reading.total.count;
+    // What a waiting source's rows will be is in no graph to select.
+    const waitingReason =
+        selection === null || waitingSource(session, selection) === undefined ? null : "Not in the graph";
     const menu: SelectionMenuItem[] = [
         {
             id: "select",
             label: `Select ${formatNumber(matched)}`,
             icon: "selection",
             group: "edit",
-            reason: matched === 0 ? `No ${things} match` : null,
+            reason: matched === 0 ? `No ${things} match` : waitingReason,
             onRun: () => {
                 void session.selection.apply({ scope: reading.result }).then(() => {
                     store.set({ announcement: `Selected ${formatNumber(matched)} ${things}` });
@@ -675,7 +695,8 @@ function FilterCard({
         { id: "delete", label: "Delete", icon: "delete", group: "remove", key: "Delete", onRun: remove },
     ];
     // A card that removes its matches shows none of them; only the others say how many are shown.
-    const shownSuffix = condition?.effect === "exclude" ? "" : shownWords(reading.total);
+    // A waiting source's rows are none of them drawn: no count of what is shown.
+    const shownSuffix = condition?.effect === "exclude" || waitingReason !== null ? "" : shownWords(reading.total);
     const ofAll = `${formatNumber(matched)} of ${formatNumber(reading.total.of)}`;
     const total = selection === null ? undefined : `${ofAll}${shownSuffix}`;
     // Spoken, the kind of thing counted follows the count, before what is shown: "12 of 77 nodes, 0 shown".
@@ -919,9 +940,13 @@ function cardName(
     field: string | undefined,
 ): string {
     const first = selection?.branches.flatMap((branch) => branch.steps)[0];
+    const waiting = selection === null ? undefined : waitingSource(session, selection);
     // A step no value names ("Rule": a tier 4 neighborhood, say) leaves the name to the rule's words.
-    if (first !== undefined && (condition === undefined || stepWords(session, first, side).value !== "Rule")) {
-        const words = rowWords(session, first, side);
+    if (
+        first !== undefined &&
+        (condition === undefined || stepWords(session, first, side, undefined, waiting).value !== "Rule")
+    ) {
+        const words = rowWords(session, first, side, undefined, waiting);
         const test = rowTest(words);
         // A card says what stays: a first step that removes keeps its verb ("Except role volunteer").
         const verb = first.op === "except" ? [VERB_WORDS.except.word] : [];

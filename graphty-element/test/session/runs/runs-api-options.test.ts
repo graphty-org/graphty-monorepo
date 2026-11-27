@@ -2,7 +2,9 @@
  * @file `session.runs`: the options a consumer passes through to a run (a signal, a progress
  * callback, a stability series' parameters), what an option outside its listed choices is refused
  * with, how a sweep names two values that spell one id, what a run is called beside a sibling that
- * differs only by scope, and what the lookups answer for a run the session does not hold.
+ * differs only by scope or by parameters, what the lookups answer for a run the session does not
+ * hold, which parameter values and empty scopes are refused, and how the "replace" queue policy and
+ * canceling a batch end the work still running.
  */
 
 import { assert, describe, it } from "vitest";
@@ -350,6 +352,202 @@ describe("a partition's groups named by text, as layers", () => {
         assert.deepStrictEqual(
             painting?.suggestions.map((entry) => [entry.outcome, entry.outcome === "refused" ? entry.code : ""]),
             [["refused", "E_UNKNOWN_PALETTE"]],
+        );
+    });
+});
+
+describe("a parameter outside its range", () => {
+    it("is refused before anything runs, naming the bound or the whole-number rule it breaks", async () => {
+        const session = await graph();
+        const refusal = (params: Record<string, unknown>): unknown => {
+            try {
+                session.runs.start("pagerank", params);
+            } catch (error) {
+                return isGraphtyError(error) ? [error.code, error.details] : "not a GraphtyError";
+            }
+            return null;
+        };
+
+        assert.deepStrictEqual(refusal({ maxIterations: 1.5 }), [
+            "E_OPTION_RANGE",
+            { algorithm: "pagerank", option: "maxIterations", value: 1.5 },
+        ]);
+        assert.deepStrictEqual(refusal({ dampingFactor: -0.5 }), [
+            "E_OPTION_RANGE",
+            { algorithm: "pagerank", option: "dampingFactor", value: -0.5, min: 0 },
+        ]);
+        assert.deepStrictEqual(refusal({ dampingFactor: 2 }), [
+            "E_OPTION_RANGE",
+            { algorithm: "pagerank", option: "dampingFactor", value: 2, max: 1 },
+        ]);
+        assert.strictEqual(calls.length, 0);
+    });
+});
+
+describe("a run asked to be exact", () => {
+    it("hands the executor that request", async () => {
+        const session = await graph();
+        await session.runs.start("degree", {}, { exact: true });
+
+        assert.deepStrictEqual(
+            calls.map((call) => call.exact),
+            [true],
+        );
+    });
+});
+
+describe("what a run's layer is called beside a sibling of other parameters", () => {
+    it("names each parameter that differs, sorted by name, a switch as on or off and an omitted one by its default", async () => {
+        const session = await graph();
+        await Promise.all([
+            session.runs.start("pagerank", { useDelta: true, directed: true, dampingFactor: 0.5 }, { as: "p1" }),
+            session.runs.start("pagerank", { useDelta: false, directed: false }, { as: "p2" }),
+            session.runs.start("pagerank", {}, { as: "p3" }),
+        ]);
+        await session.styles.settled();
+
+        assert.deepStrictEqual(
+            session.styles.tree().map((row) => row.name),
+            [
+                "Influence (dampingFactor 0.5, directed on, useDelta on)",
+                "Influence (dampingFactor 0.85, directed off, useDelta off)",
+                "Influence (dampingFactor 0.85, directed on, useDelta on)",
+            ],
+        );
+        assert.deepStrictEqual(
+            session.runs.list().map((run) => run.record.siblingsDifferBy),
+            [
+                ["dampingFactor", "directed", "useDelta"],
+                ["dampingFactor", "directed", "useDelta"],
+                ["dampingFactor", "directed", "useDelta"],
+            ],
+        );
+    });
+
+    it("names the selection and a kept set by its name when only the scope differs", async () => {
+        const session = await graph();
+        await session.selection.apply({ nodes: ["a", "b"] });
+        const kept = session.sets.create({ kind: "fixed", nodes: ["b", "c"], reading: "induced" }, { name: "Kept" });
+        await Promise.all([
+            session.runs.start("degree", {}, { scope: "selection" }),
+            session.runs.start("degree", {}, { scope: { set: kept } }),
+        ]);
+        await session.styles.settled();
+
+        assert.deepStrictEqual(
+            session.styles.tree().map((row) => row.name),
+            ["Connections (selection)", "Connections (Kept)"],
+        );
+    });
+});
+
+describe("a run over a scope that holds no nodes", () => {
+    it("is refused when the scope is one the caller chose, naming a kept set as the target", async () => {
+        const session = await graph();
+        const empty = session.sets.create(
+            { kind: "rule", where: "data.score > `10`", reading: "induced" },
+            { name: "Nobody" },
+        );
+        const failure = async (scope: Parameters<GraphSession["runs"]["start"]>[2]): Promise<unknown> => {
+            try {
+                await session.runs.start("degree", {}, scope);
+            } catch (error) {
+                return isGraphtyError(error) ? [error.code, error.target ?? null] : "not a GraphtyError";
+            }
+            return null;
+        };
+
+        assert.deepStrictEqual(await failure({ scope: { nodes: [] } }), ["E_SCOPE_EMPTY", null]);
+        assert.deepStrictEqual(await failure({ scope: { set: empty } }), [
+            "E_SCOPE_EMPTY",
+            { kind: "scope", id: empty },
+        ]);
+        assert.strictEqual(calls.length, 0);
+    });
+
+    it("runs over the whole graph even when the graph is empty", async () => {
+        calls.length = 0;
+        const session = createGraphSession({ runs: { execute } });
+        const run = session.runs.start("degree", {}, { scope: "graph" });
+        await run;
+
+        assert.strictEqual(run.status, "succeeded");
+        assert.deepStrictEqual(
+            calls.map((call) => call.scope.nodeCount),
+            [0],
+        );
+    });
+});
+
+/**
+ * A session whose executor holds every run until it is aborted, except a run of `direction: "out"`,
+ * which it answers at once.
+ * @returns The session.
+ */
+async function held(): Promise<GraphSession> {
+    calls.length = 0;
+    const session = createGraphSession({
+        runs: {
+            execute: (context) => {
+                if (context.params.direction === "out") {
+                    return execute(context);
+                }
+                calls.push(context);
+                return new Promise<RunOutcome>((_resolve, reject) => {
+                    context.signal.addEventListener(
+                        "abort",
+                        () => {
+                            reject(new DOMException("aborted", "AbortError"));
+                        },
+                        { once: true },
+                    );
+                });
+            },
+        },
+    });
+    await session.data.addNodes([{ id: "a" }, { id: "b" }]);
+    return session;
+}
+
+/**
+ * How a run settled: "resolved", or the name of the DOMException it rejected with.
+ * @param run - The run.
+ * @returns The outcome.
+ */
+function outcomeOf(run: PromiseLike<unknown>): Promise<string> {
+    return Promise.resolve(run).then(
+        () => "resolved",
+        (error: unknown) => (error instanceof DOMException ? error.name : "other"),
+    );
+}
+
+describe("the replace queue policy", () => {
+    it("cancels the earlier run of the same algorithm that is still running", async () => {
+        const session = await held();
+        const first = session.runs.start("degree", { direction: "in" }, { as: "first" });
+        const settledFirst = outcomeOf(first);
+        const second = session.runs.start("degree", { direction: "out" }, { as: "second", queue: "replace" });
+
+        assert.strictEqual(await settledFirst, "AbortError");
+        assert.strictEqual(first.status, "canceled");
+        await second;
+        assert.strictEqual(second.status, "succeeded");
+    });
+});
+
+describe("canceling a batch that is still running", () => {
+    it("settles it as canceled, with the member it stopped and the one it never started", async () => {
+        const session = await held();
+        const batch = session.runs.batch([{ algorithm: "degree" }, { algorithm: "pagerank" }]);
+        batch.cancel();
+        const result = await batch;
+
+        assert.strictEqual(batch.status, "canceled");
+        assert.strictEqual(result.completed, 0);
+        assert.isTrue(result.partial);
+        assert.deepStrictEqual(
+            result.steps.map((step) => step.failure?.code ?? "ok"),
+            ["canceled", "not-started"],
         );
     });
 });

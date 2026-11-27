@@ -85,6 +85,7 @@ function useCodeEditor(box: React.RefObject<HTMLTextAreaElement | null>): {
     Editor: typeof ShaderCodeEditor | null;
     takeFocusAt: number | undefined;
 } {
+    // on reload: fresh: in flight: the code editor's chunk, loaded again as the dialog opens
     const [loaded, setLoaded] = useState<{ Editor: typeof ShaderCodeEditor; takeFocusAt?: number } | null>(() =>
         loadedEditor === null ? null : { Editor: loadedEditor },
     );
@@ -159,20 +160,48 @@ interface DraftBook {
     last: Target | undefined;
 }
 
+/** The unsent shader drafts as the workspace keeps them across a reload (its `shaderDrafts`). */
+export interface KeptShaderDrafts {
+    readonly drafts: Readonly<Partial<Record<Target, EditorState>>>;
+    readonly last?: Target;
+}
+
 const books = new WeakMap<GraphSession, DraftBook>();
 
 /**
- * The session's drafts, kept when the dialog closes without adding.
+ * The session's drafts, kept when the dialog closes without adding. A session's first opening
+ * starts from the drafts the workspace kept, so a reload puts them back.
  * @param session - the session.
+ * @param kept - the drafts the workspace kept, if any.
  * @returns its drafts.
  */
-function bookOf(session: GraphSession): DraftBook {
+function bookOf(session: GraphSession, kept: KeptShaderDrafts | null): DraftBook {
     let book = books.get(session);
     if (book === undefined) {
-        book = { drafts: new Map(), last: undefined };
+        book = {
+            drafts: new Map(Object.entries(kept?.drafts ?? {}) as [Target, EditorState][]),
+            last: kept?.last,
+        };
         books.set(session, book);
     }
     return book;
+}
+
+/**
+ * The drafts as the workspace keeps them, with the open one written under its target.
+ * @param book - the session's drafts.
+ * @param open - the open draft and its target, while the dialog is open.
+ * @param open.target - the target it is under.
+ * @param open.state - the draft.
+ * @returns the kept drafts.
+ */
+function keptBook(book: DraftBook, open?: { target: Target; state: EditorState }): KeptShaderDrafts {
+    const drafts = Object.fromEntries(book.drafts);
+    const last = open?.target ?? book.last;
+    return {
+        drafts: open === undefined ? drafts : { ...drafts, [open.target]: open.state },
+        ...(last === undefined ? {} : { last }),
+    };
 }
 
 /**
@@ -459,27 +488,36 @@ export function ShaderEditorDialog({
 }: Readonly<ShaderEditorDialogProps>): React.JSX.Element {
     const { store } = useWorkspace();
     const problemsId = useId();
-    const book = bookOf(session);
+    const book = bookOf(session, store.get().shaderDrafts);
+    // on reload: fresh: derived: the tab of the draft the kept shaderDrafts last names
     const [tab, setTab] = useState<ShaderTab>(() => listTab ?? book.last ?? "node");
     const places = DIALOG_PLACES[tab];
+    // The open draft is written to the workspace's kept shaderDrafts as it changes, so a reload
+    // opens on it.
+    // on reload: fresh: derived: read from the kept shaderDrafts as the dialog opens
     const [state, setState] = useState<EditorState>(() => openingState(book, tab, init));
     // The state as last drawn, for closing from a listener registered by an earlier render.
     const stateNow = useRef(state);
     stateNow.current = state;
     const { form, body, full, place, edited } = state;
     // The check of the text as it is now; null while it is pending.
+    // on reload: fresh: derived: the text is checked again as the dialog opens
     const [result, setResult] = useState<ShaderAddResult | null>(null);
+    // on reload: fresh: in flight: an Add under way
     const [adding, setAdding] = useState(false);
     // The last picture the element drew of text that passed: kept while the text does not.
+    // on reload: fresh: derived: drawn again by the check as the dialog opens
     const [drawn, setDrawn] = useState<Blob | undefined>(undefined);
     // The element hands the same picture back for the same text, so a re-check makes no new address.
     const picture = useMemo(() => (drawn === undefined ? undefined : URL.createObjectURL(drawn)), [drawn]);
     // Whether the reader has clicked or typed in the box since its text was last loaded, so its
     // cursor means something; focus alone (autofocus) leaves the caret before the code.
+    // on reload: fresh: pointer: where the caret is
     const [hasCursor, setHasCursor] = useState(false);
     const box = useRef<HTMLTextAreaElement>(null);
     const editor = useRef<ShaderCodeEditorHandle>(null);
     const { Editor, takeFocusAt } = useCodeEditor(box);
+    // on reload: fresh: pointer: what Tab does in the code box, switched for a moment by its key
     const [tabMoves, setTabMoves] = useState(false);
     const { hasOpenPopouts } = usePopoutManager();
     const fields = useRef<HTMLDivElement>(null);
@@ -490,6 +528,9 @@ export function ShaderEditorDialog({
     const boxValue = full ?? body;
     const target = tab;
     const onList = put !== undefined && tab === listTab;
+    useEffect(() => {
+        store.set({ shaderDrafts: keptBook(book, { target, state }) });
+    }, [store, book, target, state]);
     // With no list to write the values to, a changed default is kept only by joining as new.
     const defaultsChanged =
         !onList && JSON.stringify(form.params ?? []) !== JSON.stringify(state.loaded.draft.params ?? []);
@@ -718,6 +759,7 @@ export function ShaderEditorDialog({
         } else {
             book.drafts.set(target, stateNow.current);
         }
+        store.set({ shaderDrafts: keptBook(book) });
         onClose();
     };
 

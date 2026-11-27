@@ -250,6 +250,8 @@ export interface PText {
     /** CSS numeric weight: 400 normal, 700 bold. */
     weight: number;
     style: "normal" | "italic" | "oblique";
+    /** Whether a line is drawn under the words (an SVG's `text-decoration`, the line ySVG draws under a text). */
+    underline?: true;
     anchor: "start" | "middle" | "end";
     /** Degrees, clockwise on screen, of the text's baseline. */
     rotation: number;

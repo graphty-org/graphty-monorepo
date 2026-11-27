@@ -826,14 +826,21 @@ export class NGraphEngine extends LayoutEngine {
     }
 
     /**
-     * Pin each held row body and free the rest, and weigh each by whether its row follows.
+     * Pin each held row body where the element's array has it and free the rest, and weigh each by whether its row
+     * follows. A held row with no `Node` (renderPath "batched") is placed here, as a scoped layout places a held
+     * `Node` before it holds it (`LayoutManager.applyHold`) (issue #10052).
      */
     private holdRowBodies(): void {
         const snapshot = this.rowNodes.size > 0 && this.rowSource ? wholeGraph(this.rowSource) : undefined;
+        const at = { x: 0, y: 0, z: 0 };
         this.rowFollowers.clear();
         for (const [id, ngraphNode] of snapshot === undefined ? [] : this.rowNodes) {
             const row = snapshot?.ids.indexOf(id) ?? INVALID_INDEX;
             if (row !== INVALID_INDEX) {
+                if (this.isHeld(row) && this.readRowPosition(row, at, this.rowSource?.positions)) {
+                    this.moveRowBody(id, at);
+                }
+
                 this.ngraphLayout.pinNode(ngraphNode, this.isHeld(row));
                 this.weigh(row, id);
                 if (this.isFollower(row)) {
@@ -1161,13 +1168,22 @@ export class NGraphEngine extends LayoutEngine {
         const at = { x: 0, y: 0, z: 0 };
         for (const id of snapshot === undefined ? [] : this.rowNodes.keys()) {
             if (this.readRowPosition(snapshot?.ids.indexOf(id) ?? INVALID_INDEX, at, this.rowSource?.positions)) {
-                const pos = this.ngraphLayout.getNodePosition(id);
-                pos.x = at.x;
-                pos.y = at.y;
-                // A 2D engine holds its bodies on the plane, whatever Z the array carries.
-                pos.z = this.ngraphLayout.simulator.settings.dimensions === 3 ? at.z : 0;
+                this.moveRowBody(id, at);
             }
         }
+    }
+
+    /**
+     * Move a row body to a position.
+     * @param id - The row's id.
+     * @param at - Where the element's array has the row.
+     */
+    private moveRowBody(id: NodeIdType, at: Required<Position>): void {
+        const pos = this.ngraphLayout.getNodePosition(id);
+        pos.x = at.x;
+        pos.y = at.y;
+        // A 2D engine holds its bodies on the plane, whatever Z the array carries.
+        pos.z = this.ngraphLayout.simulator.settings.dimensions === 3 ? at.z : 0;
     }
 
     /**
@@ -1230,6 +1246,34 @@ export class NGraphEngine extends LayoutEngine {
     protected pin(n: Node): void {
         const ngraphNode = this._getMappedNode(n);
         this.ngraphLayout.pinNode(ngraphNode, true);
+    }
+
+    /**
+     * Holds a node still for the duration of a drag, as a pinned body with no velocity left, without pinning it.
+     *
+     * Unheld, ngraph kept integrating the body between pointer moves: its velocity (up to one unit a step) carried the
+     * node on along the line of sight while the pointer moved it across, so a node dragged while the layout ran slid
+     * away from the reader.
+     * @param n - The node the pointer has taken.
+     */
+    beginDrag(n: Node): void {
+        const ngraphNode = this._getMappedNode(n);
+        this.ngraphLayout.pinNode(ngraphNode, true);
+        const body = this.ngraphLayout.getBody(ngraphNode.id);
+        if (body !== undefined) {
+            body.velocity.x = 0;
+            body.velocity.y = 0;
+            body.velocity.z = 0;
+        }
+    }
+
+    /**
+     * Gives the node back to the simulation, unless the drop pins it or it was pinned or held already.
+     * @param n - The node the pointer has let go of.
+     * @param pin - True when the drag ends in a pin.
+     */
+    endDrag(n: Node, pin: boolean): void {
+        this.ngraphLayout.pinNode(this._getMappedNode(n), pin || n.isPinned() || this.isHeld(n.index));
     }
 
     /**

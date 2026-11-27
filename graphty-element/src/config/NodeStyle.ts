@@ -304,6 +304,12 @@ export const NodeStyle = z.strictObject({
              */
             drawOrder: z.number().min(0).max(100).optional(),
             /**
+             * Draw the node after the rest of the graph, in front of every edge and every node
+             * without it, in 2D and 3D views alike; nodes with it are drawn among themselves by
+             * depth. Unset or false, the node is drawn by depth with the rest.
+             */
+            onTop: z.boolean().optional(),
+            /**
              * A round-rectangle's largest corner radius, in the units of `size`. Unset, the
              * corners are a quarter of the shorter side; set, they are never larger than that.
              * The round-* polygons' corners are a tenth of the shorter side, never larger than it.

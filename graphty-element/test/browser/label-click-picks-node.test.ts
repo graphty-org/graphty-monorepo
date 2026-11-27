@@ -1,7 +1,9 @@
 /**
- * @file A click on a node's drawn label. By default the label plane takes the pick and answers no
- * node, so the click selects nothing; with `labelStyle.pickable` the click and `elementAt` both
- * answer the node the label belongs to. Clicks are real mouse input (test/helpers/real-input.ts).
+ * @file A click on a node's drawn label. By default the label lets the pointer through to what is
+ * drawn under it: a label beside its node passes the click to the background, and a label drawn
+ * over its node passes it to that node, never to an edge ending under it. With
+ * `labelStyle.pickable` the click and `elementAt` both answer the node the label belongs to. Clicks
+ * and moves are real mouse input (test/helpers/real-input.ts).
  */
 
 import "../../src/graphty-element";
@@ -11,7 +13,7 @@ import { afterEach, assert, describe, it } from "vitest";
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 import { drawnFrames } from "../helpers/drawn-frames";
-import { click, type Point } from "../helpers/real-input";
+import { click, hover, type Point } from "../helpers/real-input";
 
 const WIDTH = 400;
 const HEIGHT = 300;
@@ -83,14 +85,17 @@ async function frames(element: Graphty, count = 3): Promise<void> {
 }
 
 describe("a click on a node's label", () => {
-    it("selects nothing by default: the label takes the pick and answers no node", async () => {
+    it("lets the click through to the background by default", async () => {
         const element = await mounted(undefined);
         const point = labelCenter(element, "b");
 
-        // Established, not assumed: the plane is pickable today and wins the pick there.
         const picked = element.graph.scene.pick(point.x, point.y).pickedMesh;
-        assert.strictEqual(picked, element.graph.getNode("b")?.label?.labelMesh, "the label plane takes the pick");
-        assert.isNull(element.elementAt(point), "elementAt on the label answers nothing");
+        assert.notStrictEqual(
+            picked,
+            element.graph.getNode("b")?.label?.labelMesh,
+            "the label plane does not take the pick",
+        );
+        assert.isNull(element.elementAt(point), "elementAt on the label answers what is under it: nothing");
 
         await click(element, point);
         await frames(element);
@@ -122,5 +127,59 @@ describe("a click on a node's label", () => {
         await click(element, point);
         await frames(element);
         assert.isNull(element.getSelectedNode());
+    });
+});
+
+describe("a label drawn over its own node", () => {
+    /**
+     * Node a wears a wide centered label that covers its middle and the start of the one edge.
+     * @returns The element.
+     */
+    async function overNode(): Promise<Graphty> {
+        const element = document.createElement("graphty-element");
+        element.style.display = "block";
+        element.style.width = `${String(WIDTH)}px`;
+        element.style.height = `${String(HEIGHT)}px`;
+        document.body.appendChild(element);
+        cleanups.push(() => {
+            element.remove();
+        });
+        await element.updateComplete;
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.session.data.addNodes([
+            { id: "a", position: { x: -4, y: 0, z: 0 } },
+            { id: "b", position: { x: 4, y: 0, z: 0 } },
+        ]);
+        await element.session.data.addEdges([{ src: "a", dst: "b" }]);
+        await element.graph.setLayout("fixed", { dim: 3 });
+        await element.setViewMode("2d");
+        await element.session.styles.add({
+            name: "name inside a",
+            selector: { match: "ids", nodes: ["a"] },
+            set: { "node.label": "GNA1 wide", "node.labelStyle": { location: "center", sizePx: 40 } },
+        });
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+        return element;
+    }
+
+    it("gives the click and the hover at the node's middle to the node, not the edge under the label", async () => {
+        const element = await overNode();
+        const center = element.nodeScreenPosition("a");
+        assert.isDefined(center);
+        const point = { x: center.x, y: center.y };
+        const label = element.graph.getNode("a")?.label?.labelMesh;
+        assert.isOk(label, "a draws its label");
+
+        assert.deepEqual(element.elementAt(point), { kind: "node", id: "a" }, "elementAt answers the node");
+
+        await hover(element, point);
+        await frames(element);
+        assert.strictEqual(element.session.selection.hovered, "a", "the node under its label is hovered");
+
+        await click(element, point);
+        await frames(element);
+        assert.deepEqual([...element.session.selection.nodes], ["a"], "the click selected the node");
+        assert.deepEqual([...element.session.selection.edges], [], "and no edge");
     });
 });

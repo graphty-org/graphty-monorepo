@@ -349,6 +349,7 @@ These come on top of the [options every importer takes](../options.md#every-impo
 | [`labelColumn`](#import-labelcolumn)     | `string \| number`                                                                                  | from the header                       |
 | [`nodes`](#import-nodes)                 | `string \| Uint8Array \| ReadableStream<Uint8Array> \| AsyncIterable<string \| Uint8Array> \| Blob` |                                       |
 | [`rowNumberIds`](#import-rownumberids)   | `boolean`                                                                                           | `false`                               |
+| [`unnamed`](#import-unnamed)             | `"nodes" \| "fail"`                                                                                 | `"fail"`                              |
 | [`blankIdPrefix`](#import-blankidprefix) | `string`                                                                                            | undefined (blank-id rows are skipped) |
 | [`missing`](#import-missing)             | `readonly string[]`                                                                                 | undefined (no placeholder texts)      |
 
@@ -363,6 +364,7 @@ These come on top of the [options every importer takes](../options.md#every-impo
 - <a id="import-labelcolumn"></a>`labelColumn`: The label column of a node table, by name or position. The default is the column the header names `label` (in any case). With `nodeIdFrom: "label"`, the node ids come from this column, and the edge table must name its nodes by these labels too.
 - <a id="import-nodes"></a>`nodes`: A node table to read before the edges: its ids become nodes and its other columns node attributes. Pass it as a string, bytes, a stream, or a `File` or `Blob` (for example, the second file a user picked).
 - <a id="import-rownumberids"></a>`rowNumberIds`: Give the nodes of a node table without an id column the row number as id (0 for the first data row, turned into an id by `ids`), instead of failing with `E_CSV_NO_ID_COLUMN`. It applies to the `nodes` table when you pass one, else to the input. Under `header: "auto"` that table's first row is then read as a header; under `header: false` the option is ignored with a warning, because a table without a header takes its ids from its first column.
+- <a id="import-unnamed"></a>`unnamed`: What a table whose header names neither endpoints nor an id is: `"fail"` stops the import with `E_CSV_NO_ENDPOINT_COLUMNS`; `"nodes"` reads it as a node table by its values: keyed by the first text column that is nearly all distinct (95 of 100 rows), else numbered by row (`W_CSV_NO_UNIQUE_ID`). Two columns that mostly hold the same values still stop the import: they are an edge list's ends (columns of whole numbers too, where no text column keys the rows), and so does a table of nothing but numbers. It applies to an unpaired table read as `"auto"`.
 - <a id="import-blankidprefix"></a>`blankIdPrefix`: Keep a node row whose id cell is blank, as a node whose id is this prefix followed by the row's number (0 for the first data row), instead of skipping it with `E_MISSING_ID`. Choose a prefix no id in the file starts with: a minted id that repeats one is merged like any repeated id.
 - <a id="import-missing"></a>`missing`: Cell texts read as unset, such as `["N/A", "null"]`. A data cell whose text equals an entry (both compared after Unicode NFC normalization, never trimmed: `" N/A"` stays text) is read as an empty cell before anything else reads it, so a key cell becomes blank, an endpoint missing, and a numeric column stays numeric. A quoted cell matches too; the header row is never compared.
 
@@ -400,6 +402,7 @@ The codes this format's import report can hold. They are also exported as `CSV_I
 - `E_CSV_NO_ENDPOINT_COLUMNS` (error): The header names no source and target columns and no id column. Pass `sourceColumn` and `targetColumn` to name the columns. The import stops.
 - `E_CSV_NO_ID_COLUMN` (error): The node table has no id column. Pass `idColumn` to name it, or `rowNumberIds: true` to number the rows. The import stops.
 - `W_CSV_NO_UNIQUE_ID` (warning): Every id-like column of a node table's header (`id`, `person_id`, `node`, `key`, `name`) repeats a value or leaves one blank, so the nodes are numbered by row (0 for the first data row). Pass `idColumn` to key the table by one of them anyway.
+- `W_CSV_ROWS_AS_NODES` (warning): The header names neither an edge's ends nor an id, and under `unnamed: "nodes"` every row was read as a node, so the file holds no edge. Pass `sourceColumn` and `targetColumn` to read the rows as edges.
 - `E_CSV_FIELD_COUNT` (error): A row with a different number of fields than the header; the row is skipped. An adjacency list read without `table: "adjacency"` gives one per long row, and the first one's message suggests the option.
 - `E_MISSING_ENDPOINT` (error): An edge row with a blank source or target.
 - `E_MISSING_ID` (error): A node row with a blank id.
@@ -407,7 +410,7 @@ The codes this format's import report can hold. They are also exported as `CSV_I
 - `E_CSV_UNCLOSED_QUOTE` (error): A quoted field is never closed. The import stops.
 - `E_CSV_QUOTE` (error): There is text after a closing quote, such as `"a"b`. Inside a quoted field, write a quote as two quotes. The import stops.
 - `W_CSV_NO_DATA_ROWS` (warning): A header and no data rows.
-- `W_DUPLICATE_NODE` (warning): A node table row repeating an id.
+- `W_DUPLICATE_NODE` (warning): A node table row repeating an id. Its values overwrite the earlier row's; when the id column was guessed from the values (`unnamed: "nodes"`), the row is left out instead, the first row's values stand, and the issue's `params.record` holds the row left out, by column name.
 - `W_ID_MERGED` (warning): Two different id cells became the same number because `ids` is "number", so their nodes were merged.
 - `W_CSV_COLUMN_MISSING` (warning): An explicitly named weight column the file does not have.
 - `W_ROLE_TAKEN` (warning): You read into a graph builder that already has an id, label or position attribute, so this file's one is kept as a plain attribute.

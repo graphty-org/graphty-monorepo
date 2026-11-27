@@ -15,7 +15,7 @@ import "../../src/graphty-element";
 
 import { Matrix, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { LabelDeclutter, type NodeLabelCounts } from "../../src/managers/LabelDeclutter";
@@ -620,7 +620,7 @@ describe("the labels guide's example (docs/guide/labels.md)", () => {
             await operationQueueOf(g).waitForCompletion();
             await waitFor(() => status.textContent === "1 labels drawn, 2 hidden to avoid overlap");
 
-            await userEvent.click(showAll);
+            await userEvent.click(page.getByRole("checkbox"));
             await waitFor(() => status.textContent === "3 labels drawn, 0 hidden to avoid overlap");
             assert.deepEqual(heardOnDocument.at(-1), { labeled: 3, nodeHidden: 0, hiddenByOverlap: 0 });
         } finally {

@@ -91,10 +91,33 @@ function reopen(
                 store.set((now) => ({ project: now.project && { ...now.project, name: opened } }));
                 after(opened, place);
                 store.set((now) => lostReferences(now, session));
+                await reopenJoin(store, session);
             },
             ...(focus === undefined ? {} : { focus }),
         }),
     }));
+}
+
+/**
+ * Reopens the join screen on the table graphty-element's autosave kept for it: a second file read
+ * onto the graph and neither joined nor dropped before the reload (issue #9846).
+ * @param store - the workspace store.
+ * @param session - the restored session.
+ */
+async function reopenJoin(store: WorkspaceStore, session: GraphSession): Promise<void> {
+    const held = session.data.prepared();
+    if (held?.onto !== "graph" || store.get().joining !== null) {
+        return;
+    }
+    const matches = await session.data.matchesSource(held.source);
+    store.set({
+        joining: {
+            name: held.source.name ?? "",
+            draft: held.draft,
+            source: held.source,
+            ...(matches === null ? {} : { matches }),
+        },
+    });
 }
 
 /**
@@ -119,7 +142,7 @@ export function restoreRecovered(store: WorkspaceStore, entry: AutosaveEntry): v
  */
 export function reopenOwn(store: WorkspaceStore, entry: AutosaveEntry): void {
     // Read before the project opens: opening it writes the Graph place over what was kept.
-    const { inspected: row, ...where } = keptPlace();
+    const { inspected: row, joinWorkspace: joining, ...where } = keptPlace();
     reopen(
         store,
         entry,
@@ -136,16 +159,19 @@ export function reopenOwn(store: WorkspaceStore, entry: AutosaveEntry): void {
                     place: now.place,
                     inspected: now.inspected,
                     selectionWorkspace: now.selectionWorkspace,
+                    joinWorkspace: now.joinWorkspace,
                 };
                 store.set({ ...stashed, ...(moved ? stays : {}), announcement: reopenedTabSentence(name) });
                 return;
             }
-            // The row is put back once the data is in, so it exists; a reader who went somewhere
-            // meanwhile (a rail click while the work reopened) stays there.
+            // The row and the join workspace are put back once the data is in, so the row and the
+            // workspace's draft exist; a reader who went somewhere meanwhile (a rail click while
+            // the work reopened) stays there.
             const { page, place, inspected } = store.get();
             const stayed = page === where.page && place === where.place && inspected === null;
             store.set({
                 ...(stayed && row !== undefined ? { inspected: row } : {}),
+                ...(stayed && joining !== undefined ? { joinWorkspace: joining } : {}),
                 announcement: reopenedTabSentence(name),
             });
         },

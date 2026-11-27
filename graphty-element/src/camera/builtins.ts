@@ -170,14 +170,13 @@ function fromCurrentAngle(input: CameraViewInput, fov: number): CameraState | un
  * @param key - Which screen axis.
  * @param distance - How far the camera stands from the target.
  * @returns The offset from the box's center along that axis.
+ * @internal
  */
-function centeredOffset(
+export function centeredOffset(
     points: readonly { along: number; x: number; y: number }[],
     key: "x" | "y",
     distance: number,
 ): number {
-    // ponytail: CENTERING_STEPS passes over the points; a single pass would need solving the
-    // two-sided perspective extent exactly, not worth it while a fit is one call.
     let low = Infinity;
     let high = -Infinity;
     for (const point of points) {
@@ -185,16 +184,39 @@ function centeredOffset(
         high = Math.max(high, point[key]);
     }
 
+    // Each point is a line in the offset: (s - m) / depth for the edge above, (m - s) / depth for
+    // the one below. A line whose best value over [low, high] is below another line's worst there
+    // can never set that edge again, since halving only narrows the interval, so each pass drops
+    // it: a pass costs the points still in the running, not all of them.
+    const depthOf = (point: { along: number }): number => Math.max(distance - point.along, Number.EPSILON);
+    let candidates = points;
     for (let step = 0; step < CENTERING_STEPS && high > low; step++) {
+        let aboveFloor = -Infinity;
+        let belowFloor = -Infinity;
+        for (const point of candidates) {
+            const s = point[key];
+            const depth = depthOf(point);
+            aboveFloor = Math.max(aboveFloor, (s - high) / depth);
+            belowFloor = Math.max(belowFloor, (low - s) / depth);
+        }
+
         const middle = (low + high) / 2;
         let above = -Infinity;
         let below = -Infinity;
-        for (const point of points) {
-            const depth = Math.max(distance - point.along, Number.EPSILON);
-            above = Math.max(above, (point[key] - middle) / depth);
-            below = Math.max(below, (middle - point[key]) / depth);
+        const kept: (typeof points)[number][] = [];
+        for (const point of candidates) {
+            const s = point[key];
+            const depth = depthOf(point);
+            if ((s - low) / depth < aboveFloor && (high - s) / depth < belowFloor) {
+                continue;
+            }
+
+            kept.push(point);
+            above = Math.max(above, (s - middle) / depth);
+            below = Math.max(below, (middle - s) / depth);
         }
 
+        candidates = kept;
         if (above > below) {
             low = middle;
         } else {

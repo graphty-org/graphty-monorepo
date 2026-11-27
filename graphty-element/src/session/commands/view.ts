@@ -119,11 +119,13 @@ export interface CameraService {
      */
     current(): CameraState;
     /**
-     * The pose a camera view gives now for whatever is drawn, as a following saved view resolves.
-     * @param follows - The camera view id.
-     * @returns The state, or undefined when it cannot be computed in the drawing mode now.
+     * A reader of the poses camera views give now for whatever is drawn, as following saved views
+     * resolve. The drawing is measured on its first call and shared by every call after, so a save
+     * that writes many following views measures every node once.
+     * @returns Takes the camera view id; gives the state, or undefined when it cannot be computed
+     *     in the drawing mode now.
      */
-    pose?(follows: string): CameraState | undefined;
+    poser?(): (follows: string) => CameraState | undefined;
     /**
      * Where the camera is now, as `Graph.getCameraState` reads it: what a save writes.
      * @returns The camera state.

@@ -2,7 +2,7 @@ import { colorWord, CompactColorInput, ControlSection, FieldRow, TargetTooltip }
 import { DEFAULT_BACKGROUND_COLOR, type GraphBackgroundConfig, LIGHTING_VALUES } from "@graphty/graphty-element/schema";
 import { type GraphSession, type GraphSettingKey, type TransactionScope } from "@graphty/graphty-element/session";
 import { ActionIcon, Box, Menu, Select, Stack, Switch, Text, Tooltip } from "@mantine/core";
-import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { useLayoutId } from "../frame/useLayoutId";
 import { useSizeBound } from "../frame/useSizeBound";
@@ -204,7 +204,6 @@ function backgroundOf({ color, image, shader, projection }: BackgroundParts): Gr
  */
 function BackgroundSection({ session }: Readonly<{ session: GraphSession }>): React.JSX.Element {
     const { store } = useWorkspace();
-    const plusId = useId();
     const [waiting, setWaiting] = useState<readonly BackgroundKind[]>([]);
     const { background, backgroundColor } = session.config;
     const parts: BackgroundParts = {
@@ -309,9 +308,10 @@ function BackgroundSection({ session }: Readonly<{ session: GraphSession }>): Re
     useEffect(() => {
         if (shaderNext === "background") {
             store.set({ shaderNext: null });
-            document.getElementById(plusId)?.focus();
+            // By its own attribute: Menu.Target replaces the button's id with the menu's own.
+            document.querySelector<HTMLElement>("[data-background-plus]")?.focus();
         }
-    }, [shaderNext, plusId, store]);
+    }, [shaderNext, store]);
     const addButton = (
         <Menu position="bottom-end">
             <Menu.Target>
@@ -321,8 +321,8 @@ function BackgroundSection({ session }: Readonly<{ session: GraphSession }>): Re
                         size="sm"
                         className="cm-section-add"
                         aria-label={BACKGROUND_SECTION_WORDS.add}
-                        id={plusId}
                         data-plus
+                        data-background-plus
                     >
                         <GLYPHS.add size={14} aria-hidden />
                     </ActionIcon>

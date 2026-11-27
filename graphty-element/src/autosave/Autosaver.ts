@@ -37,12 +37,15 @@ import type { GraphSession, ProjectSlice } from "../session/types";
 import { filterDraftHooks, reopenFilterDrafts, type SavedFilterDraft } from "../session/visibility/draftHooks";
 import { wholeGraph } from "../session/working/graphs";
 import {
+    APART,
     buildParts,
+    draftIsDrawn,
     draftsOf,
     EVERY_PART,
     inputsOf,
     type PartTag,
     PartTooLarge,
+    preparedOf,
     reassemble,
     sourceDraftOf,
     stashOf,
@@ -496,6 +499,8 @@ export class Autosaver {
     #carrying: { entry: EntryState; tags: ReadonlySet<PartTag> } | null = null;
     /** The lock claim in progress after the page came back, if any. */
     #reclaiming: Promise<void> | null = null;
+    /** The next write carries the graph even while a source draft is drawn over it. */
+    #whole = false;
     #pump: Promise<void> | null = null;
     #again = false;
     #stopped = false;
@@ -581,6 +586,11 @@ export class Autosaver {
         arrangement.sealed.add(sealed);
         this.#stops.push(
             session.on("project:changed", ({ slices }) => {
+                if (this.#held(this.#entry)) {
+                    // What drawing a source draft writes is taken back: kept to look at once it is off.
+                    tagsOf(slices).forEach((tag) => this.#entry.unwritten.add(tag));
+                    return;
+                }
                 this.#mark(tagsOf(slices), slices.includes("runs"), true);
             }),
             session.on("project:status", () => {
@@ -619,10 +629,26 @@ export class Autosaver {
             drafts.changed.add(changed);
             this.#stops.push(() => drafts.changed.delete(changed));
         }
+        // And the draft data.prepare handed back, which a page shows a join screen for (issue #9846).
+        // It is kept with work the entry already holds: alone (a first file read before it loads),
+        // it starts no entry, or the load would end that empty entry as replaced.
+        const prepared = (session.data as Partial<Pick<SessionData, "preparedChanged">>).preparedChanged;
+        if (prepared !== undefined) {
+            const changed = (): void => {
+                if (!this.#entry.started || this.#entry === this.#setupOnly) {
+                    return;
+                }
+                this.#mark(["drafts"], false, false);
+            };
+            prepared.add(changed);
+            this.#stops.push(() => prepared.delete(changed));
+        }
         // So is an open draft of the sources and steps.
         this.#stops.push(
-            session.on("data:draft-changed", () => {
-                this.#mark(["drafts"], false, false);
+            session.on("data:draft-changed", ({ reason }) => {
+                // What the project held when the draft opened is written before the draft is drawn over it.
+                const graph = [...this.#entry.unwritten].some((tag) => !APART.has(tag));
+                this.#mark(["drafts"], reason === "opened" && graph, false);
             }),
         );
         this.#told = JSON.stringify(this.status);
@@ -769,6 +795,7 @@ export class Autosaver {
      */
     async flush(capture = false): Promise<void> {
         this.#releaseHeld();
+        this.#whole = true;
         if (capture && this.#entry.started) {
             this.#entry.unwritten.add("arrangement").add("rest");
         }
@@ -1041,6 +1068,7 @@ export class Autosaver {
         }
 
         let job: Job | null = null;
+        this.#whole = true;
         if (!this.#blocked) {
             try {
                 job = this.#build();
@@ -1611,6 +1639,7 @@ export class Autosaver {
         let drafts: SavedFilterDraft[];
         let sourceDraft: SavedSourceDraft | null;
         let inputs: ReturnType<typeof inputsOf>;
+        let prepared: ReturnType<typeof preparedOf>;
         let sizes: Map<string, number>;
         try {
             // A whole entry, so the write watchdog's allowance rather than the listing's.
@@ -1626,6 +1655,7 @@ export class Autosaver {
                 drafts = draftsOf(entry.parts);
                 sourceDraft = sourceDraftOf(entry.parts);
                 inputs = inputsOf(entry.parts);
+                prepared = preparedOf(entry.parts);
                 sizes = sizesAfter(new Map(), entry.parts);
             } catch {
                 return giveUp({ code: "E_BAD_DOCUMENT", params: { id: meta.id } });
@@ -1737,6 +1767,12 @@ export class Autosaver {
             !(await (sourceDraftHooks(this.#session.data)
                 ?.reopen(sourceDraft)
                 .catch(() => false) ?? false));
+        // The draft prepared before the reload, read again for the page to reopen its screen (issue #9846).
+        if (prepared !== null) {
+            await (this.#session.data as Partial<Pick<SessionData, "reopenPrepared">>)
+                .reopenPrepared?.(prepared)
+                .catch(() => undefined);
+        }
         if (dropped.length > 0 || sourceDropped) {
             report = {
                 ...report,
@@ -1811,7 +1847,7 @@ export class Autosaver {
      */
     #hasWork(): boolean {
         const entry = this.#entry;
-        if (entry.started && entry.unwritten.size > 0) {
+        if (entry.started && this.#due(entry).size > 0) {
             return true;
         }
 
@@ -1925,6 +1961,29 @@ export class Autosaver {
         }
 
         this.#tell();
+    }
+
+    /**
+     * Whether the entry's graph waits: a source draft is drawn over it, and the entry holds it as it was
+     * when the draft opened. Taking the drawing off for every write would draw the draft again, laid
+     * out anew, as long as it is open.
+     * @param entry - The entry.
+     * @returns True while it does.
+     */
+    #held(entry: EntryState): boolean {
+        return entry.gen > 0 && draftIsDrawn(this.#session);
+    }
+
+    /**
+     * What the next write of an entry carries: what is unwritten, but for the graph while it waits. A
+     * flush and the final write carry it too.
+     * @param entry - The entry.
+     * @returns The parts.
+     */
+    #due(entry: EntryState): Set<PartTag> {
+        return this.#whole || !this.#held(entry)
+            ? new Set(entry.unwritten)
+            : new Set([...entry.unwritten].filter((tag) => APART.has(tag)));
     }
 
     /** Arm the timers for what is unwritten: idle for the data, the debounce for the rest. */
@@ -2088,13 +2147,15 @@ export class Autosaver {
     #build(): Job | null {
         const job: Job = { writes: [], entries: new Map(), claim: [], done: [], undo: [], strict: false };
         const entry = this.#entry;
-        const writesEntry = entry.started && entry.unwritten.size > 0;
+        const due = this.#due(entry);
+        this.#whole = false;
+        const writesEntry = entry.started && due.size > 0;
         if (writesEntry) {
-            const carried = entry.unwritten;
+            const carried = due;
             const built = buildParts(this.#session, carried, entry.runs, this.#stash, entry.assets);
             const sizes = sizesAfter(entry.sizes, built.parts);
             const meta = this.#metaOf(entry, sizes);
-            entry.unwritten = new Set();
+            entry.unwritten = new Set([...entry.unwritten].filter((tag) => !carried.has(tag)));
             this.#carrying = { entry, tags: carried };
             job.writes.push({ id: entry.id, expectedGen: entry.gen, meta, parts: built.parts });
             job.entries.set(entry.id, entry);

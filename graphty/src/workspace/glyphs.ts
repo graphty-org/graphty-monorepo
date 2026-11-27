@@ -63,6 +63,7 @@ import {
     Divide,
     Earth,
     Equal,
+    EqualApproximately,
     Expand,
     Eye,
     EyeOff,
@@ -349,6 +350,8 @@ export const GLYPHS = {
     next: ChevronRight,
     // The current choice in a list.
     check: Check,
+    // The likeliest choice, not picked.
+    suggested: EqualApproximately,
     expand: ChevronDown,
     show: Eye,
     hide: EyeOff,

@@ -126,8 +126,13 @@ export function ElementHost({
             // A pick moves the camera; a filter card's Select or an undo does not. The inspector
             // opens beside the canvas and narrows it, before or after the first framing is final;
             // framing again on a resize draws the same picture either way (#5097). Camera > Follow
-            // selection turns the gliding off.
-            camera: { pivotOnSelection: followSelection, pivotOnSelectionCauses: ["user", "api"], refitOnResize: true },
+            // selection turns the gliding off. A camera drag hovers no node it crosses (#10221).
+            camera: {
+                pivotOnSelection: followSelection,
+                pivotOnSelectionCauses: ["user", "api"],
+                refitOnResize: true,
+                hoverWhileDragging: false,
+            },
         }),
         [allLabelsShown, labelsAvoid, labelText, labelSampleCell, sizeSpace, layoutShownOnly, followSelection],
     );
@@ -201,6 +206,28 @@ export function ElementHost({
         };
     }, [onReady, defined]);
 
+    // A press on the drawing while a pop-out is open only closes the pop-out, as in Figma (#10381):
+    // it never reaches the drawing, so it selects nothing and the inspector keeps the layer it shows.
+    // Stopped on the way down, at the host; the pop-outs still hear the press as its mousedown,
+    // which is how compact-mantine reads a touch, and close. Babylon.js ignores the pointer up of a
+    // press it never saw.
+    useEffect(() => {
+        const element = ref.current;
+        if (!defined || element === null) {
+            return undefined;
+        }
+
+        const claim = (event: PointerEvent): void => {
+            if (document.querySelector("[data-popout-id]") !== null) {
+                event.stopPropagation();
+            }
+        };
+        element.addEventListener("pointerdown", claim, { capture: true });
+        return () => {
+            element.removeEventListener("pointerdown", claim, { capture: true });
+        };
+    }, [defined]);
+
     if (failed) {
         // The element's code could not be fetched (a network error, or a chunk gone after a
         // deploy): said, with Retry, the start page's words for the same failure.
@@ -238,6 +265,9 @@ export function ElementHost({
             // window leave shown (design/working-graph/design.md).
             workingGraph
             zoomToPointer
+            // The camera keys work wherever focus is in the page, not only on the drawing, except
+            // in a field, menu or other control that takes those keys (issue #10377).
+            cameraKeysRoot={document}
             xr={XR_CONFIG}
             {...(autosave ? { autosave: WORKSPACE_AUTOSAVE_KEY, autosaveOptions: WORKSPACE_AUTOSAVE_OPTIONS } : {})}
             // On the tag, so the reader's policy is in force before the element's first GPU probe.

@@ -820,6 +820,12 @@ export interface AssetsApiInternal extends AssetsApi {
      */
     forgetProjectStorage(): void;
     /**
+     * Stop every download the session started (a URL's model and its pictures, a sample, a part
+     * handed to `supply` by URL), for the session's dispose. Each one's waiters reject with an
+     * `AbortError`, as when a caller's signal stops it, and the URL is forgotten.
+     */
+    dispose(): void;
+    /**
      * Whether an accepted asset's parts came from more than one place (`supply`), so no single URL
      * brings it back.
      * @param id - The id.
@@ -1160,6 +1166,8 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
     const expectedDigests = new Map<string, string>();
     const storedAs = new Map<string, "embed" | "url">();
     const lookup = (id: AssetId): Entry | undefined => entries.get(id) ?? samples.get(id);
+    // Aborted by `dispose`: every download the session started stops with it.
+    const stopAll = new AbortController();
     let defaultsBinding: ModelDefaultsBinding | undefined;
     // A model set up while it waited (downloading, or for a part) reads the settings it was given
     // then under the id it waited as, until it is given settings of its own: the project's history
@@ -1475,15 +1483,19 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
                     return rejected({ code: "E_MODEL_UNKNOWN_ASSET", params: { id } });
                 }
 
-                const response = await fetch(url);
+                const response = await fetch(url, { signal: stopAll.signal });
                 if (!response.ok) {
                     ({ status } = response);
                     throw new Error(String(status));
                 }
 
                 bytes = new Uint8Array(await response.arrayBuffer());
-            } catch {
+            } catch (error) {
                 samples.delete(id);
+                if (stopAll.signal.aborted) {
+                    throw error;
+                }
+
                 const offline =
                     status === null && (globalThis as { navigator?: { onLine?: boolean } }).navigator?.onLine === false;
                 return rejected({ code: "E_MODEL_FETCH", params: { url: id, status, offline } });
@@ -1586,7 +1598,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
                     .fetchModelSet(
                         url,
                         limits,
-                        fetch.controller.signal,
+                        AbortSignal.any([fetch.controller.signal, stopAll.signal]),
                         redirectGate(kind, "file"),
                         (progress) => {
                             for (const listener of fetch.listeners) {
@@ -1650,8 +1662,8 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             return settled;
         })().finally(() => {
             entry.fetch = undefined;
-            // Stopped by every caller: forgotten, so the next add fetches it again.
-            if (fetch.controller.signal.aborted && urls.get(url.href) === entry) {
+            // Stopped by every caller, or by the dispose: forgotten, so the next add fetches it again.
+            if ((fetch.controller.signal.aborted || stopAll.signal.aborted) && urls.get(url.href) === entry) {
                 urls.delete(url.href);
             }
         });
@@ -2529,7 +2541,9 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
                 // A URL still downloading settles first, so its parts are known.
                 await entry.settled;
                 try {
-                    return await supplyOne(entry, answer, options.signal, decided);
+                    const { signal } = options;
+                    const stop = signal === undefined ? stopAll.signal : AbortSignal.any([signal, stopAll.signal]);
+                    return await supplyOne(entry, answer, stop, decided);
                 } finally {
                     const names = namesOf(entry);
                     for (const watcher of supplyWatchers) {
@@ -2948,6 +2962,10 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
         forgetProjectStorage() {
             storedAs.clear();
             expectedDigests.clear();
+        },
+
+        dispose() {
+            stopAll.abort(new DOMException("The session was disposed.", "AbortError"));
         },
 
         bindUrl(ref, id) {

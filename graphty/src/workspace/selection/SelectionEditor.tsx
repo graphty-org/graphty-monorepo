@@ -67,7 +67,16 @@ import { RowMore, type SelectionMenuItem } from "./SelectionMenu";
 import { StepPane } from "./StepPane";
 import { StyleOpenLine } from "./StyleOpenLine";
 import { useSteps } from "./useSteps";
-import { type Host, pickerFields, type PickSection, pickSections, ruleOfField, sideOf, usedPaths } from "./values";
+import {
+    type Host,
+    pickerFields,
+    type PickSection,
+    pickSections,
+    ruleOfField,
+    sideOf,
+    usedPaths,
+    waitingSource,
+} from "./values";
 import {
     countWords,
     letterOf,
@@ -386,11 +395,16 @@ export function SelectionEditor({
     const { of } = reading.total;
     // A filter's count reads the full graph; beside other filters it can count nodes that are not
     // drawn, so the header says which graph it counts and how many are shown.
-    const wsCountWhere = host === "filter" && reading.total.shown < reading.total.count ? " in full graph" : "";
+    const waitingOn = waitingSource(session, rule);
+    const wsCountWhere =
+        host === "filter" && waitingOn === undefined && reading.total.shown < reading.total.count
+            ? " in full graph"
+            : "";
     const say = (words: string): void => {
         store.set({ announcement: words });
     };
-    const stepName = (step: UnionBranch["steps"][number]): string => stepWords(session, step, side).value;
+    const stepName = (step: UnionBranch["steps"][number]): string =>
+        stepWords(session, step, side, undefined, waitingOn).value;
     // Every group goes by its letter from the start, so a name never changes when Or adds a group.
     const branchName = (branch: UnionBranch): string => branch.name ?? letterOf(rule.branches.indexOf(branch));
     // The open workspace says its count once typing pauses, in either host (WCAG 4.1.3); the
@@ -873,7 +887,8 @@ export function SelectionEditor({
     // Clear (spec 3.0): back to where a new layer or card starts -- All nodes, no step -- as one
     // undo step. A filter card keeps its name and on box.
     const clear = (): void => {
-        onChange(newSelection(rule.side, rule.within));
+        // A source's filter stays that source's.
+        onChange({ ...newSelection(rule.side, rule.within), ...(rule.sources && { sources: rule.sources }) });
         say("Cleared");
         // A cleared rule is one empty card, its value picker shut, as a new rule opens.
         setSelected(null);
@@ -911,11 +926,11 @@ export function SelectionEditor({
                 rule.branches.flatMap((branch) =>
                     branch.steps.map((step) => {
                         const read = reading.branches.flatMap((each) => each.steps).find((each) => each.id === step.id);
-                        return [step.id ?? "", rowWords(session, step, side, read)] as const;
+                        return [step.id ?? "", rowWords(session, step, side, read, waitingOn)] as const;
                     }),
                 ),
             ),
-        [session, rule, reading, side],
+        [session, rule, reading, side, waitingOn],
     );
     // A filter card named after its only step draws no outline: its title row is the recipe, and its
     // title pane holds the step's controls under the card's own.
@@ -1664,7 +1679,7 @@ export function SelectionEditor({
                                       />
                                   )}
                                   <Text size="sm" className="sel-count">
-                                      {`${formatNumber(reading.total.count)} of ${formatNumber(of)}${wsCountWhere}${shownWords(reading.total)}`}
+                                      {`${formatNumber(reading.total.count)} of ${formatNumber(of)}${wsCountWhere}${waitingOn === undefined ? shownWords(reading.total) : ""}`}
                                   </Text>
                                   {(drawing || starting || closing || !warm) && (
                                       <Group gap={4} wrap="nowrap" className="sel-state" data-drawing="">
@@ -1721,7 +1736,7 @@ export function SelectionEditor({
                                   </Popout.Anchor>
                                   <div className="sel-ws-center" data-strip={strip ? "" : undefined}>
                                       <div className="sel-ws-preview" />
-                                      {strip && warm && (
+                                      {strip && warm && waitingOn === undefined && (
                                           <MatchesStrip
                                               session={session}
                                               rule={reading.rule}
@@ -1918,7 +1933,9 @@ function NewStepPane({
             {lead}
             <AddCondition
                 // The lists are read only while the picker is open: on a large graph they are not free.
-                fields={open ? pickerFields(session, sideOf(rule), rule.within, true) : []}
+                fields={
+                    open ? pickerFields(session, sideOf(rule), rule.within, true, waitingSource(session, rule)) : []
+                }
                 used={usedPaths(rule, branch)}
                 placeholder="Find attributes, results"
                 sections={open ? [...hostPicks, ...pickSections(session, rule, choose, host, true)] : []}
@@ -2096,7 +2113,9 @@ function AddCard({
     return (
         <div className="sel-card-new">
             <AddCondition
-                fields={open ? pickerFields(session, sideOf(rule), rule.within, true) : []}
+                fields={
+                    open ? pickerFields(session, sideOf(rule), rule.within, true, waitingSource(session, rule)) : []
+                }
                 used={[]}
                 placeholder="Find attributes, results"
                 sections={open ? [...hostPicks, ...pickSections(session, rule, choose, host, true)] : []}

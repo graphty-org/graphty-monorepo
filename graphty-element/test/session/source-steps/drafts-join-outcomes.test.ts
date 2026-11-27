@@ -287,7 +287,7 @@ const CASES: readonly Case[] = [
         name: "two ends naming one waiting source are never offered together",
         waiting: ["transfers"],
         matches: ["transfers.from = transfers.to", "transfers.tx = transfers.to"],
-        makes: ["link transfers -> transfers (to,from)", "link transfers -> transfers (to,tx) #1"],
+        makes: ["link transfers -> transfers (to,from)", "link transfers -> transfers (tx,to) #1"],
     },
     {
         name: "a match no row meets still lists every way it can be read",

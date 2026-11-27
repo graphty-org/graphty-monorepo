@@ -6359,6 +6359,8 @@ class Node_2 implements ModelUser {
         min: Vector3;
         max: Vector3;
     };
+    // @internal
+    framingReach(): number;
     getPosition(): {
         x: number;
         y: number;

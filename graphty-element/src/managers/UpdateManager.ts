@@ -1294,6 +1294,10 @@ export class UpdateManager implements Manager {
             ghost,
         );
 
+        if (nodesMoved) {
+            this.objectReach = null;
+        }
+
         if (!nodesMoved && !edgesMoved) {
             return;
         }
@@ -1862,6 +1866,7 @@ export class UpdateManager implements Manager {
         if (painter.hasPendingNodes) {
             this.syncNodeStyles(painter, deadline);
             this.repaintedSinceFit = this.fitRead !== null;
+            this.objectReach = null;
         }
 
         // While a load holds the draw (`DataManager.drawHeld`) no frame shows the nodes and edges
@@ -2530,6 +2535,7 @@ export class UpdateManager implements Manager {
      */
     dataCleared(): void {
         this.viewSized.clear();
+        this.objectReach = null;
         this.nodesToPlace.clear();
         this.unsized.clear();
         this.reportedPlain.nodes = 0;
@@ -4481,38 +4487,36 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Under renderPath "batched", the box a running layout's framing takes without walking a row:
-     * the box the layout's last publish left the rows in (`LayoutEngine.publishedBounds`, measured in
-     * the publish's own loop), grown by the widest row. At 100,000 rows the walk cost about 200 ms of
-     * a layout frame (issue #6389). The box's eight corners are its spots, so a "turning" fit
-     * (`camera.fitBounds`) keeps the whole box in view as the camera turns. Labels and bent edges
-     * are not framed while the layout moves; the framing it settles on, and any framing asked for,
-     * walks every row as before.
+     * The box a running layout's framing takes without walking a node: the box the layout's last publish left the
+     * nodes in (`LayoutEngine.publishedBounds`, measured in the publish's own loop), grown by the widest node. At
+     * 100,000 batched rows the walk cost about 200 ms of a layout frame (issue #6389), and at 50,000 nodes drawn as
+     * objects about 30 to 55 ms (issue #10288). The box's eight corners are its spots, so a "turning" fit
+     * (`camera.fitBounds`) keeps the whole box in view as the camera turns. Labels and bent edges are not framed
+     * while the layout moves; the framing it settles on, and any framing asked for, walks every node as before.
      *
      * Undefined, so the walk runs, on a graph small enough that the walk is cheap
-     * ({@link WALKED_FRAMING_NODES}), and whenever the box would not be the drawn picture's: a node drawn
-     * as an object, a hidden row, a layout transition easing the rows, a layout holding rows outside
-     * its publish, or a box with no room in it.
+     * ({@link WALKED_FRAMING_NODES}), and whenever the box would not be the drawn picture's: a hidden node, a layout
+     * transition easing the nodes, a layout holding nodes outside its publish, or a box with no room in it; under
+     * "batched" a node drawn as an object, and under "objects" a group, a node sized for the view or a node shader
+     * still loading.
      * @returns The box, or undefined.
      */
     private envelopeFraming(): FramingBox | undefined {
         const layout = this.layoutManager;
         const engine = layout.layoutEngine;
-        const batches = this.graphContext.getNodeBatches?.() ?? null;
-        const table = this.graphContext.getRowTable?.() ?? null;
         if (
             this.forceZoomToFit ||
             !layout.running ||
             engine === undefined ||
             engine.isSettled ||
-            batches === null ||
-            table === null ||
-            this.dataManager.renderLimits?.batched() !== true ||
             this.dataManager.nodes.size <= WALKED_FRAMING_NODES ||
-            table.hiddenRows > 0 ||
-            this.dataManager.nodes.size > batches.batchedNodes ||
             transitionsOf(layout)?.active === true
         ) {
+            return undefined;
+        }
+
+        const widest = this.dataManager.renderLimits?.batched() === true ? this.widestRow() : this.widestObject();
+        if (widest === undefined) {
             return undefined;
         }
 
@@ -4523,7 +4527,7 @@ export class UpdateManager implements Manager {
 
         const scene = this.graphContext.getScene();
         const flat = (scene.metadata as GraphSceneMetadata | null)?.twoD === true;
-        const pad = this.framing?.extent === "centers" ? 0 : table.widestHalf;
+        const pad = this.framing?.extent === "centers" ? 0 : widest;
         const root = scene.getTransformNodeByName("graph-root");
         const world = root?.computeWorldMatrix(true);
         // The batches draw a row flat in 2D, wherever the layout put its z.
@@ -4536,6 +4540,61 @@ export class UpdateManager implements Manager {
         );
         return min.x < max.x || min.y < max.y ? { min, max, spots } : undefined;
     }
+
+    /**
+     * Under "batched", the widest row's half extent, for {@link UpdateManager.envelopeFraming}.
+     * @returns The half extent, or undefined when a row is hidden or a node is drawn as an object.
+     */
+    private widestRow(): number | undefined {
+        const batches = this.graphContext.getNodeBatches?.() ?? null;
+        const table = this.graphContext.getRowTable?.() ?? null;
+        if (
+            batches === null ||
+            table === null ||
+            table.hiddenRows > 0 ||
+            this.dataManager.nodes.size > batches.batchedNodes
+        ) {
+            return undefined;
+        }
+
+        return table.widestHalf;
+    }
+
+    /**
+     * Under "objects", the farthest any node reaches from its position (`Node.framingReach`), for
+     * {@link UpdateManager.envelopeFraming}. Measured by one walk and kept until a node repaint, a visibility change
+     * or a node added or removed, so a moving layout's frames walk no node (issue #10288).
+     * @returns The reach, or undefined when a node is hidden, a group, sized for the view or waiting for its shader.
+     */
+    private widestObject(): number | undefined {
+        if (this.viewSized.size > 0 || this.dataManager.groups.length > 0 || this.pending.isPending("node-shader")) {
+            return undefined;
+        }
+
+        const count = this.dataManager.nodes.size;
+        if (this.objectReach === null || this.objectReachNodes !== count) {
+            this.objectReachNodes = count;
+            let widest = 0;
+            for (const node of this.layoutManager.nodes) {
+                if (node.getRenderState() !== "visible") {
+                    widest = Number.NaN;
+                    break;
+                }
+
+                widest = Math.max(widest, node.framingReach());
+            }
+
+            this.objectReach = widest;
+        }
+
+        return Number.isNaN(this.objectReach) ? undefined : this.objectReach;
+    }
+
+    /** {@link UpdateManager.widestObject}'s measure, NaN when a node is hidden; null when it must be measured again. */
+    private objectReach: number | null = null;
+
+    /** How many nodes there were when {@link UpdateManager.objectReach} was measured. */
+    private objectReachNodes = -1;
 
     /**
      * The rows drawn with no `Node`, for a fit to frame by row. Only `"batched"` has any.

@@ -118,7 +118,7 @@ describe("steps and reader edits in the join workspace (source-steps)", () => {
         await selectJoin(again, "people + entries");
         await userEvent.click(await within(again).findByRole("button", { name: /^Remove/ }));
         await done(again);
-        await screen.findAllByText("Joined");
+        await screen.findAllByText("Removed");
         assert.isNotEmpty(screen.getAllByRole("button", { name: "Undo" }), "the notice offers Undo");
         assert.lengthOf(session.data.edges(), 0, "after an Undo, removing it again still says so, with Undo");
     });

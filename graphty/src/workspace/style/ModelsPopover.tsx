@@ -180,7 +180,7 @@ export function ModelsPopover({
         <Popout opened={opened} onOpenChange={closedBy(onClose)}>
             <Popout.Panel
                 width={WIDTH}
-                {...(beside ? { placement: "beside", gap: 8 } : { anchorY: anchor })}
+                {...(beside ? { placement: "beside" } : { anchorY: anchor })}
                 header={{ variant: "title", title: "Models" }}
                 closeLabel="Close Models"
                 // The back action sits at the header's end: compact-mantine has no leading header

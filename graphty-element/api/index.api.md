@@ -9666,6 +9666,7 @@ export class UpdateManager implements Manager {
     // @internal
     framing: GraphFraming | undefined;
     getRenderFrameCount(): number;
+    glideToCleared(nodes: readonly Node_2[]): void;
     // @internal
     gpuFrames: {
         fenced: () => number;

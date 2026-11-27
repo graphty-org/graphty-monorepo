@@ -235,10 +235,9 @@ describe("the Add a condition list", () => {
                 { id: "b", role: "y" },
             ]);
         });
-        assert.isTrue(
-            session.data.readableValues().some((value) => value.path === "data.id"),
-            "the graph carries the ids as a data column too",
-        );
+        const column = session.data.readableValues().find((value) => value.path === "data.id");
+        assert.isDefined(column, "the graph carries the ids as a data column too");
+        const own = column?.plainName ?? "id";
         const { region } = await openPicker(session);
         await openList(region);
         await userEvent.keyboard("id");
@@ -247,7 +246,12 @@ describe("the Add a condition list", () => {
             const names = within(list)
                 .getAllByRole("option")
                 .map((each) => each.getAttribute("aria-label"));
-            assert.deepEqual(names, ["Node id"]);
+            // Other columns may match "id" too (the source-steps experiment's Ids from and Id in
+            // source); the data column itself is never listed beside Node id.
+            assert.deepEqual(
+                names.filter((name) => name === "Node id" || name === own || name?.startsWith(`${own}, `) === true),
+                ["Node id"],
+            );
         });
     });
 

@@ -1,10 +1,11 @@
 /**
  * A load with `pins: "data"` pins the nodes the file marks fixed (issue #2004): a Graphviz node
- * written `pos="x,y!"` or `pin=true`, a Cytoscape.js node with `"locked": true`. Without the option
- * the load pins nothing, as before.
+ * written `pos="x,y!"` or `pin=true`, a Cytoscape.js node with `"locked": true`, a sample dataset's
+ * `fixed` column. Without the option the load pins nothing, as before.
  */
 
-import { assert, describe, it, vi } from "vitest";
+import { fromEdgeArrays } from "@graphty/graph-format";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../src/session";
 
@@ -36,6 +37,26 @@ function at(session: GraphSession, id: string): readonly [number, number] {
     session.positions.read(session.snapshot().ids.indexOf(id), out);
     return [out.x, out.y];
 }
+
+/**
+ * Serves, for every download, a three-node dataset whose `fixed` column (packed bits) marks a and c.
+ */
+function serveFixedDataset(): void {
+    const bytes = fromEdgeArrays({
+        directed: true,
+        nodeCount: 3,
+        src: Uint32Array.of(0, 0),
+        dst: Uint32Array.of(1, 2),
+        ids: ["a", "b", "c"],
+    })
+        .withColumns({ fixed: { data: Uint32Array.of(0b101), decl: { dtype: "bool", role: "fixed" } } })
+        .toBytes();
+    vi.stubGlobal("fetch", () => Promise.resolve(new Response(bytes.slice())));
+}
+
+afterEach(() => {
+    vi.unstubAllGlobals();
+});
 
 describe("pins from data", () => {
     it("pins the nodes a DOT file marks fixed", async () => {
@@ -98,5 +119,19 @@ describe("pins from data", () => {
             .import({ type: "dot", config: { data: DOT } }, { pins })
             .catch((e: unknown) => e);
         assert.strictEqual((error as { code?: unknown }).code, "E_BAD_COMMAND");
+    });
+
+    it("pins the nodes a sample dataset's fixed column marks", async () => {
+        serveFixedDataset();
+        const session = createGraphSession();
+        await session.data.loadDataset("karate", { baseUrl: "https://datasets.test/", pins: "data" });
+        assert.sameMembers([...session.positions.pinned], ["a", "c"]);
+    });
+
+    it("pins none of a sample dataset's nodes by default", async () => {
+        serveFixedDataset();
+        const session = createGraphSession();
+        await session.data.loadDataset("karate", { baseUrl: "https://datasets.test/" });
+        assert.strictEqual(session.positions.pinned.size, 0);
     });
 });

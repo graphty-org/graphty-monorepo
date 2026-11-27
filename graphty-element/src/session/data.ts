@@ -56,6 +56,7 @@ import type {
     StructureValue,
 } from "../catalog/types";
 import { isPairConfig } from "../data/CSVDataSource";
+import { fixedIdsOf } from "../data/declaredPins";
 import { edgeCounterOf, edgeIdOf, pairKey as pairKeyOf, recordType, type RepeatGroup } from "../data/edgeIdentity";
 import type { GraphStore } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
@@ -1987,13 +1988,16 @@ export class SessionData implements SessionDataApi {
             nodes: readonly Record<string, unknown>[];
             edges: readonly Record<string, unknown>[];
         };
+        // Left off a command whose dataset marks none, so its step reads as before.
+        const marked = "src" in graph ? [] : fixedIdsOf(graph);
+        const fixed = marked.length === 0 ? undefined : marked;
         if (!("src" in graph)) {
             placeFromDrawing(graph, data.nodes);
         }
         const label = LABEL_COLUMNS.find((column) => data.nodes.some((node) => typeof node[column] === "string"));
         if (this.pages.batched?.() !== true || readsThroughDraft(options)) {
             const json = JSON.stringify({ directed: graph.directed, ...data });
-            return { source: { type: "json", name, config: { data: json } }, label };
+            return { source: { type: "json", name, config: { data: json } }, label, fixed };
         }
 
         const held: HeldRows = {
@@ -2007,7 +2011,7 @@ export class SessionData implements SessionDataApi {
             errors: [],
             errorLimit: SAMPLE_ERROR_LIMIT,
         };
-        return { source: { type: "json", name, config: {} }, label, held };
+        return { source: { type: "json", name, config: {} }, label, held, fixed };
     }
 
     /**
@@ -2090,6 +2094,7 @@ export class SessionData implements SessionDataApi {
         await turn.take(() => {
             const step: DataImportCommand = {
                 ...importCommand(resolved, options, sample?.held),
+                ...(sample?.fixed === undefined ? {} : { fixed: sample.fixed }),
                 ...(chosenOrigin === undefined ? {} : { origin: chosenOrigin }),
                 ...(this.stepsOn() ? { choices: stepsChoices(options) } : {}),
             };
@@ -9896,6 +9901,8 @@ interface SampleLoad {
     readonly label: string | undefined;
     /** The records, handed to the import instead of a JSON text of them. */
     readonly held?: HeldRows;
+    /** The nodes a dataset's `fixed` column marks, which a `pins: "data"` load pins. */
+    readonly fixed?: readonly NodeId[];
 }
 
 /**

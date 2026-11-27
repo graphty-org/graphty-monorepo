@@ -20,6 +20,15 @@ interface RenderOptions {
     textOutlineJoin: CanvasLineJoin;
     runAlign?: RunAlign;
     lineBox?: LineBox;
+    underline?: boolean;
+}
+
+/** A rectangle on the label's canvas, in its units from its top left corner. */
+export interface CanvasRect {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
 }
 
 /**
@@ -31,6 +40,9 @@ export class RichTextRenderer {
      * @param options - Rendering configuration options
      */
     constructor(private readonly options: RenderOptions) {}
+
+    /** The underlines drawn since the list was last emptied (`underline`), one per run. */
+    readonly underlines: CanvasRect[] = [];
 
     /**
      * Draws styled text segments to a canvas
@@ -124,7 +136,18 @@ export class RichTextRenderer {
             ctx.fillStyle = style.color;
             ctx.fillText(segment.text, currentX, baselineY);
 
-            currentX += ctx.measureText(segment.text).width;
+            const metrics = ctx.measureText(segment.text);
+            if (this.options.underline === true && metrics.width > 0) {
+                // a line one fourteenth of the letters' height thick, its bottom at the font's descent below the
+                // baseline (yEd draws its underline there)
+                const thick = style.size / 14;
+                const descent = metrics.fontBoundingBoxDescent > 0 ? metrics.fontBoundingBoxDescent : style.size / 4;
+                const rect = { x: currentX, y: baselineY + descent - thick, width: metrics.width, height: thick };
+                ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
+                this.underlines.push(rect);
+            }
+
+            currentX += metrics.width;
         }
     }
 

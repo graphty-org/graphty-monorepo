@@ -112,24 +112,29 @@ describe("a Sources row's issues", () => {
         });
     });
 
-    it("draws the row's counts whole beside its issue chip at the narrowest left panel", async () => {
-        // A chain of 1,000 edges (1,001 nodes) with one padded value: two wide count chips and an
-        // issue chip in a row at the left panel's narrowest width, which is also its default.
+    it("draws a closed entry's counts beside its issue chip at the narrowest left panel", async () => {
+        // A chain of 1,000 edges (1,001 nodes) with one padded value: the counts and an issue chip
+        // in one header at the left panel's narrowest width, which is also its default.
         const rows = Array.from({ length: 1000 }, (_, i) => `n${String(i)},n${String(i + 1)},${i === 0 ? " x " : "x"}`);
         const name = "a-long-file-name-for-the-row.csv";
         await openSites(new File([`source,target,kind\n${rows.join("\n")}\n`], name));
         const place = within(screen.getByRole("region", { name: "Data place" }));
         const row = await place.findByRole("listitem", { name });
         const issues = await within(row).findByRole("button", { name: `1 issue in ${name}` });
-        await waitFor(() => {
-            assert.include(row.textContent, "1,000");
-        });
-        const chips = [...row.querySelectorAll(".dp-source-chips > *"), issues].map((each) =>
-            each.getBoundingClientRect(),
-        );
-        assert.lengthOf(chips, 3, "a node chip, an edge chip and the issue chip");
-        for (let i = 1; i < chips.length; i++) {
-            assert.isAtMost(chips[i - 1].right, chips[i].left, `chip ${String(i + 1)} covers chip ${String(i)}`);
+        const toggle = row.querySelector<HTMLElement>("[aria-expanded=true]");
+        if (toggle !== null) {
+            await userEvent.click(toggle);
         }
+        const summary = await waitFor(() => {
+            const found = row.querySelector<HTMLElement>("[data-testid=control-section-summary]");
+            assert.isNotNull(found);
+            return found;
+        });
+        assert.include(summary.textContent, "1,000");
+        assert.isAtMost(
+            summary.getBoundingClientRect().right,
+            issues.getBoundingClientRect().left,
+            "the issue chip never covers the counts",
+        );
     });
 });

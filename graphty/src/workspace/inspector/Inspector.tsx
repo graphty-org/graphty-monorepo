@@ -126,7 +126,7 @@ function isGone(session: GraphSession | null, resolved: Resolved): boolean {
             return resolved.rows.every((id) => findTreeRow(tree, id) === undefined);
         }
         case "source":
-            return !session.data.sources().some((each) => each.key === sourceKeyOf(resolved.row));
+            return !session.data.sources({ staged: true }).some((each) => each.key === sourceKeyOf(resolved.row));
         default:
             return false;
     }
@@ -832,7 +832,7 @@ function runRowHeader(session: GraphSession, run: Run | undefined, openAnalyze: 
  * @returns the header.
  */
 function sourceHeader(session: GraphSession, row: string): Header {
-    const load = session.data.sources().find((each) => each.key === sourceKeyOf(row));
+    const load = session.data.sources({ staged: true }).find((each) => each.key === sourceKeyOf(row));
     return load === undefined
         ? { name: "Gone" }
         : { name: loadName(load), kind: sourceKindWord(load), loadKind: load.kind };

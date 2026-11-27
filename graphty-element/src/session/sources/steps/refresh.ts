@@ -44,6 +44,8 @@ export type RefreshEdit =
           readonly label?: string | null;
           readonly input?: string;
           readonly tables?: readonly string[];
+          /** The column the new rows were numbered under; null for none, absent leaves it. */
+          readonly numbered?: string | null;
       }
     /** Settle a reader edit whose source moved under it. */
     | { readonly kind: "settle-edit"; readonly id: string; readonly choice: "follow" | "keep" | "drop" }
@@ -131,12 +133,15 @@ function replaceCopy(prior: SourceSteps, edit: Extract<RefreshEdit, { kind: "rep
     if (src === undefined) {
         return prior;
     }
+    const { numbered = src.numbered } = edit;
+    const { numbered: _was, ...rest } = src;
     const swapped: StepsSource = {
-        ...src,
+        ...rest,
         origin: edit.rows === undefined ? { copy: edit.copy } : { copy: edit.copy, rows: edit.rows },
         ...(edit.label === undefined ? {} : { label: edit.label }),
         ...(edit.input === undefined ? {} : { input: edit.input }),
         ...(edit.tables === undefined ? {} : { tables: edit.tables }),
+        ...(numbered === null || numbered === undefined ? {} : { numbered }),
     };
     // A step reading a column the new rows lack is held by the build, never turned off (7.12, 7.13).
     return { ...prior, sources: { ...prior.sources, [edit.id]: swapped } };

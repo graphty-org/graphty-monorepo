@@ -8,6 +8,7 @@ import type {
     CodedFact,
     GraphSession,
     RuleTree,
+    SourceKey,
     StepReading,
     StepReasonCode,
     StepReference,
@@ -21,7 +22,7 @@ import { formatNumber } from "../inspector/words";
 import { type Card, cardFields, cardOf, cardWords, type Side } from "../style/cards";
 import { NATURAL, valueName } from "../style/words";
 import type { Verb } from "./model";
-import { isRelative, referenceOf, STATE_WORDS, stepCard, WHILE } from "./values";
+import { isRelative, referenceOf, STATE_WORDS, stepCard, waitingSource, WHILE } from "./values";
 
 /** A verb's word, Figma's name for it, and the words a search finds it by. Verbs are words everywhere. */
 export const VERB_WORDS: Readonly<Record<Verb, { word: string; figma: string; aliases: readonly string[] }>> = {
@@ -205,6 +206,7 @@ function testlessName(rule: RuleTree): string | undefined {
  * @param step - the step.
  * @param side - the selection's side.
  * @param reading - the step's reading, for the run a `measure` reads.
+ * @param source - the waiting source whose rows the selection reads, if one.
  * @returns the value and the test.
  */
 export function stepWords(
@@ -212,8 +214,9 @@ export function stepWords(
     step: UnionStep,
     side: Side,
     reading?: StepReading,
+    source?: SourceKey,
 ): { value: string; test: string } {
-    const words = ruleStepWords(session, step, side, reading);
+    const words = ruleStepWords(session, step, side, reading, source);
     // An edge step reading a node value says when either end is enough; both ends goes unsaid.
     return step.ends === "either"
         ? { ...words, test: [words.test, "either end"].filter((each) => each !== "").join(" ") }
@@ -226,6 +229,7 @@ export function stepWords(
  * @param step - the step.
  * @param side - the selection's side.
  * @param reading - the step's reading.
+ * @param source - the waiting source whose rows the selection reads, if one.
  * @returns the value and the test.
  */
 function ruleStepWords(
@@ -233,6 +237,7 @@ function ruleStepWords(
     step: UnionStep,
     side: Side,
     reading?: StepReading,
+    source?: SourceKey,
 ): { value: string; test: string } {
     const { rule } = step;
     if (rule.kind === "nonempty") {
@@ -257,14 +262,14 @@ function ruleStepWords(
             field.length > 1
                 ? `${method}: ${field.find((each) => each.name === rule.field)?.plainName ?? rule.field}`
                 : method;
-        const { card } = stepCard(session, step, reading, side);
+        const { card } = stepCard(session, step, reading, side, undefined, source);
         return { value: named, test: card === null ? "" : testWords(cardWords(session, card), "") };
     }
     if (rule.kind === "degree") {
         // A tier 4 degree leaf, read as the Degree value it is (a converted card is named by it).
         return { value: "Degree", test: boundsWords(rule.min, rule.max) };
     }
-    const { card, field } = stepCard(session, step, undefined, side);
+    const { card, field } = stepCard(session, step, undefined, side, undefined, source);
     if (card === null) {
         return { value: "Rule", test: "" };
     }
@@ -307,6 +312,7 @@ export function linksSaid(session: GraphSession, links: RuleTree): string {
  * @param step - the step.
  * @param side - the selection's side.
  * @param reading - the step's reading.
+ * @param source - the waiting source whose rows the selection reads, if one.
  * @returns the value, the test and the tags.
  */
 export function rowWords(
@@ -314,8 +320,9 @@ export function rowWords(
     step: UnionStep,
     side: Side,
     reading?: StepReading,
+    source?: SourceKey,
 ): { value: string; test: string; tags: string[]; more?: string; moreShort?: string } {
-    const words = ruleStepWords(session, step, side, reading);
+    const words = ruleStepWords(session, step, side, reading, source);
     const tags = [
         ...(step.computedOn === "so-far" ? ["So far"] : []),
         ...(step.links === undefined || !linksTested(session, step.links)
@@ -326,7 +333,7 @@ export function rowWords(
     if (isRelative(step.rule) || step.rule.kind === "member" || STRUCTURE[step.rule.kind] !== undefined) {
         return { ...words, tags };
     }
-    const { card } = stepCard(session, step, reading, side);
+    const { card } = stepCard(session, step, reading, side, undefined, source);
     const short = card === null ? undefined : shortTest(session, card);
     // An untouched test (text, a date) says nothing in the row: its state word already says No test.
     const untouched =
@@ -462,10 +469,11 @@ function testWords(words: string, name: string): string {
  */
 export function selectionWords(session: GraphSession, rule: UnionLeaf): string {
     const side: Side = rule.side === "nodes" ? "node" : "edge";
+    const source = waitingSource(session, rule);
     const groups = rule.branches.map((branch) =>
         branch.steps
             .map((step, at) => {
-                const { value, test } = stepWords(session, step, side);
+                const { value, test } = stepWords(session, step, side, undefined, source);
                 const words = test === "" ? value : `${value} ${test}`;
                 // A narrowing step says no verb; a group's first Add is the step itself.
                 return step.op === "keep" || (at === 0 && branch.start !== "all" && step.op === "add")
@@ -539,15 +547,16 @@ function summaryValue(session: GraphSession, step: UnionStep, side: Side, value:
  */
 export function cardsWords(session: GraphSession, rule: UnionLeaf, reading?: StepsReading): string {
     const side: Side = rule.side === "nodes" ? "node" : "edge";
+    const source = waitingSource(session, rule);
     const read = reading?.branches.flatMap((each) => each.steps) ?? [];
     return rule.branches
         .flatMap((branch) => branch.steps)
         .map((step) => {
             const stepReading = read.find((each) => each.id === step.id);
-            const words = rowWords(session, step, side, stepReading);
+            const words = rowWords(session, step, side, stepReading, source);
             const plain =
                 isRelative(step.rule) || step.rule.kind === "member" || STRUCTURE[step.rule.kind] !== undefined;
-            const { card } = plain ? { card: null } : stepCard(session, step, stepReading, side);
+            const { card } = plain ? { card: null } : stepCard(session, step, stepReading, side, undefined, source);
             const test =
                 card?.type === "category" && card.match === "values" && rowTest(words) !== ""
                     ? summaryValues(categoryNames(session, card))

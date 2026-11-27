@@ -241,7 +241,7 @@ jobs:
             - name: Fetch the pinned fonts and the GPU screenshot references from Git LFS
               if: ${{ !inputs.files }}
               working-directory: .
-              run: git lfs pull --include "visual-fonts/**,cytoscape-extensions/test/gpu-screenshots/**"
+              run: tools/lfs-pull-retry.sh --include "visual-fonts/**,cytoscape-extensions/test/gpu-screenshots/**"
             # No modprobe: a container cannot load host kernel modules, and it does not need to -- the host has
             # them up before the job starts (run 35922927676: "modprobe exit=0 nvidia modules before=4 after=4"),
             # and --gpus all fails at container creation if the driver is not there. This step records the

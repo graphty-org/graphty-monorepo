@@ -1452,6 +1452,7 @@ export const EdgeStyle: z.ZodObject<{
                 normal: "normal";
                 italic: "italic";
             }>>>;
+            underline: z.ZodOptional<z.ZodBoolean>;
             lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             lineBox: z.ZodOptional<z.ZodEnum<{
                 font: "font";
@@ -1755,6 +1756,7 @@ export const EdgeStyle: z.ZodObject<{
                 normal: "normal";
                 italic: "italic";
             }>>>;
+            underline: z.ZodOptional<z.ZodBoolean>;
             lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             lineBox: z.ZodOptional<z.ZodEnum<{
                 font: "font";
@@ -2223,6 +2225,7 @@ export const EdgeStyle: z.ZodObject<{
             normal: "normal";
             italic: "italic";
         }>>>;
+        underline: z.ZodOptional<z.ZodBoolean>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         lineBox: z.ZodOptional<z.ZodEnum<{
             font: "font";
@@ -2472,6 +2475,7 @@ export const EdgeStyle: z.ZodObject<{
             normal: "normal";
             italic: "italic";
         }>>>;
+        underline: z.ZodOptional<z.ZodBoolean>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         lineBox: z.ZodOptional<z.ZodEnum<{
             font: "font";
@@ -2721,6 +2725,7 @@ export const EdgeStyle: z.ZodObject<{
             normal: "normal";
             italic: "italic";
         }>>>;
+        underline: z.ZodOptional<z.ZodBoolean>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         lineBox: z.ZodOptional<z.ZodEnum<{
             font: "font";
@@ -6745,6 +6750,7 @@ export const NodeStyle: z.ZodObject<{
         planar: z.ZodOptional<z.ZodBoolean>;
         zIndex: z.ZodOptional<z.ZodNumber>;
         drawOrder: z.ZodOptional<z.ZodNumber>;
+        onTop: z.ZodOptional<z.ZodBoolean>;
         cornerRadius: z.ZodOptional<z.ZodNumber>;
         exactCornerRadius: z.ZodOptional<z.ZodBoolean>;
         cornerFraction: z.ZodOptional<z.ZodNumber>;
@@ -7171,6 +7177,7 @@ export const NodeStyle: z.ZodObject<{
             normal: "normal";
             italic: "italic";
         }>>>;
+        underline: z.ZodOptional<z.ZodBoolean>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         lineBox: z.ZodOptional<z.ZodEnum<{
             font: "font";
@@ -7420,6 +7427,7 @@ export const NodeStyle: z.ZodObject<{
             normal: "normal";
             italic: "italic";
         }>>>;
+        underline: z.ZodOptional<z.ZodBoolean>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         lineBox: z.ZodOptional<z.ZodEnum<{
             font: "font";
@@ -7669,6 +7677,7 @@ export const NodeStyle: z.ZodObject<{
             normal: "normal";
             italic: "italic";
         }>>>;
+        underline: z.ZodOptional<z.ZodBoolean>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         lineBox: z.ZodOptional<z.ZodEnum<{
             font: "font";
@@ -8699,6 +8708,7 @@ export const RichTextStyle: z.ZodObject<{
         normal: "normal";
         italic: "italic";
     }>>>;
+    underline: z.ZodOptional<z.ZodBoolean>;
     lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     lineBox: z.ZodOptional<z.ZodEnum<{
         font: "font";
@@ -9708,6 +9718,8 @@ export class UpdateManager implements Manager {
     // @internal
     rowsRenumbered(): void;
     saveFraming(): () => void;
+    // @internal
+    spreadDraft: (() => void) | null;
     stepFrames(count: number): void;
     stopAutoZoomToFit(): void;
     syncStyles(budgetMs?: number): void;

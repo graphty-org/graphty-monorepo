@@ -205,6 +205,23 @@ const FORMAT_LABEL = "label";
 const ROW_ID = "id";
 
 /**
+ * How the rows held read their node ids: the key column, or the row numbers stamped for want of one.
+ * @param key - The key column, or null when the rows name none.
+ * @param rows - The node rows as read, before any number was stamped.
+ * @returns The id expression, and whether it reads a column the rows did not hold.
+ */
+function heldKey(
+    key: string | null,
+    rows: readonly Readonly<Record<string, unknown>>[],
+): Pick<HeldRows, "idPath" | "numbered"> {
+    if (key !== null) {
+        return { idPath: keyExpression(key) };
+    }
+    const own = rows.length === 0 || rows.some((row) => ROW_ID in row);
+    return { idPath: ROW_ID, ...(own ? {} : { numbered: true }) };
+}
+
+/**
  * A refusal of a choice the draft cannot carry out.
  * @param message - What is wrong.
  * @param details - The facts.
@@ -1461,7 +1478,7 @@ export class Draft implements LoadDraft {
             declaredDirection: readGephiTypeColumn(edges),
             errors: read.errors,
             errorLimit: read.errorLimit,
-            ...(key === null ? { idPath: ROW_ID } : { idPath: keyExpression(key) }),
+            ...heldKey(key, nodeRows),
             ...(edgeRoles?.source === undefined ? {} : { source: keyExpression(edgeRoles.source.column) }),
             ...(edgeRoles?.target === undefined ? {} : { target: keyExpression(edgeRoles.target.column) }),
             ...(edgeRoles === undefined ? {} : { weight: edgeRoles.weight ?? null }),

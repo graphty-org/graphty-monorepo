@@ -155,6 +155,10 @@ export class ScreenReader {
     #active: NodeId | undefined;
     /** The node ids in list order. */
     #ids: NodeId[] = [];
+    /** Each listed node's row, by id. */
+    #rowOf = new Map<NodeId, number>();
+    /** The listed nodes whose row says `aria-selected="true"`. */
+    readonly #marked = new Set<NodeId>();
     #unwatch: (() => void)[] = [];
 
     /**
@@ -255,6 +259,9 @@ export class ScreenReader {
         if (!on) {
             this.#list?.remove();
             this.#list = undefined;
+            this.#ids = [];
+            this.#rowOf = new Map();
+            this.#marked.clear();
             return;
         }
 
@@ -298,40 +305,99 @@ export class ScreenReader {
                   .join(", ");
     }
 
-    /** Lists every visible node by name. */
+    /**
+     * Lists every visible node by name. Only rows whose node or name changed are written, so a
+     * change that moves nodes and leaves the list alone (a drag, an undo, a layout) touches no row.
+     */
     #fillList(): void {
         const list = this.#list;
         if (!list) {
             return;
         }
 
-        const { data } = this.#host.session();
+        const { data, selection } = this.#host.session();
         // ponytail: one option per visible node, all in the DOM; window it if a graph of 100k+ nodes needs the list.
         const { records } = data.nodePage({ limit: Infinity, scope: "visible" });
-        const options = records.map((record, index) => {
-            const option = document.createElement("li");
-            option.setAttribute("role", "option");
-            option.id = `graphty-a11y-node-${index}`;
-            option.dataset.index = String(index);
-            option.textContent = data.nodeName(record.id).name;
-            return option;
+        const rows = list.children;
+        const added: HTMLLIElement[] = [];
+        const ids = records.map(({ id }, index) => {
+            const { name } = data.nodeName(id);
+            const row = rows.item(index);
+            if (!row) {
+                const option = document.createElement("li");
+                option.setAttribute("role", "option");
+                option.id = `graphty-a11y-node-${index}`;
+                option.dataset.index = String(index);
+                option.textContent = name;
+                added.push(option);
+            } else if (row.textContent !== name) {
+                row.textContent = name;
+            }
+
+            return id;
         });
-        this.#ids = records.map((record) => record.id);
-        list.replaceChildren(...options);
-        this.#markSelected();
-        this.#moveTo(this.#active === undefined ? 0 : Math.max(0, this.#ids.indexOf(this.#active)));
+        for (let index = rows.length - 1; index >= ids.length; index--) {
+            rows[index].remove();
+        }
+
+        list.append(...added);
+        // Rows whose node changed take that node's mark; the rest already carry it.
+        const old = this.#ids;
+        this.#ids = ids;
+        this.#rowOf = new Map(ids.map((id, index) => [id, index]));
+        for (const id of this.#marked) {
+            if (!this.#rowOf.has(id)) {
+                this.#marked.delete(id);
+            }
+        }
+
+        ids.forEach((id, index) => {
+            if (old[index] !== id) {
+                this.#mark(id, selection.has(id));
+            }
+        });
+        this.#moveTo(this.#active === undefined ? 0 : Math.max(0, this.#rowOf.get(this.#active) ?? 0));
     }
 
+    /**
+     * Writes one listed node's selected state on its row, and keeps `#marked` in step.
+     * @param id - The node.
+     * @param on - Whether it is selected.
+     */
+    #mark(id: NodeId, on: boolean): void {
+        const index = this.#rowOf.get(id);
+        const row = index === undefined ? undefined : this.#list?.children[index];
+        const value = String(on);
+        if (row && row.getAttribute("aria-selected") !== value) {
+            row.setAttribute("aria-selected", value);
+        }
+
+        if (on) {
+            this.#marked.add(id);
+        } else {
+            this.#marked.delete(id);
+        }
+    }
+
+    /** Marks the rows whose selected state changed: no walk over every row. */
     #markSelected(): void {
-        const list = this.#list;
-        if (!list) {
+        if (!this.#list) {
             return;
         }
 
         const { selection } = this.#host.session();
-        this.#ids.forEach((id, index) => {
-            list.children[index]?.setAttribute("aria-selected", String(selection.has(id)));
-        });
+        const now = new Set(selection.nodes);
+        for (const id of [...this.#marked]) {
+            if (!now.has(id)) {
+                this.#mark(id, false);
+            }
+        }
+
+        for (const id of now) {
+            if (this.#rowOf.has(id) && !this.#marked.has(id)) {
+                this.#mark(id, true);
+            }
+        }
     }
 
     /**
@@ -356,7 +422,7 @@ export class ScreenReader {
      * @param event - The key press.
      */
     #onKey(event: KeyboardEvent): void {
-        const at = this.#active === undefined ? 0 : this.#ids.indexOf(this.#active);
+        const at = this.#active === undefined ? 0 : (this.#rowOf.get(this.#active) ?? -1);
         const moves: Record<string, number> = {
             ArrowDown: at + 1,
             ArrowUp: at - 1,

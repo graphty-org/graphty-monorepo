@@ -39320,7 +39320,7 @@
             "raster.nodeOutline": 0.95,
             "raster.edge": 0.89,
             "raster.arrowhead": 0.95,
-            "raster.label": 0.92,
+            "raster.label": 0.93,
             "raster.canvas": 0.99
         },
         "yed-graphml-specimen-edge-labels@matched": {

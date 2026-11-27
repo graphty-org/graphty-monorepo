@@ -6,6 +6,7 @@ import { NodeShapes, NodeStyle } from "../src/config/NodeStyle";
 import { PolyhedronType } from "../src/constants/meshConstants";
 import { MeshCache } from "../src/meshes/MeshCache";
 import { NodeMesh } from "../src/meshes/NodeMesh";
+import { ON_TOP_RENDERING_GROUP } from "../src/meshes/RichTextLabel";
 
 describe("NodeMesh", () => {
     let scene: Scene;
@@ -330,6 +331,25 @@ describe("NodeMesh", () => {
             const threeD = faces(100, 2, false);
             const threeDPlain = faces(undefined, 2, false);
             assert.closeTo(threeD.front, threeDPlain.front, 1e-9);
+        });
+
+        test("draws an on-top node in the on-top group in 2D and 3D; a draw order alone keeps the graph's", () => {
+            const group = (shape: Record<string, unknown>, is2D: boolean): number => {
+                const mesh = NodeMesh.create(
+                    meshCache,
+                    { styleId: `group-${JSON.stringify(shape)}-${String(is2D)}`, is2D, size: 1 },
+                    { shape: { type: "sphere", size: 1, ...shape } },
+                    scene,
+                ) as InstancedMesh;
+                return mesh.sourceMesh.renderingGroupId;
+            };
+
+            for (const is2D of [false, true]) {
+                assert.strictEqual(group({ onTop: true }, is2D), ON_TOP_RENDERING_GROUP, String(is2D));
+                assert.strictEqual(group({}, is2D), 0, String(is2D));
+                // A 3D view keeps drawing a file's draw order by real depth.
+                assert.strictEqual(group({ drawOrder: 100 }, is2D), 0, String(is2D));
+            }
         });
     });
 

@@ -936,6 +936,13 @@ describe("yEd Live GraphML: spellings yEd Live 8.5.16 reads, and the ones it ign
         expect(fills("borderStyle", "dash-custom")).toBe("dashed");
     });
 
+    it("draws a line under the words of a label whose Font's textDecoration is UNDERLINE", async () => {
+        const { node } = await sheet("specimen-labels.graphml");
+        expect(node("labelUnderline", "text-decoration-underline")).toBe(true);
+        expect(node("labelUnderline", "text-decoration-none")).toBe(null);
+        expect(node("labelUnderline", "text-decoration-overline")).toBe(null);
+    });
+
     it("reads a MarkupLabelStyle's text as its words, and its bold, italic, heading and color as the font", async () => {
         // yed-live-graphml-specimen-labels-p5.svg draws "<b>Bold</b>" as the word Bold in bold, and so on
         const { node } = await sheet("specimen-labels-p5.graphml");

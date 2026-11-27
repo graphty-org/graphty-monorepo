@@ -11,6 +11,7 @@
 import {
     type Credential,
     credentials,
+    type ImportReport,
     type LoadFromSourceOptions,
     registry,
     SOURCE_FORMAT_PREFIX,
@@ -165,6 +166,77 @@ interface Read {
     readonly fixed: readonly NodeId[];
 }
 
+/** graph-io's report of a CSV table whose rows no column keys: they were numbered. */
+const NO_UNIQUE_ID = "W_CSV_NO_UNIQUE_ID";
+
+/** graph-io's report of a CSV table whose header names nothing, its rows read as nodes. */
+const ROWS_AS_NODES = "W_CSV_ROWS_AS_NODES";
+
+/** graph-io's code for a node row whose id an earlier row gave. */
+const DUPLICATE_NODE = "W_DUPLICATE_NODE";
+
+/**
+ * The node rows a read left out for repeating an earlier row's id, which graph-io gives with the
+ * issue (a key it guessed from the values), as rows the load then leaves out itself: so the first
+ * row stands and the reader is told, as when the same file is opened. ponytail: the cells are the
+ * file's text, and a read past graph-io's 1,000 warnings of one code gives only the first 1,000.
+ * @param report - graph-io's report
+ * @param idColumn - the column the rows were keyed by
+ * @returns the rows, each under its id
+ */
+function leftOutRows(report: Pick<ImportReport, "issues">, idColumn: string | undefined): Record<string, unknown>[] {
+    return report.issues.flatMap((issue) => {
+        const record = issue.params?.record;
+        if (
+            issue.code !== DUPLICATE_NODE ||
+            typeof record !== "object" ||
+            record === null ||
+            typeof issue.element !== "string"
+        ) {
+            return [];
+        }
+        return [
+            {
+                ...(record as Record<string, unknown>),
+                id: issue.element,
+                ...(idColumn === undefined ? {} : { [idColumn]: issue.element }),
+            },
+        ];
+    });
+}
+
+/**
+ * The file's own column its nodes were keyed by, which graph-io reads into the node's id: the records
+ * carry it again, under its own name.
+ * @param params - The params the read was made with, its CSV id column worked out.
+ * @param nodes - The node records.
+ * @returns The column, or undefined when the read names none, names it `id`, or a record holds it already.
+ */
+function ownIdColumn(
+    params: Readonly<Record<string, unknown>>,
+    nodes: readonly Record<string, unknown>[],
+): string | undefined {
+    const column = params.idColumn;
+    return typeof column === "string" &&
+        column !== "" &&
+        column !== "id" &&
+        !/^\d+$/.test(column) &&
+        nodes.every((row) => !(column in row))
+        ? column
+        : undefined;
+}
+
+/**
+ * A node record with its id under the file's own column too.
+ * @param row - The record.
+ * @param column - The column.
+ * @returns The record.
+ */
+function withOwnId(row: Readonly<Record<string, unknown>>, column: string): Record<string, unknown> {
+    const { id } = row;
+    return { id, [column]: id, ...row };
+}
+
 /**
  * Read a source into rows, outside any command.
  * @param id - the source id
@@ -184,9 +256,14 @@ async function readRows(
     const { nodes, edges } = toRecords(sourceGraph(loaded), columnsMapping(snapshot));
     const errors = new ErrorAggregator(ERROR_LIMIT);
     aggregateErrors(report, errors);
+    const columns = report.issues.find((issue) => issue.code === ROWS_AS_NODES)?.params?.columns;
+    const idColumn = ownIdColumn({ ...config, ...report.source?.params }, nodes);
     return {
         held: {
-            nodes,
+            nodes: [
+                ...(idColumn === undefined ? nodes : nodes.map((row) => withOwnId(row, idColumn))),
+                ...leftOutRows(report, idColumn),
+            ],
             edges,
             // ponytail: the direction a source declares is not passed on yet; add it once a source
             // states one in its report.
@@ -194,6 +271,9 @@ async function readRows(
             errors: errors.getErrors(),
             errorLimit: ERROR_LIMIT,
             idPath: "id",
+            ...(idColumn === undefined ? {} : { idColumn }),
+            ...(report.issues.some((issue) => issue.code === NO_UNIQUE_ID) ? { numbered: true as const } : {}),
+            ...(Array.isArray(columns) ? { unnamed: columns as readonly string[] } : {}),
             source: "source",
             target: "target",
         },

@@ -31,6 +31,7 @@ import {
     checkSpace,
     type Copies,
     copyOrigin,
+    defined,
     EMPTY_STEPS,
     mintCopyId,
     mintEditId,
@@ -126,15 +127,6 @@ export function withDigest<C extends DataImportCommand | BatchCommand>(command: 
 }
 
 /**
- * An object holding only the members that are defined.
- * @param members - The members.
- * @returns Them, without the undefined ones.
- */
-function defined<T extends Record<string, unknown>>(members: T): Partial<T> {
-    return Object.fromEntries(Object.entries(members).filter(([, v]) => v !== undefined)) as Partial<T>;
-}
-
-/**
  * Whether a mapping names its tables by side (`{ nodes, edges }`).
  * @param mapping - The mapping.
  * @returns True for a mapping by side.
@@ -216,6 +208,7 @@ function sourceFacts(
         unmatched: command.unmatched === "leave-out" ? ("leave-out" as const) : undefined,
     });
     const { name, type } = importFact(command).params;
+    const { url } = command.source.config ?? {};
     const direction = command.held?.declaredDirection ?? undefined;
     return {
         kind: kindOf(command),
@@ -223,8 +216,10 @@ function sourceFacts(
         tables: command.tables ?? [],
         ...defined({
             type: typeof type === "string" ? type : undefined,
+            config: kindOf(command) === "url" ? { url } : undefined,
             tableRows: command.tableRows,
             input: command.input,
+            read: { ...defined({ size: command.source.size }), at: new Date().toISOString() },
             spacePicked: options.space === undefined ? undefined : true,
             stagedType: options.type,
             endTypes: Object.keys(endTypes).length === 0 ? undefined : endTypes,
@@ -276,7 +271,7 @@ export function compileImport(
             ...(nodes.length > 0
                 ? {
                       nodes: {
-                          key: options.key ?? held.idPath ?? known.nodeIdPath,
+                          key: options.key ?? held.idColumn ?? held.idPath ?? known.nodeIdPath,
                           ...defined({ space, time: times.nodes }),
                       },
                   }
@@ -286,6 +281,10 @@ export function compileImport(
                 : {}),
         },
         ...sourceFacts(command, options),
+        // the reader's own column, which the file never held
+        ...((held.numbered === true || held.idColumn !== undefined) && nodes.length > 0
+            ? { numbered: held.idPath }
+            : {}),
     };
     return {
         op: "data.steps-set",

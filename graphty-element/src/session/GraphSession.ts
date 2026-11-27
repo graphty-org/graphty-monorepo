@@ -3700,6 +3700,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     let redrawDraft = (): void => undefined;
     // Set once the style stack exists: takes a drawn draft's After off the graph now.
     let stopAfter = (): void => undefined;
+    // Set once the style stack exists: forgets where a closed draft drew its nodes.
+    let forgetDraft = (): void => undefined;
     // Settles once the graph draws what the open source draft shows.
     let draftDrawn = (): Promise<void> => Promise.resolve();
     // The draft events waiting for the graph to draw what they say, published in order.
@@ -3842,6 +3844,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 redrawDraft();
                 const drawn = wasDrawn || afterDrawn;
                 const change = detail as SourceDraftChange;
+                if (change.reason === "committed" || change.reason === "discarded") {
+                    forgetDraft();
+                }
                 // A change to a drawn After is told once the graph draws it, so a listener reading the
                 // graph counts what it shows; the events after it wait their turn, in order.
                 const redrawn = drawn && (change.reason === "changed" || change.reason === "displayed");
@@ -3867,6 +3872,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             }),
             drawing: {
                 // Once drawn and the events saying so are out, so a caller's next act comes after them.
+                active: () => afterDrawn,
                 drawn: async () => {
                     await draftDrawn();
                     await draftEvents;
@@ -4176,6 +4182,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         matchEdges: (where: Query) => requireQuery(query).edges(where),
         values: valueSourceOf(records, snapshot, fieldKinds, () => elements),
         supplied: suppliedNow,
+        waiting: (source: SourceKey) => data.waitingGraph(source),
         focus: () => focusedNode(),
         inState: (state, target, index) => elementInState(state, target, index),
         stateRevision: () => stateRevision,
@@ -4245,6 +4252,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         values: valueSourceOf(records, snapshot, fieldKinds, () => elements),
         supplied: suppliedNow,
         own: (source: SourceKey) => data.ownValues(source),
+        waiting: (source: SourceKey) => data.waitingGraph(source),
         sourceSteps: sourceStepsOn,
         onChange: (change) => {
             // What the filter keeps is read by the style stack's kept readings (`styles.counts`,
@@ -4850,7 +4858,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // A drawn source draft: every element reads `graphty.draft` afresh.
     // ponytail: repaints every element per draft act while one is drawn; repaint only the marks
     // that moved if a large graph's drafting feels it.
-    const repaintDraft = (): void => {
+    const draftMoved = (): void => {
         // Every element's `graphty.draft` moved, as a write to that field would move it: what a rule,
         // a set or a count read of it is stale now.
         const { field } = dependencyOf(DRAFT_PATH) as { readonly field: string };
@@ -4860,9 +4868,19 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         notifier.notify({ kind: "attributes", element: "edge", fields: [field] });
         stateRevision++;
         stateRevisionBesidesPointer++;
+    };
+    // Ends the draft repaint under way: the graph it reads is about to be written, and another follows.
+    let draftPass = new AbortController();
+    const repaintDraft = (): void => {
+        draftMoved();
         if (stack === null) {
             return;
         }
+        draftPass.abort();
+        const pass = new AbortController();
+        draftPass = pass;
+        // The view's layers name elements by the ids they had when it was shown: drawn anew, they may have others.
+        stack.refreshDraftView();
         const graph = snapshot();
         const all = (count: number): number[] => Array.from({ length: count }, (_, index) => index);
         // A layer reading the path matched other elements before, as after a note changed.
@@ -4871,9 +4889,13 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             .repaintElements(
                 stack.compiled(),
                 { node: all(graph.nodeCount), edge: all(graph.edgeCount) },
-                { signal: teardown.signal, report: () => undefined },
+                { signal: AbortSignal.any([teardown.signal, pass.signal]), report: () => undefined },
             )
-            .catch(repaintFailed("draft"));
+            .catch((error: unknown) => {
+                if (!pass.signal.aborted) {
+                    repaintFailed("draft")(error);
+                }
+            });
     };
     // A drawn draft's After (design 5.3): the graph its commit would leave, drawn by writing what the
     // commit would remove, patch and add -- the graph's rows only, never the sources and steps --
@@ -4882,9 +4904,46 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // so the history never holds it, and a save takes it off while it writes. While it is on,
     // statistics, the legend and a count read the draft's graph, and a reader's command that would
     // measure or name its elements (a run, a pin, a note) is refused. `marks` is what it was drawn for.
-    let after: { readonly marks: object; readonly abort: () => void; readonly ended: Promise<void> } | null = null;
+    let after: {
+        readonly marks: object;
+        /** The nodes the committed graph holds, which a held preview keeps where they are. */
+        readonly committed: ReadonlySet<NodeId>;
+        readonly abort: () => void;
+        readonly ended: Promise<void>;
+    } | null = null;
+    // Where After last drew the nodes the draft adds, under a held preview: the next After, and the commit, draw
+    // them from there.
+    const places = new Map<NodeId, { readonly x: number; readonly y: number; readonly z: number }>();
+    const keepPlaces = (committed: ReadonlySet<NodeId>): void => {
+        const added = [...dispatcher.state.graph.nodes.keys()].filter((id) => !committed.has(id));
+        const drawn = added.length === 0 ? null : dispatcher.arrangement.rowsNow(added);
+        drawn?.ids.forEach((id, row) => {
+            const [x, y, z] = drawn.values.subarray(6 * row + 3, 6 * row + 6);
+            if ([x, y, z].every((each) => Number.isFinite(each))) {
+                places.set(id, { x, y, z });
+            }
+        });
+        dispatcher.arrangement.engine?.seed?.(places);
+    };
+    const forgetPlaces = (): void => {
+        if (places.size > 0) {
+            places.clear();
+            dispatcher.arrangement.engine?.seed?.(places);
+        }
+    };
     // Settles once the graph draws what the draft shows now: After landed, or taken off again.
     let drawing: Promise<void> = Promise.resolve();
+    // Whether the graph is still on its way to what the draft shows: the latest drawing has not settled.
+    let drawingDraft = false;
+    const drawTo = (next: Promise<void>): void => {
+        drawing = next;
+        drawingDraft = true;
+        void next.finally(() => {
+            if (drawing === next) {
+                drawingDraft = false;
+            }
+        });
+    };
     /**
      * Dispatch one of After's writes through its transaction, past the open draft's refusal.
      * @param tx - The transaction.
@@ -4900,12 +4959,18 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             drawingAfter = false;
         }
     };
+    const holdDraft = (committed: ReadonlySet<NodeId>): void => {
+        const holds = data.draftHolds();
+        const added = [...dispatcher.state.graph.nodes.keys()].some((id) => !committed.has(id));
+        dispatcher.arrangement.engine?.hold?.(holds ? committed : null, holds && added);
+    };
     const drawAfter = (marks: object): void => {
         const drawn = data.draftAfterDiff();
         if (drawn === null) {
             return;
         }
         const { diff, idPath } = drawn;
+        draftPass.abort();
         // The After taken off for this one is still rolling back: its rollback lands first, or the
         // two interleave and leave neither graph drawn.
         const prior = drawing;
@@ -4914,6 +4979,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         const landed = new Promise<void>((resolve) => {
             land = resolve;
         });
+        const committed = new Set<NodeId>();
         const held = dispatcher.transaction(
             "source-draft-after",
             async (tx, signal) => {
@@ -4924,6 +4990,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 if (signal.aborted) {
                     return;
                 }
+                for (const id of dispatcher.state.graph.nodes.keys()) {
+                    committed.add(id);
+                }
+                // Held before the first write, so no step moves the reader's graph round a node half added.
+                holdDraft(committed);
                 const writes: DataMutation[] = [];
                 removeAndPatch(diff, (mutation) => writes.push(mutation));
                 if (diff.addNodes.length > 0) {
@@ -4947,6 +5018,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 data.drawnAfter(ids, reportOfBuild(sealed, drawn.after));
                 repaintDraft();
                 await dispatcher.lane.settled();
+                // Again over the rows After wrote: a row newer than the hold is held until then.
+                holdDraft(committed);
                 land();
                 // Held open until After comes off the graph.
                 await new Promise((_resolve, reject) => {
@@ -4964,11 +5037,18 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             { moves: true, unlisted: true },
         );
         // Aborting it is how it ends; a waiter on the drawing is never left waiting.
-        const ended = held.catch(() => undefined).finally(land);
+        // Let go before the next After holds: that one waits for this to end.
+        const ended = held
+            .catch(() => undefined)
+            .finally(() => {
+                dispatcher.arrangement.engine?.hold?.(null, false);
+                land();
+            });
         afterDrawn = true;
-        drawing = landed;
+        drawTo(landed);
         after = {
             marks,
+            committed,
             abort: () => {
                 abort();
             },
@@ -4979,9 +5059,13 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         if (after === null) {
             return;
         }
-        const { abort, ended } = after;
+        const { abort, committed, ended } = after;
+        draftPass.abort();
+        if (data.draftHolds()) {
+            keepPlaces(committed);
+        }
         after = null;
-        drawing = ended;
+        drawTo(ended);
         afterDrawn = false;
         data.drawnAfter(null);
         abort();
@@ -4996,6 +5080,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             await waited;
         }
     };
+    forgetDraft = forgetPlaces;
     let draftShown = false;
     redrawDraft = (): void => {
         const shown = data.shownDraft();
@@ -5004,14 +5089,28 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         if (after !== null && after.marks !== wanted) {
             stopAfter();
         }
-        if (wanted !== null && after === null) {
+        const drawn = wanted !== null && after === null;
+        if (drawn) {
             drawAfter(wanted);
+        }
+        if (after !== null && !drawn) {
+            holdDraft(after.committed);
         }
         if (!draftShown && shown === null) {
             return;
         }
         draftShown = shown !== null;
-        repaintDraft();
+        draftMoved();
+        if (drawn && after !== null) {
+            // Painted once it lands: a pass over the graph it is still writing meets rows that go.
+            return;
+        }
+        // An After just taken off is still rolling back: painted once its rows are gone.
+        void draftDrawn().then(() => {
+            if (!teardown.signal.aborted) {
+                repaintDraft();
+            }
+        });
     };
     // A pin or a release moves nodes in or out of a `{ match: "state", state: "pinned" }` layer.
     dispatcher.lane.register("pins", (_rendered, _target, dirty) => {
@@ -5958,6 +6057,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     sessionScopes.set(session, scope);
     sessionWorking.set(session, working);
     sessionNotifiers.set(session, notifier);
+    sessionDraftDrawing.set(session, { pending: () => drawingDraft, settled: () => draftDrawn() });
     sessionHostUsers.set(session, hostUsers);
 
     return session;
@@ -6268,6 +6368,33 @@ export function workingGraphOfSession(session: GraphSession): WorkingGraph {
     }
 
     return working;
+}
+
+/** Each session's source draft drawing, for the element's waits for the final picture. */
+const sessionDraftDrawing = new WeakMap<GraphSession, DraftDrawing>();
+
+/** Whether a session's graph is still on its way to what its source draft shows, and how to wait for it. */
+export interface DraftDrawing {
+    /** True while the draft's After is landing or being taken off again. */
+    pending(): boolean;
+    /** Settles once the graph draws what the draft shows now. */
+    settled(): Promise<void>;
+}
+
+/**
+ * A session's source draft drawing: a drawn After is written to the graph beside the queue, so a wait for the
+ * final picture asks this as well, or it could end on the graph halfway between Before and After. Internal.
+ * @param session - a session this module built
+ * @returns its draft drawing
+ * @throws An Error for a session this module did not build.
+ */
+export function draftDrawingOfSession(session: GraphSession): DraftDrawing {
+    const drawing = sessionDraftDrawing.get(session);
+    if (drawing === undefined) {
+        throw new Error("Not a session built by createGraphSession.");
+    }
+
+    return drawing;
 }
 
 /** Each session's scope resolver, for the internal readers that want its bitmaps. */

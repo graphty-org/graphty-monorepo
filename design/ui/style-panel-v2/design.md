@@ -627,6 +627,15 @@ thing's groups when it has more than one, and each opens a new pop-over.
   line at the foot) and **Insert value** (the value list: data columns and algorithm results, put at the end of the
   last line). A value opens its **Format** pop-over (the data entries' own) with its number, percent, money or date
   format and **If missing**: Hide line (the default), Skip (only this value) or Text. Each change is one undo step.
+- **A list in a record (team decision, 2026-11-27, issue 10177).** A list of words reads counted, most common
+  first: "dog 2, cat 1, horse 1", not the raw "dog, dog, cat, horse". Reason: a record is a summary read at a
+  glance inside a small node, and the counts say what the raw list says in fewer words, the same reading a pie of
+  that field draws. The entry's Each value line picks it (Count, the default; Once, each word once; All, every
+  item), writing graphty-element's `each`, which does the counting; a list of numbers keeps every item, or one
+  statistic (Sum, Mean, Min, Max). In the Points layout an entry's pop-over has an X / Y line (its `at`); unset,
+  the value sits a line below the one before. The record row's "..." holds a Text group (Color, Size, Font): the
+  node's label letters, which graphty-element draws a record's words in; Size is the letters' own height, so a
+  table shrunk to fit its node scales with it.
 - **Data entries, one path each (owner, 2026-11-25).** A Pie's, Chart's or Record's entries picker only adds: it
   lists the columns not yet in the list. Which field an entry reads is its own line's Field picker; its minus removes it.
 - **Drop-downs of fewer than six (2026-11-24).** Fewer than six exclusive options are grouped buttons wherever

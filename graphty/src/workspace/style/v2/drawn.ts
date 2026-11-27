@@ -15,6 +15,7 @@ import {
     channelDrawn,
     type LabelFieldCondition,
     labelFieldDrawn,
+    labelFieldOf,
     valueDrawn,
 } from "@graphty/graphty-element/catalog";
 import type { LabelStyle } from "@graphty/graphty-element/schema";
@@ -110,8 +111,19 @@ export function drawnValue(ctx: RowContext, channel: Channel): unknown {
     return (
         ctx.beneath(channel).value ??
         ctx.session.styles.defaultValue(channel, undefined, rowReader(ctx)) ??
-        channelDescriptor(channel)?.default
+        channelDescriptor(channel)?.default ??
+        labelFieldDefault(channel)
     );
+}
+
+/**
+ * A label field channel's default (`node.labelFont`): it carries none of its own, its field in the label style does.
+ * @param channel - the channel.
+ * @returns the field's default, or undefined for a channel that is not a label field.
+ */
+function labelFieldDefault(channel: Channel): unknown {
+    const field = labelFieldOf(channel)?.field;
+    return field === undefined ? undefined : labelFieldDescriptor(field)?.default;
 }
 
 /**

@@ -91,9 +91,19 @@ const BOX_OR_ELLIPSE: ReadonlySet<string> = new Set(["rectangle", "none", "ellip
  * @param texture - The style's texture.
  * @returns The opacity, 1 when the style names none.
  */
-export function styleOpacity(texture: NodeStyleConfig["texture"]): number {
+function styleOpacity(texture: NodeStyleConfig["texture"]): number {
     const color = texture?.color;
     return typeof color === "object" && "opacity" in color ? (color.opacity ?? 1) : 1;
+}
+
+/**
+ * The opacity a style paints a node's body at, as a line's end reads it: `node.opacity`, or 0 for a wireframe body,
+ * which hides nothing between its lines, so a plain line stops at its outline as at a translucent one (issue #10374).
+ * @param style - The resolved style.
+ * @returns The opacity.
+ */
+export function paintedBodyOpacity(style: Pick<NodeStyleConfig, "texture" | "effect"> | null | undefined): number {
+    return style?.effect?.wireframe === true ? 0 : styleOpacity(style?.texture);
 }
 
 /**

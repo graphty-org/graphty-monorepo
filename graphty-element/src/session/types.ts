@@ -7744,6 +7744,24 @@ export interface HoverDrawn {
  * here: a consumer discovers the gap by autocomplete finding nothing rather than by subscribing
  * to something silent.
  */
+/**
+ * How a listener hears a session event; see {@link ElementSession.on}.
+ * @since 3.62.0
+ */
+export interface SessionListenOptions {
+    /**
+     * Hear the event after the next frame has been drawn, rather than as it fires. A listener
+     * that re-reads the picture -- `styles.legend()`, `styles.counts()` -- on `style:batch-changed`
+     * or `project:derived` runs in the same task as the repaint it announces, so its work holds
+     * back the frame that shows that repaint. With this set, the frame is drawn first and the
+     * listener runs right after it. Details are delivered in order, each once; with no frame
+     * coming (a hidden page, a stopped render loop, a session that draws nothing) they are
+     * delivered in the next task.
+     * @defaultValue false
+     */
+    readonly afterFrame?: boolean;
+}
+
 export interface SessionEventMap {
     /** A run reached one of the four watched moments. */
     "run:changed": RunChange;
@@ -9947,9 +9965,15 @@ export interface GraphSession {
      * Watch the session.
      * @param event - Which event.
      * @param handler - Called with the event's detail.
+     * @param options - How the handler hears it: `{ afterFrame: true }` holds each detail until the
+     *     next frame is drawn, so the handler's work never delays the frame showing what it announces.
      * @returns A function that stops the subscription. There is no `off` to learn.
      */
-    on<K extends keyof SessionEventMap>(event: K, handler: (detail: SessionEventMap[K]) => void): () => void;
+    on<K extends keyof SessionEventMap>(
+        event: K,
+        handler: (detail: SessionEventMap[K]) => void,
+        options?: SessionListenOptions,
+    ): () => void;
     /**
      * Release what this session owns: the accelerator it attached, the store it built, and every
      * run still in flight.

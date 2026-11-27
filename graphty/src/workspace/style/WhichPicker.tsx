@@ -3213,7 +3213,9 @@ function CategoryCard({
         const bump = (): void => {
             setVersion((v) => v + 1);
         };
-        const offs = (["run:changed", "project:derived"] as const).map((event) => session.on(event, bump));
+        const offs = (["run:changed", "project:derived"] as const).map((event) =>
+            session.on(event, bump, { afterFrame: true }),
+        );
         return () => {
             offs.forEach((off) => {
                 off();

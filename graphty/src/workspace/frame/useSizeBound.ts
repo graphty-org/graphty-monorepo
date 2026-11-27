@@ -37,7 +37,10 @@ export function useSizeBound(session: GraphSession | null): boolean {
         };
         read();
         // Once per repaint, however many edits it carried; a data edit once the pass has prepared it.
-        const offs = [session.on("style:batch-changed", read), session.on("project:derived", read)];
+        const offs = [
+            session.on("style:batch-changed", read, { afterFrame: true }),
+            session.on("project:derived", read, { afterFrame: true }),
+        ];
         return () => {
             offs.forEach((off) => {
                 off();

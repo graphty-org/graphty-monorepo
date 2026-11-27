@@ -478,6 +478,17 @@ session.on("style:batch-changed", () => drawKey(session.styles.legend()));
 session.on("project:derived", () => drawKey(session.styles.legend())); // data edits, undo, runs
 ```
 
+These events fire in the task that finishes the repaint, before the frame that shows it, so a
+listener's work there holds that frame back. On a large graph, where `styles.legend()` walks every
+node, pass `{ afterFrame: true }` to hear the event once the frame showing the change is drawn:
+
+```typescript
+session.on("style:batch-changed", () => drawKey(session.styles.legend()), { afterFrame: true });
+```
+
+Each detail is still delivered, in order. With no frame coming (a hidden page, a session that draws
+nothing) it arrives in the next task.
+
 ## Event Timing
 
 Some events fire asynchronously. Understand the order:

@@ -336,9 +336,13 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
     const [, setDerived] = useState(0);
     useEffect(
         () =>
-            session.on("project:derived", () => {
-                setDerived((n) => n + 1);
-            }),
+            session.on(
+                "project:derived",
+                () => {
+                    setDerived((n) => n + 1);
+                },
+                { afterFrame: true },
+            ),
         [session],
     );
     const covered = useWorkspaceState((state) => state.selectionWorkspace?.host === "selector");

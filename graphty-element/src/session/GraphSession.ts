@@ -280,6 +280,7 @@ import type {
     SessionHidden,
     SessionHistory,
     SessionLayout,
+    SessionListenOptions,
     SessionPositions,
     SessionRecordSource,
     SessionRunsOptions,
@@ -530,6 +531,8 @@ interface SessionParts {
     readonly dispatcher: Dispatcher;
     /** Saved results waiting for the runs a project open starts; the executor answers from it. */
     readonly canned: CannedOutcomes;
+    /** Settles on the next drawn frame, or at once when none is coming; absent with no renderer. */
+    readonly renderedFrame?: () => Promise<void>;
 }
 
 /**
@@ -663,6 +666,8 @@ class Session implements ElementSession {
     private readonly sessionRuns: SessionRunsApi;
     private readonly planning: PlanningContext;
     private readonly watchers: Watchers;
+    /** See {@link SessionParts.renderedFrame}. */
+    private readonly renderedFrame: () => Promise<void>;
     /** The layout's motion: the renderer's, or the runner's in a session that draws nothing. */
     private motion: LayoutMotion = "settled";
     /** Runs the layout when no renderer has handed the dispatcher its own. */
@@ -709,6 +714,7 @@ class Session implements ElementSession {
      */
     constructor(parts: SessionParts) {
         this.store = parts.store;
+        this.renderedFrame = parts.renderedFrame ?? (() => Promise.resolve());
         this.ownedStore = parts.ownedStore;
         this.unfollowStore = parts.unfollowStore;
         this.sessionData = parts.data;
@@ -1691,9 +1697,18 @@ class Session implements ElementSession {
      * Watch the session.
      * @param event - Which event.
      * @param handler - Called with the event's detail.
+     * @param options - See {@link SessionListenOptions}.
      * @returns A function that stops the subscription.
      */
-    on<K extends keyof SessionEventMap>(event: K, handler: (detail: SessionEventMap[K]) => void): () => void {
+    on<K extends keyof SessionEventMap>(
+        event: K,
+        handler: (detail: SessionEventMap[K]) => void,
+        options?: SessionListenOptions,
+    ): () => void {
+        if (options?.afterFrame === true && !this.disposed) {
+            return this.onAfterFrame(event, handler);
+        }
+
         if (this.disposed) {
             // Nothing fires again; a host that asks too late to hear about the disposal still does.
             // Canceled by the returned function, so an effect cleanup that runs first is not told.
@@ -1724,6 +1739,45 @@ class Session implements ElementSession {
 
         return () => {
             held.delete(handler);
+        };
+    }
+
+    /**
+     * Subscribe a handler that hears each detail once the next frame is drawn, then in a task of
+     * its own: a frame waits for every task in front of it, so a handler run straight after the
+     * draw, still inside it, would hold that frame off the screen as surely as one run before it.
+     * @param event - Which event.
+     * @param handler - Called with each detail, in order.
+     * @returns A function that stops the subscription; a detail still held is dropped.
+     */
+    private onAfterFrame<K extends keyof SessionEventMap>(
+        event: K,
+        handler: (detail: SessionEventMap[K]) => void,
+    ): () => void {
+        let live = true;
+        const held: Array<SessionEventMap[K]> = [];
+        const deliver = (): void => {
+            const due = held.splice(0);
+            if (!live || this.disposed) {
+                return;
+            }
+
+            for (const detail of due) {
+                publish(new Map([[event, new Set([handler])]]), event, detail);
+            }
+        };
+        const stop = this.on(event, (detail) => {
+            held.push(detail);
+            if (held.length === 1) {
+                void this.renderedFrame().then(() => {
+                    setTimeout(deliver, 0);
+                });
+            }
+        });
+
+        return () => {
+            live = false;
+            stop();
         };
     }
 
@@ -6052,6 +6106,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         watchers,
         dispatcher,
         canned,
+        ...(internals.renderedFrame === undefined ? {} : { renderedFrame: internals.renderedFrame }),
     });
     sessionInputs.set(session, inputs);
     sessionScopes.set(session, scope);

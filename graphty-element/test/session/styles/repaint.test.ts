@@ -1248,3 +1248,45 @@ describe("what a layer was applied to, across a dataset boundary", () => {
         assert.strictEqual(paintedNodes(harness), 0, "nothing in the new dataset was painted by this layer");
     });
 });
+
+describe("an edit that moves no element to another mesh (issue #10302)", () => {
+    /**
+     * Paint the nodes in two shapes and a color, then edit one layer and count the interner's comparisons.
+     * @param set - What the color layer is changed to.
+     * @returns The comparisons the edit cost, and each node's mesh key before and after it.
+     */
+    async function edit(set: LayerSpec["set"]): Promise<{ compared: number; before: number[]; after: number[] }> {
+        const h = makeHarness(NODES);
+        await h.styles.add({
+            name: "Hosts",
+            selector: { match: "expression", where: 'data.kind == `"host"`' },
+            set: { "node.shape": "box" },
+        });
+        const layer = await h.styles.add({
+            name: "Paint",
+            selector: { match: "everything" },
+            set: { "node.color": "#ff0000" },
+        });
+        await h.paintAll();
+        const keys = (): number[] => NODES.map((_, index) => h.engine.meshKeyOf("node", index));
+        const before = keys();
+        const counted = internCounters.comparisons;
+        await h.styles.update(layer.id, { set });
+
+        return { compared: internCounters.comparisons - counted, before, after: keys() };
+    }
+
+    it("re-keys no node for a color change", async () => {
+        const { compared, before, after } = await edit({ "node.color": "#00ff00" });
+
+        assert.strictEqual(compared, 0);
+        assert.deepStrictEqual(after, before);
+    });
+
+    it("still re-keys every node a size change moves", async () => {
+        const { compared, before, after } = await edit({ "node.color": "#00ff00", "node.size": 3 });
+
+        assert.isAtLeast(compared, 1);
+        assert.isTrue(after.every((key, index) => key !== before[index]));
+    });
+});

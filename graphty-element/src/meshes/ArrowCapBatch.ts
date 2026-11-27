@@ -10,7 +10,6 @@ import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import type { Scene } from "@babylonjs/core/scene.js";
 
 import { DirtyRuns, sendThinInstanceMatrices } from "./DirtyRuns";
-import { FLAT_CAP_LIFT } from "./flatHalo";
 import { batchUploadFrames, type RangedUploads } from "./FrameRoster";
 import { ParkedSlots } from "./ParkedSlots";
 import { takePoolReserve } from "./poolReserve";
@@ -87,7 +86,6 @@ const EVERY_BUFFER = ["matrix", ...(Object.keys(BILLBOARD_BUFFERS) as BillboardB
 const scratchScaling = new Vector3(1, 1, 1);
 const scratchMatrix = new Matrix();
 const scratchRotation = new Quaternion();
-const scratchLifted = new Vector3();
 
 /** No turn at all, for the caps whose shape reads the same from every side. */
 const NO_ROTATION = Quaternion.Identity();
@@ -302,8 +300,10 @@ export class ArrowCapBatch {
      * @param billboard - Whether the caps read direction, size and color per instance.
      * @param host - The row table and layout a billboarded batch on renderPath "batched" pulls caps from
      *     ({@link ArrowCapBatch.setPulled}); null for none.
+     * @param lift - How far toward the camera every cap in the batch is drawn, in scene units, past
+     *     where its slot places it: a 2D arrowhead's `FLAT_CAP_LIFT`, 0 for everything else.
      */
-    constructor(mesh: Mesh, key: string, scene: Scene, billboard: boolean, host: RestSource | null = null) {
+    constructor(mesh: Mesh, key: string, scene: Scene, billboard: boolean, host: RestSource | null = null, lift = 0) {
         this.mesh = mesh;
         this.key = key;
         this.shape = mesh.name;
@@ -342,6 +342,10 @@ export class ArrowCapBatch {
         // origin already and this is a no-op. The graph's own transform still reaches the caps:
         // it comes from the `graph-root` parent set below, not from the carrier's local matrix.
         mesh.position.setAll(0);
+        // The one exception is a lift toward the camera (issue #10126): a 2D arrowhead is drawn in
+        // front of a selected node's halo, while a slot's position stays the cap's place in the
+        // plane, and a pattern element of the same kind of batch stays under the halo with its line.
+        mesh.position.z = -lift;
         mesh.rotation.setAll(0);
         mesh.rotationQuaternion = null;
         mesh.scaling.setAll(1);
@@ -1481,9 +1485,7 @@ export class ArrowCap {
         Quaternion.RotationAxisToRef(Vector3.Forward(), angle, scratchRotation);
         // "Turn into the plane first, then along the line" composes as alongLine * intoPlane.
         scratchRotation.multiplyInPlace(INTO_XY_PLANE);
-        // in front of a selected node's halo, which lies in front of the edges (FLAT_CAP_LIFT)
-        scratchLifted.copyFromFloats(position.x, position.y, position.z - FLAT_CAP_LIFT);
-        this.batch?.placeOriented(this.slot, scratchLifted, scratchRotation, this.size * this.scale);
+        this.batch?.placeOriented(this.slot, position, scratchRotation, this.size * this.scale);
     }
 
     /**
@@ -1600,6 +1602,7 @@ export function arrowCapBuffers(scene: Scene): { bytes: number; caps: number } {
  * @param build - Builds the batch's mesh, with its material, for a key the scene has not drawn.
  * @param billboard - Whether these caps read direction, size and color per instance.
  * @param host - The row table a batch on renderPath "batched" pulls caps from; null for none.
+ * @param lift - How far toward the camera its caps are drawn ({@link ArrowCapBatch}'s `lift`).
  * @returns The batch to take a slot in.
  */
 export function arrowCapBatch(
@@ -1608,6 +1611,7 @@ export function arrowCapBatch(
     build: () => Mesh,
     billboard: boolean,
     host: RestSource | null = null,
+    lift = 0,
 ): ArrowCapBatch {
     let byKey = batchesByScene.get(scene);
 
@@ -1622,7 +1626,7 @@ export function arrowCapBatch(
         return existing;
     }
 
-    const batch = new ArrowCapBatch(build(), key, scene, billboard, host);
+    const batch = new ArrowCapBatch(build(), key, scene, billboard, host, lift);
     byKey.set(key, batch);
 
     return batch;

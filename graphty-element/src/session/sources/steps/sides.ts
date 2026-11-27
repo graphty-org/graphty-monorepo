@@ -21,7 +21,7 @@ import {
 } from "./build";
 import { matchCounts, upTo } from "./match";
 import { type ColumnProfile, columnsOf, numberedKey, profileOf } from "./profile";
-import { buildOf, type Copies, copyMap, rowSources, type SourceSteps } from "./project";
+import { buildOf, type Copies, copyMap, rowSources, sameAsBefore, type SourceSteps } from "./project";
 import type { BuildResult, BuiltNode, Row, TableName, Value } from "./types";
 
 /** One side of a join: a source, or every node of an id space. */
@@ -169,7 +169,7 @@ export function baseOf(value: SourceSteps, before: number | undefined): SourceSt
     let out = held.get(before);
     if (out === undefined) {
         const without = withoutStepAndAdds(upTo(value, before + 1), before);
-        out = without.steps.length === before ? upTo(value, before) : without;
+        out = without.steps.length === before ? upTo(value, before) : sameAsBefore(without);
         held.set(before, out);
     }
     return out;

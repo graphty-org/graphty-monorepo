@@ -594,9 +594,9 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
             { channel: "node.glyphSize", name: "Size" },
             { channel: "node.glyphColor", name: "Color" },
         ],
-        // Bold as a text editor's toggle (owner, 2026-11-23), as a text label's; the font is rarer, in Advanced, so
-        // the pop-over stays 6 lines tall.
-        main: [{ channel: "node.glyphWeight", name: "Style", rule: "R7t" }],
+        // The font and one Weight line (Regular, Bold or any weight) in Letters, so the pop-over stays 6 lines tall
+        // under its tabs: a Bold toggle as well would be a second path to the weight (owner, 2026-11-27, #10380).
+        main: [],
         groups: [
             {
                 name: "Letters",

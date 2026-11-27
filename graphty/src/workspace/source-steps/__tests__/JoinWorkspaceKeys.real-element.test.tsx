@@ -239,21 +239,24 @@ describe("the join workspace's keys (source-steps)", () => {
 
     it("Done selects a join begun and not finished, and says so; finished, it commits", async () => {
         const { session, modal } = await opened(["doors.csv", DOORS], ["entries.csv", ENTRIES]);
+        // Both matches whole join at once by their edge type; a second card with one source picked is begun.
         await matchBoth(modal);
+        await within(modal).findByRole("radio", { name: EDGE, checked: true });
         await userEvent.click(within(modal).getByRole("button", { name: "Join" }));
+        await choose(modal, "Source 1", "people");
         await userEvent.click(within(modal).getByRole("button", { name: "Done" }));
         assert.strictEqual((await within(modal).findByRole("alert")).textContent, "Unfinished");
         assert.strictEqual(
-            within(modal).getByRole<HTMLInputElement>("combobox", { name: "Match 2 field 1" }).value,
-            "door",
-            "the card it is drawn on",
+            within(modal).getByRole<HTMLInputElement>("combobox", { name: "Source 1" }).value,
+            "people",
+            "the card it is drawn on is open",
         );
-        await joinAs(modal, EDGE);
+        await removeOpen(modal);
         await waitFor(() => {
             assert.isNull(within(modal).queryByRole("alert"));
         });
         await done(modal);
-        assert.isAbove(session.data.edges().length, 0, "the blank card is no join begun");
+        assert.isAbove(session.data.edges().length, 0, "the joined card is committed");
     });
 
     it("both pickers list every source, waiting and in the graph, and only the second New nodes", async () => {

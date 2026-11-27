@@ -24,16 +24,19 @@
 }
 
 /* The join workspace (issue #9796): the selection workspace's frame, sized for iPad and phones. Its key
-   sits in the header after the title, and the header scrolls sideways before it pushes Cancel and Done off. */
+   sits in the header after the title and gives way before Cancel and Done do. */
 .jw-modal .sel-ws-head {
     overflow-x: auto;
 }
 
 .jw-key {
     display: flex;
+    flex: 0 1 auto;
     flex-wrap: nowrap;
     gap: 12px;
     align-items: center;
+    min-width: 0;
+    overflow: hidden;
     white-space: nowrap;
 }
 

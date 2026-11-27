@@ -160,22 +160,38 @@ const Z_INDEX_STEP = 0.05;
  * @returns The node, or null when none is in front of the camera.
  */
 function nearestDrawing(ring: Mesh, view: Matrix, ahead: number, at: Vector3): TransformNode | null {
-    const middle = new Vector3();
     let nearest: TransformNode | null = null;
     let distance = Infinity;
+    forEachDrawn(ring, view, (_instance, node, middle) => {
+        if (middle.z * ahead > 0 && middle.z * ahead < distance) {
+            [nearest, distance] = [node, middle.z * ahead];
+            at.copyFrom(middle);
+        }
+    });
+
+    return nearest;
+}
+
+/**
+ * Visit every enabled instance of a ring that has a node, with that node's middle in the camera's view.
+ * @param ring - The ring's source mesh.
+ * @param view - The camera's view matrix.
+ * @param visit - Called with the instance, its node and the node's middle (reused between calls).
+ */
+function forEachDrawn(
+    ring: Mesh,
+    view: Matrix,
+    visit: (instance: InstancedMesh, node: TransformNode, middle: Vector3) => void,
+): void {
+    const middle = new Vector3();
     for (const instance of ring.instances) {
         const node = instance.parent as TransformNode | null;
         if (node === null || !instance.isEnabled()) {
             continue;
         }
         Vector3.TransformCoordinatesToRef(node.getAbsolutePosition(), view, middle);
-        if (middle.z * ahead > 0 && middle.z * ahead < distance) {
-            [nearest, distance] = [node, middle.z * ahead];
-            at.copyFrom(middle);
-        }
+        visit(instance, node, middle);
     }
-
-    return nearest;
 }
 
 /**
@@ -221,25 +237,19 @@ function faceEachNode(
 ): void {
     const { radius, back } = size;
     const forward = new Vector3(0, 0, ahead);
-    const middle = new Vector3();
     const unit = seenGrowth(nearest.length(), radius * nearestScale, back * nearestScale);
     Quaternion.FromUnitVectorsToRef(forward, nearest.normalizeToNew(), turned);
-    for (const instance of ring.instances) {
-        const node = instance.parent as TransformNode | null;
-        if (node === null || !instance.isEnabled()) {
-            continue;
-        }
-        Vector3.TransformCoordinatesToRef(node.getAbsolutePosition(), view, middle);
+    forEachDrawn(ring, view, (instance, node, middle) => {
         const distance = middle.length();
         if (middle.z * ahead <= 0) {
-            continue;
+            return;
         }
         // applied before the billboard's turn to the camera, so a turn in the camera's view
         instance.rotationQuaternion ??= new Quaternion();
         Quaternion.FromUnitVectorsToRef(forward, middle.scaleInPlace(1 / distance), instance.rotationQuaternion);
         const scale = node.absoluteScaling.x;
         instance.scaling.setAll(seenGrowth(distance, radius * scale, back * scale) / unit);
-    }
+    });
 }
 
 /**

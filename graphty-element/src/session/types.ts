@@ -6989,10 +6989,13 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
      *     draft adds keeps its place through `show` and later acts, and the commit draws it from
      *     there. The hold ends with After; the reader's own layout scope is untouched. Default false:
      *     the layout runs over the whole of After, as over any graph.
+     * @param options.keepCamera - True leaves the camera where it is while the draft is drawn, so what
+     *     the draft adds appears in the view the reader already has. Default false: the element frames
+     *     the graph again when After adds nodes, as it does for any add.
      * @returns Settles once the graph draws it.
      * @throws A `GraphtyError` with `E_BAD_COMMAND` (reason `draft-closed`) once the draft is closed.
      */
-    display(on: boolean, options?: { readonly hold?: boolean }): Promise<void>;
+    display(on: boolean, options?: { readonly hold?: boolean; readonly keepCamera?: boolean }): Promise<void>;
     /**
      * Choose which side of the commit a displayed draft draws. `"before"` draws the graph as it is,
      * where `graphty.draft` reads `"removed"` on what the commit would remove. `"after"` draws the

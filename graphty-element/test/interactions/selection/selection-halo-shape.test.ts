@@ -12,7 +12,7 @@
 
 import "../../../src/graphty-element";
 
-import { type AbstractMesh, Vector3, VertexBuffer } from "@babylonjs/core";
+import { type AbstractMesh, Matrix, Vector3, VertexBuffer } from "@babylonjs/core";
 import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../../index.js";
@@ -135,6 +135,28 @@ function worldVertices(mesh: AbstractMesh): Vector3[] {
 }
 
 /**
+ * How far a mesh reaches across the screen: half its drawn width and height, in pixels. In 3D the
+ * ring is drawn behind the node and sized for the camera (issue #10373), so only its size on
+ * screen, not in the world, compares with the node's.
+ * @param element - The element.
+ * @param mesh - The mesh.
+ * @returns Half its width and height on screen.
+ */
+function screenExtent(element: Graphty, mesh: AbstractMesh): { x: number; y: number } {
+    const scene = element.graph.getScene();
+    const camera = scene.activeCamera;
+    assert.isNotNull(camera, "a camera draws the scene");
+    const engine = scene.getEngine();
+    const viewport = camera.viewport.toGlobal(engine.getRenderWidth(), engine.getRenderHeight());
+    const points = worldVertices(mesh).map((point) =>
+        Vector3.Project(point, Matrix.IdentityReadOnly, scene.getTransformMatrix(), viewport),
+    );
+    const xs = points.map((point) => point.x);
+    const ys = points.map((point) => point.y);
+    return { x: (Math.max(...xs) - Math.min(...xs)) / 2, y: (Math.max(...ys) - Math.min(...ys)) / 2 };
+}
+
+/**
  * How far a set of points reaches from a center along a direction: its support function.
  * @param points - The points.
  * @param center - Where to measure from.
@@ -208,11 +230,12 @@ describe.each(["2d", "3d"] as const)("the selection highlight in %s", (viewMode)
         assertHaloSurrounds(element, "ball");
         const node = element.graph.getNode("ball");
         assert.isDefined(node);
-        const nodeExtent = node.mesh.getBoundingInfo().boundingBox.extendSizeWorld;
-        const haloExtent = drawnHalo(element).getBoundingInfo().boundingBox.extendSizeWorld;
-        // the ring's outer edge is a polygon around the circle, so its corners reach a little past it
+        const nodeExtent = screenExtent(element, node.mesh);
+        const haloExtent = screenExtent(element, drawnHalo(element));
+        // the ring's outer edge is a polygon around the circle, so its corners reach a little past it; in 3D the
+        // ring lies behind the sphere, whose outline on screen perspective draws a little wider than its middle
         for (const axis of ["x", "y"] as const) {
-            assert.closeTo(haloExtent[axis] / nodeExtent[axis], DEFAULT_SCALE, 0.01, `round on ${axis}`);
+            assert.closeTo(haloExtent[axis] / nodeExtent[axis], DEFAULT_SCALE, 0.02, `round on ${axis}`);
         }
     });
 });

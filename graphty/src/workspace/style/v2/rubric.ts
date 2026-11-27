@@ -602,7 +602,24 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
                 name: "Letters",
                 lines: [
                     { channel: "node.glyphFont", name: "Font", rule: "R13" },
-                    { channel: "node.glyphWeight", name: "Weight" },
+                    // A drop-down of named weights or a typed number, as a label's Weight (R5b): graphty-element
+                    // names no values for this number channel, so the panel names the CSS weights.
+                    {
+                        channel: "node.glyphWeight",
+                        name: "Weight",
+                        rule: "R5b",
+                        presets: [
+                            { id: "100", plainName: "Thin" },
+                            { id: "200", plainName: "Extra light" },
+                            { id: "300", plainName: "Light" },
+                            { id: "400", plainName: "Regular" },
+                            { id: "500", plainName: "Medium" },
+                            { id: "600", plainName: "Semi bold" },
+                            { id: "700", plainName: "Bold" },
+                            { id: "800", plainName: "Extra bold" },
+                            { id: "900", plainName: "Black" },
+                        ],
+                    },
                 ],
             },
         ],

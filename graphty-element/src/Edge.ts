@@ -1610,7 +1610,7 @@ export class Edge {
 
         const ownColor = this.lineSlots.length > 0 && batch.colorOf(this.lineSlots[0]) !== null;
         const whole = this.curveRunPoints();
-        const center = whole === null ? this.curveMiddle(batch) : Edge.runMiddle(whole);
+        const center = this.curveMiddle(batch);
         return {
             // A batch keyed by shape draws every color, so the look it draws this edge in is named
             // with the color and opacity the edge wrote into its slots.
@@ -1675,6 +1675,12 @@ export class Edge {
     }
 
     private curveMiddle(batch: EdgeLineBatch): Vector3 {
+        // a curve drawn from one slot keeps its points in its span, not in its slots
+        const whole = this.curveRunPoints();
+        if (whole !== null) {
+            return Edge.runMiddle(whole);
+        }
+
         const n = this.lineSlots.length;
 
         return n % 2 === 1 ? batch.centreOf(this.lineSlots[(n - 1) / 2]) : batch.endsOf(this.lineSlots[n / 2])[0];

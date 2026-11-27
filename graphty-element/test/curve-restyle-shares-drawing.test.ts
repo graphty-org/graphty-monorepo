@@ -4,7 +4,7 @@
  * batch a straight line of its look takes: a lone curve with no cap from ONE slot, which the vertex shader draws
  * piece by piece (`Edge.placeCurveRun`, `EdgeLineBatch.placeCurve`); a capped curve as a run of a slot a piece.
  */
-import { NullEngine, Scene } from "@babylonjs/core";
+import { NullEngine, Scene, type Vector3 } from "@babylonjs/core";
 import { cloneDeep } from "lodash";
 import { afterEach, assert, describe, it } from "vitest";
 
@@ -122,6 +122,22 @@ describe("a curve restyle on the objects path (#10046)", () => {
             if (arrowHead === "none") {
                 // a lone curve costs one slot, not one a piece
                 assert.deepEqual(new Set(runs), new Set([1]), "slots per curve");
+                // and its middle (where a label sits) is on the drawn curve, not on the chord between its nodes
+                for (const edge of edges) {
+                    const curve = edge.drawnCurve ?? [];
+                    const chord = curve[0].add(curve[curve.length - 1]).scale(0.5);
+                    const middle = (edge as unknown as { routeMiddle(): Vector3 | null }).routeMiddle();
+                    assert.isAbove(
+                        middle?.subtract(chord).length() ?? 0,
+                        0.1,
+                        `${edge.id}: the label's place is off the chord`,
+                    );
+                    assert.isAbove(
+                        edge.drawnCenter.subtract(chord).length(),
+                        0.1,
+                        `${edge.id}: the center is off the chord`,
+                    );
+                }
             } else {
                 // a capped curve is still a run of a slot a piece
                 assert.isTrue(

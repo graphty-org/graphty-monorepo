@@ -4,34 +4,53 @@ category: analysis
 description: Calculate the clustering coefficient - the tendency of a node's neighbors to be connected to each other.
     High clustering indicates tightly-knit neighborhoods, common in social networks where friends of friends tend to be
     friends.
-status: implemented
-notes: "Ships: graphty-element/src/algorithms/ClusteringCoefficientAlgorithm.ts."
+status: in-progress
+notes: "Partly ships: graphty-element/src/algorithms/ClusteringCoefficientAlgorithm.ts gives per-node coefficients and triangle counts, the graph's transitivity and triangle count, and the mean as average clustering. It reads the graph as simple and undirected and reads no weights. Planned: the weighted (geometric mean) definition and its toggle, the Fagiolo directed definition, the option to exclude zero-clustering nodes from the average, and comparison with degree-preserving randomizations. Any requirement below that this note does not name as shipping counts as planned."
 algorithms:
-    - Local clustering coefficient
-    - Transitivity calculation
-    - Triangle counting
+    - Local clustering coefficient (shipped)
+    - Transitivity calculation (shipped)
+    - Triangle counting (shipped)
 used_by_workflows:
-    - W12
     - W16
     - W23
+    - W153
+    - W172
+    - W177
+    - W181
+    - W207
+    - W235
+    - W265
+    - W28
+    - W307
+    - W37
+    - W75
+    - W1138
+    - W2098
 implemented_by_components:
     - statistics-panel
 requirements:
-    - Calculate local clustering coefficient for each node as triangles / possible_triangles
-    - Assign clustering coefficient of 0.0 to nodes with degree < 2 (undefined case)
-    - Calculate global average clustering coefficient as mean of all local coefficients
-    - Calculate transitivity as 3 * triangle_count / connected_triple_count
-    - Store local coefficient with 4 decimal places precision
-    - Display global average and transitivity with 4 decimal places
-    - Support weighted clustering using geometric mean of edge weights
-    - Provide toggle between unweighted and weighted calculation
-    - Complete calculation within 5 seconds for graphs under 50,000 nodes
-    - Display progress indicator for calculations exceeding 2 seconds
-    - Store local result as node attribute named 'clustering_coefficient'
-    - Identify nodes with coefficient = 0 (open neighborhoods) vs = 1 (cliques)
-    - Report count of triangles in the graph
-    - Handle directed graphs using directed triangle definition
+    - "Library parity: Calculate local clustering coefficient for each node as triangles / possible_triangles"
+    - "Library parity: Assign clustering coefficient of 0.0 to nodes with degree < 2 (undefined case), as NetworkX does, and record this convention in the result"
+    - "Library parity: Report global transitivity and average local clustering as two separately named values; the two are often confused and differ"
+    - "Library parity: Calculate average local clustering as the mean of local coefficients, with an option to exclude zero-clustering nodes (NetworkX count_zeros, default include), and record the choice"
+    - "Library parity: Calculate transitivity as 3 * triangle_count / connected_triple_count"
+    - "Must: Support weighted clustering using the geometric mean of edge weights normalized by the maximum weight (the NetworkX definition), reading the weight as a strength as declared in weight-semantics"
+    - "Library parity: Provide toggle between unweighted and weighted calculation, recorded in the result"
+    - "Library parity: Store local result as node attribute named 'clustering_coefficient'"
+    - "Library parity: Identify nodes with coefficient = 0 (open neighborhoods) vs = 1 (cliques)"
+    - "Library parity: Report count of triangles in the graph"
+    - "Library parity: Handle directed graphs using the Fagiolo directed-triangle definition"
+    - "Library parity: When clustering is cited as high or low, allow comparison with the same statistic on degree-preserving randomizations (null-model-ensembles), since a raw value has no reference point"
 sources:
-    - title: Graph Analysis Textbook - Chapter 3
-      url: https://graphty.app/docs/
-      summary: Clustering coefficient measures local density and triadic closure
+    - title: Watts and Strogatz 1998, Collective dynamics of small-world networks
+      url: https://doi.org/10.1038/30918
+      summary: Defines the local clustering coefficient and its average
+    - title: NetworkX clustering
+      url: https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.cluster.clustering.html
+      summary: Weighted form is the geometric mean of max-normalized weights; directed form follows Fagiolo; degree < 2 gives 0
+    - title: NetworkX average_clustering
+      url: https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.cluster.average_clustering.html
+      summary: count_zeros (default True) decides whether zero-clustering nodes enter the average
+    - title: Fagiolo 2007, Clustering in complex directed networks
+      url: https://doi.org/10.1103/PhysRevE.76.026107
+      summary: Directed clustering coefficient definitions

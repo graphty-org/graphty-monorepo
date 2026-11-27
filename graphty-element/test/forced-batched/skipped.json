@@ -1,7 +1,16 @@
 [
+    {
+        "file": "test/interactions/hover-leaves-graph-root-alone.test.ts",
+        "reason": "Counts the objects path's world-matrix recomputes, set by hand"
+    },
     { "file": "test/interactions/pick-parity.test.ts", "reason": "Sets each case's render path by hand" },
     { "file": "test/browser/drawn-invariants.test.ts", "reason": "Sets each case's render path by hand" },
     { "file": "test/browser/edges-follow-running-layout.test.ts", "reason": "Sets each case's render path by hand" },
+    {
+        "file": "test/browser/edges-follow-through-a-transition.test.ts",
+        "reason": "Sets each case's render path by hand"
+    },
+    { "file": "test/browser/edges-follow-steps-mid-layout.test.ts", "reason": "Sets each case's render path by hand" },
     {
         "file": "test/browser/edge-arrowhead-position.test.ts",
         "reason": "Reads each edge's placed ArrowCap object, which a batched head pulled from the row table no longer has"
@@ -40,5 +49,9 @@
     {
         "file": "test/interactions/batched-reads-build-no-objects.test.ts",
         "reason": "Sets each case's render path by hand"
+    },
+    {
+        "file": "test/browser/node-label-table-unfitted.test.ts",
+        "reason": "Its one node has a table label, which no batch draws (shape.labelTable is not a batchable key), so it is an object on either path"
     }
 ]

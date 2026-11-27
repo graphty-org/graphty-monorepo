@@ -1,0 +1,19 @@
+id: role-directed-projection
+name: "Role-directed projection from records"
+category: analysis
+description: "Project a two-mode record table (investor-round, firm-deal) into a directed one-mode network where each record group's lead is chosen by a rule on a column (largest amount in the round, tie broken by cumulative amount to date) and edges run from the lead to every other member, with no edge between two non-leads; reciprocal ties are kept and marked. Rebuildable per trailing time window, with the rule stated on the result."
+status: planned
+notes: "Research trace: supply-chain-and-physical-infrastructure-networks.md section 10, requirement R50 (Should)."
+algorithms: []
+used_by_workflows:
+    - W228
+implemented_by_components: []
+requirements:
+    - "Should: Directed projection from records with a role rule (lead = largest amount in the round, tie broken by
+      cumulative amount), rebuilt for every trailing window with metrics normalized per window and kept as one row per
+      node per window"
+sources:
+    - title: Supply Chain Risk Analysts and Physical Infrastructure Network Engineers (section 10, requirement R50)
+      url: design/user-research/supply-chain-and-physical-infrastructure-networks.md
+      summary: "Should in the research. Covered by Designloom when researched: Partly (per-window-metrics,
+          event-window-aggregation, bipartite-projection planned or undirected)"

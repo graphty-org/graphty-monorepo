@@ -1,0 +1,161 @@
+id: W211
+name: Audience and Influencer Map for a Marketing Brief
+category: analysis
+validated: false
+personas:
+    - marketing-analyst
+requires_capabilities:
+    - data-import
+    - data-preview
+    - community-detection
+    - community-profiling
+    - centrality-degree
+    - centrality-betweenness
+    - visual-encoding-nodes
+    - legend-display
+    - filtering
+    - hover-highlight
+    - details-on-demand
+    - ego-network
+    - statistics-panel
+    - style-presets
+    - export-image
+    - data-export
+    - provenance-tracking
+    - audience-overlap-matrix
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - data-preview-table
+    - graph-canvas
+    - community-panel
+    - cluster-table
+    - visual-encoding-panel
+    - legend-panel
+    - filter-panel
+    - node-tooltip
+    - node-details-panel
+    - ranked-node-table
+    - ego-network-dialog
+    - image-export-dialog
+    - data-export-dialog
+    - share-dialog
+starting_state:
+    data_type: vendor export of an engagement network (authors linked by comments, replies and reposts) or an audience segment table; creator metrics spreadsheet
+    node_count: 200-5000
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: For a brand, category or competitor conversation, show the client who drives engagement, which
+    communities exist and how they connect, then shortlist creators who reach the right communities without paying
+    twice for the same audience. This is what agency insight analysts do inside listening platforms; a standalone
+    graph tool enters when the vendor view is not enough for the deck.
+
+
+    **Mental Model**: "Who is in the room, and who carries the message between rooms?" Big nodes are accounts that
+    generate engagement; clusters are audiences; nodes between clusters are bridges. A large following is not the same
+    as influence on sales.
+
+
+    **Task Phases**:
+
+    1. **Define the conversation or audience** - A listening query (brand, category, competitor) or an
+    audience (followers of an account, people with a bio keyword)
+
+    2. **Open the network** - Authors sized by engagement generated, edges from comments, replies and reposts,
+    clusters colored automatically; filter live by date, theme or platform; 2D or 3D for overlapping communities
+
+    3. **Segment the audience** - Interconnectivity (Louvain over follows inside the audience) for niche,
+    local or professional communities, or affinity (shared accounts followed) for interests
+
+    4. **Read the map** - Identify cluster centers and bridges; click nodes to read their posts; note dense
+    interaction patterns that may signal coordination or paid amplification
+
+    5. **Shortlist creators** (in a creator platform) - Screen by engagement rate, fake-follower score, audience
+    demographics, fit and rates, then human review
+
+    6. **Check overlap** - Pairwise overlap count and percentage for up to 15 creators; low overlap for reach,
+    high overlap for repeated exposure; overlap is not delivered reach
+
+    7. **Hand off** - PNG, SVG or XLS export; a bespoke figure from a Gephi export; a ranked creator list with
+    tiers for the campaign team
+
+
+    **Decision Points**:
+
+    - Engagement network of a conversation, or follow-based audience segments?
+
+    - Interconnectivity or affinity segmentation?
+
+    - Which central accounts are real creators and which are news outlets, brands or suspicious amplifiers?
+
+    - How much audience overlap is acceptable for this campaign's goal (reach vs frequency)?
+
+
+    **Information Needs**:
+
+    - Per-community size, top accounts by engagement, top themes or posts
+
+    - Bridge accounts between named communities
+
+    - Posts behind a node, one click away
+
+    - Creator metrics joined to nodes (engagement rate, fake-follower score, rates)
+
+    - Pairwise audience overlap between shortlisted creators
+
+
+    **Pain Points**:
+
+    - Vendor algorithms for clusters, influence and overlap are undocumented
+
+    - Fake followers inflate creator metrics
+
+    - Overlap tools cover one platform and 15 creators
+
+    - Network views are locked in each vendor with limited export, so combining sources means spreadsheets
+
+    - Network terms are hard to explain to clients
+
+
+    **Data Flow**:
+
+    - Input: Vendor export (Gephi file, CSV, XLS) of the engagement network, audience segment table, creator metrics
+    spreadsheet
+
+    - Transformations: Community detection or vendor segments, engagement-based sizing, attribute join of creator
+    metrics, bridge identification
+
+    - Output: Client-ready network image with legend and community names, ranked creator list with tiers, overlap table
+success_criteria:
+    - metric: Client readability
+      target: Exported image names each community and explains node size in the legend
+    - metric: Creator context
+      target: Each shortlisted creator shows community membership, engagement and fake-follower screening in one place
+    - metric: Vendor portability
+      target: A vendor export opens with clusters and sizes intact without spreadsheet rework
+sources:
+    - title: Pulsar TRAC - influencer network analysis
+      url: https://intercom.help/pulsar/en/articles/7210694-trac-influencer-network-analysis
+      summary: Engagement-sized authors, comment, reply and repost edges, automatic clusters
+    - title: Pulsar - 3D influencer network
+      url: https://intercom.help/pulsar/en/articles/13701245-introducing-the-3d-influencer-network-your-audiences-are-3d-your-network-visualisation-should-be-too
+      summary: 3D view for overlapping communities; dense interaction may signal coordination or amplification
+    - title: Pulsar - community segmentation, affinity vs interconnectivity
+      url: https://intercom.help/pulsar/en/articles/11056036-new-community-segmentation-options-in-trac-affinity-vs-interconnectivity
+      summary: Louvain over follows inside an audience versus clustering by shared follows
+    - title: HypeAuditor help - audience overlap
+      url: https://help.hypeauditor.com/en/articles/6281325-audience-overlap
+      summary: Up to 15 creators, overlap count, percentage and pairwise matrix
+    - title: IQFluence - influencer audience overlap FAQ
+      url: https://iqfluence.io/public/faqs/influencer-audience-overlap
+      summary: Low overlap for reach, high for repeated exposure; overlap is not delivered reach
+    - title: Digiday - how influencer agencies vet fake influencers and followers
+      url: https://digiday.com/media-buying/how-influencer-agencies-vet-and-navigate-past-fake-influencers-and-followers
+      summary: Screening by fake-follower scores and human review
+    - title: Britopian - influencer mapping
+      url: https://www.britopian.com/influencer-marketing/influencer-mapping-what-is-it-and-doesnt-even-matter/
+      summary: Practitioner view of influencer mapping in marketing
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

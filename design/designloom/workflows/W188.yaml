@@ -1,0 +1,187 @@
+id: W188
+name: Building a Network from Passive Collaboration Metadata
+category: analysis
+validated: false
+personas:
+    - workplace-collaboration-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - filtering
+    - computed-attributes
+    - community-detection
+    - centrality-betweenness
+    - centrality-degree
+    - large-graph-rendering
+    - progressive-loading
+    - layout-force-directed
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - statistics-panel
+    - basic-statistics
+    - temporal-analysis
+    - analysis-history
+    - export-image
+    - data-export
+    - report-generation
+    - bipartite-projection
+    - multiplex-relations
+    - group-collapse
+    - privacy-aggregation
+    - reproducible-edge-rules
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - attribute-table-join-dialog
+    - data-preview-table
+    - data-table-panel
+    - filter-panel
+    - computed-attributes-panel
+    - algorithm-panel
+    - community-panel
+    - cluster-collapse-control
+    - progressive-loader
+    - visual-encoding-panel
+    - legend-panel
+    - graph-canvas
+    - statistics-panel
+    - analysis-history-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: pseudonymized collaborator pair rows (CSV) with tie scores, metric date and HR attributes, or person-by-meeting and person-by-chat records
+    node_count: 10000-100000
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Turn email, calendar and chat metadata into a person-to-person collaboration network with a documented,
+    repeatable edge rule, analyze it in aggregate, and deliver workgroup-level views to leaders without exposing
+    individuals.
+
+
+    **Mental Model**: "The edge rule is the measurement instrument." Which interactions count, over what window and how
+    group events are split into pairs decides the network; if the rule changes between months, the comparison is noise.
+
+
+    **Task Phases**:
+
+    1. **Get the data turned on** - A Viva Insights admin enables behavioral insights and Advanced Analysis;
+    processing takes five days before network queries run
+
+    2. **Connect and pseudonymize** - Ingest through a pseudonymizing proxy that allowlists metadata fields and
+    replaces emails with tokens; apply the same algorithm to the HRIS export so they join; set partitions, suppression
+    and opt-outs
+
+    3. **Define the interaction** - Reciprocity required; participant caps (chats with 8 or fewer, emails with 18
+    or fewer); minimum counts (for example at least 4 emails a month with one each way); filter automated traffic;
+    separate internal and external; choose the window (30 days, 90 days, 12 months)
+
+    4. **Project group interactions** - Turn person-by-meeting, person-by-chat and multi-recipient email records
+    into pairs; cap group size and weight each interaction by 1 over its recipients; optionally keep 1:1 and group
+    channels as separate layers
+
+    5. **Run the query** - Person-to-person pair rows with strong and diverse tie scores and HR attributes;
+    optional weekly or monthly auto-refresh
+
+    6. **Load and analyze** - Read summary tables first; Leiden or Louvain communities with a fixed resolution
+    and seed; betweenness; group-to-group collaboration time with small edges hidden; test across date ranges
+
+    7. **Aggregate before showing** - Enforce a minimum group size of at least 5; keep degree as the only
+    individual property; hide individual links in executive maps
+
+    8. **Deliver** (recurring) - Unlabeled maps colored by workgroup, a scatter of workgroup metrics, animations of
+    change over time, generated into slides or dashboards
+
+
+    **Decision Points**:
+
+    - Which interactions count, and which thresholds and caps define a tie?
+
+    - How to weight meetings and group chats when projecting to pairs?
+
+    - Which window, and is it long enough each side of a change?
+
+    - Which community resolution, and is the result stable across seeds and months?
+
+    - What is the minimum group size for anything shown outside the analytics team?
+
+
+    **Information Needs**:
+
+    - The edge rule (window, thresholds, caps, reciprocity, weights) recorded with the network
+
+    - Node and edge counts after each filtering step
+
+    - Community count, size distribution and modularity at the chosen resolution
+
+    - Group sizes, with groups below the floor suppressed and counted
+
+    - Month-to-month change in group-level metrics under an identical rule
+
+
+    **Pain Points**:
+
+    - Network data that does not exist until an admin opts in, then a five-day wait
+
+    - Interactive plots too slow at 50,000+ nodes, forcing static PDFs
+
+    - Canned vendor views that cannot be restyled or extended
+
+    - Small teams hidden by the group-size floor
+
+    - Leaders reading meaning into node positions that the layout produced
+
+
+    **Data Flow**:
+
+    - Input: Collaboration pair rows (PrimaryCollaborator_PersonId, SecondaryCollaborator_PersonId, MetricDate, tie
+    scores, HR attributes) or person-by-event records; HRIS export with the same pseudonyms
+
+    - Transformations: Edge-rule filtering, two-mode to one-mode projection with weighting, attribute join, community
+    detection, centrality, group aggregation with minimum-size suppression
+
+    - Output: Workgroup-level maps and metric tables, monthly dashboards or slide decks, saved edge rule for the next run
+success_criteria:
+    - metric: Rule repeatability
+      target: The next period's network is built with the identical saved edge rule in one step
+    - metric: Scale
+      target: A 50,000-node collaboration network renders interactively instead of only as a static PDF
+    - metric: Aggregation safety
+      target: No exported view contains a group smaller than the configured minimum size
+sources:
+    - title: Microsoft Learn - Enable or disable behavioral insights
+      url: https://learn.microsoft.com/en-us/viva/insights/advanced/setup-maint/enable-disable-behavioral-insights
+      summary: Behavioral insights off by default for new tenants; admin opt-in and five days of processing
+    - title: Microsoft Learn - Viva Insights person-to-person query
+      url: https://learn.microsoft.com/en-us/viva/insights/advanced/analyst/cross-collaboration-p2p
+      summary: Time period, auto-refresh, strong and diverse tie metrics, CSV pair rows
+    - title: Microsoft Learn - Change management queries
+      url: https://learn.microsoft.com/viva/insights/advanced/analyst/change-management-queries
+      summary: Reciprocal interaction definition with participant caps of 8 for chats and 18 for emails
+    - title: Microsoft Learn - Viva Insights privacy settings
+      url: https://learn.microsoft.com/en-us/viva/insights/advanced/setup-maint/privacy-settings
+      summary: Minimum group size of at least 5, partitions, suppression, opt-out
+    - title: vivainsights network_p2p reference
+      url: https://search.r-project.org/CRAN/refmans/vivainsights/html/network_p2p.html
+      summary: Leiden with resolution, betweenness, seed, MDS layout, plot-pdf for large graphs
+    - title: vivainsights - Network analysis article
+      url: https://microsoft.github.io/vivainsights/articles/network-analysis.html
+      summary: Tables first, test across ranges, layout and styling shape what appears
+    - title: Workgroup mapping at Microsoft (arXiv 2005.00402)
+      url: https://ar5iv.labs.arxiv.org/html/2005.00402
+      summary: Edge rule of 4 emails a month with one each way, aggregate-only metrics, hidden links, automated slide generation
+    - title: Microsoft new-hire network study (arXiv 2304.03441)
+      url: https://ar5iv.labs.arxiv.org/html/2304.03441
+      summary: Geometric-mean reciprocal weights, group size under 10, separate 1:1 and group layers
+    - title: Worklytics Psoxy documentation
+      url: https://docs.worklytics.co/psoxy
+      summary: Pseudonymizing proxy in the customer cloud; HRIS must use the same pseudonym algorithm
+    - title: Worklytics - Measuring knowledge sharing and innovation via ONA
+      url: https://www.worklytics.co/blog/measuring-knowledge-sharing-and-innovation-via-ona
+      summary: Filter automated traffic, separate internal and external, keep edge rules stable across periods
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

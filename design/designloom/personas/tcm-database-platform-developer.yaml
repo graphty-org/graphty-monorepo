@@ -1,0 +1,65 @@
+id: tcm-database-platform-developer
+name: TCM Database Platform Developer
+roster_persona: network-pharmacology-graduate-student
+tier: B
+scope: in-scope
+role: Bioinformatics Engineer maintaining a Herb-Ingredient-Target Web Resource
+quote: We have two million predicted edges. A user types a herb name and expects a readable network in the browser, with confidence on the edges and a button to take it into Cytoscape.
+bio: >-
+    A bioinformatics engineer in a small academic group that maintains a herb-ingredient-target resource such as
+    BATMAN-TCM, ETCM, HERB, SymMap, TCMNPAS, IMPPAT or TM-MC, published as a website with a network view and updated
+    each release. BATMAN-TCM 2.0 alone holds 8,404 herbs, 39,171 ingredients, 54,832 formulae, 17,068 known and
+    2,319,272 predicted ingredient-target interactions; its herb-, ingredient- and pathway-centric views draw predicted
+    edges with width proportional to confidence and cap each compound at its top 20 predicted targets. ETCM v2.0 ships a
+    JavaScript network tool with editing, layout control, filtering and SVG or JPG export. The developer keeps the
+    data server-side; each query returns a subgraph of hundreds to low thousands of nodes for the browser to draw. Each
+    resource has written its own viewer, the cost that Drugst.One removed for protein-drug explorers by embedding in
+    21 tools with about three lines of code. Users of the site are the graduate students and lab leads who then carry
+    the result into Cytoscape, so export to CX2, GraphML or XGMML matters as much as the on-page view.
+characteristics:
+    expertise: advanced
+    time_pressure: low
+    graph_literacy: advanced
+    domain_knowledge: advanced
+motivations:
+    - Drop a network viewer into the resource's site instead of writing and maintaining one
+    - Render a typed query subgraph with confidence-weighted edges and the seed in the center
+    - Let site users expand from a clicked node, filter entity types and link out to the record pages
+    - Export to the formats researchers carry into Cytoscape and NDEx
+behaviors:
+    - Accepts herb, ingredient, formula, target or gene-list queries in several identifier types
+    - Returns a capped subgraph (top N targets per compound) from a multi-million-edge store
+    - Distinguishes known from predicted interactions and draws confidence as edge width
+    - Offers bulk downloads and a JSON API beside the interactive view
+    - Updates data each release and must keep the viewer working across releases
+frustrations:
+    - Every resource writes and maintains its own network viewer
+    - Generic embeddable explorers model proteins and drugs, not herbs, ingredients, formulas and pathways
+    - Users expect to expand on click and export, which a static image or a fixed widget does not give
+    - No direct statement from developers was found; these frustrations are inferred from what each resource rebuilt
+context:
+    frequency: daily
+    devices:
+        - desktop
+    voluntary: true
+workflows:
+    - W437
+sources:
+    - title: BATMAN-TCM 2.0 (PMC10767940)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10767940
+      summary: 2,319,272 predicted interactions, herb-, ingredient- and pathway-centric views, edge width proportional to confidence, top 20 targets per compound, JSON API
+    - title: ETCM v2.0 (PMC10326295)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10326295
+      summary: JavaScript multi-scale network tool with editing, layout control, filtering and SVG or JPG export
+    - title: Drugst.One (PMC10274948)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10274948
+      summary: Embeddable protein-drug-disease explorer integrated into 21 tools with as little as three lines of code; expansion, ranking, GraphML export
+    - title: Cytoscape Web (Ono et al., Nucleic Acids Research 2025)
+      url: https://idekerlab.ucsd.edu/wp-content/uploads/2025/05/Ono-NucleicAcidsRes-2025.pdf
+      summary: Browser Cytoscape exchanging networks with desktop Cytoscape and NDEx through CX2
+    - title: HERB database (PMC7779036)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC7779036
+      summary: 7,263 herbs, 49,258 ingredients, 12,933 targets with diseases and trials
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

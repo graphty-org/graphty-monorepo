@@ -1,0 +1,150 @@
+id: W316
+name: ONA Executive Readout and Recurring Dashboard
+category: reporting
+validated: false
+personas:
+    - people-analytics-ona-lead
+    - ona-consultant
+    - workplace-collaboration-analyst
+    - hr-business-partner
+    - graph-deliverable-recipient
+requires_capabilities:
+    - filtering
+    - community-detection
+    - centrality-degree
+    - visual-encoding-nodes
+    - legend-display
+    - annotation
+    - view-bookmarks
+    - comparison-view
+    - removal-impact-analysis
+    - export-image
+    - report-generation
+    - guided-presentation
+    - privacy-aggregation
+    - deliverable-templates
+    - deliverable-handling-marking
+suggested_components:
+    - graph-canvas
+    - filter-panel
+    - visual-encoding-panel
+    - legend-panel
+    - annotation-toolbar
+    - bookmark-panel
+    - comparison-view
+    - metric-card
+    - image-export-dialog
+    - report-generator-dialog
+starting_state:
+    data_type: organizational network from a relationship survey or collaboration metadata, with team, function and location attributes
+    node_count: 20-2,000
+    edge_density: moderate
+    user_expertise: intermediate+
+goal: >-
+    **Intent**: Present organizational network analysis results to leadership as a short deck whose every slide states
+    a finding, then keep leaders informed with a monthly dashboard - without exposing individuals beyond what was agreed.
+
+
+    **Who**: The people analytics lead or the ONA consultant sets visibility, builds and titles the slides and
+    facilitates the readout; the collaboration-metadata analyst publishes the monthly dashboard. The HR business
+    partner and the executives read and act on it (W1018).
+
+
+    **Mental Model**: "Visibility first, then a finding per slide." Who may see which names is settled before any map
+    is shown, because management may act on the maps.
+
+
+    **Task Phases**:
+
+    1. **Set visibility** (before anything) - Agree what leaders see (names, pseudonyms, groups only) and the minimum
+    group size (Viva Insights cannot go below five)
+
+    2. **Label every network slide** (per slide) - The survey question behind the network and a legend ("the larger the
+    dot, the more connections")
+
+    3. **Title each slide with its finding** (per slide) - For example "the key barrier to connectivity is function"
+
+    4. **Show before and after** - Modeled connectivity after proposed introductions ("we can improve current
+    connectivity by 31%")
+
+    5. **End with named actions** - Recommended one-on-one pairs within the agreed visibility, using pseudonyms
+    where required
+
+    6. **Facilitate** - Show the diagrams and explain what the numbers mean
+
+    7. **Publish the recurring dashboard** (monthly) - Refresh group-level metrics in Power BI or Viva; send personal
+    network reports where the practice includes them
+
+
+    **Decision Points**:
+
+    - Names, pseudonyms or groups only for this audience?
+
+    - Which grouping (function, location, level) tells the story?
+
+    - Which interventions to model for the "after" view?
+
+    - Which metrics are stable enough to track monthly?
+
+
+    **Information Needs**:
+
+    - Cross-group tie percentages and degree by group
+
+    - Group sizes against the minimum
+
+    - Modeled change in connectivity for proposed ties
+
+    - The survey question text for each network
+
+
+    **Pain Points**:
+
+    - Maps that expose individuals beyond the agreement; three parties to consent in organizations
+
+    - Survey question and legend dropped from slides when images are pasted into PowerPoint
+
+    - Before/after comparisons built by hand
+
+    - Monthly dashboards rebuilt outside the graph tool
+
+
+    **Data Flow**:
+
+    - Input: Survey or collaboration network with HR attributes; visibility agreement
+
+    - Transformations: Pseudonymization or aggregation, grouping, degree and cross-group metrics, modeled added ties
+
+    - Output: 10-20 slide readout deck, monthly dashboard, optional personal network reports
+success_criteria:
+    - metric: Visibility compliance
+      target: No slide or dashboard shows a name or a group smaller than the agreed minimum
+    - metric: Slide self-sufficiency
+      target: Every network slide carries its survey question, legend and finding title
+    - metric: Recurring effort
+      target: The monthly dashboard refreshes from new data without restyling
+sources:
+    - title: Innovisor - Leadership Network Accelerator sample output
+      url: https://www.innovisor.com/wp-content/uploads/2026/06/Sample-Output-Leadership-Network-Accelerator.pdf
+      summary: Survey question and legend on each slide, finding titles, before and after connectivity, recommended one-on-ones with pseudonyms
+    - title: Microsoft Viva Insights - privacy considerations
+      url: https://learn.microsoft.com/en-us/viva/insights/privacy/privacy-considerations
+      summary: Minimum group size cannot go below five
+    - title: Borgatti and Molina - Toward ethical guidelines for network research in organizations
+      url: https://scholars.uky.edu/en/publications/toward-ethical-guidelines-for-network-research-in-organizations/
+      summary: Risks of management acting on network maps
+    - title: Lumen Learning - Ethical considerations with social network analysis
+      url: https://courses.lumenlearning.com/atd-tc3-management/chapter/ethical-considerations-with-social-network-analysis/
+      summary: Secondary summary of consent and management misuse risks
+    - title: The Organizational Network Fieldbook - reviewing results with the department
+      url: https://www.oreilly.com/library/view/the-organizational-network/9780470542200/9780470542200_reviewing_the_results_with_the_departmen.html
+      summary: Consultant shows the diagrams and explains what the numbers represent
+    - title: Posit - Democratizing organizational surveys with Quarto and Shiny
+      url: https://opensource.posit.co/resources/videos/2024-10-31_brennan-antone-democratizing-organizational-surveys-with-quarto-and-shiny/
+      summary: Personal network reports generated for respondents
+    - title: Microsoft Learn - Roles in Viva Insights
+      url: https://learn.microsoft.com/en-us/viva/insights/advanced/setup-maint/user-roles
+      summary: The Insights Analyst role runs queries and Power BI templates on de-identified data; managers see only aggregated insights about their team
+version: 1.1.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

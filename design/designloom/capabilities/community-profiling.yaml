@@ -1,34 +1,95 @@
 id: community-profiling
 name: Community Profiling
 category: analysis
-description: "Generate detailed profiles for each detected community: size, internal density, attribute composition,
-    internal hubs, and bridge nodes. Essential for understanding what communities represent and how they relate."
+description: "Generate profiles for each detected community: size, internal density, attribute composition, top
+    members, within-module hubs and connectors (Guimera-Amaral roles), and the edges between communities. Analysts use
+    these to name clusters and to check them against outside evidence rather than treating a partition as final."
 status: planned
 algorithms: []
 used_by_workflows:
     - W04
     - W21
+    - W10
+    - W119
+    - W141
+    - W155
+    - W164
+    - W170
+    - W186
+    - W187
+    - W189
+    - W195
+    - W207
+    - W208
+    - W210
+    - W211
+    - W212
+    - W247
+    - W252
+    - W254
+    - W257
+    - W260
+    - W261
+    - W306
+    - W309
+    - W319
+    - W32
+    - W333
+    - W335
+    - W337
+    - W36
+    - W377
+    - W38
+    - W384
+    - W387
+    - W396
+    - W41
+    - W51
+    - W52
+    - W58
+    - W66
+    - W71
+    - W75
+    - W82
+    - W94
+    - W1126
+    - W2072
+    - W2096
+    - W2099
 implemented_by_components:
     - community-panel
     - cluster-table
     - enrichment-results-table
 requirements:
-    - Calculate community size (node count) for each community
-    - Calculate internal density as internal_edges / (size * (size-1) / 2) with 4 decimal places
-    - Calculate internal clustering coefficient as average of member nodes' clustering coefficients
-    - Calculate external connectivity ratio as external_edges / total_edges with 4 decimal places
-    - Identify top-3 nodes by internal degree within each community (internal hubs)
-    - Identify bridge nodes as those with >30% of edges connecting to other communities
-    - Profile categorical attribute distributions per community (e.g., 60% type A, 30% type B)
-    - Profile numeric attribute statistics per community (mean, median, std dev)
-    - Calculate inter-community edge counts as matrix showing connections between each pair
-    - "Generate community summary card with: size, density, top attributes, internal hubs"
-    - Display community profiles sortable by size, density, or external connectivity
-    - Export community profiles as CSV or JSON
-    - Complete profiling within 3 seconds for graphs with up to 50 communities
-    - Handle communities with fewer than 3 nodes by displaying 'Small community' indicator
-    - Calculate cohesion score as ratio of internal to external edges (higher = more cohesive)
+    - "Library parity: Calculate community size (node count) for each community"
+    - "Library parity: Calculate internal density as internal_edges / (size * (size-1) / 2)"
+    - "Library parity: Calculate internal clustering coefficient as average of member nodes' clustering coefficients"
+    - "Must: Calculate external connectivity ratio as external_edges / total_edges, and the internal and external edge counts it is built from"
+    - "Library parity: Rank members within each community by internal degree, or by a chosen node measure (PageRank, followers, retweets), returning the full ranking; how many to show is the application's choice"
+    - "Must: Compute within-module degree z-score and participation coefficient for every node, so hubs and connector (bridge) nodes are identified by role (hub-role-analysis), not by a fixed share-of-edges cut-off"
+    - "Must: Profile categorical attribute distributions per community (e.g., 60% type A, 30% type B), including top values of text-like columns such as hashtags, URLs and domains"
+    - "Library parity: Profile numeric attribute statistics per community (mean, median, std dev)"
+    - "Must: Calculate inter-community edge counts as a matrix showing connections between each pair, so related groups can be told from random links"
+    - "Library parity: Return profiles as structured values (no summary sentences or cards); sorting, grouping and wording belong to the application"
+    - "Library parity: Export community profiles as CSV or JSON"
+    - "Library parity: Return each community's size so the application can flag very small communities as it chooses"
+    - "Must: Record which partition (method, resolution, seed) each profile describes, so profiles from different runs are not confused"
 sources:
-    - title: Practical Graph Analysis Guide - Chapter 4
-      url: https://graphty.app/docs/
-      summary: Community Structure Analysis - characterization phase
+    - title: Fortunato 2010, Community detection in graphs
+      url: https://doi.org/10.1016/j.physrep.2009.11.002
+      summary: Survey of community structure, including characterizing detected communities
+    - title: Guimera and Amaral 2005, Functional cartography of complex metabolic networks
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC2175124
+      summary: Within-module degree z-score and participation coefficient assign hub and connector roles
+    - title: Stewart, Arif and Starbird, Examining trolls and polarization with a retweet network
+      url: https://faculty.washington.edu/kstarbi/examining-trolls-polarization.pdf
+      summary: Clusters labeled from per-cluster top hashtags, most-retweeted and most-followed accounts
+    - title: Pew Research, Mapping Twitter topic networks
+      url: https://www.pewresearch.org/internet/2014/02/20/mapping-twitter-topic-networks-from-polarized-crowds-to-community-clusters/
+      summary: Polarized groups use different URLs, hashtags and words; groups characterized by what they share
+    - title: Family Locket, Creating network graphs with Gephi part 5
+      url: https://familylocket.com/creating-network-graphs-with-gephi-part-5-analyze-the-network-graph
+      summary: Counting edges between clusters to tell related lines from random links
+    - title: van Geenen et al. 2023, Frontiers in Big Data
+      url: https://www.frontiersin.org/articles/10.3389/fdata.2022.510310/full
+      summary: Modularity clusters checked against profile bios, PageRank and density rather than treated as final

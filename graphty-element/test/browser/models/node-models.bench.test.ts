@@ -65,7 +65,8 @@ function grid(): { id: string; position: { x: number; y: number; z: number } }[]
  * @returns The element.
  */
 async function thousand(model: Uint8Array | null): Promise<Awaited<ReturnType<typeof mount>>> {
-    const element = await mount(800, 600);
+    // Inside the test frame's 414-pixel-wide viewport, so the hover sweep stays on the page.
+    const element = await mount(400, 300);
     const { graph } = element;
     await graph.addNodes(grid());
     await graph.setLayout("fixed", { dim: 3 });

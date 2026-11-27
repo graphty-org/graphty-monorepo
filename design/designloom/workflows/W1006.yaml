@@ -1,0 +1,141 @@
+id: W1006
+name: Product Space Country Overlay and Diversification Opportunities
+category: analysis
+validated: false
+personas:
+    - economic-complexity-analyst
+requires_capabilities:
+    - data-import
+    - matrix-import
+    - bipartite-projection
+    - backbone-extraction
+    - threshold-sweep
+    - fixed-base-map-layout
+    - shared-fixed-layout
+    - computed-attributes
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - search
+    - node-selection
+    - filtering
+    - details-on-demand
+    - temporal-navigation
+    - comparison-view
+    - export-image
+    - data-export
+    - relatedness-from-presence-matrix
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - graph-canvas
+    - search-input
+    - ranked-node-table
+    - visual-encoding-panel
+    - legend-panel
+    - node-details-panel
+    - temporal-controls
+    - comparison-view
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: country-by-product (or region-by-industry) export or employment table by year, plus a saved product space layout with fixed coordinates
+    node_count: 300-1300
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Place one country or region on the shared product space map, see which products it already exports
+    competitively, and rank the nearby products it could move into next, compared across years or with peers.
+
+
+    **Mental Model**: "Everyone reads the same map." The product space is a fixed reference; each country is an overlay
+    of lit-up nodes on it, and opportunities are the dark nodes surrounded by lit ones.
+
+
+    **Task Phases**:
+
+    1. **Load the table** - Time, location, product and value columns (HS or SITC exports, or regional employment)
+
+    2. **Binarize** - Mark presence where revealed comparative advantage is at least 1 (or a per-capita test, or a
+    supplied matrix)
+
+    3. **Project to products** - Proximity between two products as the minimum of the two conditional probabilities
+    that a place has both
+
+    4. **Draw the backbone** - Maximum spanning tree plus links above a proximity threshold (0.55 in the original map)
+    or a target average degree; or load the canonical layout from node and edge files with fixed x, y and sector
+
+    5. **Overlay a place** - Mark that place's present products on the fixed map, dim the rest, color by sector
+
+    6. **Rank opportunities** - Density per absent product (proximity-weighted share of neighbors already present),
+    ranked in a table linked to the map
+
+    7. **Compare and export** - Same coordinates for another year or a peer; export figure and ranked table
+
+
+    **Decision Points**:
+
+    - Which classification and year, and RCA or per-capita presence?
+
+    - Recompute the layout from this data or reuse the canonical one?
+
+    - Which threshold or average degree keeps the backbone readable?
+
+    - Which opportunities to shortlist: highest density, or density weighted by product complexity?
+
+
+    **Information Needs**:
+
+    - Count of present products per place and year
+
+    - Density and proximity values per candidate product
+
+    - Which links in the drawing are spanning-tree links and which passed the threshold
+
+    - Year-over-year change on identical coordinates
+
+
+    **Pain Points**:
+
+    - Code packages return matrices, never a drawing on the canonical map
+
+    - Web tools show only their own data; regional tables have no reference map
+
+    - Layout redesigns and classification revisions break comparisons across years
+
+
+    **Data Flow**:
+
+    - Input: Two-mode value table by year; optional saved layout (nodes with x, y, community; edges)
+
+    - Transformations: RCA presence matrix, conditional-probability proximity projection, spanning tree plus threshold
+    backbone, fixed layout, per-place overlay, density ranking
+
+    - Output: Product space figure with one place overlaid, ranked opportunity table, side-by-side years
+success_criteria:
+    - metric: Overlay on the reference map
+      target: Any country or year shown on identical coordinates without re-running a layout
+    - metric: Opportunity ranking
+      target: Ranked density table linked to the map, exportable as CSV
+    - metric: Full-matrix metrics
+      target: Density computed on the full proximity matrix, not on the drawn backbone
+sources:
+    - title: The Product Space (Wikipedia summary of Hidalgo et al. 2007)
+      url: https://en.wikipedia.org/wiki/The_Product_Space
+      summary: Minimum conditional probability proximity, RCA of at least 1, spanning tree of 775 nodes plus links of proximity 0.55 or more, force-directed then hand-untangled layout, density
+    - title: py-ecomplexity
+      url: https://github.com/cid-harvard/py-ecomplexity
+      summary: RCA presence test with threshold 1 by default, proximity and density from a time-location-product-value table
+    - title: economiccomplexity projections()
+      url: https://pacha.dev/economiccomplexity/reference/projections.html
+      summary: Prunes proximity to a target average degree (default 5), falls back to a spanning tree of the strongest links
+    - title: Product Space node and edge files
+      url: https://michelecoscia.com/?p=223
+      summary: Tab-separated nodes with community, x and y coordinates and size; edges with coordinates, width and color
+    - title: Atlas of Economic Complexity 10.0
+      url: https://growthlab.hks.harvard.edu/news/atlas-economic-complexity-100-brings-new-data-and-product-space-design/
+      summary: Re-designed product space layout, October 2024
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

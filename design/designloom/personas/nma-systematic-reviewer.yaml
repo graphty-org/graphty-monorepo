@@ -1,0 +1,62 @@
+id: nma-systematic-reviewer
+name: NMA Systematic Reviewer
+roster_persona: nma-systematic-reviewer
+tier: B
+scope: in-scope
+role: Clinical Epidemiologist Leading Journal and Cochrane Network Meta-Analyses
+quote: Every paper needs the network figure and a paragraph on its geometry, and I still finish both by hand.
+bio: >-
+    Dr. Niamh Gallagher is a clinical epidemiologist who leads journal network meta-analyses and is an author on a Cochrane review group. Her doctoral student extracts one row per trial arm (study, treatment, events, sample size) plus a risk-of-bias table per study, usually 7 to 25 treatments and 20 to 150 trials. She fits the model in R netmeta, checks connectivity with netconnection, draws the network with netgraph, tests inconsistency with netsplit and decomp.design, and rates confidence in CINeMA. PRISMA-NMA asks for a network graph and a summary of its geometry, so each outcome needs a figure whose node size and line width mean something stated; she ends up fixing every figure in Illustrator.
+characteristics:
+    expertise: advanced
+    time_pressure: medium
+    graph_literacy: novice
+    domain_knowledge: advanced
+motivations:
+    - A connected network for every outcome before the model is fitted
+    - A network figure and geometry paragraph that satisfy PRISMA-NMA items S3 and S4
+    - A credible inconsistency check on every closed loop
+behaviors:
+    - Converts arm-level data to contrasts and keeps multi-arm trials under one study label
+    - Draws the network with the default circle and then tries stress iteration to untangle crossings
+    - Sizes nodes by randomized participants and lines by number of trials, and says so in the caption
+    - Runs one CINeMA project per outcome
+frustrations:
+    - The default circle layout crosses edges, and the better start depends on the network
+    - Nodes are unsized and multi-arm trials look like separate trials unless options are set
+    - No legend says what node size and line width measure
+    - Each outcome's network comes out with the treatments in different places
+    - Geometry metrics (density, common comparators, strong edges) are counted by hand
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W3054
+    - W3055
+    - W3056
+    - W3057
+sources:
+    - title: "PRISMA-NMA checklist"
+      url: https://www.prisma-statement.org/s/PRISMA-NMA-checklist.pdf
+      summary: "Items S1, S3 and S4: methods for, a graph of, and a summary of the network geometry"
+    - title: "Cochrane Handbook chapter 11"
+      url: https://www.cochrane.org/authors/handbooks-and-manuals/handbook/current/chapter-11
+      summary: "Network diagram definition, node size by participants, line thickness by trials, connectedness, closed loops, contribution matrix"
+    - title: "netmeta netgraph reference"
+      url: https://search.r-project.org/CRAN/refmans/netmeta/html/netgraph.netmeta.html
+      summary: "Circle or eigenvector start, stress majorization, thickness by studies or weights, multi-arm polygons, 3D"
+    - title: "Harrer et al. - Doing Meta-Analysis in R, chapter 12"
+      url: https://doing-meta.guide/netwma.html
+      summary: "netmeta and gemtc tutorial: data shape, netgraph, decomp.design, netsplit, netheat"
+    - title: "Tonin et al. 2019 - Description of network meta-analysis geometry"
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6382117/
+      summary: "167 networks redrawn in Gephi; median 8 nodes, 10 edges, 22 studies; density, common comparators, median thickness, strong edges"
+    - title: "Cipriani et al. 2018 - 21 antidepressants"
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5889788/
+      summary: "22 treatments, 522 trials; two network panels (efficacy, acceptability) with encodings stated in the caption"
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -87,8 +87,8 @@ describe("source-steps: today's joins give the graph they give with the experime
         const { off, on } = await both(base, "id,score\na,1\nb,2", load);
         assert.strictEqual(off.data.node("a")?.score, 5);
         assert.strictEqual(off.data.node("a")?.["score (values.csv)"], 1);
-        const key = on.data.joins()[0]?.source;
         assert.strictEqual(on.data.node("a")?.score, 5, "the graph's own value stays");
+        const key = on.data.joins()[0]?.source;
         // Design 3.3: the clash column is named by the source id; the app labels it.
         assert.strictEqual(on.data.node("a")?.[`score (${key})`], 1, "the joined value is kept too");
         const merged = await joined(true, base, "id,score\na,1\nq,3", { join: { ...load.join, shape: "merge" } });

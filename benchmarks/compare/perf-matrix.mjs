@@ -50,6 +50,18 @@ const SIZES = {
         [1000000, 1000000],
     ],
 };
+// The looks that give each node or edge its own texture, material or object (issue #10048): drawn words, effect
+// layers and the shapes drawn under or over a node.
+const TEXTURE_STYLES = [
+    "edge-label",
+    "node-tooltip",
+    "node-badge",
+    "node-glow",
+    "node-halo",
+    "node-outline",
+    "node-underlay",
+    "node-overlay",
+];
 const STYLES = [
     "node-color",
     "node-size",
@@ -67,9 +79,19 @@ const STYLES = [
     "hover-layer",
     "select",
     "pin",
+    ...TEXTURE_STYLES,
 ];
-// The styles that stress the paths at 50k: a node look that leaves the batch, labels, and the three edge kinds.
-const STYLES_50K = ["node-color", "node-border", "node-label", "edge-arrow", "edge-curve"];
+// The styles that stress the paths at 50k: a node look that leaves the batch, labels, the three edge kinds, and the
+// looks that give each node or edge its own texture, material or object.
+const STYLES_50K = [
+    "node-color",
+    "node-border",
+    "node-label",
+    "edge-arrow",
+    "edge-curve",
+    "node-image",
+    ...TEXTURE_STYLES,
+];
 // ngraph-cpu is ngraph with acceleration off; ngraph with it on is the GPU force layout.
 const LAYOUTS = ["ngraph", "ngraph-cpu", "d3", "forceatlas2", "circular", "grid", "random", "circular-glide"];
 
@@ -126,6 +148,11 @@ function styleScenarios() {
         style("node-color", 100000, 1000000),
         style("edge-curve", 100000, 1000000),
         style("node-color", 1000000, 1000000),
+        // The node-label restyle with every label drawn from the shared glyph atlas (layoutBehavior.labels.labelText
+        // "glyphs") instead of a canvas and texture per label, the default; issue #10018.
+        ...[SIZES.medium[0], [50000, 500000]].map(([n, m]) =>
+            scenario(`style-node-label-glyphs-${K(n)}`, { n, m, flags: ["style=node-label", "glyphs"] }),
+        ),
     ];
 }
 

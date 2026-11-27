@@ -1,0 +1,138 @@
+id: W1012
+name: Reviewing a Potential Match and Correcting a Golden Record
+category: analysis
+validated: false
+personas:
+    - master-data-steward
+requires_capabilities:
+    - live-data-source
+    - search
+    - entity-resolution-review
+    - node-merging
+    - provenance-tracking
+    - edge-evidence-review
+    - comparison-view
+    - details-on-demand
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - in-place-data-editing
+    - undo-redo
+    - permission-scoped-graph
+    - attribute-survivorship-view
+    - match-decision-record
+suggested_components:
+    - search-input
+    - search-panel
+    - graph-canvas
+    - node-details-panel
+    - comparison-view
+    - node-merge-dialog
+    - data-table-panel
+    - context-menu
+    - legend-panel
+starting_state:
+    data_type: one customer, household, organization or supplier profile in an MDM hub, merged from several source records, plus its candidate matches
+    node_count: "stored: millions to over 100 million accounts; on screen: 2-30 source records and candidates"
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Decide whether candidate profiles are the same real-world customer, merge or separate them, and make
+    sure every field of the resulting golden record holds the right value from the right source.
+
+
+    **Mental Model**: "One person, many records." Each source system contributes a record; the golden record is a vote
+    per field, decided by rules the steward can overrule. A merge is reversible, and a wrong merge joins two people's
+    accounts.
+
+
+    **Task Phases**:
+
+    1. **Pick up work** - Open the queue of suggested duplicates and suggested edits; each item carries a
+    high, medium or low match confidence
+
+    2. **Compare candidates** - Open the profile and its potential matches; see which fields match, partially
+    match or differ, and the source records behind each candidate
+
+    3. **Decide** - Merge, mark "not a match" so the pair stops reappearing, or escalate to someone who can
+    decide; a merge is allowed only between profiles of the same entity type and shows a preview first
+
+    4. **Check survivorship** - For each attribute read every source value, the winning value, the winning
+    source system and the rule that chose it (source priority, recency)
+
+    5. **Override** - Pin a source value as the winner, ignore a wrong source value, or edit or delete a value
+
+    6. **Undo if wrong** - Unmerge a mistaken merge and see which source records return to which profile
+
+
+    **Decision Points**:
+
+    - Is a shared address, phone or email a real link or a data-entry default?
+
+    - Which source is trusted for which field, and does the rule's winner agree?
+
+    - Would the merge also join two households or two corporate parents?
+
+    - Merge now, mark not a match, or escalate?
+
+
+    **Information Needs**:
+
+    - The source records behind each profile, grouped by source system
+
+    - Field-by-field match and partial-match details with the match confidence
+
+    - Per attribute: source values, winning value, winning source, rule type, and any manual pin or ignore
+
+    - Each profile's relationships and households before and after a merge
+
+    - Who decided what, and when
+
+
+    **Pain Points**:
+
+    - Why a value won is a table column, not visible on the records themselves
+
+    - Review happens one pair at a time with no view of the records as a small connected group
+
+    - A merge's effect on relationships and households is not shown before it is made
+
+
+    **Data Flow**:
+
+    - Input: A profile and its candidate matches from the MDM hub, with source records, attribute values and match
+    scores
+
+    - Transformations: Merge or separate records, recompute surviving values per attribute, apply manual pins and
+    ignores
+
+    - Output: A corrected golden record written back to the system of record, and a decision record per pair
+success_criteria:
+    - metric: Survivorship transparency
+      target: For any attribute the steward can name the winning source and the rule that chose it
+    - metric: Reversible decisions
+      target: Every merge, not-a-match and override can be undone, and shows who made it and when
+    - metric: Time per queue item
+      target: Under 5 minutes for a pair with up to 10 source records (design goal; no source measures it)
+sources:
+    - title: Reltio Potential Matches perspective
+      url: https://docs.reltio.com/en/explore/get-your-bearings-in-reltio/hub/profiles/profile-perspectives/potential-matches-perspective
+      summary: Uncertain matches go to the Potential Match Review page; stewards decide match or not a match
+    - title: How a data steward uses Reltio
+      url: https://community.reltio.com/blogs/terence-kirk/2021/06/25/how-a-data-steward-uses-reltio-to-view-and-manage
+      summary: Merge, not a match, escalate; check and unmerge in the sources view
+    - title: Reltio Sources perspective
+      url: https://docs.reltio.com/explore/get-your-bearings-in-reltio/hub/profiles/profile-perspectives/sources-perspective
+      summary: Winner source system, rule type, source value count, crosswalk colors; pin, ignore, edit, delete
+    - title: Tamr - curating records in the system of record
+      url: https://cloud.docs.tamr.com/docs/curating-records-in-the-system-of-record
+      summary: Queues of suggested duplicates and edits with high, medium or low match confidence and match details
+    - title: Tamr golden records overview
+      url: https://docs.tamr.com/new/docs/overview-golden-records
+      summary: Consolidation rules per attribute with dataset prioritization; curator value overrides; publish
+    - title: Informatica - initiating a merge from the hierarchy view
+      url: https://docs.informatica.com/master-data-management/multidomain-mdm/10-3/data-director-user-guide/hierarchies-and-relationships/investigating-hierarchies-and-relationships/changing-records-and-relationships-for-a-record/initiating-a-merge-from-the-hierarchy-view.html
+      summary: Merge candidates must be the same business entity type; review a merge preview first
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

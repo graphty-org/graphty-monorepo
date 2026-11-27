@@ -57,6 +57,11 @@ export const edgePickWork = { measured: 0, fromRows: 0, rowLines: 0 };
 export interface RowLinePicks {
     /** Visit each shown line, or only those of `only`. */
     forEachShown(visit: (row: number, source: number, target: number) => void, only?: readonly number[]): void;
+    /**
+     * Visit each shown curve, or only those of `only`, with its points in graph-root's space, four floats a point
+     * (`EdgeRowLines.forEachShownCurve`); `forEachShown` visits only straight lines.
+     */
+    forEachShownCurve?(visit: (row: number, points: Float32Array) => void, only?: readonly number[]): void;
     /** The id of the edge a line draws, or undefined when the row no longer draws one. */
     idOf(row: number): EdgeId | undefined;
 }
@@ -630,6 +635,32 @@ export class RowScan {
             if (distance <= nearest) {
                 nearest = distance;
                 found = row;
+            }
+        }, only);
+        lines.forEachShownCurve?.((row, points) => {
+            measured++;
+            let previous: { x: number; y: number } | null = null;
+            for (let at = 0; at < points.length; at += 4) {
+                const [x, y, z] = [points[at], points[at + 1], points[at + 2]];
+                if (x * view[2] + y * view[6] + z * view[10] + view[14] < minZ) {
+                    previous = null;
+                    continue;
+                }
+
+                const w = x * clip[3] + y * clip[7] + z * clip[11] + clip[15];
+                const point = {
+                    x: ((x * clip[0] + y * clip[4] + z * clip[8] + clip[12]) / w + 1) * halfWidth,
+                    y: (1 - (x * clip[1] + y * clip[5] + z * clip[9] + clip[13]) / w) * halfHeight,
+                };
+                if (previous !== null) {
+                    const distance = distanceToSegment(px, py, previous, point);
+                    if (distance <= nearest) {
+                        nearest = distance;
+                        found = row;
+                    }
+                }
+
+                previous = point;
             }
         }, only);
         edgePickWork.rowLines += measured;

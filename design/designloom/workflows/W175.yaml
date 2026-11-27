@@ -1,0 +1,140 @@
+id: W175
+name: Quick Network, Map and Timeline Exploration (Palladio Style)
+category: exploration
+validated: false
+personas:
+    - correspondence-historian
+    - literary-network-scholar
+requires_capabilities:
+    - data-import
+    - data-preview
+    - graph-rendering
+    - layout-force-directed
+    - visual-encoding-nodes
+    - filtering
+    - temporal-navigation
+    - temporal-analysis
+    - details-on-demand
+    - export-image
+    - data-export
+    - bipartite-projection
+    - geographic-layout
+    - in-place-data-editing
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - graph-canvas
+    - filter-panel
+    - filter-chip
+    - temporal-controls
+    - range-slider
+    - node-details-panel
+    - image-export-dialog
+    - session-save-dialog
+starting_state:
+    data_type: one wide CSV or Google Sheet of letters or events (sender, recipient, date, places with coordinates)
+    node_count: 50-1,000
+    edge_density: sparse
+    user_expertise: novice
+goal: >-
+    **Intent**: Paste a table of letters or events into a browser and see the network, a map of places and a timeline
+    together, filtering all three with one date range, before any metric is computed. Palladio (last release 1.1,
+    October 2015) is still taught for exactly this, in history classrooms and 2024 workshops.
+
+
+    **Mental Model**: "One table, three views." The same rows appear as people linked by letters, as dots and lines
+    on a map, and as bars on a timeline; brushing a period in one changes all.
+
+
+    **Task Phases**:
+
+    1. **Load** - Paste a CSV or link a Google Sheet; fix detected column types; split multi-valued cells on a
+    delimiter
+
+    2. **Link tables** - Extend Sender and Recipient to a People table and places to a Places table with
+    latitude and longitude in one cell; set dates as "Year or Date"
+
+    3. **Graph view** - Source = Sender, Target = Recipient; size nodes by count; a fixed force layout
+
+    4. **Two-mode views** - Set Target to Year or Form of Help to see people linked to periods or categories
+
+    5. **Map view** - Point layers for places and a point-to-point layer from sender place to recipient place
+
+    6. **Facets and timeline** - Drag a date range; every view filters
+
+    7. **Export and share** - SVG of a view, or a JSON project file
+
+    8. **Return to sources** - Read the letters behind what the views suggest, then move to Gephi or Python for metrics
+
+
+    **Decision Points**:
+
+    - Which columns are people, which are places, which are dates?
+
+    - Show a one-mode person network or a two-mode person-to-category network?
+
+    - Which date range is worth a closer look?
+
+
+    **Information Needs**:
+
+    - Detected type of each column and rows that failed to parse (especially dates)
+
+    - Count of letters per person and per route
+
+    - Where people wrote from, with direction of travel
+
+    - Which rows fall in the brushed period
+
+
+    **Pain Points**:
+
+    - Edges cannot be weighted and there is no layout control or metric
+
+    - Map routes show no direction
+
+    - A variant spelling becomes a duplicate node, and since data cannot be edited within Palladio the user fixes the
+    spreadsheet and starts over
+
+    - The project's codebase status is unclear, so instructors worry about relying on it
+
+
+    **Data Flow**:
+
+    - Input: One wide CSV or Google Sheet, optionally linked People and Places tables with coordinates
+
+    - Transformations: Type detection, table linking, one-mode or two-mode graph, geographic points and routes, date
+    filtering
+
+    - Output: SVG of a view, JSON project file, notes for further analysis
+success_criteria:
+    - metric: Time from pasted table to linked network, map and timeline
+      target: Under 15 minutes for a novice (design goal; no source measures it)
+    - metric: Linked filtering
+      target: One date-range brush filters network, map and table together
+    - metric: Fix in place
+      target: A duplicate name can be corrected without restarting from the spreadsheet
+sources:
+    - title: Programming Historian - From Hermeneutics to Data to Networks (Duering)
+      url: https://programminghistorian.org/en/lessons/creating-network-diagrams-from-historical-sources
+      summary: Palladio steps, two-mode views, visualizations are not proof
+    - title: Leiden DMT - SNA exercises
+      url: https://bookandbyte.universiteitleiden.nl/DMT/SNA/sna-exercises.php
+      summary: Palladio exercise with letters, extension to places and map view
+    - title: Conroy, DHQ 2021, on Palladio
+      url: https://dhq.digitalhumanities.org/vol/15/1/000534/000534.html
+      summary: Data cannot be edited within Palladio
+    - title: Palladio 1.1 release notes
+      url: https://hdlab.stanford.edu/palladio/releasenotes/2015-10-21
+      summary: Last Palladio release, October 2015
+    - title: UNC Digital Innovation Lab on Palladio
+      url: https://digitalinnovation.web.unc.edu/?p=3993
+      summary: Unclear status of the Palladio codebase
+    - title: Bodleian worksheet - Wikidata to Palladio
+      url: https://bodreader.web.ox.ac.uk/sites/default/files/bodreader/documents/media/session-six-worksheet.pdf
+      summary: Palladio taught in a library workshop
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

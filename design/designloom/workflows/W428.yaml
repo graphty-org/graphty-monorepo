@@ -1,0 +1,144 @@
+id: W428
+name: Learn a Lagged Causal Graph from Multivariate Time Series
+category: analysis
+validated: false
+personas:
+    - time-series-causal-discovery-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - algorithm-progress
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - filtering
+    - temporal-analysis
+    - comparison-view
+    - details-on-demand
+    - legend-display
+    - export-image
+    - data-export
+    - uncertainty-encoding
+    - causal-edge-marks
+    - lagged-causal-edges
+    - causal-model-formats
+suggested_components:
+    - data-import-dialog
+    - data-preview-table
+    - algorithm-panel
+    - progress-bar
+    - graph-canvas
+    - slider
+    - range-slider
+    - temporal-controls
+    - data-table-panel
+    - comparison-view
+    - legend-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: multivariate time series (climate indices, station data, sensor logs) or Tigramite result arrays of shape (N, N, tau_max+1)
+    node_count: 4 to a few dozen variables; the unrolled view has N x (tau_max+1) nodes
+    edge_density: sparse to moderate, with several lags per variable pair
+    user_expertise: expert
+goal: >-
+    **Intent**: Learn which variables drive which, at which lags and with what strength, from multivariate time series
+    using Tigramite's PCMCI family, then read and publish the result as a process graph (one node per variable) and a
+    time-unrolled graph (variables as rows, time steps as columns). Granger and vector autoregression users follow a
+    similar loop in statsmodels or R vars.
+
+
+    **Mental Model**: "Arrows with delays." Every link has a lag; lagged links are oriented by time; contemporaneous
+    links may stay unoriented; a self-link means a variable depends on its own past.
+
+
+    **Task Phases**:
+
+    1. **Wrap and check the data** - Tigramite DataFrame with variable names, masks and missing values; plot the
+    series for stationarity and gaps
+
+    2. **Choose a test** - Linear partial correlation or a nonlinear conditional independence test
+
+    3. **Choose tau_max** - Compute lagged dependencies up to 20 and plot lag functions; pick where dependence decays (8
+    in the tutorial)
+
+    4. **Run PCMCI** - Returns p_matrix and val_matrix of shape (N, N, tau_max+1); entry (i, j, tau) is the link from
+    variable i at t - tau to variable j at t; pc_alpha None selects per variable by AIC
+
+    5. **Correct and threshold** - Benjamini-Hochberg FDR gives q_matrix; threshold at alpha 0.01; newer versions return
+    link strings: --> oriented, o-o unoriented contemporaneous, x-x conflicting
+
+    6. **Process graph** - Node color is auto-dependence strength (auto-MCI); link color is the strongest cross-lag
+    value (cross-MCI); the link label lists all significant lags ordered by strength
+
+    7. **Time-series graph** - Unroll variables into rows across time steps to trace spatio-temporal pathways
+
+    8. **Variants and comparison** - PCMCI+ for contemporaneous links, LPCMCI for latent confounders, RPCMCI per
+    regime, J-PCMCI+ across contexts; compare graphs across regimes or seasons
+
+
+    **Decision Points**:
+
+    - Which variables to include, and is each series stationary?
+
+    - Linear or nonlinear test?
+
+    - What tau_max and alpha (or q) threshold?
+
+    - Process graph or time-series graph for the paper?
+
+
+    **Information Needs**:
+
+    - Every significant lag per pair with its value and q-value, not only the strongest
+
+    - Which contemporaneous links are unoriented or conflicting
+
+    - Auto-dependence strength per variable
+
+    - How the graph changes when alpha or tau_max changes, and across regimes
+
+
+    **Pain Points**:
+
+    - Figures are static matplotlib; each threshold change means a new plot
+
+    - Several lags crammed into one edge label
+
+    - The unrolled graph grows to N times tau_max nodes
+
+    - Granger and VAR tools give tables with no standard graph view
+
+
+    **Data Flow**:
+
+    - Input: Time series array or data frame with variable names; or Tigramite graph, val_matrix and p_matrix arrays
+
+    - Transformations: Lag-function screening, PCMCI conditional independence tests, FDR correction, thresholding,
+    lag-indexed link extraction, time unrolling
+
+    - Output: Process graph and time-series graph figures, significant-link list with lags, values and q-values
+success_criteria:
+    - metric: Threshold exploration
+      target: Changing alpha or q filters links live without re-plotting
+    - metric: Lag legibility
+      target: User can read every significant lag and its strength for a pair from the graph
+sources:
+    - title: Tigramite basics tutorial
+      url: https://notebook.community/jakobrunge/tigramite/tutorials/tigramite_tutorial_basics
+      summary: N = 4, T = 1,000, lag functions, tau_max 8, FDR, process and time-series graph plots
+    - title: Tigramite API documentation
+      url: https://jakobrunge.github.io/tigramite/
+      summary: PCMCI variants, result array shapes, link strings -->, o-o, x-x
+    - title: Tigramite project page
+      url: https://tocsy.pik-potsdam.de/tigramite.php
+      summary: Method family for Earth-system science
+    - title: Runge et al. - PCMCI method preprint
+      url: https://arxiv.org/pdf/1702.07007
+      summary: Causal discovery in large nonlinear time series
+    - title: CRAN downloads - vars
+      url: https://cranlogs.r-pkg.org/downloads/total/last-month/vars
+      summary: Granger and VAR tooling in R
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

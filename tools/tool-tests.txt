@@ -56,6 +56,7 @@ tools/dataset-overlay.test.mjs
 tools/dependency-refresh.test.mjs
 tools/design-studio-workflow.test.mjs
 tools/designloom-links.test.mjs
+tools/user-research-index.test.mjs
 tools/duplicates-check.test.mjs
 tools/eslint-cache-key.test.mjs
 tools/features-on.test.mjs
@@ -66,6 +67,7 @@ tools/issue-groups.test.mjs
 tools/issue-queue.test.mjs
 tools/issue-round-idle-hook.test.mjs
 tools/lfs-pre-push.test.mjs
+tools/lfs-pull-retry.test.mjs
 tools/lib/git.test.mjs
 tools/lib/github.test.mjs
 tools/lint-base-drift.test.mjs

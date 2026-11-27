@@ -206,6 +206,8 @@ function summarizePictures(head) {
 /** Existing tests of the reported risks, run when no files are named (suite files join it once they land). */
 export const BEHAVIOR_FILES = [
     "test/browser/edges-follow-running-layout.test.ts",
+    "test/browser/edges-follow-through-a-transition.test.ts",
+    "test/browser/edges-follow-steps-mid-layout.test.ts",
     "test/browser/transitions/layout-transition.test.ts",
     "test/browser/element-at.test.ts",
     "test/browser/edge-pick-row-lines.test.ts",

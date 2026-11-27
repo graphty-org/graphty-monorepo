@@ -1,0 +1,65 @@
+id: corpus-linguist
+name: Corpus Linguist
+roster_persona: text-network-analyst
+tier: B
+scope: in-scope
+role: Lecturer in Corpus-Based Discourse Analysis
+quote: There is no one definite set of collocates. Put the statistic, the span and the thresholds next to every graph.
+bio: >-
+    Dr. Eleanor Price lectures in corpus-based discourse analysis and teaches collocation networks to undergraduates
+    with #LancsBox X GraphColl. She works with reference corpora such as the BNC2014 and her own specialized corpora of
+    news and policy texts. A session is many searches: she enters a node word or a query such as [hw="drug" pos="N.*"],
+    chooses a unit (word, lemma, headword), a span such as five words left and right, an association statistic (logDice
+    by default, MI, log-likelihood, Delta P) and minimum frequencies, and reads a radial graph where edge length shows
+    association strength and left or right position shows where the collocate occurs in text. She hovers a collocate to
+    see its concordance lines, double-clicks it to expand the network, and looks for the collocates two words share.
+    Every result is reported in Collocation Parameters Notation so others can replicate it.
+characteristics:
+    expertise: advanced
+    time_pressure: low
+    graph_literacy: intermediate
+    domain_knowledge: expert
+motivations:
+    - Find the collocates of a word and the discourses they point to
+    - Find the collocates two or more words share
+    - Report parameters precisely so any result can be replicated
+    - Teach students how parameter choices change the graph
+behaviors:
+    - Runs many seeded collocation searches per session, switching statistic, span and unit
+    - Switches from word form to lemma deliberately to show students how the graph changes
+    - Tightens the statistic cut-off and minimum frequencies, or filters to the top 10, when a graph overpopulates
+    - Reads edge length as strength, circle size as collocation frequency and color as corpus frequency
+    - Hovers a collocate for concordance lines before trusting it
+    - Double-clicks collocates to expand them into new nodes, watching shared collocates move to the middle
+    - Treats arrows as directional only with a directional measure such as Delta P and only when both words were searched
+    - Writes Collocation Parameters Notation strings such as 4b-MI2(3), L5-R5, C5-NC1 beside every figure
+frustrations:
+    - Graphs overpopulate (hundreds of collocates versus the top 10)
+    - Different statistics and thresholds highlight different collocates, so a graph without its parameters is meaningless
+    - Readers over-read direction from arrows drawn with symmetric measures
+    - General graph tools cannot set edge length by a statistic or place nodes by a left, right or middle attribute
+    - Exports carry the graph but not the concordance lines behind it
+context:
+    frequency: weekly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W409
+sources:
+    - title: "#LancsBox X manual, GraphColl sections"
+      url: https://lancsbox.lancaster.ac.uk/data/materials/Manual_EN.pdf
+      summary: Settings, logDice default, graph encodings, KWIC on hover, double-click expansion, overpopulation (392 vs top 10), Collocation Parameters Notation
+    - title: "#LancsBox GraphColl exercises on BNC2014"
+      url: https://lancsbox.lancaster.ac.uk/data/materials/Ex_GraphColl.pdf
+      summary: Graph legend, word versus lemma step, 15,221 candidates reduced to 94 collocates
+    - title: Brezina, McEnery and Wattam 2015, Collocations in context (IJCL 20:2)
+      url: https://ling.hse.ru/data/2016/10/11/1108830056/brezina_et_al_2015_-_graphcoll_paper.pdf
+      summary: GraphColl design, 14 statistics, directionality only with Delta P, CSV and GraphViz dot export
+    - title: Voyant Links tutorial
+      url: https://voyant.lincsproject.ca/docs/tutorial-links.html
+      summary: Collocates within 5 words drawn as a force-directed graph
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

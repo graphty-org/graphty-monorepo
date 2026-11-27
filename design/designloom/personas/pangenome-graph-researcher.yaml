@@ -1,0 +1,70 @@
+id: pangenome-graph-researcher
+name: Pangenome Structural Variant Researcher
+roster_persona: bacterial-assembly-finisher
+tier: B
+scope: in-scope
+role: Human or Crop Genomicist (pangenome graphs and structural variants)
+quote: The whole chromosome is millions of nodes I will never look at. I cut out the forty kilobases around C4 and want to see every haplotype's path through it.
+bio: >-
+    Dr. Wiebke Hartmann is a genomicist who studies structural variants at medically important loci in a released
+    pangenome graph, such as the Human Pangenome Reference Consortium graph built with Minigraph-Cactus from 90
+    haplotypes. Whole chromosome graphs are tens of millions of nodes, so she extracts a locus with odgi extract or vg
+    chunk, sorts it, and views it three ways: odgi viz for one row per haplotype path colored by depth or orientation,
+    Bandage or odgi draw for the 2D topology, and SequenceTubeMap for paths as colored lines through the nodes. She
+    asks how each haplotype traverses a bubble, how many copies of a duplicated gene each carries, and whether a path
+    reversing through a node is an inversion. Her paths are named SAMPLE#HAPLOTYPE#CONTIG and number in the tens to
+    hundreds.
+characteristics:
+    expertise: advanced
+    time_pressure: low
+    graph_literacy: intermediate
+    domain_knowledge: expert
+motivations:
+    - See how every haplotype traverses a structural variant bubble
+    - Count copies of a duplicated region per haplotype
+    - Tell inversions, deletions and duplications apart from path shape
+    - Make a locus figure that shows topology and paths together
+behaviors:
+    - Builds a chromosome graph and extracts a padded gene region by BED coordinates
+    - Keeps the largest piece and sorts it before viewing
+    - Lists path names and picks the reference plus a few samples
+    - Draws a 1D path-by-node image colored by depth, then a 2D layout of the same region
+    - Exports the region as GFA with a node annotation CSV for Bandage
+frustrations:
+    - Bandage shows the topology but not the haplotype paths; odgi viz shows paths but not the topology
+    - 2D layouts of complex regions are hard to read and cost time to compute
+    - SequenceTubeMap's online version takes only small files
+    - Tube maps clutter in the presence of many rearrangements
+context:
+    frequency: monthly
+    devices:
+        - workstation
+        - cluster
+    voluntary: true
+workflows:
+    - W1158
+sources:
+    - title: Minigraph-Cactus paper (Hickey et al. 2024)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10638906
+      summary: 90-haplotype human pangenome graph; haplotypes stored as paths; bidirected edges
+    - title: Cactus pangenome documentation
+      url: https://github.com/ComparativeGenomicsToolkit/cactus/blob/master/doc/pangenome.md
+      summary: GFA, GBZ and odgi outputs; per-chromosome graphs; odgi viz and draw; vg chunk to extract regions
+    - title: A draft human pangenome reference (Liao et al. 2023)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10172123
+      summary: 3.29 Gb graph with 67,000 SV sites; loci such as RHD-RHCE, HLA-A and CYP2D6
+    - title: GTPB CPANG22 pangenome subgraph exercise
+      url: https://gtpb.github.io/CPANG22/pages/Day3a_Pangenome_subgraphs
+      summary: Extract and sort the C4 subgraph, odgi viz by depth, copy number and HERV questions
+    - title: ODGI paper
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC9237687
+      summary: 1D linear-time rendering; 2D costly; complex graphs hard to read in few dimensions
+    - title: Sequence tube maps (Beyer et al. 2019)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6954646
+      summary: Paths as colored lines; inversions and duplications from path shape; clutter with rearrangements
+    - title: Comparing methods for constructing human pangenome graphs (Andreace et al. 2023)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10691155/
+      summary: 10.9 million nodes for 2 haplotypes and 37.8 million for 10 with Minigraph-Cactus
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

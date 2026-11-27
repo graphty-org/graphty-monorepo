@@ -89,6 +89,8 @@ import {
     readUnionLeaf,
     type ScopeLeaf,
     type UnionStepSource,
+    valuePaths,
+    waitingSources,
 } from "../visibility/filter";
 import type { ElementMask } from "./ElementMask";
 import { edgeSpaceOf } from "./spaces";
@@ -105,6 +107,7 @@ import {
     type ValueHistogram,
     valueHistogram,
     type ValueHistogramOptions,
+    type WaitingSteps,
 } from "./steps";
 
 export type { ComponentLabels } from "../sets/resolve";
@@ -169,6 +172,8 @@ export interface ScopeSources {
      * before the experiment. Absent reads on.
      */
     readonly sourceSteps?: () => boolean;
+    /** Under the source-steps experiment, a staged source's rows as a graph of their own ({@link FilterSources}). */
+    readonly waiting?: FilterSources["waiting"];
     /** What is visible. Absent means nothing hides anything, so `visible` is the whole graph. */
     readonly visibility?: ScopeVisibilitySource;
     /** What is selected. Absent refuses the `selection` scope. */
@@ -1165,7 +1170,46 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
     };
 
     const { visibility } = sources;
+    /**
+     * A selection of one staged source's rows, read over them: nothing of it is in the graph, so it holds
+     * no elements of it, shows none, and reads no run.
+     * @param leaf - The selection.
+     * @returns How it is read, or undefined for a selection of the graph.
+     */
+    const waitingOf = (leaf: UnionLeaf): WaitingSteps | undefined => {
+        const [source, ...more] = leaf.sources ?? [];
+        const rows = more.length > 0 || source === undefined ? undefined : sources.waiting?.(source);
+        if (rows === undefined) {
+            return undefined;
+        }
+
+        const { graph } = rows;
+        const from: FilterSources = { ...waitingSources(filterSourcesIn(context()), rows), steps: undefined };
+        return {
+            read: () => readUnionLeaf(graph, leaf, from),
+            valuesOf: (step, input) => {
+                const path = valuePaths(step.rule).at(0);
+                if (path === undefined) {
+                    return null;
+                }
+
+                const readers = readersOf(graph, path, from);
+                return valueHistogram(
+                    {
+                        count: leaf.side === "nodes" ? graph.nodeCount : graph.edgeCount,
+                        read: (leaf.side === "nodes" ? readers.node : readers.edge) ?? ((): unknown => undefined),
+                        within: input,
+                        unstable: false,
+                        bin: (column, binning) => buildHistogram(column, binning),
+                    },
+                    // A listed value is counted by itself.
+                    step.rule.kind === "categories" ? { as: "categorical" } : {},
+                );
+            },
+        };
+    };
     const steps = createScopeSteps({
+        waiting: waitingOf,
         read: (leaf) => readUnionLeaf(sources.snapshot(), leaf, filterSourcesIn(context())),
         reading: {
             scopeOf: (side, bytes) => {

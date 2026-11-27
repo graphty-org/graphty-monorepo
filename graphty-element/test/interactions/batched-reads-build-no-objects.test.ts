@@ -23,7 +23,9 @@ import { LayoutEngine } from "../../src/layout/LayoutEngine";
 import { SnapshotLayoutEngine, type SnapshotLayoutInput } from "../../src/layout/SnapshotLayoutEngine";
 import { dataManagerInternals } from "../../src/managers/DataManager";
 import type { RenderPath } from "../../src/meshes/NodeBatch";
-import { drag } from "../helpers/real-input";
+import { curveWork } from "../../src/meshes/pulledCurve";
+import type { NodeShapeValue } from "../../src/session/styles/channels";
+import { drag, hover, wheel } from "../helpers/real-input";
 
 const COUNT = 40;
 const NODES = Array.from({ length: COUNT }, (_, id) => ({
@@ -172,6 +174,224 @@ describe("reads on the batched path", () => {
         assert.isTrue(element.isPinned(12));
         assert.deepStrictEqual(built(element), before, "the read built nothing");
     });
+
+    it("a curve restyle draws every curve from the rows, building no Edge (issue #10046)", async () => {
+        const element = await mounted("batched", "3d", FIXED_3D);
+        const lines = element.graph.getEdgeRowLines();
+        assert.isNotNull(lines);
+        const before = built(element);
+
+        await element.session.styles.add({
+            name: "curves",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowHead": "none", "edge.curvature": true },
+        });
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+
+        assert.deepStrictEqual(built(element), before, "the restyle built no Edge");
+        assert.strictEqual(lines?.count, EDGES.length, "every edge is drawn from its rows");
+        assert.strictEqual(lines?.shownCurveRows().length, EDGES.length, "every edge is drawn as a curve");
+        let bowed = 0;
+        lines?.forEachShownCurve((_, points) => {
+            // a lone curve's middle stands off its chord (`pulledCurve.ts` CONTROL_OFFSET)
+            const middle = Math.floor(points.length / 8) * 4;
+            const last = points.length - 4;
+            const [ax, ay, bx, by] = [points[0], points[1], points[last], points[last + 1]];
+            const [mx, my] = [points[middle], points[middle + 1]];
+            const across = Math.abs((bx - ax) * (my - ay) - (by - ay) * (mx - ax)) / Math.hypot(bx - ax, by - ay);
+            bowed += across > 0.1 ? 1 : 0;
+        });
+        assert.strictEqual(bowed, EDGES.length, "each curve is placed, bowed off its chord");
+
+        // the pointer on a curve's middle, off its chord, finds that edge, still building none
+        let middle: { x: number; y: number } | undefined;
+        let row = -1;
+        lines?.forEachShownCurve((at, points) => {
+            const half = Math.floor(points.length / 8) * 4;
+            middle ??= element.worldToScreen({ x: points[half], y: points[half + 1], z: points[half + 2] });
+            row = row < 0 ? at : row;
+        });
+        assert.isDefined(middle);
+        await hover(element, middle ?? { x: 0, y: 0 });
+        const id = dataManagerInternals.unbuiltEdgeId(element.graph.getDataManager(), row);
+        assert.isDefined(id, "the curve's edge is stored with no Edge");
+        assert.deepEqual(element.elementAt(middle ?? { x: 0, y: 0 }), { kind: "edge", id }, "the curve is found");
+        assert.deepStrictEqual(built(element), before, "the pick built no Edge");
+
+        // a drag of node 12 moves its two curves and places no other
+        const placed = (): Map<number, number[]> => {
+            const all = new Map<number, number[]>();
+            lines?.forEachShownCurve((at, points) => all.set(at, Array.from(points)));
+            return all;
+        };
+        const still = placed();
+        const from = element.nodeScreenPosition(12);
+        assert.isDefined(from, "node 12 is on screen");
+        const { spans } = curveWork;
+        await drag(element, from, { x: from.x + 30, y: from.y + 20 });
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+        const moved = [...placed()].filter(([at, points]) => points.some((v, i) => v !== still.get(at)?.[i]));
+        const manager = element.graph.getDataManager();
+        assert.sameMembers(
+            moved.map(([at]) => dataManagerInternals.unbuiltEdgeId(manager, at)),
+            dataManagerInternals.incidentEdgeIds(manager, 12),
+            "the dragged node's curves follow it, and no other moves",
+        );
+        // two curves a frame of the drag's eight moves; placing every curve on each frame would be 39 a frame
+        assert.isBelow(curveWork.spans - spans, EDGES.length, "only the dragged node's curves are placed");
+        // the drag builds the dragged node's `Node`, which its pointer handler is delivered to
+        assert.strictEqual(built(element).edges, before.edges, "the drag built no Edge");
+    });
+
+    it("a curve drawn from its rows is cut again when its node's border or flat shape changes", async () => {
+        const element = await mounted("batched", "3d", FIXED_3D);
+        await element.session.styles.add({
+            name: "curves",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowHead": "none", "edge.curvature": true },
+        });
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+        const lines = element.graph.getEdgeRowLines();
+        // how far each curve starts from its source node's center, by edge row
+        const starts = (): Map<number, number> => {
+            const all = new Map<number, number>();
+            const table = element.graph.getRowTable();
+            lines?.forEachShownCurve((row, points) => {
+                const source = lines.endsOf(row)?.[0] ?? -1;
+                const centre = table?.centerOf(source);
+                if (centre !== undefined) {
+                    all.set(row, Math.hypot(points[0] - centre.x, points[1] - centre.y, points[2] - centre.z));
+                }
+            });
+            return all;
+        };
+        const plain = starts();
+
+        await element.session.styles.add({
+            name: "bordered",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.borderWidth": 0.3 },
+        });
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+        const bordered = starts();
+        assert.strictEqual(bordered.size, EDGES.length, "every curve is still drawn from its rows");
+        for (const [row, start] of bordered) {
+            assert.isAbove(start, (plain.get(row) ?? 0) + 0.1, `curve ${String(row)} starts past the border`);
+        }
+
+        // flat shapes of one box, whose outlines the row table keeps only for a seen-through row
+        const shaped = async (shape: NodeShapeValue): Promise<Map<number, number>> => {
+            await element.session.styles.add({
+                name: shape,
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.shape": shape },
+            });
+            await operationQueueOf(element.graph).waitForCompletion();
+            await element.waitForStableFrame();
+            return starts();
+        };
+        const rectangle = await shaped("rectangle");
+        const diamond = await shaped("diamond");
+        assert.strictEqual(diamond.size, EDGES.length, "every curve is still drawn from its rows");
+        const recut = [...diamond].filter(([row, start]) => Math.abs(start - (rectangle.get(row) ?? start)) > 0.05);
+        assert.strictEqual(recut.length, EDGES.length, "every curve is cut again at the diamond's outline");
+    });
+
+    it("a curve drawn from its rows is cut again when a zoom resizes its node's screen-pixel border", async () => {
+        const element = await mounted("batched", "3d", FIXED_3D);
+        await element.session.styles.add({
+            name: "rings",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.borderScreenWidth": 4 },
+        });
+        await element.session.styles.add({
+            name: "curves",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowHead": "none", "edge.curvature": true },
+        });
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+        const lines = element.graph.getEdgeRowLines();
+        const start = (): number[] => {
+            const all: number[] = [];
+            lines?.forEachShownCurve((_, points) => all.push(points[0], points[1], points[2]));
+            return all;
+        };
+        const near = start();
+        assert.strictEqual(near.length, EDGES.length * 3, "every curve is drawn from its rows");
+
+        // a zoom far out widens each ring in scene units, which moves where every curve leaves its node
+        for (let turn = 0; turn < 6; turn++) {
+            await wheel(element, { x: 200, y: 150 }, 400);
+            await element.waitForStableFrame();
+        }
+
+        const far = start();
+        assert.isTrue(
+            far.some((v, i) => v !== near[i]),
+            "the curves are cut again at the rings the zoom rebuilt",
+        );
+    });
+
+    // An add of more edges than the edge set's log keeps (4,096, `data/edgeSetLog.ts`) names no pairs: every edge is
+    // walked instead, and the curve must still leave the rows.
+    const MORE = 4200;
+    it.each([
+        ["alone", [] as { src: number; dst: number }[]],
+        [
+            "in an add the edge set's log cannot list",
+            Array.from({ length: MORE }, (_, i) => ({ src: 1000 + i, dst: 1001 + i })),
+        ],
+    ])(
+        "a curve drawn from its rows is drawn by its Edge, fanned, once a parallel edge joins it %s",
+        async (_, more) => {
+            const element = await mounted("batched", "3d", FIXED_3D);
+            await element.session.styles.add({
+                name: "curves",
+                target: "edge",
+                selector: { match: "everything" },
+                set: { "edge.arrowHead": "none", "edge.curvature": true },
+            });
+            await operationQueueOf(element.graph).waitForCompletion();
+            await element.waitForStableFrame();
+            const lines = element.graph.getEdgeRowLines();
+            const manager = element.graph.getDataManager();
+            const [first] = dataManagerInternals.incidentEdgeIds(manager, 0);
+            const row = lines?.rows().find((at) => dataManagerInternals.unbuiltEdgeId(manager, at) === first) ?? -1;
+            assert.isTrue(lines?.isCurve(row), "edge 0-1 is a curve drawn from its rows");
+            const before = built(element).edges;
+
+            if (more.length > 0) {
+                await element.session.data.addNodes(
+                    Array.from({ length: MORE + 1 }, (_, i) => ({ id: 1000 + i, position: { x: 40 + i, y: 0, z: 0 } })),
+                );
+                await operationQueueOf(element.graph).waitForCompletion();
+                await element.waitForStableFrame();
+            }
+
+            await element.session.data.addEdges([{ src: 1, dst: 0 }, ...more]);
+            await operationQueueOf(element.graph).waitForCompletion();
+            await element.waitForStableFrame();
+
+            assert.isFalse(lines?.isCurve(row), "the pair fans: no lone curve is drawn from its rows");
+            assert.strictEqual(built(element).edges, before + 2, "both edges of the pair are drawn by their Edge");
+            assert.strictEqual(
+                lines?.shownCurveRows().length,
+                EDGES.length - 1 + more.length,
+                "every other curve is still a row's",
+            );
+        },
+    );
 
     it("getEdges builds each Edge as it is read, in the order getEdgeIds lists the ids", async () => {
         const element = await mounted("batched", "3d", FIXED_3D);

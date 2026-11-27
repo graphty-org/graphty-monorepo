@@ -1,0 +1,139 @@
+id: W373
+name: Symptom Network Analysis Without Code (JASP-Style)
+category: analysis
+validated: false
+personas:
+    - point-and-click-network-analyst
+requires_capabilities:
+    - data-import
+    - data-preview
+    - data-validation
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-force-directed
+    - layout-radial
+    - comparison-view
+    - computed-attributes
+    - statistics-panel
+    - guided-onboarding
+    - export-image
+    - data-export
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - graph-canvas
+    - visual-encoding-panel
+    - legend-panel
+    - layout-panel
+    - ranked-node-table
+    - comparison-view
+    - onboarding-wizard
+    - image-export-dialog
+starting_state:
+    data_type: CSV or .sav file of 8-30 scale items from 200-3,000 respondents, optionally a grouping column
+    node_count: 8-30
+    edge_density: sparse after regularization
+    user_expertise: novice
+goal: >-
+    **Intent**: Get the same outputs a coded bootnet analysis gives (network figure, centrality table and plot,
+    stability plots) by menus in about 30 minutes, for an applied health paper. JASP's Network module is the tool
+    used today; it wraps the same R packages.
+
+
+    **Mental Model**: "Put the items in a box, tick the outputs, copy the pictures into Word." The user follows the
+    pattern of a paper they are imitating and trusts the defaults.
+
+
+    **Task Phases**:
+
+    1. **Open data** - CSV or .sav; choose Network Analysis; drag items into Variables and optionally a group
+    into Split by
+
+    2. **Choose settings** - Estimator (EBICglasso by default), correlation method, gamma, missing-value
+    handling, and for correlation networks a threshold such as Bonferroni or Holm
+
+    3. **Read outputs** - Summary table, network plot (blue and red), centrality table and plot
+    (betweenness, closeness, strength, expected influence; z-scores when Normalized is ticked), clustering plot,
+    weights matrix
+
+    4. **Bootstrap** - Nonparametric, case, node, parametric, person or jackknife bootstrap adds edge and
+    centrality stability plots
+
+    5. **Layout and groups** - Spring, circle or data (x and y columns); one averaged layout for all Split-by
+    groups, savable back into the data; node colors by subscale, node shape by variable type
+
+    6. **Export** - PNG or PDF into the manuscript; copy citations
+
+
+    **Decision Points**:
+
+    - Which estimator, and what to do when mgm or IsingFit terminates?
+
+    - Normalized (z-score) or raw centrality?
+
+    - Which bootstrap type, and how to describe the resulting plot?
+
+    - Are the group networks different, given there is no permutation test in the GUI?
+
+
+    **Information Needs**:
+
+    - Plain explanation of each output and what a reviewer expects to see
+
+    - Which centrality indices are stable enough to report
+
+    - Correct group colors matching the subscales
+
+    - The shared layout across groups, and that it exists at all
+
+
+    **Pain Points**:
+
+    - Wrong group colors assigned to variables (JASP 0.19.3 report)
+
+    - Bootstrap plots users call peculiar and cannot interpret
+
+    - Estimators that terminate unexpectedly
+
+    - No NetworkComparisonTest, no cross-group difference matrix, no temporal networks
+
+    - Expected influence and the shared layout are not mentioned in the help file
+
+
+    **Data Flow**:
+
+    - Input: Item-level data file with optional grouping column; or the weights matrices JASP exports
+
+    - Transformations: Network estimation in the statistics tool, shared layout across groups, centrality, bootstrap
+    stability
+
+    - Output: Network figure, centrality plot and table, stability plots, saved layout columns, exported PNG or PDF
+success_criteria:
+    - metric: Time to complete figure set
+      target: About 30 minutes with no code (design goal; no source measures it)
+    - metric: Interpretability
+      target: User can state in one sentence what each stability output shows
+    - metric: Group color correctness
+      target: Every node color matches its declared subscale
+sources:
+    - title: JASP Network Analysis help file
+      url: https://raw.githubusercontent.com/jasp-stats/jaspNetwork/master/inst/help/NetworkAnalysis.md
+      summary: Estimators, Split by, bootstrap types, layouts, graphical options
+    - title: jaspNetwork R source
+      url: https://github.com/jasp-stats/jaspNetwork/blob/master/R/networkanalysis.R
+      summary: averageLayout across groups, expected influence, layout saved to data, no NCT call
+    - title: JASP forum discussion 9830
+      url: https://forum.cogsci.nl/discussion/9830
+      summary: Wrong group colors and uninterpretable bootstrap plots in 0.19.3
+    - title: JASP forum comment 26597 (via search snippet)
+      url: https://forum.cogsci.nl/discussion/comment/26597/
+      summary: mgm and IsingFit terminated unexpectedly
+    - title: CORDIS project 101040876 reporting (via search snippet)
+      url: https://cordis.europa.eu/project/id/101040876/reporting
+      summary: A JASP Bayesian network GUI exists but is described as basic
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

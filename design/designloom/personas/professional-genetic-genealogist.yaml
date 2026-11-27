@@ -1,0 +1,66 @@
+id: professional-genetic-genealogist
+name: Professional Genetic Genealogist
+roster_persona: family-historian-dna
+tier: B
+scope: in-scope
+role: Accredited Genealogist Running Client DNA Cases
+quote: I need one cluster picture per client across five vendors, and a figure in the report that shows why the conclusion holds.
+bio: >-
+    Clive Ashford is an accredited genealogist with a small practice; his clients are estates, adoptees and families
+    stuck at a brick wall, and he bills by the hour and delivers a written report with figures. A case uses exports
+    from two to five vendors at once: match lists with shared cM, segment counts and longest segment, in-common-with
+    pairs where the vendor provides them, and segment files from FamilyTreeDNA, MyHeritage and GEDmatch. He clusters
+    with the DNAGedcom Client and the Collins-Leeds method, Genetic Affairs AutoCluster, Jonathan Brecher's Shared
+    Clustering on Windows for large Ancestry lists, and Gephi when a case needs a node-link view; DNA Painter supplies
+    chromosome maps and What Are the Odds. Because kit identifiers differ per database, he clusters each vendor
+    separately and reconciles the clusters by hand through relatives who tested in more than one place, then assembles
+    the report figure from a matrix screenshot, a spreadsheet and a tree chart.
+characteristics:
+    expertise: advanced
+    time_pressure: medium
+    graph_literacy: intermediate
+    domain_knowledge: advanced
+motivations:
+    - One consistent cluster picture per client, across the vendors the client tested with
+    - A report figure that shows the reasoning, not just the conclusion
+    - A defensible statement of what is known, what is likely and what is excluded
+behaviors:
+    - Collects whatever each vendor allows: a match CSV, a segment file, and pairs only where they exist
+    - Clusters per vendor and reconciles by known relatives who tested twice
+    - Chooses the tool by database size, trading a long download for larger clusters
+    - De-identifies names to initials or kit identifiers before a figure leaves the family
+    - Records the thresholds used, so the figure can be rebuilt months later
+frustrations:
+    - Every vendor's export has different columns and limits, and Ancestry allows no match download at all
+    - A complete Ancestry download through a third-party tool runs 12 to 24 hours
+    - Download tools have received cease-and-desist letters, so a route can disappear mid-case
+    - Matrix, member list and tree chart are three products, so the report figure is assembled by hand
+    - Cluster labels are lost when the clustering is rerun at another resolution
+context:
+    frequency: daily
+    devices:
+        - desktop
+        - laptop
+    voluntary: false
+workflows:
+    - W2097
+    - W2099
+sources:
+    - title: DNA Explained - How to download your DNA match lists and segment files
+      url: https://dna-explained.com/2022/08/03/how-to-download-your-dna-match-lists-segment-files/
+      summary: What each vendor allows, the columns, the 23andMe 1,500-match cap, Ancestry's refusal
+    - title: DNA Explained - FamilyTreeDNA match download files are back
+      url: https://dna-explained.com/2024/08/29/familytreedna-match-download-files-are-back/
+      summary: Family Finder match CSV columns and the all-segments download; no pair data reported
+    - title: Shared Clustering wiki - versus other clustering tools
+      url: https://github-wiki-see.page/m/jonathanbrecher/sharedclustering/wiki/Shared-Clustering-versus-other-clustering-tools
+      summary: 1,800 of 2,000 matches clustered at 20 cM and up; 12-24 hour complete downloads
+    - title: Family Locket - 10 ways to group your DNA matches
+      url: https://familylocket.com/10-ways-to-group-your-dna-matches-into-genetic-networks
+      summary: The grouping tools per vendor, DNAGedcom's Collins-Leeds method and its pricing
+    - title: DNA Explained - ThruLines and shared matches now require a subscription
+      url: https://dna-explained.com/2024/02/05/ancestrys-thrulines-and-shared-matches-now-require-a-subscription/
+      summary: Cease-and-desist letters to tools that download match lists
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

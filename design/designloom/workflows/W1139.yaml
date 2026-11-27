@@ -1,0 +1,134 @@
+id: W1139
+name: Alliance and Conflict Dyad-Years to Yearly Networks Among States
+category: analysis
+validated: false
+personas:
+    - political-networks-scholar
+requires_capabilities:
+    - data-import
+    - table-to-graph-builder
+    - data-validation
+    - stable-id-data-binding
+    - temporal-analysis
+    - temporal-navigation
+    - signed-edges
+    - multiplex-relations
+    - typed-edge-filtering
+    - network-collection-small-multiples
+    - stable-temporal-layout
+    - geographic-layout
+    - community-detection
+    - centrality-degree
+    - visual-encoding-edges
+    - legend-display
+    - comparison-view
+    - stats-package-handoff
+    - journal-figure-export
+    - dyad-year-import
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - network-list-panel
+    - temporal-controls
+    - filter-panel
+    - visual-encoding-panel
+    - legend-panel
+    - comparison-view
+    - statistics-panel
+    - graph-canvas
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: dyad-year tables (state A, state B, year, alliance type or dispute onset) with country codes
+    node_count: 150-200 states per year
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Turn Correlates of War alliance and dispute dyad-years into one network of states per year, see alliance
+    blocs and conflict ties together, and hand the yearly networks to a temporal ERGM.
+
+
+    **Mental Model**: "A yearly map of who is allied with whom and who fights whom." States come and go; alliances are
+    positive ties of several types, disputes are negative ties.
+
+
+    **Task Phases**:
+
+    1. **Load dyad-years** - The COW dyadic alliance file (defense, neutrality, non-aggression, entente) and MID 5.0
+    dispute dyad-years, keyed by COW country code
+
+    2. **Clean** - Collapse duplicate directed dyad-years; decide how to count several dispute onsets in one year;
+    flag dyads whose dispute years overlap without direct fighting
+
+    3. **One network per year** - Nodes are the states existing that year; alliances and disputes as two relations or
+    one signed network
+
+    4. **Explore** - Step through years, alliance blocs as communities, conflict ties overlaid, states placed by a
+    stable layout or on a map
+
+    5. **Compare and model** - Small multiples per year or decade; export the yearly networks and state attributes for
+    btergm and check out-of-sample fit there
+
+
+    **Decision Points**:
+
+    - Which alliance types count as a tie?
+
+    - Directed or undirected dyads, and how duplicates collapse?
+
+    - Signed single network or separate alliance and dispute relations?
+
+
+    **Information Needs**:
+
+    - Rows dropped or merged in cleaning, with the rule used
+
+    - States entering and leaving the system per year
+
+    - Count of allied pairs that also dispute in the same year
+
+
+    **Pain Points**:
+
+    - Directed dyad-year files carry duplicates (120,784 rows in the directed alliance data)
+
+    - Several dispute onsets in one dyad-year complicate merges (France and Italy, 1860)
+
+    - Node sets change every year, breaking fixed layouts
+
+
+    **Data Flow**:
+
+    - Input: COW alliance and MID dyad-year tables, state attribute table
+
+    - Transformations: De-duplication, yearly split, signed or multiplex ties
+
+    - Output: Yearly network figures, per-year edge lists for R
+success_criteria:
+    - metric: Cleaning transparency
+      target: User can state how many dyad-years were merged or dropped and why
+    - metric: Year comparability
+      target: A state keeps its color and approximate place across yearly panels
+sources:
+    - title: Correlates of War Formal Alliances v4.1
+      url: https://correlatesofwar.org/data-sets/formal-alliances
+      summary: Alliances 1816-2012, dyadic file, alliance types
+    - title: Correlates of War Militarized Interstate Disputes v5.0
+      url: https://correlatesofwar.org/data-sets/MIDs
+      summary: Disputes 1816-2014 in dispute and participant files
+    - title: peacesciencer cow_alliance
+      url: https://search.r-project.org/CRAN/refmans/peacesciencer/html/cow_alliance.html
+      summary: Directed dyad-year alliance data with 120,784 rows including duplicates
+    - title: peacesciencer add_cow_mids
+      url: https://search.r-project.org/CRAN/refmans/peacesciencer/html/add_cow_mids.html
+      summary: Several dispute onsets per dyad-year
+    - title: peacesciencer cow_mid_ddydisps
+      url: https://search.r-project.org/CRAN/refmans/peacesciencer/html/cow_mid_ddydisps.html
+      summary: Dyad-year dispute data are naive about who fought whom
+    - title: btergm reference manual
+      url: https://cran.r-project.org/web/packages/btergm/refman/btergm.html
+      summary: TERGM with the alliances example data (20 yearly networks, 164 countries)
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

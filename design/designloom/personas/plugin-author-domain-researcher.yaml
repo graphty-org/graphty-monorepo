@@ -1,15 +1,24 @@
 id: plugin-author-domain-researcher
 name: Researcher Writing a One-Off Plugin
+roster_persona: plugin-author-domain-researcher
+tier: B
+scope: in-scope
 role: Bioinformatics Researcher Writing a Custom Score or a Lab File Reader
 quote: I copied the example, changed three lines, and got an error I couldn't parse. I went back to Cytoscape.
 bio: >-
-    Dr. Tomasz Kowalczyk is a staff scientist in a systems biology lab. His lab's interaction screens produce a
+    Dr. Piotr Kowalczyk is a staff scientist in a systems biology lab. His lab's interaction screens produce a
     tab-separated file with its own column conventions (bait, prey, a confidence score and a replicate count), and the
     lab has its own "essentiality score" that combines degree with experimental knock-out data. He writes R and a little
     Python for analysis, and JavaScript only by copying and editing examples he finds in documentation. He will spend
     one afternoon trying to make graphty-element read the lab's file and show the lab's score. If the first example runs
     and the first error message tells him what to change, he will finish. If the first error is a stack trace from
     inside the element or a TypeScript type he has never seen, he stops and goes back to the tool he already knows.
+    The tool he knows is Cytoscape Desktop, where readers and scores are the classic small app (AMatReader is about 72 KB
+    of Java with a preview that predicts import settings). Writing one means Maven, an OSGi bundle and Embed-Dependency
+    directives, and apps often stick in "Installed" instead of "Resolved". Because of that cost he usually scripts
+    instead: computes the score as a data-frame column in R and calls RCy3's createNetworkFromDataFrames against a
+    running Cytoscape. Cytoscape Web lowers the bar further with Service Apps, REST services in any language registered
+    by pasting a URL.
 characteristics:
     expertise: novice
     time_pressure: medium
@@ -37,6 +46,8 @@ frustrations:
     - Having to understand versions, namespaces, lifecycles or option schemas for a one-off script
     - A reader that fails the whole file because of one malformed row, with no row number
     - Docs that explain the architecture before showing a working result
+    - Java, Maven and OSGi dependency embedding, with bundles stuck in "Installed" for reasons the console does not explain
+    - Scripted routes that only work while a desktop application is running locally
 knows:
     - The biology and the lab's data conventions in depth
     - R and basic Python, spreadsheets, tab-separated files
@@ -54,7 +65,8 @@ context:
         - laptop
         - desktop
     voluntary: true
-workflows: []
+workflows:
+    - W289
 sources:
     - title: A large-scale analysis of bioinformatics code on GitHub (PLOS ONE)
       url: https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0205898
@@ -65,3 +77,24 @@ sources:
     - title: Nielsen Norman Group - Error Message Guidelines
       url: https://www.nngroup.com/articles/error-message-guidelines/
       summary: Error messages must say what went wrong and how to fix it in the user's terms - the point where this persona gives up
+    - title: AMatReader (GitHub)
+      url: https://github.com/idekerlab/aMatReader
+      summary: Adjacency-matrix reader app for Cytoscape with a CyREST pip wrapper
+    - title: AMatReader (F1000Research)
+      url: https://f1000research.com/articles/7-823/v2
+      summary: Reader whose preview predicts its import settings
+    - title: Cytoscape wiki - How to add library dependencies
+      url: https://wikiold.cytoscape.org/HowToAddLibraryDependencies
+      summary: OSGi Embed-Dependency directives for app bundles
+    - title: cytoscape-discuss - app stuck in Installed
+      url: https://groups.google.com/g/cytoscape-discuss/c/xYU8gO-hRHE
+      summary: Bundle stays Installed instead of Resolved because of a dependency problem
+    - title: RCy3 - Importing data
+      url: https://bioconductor.org/packages/release/bioc/vignettes/RCy3/inst/doc/Importing-data.html
+      summary: createNetworkFromDataFrames loads R data frames into a running Cytoscape
+    - title: Cytoscape Web - Extending
+      url: https://cytoscape-web.readthedocs.io/en/latest/Extending.html
+      summary: Service Apps are REST services in any language registered by pasting their URL
+version: 1.1.0
+created_at: 2026-09-28T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

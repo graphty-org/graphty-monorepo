@@ -1,0 +1,130 @@
+id: W193
+name: Spans and Layers and Scenario Modeling on the Reporting Hierarchy
+category: analysis
+validated: false
+personas:
+    - org-design-consultant
+requires_capabilities:
+    - data-import
+    - data-validation
+    - layout-hierarchical
+    - degree-analysis
+    - computed-attributes
+    - filtering
+    - visual-encoding-nodes
+    - legend-display
+    - search
+    - details-on-demand
+    - comparison-view
+    - statistics-panel
+    - data-export
+    - export-image
+    - report-generation
+    - hierarchy-scenario-editing
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - layout-panel
+    - graph-canvas
+    - cluster-collapse-control
+    - computed-attributes-panel
+    - filter-panel
+    - visual-encoding-panel
+    - legend-panel
+    - search-panel
+    - node-details-panel
+    - comparison-view
+    - network-list-panel
+    - metric-card
+    - data-export-dialog
+    - report-generator-dialog
+starting_state:
+    data_type: HRIS position hierarchy (position id, parent position id, incumbent, grade, cost, location)
+    node_count: 1000-50000
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Diagnose spans of control and management layers on the formal reporting hierarchy, then model one or
+    more restructuring scenarios and compare headcount, cost, spans and layers against the baseline. All features below
+    are vendor-reported; no independent practitioner source was found.
+
+
+    **Mental Model**: "A tree I can edit on a copy." The baseline is the current hierarchy; each scenario is a copy where
+    positions move to new parents, and the numbers recompute as I move them.
+
+
+    **Task Phases**:
+
+    1. **Import and baseline** - Import the position hierarchy; capture a baseline snapshot that can be refreshed later
+
+    2. **Diagnose** - Compute direct reports per manager and layers per leader; color segments Micro, Narrow, Optimal
+    or Wide; flag managers off the span target and positions below the target layer
+
+    3. **Model a scenario** - Copy the baseline; drag organizations or positions to new parents, bulk-move, create or
+    inactivate positions; stage moves and exits in a holding area that computes savings; warn without blocking when a
+    change breaks a guideline
+
+    4. **Watch metrics** - Headcount, FTE, total workforce cost, span of control and layers recompute after every move
+
+    5. **Compare and export** - Hover shows scenario, baseline and difference; compare scenarios side by side with
+    counts of new, inactivated and moved organizations; export changes to CSV or XLSX and a deck; route for approval
+
+
+    **Decision Points**:
+
+    - What span target and layer target apply to this function?
+
+    - Which narrow-span managers to consolidate, and where do their teams go?
+
+    - Which scenario to recommend, given cost and disruption?
+
+
+    **Information Needs**:
+
+    - Span and layer per manager, with off-target counts
+
+    - Headcount and cost sums per subtree, recomputed live
+
+    - Scenario-versus-baseline differences per node and in total
+
+    - Change list (moved, created, inactivated) for HR operations
+
+
+    **Pain Points**:
+
+    - No informal-network data in the same view as the hierarchy being redesigned
+
+    - Enterprise trees of tens of thousands of positions need collapse and expand to navigate
+
+    - No independent evaluation of the vendor tools found
+
+
+    **Data Flow**:
+
+    - Input: Position hierarchy CSV or XLSX with cost and grade columns
+
+    - Transformations: Tree layout, span and layer computation, subtree sums, scenario copies with reparenting, diff
+    against baseline
+
+    - Output: Scenario comparison, change list in CSV or XLSX, slide deck
+success_criteria:
+    - metric: Diagnosis speed
+      target: Off-target spans and excess layers are listed within 5 minutes of import (design goal; no source measures it)
+    - metric: Live recompute
+      target: Moving a branch updates headcount, cost, span and layers without a manual refresh
+    - metric: Change list
+      target: Every difference between scenario and baseline is exportable as rows
+sources:
+    - title: Visier Organization Design documentation
+      url: https://docs.visier.com/swp/Organization%20Design/organization-design.htm
+      summary: Baseline snapshot, scenarios, staging area with savings, live metrics, comparison, CSV/XLSX and PowerPoint export (vendor-reported)
+    - title: Workday Adaptive Planning 2026 R1 - Org Design and Scenario Modeling
+      url: https://doc.workday.com/adaptive-planning/en-us/what-s-new/releases/2026r1-release-notes/2026r1-planning-for-hcm-and-financials/org-design-and-scenario-modeling.html
+      summary: Span segments, non-blocking guideline warnings, drag to reparent, scenario versus baseline hover (vendor-reported)
+    - title: Orgvue workspace user guide - template packs
+      url: https://docs.orgvue.com/orgvue-workspace-user-guide/user-guide/template-packs.html
+      summary: Spans and Layers packs flagging off-target spans and excess layers (vendor-reported)
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

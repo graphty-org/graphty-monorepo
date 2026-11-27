@@ -1,0 +1,140 @@
+id: W47
+name: Two-Mode Data and Very Large Graphs
+category: analysis
+validated: false
+personas:
+    - expert-emma
+    - analyst-alex
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - large-graph-rendering
+    - progressive-loading
+    - filtering
+    - community-detection
+    - overview-minimap
+    - zoom-pan
+    - data-export
+    - bipartite-projection
+    - representation-transparency
+    - sbm-inference
+    - backbone-extraction
+    - group-collapse
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - progressive-loader
+    - cluster-collapse-control
+    - minimap
+    - filter-panel
+    - graph-canvas
+    - data-export-dialog
+starting_state:
+    data_type: two-mode table (person-organization, author-paper, user-hashtag, species-site) or a 10^8-10^9 edge graph
+    node_count: 1000-65000000
+    edge_density: sparse
+    user_expertise: intermediate+
+goal: >-
+    **Intent**: Work with two-mode data without silently projecting it, extract a defensible backbone when a projection
+    is needed, and handle graphs far too large to draw node by node by reducing them first.
+
+
+    **Mental Model**: "Keep the source of truth, derive views from it." The two-mode graph is the data; a projection or
+    backbone is a recorded transformation. A huge graph is seen through a reduction (sample, k-core, backbone, coarse
+    grained blocks), with drill-down.
+
+
+    **Task Phases (two-mode)**:
+
+    1. **Keep the two-mode graph** - Import it and record which side is which
+
+    2. **If projecting, choose the weighting** - Shared-neighbor count, or Newman's collaboration weighting
+    (each shared paper adds 1/(n_p - 1) for its n_p authors)
+
+    3. **Extract a backbone against a bipartite null** - Stochastic degree sequence model (approximately
+    preserves both sides' degrees) or fixed degree sequence model (exactly); the input must be the bipartite network,
+    not the weighted projection
+
+    4. **Or analyze directly** - Bipartite stochastic block model, bipartite modularity and nestedness, or
+    group analysis when the second mode is a group (W49)
+
+
+    **Task Phases (very large graphs)**:
+
+    5. **Reduce first** - Sample, take a k-core, extract a backbone, or coarse-grain by communities or nested
+    block-model levels
+
+    6. **Drill down** (ongoing) - From a coarse level (for example 297 nodes into 16 groups into 5) to members
+
+
+    **Decision Points**:
+
+    - Analyze the two-mode graph directly, or project? Which weighting?
+
+    - Which bipartite null for the backbone (SDSM or FDSM), and what significance level?
+
+    - Which reduction keeps the structure the question needs?
+
+
+    **Information Needs**:
+
+    - Which side each node belongs to and degree distributions of both sides
+
+    - Projection weighting and backbone parameters recorded
+
+    - Size of the reduced view and what was dropped
+
+    - Coarse levels with member counts
+
+
+    **Pain Points**:
+
+    - Two-mode data projected without saying so, then thresholded globally
+
+    - Backbone tools live in a separate R package
+
+    - Nobody can draw com-Friendster (65.6 million nodes, 1.8 billion edges) node by node; Gephi needs more than 8 GB
+    around a million elements
+
+
+    **Data Flow**:
+
+    - Input: Two-mode table or very large edge list
+
+    - Transformations: Bipartite import, weighted projection, bipartite-null backbone, reduction and coarse-graining
+
+    - Output: Two-mode graph plus recorded projection and backbone; reduced, drillable view of a huge graph
+success_criteria:
+    - metric: Two-mode preserved
+      target: The bipartite graph is kept alongside any projection, with the weighting recorded
+    - metric: Backbone justified
+      target: Projection edges kept by a bipartite null at a stated significance, not a global threshold
+    - metric: Large graph navigable
+      target: User reaches a readable reduced view and can drill down to members
+sources:
+    - title: NetworkX collaboration_weighted_projected_graph
+      url: https://networkx.org/documentation/latest/reference/algorithms/generated/networkx.algorithms.bipartite.projection.collaboration_weighted_projected_graph.html
+      summary: Newman's collaboration weighting 1/(n_p - 1)
+    - title: backbone R package
+      url: https://cran.r-project.org/package=backbone
+      summary: backbone_from_projection() with SDSM default and FDSM
+    - title: Neal et al., backbone package paper
+      url: https://arxiv.org/pdf/2203.11055
+      summary: Input must be the bipartite network, not the weighted projection
+    - title: graph-tool mailing list on bipartite SBM
+      url: https://archives.skewed.de/hyperkitty/list/graph-tool@skewed.de/thread/WQXERTSY54S4FIZUH7GOD6DYBQX46O4B
+      summary: The SBM will always learn that a network is bipartite
+    - title: SNAP com-Friendster
+      url: https://snap.stanford.edu/data/com-Friendster.html
+      summary: 65.6 million nodes and 1.8 billion edges
+    - title: graph-tool inference demo
+      url: https://graph-tool.skewed.de/static/doc/demos/inference/inference.html
+      summary: Nested SBM levels (297 nodes into 16 groups into 5) drawn interactively
+    - title: What do we see when we look at networks (Venturini, Jacomy and Jensen)
+      url: https://arxiv.org/abs/1905.02202
+      summary: Visual network analysis is precluded on graphs of millions of nodes; aggregation is needed
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

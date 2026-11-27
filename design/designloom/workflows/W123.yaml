@@ -1,0 +1,190 @@
+id: W123
+name: Beneficial Ownership, Sanctions Ownership and Change Detection
+category: analysis
+validated: false
+personas:
+    - kyc-beneficial-ownership-sanctions-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - node-merging
+    - search
+    - neighborhood-expansion
+    - layout-hierarchical
+    - computed-attributes
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - details-on-demand
+    - comparison-view
+    - temporal-navigation
+    - annotation
+    - export-image
+    - data-export
+    - report-generation
+    - entity-resolution-review
+    - provenance-tracking
+    - ownership-propagation
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - node-merge-dialog
+    - search-input
+    - graph-canvas
+    - layout-panel
+    - computed-attributes-panel
+    - visual-encoding-panel
+    - legend-panel
+    - node-details-panel
+    - data-table-panel
+    - comparison-view
+    - temporal-controls
+    - annotation-toolbar
+    - image-export-dialog
+    - data-export-dialog
+    - report-generator-dialog
+starting_state:
+    data_type: ownership edges (owner to owned, share or band, votes, control type, dates, source filing) from registers and data vendors, plus screening hits
+    node_count: 5-200 companies and people per customer (registers hold millions)
+    edge_density: sparse hierarchy, sometimes with cycles
+    user_expertise: intermediate
+goal: >-
+    **Intent**: For a corporate customer, find every natural person who owns or controls 25 percent or more, decide
+    separately whether the customer is blocked because sanctioned persons own 50 percent or more in aggregate, document the
+    evidence for every edge, and notice when a register change alters either answer. Done at every complex onboarding and
+    periodic review.
+
+
+    **Mental Model**: "Two questions, two arithmetics." Effective ownership multiplies along each path and adds across
+    paths (80 x 60 x 60 percent = 28.8 percent; 24 plus 40 = 64 percent). Sanctions ownership under the OFAC 50 Percent
+    Rule aggregates blocked owners, and once an entity is blocked its own stakes of 50 percent or more count in full
+    downstream: a blocked person owning 50 percent of A, which owns 50 percent of B, blocks B although the product is 25
+    percent. A tool that only multiplies gives the wrong sanctions answer.
+
+
+    **Task Phases**:
+
+    1. **Collect** - Declarations and register data: UK PSC daily JSON, Open Ownership BODS JSON (exact shares or
+    min-max ranges), Orbis, D and B, OpenCorporates
+
+    2. **Build the edges** - Owner-to-owned with share or band (PSC bands such as 25 to 50 percent), votes,
+    control type, start and end dates and source filing
+
+    3. **Resolve duplicates** - Merge person and company records that are the same; deduplication cut PSC person
+    records about 5 percent and entities about 10 percent
+
+    4. **Traverse upward** - Follow ownership up through every layer to natural persons or to the foreign entity
+    where data stops
+
+    5. **Compute effective ownership** - Product along paths, sum across paths, ranges for bands; flag owners at
+    or above 25 percent (or a lower configured threshold such as 15 percent)
+
+    6. **Compute sanctions ownership** - Aggregate blocked owners and propagate blocked status through
+    intermediaries at 50 percent or more; offer the UK "more than 50 percent" variant; ownership only, not control
+
+    7. **Screen people** - Attach sanctions, politically exposed person and adverse media hits
+
+    8. **Detect change** (periodic) - Compare a new register snapshot with the last; alert when the set of qualifying
+    owners or the blocked status changes (one owner rising 24 to 32 percent while another falls 40 to 20 changes the set)
+
+    9. **Hand off** - Structure chart, qualifying owners with evidence per edge, and which rule produced each
+    flag
+
+
+    **Decision Points**:
+
+    - Which source wins when vendors disagree?
+
+    - Are two person records the same individual?
+
+    - What threshold applies (25 percent, or 15 for higher-risk categories)?
+
+    - How are circular holdings treated (no standard formula was found)?
+
+    - Is a chain that stops at a foreign entity acceptable or a reason for enhanced due diligence?
+
+
+    **Information Needs**:
+
+    - Each owner's effective percentage as a value or range, with the paths that produced it
+
+    - Blocked status per entity and the owners that caused it
+
+    - Source filing and date for every edge
+
+    - Which owners crossed or left a threshold since the last review
+
+
+    **Pain Points**:
+
+    - Bands instead of percentages; inferred totals can exceed 100 percent
+
+    - Duplicate person records and no shared person identifier across registers
+
+    - Chains that stop at a foreign entity
+
+    - Circular ownership
+
+    - Vendors disagree, and vendor charts are redrawn in PowerPoint or Visio
+
+    - Tools that give one percentage when the two rules need different arithmetic
+
+
+    **Data Flow**:
+
+    - Input: PSC JSON, BODS JSON, vendor ownership reports, declarations, sanctions and PEP screening results
+
+    - Transformations: Edge building with bands as ranges, entity resolution, upward traversal, product-and-sum effective
+    ownership, aggregate-and-propagate sanctions ownership, snapshot comparison
+
+    - Output: Ownership structure chart, list of qualifying owners with evidence, blocked flag with the rule that produced
+    it, change alerts
+success_criteria:
+    - metric: Correct sanctions answer
+      target: The OFAC example (50 percent of A, A owns 50 percent of B) flags B as blocked while effective ownership shows 25 percent
+    - metric: Evidence per edge
+      target: Every edge on the chart names its source filing and date
+    - metric: Meaningful change alerts
+      target: An alert fires when the set of qualifying owners or the blocked status changes, not on every percentage change
+sources:
+    - title: FinCEN - Customer due diligence rule FAQs
+      url: https://www.fincen.gov/resources/statutes-and-regulations/cdd-rule-faqs
+      summary: Beneficial ownership at 25 percent
+    - title: EU AMLR Article 52
+      url: https://www.springlex.eu/en/packages/aml/amlr-regulation/article-52/
+      summary: Indirect ownership determination and thresholds
+    - title: Strise - UBO mapping under AMLR
+      url: https://strise.ai/guides/ubo-mapping-amlr
+      summary: Summing across paths (24 plus 40 = 64 percent); threshold lowerable to 15 percent
+    - title: Neo4j - Corporate KYC, can you see when the owners change?
+      url: https://neo4j.com/blog/financial-services/corporate-kyc-can-you-see-when-the-owners-change/
+      summary: 80 x 60 x 60 = 28.8 percent; change detection example
+    - title: OFAC FAQ 401
+      url: https://ofac.treasury.gov/faqs/401
+      summary: 50 percent or more in the aggregate; full stakes pass through blocked intermediaries
+    - title: OFAC FAQs 398-402
+      url: https://ofac.treasury.gov/faqs/topic/1521
+      summary: The rule tests ownership, not control
+    - title: data.gov.uk - People with significant control
+      url: https://www.data.gov.uk/dataset/people-with-significant-control-psc
+      summary: Daily JSON snapshot with ownership bands
+    - title: Open Ownership BODS reference and schema
+      url: https://standard.openownership.org/en/0.0.3/schema.html
+      summary: Exact shares or minimum-maximum ranges per interest
+    - title: Open Ownership - UK PSC data analysis challenges
+      url: https://www.openownership.org/en/publications/insights-from-the-united-kingdoms-people-with-significant-control-register/6-challenges-and-best-practices-in-data-analysis/
+      summary: Deduplication reduced person records about 5 percent and entities about 10 percent
+    - title: Neo4j - Exploring ultimate beneficial ownership with graph technology
+      url: https://neo4j.com/blog/graph-database/exploring-ultimate-beneficial-ownership-with-graph-technology
+      summary: Unbounded upward paths over a 16 million node Companies House graph
+    - title: Dun and Bradstreet - Beneficial ownership white paper
+      url: https://www.dnb.co.uk/content/dam/english/business-trends/db-4981-beneficial-ownership-whitepaper.pdf
+      summary: Inferred totals can exceed 100 percent
+    - title: Kharon - Sanctions 50 percent rules and beyond
+      url: https://www.kharon.com/resources/article/sanctions/sanctions-50-percent-rules-and-beyond-complex-ownership-structures-and-hidden-compliance-risks
+      summary: UK "more than 50 percent" ownership limb plus a control limb (read through search summary)
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

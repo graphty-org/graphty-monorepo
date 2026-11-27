@@ -1,0 +1,21 @@
+id: path-focus-dimming
+name: Path Focus Dimming
+category: analysis
+description: Clicking a node dims everything except the paths that run through it.
+status: planned
+notes: "Research trace: cybersecurity-graph-work.md section 10, requirement 5 (Must)."
+algorithms: []
+used_by_workflows:
+    - W108
+    - W111
+    - W114
+    - W1157
+    - W1158
+implemented_by_components: []
+requirements:
+    - "Must: Click-to-focus: dim everything except paths through the selected node"
+sources:
+    - title: "Cybersecurity Graph Work: Attack Paths, Threat-Intel Pivoting, Incident Response, Network, Cloud and
+          Binary Graphs (section 10, requirement 5)"
+      url: design/user-research/cybersecurity-graph-work.md
+      summary: "Must in the research. Covered by Designloom when researched: Not covered"

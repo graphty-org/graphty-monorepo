@@ -1,0 +1,121 @@
+id: W149
+name: Asking a Graph Database in Plain Language with a Co-Pilot
+category: exploration
+validated: false
+personas:
+    - aml-investigator
+    - graph-perspective-curator
+requires_capabilities:
+    - search
+    - neighborhood-expansion
+    - node-selection
+    - filtering
+    - zoom-pan
+    - analysis-history
+    - natural-language-query
+suggested_components:
+    - search-input
+    - text-input
+    - graph-canvas
+    - node-details-panel
+    - filter-panel
+    - analysis-history-panel
+    - button
+starting_state:
+    data_type: live graph database with a co-pilot enabled by an administrator
+    node_count: "stored: any; on screen: what the generated query returns, under the front end's caps"
+    edge_density: any
+    user_expertise: novice
+goal: >-
+    **Intent**: Let a user who cannot write Cypher or Gremlin ask a question in plain language, see the query or pattern
+    the co-pilot generated, check it, run it, and continue exploring as usual. Offered by Aura Explore and Aura Query,
+    NeoDash (Text2Cypher), Linkurious Query AI and Linkurious Copilot.
+
+
+    **Mental Model**: "A junior colleague drafts the query; I sign it." The generated query is a draft that can be wrong
+    and must be readable before it runs.
+
+
+    **Task Phases**:
+
+    1. **An administrator enables it** - An organization setting in Aura; a provider and key in NeoDash; "if your
+    administrator enabled it" in Linkurious, which works with "ChatGPT, Gemini, Claude, and more"
+
+    2. **Type a question** - Aura Explore's co-pilot "suggests a pattern in the search bar"; Aura Query's is primed with
+    the schema, not the data, so it can guess wrong values
+
+    3. **Review the generated query** - Edit it or regenerate; NeoDash's Run executes without review; known errors are
+    reversed relationship directions, deprecated syntax and unbounded traversals
+
+    4. **Run, then continue** - As in a search-first exploration (W142) or an investigation (W143); Linkurious Copilot can
+    also select, zoom, group and filter, asking approval before each action
+
+    5. **Trust check** - Every vendor warns the output may be wrong (Aura "experimental", NeoDash "non-deterministic")
+
+
+    No source gives per-step timings.
+
+
+    **Decision Points**:
+
+    - Is the generated query what I meant (direction, filters, bounds)?
+
+    - Approve the co-pilot's action on the view, or do it myself?
+
+    - (Curator) Which provider may see the schema, and is the co-pilot enabled at all?
+
+
+    **Information Needs**:
+
+    - The generated query or pattern, readable before it runs
+
+    - Which values were guessed rather than looked up in the data
+
+    - What the co-pilot did to the view, step by step, with undo
+
+
+    **Pain Points**:
+
+    - Wrong relationship directions and unbounded traversals in generated queries
+
+    - Values guessed because the model saw only the schema
+
+    - Schema sent to an outside language model provider
+
+    - Non-deterministic answers to the same question
+
+
+    **Data Flow**:
+
+    - Input: Plain-language question, the database schema, administrator settings
+
+    - Transformations: Question to query or pattern, user review and edit, execution, optional co-pilot view actions
+
+    - Output: Query result in the scene, and the query text that produced it
+success_criteria:
+    - metric: Reviewability
+      target: The generated query is always shown before it runs and can be edited
+    - metric: Action transparency
+      target: Every view change made by the co-pilot is listed and can be undone
+sources:
+    - title: Bloom and Aura Explore search bar
+      url: https://neo4j.com/docs/bloom-user-guide/current/bloom-visual-tour/search-bar/
+      summary: Co-pilot suggests a pattern in the search bar; organization setting; experimental
+    - title: Cypher co-pilot in Aura Query
+      url: https://neo4j.com/blog/developer/cypher-co-pilot/
+      summary: Primed with the schema, not the data; reversed directions, deprecated syntax, unbounded traversals
+    - title: Linkurious Query AI
+      url: https://doc.linkurious.com/user-manual/latest/query-ai/
+      summary: Administrator-enabled; generate, preview and edit
+    - title: Linkurious Copilot
+      url: https://doc.linkurious.com/user-manual/latest/using-copilot/
+      summary: Acts on the view (select, zoom, group, filter) with approval for each action
+    - title: Linkurious Enterprise 4.3
+      url: https://linkurious.com/blog/linkurious-enterprise-4-3/
+      summary: Query AI model choice (ChatGPT, Gemini, Claude), Copilot beta
+    - title: NeoDash natural language queries
+      url: https://www.neo4j.com/docs/neodash-commercial/current/user-guide/extensions/natural-language-queries
+      summary: Text2Cypher providers; Translate versus Run; non-deterministic
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

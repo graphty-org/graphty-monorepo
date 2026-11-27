@@ -1,0 +1,103 @@
+id: W124
+name: Crypto Tracing to a Cash-Out Service (retired -- merged into W105)
+category: analysis
+validated: false
+scope: retired
+personas: []
+requires_capabilities:
+    - search
+    - node-selection
+    - neighborhood-expansion
+    - node-merging
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-hierarchical
+    - temporal-navigation
+    - filtering
+    - path-highlighting
+    - details-on-demand
+    - tooltip-display
+    - annotation
+    - analysis-history
+    - view-bookmarks
+    - export-image
+    - data-export
+    - report-generation
+    - time-respecting-paths
+    - entity-resolution-review
+    - flow-allocation-tracing
+    - external-label-overlays
+    - reified-edge-view
+    - live-graph-streaming
+suggested_components:
+    - search-input
+    - graph-canvas
+    - context-menu
+    - node-merge-dialog
+    - cluster-collapse-control
+    - visual-encoding-panel
+    - legend-panel
+    - layout-panel
+    - temporal-controls
+    - filter-panel
+    - node-details-panel
+    - node-tooltip
+    - data-table-panel
+    - annotation-toolbar
+    - analysis-history-panel
+    - bookmark-panel
+    - image-export-dialog
+    - data-export-dialog
+    - report-generator-dialog
+starting_state:
+    data_type: none -- this record is a pointer, not a workflow
+    node_count: n/a
+    edge_density: n/a
+    user_expertise: n/a
+goal: >-
+    **Status**: Retired. This record described the same crypto tracing sequence as W105 (seed, clustering,
+    attribution, hop-by-hop expansion, stop at an exchange, records request, export) for the same persona, from the
+    exchange financial-crimes side. Each record held steps the other lacked, so both were partial. The record is kept so
+    that old references resolve, and it is linked to no persona.
+
+
+    **Use instead**: W105 Cryptocurrency Tracing from a Seed Address to a Cash-Out Exchange -- the full sequence in
+    fourteen steps, including the transaction-as-node view, CoinJoin exclusion and undoable clusters, the allocation
+    rule (W121), the watch list and the export audit log that this record carried.
+
+success_criteria:
+    - metric: Undoable clusters
+      target: Every address merge names its heuristic and can be undone, splitting the cluster back
+    - metric: Hop amounts
+      target: Each hop on the trace shows the amount carried and the time
+    - metric: Cash-out found
+      target: The trace ends at a labelled service, with the label's source shown
+sources:
+    - title: Chainalysis Reactor product page
+      url: https://www.chainalysis.com/product/reactor/
+      summary: Vendor; swaps, bridges and mixers auto-interpreted; attribution coverage; integrations with i2, Cellebrite and Siren
+    - title: Chainalysis Academy - Reactor Essentials
+      url: https://chainalysis-academy-clone.skilljar.com/reactor-essentials
+      summary: Course ending with exporting from Reactor and OSINT (read through search summary)
+    - title: Chainalysis Academy - Automated change detection in peel chains
+      url: https://chainalysis-academy-clone.skilljar.com/automated-change-detection-peelchains
+      summary: Change detection along peel chains (read through search summary)
+    - title: Bisbee declaration, United States v. Sterlingov
+      url: https://storage.courtlistener.com/recap/gov.uscourts.dcd.232431/gov.uscourts.dcd.232431.149.1.pdf
+      summary: Co-spend clustering skipping CoinJoin, deposit-address sweeps, attributions confirmed by subpoena returns
+    - title: Moser and Narayanan - Resurrecting address clustering in Bitcoin (FC 2022)
+      url: https://arxiv.org/abs/2107.05749
+      summary: False positives from CoinJoin and PayJoin; naive change merging produced a supercluster
+    - title: Anderson et al. - Bitcoin Redux (WEIS 2018)
+      url: https://www.cl.cam.ac.uk/~rja14/Papers/bitcoin-redux-weis2018.pdf
+      summary: Poison, haircut and FIFO allocation
+    - title: TRM Labs - What's new, October 2026
+      url: https://www.trmlabs.com/forensics/whats-new-2026-10
+      summary: Swap matching across 36 EVM chains and 21 bridges
+    - title: TRM Labs - January 2026 product highlights
+      url: https://www.trmlabs.com/resources/blog/january-product-highlights-accelerating-investigations-with-intuitive-workflows
+      summary: Add a graph address to monitoring for near real-time movement alerts
+version: 1.1.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

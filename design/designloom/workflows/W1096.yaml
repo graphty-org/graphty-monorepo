@@ -1,0 +1,165 @@
+id: W1096
+name: Deforestation Due Diligence Statement from Plot to Product (EUDR)
+category: reporting
+validated: false
+personas:
+    - eudr-due-diligence-officer
+requires_capabilities:
+    - data-import
+    - data-validation
+    - import-report
+    - node-merging
+    - geographic-layout
+    - spatial-selection
+    - layout-hierarchical
+    - leaf-grouping
+    - dependency-propagation
+    - provenance-tracking
+    - user-node-flags
+    - filtering
+    - search
+    - details-on-demand
+    - legend-display
+    - data-export
+    - export-image
+    - local-only-processing
+    - geospatial-file-io
+    - possible-contribution-reach
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - node-merge-dialog
+    - graph-canvas
+    - layout-panel
+    - cluster-collapse-control
+    - filter-panel
+    - search-panel
+    - node-details-panel
+    - data-table-panel
+    - legend-panel
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: GeoJSON plot files (points with an area, polygons) from several suppliers, supplier and lot records linking plots to cooperatives, mills or silos and to the batch
+    node_count: 100-50000
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Before goods made from cattle, cocoa, coffee, oil palm, rubber, soy or wood are placed on the EU market
+    or exported, assemble every land plot that could have fed the batch, show none was deforested after 31 December
+    2020 and none is mixed with goods of unknown origin, and file a valid due diligence statement in the EUDR
+    Information System.
+
+
+    **Mental Model**: "Every plot that could be in the bag." The unit is the statement, and the origin is a piece of land
+    with a shape, not a factory with an address. A link from plot to batch means "could have contributed", so one bad
+    plot taints everything it can reach.
+
+
+    **Task Phases**:
+
+    1. **Collect plots** - Import GeoJSON from cooperatives, mills, exporters or a national system: points with an area
+    under 4 hectares, closed polygons otherwise
+
+    2. **Validate geometry** - Reject line strings, holes and self-crossing rings; truncate to six decimals; check the
+    country code; keep the total under 25 MB per statement
+
+    3. **Link plots to the batch** - Plots to collectors or cooperatives, to mills, silos or exporters, to the batch;
+    for a shared container declare every plot whose goods entered since it was last emptied
+
+    4. **Check mixing** - Every input to a mixed node must be traced and compliant; gaps in the plot list are a high
+    risk of mixing
+
+    5. **Assess risk on the map** - Overlay plots on deforestation maps for the cut-off date and legality evidence per
+    producing country; flag failing plots
+
+    6. **Mitigate or drop** - Request better polygons or field checks; exclude plots or suppliers that cannot be
+    cleared, and see which batches each exclusion affects
+
+    7. **File the statement** - Upload the plots, quantities and supplier details; record the reference and
+    verification numbers
+
+    8. **Pass on and reuse** - Give the reference number to the first downstream buyer; reuse verified plots in later
+    statements for the same land
+
+
+    **Decision Points**:
+
+    - Declare only plots known to have fed the batch, or declare in excess for a bulk good?
+
+    - Is a polygon good enough, or does it go back to the supplier?
+
+    - Drop a plot, a cooperative or a whole mill whose supply cannot be cleared?
+
+    - One statement for several batches over a year, or one per shipment?
+
+
+    **Information Needs**:
+
+    - Each plot drawn as its shape on a map, with area, country and supplier
+
+    - Plot count, flagged count and missing-geolocation count per cooperative, mill and batch
+
+    - Every batch and statement a flagged plot can reach
+
+    - Geometry errors per plot and the running file size of the statement
+
+    - Mixed nodes and whether every input to them is traced
+
+
+    **Pain Points**:
+
+    - Invalid polygons, overlaps and missing plots checked by hand in GeoJSON
+
+    - Traceability stops at the cooperative or buying agent while informal buyers supply the rest
+
+    - Thousands of smallholders per palm oil mill make the origin tier too wide to read as a list
+
+    - One non-compliant plot linked to a statement makes the whole batch non-compliant
+
+    - Typical plots per statement: no source found
+
+
+    **Data Flow**:
+
+    - Input: GeoJSON plot files, supplier, lot and silo records, forest-cover and legality evidence, upstream reference
+    numbers
+
+    - Transformations: Geometry validation, entity matching across cooperatives, mills and national systems, possible
+    contribution linking, reach marking from flagged plots, aggregation of plots by supplier
+
+    - Output: Validated plot set per statement, flagged and dropped plot list, statement reference number, map and
+    supply tree for the file
+success_criteria:
+    - metric: Geometry validity
+      target: Every plot passes the Information System's GeoJSON rules before upload, and the statement stays under 25 MB
+    - metric: Reach of a flag
+      target: For any flagged plot, every batch and statement it could have fed is listed in one step
+    - metric: Mixing
+      target: Every mixed node shows that all of its inputs are traced and compliant, or it is listed as blocking
+sources:
+    - title: European Commission, traceability and geolocation of commodities subject to the EUDR
+      url: https://green-forum.ec.europa.eu/nature-and-biodiversity/deforestation-regulation-implementation/traceability-and-geolocation-commodities-subject-eudr_en
+      summary: Seven commodities; first placers and exporters must show products are deforestation-free and legal; applies from 30 December 2026
+    - title: EUDR Information System, GeoJSON file description
+      url: https://eudr.webcloud.ec.europa.eu/tracesnt/help/eudr-documentation/operator/geojson-description.html
+      summary: Accepted geometry types, closure and crossing rules, six-decimal truncation, 25 MB per statement, Area default of 4 hectares
+    - title: Finnish Food Authority, EUDR FAQ
+      url: https://www.ruokavirasto.fi/en/themes/deforestation-regulation/faq-eudr/
+      summary: Statements need not be batch-specific; mass balance only when all material is compliant; reference and verification number lengths; five-year retention
+    - title: Sourcemap, analysis of the April 2026 Commission EUDR FAQ update (vendor)
+      url: https://www.sourcemap.com/blog/analysis-commission-publishes-updated-eudr-faqs
+      summary: Shared containers declare all plots since last emptied; reference numbers passed to the first downstream operator
+    - title: FoodNavigator, EUDR key questions (2024)
+      url: https://www.foodnavigator.com/Article/2024/10/11/EUDR-Answering-the-key-questions/
+      summary: Declaration in excess only for unmixed bulk goods; one non-compliant plot makes the others in the statement non-compliant
+    - title: FoodNavigator, palm oil traceability challenges (2025)
+      url: https://www.foodnavigator.com/Article/2025/09/09/eudr-palm-oil-traceability-challenges/
+      summary: About 7 million smallholders supply 2,200 mills, sometimes thousands per mill
+    - title: Jones Day, EUDR amendments (December 2025)
+      url: https://www.jonesday.com/en/insights/2025/12/eu-deforestation-regulation-amendments-deferred-timelines-and-simplification-measures
+      summary: New dates, downstream operators pass on reference numbers, simplified declaration and postal addresses for micro and small primary operators
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

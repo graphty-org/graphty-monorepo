@@ -5,6 +5,8 @@ validated: false
 personas:
     - genomics-cytoscape-user
     - bioinformatics-researcher
+    - network-biology-core-bioinformatician
+    - molecular-networking-chemist
 requires_capabilities:
     - analysis-history
     - report-generation
@@ -16,6 +18,7 @@ requires_capabilities:
     - saved-filters
     - style-presets
     - details-on-demand
+    - analysis-provenance
 suggested_components:
     - session-save-dialog
     - network-list-panel
@@ -42,19 +45,19 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Tidy the session** (5 min) - Rename networks and subnetworks meaningfully, name the styles, delete dead
+    1. **Tidy the session** - Rename networks and subnetworks meaningfully, name the styles, delete dead
     ends, add text annotations and a legend to the canvas
 
-    2. **Record parameters** (5 min) - For every algorithm and import, collect the parameters (species, confidence
+    2. **Record parameters** - For every algorithm and import, collect the parameters (species, confidence
     cutoff, clustering inflation, FDR cutoff, similarity cutoff, weight attribute) into a methods paragraph
 
-    3. **Save the session** (1 min) - One file that holds every network in the collection, their attribute tables,
+    3. **Save the session** - One file that holds every network in the collection, their attribute tables,
     styles, layouts, results, filters and annotations
 
-    4. **Export deliverables** (5 min) - PNG, SVG or PDF of the figure with the legend; node and edge tables with all
+    4. **Export deliverables** - PNG, SVG or PDF of the figure with the legend; node and edge tables with all
     computed columns; a cluster or hub table; a graph file (GraphML, CX) for collaborators
 
-    5. **Share** (5 min) - Upload the network with title, description, version, authors, license and reference; keep
+    5. **Share** - Upload the network with title, description, version, authors, license and reference; keep
     it private with a reviewer link, then make it public and request a DOI on acceptance
 
 
@@ -70,6 +73,11 @@ goal: >-
 
     - Does the shared network need a DOI (immutable) or will it be updated?
 
+    - Record every graph-building parameter -- confidence cutoff, k, TopK, cosine, resolution, edge threshold -- not
+    just analysis settings
+
+    - Script the whole build (the scripted-build workflow) or freeze a session?
+
 
     **Information Needs**:
 
@@ -83,6 +91,8 @@ goal: >-
 
     - Required metadata checklist for a DOI
 
+    - Source versions and access dates for every database used
+
 
     **Pain Points**:
 
@@ -95,6 +105,9 @@ goal: >-
     - Uploads with no progress bar
 
     - Discovering missing metadata only when requesting a DOI
+
+    - stringApp drops older STRING versions, KEGG maps change, and GNPS reruns reshape families, so exact rebuilds fail
+    without recorded parameters and data
 
 
     **Data Flow**:
@@ -133,6 +146,12 @@ sources:
     - title: Cytoscape Automation - empowering workflow-based network analysis
       url: https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1758-4
       summary: Reproducibility of network analyses through recorded, scripted workflows
-version: 1.0.0
+    - title: NDEx protocols
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8544027
+      summary: Private reviewer links and DOIs
+    - title: specXplore
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11024886
+      summary: Reruns change molecular family composition
+version: 1.1.0
 created_at: 2026-09-08T02:34:20.000Z
-updated_at: 2026-11-18T07:06:16.000Z
+updated_at: 2026-11-25T00:00:00.000Z

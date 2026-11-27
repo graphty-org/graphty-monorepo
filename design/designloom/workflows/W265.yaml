@@ -1,0 +1,165 @@
+id: W265
+name: Chemical Space, Activity Cliff and Scaffold Networks for SAR
+category: analysis
+validated: false
+personas:
+    - medicinal-chemistry-sar-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - filtering
+    - component-analysis
+    - community-detection
+    - clustering-coefficient
+    - node-merging
+    - node-selection
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-force-directed
+    - layout-hierarchical
+    - layout-radial
+    - basic-statistics
+    - details-on-demand
+    - export-image
+    - data-export
+    - interactive-threshold
+    - molecule-structure-glyphs
+suggested_components:
+    - file-drop-zone
+    - column-mapper
+    - data-import-dialog
+    - filter-panel
+    - slider
+    - status-bar
+    - visual-encoding-panel
+    - gradient-editor
+    - legend-panel
+    - layout-panel
+    - cluster-collapse-control
+    - data-table-panel
+    - node-details-panel
+    - graph-canvas
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: compound series as SMILES or SDF with IDs and potency (Ki or IC50 as pKi or pIC50), or active/inactive screening labels
+    node_count: 300-30000 compounds; 5-40 drawn as structures at once
+    edge_density: medium
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Read structure-activity relationships (SAR) from a compound series drawn as a network: a chemical space
+    network (similarity edges above a threshold), an activity cliff network (near-identical pairs with a 100-fold potency
+    gap) or a scaffold tree (molecules under the ring systems they share), with nodes drawn as 2D structures and colored
+    by potency, ending in the R-group table chemists actually work from. Network views are a minority use next to
+    tables and scatter plots.
+
+
+    **Mental Model**: "Neighbors are near-analogs; color is potency." A cluster of one color is a series; a short edge
+    between very different colors is a cliff; a scaffold with many potent descendants is a core worth keeping.
+
+
+    **Task Phases**:
+
+    1. **Pull and curate a series** - One target from ChEMBL (glucocorticoid receptor, human single-protein Ki:
+    459 rows, 404 unique SMILES after averaging duplicates); convert to pKi
+
+    2. **Compute similarity** - Tanimoto on fingerprints for all 81,406 pairs (about 3 minutes), or
+    maximum-common-substructure similarity (about one hour on 14 cores)
+
+    3. **Choose the threshold by edge density** - Tanimoto 0.68 or MCS 0.635 both give about 10 percent density
+    (393 nodes, 7,739 edges); literature networks keep 2 to 5 percent but that leaves many small components
+
+    4. **Build and lay out** - Spring layout; color by pKi in one-unit bins from 4 to 11 with a color bar; line
+    style by similarity band
+
+    5. **Split into components** - Table them; redraw one component with each node as its 2D structure in its
+    pKi color, labeled with its ID
+
+    6. **Describe** - Clustering coefficient, assortativity, greedy-modularity communities (18)
+
+    7. **Cliff variant** - Edges are matched molecular pairs with delta pKi >= 2.0; nodes green (potent partner),
+    red (weak) or yellow (both); 426 to 987 cliffs per target; collapse into matched molecular series (915 cliffs to 91
+    series) sized by compound count, colored by best potency, border width by cliff share; open a series as an R-group
+    table
+
+    8. **Scaffold variant** - Generate a scaffold tree or network (150,000 molecules in about 15 minutes);
+    score each framework by enrichment factor; draw with a hierarchical layout, molecules on top colored by activity
+    class, frameworks colored by enrichment and sized by number of actives, zero-enrichment frameworks filtered out;
+    walk from enriched basic frameworks up to decorated ones and down to molecules, checking inactives
+
+
+    **Decision Points**:
+
+    - Which similarity measure and threshold (by target density, not chemistry)?
+
+    - Which component or series to open as structures?
+
+    - Is a cliff real, or an assay artifact?
+
+    - Which scaffold to pursue in the next design round?
+
+
+    **Information Needs**:
+
+    - Edge density and component count as the threshold changes
+
+    - Potency per compound and best potency per series or scaffold
+
+    - Structure drawings for the 5 to 40 compounds in focus
+
+    - Enrichment factor and active counts per scaffold
+
+    - R-group table of the selected series
+
+
+    **Pain Points**:
+
+    - Large cliff networks are difficult to navigate; dense clusters essentially impossible to analyze interactively
+
+    - The threshold changes the network's shape
+
+    - Structure images unreadable beyond about 40 compounds per view
+
+    - Notebook outputs are static plots
+
+
+    **Data Flow**:
+
+    - Input: SMILES or SDF with potency; precomputed pairwise similarity or cliff pairs; scaffold hierarchy TSV
+
+    - Transformations: Threshold to target density, component split, series or scaffold aggregation, enrichment scoring
+
+    - Output: Compound network figures with structures, R-group tables, component tables
+success_criteria:
+    - metric: Threshold feedback
+      target: Edge density and component count update live while the similarity threshold moves
+    - metric: Structure legibility
+      target: Structure glyphs on the 5-40 nodes in focus; dots when zoomed out
+    - metric: Hand-off
+      target: Selected series exported as a table with IDs, SMILES and potency
+sources:
+    - title: Scalfani, Patel and Fernandez 2022 - chemical space networks tutorial
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC9798653/
+      summary: ChEMBL curation, Tanimoto and MCS similarity, density-based threshold, pKi bins, structure-image components, modularity
+    - title: Hu and Bajorath 2020 - Activity cliff networks
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC7367913
+      summary: MMP cliffs, node coloring by potency role, reduction to matched molecular series, R-group tables
+    - title: Manelfi et al. 2021 - Molecular Anatomy
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8299179
+      summary: Framework enrichment factors; Cytoscape hierarchical layout; HDAC7 screen of 26,092 compounds
+    - title: ScaffoldGraph
+      url: https://github.com/UCLCheminformatics/ScaffoldGraph
+      summary: Scaffold networks, HierS and scaffold trees from SMILES or SDF
+    - title: DataWarrior chemistry help
+      url: https://openmolecules.org/help/chemistry.html
+      summary: Similarity map with SALI marker size; R-group decomposition
+    - title: chemViz2
+      url: https://www.rbvi.ucsf.edu/cytoscape/chemViz2/
+      summary: Create Similarity Network with minimum Tanimoto; Paint Structures
+    - title: Scaffold Hunter
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5425364
+      summary: Radial scaffold tree colored by property statistics
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,180 @@
+id: W66
+name: Prioritizing Contacts and Places by Network Position
+category: analysis
+validated: false
+personas:
+    - outbreak-response-epidemiologist
+    - tb-genomic-cluster-epidemiologist
+    - hiv-molecular-cluster-epidemiologist
+    - dis-supervisor
+requires_capabilities:
+    - data-import
+    - data-validation
+    - component-analysis
+    - degree-analysis
+    - centrality-degree
+    - centrality-betweenness
+    - centrality-eigenvector
+    - community-detection
+    - community-profiling
+    - ego-network
+    - neighborhood-expansion
+    - node-selection
+    - selection-statistics
+    - filtering
+    - search
+    - details-on-demand
+    - metric-histograms
+    - statistics-panel
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-force-directed
+    - algorithm-progress
+    - data-export
+    - export-image
+    - bipartite-projection
+    - multiplex-relations
+    - interval-overlap-edges
+    - de-identified-display
+    - bipartite-layout
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - algorithm-panel
+    - algorithm-card
+    - ranked-node-table
+    - community-panel
+    - cluster-table
+    - ego-network-dialog
+    - filter-panel
+    - statistics-panel
+    - histogram
+    - graph-canvas
+    - node-details-panel
+    - visual-encoding-panel
+    - legend-panel
+    - data-table-panel
+    - data-export-dialog
+starting_state:
+    data_type: person-to-person and person-to-place contact data from case interviews
+    node_count: 100-3000
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Decide which contacts and which venues to test, interview or alert first, when there are more names
+    than staff hours. Network position is the ranking device: people with many partners, people who bridge otherwise
+    separate groups, and places that connect case groups. The evidence that this improves outcomes is observational
+    or modeled, so the output is a prioritized list with its caveats attached, not a verdict.
+
+
+    **Mental Model**: "Spend the next ten visits where they do the most good." The contact graph is a map of who
+    could have passed infection to whom, with places as nodes in their own right. The people and places that join
+    parts of the graph matter more than their own contact count suggests.
+
+
+    **Task Phases**:
+
+    1. **Build the contact graph** (during interviews) - Person to person, and person to place (shelter, bar,
+    residence, gathering). One syphilis analysis linked partners whose critical periods overlapped, using 3, 6 or 12
+    months by stage, and produced 2,428 nodes, 2,046 links and 457 components, with 78% of components holding just 2
+    or 3 people
+
+    2. **Compute positional measures** - Degree, reach and betweenness for people; betweenness for places,
+    which is how bars in one tuberculosis investigation turned out to join patients with few direct contacts;
+    eigenvector centrality where a diffusion argument is being made
+
+    3. **Find the groups** - Community detection by modularity, which in one university outbreak analysis
+    was done by swapping community labels between neighboring nodes and keeping swaps that improved connectivity
+
+    4. **Overlay genomics to separate lineages** - Sequence data can split one apparent outbreak into two
+    concurrent ones, which changes who is worth visiting
+
+    5. **Rank and hand off** - Produce a list of people and places with their measures, their component, and
+    what is already known about each one's test and interview status
+
+    6. **State the caveats with the list** - Network-prioritized contacts had an odds ratio of 7.8 (95% CI
+    1.6 to 36.6) for latent tuberculosis in one Oklahoma investigation; a San Francisco model suggested that alerting
+    about 1.5% of nodes could halve modeled prevalence; and in a Kampala study only 35% of infected people had a
+    known exposure inside the index case's social network
+
+
+    **Decision Points**:
+
+    - Which measure fits the question: many partners, bridging between groups, or diffusion potential
+
+    - Whether to rank people, places, or both together
+
+    - What the critical-period rule should be when turning overlapping exposure windows into edges
+
+    - Whether a high-ranking node is an artifact of one unusually thorough interview
+
+    - When the network is too sparsely reported to rank anything, and the ranking should not be used
+
+
+    **Information Needs**:
+
+    - Ranked lists per measure, with the measures side by side so the intersection can be read
+
+    - A plain statement of what each measure means operationally, since field staff are not graph analysts
+
+    - Component membership and component size, because most components are tiny
+
+    - Places as a distinct node type with their own shape or icon, and a bipartite view of person and place
+
+    - Which nodes are already interviewed, tested or in care, so the ranking is of remaining work
+
+    - The reporting denominator: how many named contacts were ever located, since most are not
+
+
+    **Pain Points**:
+
+    - Most reported contacts are never interviewed, so the graph is a partial map ranked as if it were complete
+
+    - Centrality names mean nothing to field staff without an operational translation
+
+    - Evidence for centrality-based prioritization is observational or modeled, and reviewers say so
+
+    - Person-place data needs two node types and a bipartite layout that general network tools do not offer
+
+    - A ranking goes stale the day it is produced, as interviews add names and change status
+
+    - One thorough interview inflates one person's degree, and nothing flags the uneven reporting effort
+
+
+    **Data Flow**:
+
+    - Input: Interview-derived person-person and person-place edges with contact types and exposure dates, a case and
+    contact line list with status columns, venue rosters
+
+    - Transformations: Interval overlap of critical periods into edges, components, degree, reach, betweenness,
+    eigenvector centrality, modularity communities, optional lineage split from sequence data
+
+    - Output: A ranked person and place list with measures and status, group assignments, a figure for the response
+    briefing, and a caveat statement
+success_criteria:
+    - metric: Operational legibility
+      target: Every ranking is accompanied by a plain-language statement of what high means and what to do about it
+    - metric: Place handling
+      target: Places are first-class nodes with their own type, ranked alongside people
+    - metric: Remaining work focus
+      target: The ranking can be restricted to people and places with outstanding interviews or tests
+sources:
+    - title: Network-informed contact investigation, Oklahoma tuberculosis outbreak
+      url: https://pubmed.ncbi.nlm.nih.gov/17018825/
+      summary: Contacts prioritized by network position had an odds ratio of 7.8 (95% CI 1.6 to 36.6) for latent TB infection
+    - title: Syphilis transmission network in San Francisco
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5527084/
+      summary: Partners linked on overlapping critical periods of 3, 6 or 12 months by stage, 2,428 nodes, 2,046 links, 457 components with 78% holding 2 or 3 people, and a model in which alerting about 1.5% of nodes halved modeled prevalence
+    - title: SARS-CoV-2 transmission at a university, Arkansas (MMWR 2021)
+      url: https://www.cdc.gov/mmwr/volumes/70/wr/mm7001a5.htm
+      summary: 565 of 965 cases in the network with 471 in one component, 54 gatherings detected, community detection by label swapping that improves connectivity, and 72% of gathering links fraternity or sorority related
+    - title: Social network exposure and tuberculosis transmission, Kampala
+      url: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC11083641/
+      summary: Only 35% of infected people had a known exposure inside the index case's social network
+    - title: Cope et al., partner services outcomes for early syphilis across seven jurisdictions
+      url: https://stacks.cdc.gov/view/cdc/119646
+      summary: 84,224 partners reported, 75% unnamed and an estimated 78% to 85% never reached, the denominator behind any contact ranking
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

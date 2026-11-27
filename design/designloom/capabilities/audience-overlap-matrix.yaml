@@ -1,0 +1,23 @@
+id: audience-overlap-matrix
+name: Audience overlap matrix
+category: analysis
+description: Pairwise overlap counts and percentages and unique reach for a selected set of nodes computed from their
+    follower sets.
+status: planned
+notes: "Research trace: social-media-disinformation-and-marketing.md section 10, Should-have 32 (creator overlap matrix) and Workflow 5 step 6."
+algorithms: []
+used_by_workflows:
+    - W10
+    - W211
+implemented_by_components: []
+requirements:
+    - "Should: For a selected set of nodes, compute pairwise overlap of their follower sets as counts and percentages, and each node's unique reach"
+    - "Should: Return the overlap as a matrix the application can draw and export"
+    - "Should: State that overlap estimates audience duplication, not delivered reach, as a code the application words"
+sources:
+    - title: "IQFluence - Influencer audience overlap"
+      url: "https://iqfluence.io/public/faqs/influencer-audience-overlap"
+      summary: "Overlap examines shared followers across shortlisted creators; it is potential duplication, not a count of people exposed"
+    - title: "Social media research, section 10, Should-have 32"
+      url: "design/user-research/social-media-disinformation-and-marketing.md"
+      summary: "Creator overlap matrix from follower sets, Should"

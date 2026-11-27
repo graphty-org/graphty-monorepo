@@ -87,6 +87,41 @@ describe("source-steps: a join step's act", () => {
         }
     });
 
+    it("reads the reduction of every column back beside one a column has of its own", async () => {
+        const { session } = await people();
+        const dupes = await session.data.stage(csv("dupes.csv", "badge,dept", "B1,Ops", "B1,Lab"), { key: "badge" });
+        const draft = session.data.draft();
+        draft.merge({
+            from: { source: dupes, field: "badge" },
+            into: { space: "person" },
+            repeated: "count",
+            aggregate: { dept: "list" },
+        });
+        const act = draft.steps().find((s) => s.op === "join.merge")?.act;
+        assert.strictEqual(act?.repeated, "count");
+        assert.deepStrictEqual(act?.aggregate, { "*": "count", dept: "list" });
+        draft.dispose();
+        session.dispose();
+    });
+
+    it("reads a merge saved with one aggregate per column back as that one reduction (#10108)", async () => {
+        const DUPES = csv("dupes.csv", "badge,dept,site", "B1,Ops,N", "B1,Lab,S", "B2,Sales,N");
+        const { session } = await people();
+        const dupes = await session.data.stage(DUPES, { key: "badge" });
+        const draft = session.data.draft();
+        draft.merge({
+            from: { source: dupes, field: "badge" },
+            into: { space: "person" },
+            aggregate: { dept: "list", site: "list" },
+        });
+        const at = draft.steps().findIndex((s) => s.op === "join.merge");
+        assert.strictEqual(draft.steps()[at]?.act?.repeated, "list");
+        draft.editStep(at, { aggregate: { dept: "list", site: "count" } });
+        assert.isNull(draft.steps()[at]?.act?.repeated, "two reductions are no one rule");
+        draft.dispose();
+        session.dispose();
+    });
+
     it("refuses a repeated reduction on a step other than a merge", async () => {
         const { session } = await people();
         const entries = await session.data.stage(ENTRIES, { key: "entry", type: "entry" });

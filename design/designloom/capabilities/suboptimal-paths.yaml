@@ -1,0 +1,21 @@
+id: suboptimal-paths
+name: Suboptimal paths
+category: analysis
+description: Find all paths between two nodes within a length offset of the optimum, rank and group them, and
+    distinguish the optimal path.
+status: planned
+notes: >-
+    Research trace: systems-biology-omics-networks.md section 10, requirement 44 (Should). Driven by W244 (signed
+    causal networks of signaling-network-modeler, a genomics-cytoscape-user variant in scope) and W255.
+algorithms: []
+used_by_workflows:
+    - W244
+    - W255
+implemented_by_components: []
+requirements:
+    - "Should: Suboptimal paths between two nodes within a length offset, optimal path distinguished"
+sources:
+    - title: Systems Biologists and Bench Scientists Working With Molecular Interaction Networks (section 10,
+          requirement 44)
+      url: design/user-research/systems-biology-omics-networks.md
+      summary: Should in the research.

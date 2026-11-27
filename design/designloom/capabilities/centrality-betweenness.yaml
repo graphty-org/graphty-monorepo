@@ -1,45 +1,110 @@
 id: centrality-betweenness
 name: Betweenness Centrality
 category: analysis
-description: Calculate betweenness centrality - how often a node lies on shortest paths between other nodes.
-    High-betweenness nodes act as bridges or brokers controlling information flow. Critical for identifying gatekeepers
-    and vulnerabilities.
-status: implemented
-notes: "Ships: graphty-element/src/algorithms/BetweennessCentralityAlgorithm.ts."
+description: "Calculate betweenness centrality - how often a node lies on shortest paths between other nodes. High-betweenness nodes act as bridges or brokers, and high-betweenness, low-degree brokers are missed by degree alone. Edge weights are read as distances, so a strength column (counts, volumes) must be converted first; the conventions used (weight reading, normalization, endpoints, sampling seed) are returned with the result, because igraph, NetworkX and Gephi differ on them."
+status: in-progress
+notes: "Partly ships: graphty-element/src/algorithms/BetweennessCentralityAlgorithm.ts runs Brandes on the undirected view with raw, unnormalized path counts, endpoints not counted, progress reports, and an optional Sampled sources count k (the result says it is sampled and how many sources). It reads no edge weight and never follows edge direction. Planned: weights read as distances with recorded conversions, rejection of zero or negative distances, directed shortest paths, normalized values, a seed for the sample, and a cost-based refusal that offers sampling. Any requirement below that this note does not name as shipping counts as planned."
 algorithms:
-    - Brandes algorithm O(nm)
-    - Approximate betweenness sampling
+    - Brandes algorithm O(nm) (shipped, undirected and unweighted only)
+    - Approximate betweenness sampling (shipped as k sampled sources; seed not yet recorded)
 used_by_workflows:
-    - W03
     - W04
-    - W08
     - W09
     - W10
-    - W11
     - W17
     - W23
+    - W104
+    - W106
+    - W107
+    - W142
+    - W153
+    - W170
+    - W173
+    - W176
+    - W177
+    - W178
+    - W181
+    - W184
+    - W187
+    - W188
+    - W192
+    - W198
+    - W199
+    - W205
+    - W207
+    - W211
+    - W220
+    - W229
+    - W231
+    - W235
+    - W240
+    - W249
+    - W255
+    - W266
+    - W274
+    - W275
+    - W306
+    - W430
+    - W364
+    - W379
+    - W387
+    - W389
+    - W39
+    - W403
+    - W408
+    - W41
+    - W432
+    - W434
+    - W45
+    - W52
+    - W54
+    - W58
+    - W66
+    - W75
+    - W88
+    - W91
+    - W98
+    - W1054
+    - W1138
+    - W228
+    - W05
+    - W3048
+    - W3049
+    - W3102
 implemented_by_components:
     - algorithm-card
     - algorithm-panel
 requirements:
-    - Calculate betweenness centrality using Brandes algorithm with O(nm) complexity
-    - Calculate normalized betweenness as raw / ((n-1)*(n-2)/2) for undirected graphs
-    - Calculate normalized betweenness as raw / ((n-1)*(n-2)) for directed graphs
-    - Store result with 6 decimal places precision
-    - Support weighted shortest paths using edge weight attribute
-    - Handle directed graphs using directed shortest paths
-    - Handle undirected graphs using undirected shortest paths
-    - Display progress bar updated every 1 second for calculations exceeding 5 seconds
-    - Provide 'Cancel' button to abort long-running calculations
-    - Support approximate betweenness using k random source nodes (configurable k, default 100)
-    - Display 'Approximate' label when using sampling method
-    - Complete exact calculation within 10 seconds for graphs under 5,000 nodes
-    - Complete approximate calculation within 5 seconds for graphs under 50,000 nodes
-    - Rank nodes by betweenness in descending order
-    - Display top-10 nodes by betweenness in results panel
-    - Store result as node attribute named 'betweenness'
-    - Report 'Computation too expensive' with graph size when exact calculation would exceed 60 seconds
+    - "Library parity: Calculate betweenness centrality using Brandes algorithm with O(nm) complexity"
+    - "Library parity: Calculate normalized betweenness as raw / ((n-1)*(n-2)/2) for undirected graphs"
+    - "Library parity: Calculate normalized betweenness as raw / ((n-1)*(n-2)) for directed graphs"
+    - "Library parity: State whether endpoints are counted (not counted by default, as in NetworkX)"
+    - "Must: Read the edge weight as a distance (a larger value is a longer edge), as declared in weight-semantics; a column declared a strength is converted first by its recorded conversion (1/w, -log w or max-w), and the result records the column and the conversion used"
+    - "Library parity: Reject zero or negative distances with an error code rather than computing"
+    - "Must: Handle directed graphs using directed shortest paths"
+    - "Library parity: Handle undirected graphs using undirected shortest paths"
+    - "Library parity: Report progress on long calculations"
+    - "Library parity: Support cancelling long-running calculations"
+    - "Library parity: Support approximate betweenness from k sampled source nodes, with k set by the caller; the sample is seeded and k and the seed are recorded with the result"
+    - "Library parity: Mark sampled results as approximate in the result"
+    - "Library parity: Return an error code with the graph size when an exact calculation is estimated too expensive, and offer the sampled method"
+    - "Must: Return the conventions used (normalization, endpoints, weight column and reading, conversion, sample size, seed) as values with the result"
+    - "Library parity: Rank nodes by betweenness in descending order"
+    - "Library parity: Return values at full precision; rounding and how many nodes to show belong to the application"
+    - "Library parity: Store result as node attribute named 'betweenness'"
 sources:
-    - title: Graph Analysis Textbook - Chapter 6
-      url: https://graphty.app/docs/
-      summary: Betweenness centrality measures brokerage and control over information flow
+    - title: "NetworkX betweenness_centrality"
+      url: https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.centrality.betweenness_centrality.html
+      summary: "Weights are interpreted as distances and must be greater than zero; normalized by 2/((n-1)(n-2)) undirected; endpoints excluded by default; seed used only when k is set"
+    - title: "igraph betweenness"
+      url: https://r.igraph.org/reference/betweenness.html
+      summary: "Uses a weight attribute by default when one exists, so a strength column is silently read as a distance"
+    - title: "Gephi GraphDistance.java"
+      url: https://github.com/gephi/gephi/blob/master/modules/StatisticsPlugin/src/main/java/org/gephi/statistics/plugin/GraphDistance.java
+      summary: "Gephi's betweenness counts hops and never reads an edge weight"
+    - title: "Node centrality in weighted networks (Opsahl, Agneessens and Skvoretz 2010)"
+      url: https://toreopsahl.com/wp-content/uploads/2010/04/node_centrality_in_weighted_networks1.pdf
+      summary: "Weighted centralities and the alpha blend of hop count and weight"
+    - title: "Exploring and Analyzing Network Data with Python (Programming Historian)"
+      url: https://programminghistorian.org/en/lessons/exploring-and-analyzing-network-data-with-python
+      summary: "High-betweenness, low-degree brokers are missed by degree alone"

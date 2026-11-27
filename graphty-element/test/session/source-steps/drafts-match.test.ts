@@ -194,10 +194,16 @@ describe("source-steps: match counts", () => {
                 Promise.resolve(
                     session.data.matchCounts({
                         from: { source: a, field: "account_id" },
-                        into: { source: t, field: "account_id" },
+                        into: { source: t, field: "amount" },
                     }),
                 ),
             "E_AMBIGUOUS_ID",
+        );
+        // A field that is one end's column names that end.
+        const ends = { from: { source: a, field: "account_id" }, into: { source: t, field: "account_id" } };
+        assert.deepStrictEqual(
+            session.data.matchCounts(ends),
+            session.data.matchCounts({ ...ends, into: { space: "account" } }),
         );
         session.dispose();
     });

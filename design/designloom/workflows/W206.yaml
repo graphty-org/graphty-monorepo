@@ -1,0 +1,148 @@
+id: W206
+name: Nonprofit Board, Partner and Grant Network from a CRM Export
+category: analysis
+validated: false
+personas:
+    - nonprofit-operations-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - node-merging
+    - search
+    - filtering
+    - visual-encoding-nodes
+    - legend-display
+    - centrality-degree
+    - shortest-path
+    - ego-network
+    - removal-impact-analysis
+    - details-on-demand
+    - export-image
+    - data-export
+    - bipartite-projection
+    - wave-identity-matching
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - attribute-table-join-dialog
+    - node-merge-dialog
+    - graph-canvas
+    - search-panel
+    - filter-panel
+    - visual-encoding-panel
+    - legend-panel
+    - ranked-node-table
+    - path-finder-dialog
+    - ego-network-dialog
+    - impact-analysis-dialog
+    - node-details-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: CRM exports (contacts, affiliations, reciprocal relationships, gifts, grants), a LinkedIn-compiled board sheet and a prospect list
+    node_count: 50-500 people and organizations
+    edge_density: sparse
+    user_expertise: novice
+goal: >-
+    **Intent**: Find which board members and partners can open doors to which prospects and funders, from the
+    spreadsheets a small nonprofit already has, and hand back a slide and a list the development team can use. Refresh
+    quarterly or before a major campaign.
+
+
+    **Mental Model**: "Who do we know who knows them?" A lookup over real people and organizations, not an abstract
+    network; answers are names to paste back into the CRM.
+
+
+    **Task Phases**:
+
+    1. **Export** - Contacts, affiliations (person to organization), reciprocal relationships, gifts and grants
+    from the CRM; board data compiled from LinkedIn at 15-20 minutes per member
+
+    2. **Shape and clean** - Node and edge lists, often without Source/Target headers; clean name variants
+    because CRM, LinkedIn and grant data share no identifier
+
+    3. **Load and check** - Import; compare node and edge counts with the spreadsheet; review unmatched and
+    duplicate names
+
+    4. **Overlay prospects** - Join the 20-40 prospect list; look for shared employers, alma maters and board
+    seats; bipartite person-organization and funder-grantee views
+
+    5. **Ask** - Most connected board members; two-step paths to each prospect; single points of failure
+    (prospects reachable through one person only)
+
+    6. **Hand off** - One slide for leadership; a list of prospect, connector and path pasted back into the CRM;
+    save for next quarter's refresh by re-import
+
+
+    **Decision Points**:
+
+    - Which column is the source and which the target when there are no headers?
+
+    - Are "Bob Smith" and "Robert Smith Jr." the same person?
+
+    - Count past board service and alma maters as connections, or only current roles?
+
+    - Which prospects to prioritize when several board members connect?
+
+
+    **Information Needs**:
+
+    - Import preview naming which column became which, with counts matching the spreadsheet
+
+    - Suspected duplicate names to merge
+
+    - For a prospect: every board member within two steps and the path through them
+
+    - Board members ranked by number of prospect connections
+
+    - Prospects that depend on a single connector
+
+
+    **Pain Points**:
+
+    - Import dialogs that assume graph vocabulary
+
+    - Duplicate people after re-importing next quarter's export
+
+    - Desktop tools that are hard to share; cloud tools that are wrong for sensitive donor names
+
+    - No list output to paste back into Excel or the CRM
+
+
+    **Data Flow**:
+
+    - Input: CSV or XLSX exports from the CRM and LinkedIn compilation, prospect list
+
+    - Transformations: Column mapping, name deduplication, bipartite import, prospect join, two-step path search,
+    single-connector check
+
+    - Output: Board connection slide, prospect-connector-path table for the CRM, saved project for the next refresh
+success_criteria:
+    - metric: Time from exports to first answer
+      target: Under 1 hour for a 15-member board and 30 prospects (design goal; no source measures it)
+    - metric: Count check
+      target: Imported node and edge counts match the spreadsheet or the differences are listed
+    - metric: Hand-off
+      target: Prospect-connector-path list exported as CSV in one action
+sources:
+    - title: DonorDock - Board-powered major gifts relationship mapping workflow
+      url: https://www.donordock.com/articles/board-powered-major-gifts-relationship-mapping-workflow
+      summary: LinkedIn compilation, 20-40 prospects, shared employers and alma maters, note connector on prospect record
+    - title: GoodUnited - Relationship mapping for nonprofits
+      url: https://www.goodunited.io/blog/relationship-mapping-nonprofits
+      summary: Refresh quarterly or before a major campaign; people change jobs
+    - title: Salesforce Trailhead - NPSP relationships
+      url: https://trailhead.salesforce.com/content/learn/modules/constituent-data-management-with-nonprofit-success-pack/connect-contacts-using-relationships
+      summary: Reciprocal Relationships and Affiliations data model (search summary)
+    - title: Candid - Landscapes and funding flows
+      url: https://candid.org/blogs/candid-landscapes-funding-flows/
+      summary: Funder-grantee constellation view (search summary)
+    - title: Providence CORE - Network mapping
+      url: https://blog.providence.org/whole-person-care/network-mapping-at-core
+      summary: Partner network mapping in a community health program
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

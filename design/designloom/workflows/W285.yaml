@@ -1,0 +1,121 @@
+id: W285
+name: Packaging a Layout or Algorithm as a Plugin
+category: analysis
+validated: false
+personas:
+    - plugin-author-graph-library-author
+    - plugin-author-frontend-developer
+requires_capabilities:
+    - layout-force-directed
+    - algorithm-progress
+    - computed-attributes
+    - visual-encoding-nodes
+    - plugin-layout-algorithm-contract
+    - ui-widget-extension-points
+suggested_components:
+    - algorithm-panel
+    - algorithm-card
+    - layout-panel
+    - progress-bar
+    - computed-attributes-panel
+starting_state:
+    data_type: an existing layout or algorithm implementation in another host library, plus benchmark graphs
+    node_count: 1000-1000000 for benchmarks
+    edge_density: varies
+    user_expertise: expert library author
+goal: >-
+    **Intent**: Port a layout or algorithm into a host library's extension model and publish it as a package others
+    install, with the same speed and abilities as the host's built-ins. Front-end developers follow the same steps for
+    UI widgets (tooltips, context menus, minimaps).
+
+
+    **Mental Model**: "Implement the contract, register, publish." Each host has a fixed shape for a layout or
+    algorithm; the author fills it, proves parity and speed, and lists the package.
+
+
+    **Task Phases**:
+
+    1. **Scaffold** - A rollup starter for Cytoscape.js; a monorepo folder with index, worker, type declarations and a
+    bench script for graphology; a Maven generator for Gephi
+
+    2. **Implement the contract** - Cytoscape.js layout prototype (constructor receiving cy and eles, run, stop,
+    layoutstart, layoutready and layoutstop events); graphology `fn(graph, options)` plus `.assign`; G6 base class plus
+    `register(category, name, Class)`; Gephi builder, execute class and UI provider
+
+    3. **Workers** - Left to the author in Cytoscape.js; graphology inlines worker source at publish time
+
+    4. **Benchmark and test** - Benchmarks and parity tests against the reference implementation on prepublish
+
+    5. **Register** - `register(host)` plus auto-registration for script-tag users
+
+    6. **Publish and list** - npm package, the host's extension list, often a paper for academic layouts
+
+
+    **Decision Points**:
+
+    - Plain-object path or typed-array path for the hot loop?
+
+    - Main thread, worker or GPU?
+
+    - Which host versions does the package declare support for?
+
+
+    **Information Needs**:
+
+    - The full contract a built-in uses, including progress, cancel and time budgets
+
+    - How to read the graph without copying it, and how to reach the host's worker pool or GPU device
+
+    - Exactly what happens on a duplicate or invalid registration
+
+
+    **Pain Points**:
+
+    - Most Cytoscape.js extensions are untyped JavaScript
+
+    - A second registration of the same name is silently ignored (G6)
+
+    - Default-registered built-ins changed between major versions (G6 v5)
+
+    - React nodes in G6 lose state styling
+
+
+    **Data Flow**:
+
+    - Input: Reference implementation, benchmark graphs, host extension API
+
+    - Transformations: Contract implementation, worker or GPU packaging, parity tests, benchmarks
+
+    - Output: A published package, registration call, benchmarks and documentation
+success_criteria:
+    - metric: Built-in parity
+      target: The plugin can do everything a built-in layout or algorithm can (progress, cancel, worker, GPU, no copy)
+    - metric: Registration errors
+      target: A bad or duplicate registration fails at once, naming the plugin and the field
+    - metric: Simple path
+      target: A first working plugin fits in about 15 lines with no internal concepts
+sources:
+    - title: Cytoscape.js - Extensions
+      url: https://js.cytoscape.org/#extensions
+      summary: Layout prototype contract, registration and 73 listed extensions
+    - title: graphology - ForceAtlas2
+      url: https://graphology.github.io/standard-library/layout-forceatlas2.html
+      summary: Synchronous, assign and worker supervisor variants; worker inlined at publish
+    - title: AntV G6 - Extensions
+      url: https://g6.antv.antgroup.com/en/manual/graph/extension
+      summary: register(ExtensionCategory, name, Class); duplicate names ignored
+    - title: Gephi plugins
+      url: https://github.com/gephi/gephi-plugins
+      summary: Maven generator and statistics plugin structure
+    - title: cytoscape-fcose README
+      url: https://unpkg.com/cytoscape-fcose@2.2.0/README.md
+      summary: Academic layout published as an extension and cited as a paper
+    - title: AntV G6 issue 5700
+      url: https://www.Github.com/antvis/G6/issues/5700
+      summary: v5 changed default plugin registration
+    - title: AntV G6 issue 6192
+      url: https://github.com/antvis/g6/issues/6192
+      summary: React nodes lack state styling
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

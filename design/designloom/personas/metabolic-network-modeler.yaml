@@ -1,0 +1,63 @@
+id: metabolic-network-modeler
+name: Metabolic Network Modeler
+roster_persona: genomics-cytoscape-user
+tier: A
+scope: in-scope
+role: Metabolic Engineer (constraint-based flux modeling)
+quote: Water and ATP touch every reaction. Hide them, keep my map exactly as drawn, and show me which fluxes moved when I knocked this gene out.
+bio: >-
+    Dr. Emil Berg is a metabolic engineer. He uses genome-scale models from BiGG with COBRApy to predict fluxes and the
+    effect of gene knockouts on a production strain, and sometimes paints measured metabolite levels on the same maps.
+    His graphs are bipartite: metabolites and reactions, with direction, reversibility and a flux value whose sign gives
+    the running direction. He draws flux results on Escher maps, which are hand-built JSON drawings of pathways, and
+    tries knockouts live in Escher-FBA. He writes Python, knows SBML, and cares about the curated layout as much as about
+    the data. Metabolomics scientists who build metabolite networks without a flux model, in MetaboAnalyst's Network
+    Explorer, are a separate persona (metabolomics-network-analyst). He is a genomics-cytoscape-user variant: placing
+    measured metabolites and imported flux values on pathways is in scope; solving flux-balance models and re-solving
+    after a knockout is not, and stays in COBRApy and Escher-FBA.
+characteristics:
+    expertise: advanced
+    time_pressure: medium
+    graph_literacy: intermediate
+    domain_knowledge: expert
+motivations:
+    - See predicted or measured flux changes on a pathway map he recognizes
+    - Test knockouts and see the flux redistribution immediately
+    - Paint measured metabolite levels on the same curated map as the fluxes
+    - Keep currency metabolites from dominating the drawing and the analysis
+behaviors:
+    - Loads COBRA JSON or SBML models, optimizes, and paints solution.fluxes onto an Escher map
+    - Uses Escher-FBA in the browser to knock out reactions and watch the map redraw
+    - Hides, removes or duplicates water, ATP, NADH and H+ on maps
+    - Builds new pathway maps by hand when no curated map exists
+frustrations:
+    - Currency metabolites connect to nearly everything and must be deleted or hidden
+    - Maps are drawn by hand, so a new pathway means hours of drawing
+    - SBML needs conversion to COBRA JSON before Escher can use it
+    - General network tools ignore reversibility and flux sign
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W243
+    - W246
+    - W250
+sources:
+    - title: King et al. 2015 - Escher (PLOS Computational Biology)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4552468
+      summary: Hand-built pathway maps, flux overlays, currency metabolites hidden on maps
+    - title: Escher Python documentation
+      url: https://escher.readthedocs.io/en/latest/escher-python.html
+      summary: Builder with map_name, model and reaction_data
+    - title: Rowe et al. 2018 - Escher-FBA
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6158907
+      summary: Flux balance analysis and knockouts in the browser
+    - title: Huss and Holme 2007 - Currency metabolites and network representations
+      url: https://arxiv.org/pdf/0806.2763
+      summary: Currency metabolites distort metabolic network topology and are commonly removed
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

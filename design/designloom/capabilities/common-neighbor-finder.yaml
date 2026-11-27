@@ -1,0 +1,21 @@
+id: common-neighbor-finder
+name: Common Neighbor Finder
+category: analysis
+description: Find nodes connected to N or more of a chosen set of seeds (numbers called by 3+ subjects, contacts on 2+
+    seized phones, numbers at every scene window) with counts.
+status: planned
+notes: "Research trace: law-enforcement-and-intelligence-analysts.md section 10, requirement 10 (Must)."
+algorithms: []
+used_by_workflows:
+    - W09
+    - W100
+    - W102
+    - W98
+implemented_by_components: []
+requirements:
+    - 'Must: Common-neighbor finder across seeds ("called by 3+ subjects", "on 2+ phones")'
+sources:
+    - title: Law enforcement crime and intelligence analysts, and defense and national intelligence analysts (section
+          10, requirement 10)
+      url: design/user-research/law-enforcement-and-intelligence-analysts.md
+      summary: "Must in the research. Covered by Designloom when researched: Gap"

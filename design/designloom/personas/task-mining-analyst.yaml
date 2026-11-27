@@ -1,0 +1,70 @@
+id: task-mining-analyst
+name: Task Mining Analyst
+roster_persona: process-mining-analyst
+tier: A
+scope: in-scope
+role: Automation Analyst / RPA Business Analyst
+quote: I have 50,000 clicks from five clerks. Show me the task they repeat all day, where it fits in the order-to-cash case, and whether a bot could do it.
+bio: >-
+    Sanjana works in an automation center of excellence and decides what to hand to software robots. Instead of system
+    logs she works from desktop interaction recordings: a recorder on the desktops of a few selected, experienced users
+    captures every click and keystroke with a screenshot and metadata, with personal data masked. The vendor's software
+    (UiPath, Celonis or Power Automate task mining) clusters screenshots of the same application and screen, merges
+    matching steps into a task map with decision points, and she reviews each step's screenshots, renames steps and
+    links tasks to system-level cases. UiPath recommends recording 2 to 7 experienced users for 20,000 to 70,000
+    actions; an active user produces 200 to 1,000 actions an hour. UI logs arrive as one unsegmented stream per user
+    with no case identifier, so routines have to be segmented out before discovery. She is a variant of the process
+    mining analyst: same maps, much finer-grained data, and a need for several levels of detail.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: basic
+    domain_knowledge: advanced
+motivations:
+    - Find frequent, repetitive, rule-based tasks worth automating
+    - See how desktop tasks fit inside the system-level process (UI actions inside tasks inside activities)
+    - Estimate time spent per task and per application to size the automation benefit
+    - Keep recordings privacy-safe so the works council and the recorded users accept them
+behaviors:
+    - Selects a few experienced users and asks them to pause recording when off task
+    - Reviews the vendor's clustered steps by looking at their screenshots and renames or merges steps
+    - Reads the task map for the most frequent paths and decision points
+    - Links recorded tasks to business cases (case matching) to place them in the end-to-end process
+    - Drills from a system-level activity down to the UI actions recorded inside it
+    - Reports automation candidates with frequency, duration and variant counts
+frustrations:
+    - Unsegmented UI streams with no case id, so routines must be cut out before any map makes sense
+    - Maps at the click level that are far too detailed to read without abstraction
+    - Screenshots and keystrokes that carry personal data and need masking
+    - Vendor clustering that merges different screens or splits the same one
+    - Tool changes such as the deprecation of always-on unassisted recording
+context:
+    frequency: as-needed
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W348
+sources:
+    - title: UiPath Task Mining - recorder client overview
+      url: https://docs.uipath.com/task-mining/automation-cloud/latest/user-guide/recorder-client-overview.md
+      summary: Captures screenshots and metadata for every keyboard input and mouse click, applies PII masking
+    - title: UiPath Task Mining - introduction
+      url: https://docs.uipath.com/task-mining/automation-cloud/latest/user-guide/introduction
+      summary: AI clusters screenshots of the same screen across traces, merges steps and creates decision points
+    - title: UiPath Task Mining - best practices
+      url: https://docs.uipath.com/task-mining/automation-suite/2023.4/user-guide/best-practices-utm
+      summary: 2 to 7 experienced users, 20,000 to 70,000 actions, 200 to 1,000 actions an hour per active user
+    - title: Celonis - What is task mining
+      url: https://www.celonis.com/process-mining/what-is-task-mining
+      summary: Records clicks, copy and paste, time per application, timestamps and screenshots; matches actions to business cases
+    - title: Microsoft Power Automate Process Mining - process map
+      url: https://learn.microsoft.com/en-us/power-automate/minit/process-map
+      summary: Hierarchical maps drilling into UI recordings combined with high-level system event logs
+    - title: Leno et al. 2020 - robotic process mining from UI logs
+      url: https://arxiv.org/pdf/2008.05782
+      summary: UI logs are unsegmented streams without case identifiers; routines are segmented before discovery
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

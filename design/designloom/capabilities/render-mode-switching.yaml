@@ -1,0 +1,25 @@
+id: render-mode-switching
+name: 2D, perspective 3D and orthographic 3D views of one graph
+category: visualization
+description: Switch the same graph between 2D, perspective 3D and orthographic 3D per task, keeping node positions
+    projected so the reader keeps their bearings; no assumption that 3D is the right default (studies favor 2D for
+    speed, spatial memory and comparison).
+status: planned
+notes: "Research trace: three-dimensional-and-immersive-network-analysis.md section 10, requirement R1 (Must)."
+algorithms: []
+used_by_workflows:
+    - W411
+    - W413
+    - W417
+    - W419
+    - W422
+implemented_by_components: []
+requirements:
+    - "Must: Per-task choice of 2D, perspective 3D and orthographic 3D on the same graph, with the same node positions
+      projected so the reader keeps their bearings; no assumption that 3D is the right default (evidence favors 2D for
+      speed, memory, comparison)"
+sources:
+    - title: Analysts Who Work With Networks in 3D and in Immersive VR or AR (section 10, requirement R1)
+      url: design/user-research/three-dimensional-and-immersive-network-analysis.md
+      summary: "Must in the research. Covered by Designloom when researched: Partly (rendering modes exist; default is
+          3D, unsupported by evidence for most tasks)"

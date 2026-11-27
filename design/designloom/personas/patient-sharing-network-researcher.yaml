@@ -1,0 +1,85 @@
+id: patient-sharing-network-researcher
+name: Patient-Sharing Network Researcher
+roster_persona: public-health-cluster-epidemiologist
+tier: B
+scope: in-scope
+role: Health Services Researcher, Health Policy Department or All-Payer Claims Program
+quote: Two doctors who share enough patients are working together. Proving that from claims is a year of decisions I have to defend.
+bio: >-
+    Eva Doyle studies how the informal structure of care delivery relates to cost, quality and referral patterns. Her
+    graph is not a transmission network: two physicians are tied because the same patient saw both, which is read as a
+    working relationship. The method has a canonical paper (2006 Medicare claims covering 4,586,044 beneficiaries and
+    68,288 physicians in 51 hospital referral regions) and a scoping review of 49 studies, and it is established enough
+    that a public pre-projected national file exists. She extracts claims in SAS and builds the network in R with
+    igraph or Python with NetworkX, drawing force-directed figures for publication. Scale is the defining feature: one
+    region ranged from 135 physicians in a small city to 8,197 in Boston, with a mean of 1,339 physicians and 50,927
+    ties per region, and a national public extract has been described as 940,492 provider nodes and 49,685,810
+    shared-patient edges. Everything she publishes is governed by a cell size suppression rule that forbids displaying
+    any count of 1 to 10, including percentages and anything a reader could derive from the rest of the table.
+characteristics:
+    expertise: expert
+    time_pressure: low
+    graph_literacy: expert
+    domain_knowledge: advanced
+motivations:
+    - Identify the groups of physicians who actually work together, as candidates for care teams or accountable care organizations
+    - Relate network structure to spending, utilization and quality, and compare regions
+    - Defend every construction choice, because the field has no standard method
+    - Say honestly what one payer's claims cannot see
+    - Publish figures and tables that satisfy a suppression rule without becoming meaningless
+behaviors:
+    - Decides the data route first: identifiable claims under a data use agreement, a state all-payer or Medicaid or private extract, or the public pre-projected provider dyad files
+    - Defines what counts as an encounter (paid physician claims, evaluation and management services plus procedures above a relative value unit threshold, laboratory services dropped) and which specialties are not nodes because patients do not choose them
+    - Drops low-volume providers (for example fewer than 30 patients in the year) and anyone outside the study regions
+    - Projects a patient-provider bipartite graph onto providers, with the shared-patient count as the tie weight, knowing each patient becomes a clique so the projection cannot be inverted
+    - Thresholds the far-too-dense projection by one of three families and reports the rule: a per-node relative rule (each physician's strongest 20% of ties, kept only if mutual, with 10% and 30% sensitivity analyses), a fixed count (1, 2, 5 or 9 shared patients), or a statistical backbone filter
+    - Considers an episode-of-care tie definition that avoids thresholding, which produced more stable communities year to year (72.4% versus 67.4% tie persistence)
+    - Reports degree, degree adjusted for panel size, betweenness relative to the other specialty group, density and clustering coefficient, expecting to justify each one
+    - Runs modularity maximization for non-overlapping communities, then characterizes them (median roughly 150 to 165 physicians, about 77% of patient visits staying inside the community)
+    - Checks what sampling destroys before interpreting: counts, degree and centrality survive small samples, while transitivity, clustering and community counts need the full cohort
+    - Publishes unlabeled force-directed figures and keeps the inspectable detail in aggregate tables, because labeled small counts are not allowed
+frustrations:
+    - No standard method: the scoping review counted 180 distinct network measures in 13 categories across 49 studies, and every included study reported at least one significant finding
+    - The raw projection is unreadably dense (mean density 0.23 before thresholding), so the first real analytic act is throwing ties away
+    - One payer is one sample: Medicare claims missed 14.6% of shared-patient relationships in a North Carolina comparison, while showing more relationships per provider than private claims
+    - Sampling patients distorts the projection unevenly, so a pilot on a sample can give the wrong clustering and the wrong number of communities
+    - The suppression rule turns a network figure into a shape: no label, no count, no inspectable node, and a second cell suppressed when totals would reveal the first
+    - Published figures are static, so no reader can ask which patients produced an edge, and neither can she once the figure is made
+    - The public pre-projected files omit pairs below 11 shared patients, fix the windows at 30, 60, 90 and 180 days, and stop at 2015
+    - Medicare Advantage enrollees have no encounter data at all, so part of the structure is simply absent
+context:
+    frequency: monthly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W75
+sources:
+    - title: Landon et al., variation in patient-sharing networks of physicians across the United States (JAMA 2012)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC3528342
+      summary: 4,586,044 beneficiaries and 68,288 physicians in 51 hospital referral regions, the encounter definition, the mutual top-20% threshold, and the reported degree, betweenness, density and clustering values
+    - title: Landon et al., using administrative data to identify naturally occurring networks of physicians (Medical Care 2013)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC3723338
+      summary: SAS plus igraph and NetworkX stack, modularity communities of a median 150 to 165 physicians, 77% of visits inside the community against 56% for hospital assignment
+    - title: DuGoff et al., a scoping review of patient-sharing network studies (Translational Behavioral Medicine 2018)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6086089
+      summary: 49 studies, 180 distinct network measures in 13 categories, threshold families in use, and the validation finding that reported professional relationships peak at nine shared patients
+    - title: O'Malley et al., the effect of patient sampling on patient-sharing networks (Health Services Research 2021)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC7968944
+      summary: Degree and centrality recovered from small samples while transitivity, clustering and community counts need the full cohort, with density and transitivity biased low
+    - title: Onnela et al., episode-of-care tie definitions for provider networks (Applied Network Science 2018)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6214299
+      summary: Episode-based ties avoid thresholding, persist year to year more often (72.4% versus 67.4%) and give more communities per region (median 14 versus 9)
+    - title: Comparison of shared-patient relationships across payers, North Carolina
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6816773
+      summary: Medicare claims missed 14.6% of shared-patient relationships found when private and Medicaid claims were added
+    - title: CMS cell size suppression policy (ResDAC)
+      url: https://resdac.org/node/1506
+      summary: No cell of 1 to 10 may be displayed, the rule covers percentages and derivable values, and a second cell must be suppressed when totals would reveal the first
+    - title: CMS Physician Shared Patient Patterns data
+      url: https://www.nber.org/data/physician-shared-patient-patterns-data.html
+      summary: Pre-projected directed NPI dyads by year with 30, 60, 90 and 180-day windows, excluding pairs sharing fewer than 11 patients, available 2009 to 2015
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

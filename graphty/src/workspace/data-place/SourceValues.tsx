@@ -1,5 +1,6 @@
 import { ControlSection, DataRow, TargetTooltip } from "@graphty/compact-mantine";
 import { sourceDescriptors } from "@graphty/graphty-element/catalog";
+import type { GraphSession, SourceKey } from "@graphty/graphty-element/session";
 import { ActionIcon, Text } from "@mantine/core";
 import type React from "react";
 
@@ -45,6 +46,17 @@ function Facts({
 }
 
 /**
+ * What the element recorded reading a source (the source-steps experiment): its size, when, and its rows.
+ * @param session - the session.
+ * @param key - the source.
+ * @returns the facts.
+ */
+function readOf(session: GraphSession, key: SourceKey): NonNullable<Parameters<typeof sourceFacts>[2]["read"]> {
+    const { size, loadedAt, tables } = session.data.sourceTable(key).summary();
+    return { size, loadedAt, rows: tables.reduce((sum, table) => sum + table.rows, 0) };
+}
+
+/**
  * A load in the inspector: what it was and when it was retrieved, simple statistics, how a joined
  * table was joined, and the edge rows it left out, which the element keeps with the load (through
  * a save and reopen too). A network load also shows what it connects to and fetches, with an edit
@@ -57,7 +69,7 @@ function Facts({
  */
 export function SourceValues({ row }: Readonly<{ row: string }>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
-    const sources = session?.data.sources() ?? [];
+    const sources = session?.data.sources({ staged: true }) ?? [];
     const key = sourceKeyOf(row);
     const load = sources.find((each) => each.key === key);
     if (session === null || load === undefined) {
@@ -74,6 +86,7 @@ export function SourceValues({ row }: Readonly<{ row: string }>): React.JSX.Elem
         issues: session.data.issues({ source: key }).length,
         waiting: session.data.pendingSourceLoads().some((each) => each.id === load.loadKey),
         ...(network === undefined ? {} : { settings: network.rows }),
+        ...(load.state === undefined ? {} : { read: readOf(session, key) }),
     });
     const { leftOut } = load;
     const edit =

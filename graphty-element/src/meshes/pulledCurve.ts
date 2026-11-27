@@ -122,10 +122,11 @@ export interface CurveSpan {
 }
 
 /**
- * The curve work done, counted so a test can show a placement works out a lone curve's control points once:
- * `spans` for {@link curveSpan} calls, `controls` for the control points worked out.
+ * The curve work done, counted so a test can show a placement works out a lone curve's control points once and
+ * samples it with no object a sample: `spans` for {@link curveSpan} calls, `controls` for the control points worked
+ * out, `samplers` for the one-sample-at-a-time samplers built ({@link pathSampler}).
  */
-export const curveWork = { spans: 0, controls: 0 };
+export const curveWork = { spans: 0, controls: 0, samplers: 0 };
 
 /**
  * A span's samples, reused from one {@link curveSpan} to the next so a placement allocates none: grown, never shrunk.
@@ -285,19 +286,47 @@ function controls(src: Xyz, dst: Xyz): [Xyz, Xyz] {
  */
 function loneCurve(src: Xyz, dst: Xyz, samples: number): (i: number) => Xyz {
     const [c1, c2] = controls(src, dst);
+    const out = new Float64Array(3);
     return (i) => {
-        const t = i / samples;
-        const u = 1 - t;
-        const a = u * u * u;
-        const b = 3 * u * u * t;
-        const c = 3 * u * t * t;
-        const d = t * t * t;
-        return {
-            x: src.x * a + c1.x * b + c2.x * c + dst.x * d,
-            y: src.y * a + c1.y * b + c2.y * c + dst.y * d,
-            z: src.z * a + c1.z * b + c2.z * c + dst.z * d,
-        };
+        cubicInto(out, 0, src, c1, c2, dst, i / samples);
+        return { x: out[0], y: out[1], z: out[2] };
     };
+}
+
+/**
+ * The lone curve's samples written straight into a flat array, its control points worked out once: the very numbers
+ * {@link loneCurve} gives, with no object a sample.
+ * @param flat - Where sample i goes, at 3 * i.
+ * @param src - The source center.
+ * @param dst - The target center.
+ * @param samples - The pieces the curve is sampled with.
+ */
+function loneCurveInto(flat: Float64Array, src: Xyz, dst: Xyz, samples: number): void {
+    const [c1, c2] = controls(src, dst);
+    for (let i = 0; i <= samples; i++) {
+        cubicInto(flat, 3 * i, src, c1, c2, dst, i / samples);
+    }
+}
+
+/**
+ * One point of a cubic Bezier, written into a flat array.
+ * @param out - The array.
+ * @param at - Where its x goes.
+ * @param p0 - The start.
+ * @param p1 - The first control point.
+ * @param p2 - The second control point.
+ * @param p3 - The end.
+ * @param t - How far along, 0 to 1.
+ */
+function cubicInto(out: Float64Array, at: number, p0: Xyz, p1: Xyz, p2: Xyz, p3: Xyz, t: number): void {
+    const u = 1 - t;
+    const a = u * u * u;
+    const b = 3 * u * u * t;
+    const c = 3 * u * t * t;
+    const d = t * t * t;
+    out[at] = p0.x * a + p1.x * b + p2.x * c + p3.x * d;
+    out[at + 1] = p0.y * a + p1.y * b + p2.y * c + p3.y * d;
+    out[at + 2] = p0.z * a + p1.z * b + p2.z * c + p3.z * d;
 }
 
 /**
@@ -407,17 +436,19 @@ type Shape = Pick<CurveSpan, "bow" | "radius" | "turn" | "height" | "angle" | "e
  * @returns Sample i, 0 to `samples`.
  */
 function pathSampler(src: Xyz, dst: Xyz, samples: number, shape: Shape): (i: number) => Xyz {
-    const { ends, loop, bends } = shape;
+    curveWork.samplers++;
+    const lone = loneEnds(src, dst, shape);
+    if (lone !== null) {
+        return loneCurve(lone[0], lone[1], samples);
+    }
+
+    const { loop, bends } = shape;
     if (bends !== null) {
         return (i) => bendSampleAt(src, dst, i, samples, bends);
     }
 
     if (loop !== null) {
         return (i) => loopSampleAt(src, i, samples, loop);
-    }
-
-    if (ends !== null) {
-        return loneCurve(along(src, dst, ends[0]), along(src, dst, ends[1]), samples);
     }
 
     const { angle, height, via, radius, bow } = shape;
@@ -437,7 +468,53 @@ function pathSampler(src: Xyz, dst: Xyz, samples: number, shape: Shape): (i: num
         return (i) => circleSampleAt(src, dst, i, samples, radius);
     }
 
-    return bow === null ? loneCurve(src, dst, samples) : (i) => arcSampleAt(src, dst, i, samples, bow);
+    return (i) => arcSampleAt(src, dst, i, samples, bow ?? 0);
+}
+
+/**
+ * Where a lone curve a span's shape names starts and ends: the two centers, or with {@link CurveSpan.ends}, the two
+ * points of the chord it names; null for any other shape.
+ * @param src - The source center.
+ * @param dst - The target center.
+ * @param shape - The span's shape.
+ * @returns The two ends, or null.
+ */
+function loneEnds(src: Xyz, dst: Xyz, shape: Shape): readonly [Xyz, Xyz] | null {
+    const { ends, loop, bends, angle, height, via, radius, bow } = shape;
+    if (bends !== null || loop !== null) {
+        return null;
+    }
+
+    if (ends !== null) {
+        return [along(src, dst, ends[0]), along(src, dst, ends[1])];
+    }
+
+    return angle === null && height === null && via === null && radius === null && bow === null ? [src, dst] : null;
+}
+
+/**
+ * Write the samples of the path a span's shape names into a flat array, as {@link pathSampler} gives them one at a time:
+ * a lone curve's straight from its cubic, with no object a sample.
+ * @param flat - Where sample i goes, at 3 * i; at least 3 * (samples + 1) long.
+ * @param src - The source center.
+ * @param dst - The target center.
+ * @param samples - The pieces.
+ * @param shape - The span's shape.
+ */
+function samplePath(flat: Float64Array, src: Xyz, dst: Xyz, samples: number, shape: Shape): void {
+    const lone = loneEnds(src, dst, shape);
+    if (lone !== null) {
+        loneCurveInto(flat, lone[0], lone[1], samples);
+        return;
+    }
+
+    const sample = pathSampler(src, dst, samples, shape);
+    for (let i = 0; i <= samples; i++) {
+        const p = sample(i);
+        flat[3 * i] = p.x;
+        flat[3 * i + 1] = p.y;
+        flat[3 * i + 2] = p.z;
+    }
 }
 
 /**
@@ -688,17 +765,11 @@ export function curveSpan(
     curveWork.spans++;
     const { straight = false } = path;
     const { shape, samples } = pathShape(src, dst, path);
-    const sample = pathSampler(src, dst, samples, shape);
     if (scratch.length < 3 * (samples + 1)) {
         scratch = new Float64Array(3 * (samples + 1));
     }
     const flat = scratch.subarray(0, 3 * (samples + 1));
-    for (let i = 0; i <= samples; i++) {
-        const p = sample(i);
-        flat[3 * i] = p.x;
-        flat[3 * i + 1] = p.y;
-        flat[3 * i + 2] = p.z;
-    }
+    samplePath(flat, src, dst, samples, shape);
 
     const span = routeOutside(flat, outsideSrc, outsideDst, (path.bends ?? null) === null);
     if (span === null) {
@@ -730,22 +801,22 @@ export function curveSpan(
  * @param span - The span.
  * @returns The points.
  */
-function cutPath(flat: ArrayLike<number>, span: CurveSpan): number[] {
+function cutPath(flat: Float64Array, span: CurveSpan): number[] {
     const { first, pieces } = span;
-    const out: number[] = [];
-    const cut = (inside: number, outside: number, t: number): void => {
+    // a plain array sized once: a typed array this long is kept off the heap, and costs more to make than to fill
+    const out = new Array<number>(3 * (pieces + 1));
+    const cut = (to: number, inside: number, outside: number, t: number): void => {
         for (let k = 0; k < 3; k++) {
             const a = flat[3 * inside + k];
-            out.push(a + (flat[3 * outside + k] - a) * t);
+            out[to + k] = a + (flat[3 * outside + k] - a) * t;
         }
     };
-    cut(first - 1, first, span.startAt);
-    for (let j = 1; j < pieces; j++) {
-        const at = 3 * (first + j - 1);
-        out.push(flat[at], flat[at + 1], flat[at + 2]);
+    cut(0, first - 1, first, span.startAt);
+    for (let k = 3; k < 3 * pieces; k++) {
+        out[k] = flat[3 * first + k - 3];
     }
 
-    cut(first + pieces - 1, first + pieces - 2, span.endAt);
+    cut(3 * pieces, first + pieces - 1, first + pieces - 2, span.endAt);
     return out;
 }
 
@@ -762,13 +833,8 @@ export function curvePath(src: Xyz, dst: Xyz, span: CurveSpan): readonly number[
         return span.points;
     }
 
-    const sample = pathSampler(src, dst, span.samples, span);
-    const flat: number[] = [];
-    for (let i = 0; i <= span.samples; i++) {
-        const p = sample(i);
-        flat.push(p.x, p.y, p.z);
-    }
-
+    const flat = new Float64Array(3 * (span.samples + 1));
+    samplePath(flat, src, dst, span.samples, span);
     return cutPath(flat, span);
 }
 
@@ -930,12 +996,17 @@ vec3 pulledRaisedSample(vec3 src, vec3 dst, float i, float samples, float height
     return p;
 }
 
-// sin of an angle within a half turn, from the Taylor series of its half
-float pulledSin(float x) {
+// sin and cos of an angle within a half turn, from the Taylor series of its half
+vec2 pulledSinCosHalfTurn(float x) {
     vec2 h = pulledSinCos(x * 0.5);
-    return 2.0 * h.x * h.y;
+    return vec2(2.0 * h.x * h.y, 1.0 - 2.0 * h.x * h.x);
 }
 
+// the same point as globeSampleAt's slerp, (sin((1-t)a) u + sin(ta) v) / sin(a), written as the turn by t a from u
+// toward w, the unit vector of v less its share along u: cos(ta) u + sin(ta) w. Both are exact in real numbers, but in
+// float32 the slerp divides by sin(a), a few tenths for ends nearly opposite, and so multiplies the float32 error of
+// its sines (from cos(a/2)'s cancelling series) by r / sin(a): 1.08e-4 at a radius of 66 on an NVIDIA GPU. The turn
+// multiplies nothing by more than r, and sin(a) appears only as the length that makes w a unit vector.
 vec3 pulledGlobeSample(vec3 src, vec3 dst, float i, float samples, float height, float angle) {
     float t = i / samples;
     if (angle == 0.0 || i <= 0.0 || i >= samples) {
@@ -943,9 +1014,14 @@ vec3 pulledGlobeSample(vec3 src, vec3 dst, float i, float samples, float height,
     }
     float ra = length(src);
     float rb = length(dst);
-    float s = pulledSin(angle);
-    float r = mix(ra, rb, t) + height * length(dst - src) * pulledSin(${Math.PI.toFixed(9)} * t);
-    return (src * (pulledSin((1.0 - t) * angle) / s / ra) + dst * (pulledSin(t * angle) / s / rb)) * r;
+    vec3 u = src / ra;
+    vec3 v = dst / rb;
+    vec3 w = v - u * dot(u, v);
+    float wLength = length(w);
+    w *= wLength == 0.0 ? 0.0 : 1.0 / wLength;
+    vec2 turn = pulledSinCosHalfTurn(t * angle);
+    float r = mix(ra, rb, t) + height * length(dst - src) * pulledSinCosHalfTurn(${Math.PI.toFixed(9)} * t).x;
+    return (u * turn.y + w * turn.x) * r;
 }
 
 // a self-loop's teardrop: the cubic from the center back to it whose controls stand k times their mean p turned a

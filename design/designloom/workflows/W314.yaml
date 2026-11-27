@@ -1,0 +1,172 @@
+id: W314
+name: Court Exhibit from a Working Chart
+category: reporting
+validated: false
+personas:
+    - forensic-accountant
+    - graph-deliverable-recipient
+requires_capabilities:
+    - filtering
+    - saved-filters
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - annotation
+    - details-on-demand
+    - layout-hierarchical
+    - export-image
+    - data-export
+    - view-bookmarks
+    - journal-figure-export
+    - provenance-tracking
+suggested_components:
+    - graph-canvas
+    - filter-panel
+    - filter-chip
+    - data-table-panel
+    - node-details-panel
+    - visual-encoding-panel
+    - legend-panel
+    - annotation-toolbar
+    - layout-panel
+    - image-export-dialog
+    - data-export-dialog
+    - bookmark-panel
+starting_state:
+    data_type: investigation link chart built from bank, wire, phone or ledger records plus schedules keyed to exhibits
+    node_count: hundreds to thousands in the working chart; 10-60 on the exhibit
+    edge_density: moderate
+    user_expertise: advanced
+goal: >-
+    **Intent**: Cut a working investigation chart down to a trial exhibit that a juror understands in under a minute
+    and that survives an objection - every element tied to evidence, no argument built into the drawing, and produced
+    in every physical form the courtroom needs.
+
+
+    **Mental Model**: "The working graph is not the exhibit." The exhibit is a view of the evidence, not of the
+    investigation. Tips, unconfirmed links and inferences stay behind; every line must point to a schedule row and an
+    exhibit or Bates number.
+
+
+    **Task Phases**:
+
+    1. **Decide the legal category** - A summary of voluminous records under FRE 1006 (underlying records must
+    be available) or an illustrative aid under FRE 107 (not evidence, kept out of deliberations unless agreed, entered
+    into the record when practicable)
+
+    2. **Restrict to trial evidence** - Remove every node and link not supported by an exhibit or schedule row in
+    evidence; charts built from non-trial sources are inadmissible under Rule 611(a)
+
+    3. **Strip unsupported inference** - Show only the precision the data carries (for example cell-mast
+    location at town level only)
+
+    4. **Neutralize emphasis** - Uniform node sizes and frames unless size encodes an evidenced quantity; no
+    agency badges, red frames or captions that argue
+
+    5. **Apply link conventions** - Circles for people, rectangles for businesses, solid confirmed lines; for a
+    1006 summary, suspected links drop out
+
+    6. **Annotate each element with its source** - Arrows carry date, amount and exhibit or Bates number;
+    opinions kept apart from the factual content
+
+    7. **Disclose and get rulings** - Serve the exhibits under the pretrial order; revise after objections
+
+    8. **Produce physical forms** - 16:9 screen slide, A0-plus foam board, letter binder copies, record copy;
+    check large prints and PDFs are not truncated or blank
+
+    9. **Testify** - Walk the jury through the chart as a fact, summary or expert witness
+
+
+    **Decision Points**:
+
+    - Is this a 1006 summary or a 107 illustrative aid?
+
+    - Is every remaining element in evidence, and which exhibit supports it?
+
+    - Does size, color or position imply a conclusion the evidence does not state?
+
+    - What location or time precision does each fact support?
+
+    - Which physical sizes are needed and will the text stay legible on each?
+
+
+    **Information Needs**:
+
+    - Exhibit and Bates number, date and amount for every element
+
+    - Which elements came from non-trial sources (to remove)
+
+    - Confirmed versus suspected status of each link
+
+    - A preview of the exhibit at each output size
+
+    - The schedule that backs the chart, kept in sync with it
+
+
+    **Pain Points**:
+
+    - Graph tools lose the link between a drawn arrow and its record row
+
+    - Large i2 PDFs truncate above Letter or come out blank; compatibility printing lowers quality
+
+    - Paper sizes above A0 must be configured by hand
+
+    - Opposing counsel attack size, framing and agency marks as prejudicial
+
+    - Every schedule change means redrawing and rechecking the exhibit by hand
+
+
+    **Data Flow**:
+
+    - Input: Working chart, transaction or call records, schedules, exhibit list with Bates numbers
+
+    - Transformations: Evidence-only filtering, inference stripping, neutral restyling, per-element source annotation,
+    fixed layout
+
+    - Output: Exhibit files for screen and print, the schedule, a source index, a record copy
+success_criteria:
+    - metric: Evidence traceability
+      target: Every node and link on the exhibit maps to an exhibit or schedule row in evidence
+    - metric: Neutral emphasis
+      target: No size, frame, color or mark differs between elements unless it encodes a stated, evidenced quantity
+    - metric: Physical output fidelity
+      target: Screen, A0-plus and letter outputs print completely with legible labels
+    - metric: Juror comprehension
+      target: The chart's facts can be read in under a minute (design goal; no source measures it)
+sources:
+    - title: Federal Rule of Evidence 1006 (Cornell LII)
+      url: https://law.cornell.edu/rules/fre/rule_1006
+      summary: Summaries of voluminous admissible writings; originals or duplicates must be made available
+    - title: Federal Rule of Evidence 107 and 2024 committee notes
+      url: https://www.courtrules.net/federal/evidence/rule-107
+      summary: Illustrative aids; prejudice test; not evidence; kept from deliberations; entered into the record when practicable
+    - title: United States v. Bray, 139 F.3d 1104 (6th Cir. 1998)
+      url: https://caselaw.findlaw.com/court/us-6th-circuit/1097222.html
+      summary: Summaries must be accurate and nonprejudicial, not annotated with the proponent's conclusions
+    - title: United States v. Fei Xie, No. 25-6034 (10th Cir. Mar. 31, 2026), unpublished
+      url: https://www.ca10.uscourts.gov/sites/ca10/files/opinions/010111410037.pdf
+      summary: Non-trial-source charts inadmissible under Rule 611(a); emphasis objections raised and rejected on plain-error review
+    - title: R v Calland [2017] EWCA Crim 2308
+      url: https://caselaw.nationalarchives.gov.uk/ewca/crim/2017/2308
+      summary: Cell-mast location limited to town level; conflating mast position with inference criticized
+    - title: Law Enforcement Analytic Standards, 2nd edition
+      url: https://www.azdps.gov/sites/default/files/2023-07/Law_Enforcement_Analytic_Standards_2nd_edition.pdf
+      summary: Products distinguish sources and keep opinions out of the factual portion
+    - title: Weintraub - trial demonstratives guidance
+      url: https://www.weintraub.com/?p=6334
+      summary: Build from ledgers and bank records; test demonstratives before trial
+    - title: ABA Family Advocate - Show and tell, summaries and demonstrative evidence
+      url: https://www.americanbar.org/groups/family_law/publications/family-advocate/2022/spring/show-and-tell-summaries-and-demonstrative-evidence/
+      summary: Disclose and get rulings on summaries and demonstratives early
+    - title: RFFlow link analysis sample
+      url: https://www.rff.com/link_analysis_sample.php
+      summary: Shape and line-style conventions for people, businesses, confirmed and suspected links
+    - title: IBM support - i2 PDF truncation above Letter
+      url: https://www.ibm.com/support/pages/node/510995
+      summary: i2 8.9.5 truncated large PDFs
+    - title: IBM support - Compatibility Printing Mode
+      url: https://www.ibm.com/support/pages/using-compatibility-printing-mode-resolve-printing-issues-analysts-notebook
+      summary: Workaround for print failures that can reduce print quality
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

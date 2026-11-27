@@ -119,8 +119,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
             assistantSpoken: null,
             assistantTalkPress: false,
             assistantRefused: false,
-            // A source card's picks name this project's sources.
-            sourceCard: null,
+            // Staged ends name this project's sources.
             stagedEnds: null,
             draftOpen: null,
         });

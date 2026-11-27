@@ -260,12 +260,16 @@ export function useJoinCards(
             save(next);
             return;
         }
-        // The way to join stays while it is still offered of the same sources; another source asks again.
+        // The way to join stays while it is still offered of the same sources and matches a row; another
+        // source, or no row matching, asks again.
         const again =
             resided || current === undefined
                 ? undefined
                 : offeredOutcomes(draft, lines, card, card.step).find(
-                      (each) => each.uses.length === wholeLines(lines).length && sameOutcome(each, current),
+                      (each) =>
+                          each.uses.length === wholeLines(lines).length &&
+                          !each.matched.includes(0) &&
+                          sameOutcome(each, current),
                   );
         if (again === undefined) {
             takeBack(card, next);

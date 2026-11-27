@@ -42,7 +42,8 @@ async function grid(path: "batched" | "objects", region?: "rectangle" | "lasso",
     // Before it opens: a graph born on "batched" keeps its row table after a switch to "objects".
     element.renderPath = path;
     element.style.display = "block";
-    element.style.width = "500px";
+    // Inside the test frame's 414-pixel-wide viewport, so the real pointer reaches every node.
+    element.style.width = "400px";
     element.style.height = "400px";
     document.body.appendChild(element);
     cleanups.push(() => {

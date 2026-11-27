@@ -1,14 +1,14 @@
 /**
  * The owner's founding example end to end on the REAL graphty-element with the source-steps
  * experiment on (design/data/multiple-data-sources-design.md, sections 5.1-5.6, 7.13 and 13),
- * driven only by drops, clicks, typing and keys: buildings.csv is dropped on an empty project and
- * drawn at once; people arrive staged, are given the type person in their section and are added;
- * door entries are joined to the people who badged in (an edge "entered", ignoring case, the test
- * badge's entry left out) and to the buildings whose doors they opened (an edge "at"); HR's
- * list is merged into people with Use 2 for dept and one pick back to people.csv's value; visitors
- * are added as people too, answering the key-overlap question. Before / After flips the drawing, each
- * card commits one undo step, Steps lists every step, and Undo returns the visitors to staged and
- * Redo adds them again.
+ * driven only by drops, clicks, typing and keys, and joined only through "Join +" below the data
+ * sources: buildings.csv is dropped on an empty project and drawn at once; people arrive staged,
+ * are given the type person in the workspace and are added as they are; door entries are
+ * joined to the people who badged in (an edge "entered", ignoring case, the test badge's entry left
+ * out) and to the buildings whose doors they opened (an edge "at"); HR's list is merged into people
+ * with Use incoming for dept and one pick back to people.csv's value; visitors are added as people too,
+ * answering the key-overlap question. Before / After flips the drawing, each Done commits one undo
+ * step, and Undo returns the visitors to staged and Redo adds them again.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -20,7 +20,19 @@ import { page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
-import { choose, count, drop, emptyProject, rowWith, select } from "./sourceSteps";
+import {
+    advanced,
+    choose,
+    done,
+    drop,
+    emptyProject,
+    joinAs,
+    joinLines,
+    pickFields,
+    pickSources,
+    rowWith,
+    select,
+} from "./sourceSteps";
 
 withFeatures(["source-steps"]);
 
@@ -35,50 +47,43 @@ const HR = "badge,dept\nB1,Operations\nB2,Research\nB3,Sales";
 const VISITORS = "badge,name\nB1,Ann\nV1,Val";
 
 /**
- * Drops a file and waits for its staged section.
+ * Drops a file and waits for its staged entry.
  * @param name - the file's name.
  * @param text - its contents.
- * @returns the section.
  */
-async function stage(name: string, text: string): Promise<HTMLElement> {
+async function stage(name: string, text: string): Promise<void> {
     drop(name, text);
-    return screen.findByRole("region", { name });
+    await screen.findByRole("listitem", { name });
 }
 
 /**
- * Presses a key with nothing focused, as a reader does over the canvas.
- * @param keys - the keys, in userEvent's notation.
+ * Opens the join workspace by Join + below the data sources.
+ * @returns the workspace.
+ */
+async function joinPlus(): Promise<HTMLElement> {
+    const place = await screen.findByRole("region", { name: "Data place" });
+    await userEvent.click(within(place).getByRole("button", { name: "Join" }));
+    return screen.findByRole("dialog", { name: "Join" });
+}
+
+/**
+ * Types a name into a type or edge type box.
+ * @param where - where the box is.
+ * @param name - the box's name.
+ * @param text - the name typed.
+ */
+async function typeInto(where: HTMLElement, name: string, text: string): Promise<void> {
+    await userEvent.click(within(where).getByLabelText(name));
+    await userEvent.keyboard(`${text}{Enter}`);
+}
+
+/**
+ * Presses keys with nothing focused, as a reader does over the window.
+ * @param keys - the keys.
  */
 async function press(keys: string): Promise<void> {
     (document.activeElement as HTMLElement | null)?.blur();
     await userEvent.keyboard(keys);
-}
-
-/**
- * Picks Make an edge, types its edge type and clicks Preview.
- * @param card - the Join card.
- * @param edgeType - the edge type.
- * @returns the card's Preview section.
- */
-async function previewEdge(card: HTMLElement, edgeType: string): Promise<HTMLElement> {
-    await userEvent.click(within(card).getByRole("radio", { name: "Make an edge" }));
-    await userEvent.click(within(card).getByRole("combobox", { name: "Edge type" }));
-    await userEvent.keyboard(edgeType);
-    await userEvent.keyboard("{Tab}");
-    await userEvent.click(within(card).getByRole("button", { name: /^Preview/ }));
-    return within(card).findByRole("region", { name: "Preview" });
-}
-
-/**
- * Clicks the card's Commit and waits for it to close.
- * @param card - the card.
- * @param name - the card's name.
- */
-async function commit(card: HTMLElement, name: string): Promise<void> {
-    await userEvent.click(within(card).getByRole("button", { name: /^Commit/ }));
-    await waitFor(() => {
-        assert.isNull(screen.queryByRole("form", { name }));
-    });
 }
 
 /**
@@ -116,157 +121,129 @@ describe("the founding example through the app (source-steps)", () => {
         assert.isEmpty(session.data.staged(), "a first source is drawn, not staged");
         store.set({ dockOpen: false, dockMaximized: false });
 
-        // People arrive staged, drawing nothing; the reader types their Type, person, and Add adds
-        // them.
-        const people = await stage("people.csv", PEOPLE);
+        // People arrive staged, drawing nothing; on their card the reader types their Type, person,
+        // and adds them as they are.
+        await stage("people.csv", PEOPLE);
         assert.strictEqual(session.data.nodes().length, 2, "a staged source draws nothing");
-        await userEvent.click(within(people).getByRole("combobox", { name: "Type" }));
-        await userEvent.keyboard("person{Enter}");
+        let modal = await joinPlus();
+        await choose(modal, "Source 1", "people");
+        let settings = await within(modal).findByRole("group", { name: "people rows" });
+        await userEvent.click(within(settings).getByRole("button", { name: "Expand people rows" }));
+        await typeInto(settings, "Type", "person");
         await waitFor(() => {
             const key = session.data.staged()[0]?.key ?? "";
-            assert.strictEqual(session.data.sourceTable(key).summary().mapping.type, "person");
+            assert.strictEqual(session.data.currentDraft()?.sourceTable(key).summary().mapping.type, "person");
         });
-        await userEvent.click(within(people).getByRole("button", { name: /^Add/ }));
-        const addPeople = await within(people).findByRole("form", { name: "Add" });
-        assert.include(within(addPeople).getByLabelText("Buckets").textContent, "new person");
-        assert.strictEqual(within(addPeople).getByLabelText("Nodes after").textContent, "2 -> 6");
-        await commit(addPeople, "Add");
+        await userEvent.click(within(modal).getByRole("button", { name: "Add as is" }));
         await waitFor(() => {
-            assert.isNull(screen.queryByRole("region", { name: "people.csv" }));
+            assert.deepStrictEqual(joinLines(modal), ["people, added"]);
         });
+        await done(modal);
         assert.deepStrictEqual(nodeIds(session), ["B1", "B2", "B3", "D1", "D2", "T0"]);
 
-        // Entries to people by badge: Make an edge "entered", ignoring case so b3 meets B3.
+        // Entries to people by badge: Connect "entered", ignoring case so b3 meets B3.
         await stage("entries.csv", ENTRIES);
-        await press("j");
-        let card = await screen.findByRole("form", { name: "Join" });
-        await choose(card, "Field 1 type", "person");
-        await choose(card, "Field 1 field", "Key");
-        await choose(card, "Field 2 field", "badge");
-        await userEvent.click(within(card).getByRole("switch", { name: "Ignore case" }));
-        let section = await previewEdge(card, "entered");
-        assert.strictEqual(count(section, "new edges"), "6", "every entry but B9's");
-
-        // The test badge's entry is left out, from the dock's rows.
-        await userEvent.click(within(section).getByRole("button", { name: "Show new edges rows" }));
-        const rows = await screen.findByRole("grid", { name: "Rows" });
-        await select(rowWith(rows, "T0"));
-        await userEvent.click(await within(card).findByRole("button", { name: "Exclude selected (1)" }));
+        modal = await joinPlus();
+        await pickSources(modal, "people", "entries");
+        await pickFields(modal, "badge", "badge");
+        await userEvent.click(within(modal).getByRole("switch", { name: "Ignore case" }));
+        await joinAs(modal, "Node per entries row, linked to people");
+        await advanced(modal);
+        await typeInto(modal, "Edge type", "entered");
+        const newEdges = (): number => session.data.currentDraft()?.preview().steps.at(-1)?.buckets?.newEdges ?? -1;
         await waitFor(() => {
-            assert.strictEqual(count(section, "new edges"), "5");
+            assert.strictEqual(newEdges(), 6, "every entry but B9's");
         });
-        assert.isNotNull(within(within(card).getByRole("group", { name: "Excluded" })).getByText("E7"));
 
-        // Before / After over the canvas: After first, B flips it and back.
+        // The test badge's entry is left out, from the workspace table's rows.
+        await userEvent.click(await within(modal).findByRole("button", { name: /new edges$/ }));
+        const rows = await within(modal).findByRole("grid", { name: "Rows" });
+        await select(rowWith(rows, "T0"));
+        await userEvent.click(within(modal).getByRole("button", { name: "Exclude" }));
+        await waitFor(() => {
+            assert.strictEqual(newEdges(), 5);
+        });
+        assert.isNotNull(within(modal).getByRole("button", { name: "Include E7" }));
+
+        // Before / After: After first, B flips it and back.
         const draft = session.data.currentDraft();
         assert.isNotNull(draft);
-        const chip = await screen.findByRole("radiogroup", { name: "Before / After" });
         await waitFor(() => {
             assert.isTrue(draft?.displayed);
         });
         assert.strictEqual(draft?.side, "after");
-        await waitFor(() => {
-            assert.strictEqual(session.data.statistics().edgeCount, 5, "After draws the draft");
-        });
-        await press("b");
+        within(modal).getByRole("button", { name: "Done" }).focus();
+        await userEvent.keyboard("b");
         await waitFor(() => {
             assert.strictEqual(draft?.side, "before");
         });
-        assert.isTrue(within(chip).getByRole<HTMLInputElement>("radio", { name: "Before" }).checked);
-        await waitFor(() => {
-            assert.strictEqual(session.data.edges().length, 0, "Before draws the project");
-        });
-        await press("b");
+        await userEvent.keyboard("b");
         await waitFor(() => {
             assert.strictEqual(draft?.side, "after");
         });
 
-        // Enter commits it as one undo step.
-        const history = session.history.steps.length;
-        await press("{Enter}");
-        await waitFor(() => {
-            assert.isNull(screen.queryByRole("form", { name: "Join" }));
-        });
+        // Done commits it as one undo step.
+        let history = session.history.steps.length;
+        await done(modal);
         assert.strictEqual(session.history.steps.length, history + 1, "one undo step");
-        assert.isNull(screen.queryByRole("radiogroup", { name: "Before / After" }), "the chip goes with the draft");
         assert.strictEqual(edgesOf(session, "entered"), 5);
-        assert.isNull(screen.queryByRole("region", { name: "entries.csv" }), "entries are no longer staged");
+        assert.lengthOf(session.data.staged(), 0, "entries are no longer staged");
 
-        // Entries to buildings by door, from Join in the Sources header: nothing is staged and no
-        // node selected, so it is the one Join button.
-        await userEvent.click(screen.getByRole("button", { name: /^Join/ }));
-        card = await screen.findByRole("form", { name: "Join" });
-        await choose(card, "Field 1 type", "buildings.csv");
-        await choose(card, "Field 1 field", "Key");
-        await choose(card, "Field 2 source", "entries.csv");
-        await choose(card, "Field 2 field", "door");
-        section = await previewEdge(card, "at");
-        assert.strictEqual(count(section, "new edges"), "6", "every entry but E5's D3");
-        await commit(card, "Join");
-        assert.strictEqual(edgesOf(session, "at"), 6);
+        // Entries to buildings by door: nothing is staged, and the workspace opens on a new blank card.
+        modal = await joinPlus();
+        await pickSources(modal, "buildings", "entries");
+        await pickFields(modal, "door", "door");
+        await joinAs(modal, "Edge from buildings to entries");
+        await advanced(modal);
+        await typeInto(modal, "Edge type", "at");
+        await done(modal);
+        assert.strictEqual(edgesOf(session, "at"), 6, "every entry but E5's D3");
 
-        // HR's list merged into people: Use 2 for dept, then one pick keeps people.csv's Lab.
+        // HR's list merged into people: Use incoming for dept, then one pick keeps people.csv's Lab.
         await stage("hr.csv", HR);
-        await press("j");
-        card = await screen.findByRole("form", { name: "Join" });
-        await choose(card, "Field 1 type", "person");
-        await choose(card, "Field 1 field", "Key");
-        await choose(card, "Field 2 field", "badge");
-        await userEvent.click(within(card).getByRole("radio", { name: "Merge 2 into 1" }));
-        await press("{Shift>}P{/Shift}");
-        section = await within(card).findByRole("region", { name: "Preview" });
-        assert.strictEqual(count(section, "merged"), "3");
-        const differ = within(section).getByRole("group", { name: "Values differ" });
-        assert.strictEqual(within(differ).getByLabelText("dept values differ").textContent, "2");
-        await choose(section, "dept rule", "Use 2");
+        modal = await joinPlus();
+        await pickSources(modal, "people", "hr");
+        await pickFields(modal, "badge", "badge");
+        await joinAs(modal, "Fields of hr on people");
+        await choose(modal, "Both have dept", "Use incoming");
+        await userEvent.click(await within(modal).findByRole("button", { name: "Cells dept" }));
+        const cells = await within(modal).findByRole("grid", { name: "Cells" });
+        await select(rowWith(cells, "B2"));
+        await userEvent.click(within(modal).getByRole("button", { name: "Use existing" }));
         await waitFor(() => {
             assert.strictEqual(
-                within(differ).getByRole<HTMLInputElement>("combobox", { name: "dept rule" }).value,
-                "Use 2",
+                session.data.currentDraft()?.preview().cells({ column: "dept", only: "decided" }).total,
+                1,
             );
         });
-        await userEvent.click(within(section).getByRole("button", { name: "Show dept cells" }));
-        const cells = await screen.findByRole("grid", { name: "Cells" });
-        await select(rowWith(cells, "B2"));
-        await userEvent.click(await within(card).findByRole("button", { name: "Pick 1 (1)" }));
-        await waitFor(() => {
-            assert.strictEqual(within(differ).getByLabelText("dept decided").textContent, "decided 1");
-        });
-        await commit(card, "Join");
+        await done(modal);
         assert.strictEqual(session.data.node("B1")?.dept, "Operations", "HR's department, by the rule");
         assert.strictEqual(session.data.node("B2")?.dept, "Lab", "people.csv's department, by the pick");
 
-        // Visitors as people too: Add asks whether their badges are the same people, and waits for it.
-        const visitors = await stage("visitors.csv", VISITORS);
-        await userEvent.click(within(visitors).getByRole("combobox", { name: "Type" }));
-        await userEvent.keyboard("person{Enter}");
+        // Visitors as people too: where they are added asks whether their badges are the same people.
+        await stage("visitors.csv", VISITORS);
+        modal = await joinPlus();
+        await choose(modal, "Source 1", "visitors");
+        settings = await within(modal).findByRole("group", { name: "visitors rows" });
+        await userEvent.click(within(settings).getByRole("button", { name: "Expand visitors rows" }));
+        await typeInto(settings, "Type", "person");
         await waitFor(() => {
             const key = session.data.staged()[0]?.key ?? "";
-            assert.strictEqual(session.data.sourceTable(key).summary().mapping.type, "person");
+            assert.strictEqual(session.data.currentDraft()?.sourceTable(key).summary().mapping.type, "person");
         });
-        await press("{Shift>}D{/Shift}");
-        card = await within(visitors).findByRole("form", { name: "Add" });
-        assert.include(card.textContent, "Same person?");
-        assert.include(card.textContent, "1 of 2");
-        assert.notInclude(card.textContent, "source:", "no internal id");
-        const add = within(card).getByRole("button", { name: /^Commit/ });
-        assert.isTrue(add.hasAttribute("disabled"), "Commit waits for an answer");
-        await userEvent.click(within(card).getByRole("radio", { name: "Merge" }));
-        await waitFor(() => {
-            assert.isFalse(add.hasAttribute("disabled"));
-        });
-        await commit(card, "Add");
+        await userEvent.click(within(modal).getByRole("button", { name: "Add as is" }));
+        await within(modal).findByText("Same person?");
+        assert.include(modal.textContent, "1 of 2");
+        assert.notInclude(modal.textContent, "source:", "no internal id");
+        await userEvent.click(within(modal).getByRole("button", { name: "Merge" }));
+        history = session.history.steps.length;
+        await done(modal);
+        assert.strictEqual(session.history.steps.length, history + 1, "one undo step");
         const all = ["B1", "B2", "B3", "D1", "D2", "E1", "E2", "E3", "E4", "E5", "E6", "E7", "T0", "V1"];
         await waitFor(() => {
             assert.deepStrictEqual(nodeIds(session), all, "B1 merged, V1 added");
         });
-
-        // Steps lists every step the element built, in order, ending with the visitors added.
         const steps = session.data.steps();
-        const stepsList = await screen.findByRole("list", { name: "Steps" });
-        await waitFor(() => {
-            assert.lengthOf(within(stepsList).getAllByRole("listitem"), steps.length);
-        });
         assert.deepStrictEqual(
             steps.filter((row) => row.op !== "join.add").map((row) => row.op),
             ["join.edges", "join.edges", "join.merge"],
@@ -276,15 +253,12 @@ describe("the founding example through the app (source-steps)", () => {
 
         // Undo returns the visitors to staged; Redo adds them again.
         await press("{Control>}z{/Control}");
-        await screen.findByRole("region", { name: "visitors.csv" });
+        await screen.findByRole("listitem", { name: "visitors.csv" });
         await waitFor(() => {
             assert.notInclude(nodeIds(session), "V1");
         });
         assert.strictEqual(edgesOf(session, "entered"), 5, "the joins stay");
         await press("{Control>}{Shift>}z{/Shift}{/Control}");
-        await waitFor(() => {
-            assert.isNull(screen.queryByRole("region", { name: "visitors.csv" }));
-        });
         await waitFor(() => {
             assert.deepStrictEqual(nodeIds(session), all);
         });

@@ -46,7 +46,7 @@ function showInStyle(
             store.set({
                 ...shown,
                 ...panelsInView(),
-                inspected: { kind: "graph" },
+                inspected: { kind: "graph", tab: "style" },
                 tabs: { ...store.get().tabs, graph: "style" },
                 shaderNext: "background",
             });

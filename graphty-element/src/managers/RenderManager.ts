@@ -1160,10 +1160,6 @@ export class RenderManager implements Manager {
 
         // Initialize camera manager
         this.camera = new CameraManager(this.scene);
-        // A wheel run ends at a frame of its own, which a loop drawing on demand would not draw.
-        this.camera.requestFrame = () => {
-            this.requestFrame();
-        };
 
         // Store camera manager in scene metadata for access by other components
         this.scene.metadata ??= {};
@@ -1231,6 +1227,7 @@ export class RenderManager implements Manager {
         // Remove resize listener
         window.removeEventListener("resize", this.resizeHandler);
         document.removeEventListener("visibilitychange", this.ignoreForGuard);
+        this.watchDeviceRatio(null);
         this.flashCheck?.readback.dispose();
         this.flashCheck = null;
         this.canvas.removeEventListener("pointerdown", this.focusOnPointer);
@@ -1348,6 +1345,15 @@ export class RenderManager implements Manager {
                 if (rests && (this.smoothShown || !this.antialiasAtRest() || this.pointersHeld.size > 0)) {
                     this.ticks.rested++;
                     return;
+                }
+
+                // The canvas's new box is taken now, so this frame is drawn at it. Left to the
+                // ResizeObserver, which runs after the animation frames, the resize cleared this
+                // frame and drew the scene a second time in the same rendering step: one more whole
+                // frame (about 60 ms at 50,000 nodes) for a panel opening beside the canvas
+                // (issue #10229). The observer then finds the size unchanged and draws nothing.
+                if (this.fitCanvas()) {
+                    this.camera.onResize();
                 }
 
                 // The frame before this one, measured now that its GPU wait is known.
@@ -1579,23 +1585,34 @@ export class RenderManager implements Manager {
      * once, so the frame the page paints after a resize holds the graph rather than the canvas the
      * resize cleared. Every resize goes through here: the element's ResizeObserver and the
      * window's resize event alike, since either one can be the call that assigns the new size.
+     * @returns Whether the canvas's render size changed.
      * @internal
      */
-    resize(): void {
-        const width = this.engine.getRenderWidth();
-        const height = this.engine.getRenderHeight();
-        this.engine.resize();
-        // The camera's projection follows the new aspect ratio before the frame is drawn.
-        this.camera.onResize();
+    resize(): boolean {
         // Only a canvas whose size changed was cleared; the observer's first delivery or a box
         // change that keeps the render size are not. An XR session draws in its own frames, so
         // nothing is drawn outside them.
-        const resized = width !== this.engine.getRenderWidth() || height !== this.engine.getRenderHeight();
+        const resized = this.fitCanvas();
+        // The camera's projection follows the new aspect ratio before the frame is drawn.
+        this.camera.onResize();
         const xrState = (this.scene.metadata as { xrHelper?: { baseExperience?: { state?: WebXRState } } } | null)
             ?.xrHelper?.baseExperience?.state;
         if (resized && (xrState === undefined || xrState === WebXRState.NOT_IN_XR)) {
             this.drawNow();
         }
+
+        return resized;
+    }
+
+    /**
+     * Sizes the drawing buffer to the canvas's box.
+     * @returns Whether the render size changed, which cleared the canvas.
+     */
+    private fitCanvas(): boolean {
+        const width = this.engine.getRenderWidth();
+        const height = this.engine.getRenderHeight();
+        this.engine.resize();
+        return width !== this.engine.getRenderWidth() || height !== this.engine.getRenderHeight();
     }
 
     /**
@@ -1815,9 +1832,43 @@ export class RenderManager implements Manager {
         this.applyPixelRatio();
     }
 
+    /** The media query that fires when the device ratio leaves the one now drawn at, or null. */
+    private ratioQuery: MediaQueryList | null = null;
+
+    /** The device ratio {@link ratioQuery} watches. */
+    private watchedRatio = 0;
+
+    /** A device ratio change with no resize (a window moved to another screen) redraws as a resize does. */
+    private readonly ratioChanged = (): void => {
+        this.resizeHandler();
+    };
+
+    /**
+     * Listens for the device ratio leaving `ratio`, or stops listening when `ratio` is null. A
+     * `(resolution)` query matches one ratio only, so each change arms a new one.
+     * @param ratio - The device ratio now drawn at, or null to stop.
+     */
+    private watchDeviceRatio(ratio: number | null): void {
+        if (ratio !== null && ratio === this.watchedRatio && this.ratioQuery !== null) {
+            return;
+        }
+
+        this.ratioQuery?.removeEventListener("change", this.ratioChanged);
+        this.ratioQuery = null;
+        this.watchedRatio = 0;
+        if (ratio === null || typeof globalThis.matchMedia !== "function") {
+            return;
+        }
+
+        this.ratioQuery = globalThis.matchMedia(`(resolution: ${String(ratio)}dppx)`);
+        this.ratioQuery.addEventListener("change", this.ratioChanged);
+        this.watchedRatio = ratio;
+    }
+
     /** Sets the engine's hardware scaling level from {@link pixelRatio}, and owes a frame when it changed. */
     private applyPixelRatio(): void {
         const device = globalThis.devicePixelRatio;
+        this.watchDeviceRatio(this.pixelRatio === "device" && Number.isFinite(device) && device > 0 ? device : null);
         const wanted = this.pixelRatio === "device" ? device : this.pixelRatio;
         const ratio = typeof wanted === "number" && Number.isFinite(wanted) && wanted > 0 ? wanted : 1;
         const level = 1 / ratio;
@@ -2459,7 +2510,7 @@ export class RenderManager implements Manager {
         this.camera.registerCamera("orbit", orbitCamera, orbitInput);
 
         const twoDCamera = new TwoDCameraController(this.scene, this.engine, this.canvas, {
-            panAcceleration: 0.02,
+            panAcceleration: 0.004,
             panDamping: 0.85,
             zoomFactorPerFrame: 0.02,
             zoomDamping: 0.85,
@@ -2479,7 +2530,7 @@ export class RenderManager implements Manager {
             inertiaEnabled: true,
         });
         const twoDInput = new InputController(twoDCamera, this.canvas, {
-            panAcceleration: 0.02,
+            panAcceleration: 0.004,
             panDamping: 0.85,
             zoomFactorPerFrame: 0.02,
             zoomDamping: 0.85,

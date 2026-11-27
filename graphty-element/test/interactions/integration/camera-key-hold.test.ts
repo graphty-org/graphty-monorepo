@@ -120,10 +120,13 @@ describe.each(["3d", "2d"] as const)("in %s, a held camera key", (view) => {
         // Each tick reports the frame drawn in the tick before it. The tick at pressedAt is the first
         // to run with the key down, so the next one reports its frame; the one at pressedAt reports
         // the last frame drawn before the key.
+        // Only the HELD_TICKS ticks after the keydown are judged. More are recorded when the keyboard's
+        // round trip returns late, and a zoom-in key held past about 118 ticks reaches the camera's
+        // nearest distance and rightly stops (issue #10257).
         const before = ticks[pressedAt].camera;
         let last = before;
         const stalls: number[] = [];
-        for (let i = pressedAt + 1; i < ticks.length; i++) {
+        for (let i = pressedAt + 1; i <= pressedAt + HELD_TICKS; i++) {
             const tick = ticks[i];
             if (tick.camera === last || tick.drawn === 0) {
                 stalls.push(i - pressedAt);
@@ -134,7 +137,7 @@ describe.each(["3d", "2d"] as const)("in %s, a held camera key", (view) => {
         assert.deepStrictEqual(
             stalls,
             [],
-            `ticks after the keydown (of ${String(ticks.length - pressedAt - 1)}) that left the camera still or drew nothing while ${key} was held`,
+            `ticks after the keydown (of ${String(HELD_TICKS)}) that left the camera still or drew nothing while ${key} was held`,
         );
     });
 });

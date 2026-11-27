@@ -19,7 +19,6 @@
         ],
         "src/workspace/Workspace.tsx": ["Frame", "checking", "element", "startProjectId", "store"],
         "src/workspace/analyze/AnalyzePopover.tsx": ["chosen", "filter", "moved", "picked", "values"],
-        "src/workspace/analyze/PathForm.tsx": ["active", "ends", "errors", "focused", "onPicked", "picking", "values"],
         "src/workspace/assistant-door/AssistantPlace.tsx": ["Panel"],
         "src/workspace/assistant-door/provider.ts": ["text"],
         "src/workspace/assistant/AiProviderSection.tsx": [
@@ -74,7 +73,7 @@
         "src/workspace/data-place/ScoreDialog.tsx": ["name"],
         "src/workspace/export/CameraImageOutput.tsx": ["backgroundCheck"],
         "src/workspace/export/DocumentOutput.tsx": ["contents"],
-        "src/workspace/export/ReportOutput.tsx": ["configs", "counts", "savedName"],
+        "src/workspace/export/ReportOutput.tsx": ["configs", "savedName"],
         "src/workspace/export/TourVideoOutput.tsx": ["estimate", "failure", "progress", "recording"],
         "src/workspace/frame/ElementHost.tsx": ["hosted"],
         "src/workspace/frame/Frame.tsx": [
@@ -102,7 +101,6 @@
         "src/workspace/inspector/Inspector.tsx": ["draft", "picked", "seen"],
         "src/workspace/inspector/LayerValues.tsx": ["all"],
         "src/workspace/inspector/NodeValues.tsx": ["all"],
-        "src/workspace/join/JoinScreen.tsx": ["busy", "choices", "chosenShow", "how", "rows", "sort", "target"],
         "src/workspace/layout/LayoutForm.tsx": ["error", "start", "values"],
         "src/workspace/layout/LayoutPopover.tsx": ["focusKey", "picked"],
         "src/workspace/layout/MapSourceFields.tsx": [
@@ -128,26 +126,6 @@
         "src/workspace/project/NetworkPrompt.tsx": ["waiting"],
         "src/workspace/project/ProjectDialogs.tsx": ["choices", "discarding"],
         "src/workspace/project/RecentProjects.tsx": ["mayBeCleared", "missing", "removing"],
-        "src/workspace/project/SaveFilesV2Dialogs.tsx": [
-            "bind",
-            "bound",
-            "chosen",
-            "chosen",
-            "columns",
-            "each",
-            "facts",
-            "fetch",
-            "files",
-            "form",
-            "mapping",
-            "name",
-            "pending",
-            "refreshed",
-            "restore",
-            "saving",
-            "storage",
-            "verdict"
-        ],
         "src/workspace/project/recent.ts": ["?"],
         "src/workspace/project/save-v2-mock/SaveV2Mock.tsx": [
             "TextInput.defaultValue",
@@ -187,8 +165,6 @@
         "src/workspace/settings/ShaderSettings.tsx": ["open", "paste", "picking", "settings"],
         "src/workspace/settings/numberFormat.ts": ["?"],
         "src/workspace/settings/shaderPreferences.ts": ["?"],
-        "src/workspace/source-steps/AddCard.tsx": ["answers", "questions"],
-        "src/workspace/source-steps/FieldsTab.tsx": ["filter", "offset"],
         "src/workspace/start/HeroGraph.tsx": [
             "attempt",
             "card",
@@ -283,16 +259,6 @@
         ],
         "src/workspace/style/Section.tsx": ["code", "element", "gallery", "hidden", "waiting"],
         "src/workspace/style/ShaderCodeEditor.tsx": ["extensions", "view"],
-        "src/workspace/style/ShaderEditorDialog.tsx": [
-            "adding",
-            "drawn",
-            "hasCursor",
-            "loaded",
-            "result",
-            "state",
-            "tab",
-            "tabMoves"
-        ],
         "src/workspace/style/ShaderGallery.tsx": ["origin", "query", "stop"],
         "src/workspace/style/ShaderParamRows.tsx": ["open", "typed", "typed"],
         "src/workspace/style/ShaderParams.tsx": ["live"],

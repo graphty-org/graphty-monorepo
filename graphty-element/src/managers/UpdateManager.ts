@@ -700,6 +700,8 @@ export class UpdateManager implements Manager {
     private explicitZoomToFit = false;
     private readonly config: Required<UpdateManagerConfig>;
     private layoutStepCount = 0;
+    /** The engine the last layout frame stepped, so a new one's first frame takes one round: see `updateLayout`. */
+    private steppedEngine: WeakRef<LayoutEngine> | undefined;
     private readonly minLayoutStepsBeforeZoom = 10;
     private lastZoomStep = 0;
     private wasSettled = false;
@@ -874,6 +876,11 @@ export class UpdateManager implements Manager {
         // draws nothing and promotes nothing, `renderFrames` draws and promotes.
         this.watchOwnWork();
         this.watchFrames();
+        const scene = this.graphContext.getScene();
+        scene.metadata ??= {};
+        (scene.metadata as GraphSceneMetadata).thawActiveMeshes = () => {
+            this.thawActiveMeshes();
+        };
     }
 
     /**
@@ -960,7 +967,16 @@ export class UpdateManager implements Manager {
         const pictureChanged = (): void => {
             this.pending.changed();
         };
-        this.meshAddedWatcher = scene.onNewMeshAddedObservable.add(pictureChanged);
+        // Babylon announces a new mesh a timer after it is built, so the finished frame may already
+        // have drawn it: its count still matches and nothing was removed since (a removal moves the
+        // counter), so the scene holds the meshes it drew. Moving the counter then made a wait for
+        // the final picture start over and wait out two more frames and their fences: about 40 ms
+        // of selecting a node at 10k nodes.
+        this.meshAddedWatcher = scene.onNewMeshAddedObservable.add(() => {
+            if (!this.drawnFrameIsFinished) {
+                this.pending.changed();
+            }
+        });
         this.meshRemovedWatcher = scene.onMeshRemovedObservable.add(pictureChanged);
         this.watchHandDrawnFrames(scene);
         this.lendShaderRepaint();
@@ -1278,6 +1294,10 @@ export class UpdateManager implements Manager {
             ghost,
         );
 
+        if (nodesMoved) {
+            this.objectReach = null;
+        }
+
         if (!nodesMoved && !edgesMoved) {
             return;
         }
@@ -1305,6 +1325,7 @@ export class UpdateManager implements Manager {
             },
             selection: () => {
                 this.applyNodeSelection(nodeSelection);
+                return true;
             },
             walk: () => {
                 this.applyNodeMasks(nodeVisibility, nodeSelection, showContext);
@@ -1316,6 +1337,7 @@ export class UpdateManager implements Manager {
             },
             selection: () => {
                 this.applyEdgeSelection(edgeSelection);
+                return false;
             },
             walk: () => {
                 this.applyEdgeMasks(edgeVisibility, edgeSelection);
@@ -1348,21 +1370,23 @@ export class UpdateManager implements Manager {
         moved: boolean,
         selectionOnly: boolean,
         selectionMoved: boolean,
-        apply: { rows(rows: Rows): void; selection(): void; walk(): void },
+        apply: { rows(rows: Rows): void; selection(): boolean; walk(): void },
     ): void {
         // A selection or a walk may enable, disable or rebuild meshes anywhere, so the cached list
         // of what is drawn is out of date (see `settleActiveMeshFreeze`). Rows say for themselves
         // whether they reached a mesh: a time window that only moves edges drawn from shared
         // batches writes slots, and leaves the list -- a hundred thousand node instances -- frozen.
+        // A node selection only shows, hides or builds halos, which report themselves (`haloTouched`), and the frame
+        // draws them into the list; a node whose selection reaches more says so (`Node.setSelected`).
         if (rows !== null) {
             apply.rows(rows);
-            if (selectionMoved) {
-                apply.selection();
+            if (selectionMoved && !apply.selection()) {
                 this.sceneChanged = true;
             }
         } else if (moved && selectionOnly) {
-            apply.selection();
-            this.sceneChanged = true;
+            if (!apply.selection()) {
+                this.sceneChanged = true;
+            }
         } else if (moved) {
             apply.walk();
             this.sceneChanged = true;
@@ -1575,6 +1599,20 @@ export class UpdateManager implements Manager {
         }
 
         this.drawnSelectedNodes = next;
+    }
+
+    /**
+     * A halo instance is about to be shown or hidden, or was just built: the frame draws it into the frozen list of
+     * what is drawn instead of thawing it, when the halos are all that came or were shown or hidden
+     * (`settleActiveMeshFreeze`).
+     * @param mesh - The halo.
+     * @param built - Whether it was just built, so it is new to the scene.
+     * @internal
+     */
+    haloTouched(mesh: AbstractMesh, built: boolean): void {
+        if (!this.touchedHalos.has(mesh)) {
+            this.touchedHalos.set(mesh, { shownBefore: !built && shownMesh(mesh), built });
+        }
     }
 
     /**
@@ -1828,6 +1866,7 @@ export class UpdateManager implements Manager {
         if (painter.hasPendingNodes) {
             this.syncNodeStyles(painter, deadline);
             this.repaintedSinceFit = this.fitRead !== null;
+            this.objectReach = null;
         }
 
         // While a load holds the draw (`DataManager.drawHeld`) no frame shows the nodes and edges
@@ -2496,6 +2535,7 @@ export class UpdateManager implements Manager {
      */
     dataCleared(): void {
         this.viewSized.clear();
+        this.objectReach = null;
         this.nodesToPlace.clear();
         this.unsized.clear();
         this.reportedPlain.nodes = 0;
@@ -3154,6 +3194,13 @@ export class UpdateManager implements Manager {
     fitAnnotations: (() => void) | null = null;
 
     /**
+     * Called once a pass, after the nodes have moved and been sized and annotations fitted: a held draft preview
+     * pushes the nodes it adds off the graph's once nothing else moves the picture. Null when nothing needs it.
+     * @internal
+     */
+    spreadDraft: (() => void) | null = null;
+
+    /**
      * The meshes a file's annotations are drawn on, which a fit frames with the nodes: Cytoscape desktop fits its
      * annotations into the view too (cys-import-and-save: a picture beside the network takes half the canvas). Null
      * when nothing draws annotations.
@@ -3184,6 +3231,9 @@ export class UpdateManager implements Manager {
 
     /** Callers of {@link UpdateManager.onceNothingIsOwed} still waiting. */
     private readonly owedWaiters = new Set<() => void>();
+
+    /** Whether {@link UpdateManager.pollGpuWhileOnlyItIsOwed} has a check queued. */
+    private gpuPollQueued = false;
 
     /**
      * Whether nothing is still owed to the picture: nothing in {@link UpdateManager.pending} is
@@ -3243,7 +3293,12 @@ export class UpdateManager implements Manager {
 
     /** Calls back every {@link UpdateManager.onceNothingIsOwed} waiter when nothing is owed now. */
     private wakeOwedWaiters(): void {
-        if (this.owedWaiters.size === 0 || !this.nothingIsOwed()) {
+        if (this.owedWaiters.size === 0) {
+            return;
+        }
+
+        if (!this.nothingIsOwed()) {
+            this.pollGpuWhileOnlyItIsOwed();
             return;
         }
 
@@ -3251,6 +3306,25 @@ export class UpdateManager implements Manager {
             queueMicrotask(callback);
         }
         this.owedWaiters.clear();
+    }
+
+    /**
+     * Asks again from a task of its own while the GPU finishing the final frame is all a waiter
+     * waits for. Asked only at the next pass, the fence was seen two frames after the frame it
+     * marks: the browser updates a fence's status only once control has gone back to it, so the
+     * pass after the frame read the old status. That cost a selection at 10k nodes about 15 ms.
+     * It stops once the fence signals, a waiter is woken or something else is owed.
+     */
+    private pollGpuWhileOnlyItIsOwed(): void {
+        if (this.gpuPollQueued || !this.frameIsStable || this.pending.firstPending("wait") !== null) {
+            return;
+        }
+
+        this.gpuPollQueued = true;
+        setTimeout(() => {
+            this.gpuPollQueued = false;
+            this.wakeOwedWaiters();
+        }, 0);
     }
 
     /**
@@ -3651,7 +3725,9 @@ export class UpdateManager implements Manager {
         }
 
         // After the nodes have moved for this pass, so a node's depth is the one it is drawn at.
-        const scaled = this.sizeNodesForView();
+        // A framing this pass may have sized them already, for the camera it framed.
+        const scaled = this.sizeNodesForView() || this.sizedForFraming;
+        this.sizedForFraming = false;
         // A node drawn at a new scale is a new picture: its label's texture is fitted to its size on screen again.
         if (scaled) {
             this.pending.changed();
@@ -3671,6 +3747,7 @@ export class UpdateManager implements Manager {
         }
         this.refreshScreenBorders();
         this.fitAnnotations?.();
+        this.spreadDraft?.();
 
         // AFTER the pass and BEFORE the frame is drawn, so a change this pass made is drawn on
         // this frame rather than on the next one.
@@ -3710,6 +3787,19 @@ export class UpdateManager implements Manager {
         this.heldSelection = nodes.length === 0 ? null : selectionKey(nodes);
         this.followingSelection = false;
         this.glidingTo = [];
+    }
+
+    /**
+     * The selection the camera pivots on was cleared: the glide carries on to the nodes that were
+     * selected, as `followSelection` does for a clear made mid-glide. Also when the clear came
+     * before any pass had seen that selection, which otherwise left the camera where it was
+     * (issue #10256).
+     * @param nodes - The nodes the clear took out of the selection.
+     */
+    glideToCleared(nodes: readonly Node[]): void {
+        if (nodes.length > 0) {
+            this.glidingTo = nodes;
+        }
     }
 
     /**
@@ -3775,6 +3865,8 @@ export class UpdateManager implements Manager {
             // on is not the final one: without this, a stable frame was reported in between, with
             // the pivot on the graph's middle rather than on the selection.
             this.followingSelection = !this.framingHasNothingToFrame;
+            // Kept for the pass after the framing: a clear in between still ends the glide there.
+            this.glidingTo = nodes;
             return;
         }
 
@@ -3857,7 +3949,7 @@ export class UpdateManager implements Manager {
         this.pending.cameraTurnsByItself = this.autoTurning;
 
         // Always update camera
-        this.camera.update();
+        this.camera.update(frameMs);
 
         // Check if layout is running
         if (!this.layoutManager.running) {
@@ -3988,8 +4080,18 @@ export class UpdateManager implements Manager {
         const { layoutEngine } = this.layoutManager;
         const simulation = layoutEngine instanceof SimulationLayoutEngine;
         const accelerated = simulation && layoutEngine.isAccelerated;
+        // NOT FOR THE TIME BEFORE THE ENGINE EXISTED. The first frame a new engine steps is handed
+        // the frame before it, which built the engine -- a 2D/3D switch, a new layout -- and drew no
+        // step of it. Caught up, that build time ran up to MAX_CATCH_UP_ROUNDS steps before the
+        // engine's first drawn frame: a 2D drawing lifted into 3D (issue #9372) showed up already
+        // risen instead of rising from the plane on a slow machine (issue #10272).
+        const fresh = layoutEngine !== undefined && this.steppedEngine?.deref() !== layoutEngine;
+        if (fresh) {
+            this.steppedEngine = new WeakRef(layoutEngine);
+        }
+
         const rounds =
-            accelerated || minimumWorkPerFrame()
+            accelerated || fresh || minimumWorkPerFrame()
                 ? 1
                 : Math.min(MAX_CATCH_UP_ROUNDS, Math.max(1, Math.floor(frameMs / NOMINAL_FRAME_MS)));
         const started = rounds > 1 ? performance.now() : 0;
@@ -4400,38 +4502,36 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Under renderPath "batched", the box a running layout's framing takes without walking a row:
-     * the box the layout's last publish left the rows in (`LayoutEngine.publishedBounds`, measured in
-     * the publish's own loop), grown by the widest row. At 100,000 rows the walk cost about 200 ms of
-     * a layout frame (issue #6389). The box's eight corners are its spots, so a "turning" fit
-     * (`camera.fitBounds`) keeps the whole box in view as the camera turns. Labels and bent edges
-     * are not framed while the layout moves; the framing it settles on, and any framing asked for,
-     * walks every row as before.
+     * The box a running layout's framing takes without walking a node: the box the layout's last publish left the
+     * nodes in (`LayoutEngine.publishedBounds`, measured in the publish's own loop), grown by the widest node. At
+     * 100,000 batched rows the walk cost about 200 ms of a layout frame (issue #6389), and at 50,000 nodes drawn as
+     * objects about 30 to 55 ms (issue #10288). The box's eight corners are its spots, so a "turning" fit
+     * (`camera.fitBounds`) keeps the whole box in view as the camera turns. Labels and bent edges are not framed
+     * while the layout moves; the framing it settles on, and any framing asked for, walks every node as before.
      *
      * Undefined, so the walk runs, on a graph small enough that the walk is cheap
-     * ({@link WALKED_FRAMING_NODES}), and whenever the box would not be the drawn picture's: a node drawn
-     * as an object, a hidden row, a layout transition easing the rows, a layout holding rows outside
-     * its publish, or a box with no room in it.
+     * ({@link WALKED_FRAMING_NODES}), and whenever the box would not be the drawn picture's: a hidden node, a layout
+     * transition easing the nodes, a layout holding nodes outside its publish, or a box with no room in it; under
+     * "batched" a node drawn as an object, and under "objects" a group, a node sized for the view or a node shader
+     * still loading.
      * @returns The box, or undefined.
      */
     private envelopeFraming(): FramingBox | undefined {
         const layout = this.layoutManager;
         const engine = layout.layoutEngine;
-        const batches = this.graphContext.getNodeBatches?.() ?? null;
-        const table = this.graphContext.getRowTable?.() ?? null;
         if (
             this.forceZoomToFit ||
             !layout.running ||
             engine === undefined ||
             engine.isSettled ||
-            batches === null ||
-            table === null ||
-            this.dataManager.renderLimits?.batched() !== true ||
             this.dataManager.nodes.size <= WALKED_FRAMING_NODES ||
-            table.hiddenRows > 0 ||
-            this.dataManager.nodes.size > batches.batchedNodes ||
             transitionsOf(layout)?.active === true
         ) {
+            return undefined;
+        }
+
+        const widest = this.dataManager.renderLimits?.batched() === true ? this.widestRow() : this.widestObject();
+        if (widest === undefined) {
             return undefined;
         }
 
@@ -4442,7 +4542,7 @@ export class UpdateManager implements Manager {
 
         const scene = this.graphContext.getScene();
         const flat = (scene.metadata as GraphSceneMetadata | null)?.twoD === true;
-        const pad = this.framing?.extent === "centers" ? 0 : table.widestHalf;
+        const pad = this.framing?.extent === "centers" ? 0 : widest;
         const root = scene.getTransformNodeByName("graph-root");
         const world = root?.computeWorldMatrix(true);
         // The batches draw a row flat in 2D, wherever the layout put its z.
@@ -4455,6 +4555,61 @@ export class UpdateManager implements Manager {
         );
         return min.x < max.x || min.y < max.y ? { min, max, spots } : undefined;
     }
+
+    /**
+     * Under "batched", the widest row's half extent, for {@link UpdateManager.envelopeFraming}.
+     * @returns The half extent, or undefined when a row is hidden or a node is drawn as an object.
+     */
+    private widestRow(): number | undefined {
+        const batches = this.graphContext.getNodeBatches?.() ?? null;
+        const table = this.graphContext.getRowTable?.() ?? null;
+        if (
+            batches === null ||
+            table === null ||
+            table.hiddenRows > 0 ||
+            this.dataManager.nodes.size > batches.batchedNodes
+        ) {
+            return undefined;
+        }
+
+        return table.widestHalf;
+    }
+
+    /**
+     * Under "objects", the farthest any node reaches from its position (`Node.framingReach`), for
+     * {@link UpdateManager.envelopeFraming}. Measured by one walk and kept until a node repaint, a visibility change
+     * or a node added or removed, so a moving layout's frames walk no node (issue #10288).
+     * @returns The reach, or undefined when a node is hidden, a group, sized for the view or waiting for its shader.
+     */
+    private widestObject(): number | undefined {
+        if (this.viewSized.size > 0 || this.dataManager.groups.length > 0 || this.pending.isPending("node-shader")) {
+            return undefined;
+        }
+
+        const count = this.dataManager.nodes.size;
+        if (this.objectReach === null || this.objectReachNodes !== count) {
+            this.objectReachNodes = count;
+            let widest = 0;
+            for (const node of this.layoutManager.nodes) {
+                if (node.getRenderState() !== "visible") {
+                    widest = Number.NaN;
+                    break;
+                }
+
+                widest = Math.max(widest, node.framingReach());
+            }
+
+            this.objectReach = widest;
+        }
+
+        return Number.isNaN(this.objectReach) ? undefined : this.objectReach;
+    }
+
+    /** {@link UpdateManager.widestObject}'s measure, NaN when a node is hidden; null when it must be measured again. */
+    private objectReach: number | null = null;
+
+    /** How many nodes there were when {@link UpdateManager.objectReach} was measured. */
+    private objectReachNodes = -1;
 
     /**
      * The rows drawn with no `Node`, for a fit to frame by row. Only `"batched"` has any.
@@ -4572,6 +4727,12 @@ export class UpdateManager implements Manager {
 
     /** Whether a freeze of the list of what is visible was asked for and not withdrawn since. */
     private activeMeshesFrozen = false;
+
+    /** Whether that freeze has landed: Babylon draws the frozen list now. */
+    private freezeLanded = false;
+
+    /** The halos shown, hidden or built since the last frame, each with whether it was shown before or just built. */
+    private readonly touchedHalos = new Map<AbstractMesh, { readonly shownBefore: boolean; readonly built: boolean }>();
 
     /** Counts freeze requests and changes, so a freeze Babylon runs late knows it was withdrawn. */
     private freezeRequest = 0;
@@ -5435,6 +5596,9 @@ export class UpdateManager implements Manager {
     /** Whether node meshes may carry a view scale, so the next pass with none to size puts them back to 1. */
     private viewScaled = false;
 
+    /** Whether a framing sized nodes for the camera it framed since the last pass sized them. */
+    private sizedForFraming = false;
+
     /** The view matrix the last sizing pass sized at. */
     private readonly sizedView = new Float32Array(16);
 
@@ -5545,9 +5709,11 @@ export class UpdateManager implements Manager {
      * view. With none to size, and in XR, every node goes back to scale 1.
      *
      * ponytail: O(view-sized nodes) every frame while any is.
+     * @param exact - Whether to set a scale that moved by any amount, not only by more than a ten-thousandth: a
+     *     framing sizes nodes exactly for the camera it framed, so where it ends does not depend on where it began.
      * @returns Whether any node's scale changed, so the edges have to stop at the new surfaces.
      */
-    private sizeNodesForView(): boolean {
+    private sizeNodesForView(exact = false): boolean {
         const scene = this.graphContext.getScene();
         const camera = scene.activeCamera;
         const fallback = this.defaultSizeSpace();
@@ -5573,7 +5739,7 @@ export class UpdateManager implements Manager {
         const size = (node: Node): void => {
             const space = node.sizeSpace ?? fallback;
             const scale = viewSizeScale(space, sizeView, depthOf(node.drawnWorldPosition), zPivot, reference);
-            if (Math.abs(node.drawnScale - scale) > 1e-4) {
+            if (Math.abs(node.drawnScale - scale) > (exact ? 0 : 1e-4)) {
                 node.drawnScale = scale;
                 changed = true;
             }
@@ -5678,6 +5844,16 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * A number that stays the same while Babylon draws the frozen list of what is drawn, and changes at every thaw:
+     * nothing moved while it stands, so a table of the nodes made under it still holds (`useFrozenRows`).
+     * @returns The number, or null while the list is not frozen.
+     * @internal
+     */
+    frozenListEpoch(): number | null {
+        return this.activeMeshesFrozen && this.freezeLanded && !this.sceneChanged ? this.freezeRequest : null;
+    }
+
+    /**
      * Unfreeze Babylon's list of what is drawn now, for a draw made outside the frame loop.
      *
      * A frozen scene draws the list it cached, so a mesh built for a draw of its own -- a node
@@ -5692,6 +5868,8 @@ export class UpdateManager implements Manager {
             this.graphContext.getScene().unfreezeActiveMeshes();
             this.activeMeshesFrozen = false;
         }
+
+        this.freezeLanded = false;
 
         for (const source of this.frozenSources) {
             source._unFreeze();
@@ -5759,6 +5937,32 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * Whether the touched halos explain the whole change in the scene's meshes since the last frame: as many were
+     * built as meshes came, and those shown and hidden moved {@link shownMeshesChecksum} by what it moved.
+     * @param added - How many more meshes the scene holds.
+     * @param moved - What the checksum moved by, 32 bits.
+     * @returns True when they do.
+     */
+    private onlyHalosChanged(added: number, moved: number): boolean {
+        let built = 0;
+        let sum = 0;
+        for (const [mesh, { shownBefore, built: isNew }] of this.touchedHalos) {
+            if (mesh.isDisposed()) {
+                return false;
+            }
+
+            built += isNew ? 1 : 0;
+            const shownAfter = shownMesh(mesh);
+            if (shownAfter !== shownBefore) {
+                const weight = meshWeight(mesh);
+                sum = (sum + (shownAfter ? weight : -weight)) >>> 0;
+            }
+        }
+
+        return built === added && sum === moved;
+    }
+
+    /**
      * Freeze or unfreeze Babylon's list of what is drawn, according to whether this frame changed
      * anything.
      *
@@ -5788,6 +5992,7 @@ export class UpdateManager implements Manager {
         // integer a frame and cannot miss one being made or disposed.
         const meshCount = scene.meshes.length;
         const structureChanged = meshCount !== this.lastMeshCount;
+        const countBefore = this.lastMeshCount;
 
         this.lastMeshCount = meshCount;
 
@@ -5797,6 +6002,7 @@ export class UpdateManager implements Manager {
         // which meshes are shown is read here, as one checksum: a read per mesh, no allocation.
         const shown = shownMeshesChecksum(scene);
         const shownChanged = shown !== this.lastShownMeshes;
+        const shownBefore = this.lastShownMeshes;
 
         this.lastShownMeshes = shown;
         if (shownChanged) {
@@ -5804,7 +6010,23 @@ export class UpdateManager implements Manager {
             this.pending.changed();
         }
 
-        const changed = this.sceneChanged || structureChanged || shownChanged || this.cameraMoved();
+        // A SELECTION ONLY SHOWS, HIDES OR BUILDS HALOS, and a thaw for that cost a click at 99,000 nodes about 200 ms:
+        // the next frame evaluated every mesh and uploaded every instance's matrix, and the next quiet frame walked
+        // them all again to freeze (issue #10128). When the halos are the only meshes that came or were shown or
+        // hidden -- the count and the checksum moved by exactly theirs -- and nothing else changed, they are drawn
+        // into the frozen list instead.
+        const patched =
+            this.touchedHalos.size > 0 &&
+            !this.sceneChanged &&
+            this.freezeLanded &&
+            this.onlyHalosChanged(meshCount - countBefore, (shown - shownBefore) >>> 0) &&
+            !this.cameraMoved() &&
+            drawHalosIntoFrozenList(scene, this.touchedHalos.keys(), this.frozenSources);
+        const halosTouched = this.touchedHalos.size > 0;
+        this.touchedHalos.clear();
+
+        const changed =
+            !patched && (this.sceneChanged || halosTouched || structureChanged || shownChanged || this.cameraMoved());
 
         this.sceneChanged = false;
 
@@ -5849,6 +6071,7 @@ export class UpdateManager implements Manager {
                     scene.incrementRenderId();
                 } else {
                     this.freezeInstanceSources(scene);
+                    this.freezeLanded = true;
                 }
             });
         }
@@ -6196,7 +6419,12 @@ export class UpdateManager implements Manager {
                 declutter instanceof LabelDeclutter && scene.activeCamera !== null
                     ? declutter.placeForFraming(scene.activeCamera)
                     : false;
-            if ((fits.size === 0 && !placed) || round === MAX_LABEL_FIT_ROUNDS) {
+            // A node sized on screen (`node.sizeSpace`) takes room in the scene that depends on the camera, as such a
+            // label does: measured at the size the last frame's camera gave it, the fit ended wherever the frames
+            // that ran before it had left the sizes, and the same graph was framed a few millionths apart.
+            const resized = this.sizeNodesForView(true);
+            this.sizedForFraming ||= resized;
+            if ((fits.size === 0 && !placed && !resized) || round === MAX_LABEL_FIT_ROUNDS) {
                 return current;
             }
 
@@ -6284,13 +6512,97 @@ function shownMeshesChecksum(scene: Scene): number {
     let sum = 0;
     for (let i = 0; i < meshes.length; i++) {
         const mesh = meshes[i];
-        if (mesh.isVisible && mesh.isEnabled()) {
+        if (shownMesh(mesh)) {
             // Wrapped to 32 bits, so the sum never loses precision however many meshes there are.
-            sum = (sum + Math.imul(mesh.uniqueId, 0x9e3779b1)) >>> 0;
+            sum = (sum + meshWeight(mesh)) >>> 0;
         }
     }
 
     return sum;
+}
+
+/**
+ * Whether a mesh is shown, as {@link shownMeshesChecksum} counts it.
+ * @param mesh - The mesh.
+ * @returns True when it is.
+ */
+function shownMesh(mesh: AbstractMesh): boolean {
+    return mesh.isVisible && mesh.isEnabled();
+}
+
+/**
+ * What a shown mesh adds to {@link shownMeshesChecksum}.
+ * @param mesh - The mesh.
+ * @returns Its weight, 32 bits.
+ */
+function meshWeight(mesh: AbstractMesh): number {
+    return Math.imul(mesh.uniqueId, 0x9e3779b1) >>> 0;
+}
+
+/** The parts of Babylon's evaluation of what is drawn that {@link drawHalosIntoFrozenList} repeats for a few meshes. */
+interface FrozenListInternals {
+    _activeMesh(sourceMesh: AbstractMesh, mesh: AbstractMesh): void;
+}
+
+/** A source mesh's guard against being pre-activated twice in one render (`Mesh._preActivate`). */
+interface PreActivated {
+    _internalMeshDataInfo: { _preActivateId: number };
+}
+
+/**
+ * Draw some halo instances into a frozen list of what is drawn as Babylon's own evaluation would have, without the
+ * walk of every mesh that a thaw costs: each halo's world matrix is computed, and each of their source meshes lists
+ * again the instances it draws, from its own few instances (one per node ever selected), and is dispatched to its
+ * rendering group if the frozen list had none of its instances. The source is left unfrozen, so the matrices of
+ * its instances are uploaded each frame, which a frozen one skipped when their count stayed the same: halos only.
+ *
+ * Mirrors `Scene._evaluateActiveMeshes` in Babylon 9: `_preActivate` clears a source's list of visible instances,
+ * `_registerInstanceForRenderId` adds one, and `_activeMesh` dispatches a source's sub-meshes. A frozen scene draws
+ * the rendering groups and each source's list as they stand.
+ * @param scene - The scene, frozen.
+ * @param meshes - The halos shown, hidden or built.
+ * @param frozenSources - The sources whose instance matrices the freeze froze; a halo source leaves it.
+ * @returns False, changing nothing, when one of them is not a halo instance this can draw: the caller thaws.
+ */
+function drawHalosIntoFrozenList(scene: Scene, meshes: Iterable<AbstractMesh>, frozenSources: Set<Mesh>): boolean {
+    const sources = new Set<Mesh>();
+    for (const mesh of meshes) {
+        if (!mesh.isAnInstance || mesh.isDisposed()) {
+            return false;
+        }
+
+        const source = (mesh as InstancedMesh).sourceMesh;
+        if (source.isDisposed() || source.subMeshes.length === 0 || source.hasLODLevels) {
+            return false;
+        }
+
+        sources.add(source);
+    }
+
+    const renderId = scene.getRenderId();
+    for (const source of sources) {
+        frozenSources.delete(source);
+        source._unFreeze();
+        (source as unknown as PreActivated)._internalMeshDataInfo._preActivateId = -1;
+        source._preActivate();
+        let drawn: InstancedMesh | null = null;
+        for (const instance of source.instances) {
+            if (shownMesh(instance)) {
+                instance.computeWorldMatrix(true);
+                source._registerInstanceForRenderId(instance, renderId);
+                drawn = instance;
+            }
+        }
+
+        const info = source._internalAbstractMeshDataInfo;
+        if (drawn !== null && !info._isActive) {
+            info._isActive = true;
+            info._onlyForInstances = true;
+            (scene as unknown as FrozenListInternals)._activeMesh(drawn, source);
+        }
+    }
+
+    return true;
 }
 
 function selectionCenter(nodes: readonly Node[]): Vector3 {

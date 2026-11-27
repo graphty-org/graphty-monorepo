@@ -33,6 +33,7 @@ import {
 import { type EdgeLineBatch, stackByDrawOrder } from "./EdgeLineBatch";
 import { parseBends } from "./edgeRoute";
 import { FilledArrowRenderer, HALF_OPEN_MEETS, TEE_DEPTH } from "./FilledArrowRenderer";
+import { FLAT_CAP_LIFT } from "./flatHalo";
 import { FrameRoster } from "./FrameRoster";
 import { MaterialHelper } from "./MaterialHelper";
 import type { MeshCache } from "./MeshCache";
@@ -71,6 +72,8 @@ interface EdgeMeshOptions {
     styleId: string;
     width: number;
     color: string;
+    /** The share of a solid line's width left undrawn down its middle (`JoinedLineOptions.hollow`); default 0. */
+    hollow?: number;
 }
 
 export interface ArrowHeadOptions {
@@ -612,7 +615,7 @@ export class EdgeMesh {
                         scene,
                         widened,
                         style.line?.minScreenWidth,
-                        { fade, opaque },
+                        { fade, opaque, hollow: options.hollow },
                     ),
                 ),
                 scene,
@@ -989,7 +992,7 @@ export class EdgeMesh {
                 scene,
                 `2d|image|${src}|${String(opacity)}${widthKey}`,
                 () => widened(this.createImageCap(src, opacity, scene), breadth),
-                { scale: length, billboard: false },
+                { scale: length, billboard: false, lift: FLAT_CAP_LIFT },
             );
         }
 
@@ -1042,7 +1045,7 @@ export class EdgeMesh {
                     source.visibility = opacity;
                     return source;
                 },
-                { scale: length, billboard: false },
+                { scale: length, billboard: false, lift: FLAT_CAP_LIFT },
             );
         }
 
@@ -1284,6 +1287,7 @@ export class EdgeMesh {
                 opacity: this.opacityOf(style),
                 widened,
                 minScreenWidth: style.line?.minScreenWidth,
+                hollow: options.hollow,
                 fade: widened ? this.fadeOf(style) : undefined,
                 opaque: this.drawsOpaque(style),
                 pulled: pulled !== false,

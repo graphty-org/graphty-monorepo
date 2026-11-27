@@ -2,7 +2,9 @@
  * The sample files from other programs that the graphty app's start page offers (corpus/programs/samples.json, one
  * per program): each one reads with the node and edge counts the file holds, and the styles that program draws it
  * with -- several nodes' shapes, colors, labels and sizes, edge colors and line styles, and where the file stores
- * them, positions -- read back from the file's own values.
+ * them, positions -- read back from the file's own values. Every node's and every edge's values are checked against
+ * program-samples-expected.json, which program-samples-expected.py writes from each file alone (run it again only on
+ * purpose), so a misreading anywhere in a sample fails.
  */
 
 import { readFileSync } from "node:fs";
@@ -14,6 +16,7 @@ import { createRegistry, type ImportGraphResult } from "../../src/index.js";
 import { extractPositions } from "../../src/positions/index.js";
 import { resolveStyles } from "../../src/styles/internal.js";
 import SAMPLES from "../corpus/programs/samples.json";
+import STATED from "./program-samples-expected.json";
 
 const registry = createRegistry();
 
@@ -28,6 +31,26 @@ type NodeValues = Partial<Record<"shape" | "fill" | "label" | "labelColor" | "bo
     Partial<Record<"width" | "height" | "fillOpacity", number>>;
 /** What an edge is drawn with, as the file states it. */
 type EdgeValues = Partial<Record<"color" | "lineStyle" | "targetArrow", string>> & { readonly width?: number };
+
+/** A value as a file states it, or null where it states none. */
+type Stated = string | number | null;
+
+/**
+ * What each styled sample's file states for every node (by id) and every edge (by its place in the file): the
+ * properties, and a row of their values per element. `program-samples-expected.py` writes it from the file alone,
+ * never from graph-io.
+ */
+const STATED_VALUES: Readonly<
+    Record<
+        string,
+        {
+            readonly nodeProperties: readonly string[];
+            readonly nodes: Readonly<Record<string, readonly Stated[]>>;
+            readonly edgeProperties: readonly string[];
+            readonly edges: readonly (readonly Stated[])[];
+        }
+    >
+> = STATED;
 
 /** What each styled sample's file says about some of its nodes and edges (edges by their place in the file). */
 interface Expected {
@@ -321,6 +344,52 @@ describe("the sample files from other programs", () => {
                     assert.closeTo(positions.coords[index * 3 + 1], y, 1e-6, `${sample.id} ${id} y`);
                 }
             }
+        },
+    );
+
+    it.each(SAMPLES.filter((sample) => sample.styled).map((sample) => [sample.program, sample as Sample] as const))(
+        "%s reads every node's and edge's values as its file states them",
+        async (_, sample) => {
+            const result = await load(sample);
+            const { styles } = result;
+            assert.isOk(styles);
+            const stated = STATED_VALUES[sample.id];
+            assert.isDefined(stated, `${sample.id} has stated values`);
+            assert.equal(Object.keys(stated.nodes).length, result.snapshot.nodeCount, `${sample.id} nodes stated`);
+            assert.equal(stated.edges.length, result.snapshot.edgeCount, `${sample.id} edges stated`);
+            const misread: string[] = [];
+            const resolved = new Map<string, ReturnType<typeof resolveStyles>>();
+            const read = (target: "node" | "edge", property: string): ReturnType<typeof resolveStyles> => {
+                const key = `${target} ${property}`;
+                const values = resolved.get(key) ?? resolveStyles(styles, target, property as never, result.snapshot);
+                resolved.set(key, values);
+                return values;
+            };
+            const compare = (target: "node" | "edge", element: string, index: number, row: readonly Stated[]): void => {
+                const properties = target === "node" ? stated.nodeProperties : stated.edgeProperties;
+                for (const [column, value] of row.entries()) {
+                    const property = properties[column];
+                    if (value === null) {
+                        continue;
+                    }
+                    const got = read(target, property)[index];
+                    // within a hundredth: yEd's group boxes are read to that
+                    const same =
+                        typeof value === "number"
+                            ? typeof got === "number" && Math.abs(got - value) <= 1e-2
+                            : got === value;
+                    if (!same) {
+                        misread.push(
+                            `${target} ${element} ${property}: file ${JSON.stringify(value)}, read ${JSON.stringify(got)}`,
+                        );
+                    }
+                }
+            };
+            for (const [id, values] of Object.entries(stated.nodes)) {
+                compare("node", id, indexOf(result, id), values);
+            }
+            stated.edges.forEach((values, edge) => compare("edge", String(edge), edge, values));
+            assert.deepEqual(misread, [], `${sample.id} values read differently from the file`);
         },
     );
 });

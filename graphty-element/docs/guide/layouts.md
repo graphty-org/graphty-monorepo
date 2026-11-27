@@ -668,7 +668,8 @@ verbs above still work.
 ### Pinning the nodes a file marks fixed
 
 Some files say which nodes must not move: Graphviz writes `pos="x,y!"` or `pin=true`, Cytoscape.js
-writes `"locked": true`. Load with `pins: "data"` and those nodes arrive pinned where the file put
+writes `"locked": true`, a sample dataset can carry a `fixed` column, and a network source can
+answer with any of these. Load with `pins: "data"` and those nodes arrive pinned where the file put
 them; the layout places every other node around them. Without the option (`pins: "keep"`, the
 default) a load pins nothing.
 
@@ -676,6 +677,8 @@ default) a load pins nothing.
 await element.loadFromUrl("network.dot", { pins: "data" });
 // or, on a session
 await session.data.import({ type: "dot", config: { data: dotText } }, { pins: "data" });
+await session.data.loadDataset(name, { baseUrl, pins: "data" });
+await session.data.import({ source: "my-source", config: params }, { pins: "data" });
 element.pinnedNodes; // the nodes the file marked fixed
 ```
 

@@ -19,10 +19,12 @@ import { SharedImplementationMap } from "../catalog/pluginRegistry";
 import type { NodeStyleConfig } from "../config";
 import { PolyhedronType, SHAPE_CONSTANTS } from "../constants/meshConstants";
 import type { ModelTemplate } from "../models/ModelCache";
+import type { GraphSceneMetadata } from "../types/sceneMetadata";
 import { addGradientStops } from "./edgeGradient";
 import { shadeInstanceColors } from "./InstanceColorShading";
 import { setUpQuietly } from "./LabelBatch";
 import type { MeshCache } from "./MeshCache";
+import { moveInstance } from "./moveInstance";
 import { isNodeMaterial, lightNodeMaterial, outlineNodeMesh, sceneLighting } from "./NodeLighting";
 import {
     bodilessSlab,
@@ -35,6 +37,7 @@ import {
     setLabelBox,
 } from "./NodeShapeGeometry";
 import { prepareOverlayShader } from "./overlayMaterial";
+import { ON_TOP_RENDERING_GROUP } from "./RichTextLabel";
 import {
     borderRing,
     convexHull,
@@ -187,6 +190,11 @@ function nearestDrawing(ring: Mesh, view: Matrix, ahead: number, at: Vector3): T
  * @param is2D - Whether the graph is drawn in 2D.
  */
 function placeByZIndex(mesh: Mesh, shape: NodeStyleConfig["shape"], is2D: boolean): void {
+    // `node.onTop`: drawn after the graph with the depth cleared, so no edge or other node covers it in any view.
+    if (shape?.onTop === true) {
+        mesh.renderingGroupId = ON_TOP_RENDERING_GROUP;
+    }
+
     const zIndex = shape?.zIndex ?? 0;
     if (zIndex >= 0) {
         if (is2D) {
@@ -465,6 +473,43 @@ export class NodeMesh {
         scene?: Scene,
     ): AbstractMesh {
         return cache.get(this.cacheKeyOf(options), () => this.createSource(options, createOptions, scene));
+    }
+
+    /**
+     * Draw an instance {@link NodeMesh.create} built from the source it would build now, as a new
+     * instance of it starts: the 2D/3D switch keeps every node's instance (`keepNodeMeshForDimension`)
+     * rather than dispose it and build another. Only the instance's own transform and buffers are
+     * reset; the caller builds everything that hangs from it again.
+     * @param instance - The instance, off every source.
+     * @param cache - As for {@link NodeMesh.create}.
+     * @param options - As for {@link NodeMesh.create}.
+     * @param createOptions - As for {@link NodeMesh.create}.
+     * @param scene - As for {@link NodeMesh.create}.
+     * @returns The instance.
+     */
+    static reuse(
+        instance: InstancedMesh,
+        cache: MeshCache,
+        options: NodeMeshOptions,
+        createOptions: NodeMeshCreateOptions,
+        scene?: Scene,
+    ): InstancedMesh {
+        const name = this.cacheKeyOf(options);
+        const source = cache.sourceFor(name, () => this.createSource(options, createOptions, scene));
+        instance.name = name;
+        // What Babylon's constructor and instance factory take from the source.
+        instance.position.copyFrom(source.position);
+        instance.rotation.copyFrom(source.rotation);
+        instance.scaling.copyFrom(source.scaling);
+        instance.rotationQuaternion = source.rotationQuaternion?.clone() ?? null;
+        instance.infiniteDistance = source.infiniteDistance;
+        instance.setPivotMatrix(source.getPivotMatrix());
+        if (source.instancedBuffers) {
+            instance.instancedBuffers = { ...source.instancedBuffers };
+        }
+
+        moveInstance(instance, source);
+        return instance;
     }
 
     /**
@@ -1427,6 +1472,8 @@ export class NodeMesh {
             }
             data.applyToMesh(mesh, true);
             mesh.refreshBoundingInfo();
+            // A new submesh: a frozen list of what is drawn holds the old one, whose counts overrun these buffers.
+            (scene.metadata as GraphSceneMetadata | null)?.thawActiveMeshes?.();
         });
         mesh.onDisposeObservable.addOnce(() => {
             scene.onBeforeRenderObservable.remove(observer);

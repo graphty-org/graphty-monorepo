@@ -2524,11 +2524,15 @@ export class Edge {
             selection = graph.selection ?? DEFAULT_SELECTION_STYLE;
         }
         const width = (style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) * 2 * (selection?.edgeScale ?? 0);
+        // The band's fewest screen pixels: the same multiple of the line's own. A line under a pixel
+        // wide is still drawn one pixel wide, so without this a far or zoomed-out band shrank to the
+        // same one pixel as its line, behind it, and a selected edge showed no band at all (#10312).
+        const minScreenWidth = Math.max(style.line?.minScreenWidth ?? 0, 1) * 2 * (selection?.edgeScale ?? 0);
         const curve = style.line?.bezier === true;
         const key =
             selection === null
                 ? null
-                : `selection-halo|${selection.edgeColor}|${String(selection.edgeOpacity)}|${String(width)}|${String(curve)}`;
+                : `selection-halo|${selection.edgeColor}|${String(selection.edgeOpacity)}|${String(width)}|${String(minScreenWidth)}|${String(curve)}`;
         const gone = this.haloBatch?.mesh.isDisposed() ?? true;
 
         if (key === this.haloKey && (key === null || !gone)) {
@@ -2546,7 +2550,7 @@ export class Edge {
         this.haloBatch = EdgeMesh.lineBatch(
             this.context.getMeshCache(),
             { styleId: key, width, color },
-            { line: { type: "solid", color, opacity, width, bezier: curve } },
+            { line: { type: "solid", color, opacity, width, minScreenWidth, bezier: curve } },
             this.context.getScene(),
         );
         // Behind the line: the batch is the band's alone, so its material can be pushed back.

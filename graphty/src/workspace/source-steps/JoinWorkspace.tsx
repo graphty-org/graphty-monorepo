@@ -41,7 +41,6 @@ import {
     hasPane,
     MERGED_COLOR,
     NEW_COLOR,
-    newNodeIds,
     REMOVED_COLOR,
     stepsOf,
     waitingIn,
@@ -119,40 +118,6 @@ function useModalFocus(live: boolean, box: RefObject<HTMLElement | null>): void 
         },
         [],
     );
-}
-
-/**
- * Frames the preview again only when a card adds nodes out of view: the reader's own place is kept else.
- * @param draft - the open draft
- */
-function useFrameNew(draft: SourceDraft): void {
-    const { element } = useWorkspace();
-    const added = draft.preview().marks.nodes.new;
-    const shown = useRef(0);
-    useEffect(() => {
-        const more = added > shown.current;
-        shown.current = added;
-        if (!more || element === null) {
-            return undefined;
-        }
-        let current = true;
-        void draft
-            .display(true, { hold: true })
-            .then(async () => element.waitForSettled())
-            .then(() => {
-                const away =
-                    current &&
-                    draft.open &&
-                    draft.side === "after" &&
-                    newNodeIds(draft).some((id) => element.nodeScreenPosition(id)?.visible === false);
-                if (away) {
-                    element.zoomToFit();
-                }
-            });
-        return () => {
-            current = false;
-        };
-    }, [added, draft, element]);
 }
 
 /**
@@ -524,7 +489,6 @@ function WorkspaceBody({
     const picked = pickedRows?.list === list ? pickedRows : null;
     const marked = picked?.refs ?? NO_REFS;
     useCardColors(session, draft, joins, colorOf, colors, marked, version);
-    useFrameNew(draft);
 
     const { marks, sources } = draft.preview();
     const rows = listRows(session, draft, names, joins, colors ? colorOf : null);
@@ -781,7 +745,7 @@ function JoinWorkspace({
     // Done left another graph than the one the workspace opened on.
     const changed = useRef(false);
     const refit = useCallback(() => changed.current, []);
-    usePreviewCanvas(draft !== null, box, frame, refit);
+    usePreviewCanvas(draft !== null, box, frame, refit, true);
 
     // The draft is drawn After while the workspace is open, the reader's own graph held where it is;
     // closing by any door throws it away.
@@ -793,7 +757,7 @@ function JoinWorkspace({
         if (draft === null) {
             return undefined;
         }
-        void draft.display(true, { hold: true }).then(() => {
+        void draft.display(true, { hold: true, keepCamera: true }).then(() => {
             setDrawing(false);
         });
         return () => {

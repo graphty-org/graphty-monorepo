@@ -118,15 +118,20 @@ export class InputController implements GestureEndHooks {
         let isPanning = false;
         let lastX = 0;
         let lastY = 0;
+        // Each finger on the canvas and where it last was. One finger pans from here: pointer events
+        // arrive inside the browser's touch slop (about 15 px), where touch events do not. Each finger
+        // is measured from its own last position, never another's (issue #9523).
+        const fingers = new Map<number, { x: number; y: number }>();
 
         this.pointerObserverHandle = this.cam.scene.onPointerObservable.add((pi) => {
             const e = pi.event as PointerEvent;
 
             switch (pi.type) {
                 case PointerEventTypes.POINTERDOWN:
-                    // Touch is the gesture recognizer's: read here, each finger's move would be
-                    // measured from wherever the other finger last was (issue #9523).
                     isPanning = e.pointerType !== "touch";
+                    if (!isPanning) {
+                        fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+                    }
                     this.dragKind = null;
                     lastX = e.clientX;
                     lastY = e.clientY;
@@ -135,35 +140,34 @@ export class InputController implements GestureEndHooks {
 
                 case PointerEventTypes.POINTERUP:
                     isPanning = false;
+                    fingers.delete(e.pointerId);
                     this.endDrag();
                     break;
 
-                case PointerEventTypes.POINTERMOVE:
-                    if (isPanning && e.buttons === 1) {
-                        const orthoRight = this.cam.camera.orthoRight ?? 1;
-                        const orthoLeft = this.cam.camera.orthoLeft ?? 1;
-                        const orthoTop = this.cam.camera.orthoTop ?? 1;
-                        const orthoBottom = this.cam.camera.orthoBottom ?? 1;
-                        const scaleX =
-                            (orthoRight - orthoLeft) /
-                            (this.cam.engine.getRenderWidth() * this.cam.engine.getHardwareScalingLevel());
-                        const scaleY =
-                            (orthoTop - orthoBottom) /
-                            (this.cam.engine.getRenderHeight() * this.cam.engine.getHardwareScalingLevel());
-
-                        const dx = e.clientX - lastX;
-                        const dy = e.clientY - lastY;
-                        if (dx !== 0 || dy !== 0) {
-                            this.dragKind ??= "pan";
+                case PointerEventTypes.POINTERMOVE: {
+                    // The button came up where the canvas never heard it (outside the window): the
+                    // drag is over, as its release would have ended it.
+                    if (isPanning && e.pointerType === "mouse" && e.buttons === 0) {
+                        isPanning = false;
+                        this.endDrag();
+                    }
+                    const finger = fingers.get(e.pointerId);
+                    if (finger) {
+                        // Two or more fingers are the gesture recognizer's (setupTouch).
+                        if (fingers.size === 1) {
+                            this.panByPixels(e.clientX - finger.x, e.clientY - finger.y, this.config.touchPanScale);
                         }
 
-                        this.cam.pan(-dx * scaleX * this.config.mousePanScale, dy * scaleY * this.config.mousePanScale);
-
+                        finger.x = e.clientX;
+                        finger.y = e.clientY;
+                    } else if (isPanning && e.buttons === 1) {
+                        this.panByPixels(e.clientX - lastX, e.clientY - lastY, this.config.mousePanScale);
                         lastX = e.clientX;
                         lastY = e.clientY;
                     }
 
                     break;
+                }
 
                 default:
                     break;
@@ -192,9 +196,31 @@ export class InputController implements GestureEndHooks {
         }, PointerEventTypes.POINTERWHEEL);
     }
 
+    /**
+     * Pan the view by a pointer's move on screen, so the drawing follows it.
+     * @param dx - The move across, in CSS pixels.
+     * @param dy - The move down, in CSS pixels.
+     * @param panScale - The configured pan scale for the device.
+     */
+    private panByPixels(dx: number, dy: number, panScale: number): void {
+        const orthoRight = this.cam.camera.orthoRight ?? 1;
+        const orthoLeft = this.cam.camera.orthoLeft ?? 1;
+        const orthoTop = this.cam.camera.orthoTop ?? 1;
+        const orthoBottom = this.cam.camera.orthoBottom ?? 1;
+        const scaleX =
+            (orthoRight - orthoLeft) / (this.cam.engine.getRenderWidth() * this.cam.engine.getHardwareScalingLevel());
+        const scaleY =
+            (orthoTop - orthoBottom) / (this.cam.engine.getRenderHeight() * this.cam.engine.getHardwareScalingLevel());
+        if (dx !== 0 || dy !== 0) {
+            this.dragKind ??= "pan";
+        }
+
+        this.cam.pan(-dx * scaleX * panScale, dy * scaleY * panScale);
+    }
+
     private setupTouch(): void {
-        // Touch events only: the mouse and pen are setupMouse's. A touch event carries every
-        // finger at once, where pointer events would bring each finger's move on its own.
+        // Touch events only: the mouse, the pen and a single finger are setupMouse's. A touch event
+        // carries every finger at once, where pointer events would bring each finger's move on its own.
         this.hammer = new Hammer.Manager(this.canvas, { inputClass: Hammer.TouchInput });
         const pan = new Hammer.Pan({ threshold: 0, pointers: 0 });
         const pinch = new Hammer.Pinch();
@@ -232,7 +258,8 @@ export class InputController implements GestureEndHooks {
         // Not the end: a lifted finger leaves the others listed in another order, which Hammer reads
         // as a turn.
         this.hammer.on("panstart panmove pinchstart pinchmove rotatestart rotatemove", (ev) => {
-            if (!this.gestureSession) {
+            // One finger is setupMouse's pan, which moves inside the browser's touch slop.
+            if (!this.gestureSession || ev.pointers.length < 2) {
                 return;
             }
 

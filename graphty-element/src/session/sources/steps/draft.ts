@@ -33,6 +33,7 @@ import {
     nodeIdsOf,
     type OverlapQuestion,
     overlapQuestion,
+    sameAsBefore,
     type SourceSteps,
     stepAct,
     type StepsEdit,
@@ -330,7 +331,8 @@ function refreshed(
             }
             continue;
         }
-        const before = { ...value, sources, steps: value.steps.slice(0, at(id)) };
+        // The same before every change after this source's add: what was built of it is built once.
+        const before = sameAsBefore({ ...value, sources: { ...sources }, steps: value.steps.slice(0, at(id)) });
         const { issues: _old, ...bare } = q === undefined ? src : moved(src, ownSpace(id), q.space, q.ends);
         const now = overlapQuestion(before, bare, copies);
         const fixed = given[id] ?? q?.answer ?? null;

@@ -163,7 +163,58 @@ function pushOff(disc: PlaneDisc, others: readonly PlaneDisc[]): PlaneMove | nul
         now.y += push.y;
     }
 
-    return now.x === disc.x && now.y === disc.y ? null : { x: now.x - disc.x, y: now.y - disc.y };
+    const free = clearSpot({ ...now, radius: disc.radius }, disc, others) ?? now;
+    return free.x === disc.x && free.y === disc.y ? null : { x: free.x - disc.x, y: free.y - disc.y };
+}
+
+/** How many spots around a node a disc squeezed between nodes tries, to get out. */
+const DRAFT_SPREAD_ANGLES = 16;
+
+/**
+ * Where a disc the pushes left drawn over others goes instead: the pushes off two nodes on either side cancel out,
+ * so it tries each spot just clear of a node it is drawn over and takes the one clear of all nearest where it began.
+ * @param at - Where the pushes left it.
+ * @param disc - Where it began.
+ * @param others - The others.
+ * @returns The spot; `at` when it is clear already, or null when no spot tried is clear.
+ */
+function clearSpot(at: PlaneDisc, disc: PlaneDisc, others: readonly PlaneDisc[]): PlaneMove | null {
+    const over = (x: number, y: number): PlaneDisc[] =>
+        others.filter((other) => shortOf({ x, y, radius: at.radius }, other) > 0);
+    const under = over(at.x, at.y);
+    if (under.length === 0) {
+        return at;
+    }
+
+    // ponytail: tries DRAFT_SPREAD_ANGLES spots round each node it is over, each against every other node.
+    let best: PlaneMove | null = null;
+    let bestDistance = Infinity;
+    for (const other of under) {
+        // A little past the gap, so the spot found is clear of the node it was tried round.
+        const reach = (at.radius + other.radius) * (1 + DRAFT_SPREAD_GAP) * 1.001;
+        for (let k = 0; k < DRAFT_SPREAD_ANGLES; k++) {
+            const angle = (2 * Math.PI * k) / DRAFT_SPREAD_ANGLES;
+            const x = other.x + Math.cos(angle) * reach;
+            const y = other.y + Math.sin(angle) * reach;
+            const distance = Math.hypot(x - disc.x, y - disc.y);
+            if (distance < bestDistance && over(x, y).length === 0) {
+                best = { x, y };
+                bestDistance = distance;
+            }
+        }
+    }
+
+    return best;
+}
+
+/**
+ * How much nearer one disc is to another than the gap allows; zero or less when they are apart.
+ * @param disc - The one.
+ * @param other - The other.
+ * @returns The shortfall, in scene units.
+ */
+function shortOf(disc: PlaneDisc, other: PlaneDisc): number {
+    return (disc.radius + other.radius) * (1 + DRAFT_SPREAD_GAP) - Math.hypot(disc.x - other.x, disc.y - other.y);
 }
 
 /**
@@ -176,7 +227,7 @@ function addPush(push: PlaneMove, disc: PlaneDisc, other: PlaneDisc): void {
     const dx = disc.x - other.x;
     const dy = disc.y - other.y;
     const apart = Math.hypot(dx, dy);
-    const short = (disc.radius + other.radius) * (1 + DRAFT_SPREAD_GAP) - apart;
+    const short = shortOf(disc, other);
     if (short <= 0) {
         return;
     }
@@ -8096,9 +8147,10 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Under a held draft preview at rest, push each node the draft adds off every node the graph holds that it
-     * is drawn over, in the plane facing the camera, and hold it there: the layout keeps nodes apart in the world,
-     * and in 3D one can still sit right behind another, where the reader cannot see that it is there.
+     * Under a held draft preview at rest, push each node the draft adds off every node the graph holds, and off
+     * every node the draft adds that was placed before it, that it is drawn over, in the plane facing the camera,
+     * and hold it there: the layout keeps nodes apart in the world, and in 3D one can still sit right behind
+     * another, where the reader cannot see that it is there.
      *
      * Measured in scene units, at each node's size before the view sizes it (`node.sizeSpace`), so only the way the
      * camera faces counts, never how near it stands: measured in screen pixels, the push read whatever zoom the
@@ -8117,8 +8169,8 @@ export class Graph implements GraphContext {
             spot.node === null ? spot.at.visible : spot.node.getRenderState() === "visible",
         );
         const fresh = spots.filter((spot) => !held.has(spot.id));
-        // ponytail: every new node against every held one, O(new x held); DRAFT_SPREAD_LIMIT bounds it.
-        if (fresh.length === 0 || fresh.length * (spots.length - fresh.length) > DRAFT_SPREAD_LIMIT) {
+        // ponytail: every new node against every node placed before it, O(new x all); DRAFT_SPREAD_LIMIT bounds it.
+        if (fresh.length === 0 || fresh.length * spots.length > DRAFT_SPREAD_LIMIT) {
             return;
         }
 
@@ -8145,7 +8197,10 @@ export class Graph implements GraphContext {
         const toLocal = this.scene.getTransformNodeByName("graph-root")?.computeWorldMatrix(true).clone().invert();
         const places = new Map<string | number, { x: number; y: number; z: number }>();
         for (const node of fresh) {
-            const push = pushOff(discOf(node), kept);
+            const disc = discOf(node);
+            const push = pushOff(disc, kept);
+            // Where it ends up is in the way of every new node after it.
+            kept.push({ x: disc.x + (push?.x ?? 0), y: disc.y + (push?.y ?? 0), radius: disc.radius });
             if (push === null) {
                 continue;
             }

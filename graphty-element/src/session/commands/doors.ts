@@ -2806,6 +2806,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             onPointerDown: GESTURE,
             onPointerMove: GESTURE,
             onPointerUp: GESTURE,
+            cancelPress: GESTURE,
             onHover: INPUT,
             getNode: READ,
             select: SELECTION,

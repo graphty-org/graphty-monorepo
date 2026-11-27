@@ -67,6 +67,8 @@ export const EdgeArrowTypes = z.enum([
     // a length of the line itself, as thick as the line whatever the cap's `width`: first in a row (`stack`), it stands
     // the caps behind it back from the line's end with the line running on to the end (yEd's crow's foot bars, circles)
     "stem",
+    // a vee's outline, its inside empty (yEd's standard head on a framed edge with no fill color)
+    "hollow-vee",
 ]);
 
 const ArrowStyle = z.strictObject({

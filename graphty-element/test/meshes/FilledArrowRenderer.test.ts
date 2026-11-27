@@ -827,6 +827,39 @@ describe("FilledArrowRenderer - the arrows drawn from convex pieces", () => {
         mesh.dispose();
     });
 
+    test("hollow-vee is the vee's outline: as wide and long as the vee, its notch at the vee's, its middle open", () => {
+        const e = extents("hollow-vee");
+        const vee = FilledArrowRenderer.createVee(scene);
+        const v = vee.getVerticesData("position") ?? [];
+        vee.dispose();
+        const axis = (k: number): number[] => Array.from(v).filter((_, i) => i % 3 === k);
+        assert.closeTo(e.x0, Math.min(...axis(0)), 1e-9);
+        assert.closeTo(e.x1, Math.max(...axis(0)), 1e-9);
+        assert.closeTo(e.z0, Math.min(...axis(2)), 1e-9);
+        assert.closeTo(e.z1, Math.max(...axis(2)), 1e-9);
+        // every frame piece is convex, so fanning it from its first corner covers it exactly
+        for (const piece of FilledArrowRenderer.POLYGON_ARROWS["hollow-vee"]()) {
+            const turns = piece.map(([x, z], i) => {
+                const [x1, z1] = piece[(i + 1) % piece.length];
+                const [x2, z2] = piece[(i + 2) % piece.length];
+                return Math.sign((x1 - x) * (z2 - z1) - (z1 - z) * (x2 - x1));
+            });
+            assert.isTrue(turns.every((s) => s >= 0) || turns.every((s) => s <= 0), "a convex piece");
+        }
+        // no triangle covers a point inside the vee, between its tip and its notch (-0.25, 0)
+        const mesh = FilledArrowRenderer.createPolygonArrow("hollow-vee", scene);
+        const p = mesh.getVerticesData("position") ?? [];
+        const idx = mesh.getIndices() ?? [];
+        for (let t = 0; t < idx.length; t += 3) {
+            const [a, b, c] = [idx[t], idx[t + 1], idx[t + 2]].map((k) => [p[3 * k], p[3 * k + 2]]);
+            const side = (u: number[], v: number[]): number =>
+                (v[0] - u[0]) * (0 - u[1]) - (-0.25 - u[0]) * (v[1] - u[1]);
+            const s = [side(a, b), side(b, c), side(c, a)];
+            assert.isFalse(s.every((x) => x > 0) || s.every((x) => x < 0), "the middle is outside every triangle");
+        }
+        mesh.dispose();
+    });
+
     test("the kite is yEd Live's: widest a fifth from its back, 0.6 wide, its back a point on the line", () => {
         const points = FilledArrowRenderer.POLYGON_ARROWS.kite().flat();
         assert.sameDeepMembers(points, [

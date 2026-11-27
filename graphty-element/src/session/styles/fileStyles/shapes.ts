@@ -121,6 +121,7 @@ export const ARROW_SHAPES: ReadonlyMap<string, string> = new Map([
     ["kite", "kite"],
     ["deltoid", "deltoid"],
     ["open-vee", "open-vee"],
+    ["hollow-vee", "hollow-vee"],
     ["stem", "stem"],
     ["slash", "slash"],
 ]);

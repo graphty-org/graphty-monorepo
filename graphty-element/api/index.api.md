@@ -1386,6 +1386,7 @@ export const EdgeStyle: z.ZodObject<{
             "open-vee": "open-vee";
             slash: "slash";
             stem: "stem";
+            "hollow-vee": "hollow-vee";
         }>>>;
         size: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         width: z.ZodOptional<z.ZodNumber>;
@@ -1690,6 +1691,7 @@ export const EdgeStyle: z.ZodObject<{
             "open-vee": "open-vee";
             slash: "slash";
             stem: "stem";
+            "hollow-vee": "hollow-vee";
         }>>>;
         size: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         width: z.ZodOptional<z.ZodNumber>;
@@ -1994,6 +1996,7 @@ export const EdgeStyle: z.ZodObject<{
             "open-vee": "open-vee";
             slash: "slash";
             stem: "stem";
+            "hollow-vee": "hollow-vee";
         }>>>;
         image: z.ZodOptional<z.ZodString>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
@@ -2045,6 +2048,7 @@ export const EdgeStyle: z.ZodObject<{
             "open-vee": "open-vee";
             slash: "slash";
             stem: "stem";
+            "hollow-vee": "hollow-vee";
         }>>>;
         image: z.ZodOptional<z.ZodString>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;

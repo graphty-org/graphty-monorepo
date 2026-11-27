@@ -136,6 +136,8 @@ export type StyleArrowShape =
     | "kite"
     | "deltoid"
     | "open-vee"
+    /** The vee's outline, its inside empty. */
+    | "hollow-vee"
     /** A short piece of line, the end cap of an arrow drawn in several pieces. */
     | "stem"
     /** A slanted bar across the line. */

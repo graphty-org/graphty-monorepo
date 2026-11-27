@@ -19,6 +19,7 @@ import {
     placeShare,
     readPlaces,
 } from "./gazetteer";
+import { sampled } from "./sample";
 
 /** One attribute of the nodes: its name and its values, by row. */
 export interface ColumnValues {
@@ -249,7 +250,8 @@ function isBlank(value: unknown): boolean {
 }
 
 /**
- * The share of a column's non-empty values one axis reads as an angle in range.
+ * The share of a column's non-empty values one axis reads as an angle in range, over its
+ * detection rows ({@link sampled}).
  * @param values - The values.
  * @param axis - Latitude or longitude.
  * @returns 0 to 1; 0 for a column with no values.
@@ -257,7 +259,7 @@ function isBlank(value: unknown): boolean {
 function angleShare(values: readonly unknown[], axis: "lat" | "lon"): number {
     let filled = 0;
     let read = 0;
-    for (const value of values) {
+    for (const value of sampled(values)) {
         if (!isBlank(value)) {
             filled++;
             if (Number.isFinite(angleFromColumn(value, axis))) {
@@ -270,12 +272,13 @@ function angleShare(values: readonly unknown[], axis: "lat" | "lon"): number {
 }
 
 /**
- * The share of a column's values a location format reads, in the format that reads the most.
+ * The share of a column's values a location format reads, in the format that reads the most, over
+ * its detection rows ({@link sampled}).
  * @param values - The values.
  * @returns 0 to 1.
  */
 function locationShare(values: readonly unknown[]): number {
-    const found = detectLocationFormat(values);
+    const found = detectLocationFormat(sampled(values));
     return found.format === null ? 0 : found.share;
 }
 

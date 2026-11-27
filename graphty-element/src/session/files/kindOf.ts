@@ -5,7 +5,6 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import { isJsonObject, isVersion2 } from "../document2/framing";
 import type { ProjectSource } from "../projectFile";
 
 /**
@@ -33,6 +32,16 @@ export interface FilesApi {
      * @beta
      */
     kindOf(source: ProjectSource): Promise<FileKind>;
+}
+
+/**
+ * Whether a value is a JSON object (not null, not an array). Kept here, not imported from
+ * document2/framing, which would pull the whole version 2 save code into the main entry.
+ * @param value - The value.
+ * @returns Whether it is a JSON object.
+ */
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /** The bytes read first: a graphty document is JSON, so it starts with `{`. */
@@ -110,8 +119,13 @@ async function kindOf(source: ProjectSource): Promise<FileKind> {
     }
 
     const kinds = kindsIn(value);
-    // A version 1 project holds a session member; a version 2 one, a data section.
-    if (kinds.has("graphty-session") || (isVersion2(value) && kinds.has("graphty-data"))) {
+    // A version 1 project holds a session member; a version 2 one, a data section. The version 2
+    // save code loads on demand, only for a file that could be one.
+    if (kinds.has("graphty-session")) {
+        return "project";
+    }
+
+    if (kinds.has("graphty-data") && (await import("../document2/onDemand")).isVersion2(value)) {
         return "project";
     }
 

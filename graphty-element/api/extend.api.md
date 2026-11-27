@@ -2582,6 +2582,8 @@ class Node_2 implements ModelUser {
     // @internal
     get screenBorder(): boolean;
     // @internal
+    get selectionShowsOnlyHalo(): boolean;
+    // @internal
     setMeshPosition(x: number, y: number, z: number): void;
     setRenderState(state: NodeRenderState): boolean;
     setSelected(selected: boolean): boolean;

@@ -14,11 +14,11 @@ import {
     writeChannelList,
 } from "@graphty/graphty-element/catalog";
 import { Divider } from "@mantine/core";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 
 import { cosmographOn } from "../../features";
 import { GLYPHS } from "../../glyphs";
-import { useWorkspace } from "../../state/WorkspaceContext";
+import { useWorkspace, useWorkspaceState } from "../../state/WorkspaceContext";
 import type { FoundHome } from "../parts/find";
 import { FindSettingBox, FindSettingResults } from "../parts/FindSetting";
 import { ChannelLine } from "../parts/PartPage";
@@ -491,15 +491,18 @@ function ThingSection({
         holdsShaders,
     );
     // Things "+" added that the row does not set yet, waiting for their first value. Kept while the Node and Edge tabs
-    // switch (which draws the sections anew), so a row "+" added and left empty stays until it is removed.
+    // switch (which draws the sections anew) and a reload, so a row "+" added and left empty stays until it is removed.
     const waitKey = `${ctx.row.join(",")}:${ctx.side}:${part.id}`;
-    const kept = waitingOf(ctx.session);
-    const [waiting, setWaiting] = useState<readonly string[]>(() => kept.get(waitKey) ?? []);
-    useEffect(() => {
-        kept.set(waitKey, waiting);
-    }, [kept, waitKey, waiting]);
+    const waiting = useWorkspaceState((state) => state.styleWaiting[waitKey]) ?? NONE_WAITING;
+    const setWaiting = (next: (now: readonly string[]) => readonly string[]): void => {
+        store.set((state) => ({
+            styleWaiting: { ...state.styleWaiting, [waitKey]: next(state.styleWaiting[waitKey] ?? NONE_WAITING) },
+        }));
+    };
+    // on reload: fresh: pointer: the "+" menu held open by its control
     const [menu, setMenu] = useState(false);
     // The thing "+" just added whose pop-over or picker opens at once (a list, an image).
+    // on reload: fresh: request: a one-time open of the thing just added
     const [opening, setOpening] = useState<string | undefined>(undefined);
     const { things, shown } = thingsOf(ctx, part, section, waiting);
     const rows = shown.flatMap(({ thing, channels }) => rowsOf(ctx, thing, channels, waiting));
@@ -742,26 +745,8 @@ function ThingSection({
     );
 }
 
-/**
- * Each section's waiting things, by row, kind and section, kept across the sections being drawn anew. Kept per
- * session: another project's layers reuse the same ids, and must not find this project's waiting rows.
- */
-const WAITING = new WeakMap<object, Map<string, readonly string[]>>();
-
-/**
- * A session's waiting things.
- * @param session - the session.
- * @returns its map, made on first use.
- */
-function waitingOf(session: object): Map<string, readonly string[]> {
-    const found = WAITING.get(session);
-    if (found !== undefined) {
-        return found;
-    }
-    const made = new Map<string, readonly string[]>();
-    WAITING.set(session, made);
-    return made;
-}
+/** No things waiting: one array, so a section with none reads the same value on every draw. */
+const NONE_WAITING: readonly string[] = [];
 
 /**
  * One kind's Style panel v2 body: see the file header.
@@ -770,7 +755,11 @@ function waitingOf(session: object): Map<string, readonly string[]> {
  * @returns The body
  */
 export function StylePanelV2({ ctx: row }: Readonly<{ ctx: RowContext }>): React.JSX.Element {
-    const [query, setQuery] = useState("");
+    const { store } = useWorkspace();
+    const query = useWorkspaceState((state) => state.styleQuery);
+    const setQuery = (next: string): void => {
+        store.set({ styleQuery: next });
+    };
     const box = useRef<HTMLInputElement>(null);
     const onKeyDown = useFindKey(box);
     // Each press or key in the panel starts a new undo step: a drag stays one step, and two deliberate edits of one

@@ -1,0 +1,63 @@
+id: pkm-developer-note-taker
+name: PKM Developer Note-Taker
+roster_persona: personal-knowledge-gardener
+tier: A
+scope: in-scope
+role: Backend Engineer keeping notes in Emacs org-roam (Foam in VS Code at work)
+quote: The graph should follow me around Emacs, and I should be able to query it from R.
+bio: >-
+    Sanjay is a backend engineer and part-time researcher who keeps 1,000 to 5,000 notes in Emacs org-roam: Org files and
+    headings with ID properties, indexed by `org-roam-db-autosync-mode` into a SQLite database (`org-roam.db`) whose
+    `nodes` and `links` tables are his graph. He runs org-roam-ui in a browser window beside Emacs; it follows the node he
+    has open and opens notes back in Emacs on double-click. At work he uses Foam in VS Code and its "Show Graph" command.
+    Because the data is a database, he analyzes it directly: R with RSQLite and igraph for in- and out-degree, community
+    detection and ego graphs, then an interactive HTML export. He expects scriptable data, a graph that updates
+    incrementally, and no cloud services.
+characteristics:
+    expertise: expert
+    time_pressure: low
+    graph_literacy: advanced
+    domain_knowledge: advanced
+motivations:
+    - A graph that follows him as he moves between notes in the editor
+    - Degree, backlink counts and communities he can compute in a script and re-run
+    - Interactive exports he can publish or keep beside his notes
+    - Everything local and plain-text
+behaviors:
+    - Keeps org-roam-ui open beside Emacs in follow mode and switches to local view for the current node
+    - Queries org-roam.db with SQL and builds an igraph, simplifying away multi-edges and self-loops
+    - Names each community after its member with the most backlinks and judges it by eye
+    - Exports a networkD3 HTML force graph sized by backlinks
+    - Uses Foam's graph command in VS Code for work notes
+frustrations:
+    - org-roam-ui reloads the whole graph on every save
+    - The 3D mode is slow ("man is it slow")
+    - The built-in org-roam-graph only renders a static Graphviz image
+    - No agreed way to validate the communities he finds
+context:
+    frequency: daily
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W325
+    - W333
+    - W334
+    - W422
+sources:
+    - title: Org-roam manual
+      url: https://www.orgroam.com/manual.html
+      summary: Nodes are files and headings with IDs; ID links are edges; autosync keeps org-roam.db (SQLite) current; org-roam-graph renders Graphviz
+    - title: org-roam-ui
+      url: https://github.com/jethrokuan/org-roam-ui
+      summary: Local server with WebSocket updates; follows the node open in Emacs; full reload on save; slow 3D
+    - title: Peter Prevos - Visualise org-roam networks with igraph and R
+      url: https://www.r-bloggers.com/2021/08/visualise-org-roam-networks-with-igraph-and-r
+      summary: SQL over org-roam.db, igraph degree, spinglass and walktrap communities, ego graphs, networkD3 export
+    - title: Foam - Graph visualization
+      url: https://foambubble.github.io/foam/user/features/graph-visualization
+      summary: '"Foam: Show Graph" command opens a force graph of notes and tags in VS Code (search summary)'
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

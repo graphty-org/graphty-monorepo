@@ -750,6 +750,7 @@ export function LabelFieldLine({
     named: alwaysNamed = false,
 }: Readonly<{ label: LabelLineContext; line: LabelLineSpec; named?: boolean }>): React.JSX.Element | null {
     // R6 sides: split by its Separate sides line, or because the sides already differ.
+    // on reload: fresh: request: a one-time split request
     const [splitAsked, setSplit] = React.useState(false);
     // A pair one of whose values is the field's own channel's (varying by data) is two lines, each value's own.
     const { pair } = line;

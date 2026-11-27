@@ -8,6 +8,27 @@ implements_capabilities:
 used_in_workflows:
     - W06
     - W07
+    - W118
+    - W120
+    - W128
+    - W140
+    - W143
+    - W145
+    - W183
+    - W197
+    - W204
+    - W217
+    - W230
+    - W258
+    - W262
+    - W263
+    - W336
+    - W34
+    - W341
+    - W347
+    - W420
+    - W69
+    - W78
 dependencies:
     - button
     - select

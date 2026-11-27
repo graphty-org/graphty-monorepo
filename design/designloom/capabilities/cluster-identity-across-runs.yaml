@@ -1,0 +1,34 @@
+id: cluster-identity-across-runs
+name: Stable Cluster Identity Across Runs
+category: analysis
+description: Carry a previous run's cluster assignment forward so clusters keep their names when the analysis is
+    repeated on new data, report merges and splits explicitly, and compute new members per cluster over a chosen window
+    so growth is a comparable count rather than a renumbering artifact.
+status: planned
+notes: "Research trace: public-health-and-molecular-epidemiology.md section 5.5, steps 1 and 2 (no numbered requirement). The requirements are written from that workflow and hivclustering and marked Should, since six workflows need them."
+algorithms: []
+used_by_workflows:
+    - W61
+    - W65
+    - W253
+    - W2096
+    - W2097
+    - W2099
+implemented_by_components: []
+requirements:
+    - "Should: Accept a previous run's cluster assignment and reuse its cluster names for the clusters that continue,
+      matching nodes by a chosen key (entity id by default, as hivclustering's --prior-identity does)"
+    - "Should: Report merges, splits, new and dissolved clusters explicitly instead of renumbering"
+    - "Should: Count new members per cluster over a chosen window (for example 3, 6 or 12 months) and rank clusters by
+      growth relative to size"
+    - "Should: Restrict the edges used to a date window (on or after, on or before), as hivclustering's --after and
+      --before do"
+sources:
+    - title: Public Health Outbreak Investigators and Molecular Epidemiologists (section 5.5 (keep cluster names stable
+          across monthly reruns); no numbered requirement)
+      url: design/user-research/public-health-and-molecular-epidemiology.md
+      summary: The need appears in this workflow of the research, but in no numbered requirement.
+    - title: hivclustering (HIV-TRACE network builder), command-line options
+      url: https://github.com/veg/hivclustering
+      summary: '--prior takes a previous version of the network "for consistent cluster naming"; --prior-identity
+          matches on the entity (person) id by default; --after and --before restrict edges by date'

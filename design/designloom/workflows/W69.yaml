@@ -1,0 +1,156 @@
+id: W69
+name: Placing Local Genomes in a National Tree
+category: exploration
+validated: false
+personas:
+    - phl-genomic-epidemiologist
+requires_capabilities:
+    - data-import
+    - large-graph-rendering
+    - progressive-loading
+    - graph-rendering
+    - zoom-pan
+    - overview-minimap
+    - layout-hierarchical
+    - temporal-navigation
+    - search
+    - pattern-search
+    - filtering
+    - node-selection
+    - selection-statistics
+    - details-on-demand
+    - tooltip-display
+    - visual-encoding-nodes
+    - legend-display
+    - computed-attributes
+    - export-image
+    - local-only-processing
+    - tree-import-and-axes
+    - expensive-run-cost-warning
+suggested_components:
+    - data-import-dialog
+    - progressive-loader
+    - progress-bar
+    - graph-canvas
+    - minimap
+    - zoom-controls
+    - layout-panel
+    - temporal-controls
+    - search-input
+    - search-panel
+    - pattern-search-dialog
+    - filter-panel
+    - node-tooltip
+    - node-details-panel
+    - visual-encoding-panel
+    - legend-panel
+    - image-export-dialog
+starting_state:
+    data_type: a few hundred local genomes placed onto a national mutation-annotated tree of millions of tips
+    node_count: 1000000-12500000
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: See where a handful of local genomes sit among millions of national and global ones, without
+    rebuilding a global tree. Placement answers the question an outbreak investigation actually asks: are these
+    sequences each other's closest relatives, or is each one's nearest neighbor somewhere else entirely, which means
+    separate introductions rather than local spread.
+
+
+    **Mental Model**: "Hang my samples on the existing tree." The global tree is a fixed, continuously updated
+    structure. Local genomes are added to it as placements, and the reading is about whose neighbors they are.
+
+
+    **Task Phases**:
+
+    1. **Place the genomes** - Add local sequences to an existing mutation-annotated tree rather than
+    inferring a new tree from scratch
+
+    2. **Convert for viewing** - Turn the mutation-annotated tree, or a Newick tree plus a metadata table,
+    into a single viewing file that carries tree, metadata and mutations together
+
+    3. **Choose where the processing happens** (a decision, not a step) - A browser mode that keeps all processing
+    local, which matters for custom or sensitive data, a server mode that streams only the visible part of the tree,
+    or a desktop application; a 5.4 million-sequence tree loads in seconds in server mode, a desktop build handled
+    12.5 million sequences on an 8 GB laptop, and client-side processing reached roughly 6 million terminal nodes on
+    some systems
+
+    4. **Navigate** - Pan and zoom each axis independently with a minimap, and switch between the
+    chronological tree and the distance tree
+
+    5. **Color and search** - Color by any metadata field or by the genotype at a chosen site; search by
+    metadata or by mutation with AND, OR and NOT, filtering mutation searches by the number of descendant tips;
+    matches are circled in place rather than listed
+
+    6. **Read the answer** - Whether the local genomes form one group with a recent common ancestor, or sit
+    in several places with national neighbors between them
+
+
+    **Decision Points**:
+
+    - Placement onto an existing tree or a new build: placement is faster and inherits the reference tree's choices
+
+    - Local processing or streaming, which is a data-sensitivity decision before it is a performance one
+
+    - Chronological or distance tree for the question at hand
+
+    - How many descendant tips a mutation match needs before it is interesting
+
+    - Whether apparent local clustering survives looking at the neighbors between the local tips
+
+
+    **Information Needs**:
+
+    - Each local genome's nearest neighbors, and where they are from
+
+    - The reference tree's date and size, since it is updated daily and the answer moves with it
+
+    - Independent zoom on the tree axis and the tip axis, because the aspect ratios are wildly different
+
+    - Matches shown in position rather than as a list, so context is kept
+
+    - A statement of where processing happened and whether any sequence left the machine
+
+
+    **Pain Points**:
+
+    - Client-side exploration topped out around 6 million terminal nodes on some systems, below the size of the
+    public trees
+
+    - A conversion step stands between placement and viewing
+
+    - Streaming mode is fast because a server holds the tree, which is exactly what sensitive data cannot use
+
+    - A continuously updated reference tree means the same query gives a different picture next week, and nothing
+    pins the version
+
+    - Reading a few hundred tips among millions needs search and filtering that most tree viewers do not have
+
+
+    **Data Flow**:
+
+    - Input: Local genome FASTA or a VCF, an existing mutation-annotated reference tree, and a local metadata table
+
+    - Transformations: Maximum-parsimony placement onto the reference tree, conversion into a single
+    tree-plus-metadata-plus-mutations file, metadata join, genotype coloring at a site, boolean metadata and
+    mutation search with descendant-count filtering
+
+    - Output: A navigable national-scale tree with local tips marked, a nearest-neighbor reading per local genome,
+    and an exported figure
+success_criteria:
+    - metric: Scale
+      target: Millions of tips stay navigable, with the local tips findable in seconds (design goal; no source measures it)
+    - metric: Local processing
+      target: A sensitive dataset can be explored without any sequence leaving the machine
+    - metric: Introduction counting
+      target: The user can state how many separate introductions the local genomes represent, with the neighbors that justify it
+sources:
+    - title: Sanderson, Taxonium - a web-based tool for exploring large phylogenetic trees (eLife 2022)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC9704803
+      summary: UShER placement, taxoniumtools conversion, client mode keeping processing local for sensitive data, server mode loading a 5.4 million-sequence tree in seconds, 12.5 million sequences in a desktop build on an 8 GB laptop, roughly 6 million tips client-side, independent axis zoom with a minimap, chronological and distance trees, genotype coloring, and boolean metadata and mutation search with descendant-tip filtering
+    - title: CDC genomic epidemiology toolkit, module 3.2
+      url: https://www.cdc.gov/advanced-molecular-detection/media/pdfs/ToolkitModule_3.2-508C.pdf
+      summary: Where national-scale placement sits in the public health genomic epidemiology stack
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

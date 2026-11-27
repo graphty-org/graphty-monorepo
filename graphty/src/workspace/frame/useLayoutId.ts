@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
  * @returns the layout's id, or null with no session.
  */
 export function useLayoutId(session: GraphSession | null): string | null {
+    // on reload: fresh: read: the layout's id, read from graphty-element's session
     const [id, setId] = useState<string | null>(session?.layout.id ?? null);
     useEffect(() => {
         if (session === null) {

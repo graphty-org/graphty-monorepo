@@ -1,0 +1,4 @@
+{
+    "../../stories/shaders/LayoutTransitions.stories.ts Glide": "A timed transition, compared landed (VITE_PARITY_HOLD=off): one pixel differs between two object loads",
+    "../../stories/shaders/LayoutTransitions.stories.ts Particles": "A timed transition, compared landed (VITE_PARITY_HOLD=off): one pixel differs between two object loads"
+}

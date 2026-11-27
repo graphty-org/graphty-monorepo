@@ -301,7 +301,7 @@ export interface MessageState {
     readonly hostedUses?: Record<string, number>;
     /** The running totals of what the message's writes did since its last approved batch. */
     readonly totals: { removeNodes: number; removeEdges: number; changedValues: number };
-    /** Record what calls did (`AiEffect`) and what a held batch names (the assistant experiment). */
+    /** Record what calls did (`AiEffect`) and what a held batch names, under the generated tools. */
     readonly evidence?: boolean;
     /**
      * The selection every target of this message is limited to, when it was sent with one, until

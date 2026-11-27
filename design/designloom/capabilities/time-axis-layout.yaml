@@ -1,0 +1,18 @@
+id: time-axis-layout
+name: Time-axis layouts
+category: visualization
+description: Year-layered directed layout for historiographs and main paths, and a timeline layout with one row per
+    cluster and x by year.
+status: planned
+notes: "Research trace: bibliometrics-and-science-mapping.md section 10, requirement 15 (Should)."
+algorithms: []
+used_by_workflows:
+    - W52
+    - W56
+implemented_by_components: []
+requirements:
+    - "Should: Year-layered DAG layout for historiographs and main paths"
+sources:
+    - title: Bibliometrics and Science Mapping (section 10, requirement 15)
+      url: design/user-research/bibliometrics-and-science-mapping.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

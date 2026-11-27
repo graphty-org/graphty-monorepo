@@ -7,13 +7,20 @@
 
 import "../../src/graphty-element";
 
-import type { AbstractMesh, WebXRInputSource } from "@babylonjs/core";
-import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
+import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 import { drawnFrames } from "../helpers/drawn-frames";
 import { installIWER, type IWERHandle } from "../interactions/helpers/iwer-setup";
+import {
+    differing,
+    type Handedness,
+    laserHit,
+    type LaserNode,
+    wholeFrame,
+    type XRFrame,
+} from "../interactions/helpers/xr-frames";
 
 let iwer: IWERHandle;
 let element: Graphty;
@@ -28,84 +35,38 @@ afterEach(() => {
 });
 
 /**
- * Read the canvas as a frame finishes.
- * @returns Its pixels, left eye then right eye across each line.
+ * The node a laser landed on, read after drawn frames (never in a wait: it is an answer, and a
+ * wait on it hangs when the laser lands on an edge or on nothing).
+ * @returns The controller and its node.
  */
-async function wholeFrame(): Promise<Uint8ClampedArray> {
-    const scene = element.graph.getScene();
-    const canvas = scene.getEngine().getRenderingCanvas();
-    assert.isNotNull(canvas);
-    await drawnFrames(scene, 4);
-    return new Promise((resolve) => {
-        scene.onAfterRenderObservable.addOnce(() => {
-            const copy = new OffscreenCanvas(canvas.width, canvas.height);
-            const context = copy.getContext("2d", { willReadFrequently: true });
-            assert.isNotNull(context);
-            context.drawImage(canvas, 0, 0);
-            resolve(context.getImageData(0, 0, canvas.width, canvas.height).data);
-        });
-    });
-}
-
-/**
- * Count the bytes of each eye that differ by more than a level.
- * @param first - One frame.
- * @param second - The other frame.
- * @returns The count in each eye.
- */
-function differing(first: Uint8ClampedArray, second: Uint8ClampedArray): { left: number; right: number } {
-    const line = element.graph.getScene().getEngine().getRenderingCanvas()?.width ?? 0;
-    const counts = { left: 0, right: 0 };
-    for (let i = 0; i < first.length; i++) {
-        if (Math.abs((first[i] ?? 0) - (second[i] ?? 0)) > 1) {
-            counts[(i >> 2) % line < line / 2 ? "left" : "right"]++;
+async function laserOnANode(): Promise<{ hand: Handedness; node: LaserNode }> {
+    await drawnFrames(element.graph.getScene(), 4);
+    for (const hand of ["left", "right"] as const) {
+        const { on, node } = laserHit(element, hand);
+        if (node !== undefined) {
+            return { hand, node };
         }
+
+        assert.equal(on, "nothing", `the ${hand} laser landed on something other than a node`);
     }
 
-    return counts;
+    throw new Error("no laser landed on a node");
 }
 
-/** Where a laser landed. */
-interface Landed {
-    controller: WebXRInputSource;
-    mesh: AbstractMesh;
-    node: LandedNode;
-}
-
-/** The node a laser landed on, as its mesh's metadata names it. */
-interface LandedNode {
-    id: unknown;
-    drawnPickMesh: AbstractMesh | null;
-    drawnPosition: { x: number };
-}
-
-/**
- * Wait for a laser to land on a node. Babylon casts from one controller, whichever attached first.
- * @returns The controller, the mesh it landed on and its node.
- */
-async function laserOnANode(): Promise<Landed> {
-    const helper = element.graph.getXRSessionManager()?.getXRHelper();
-    return vi.waitFor(() => {
-        const landed = helper?.input.controllers
-            .map((controller) => ({
-                controller,
-                mesh: helper.pointerSelection.getMeshUnderPointer(controller.uniqueId),
-            }))
-            .find(({ mesh }) => mesh !== null && mesh !== undefined);
-        assert.exists(landed?.mesh, "no laser landed");
-        const { controller, mesh } = landed as { controller: WebXRInputSource; mesh: AbstractMesh };
-        assert.match(mesh.name, /^node-style/, "a laser landed on something else");
-        const { graphNode } = (mesh.metadata ?? {}) as { graphNode?: LandedNode };
-        assert.exists(graphNode, "the laser landed on no node");
-        return { controller, mesh, node: graphNode };
-    });
-}
+/** The edges drawn with the rows: none, or disjoint pairs along each line of six. */
+type Edges = "no edges" | "directed" | "undirected";
 
 /**
  * Open the element in VR with 24 nodes in front of the headset and each controller pointing straight ahead.
+ * @param edges - The edges between the rows.
+ * @param path - A render path set before the data loads; the default when absent.
  */
-async function rowsInFrontOfTheHeadset(): Promise<void> {
+async function rowsInFrontOfTheHeadset(edges: Edges = "no edges", path?: "objects" | "batched"): Promise<void> {
     element = document.createElement("graphty-element");
+    if (path !== undefined) {
+        element.renderPath = path;
+    }
+
     element.style.width = "400px";
     element.style.height = "300px";
     element.style.display = "block";
@@ -119,38 +80,76 @@ async function rowsInFrontOfTheHeadset(): Promise<void> {
             position: { x: (id % 6) - 2.5, y: Math.floor(id / 6) + 0.1, z: 4 },
         })),
     );
-    await element.graph.setLayout("fixed", { dim: 3 });
+    if (edges !== "no edges") {
+        await element.session.data.addEdges(
+            Array.from({ length: 12 }, (_, pair) => ({
+                source: 2 * pair,
+                target: 2 * pair + 1,
+                ...(edges === "undirected" ? { directed: false } : {}),
+            })),
+        );
+    }
+
+    // Where the data puts them, so the rays straight ahead meet rows with edges too: no spread,
+    // which would place them by the edges' lengths.
+    await element.graph.setLayout("fixed", { dim: 3, spacing: 0 });
     await operationQueueOf(element.graph).waitForCompletion();
+    // The headset starts where the camera stands, so enter once the camera has framed the rows:
+    // the framing lands on a later frame, and entering before it started from the unframed camera
+    // on some loads and not others.
+    await element.graph.waitForStableFrame();
     await element.setViewMode("vr");
     await drawnFrames(element.graph.getScene(), 10);
     assert.equal(element.graph.getScene().activeCamera?.rigCameras.length, 2, "two eyes are drawing");
-    // Each controller points straight ahead, down a row.
-    iwer.device.controllers.left?.position.set(-0.5, 1.1, 0);
-    iwer.device.controllers.right?.position.set(0.5, 1.1, 0);
+    // Each controller points straight ahead, down a row, a hand's length in front of the eyes.
+    iwer.device.controllers.left?.position.set(-0.5, 1.1, -0.3);
+    iwer.device.controllers.right?.position.set(0.5, 1.1, -0.3);
 }
 
 describe("node batches in XR", () => {
-    it("draw each eye's whole frame as the object rows do, laser on a row", async () => {
-        await rowsInFrontOfTheHeadset();
-        const { graph } = element;
-        const onObjects = (await laserOnANode()).node.id;
-        const objects = await wholeFrame();
-        graph.setRenderPath("batched");
-        const batched = await wholeFrame();
+    it.each<Edges>(["no edges", "directed", "undirected"])(
+        "draw each eye's whole frame as the object rows do, laser on a row, %s",
+        async (edges) => {
+            await rowsInFrontOfTheHeadset(edges);
+            const { graph } = element;
+            const onObjects = (await laserOnANode()).node.id;
+            const objects = await wholeFrame(element);
+            graph.setRenderPath("batched");
+            const batched = await wholeFrame(element);
 
-        const onRows = await laserOnANode();
-        assert.equal(onRows.node.id, onObjects, "the laser stays on the same row");
-        assert.isNull(onRows.node.drawnPickMesh, "the row has no mesh");
-        assert.equal(graph.rowCounts.batchedNodes, 24);
-        assert.deepEqual(differing(objects, batched), { left: 0, right: 0 });
+            const onRows = await laserOnANode();
+            assert.equal(onRows.node.id, onObjects, "the laser stays on the same row");
+            assert.isNull(onRows.node.drawnPickMesh, "the row has no mesh");
+            assert.equal(graph.rowCounts.batchedNodes, 24);
+            assert.deepEqual(differing(objects, batched), { left: 0, right: 0 });
 
-        // Without the rows the frame changes in each eye, so the comparison above held rows.
-        await element.session.data.clear();
-        await operationQueueOf(graph).waitForCompletion();
-        const ink = differing(batched, await wholeFrame());
-        assert.isAbove(ink.left, 10000, "the left eye drew no rows");
-        assert.isAbove(ink.right, 10000, "the right eye drew no rows");
-    });
+            // Without the rows the frame changes in each eye, so the comparison above held rows.
+            await element.session.data.clear();
+            await operationQueueOf(graph).waitForCompletion();
+            const ink = differing(batched, await wholeFrame(element));
+            assert.isAbove(ink.left, 10000, "the left eye drew no rows");
+            assert.isAbove(ink.right, 10000, "the right eye drew no rows");
+        },
+    );
+
+    it.each<Edges>(["no edges", "directed", "undirected"])(
+        "draw each eye's whole frame the same with the path set before the data loads, %s",
+        async (edges) => {
+            const pictures: XRFrame[] = [];
+            const landed: unknown[] = [];
+            for (const path of ["objects", "batched"] as const) {
+                iwer.uninstall();
+                iwer = installIWER();
+                await rowsInFrontOfTheHeadset(edges, path);
+                landed.push((await laserOnANode()).node.id);
+                pictures.push(await wholeFrame(element));
+                element.remove();
+            }
+
+            assert.equal(landed[1], landed[0], "the laser lands on the same row");
+            assert.deepEqual(differing(pictures[0], pictures[1]), { left: 0, right: 0 });
+        },
+    );
 
     it("select and drag a row with no mesh by the trigger", async () => {
         await rowsInFrontOfTheHeadset();
@@ -158,11 +157,10 @@ describe("node batches in XR", () => {
         const scene = graph.getScene();
         graph.setRenderPath("batched");
         await drawnFrames(scene, 4);
-        const { controller, node } = await laserOnANode();
+        const { hand: handedness, node } = await laserOnANode();
         assert.isNull(node.drawnPickMesh, "the row has no mesh");
-        const hand = iwer.device.controllers[controller.inputSource.handedness as "left" | "right"];
+        const hand = iwer.device.controllers[handedness];
         assert.exists(hand);
-
         // A tap: press and release where it points.
         hand.updateButtonValue("trigger", 1);
         await drawnFrames(scene, 4);

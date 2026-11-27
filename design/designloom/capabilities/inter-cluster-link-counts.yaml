@@ -1,0 +1,21 @@
+id: inter-cluster-link-counts
+name: "Between-cluster connection counts"
+category: analysis
+description: "Report, per pair of clusters, the number of edges running between them and that number normalized per member, so a real relationship between two lines is distinguished from random links. Practitioners compute this by filtering to two clusters, reading the total edge count and subtracting each cluster's internal edges in a spreadsheet, and readers of the tutorial reported negative results from arithmetic mistakes."
+status: planned
+notes: "Research trace: genetic-genealogy-dna-match-networks.md section 10, requirement 'Between-cluster connection counts computed and shown per cluster pair, normalized per member' (Should)."
+algorithms: []
+used_by_workflows:
+    - W2096
+    - W2097
+implemented_by_components: []
+requirements:
+    - "Should: Report, per pair of clusters, the number of edges between them and that number normalized per member"
+    - "Should: Select the edges behind any cluster pair, so the links can be read on the canvas"
+sources:
+    - title: "Family Locket - Creating network graphs with Gephi, part 5"
+      url: "https://familylocket.com/creating-network-graphs-with-gephi-part-5-analyze-the-network-graph"
+      summary: "Practitioners filter to two clusters and count the edges between them by hand"
+    - title: "Genetic genealogy research, section 10"
+      url: "design/user-research/genetic-genealogy-dna-match-networks.md"
+      summary: "Between-cluster connection counts per cluster pair, normalized per member, Should"

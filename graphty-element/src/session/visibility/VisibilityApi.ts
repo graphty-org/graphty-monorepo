@@ -110,6 +110,7 @@ import {
     stepsOf,
     wellFormed,
 } from "./conditions";
+import { type SavedFilterDraft, setFilterDraftHooks } from "./draftHooks";
 import {
     assertEvaluable,
     assertVisibility,
@@ -319,7 +320,12 @@ export interface FilterDraft {
      * @throws A `GraphtyError` (`E_BAD_COMMAND`) once the draft is no longer open, or when the
      *     condition is malformed.
      */
-    commit(options?: RunOptions): Run<FilterResult & { readonly id: string }>;
+    commit(options?: RunOptions): Run<
+        FilterResult & {
+            /** The id of the condition written. */
+            readonly id: string;
+        }
+    >;
     /** Close the draft and write nothing. Does nothing once it is closed. */
     cancel(): void;
 }
@@ -351,7 +357,10 @@ export interface HiddenNotDrawn {
     /** What kind of fact this is. */
     readonly code: "W_HIDDEN_NOT_DRAWN";
     /** What was asked for. */
-    readonly params: { readonly asked: "showContext" | "hold" | "full" };
+    readonly params: {
+        /** What was asked for: `"showContext"`, a view's `"hold"`, or a view's `"full"` base. */
+        readonly asked: "showContext" | "hold" | "full";
+    };
 }
 
 /** No {@link HiddenNotDrawn} fact. */
@@ -575,7 +584,15 @@ export interface VisibilityApi {
      * @since 3.32.0
      * @beta
      */
-    addCondition(condition: FilterConditionInput, options?: RunOptions): Run<FilterResult & { readonly id: string }>;
+    addCondition(
+        condition: FilterConditionInput,
+        options?: RunOptions,
+    ): Run<
+        FilterResult & {
+            /** The id of the condition added: the one passed, or the one made for it. */
+            readonly id: string;
+        }
+    >;
     /**
      * Change one filter condition's effect, rule or `on`: one undoable step.
      * @param id - The condition's id.
@@ -624,6 +641,33 @@ export interface VisibilityApi {
      * @beta
      */
     draft(target: FilterConditionInput | string): FilterDraft;
+    /**
+     * The open draft of one filter condition, or null: the draft {@link draft} opened on an
+     * existing condition, or the draft of a new condition by the id it was given. Autosave keeps
+     * open drafts with the work and reopens them after a restore, so a consumer that edits a
+     * condition in a draft picks its draft up again here after a reload instead of opening a new
+     * one.
+     * @example
+     * ```ts
+     * const draft = element.session.visibility.draftOf("c1") ?? element.session.visibility.draft("c1");
+     * ```
+     * @param conditionId - The condition's id.
+     * @returns The draft, or null when none is open.
+     * Experimental: may change or be removed in a minor release.
+     * @since 3.60.0
+     * @beta
+     */
+    draftOf(conditionId: string): FilterDraft | null;
+    /**
+     * The conditions the filter drafts still open hold, as they hold them now, the drafts autosave
+     * reopened after a restore included. A draft of a new condition holds an id no condition in
+     * `conditions` has yet.
+     * @returns The conditions.
+     * Experimental: may change or be removed in a minor release.
+     * @since 3.60.0
+     * @beta
+     */
+    openDrafts(): readonly FilterCondition[];
     /**
      * Whether hidden nodes should still be drawn faintly instead of vanishing.
      *
@@ -685,12 +729,6 @@ export interface SessionVisibilityApi extends VisibilityApi {
     readonly keptMasks: ScopeVisibilitySource;
     /** The one rule the masks evaluate: the filter AND every step that is on, or null. */
     readonly rule: RuleTree | null;
-    /**
-     * The conditions the filter drafts still open hold, as they hold them now: what a selection
-     * editor's Done keeps the runs of, since its draft is written after the visit ends.
-     * @returns The conditions.
-     */
-    openDrafts(): readonly FilterCondition[];
     /**
      * What a steps list would leave visible, without recording it: the counts before the first
      * step (the filter and the window alone), then after each step that is on, in order.
@@ -848,8 +886,13 @@ interface Counts {
 
 /** What a steps list would leave: before any step, and after each step that is on. */
 export interface StepCounts {
+    /** What the filter and the time window alone leave visible, before the first step. */
     readonly start: Counts;
-    readonly steps: readonly (Counts & { readonly id: string })[];
+    /** What is left visible after each step that is on, in order. */
+    readonly steps: readonly (Counts & {
+        /** The step's id. */
+        readonly id: string;
+    })[];
 }
 
 /** Everything the visibility model is built from. */
@@ -937,6 +980,12 @@ export interface VisibilitySources extends FilterSources {
      * @param notDrawn - What is not drawn now.
      */
     readonly onNotDrawn?: (notDrawn: readonly HiddenNotDrawn[]) => void;
+    /**
+     * Told when a filter draft opens, changes, is committed or canceled, with the ids of the
+     * conditions the open drafts hold.
+     * @param open - The ids.
+     */
+    readonly onDraftsChanged?: (open: readonly string[]) => void;
 }
 
 /** The selection as select conditions reach it. */
@@ -1421,19 +1470,22 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
      */
     const evaluate = (graph: GraphSnapshot, filter: RuleTree | null, window: TimeWindow | null): void => {
         slideCounters.full++;
-        nodeMaskValue.grow(graph.nodeCount);
-        edgeMaskValue.grow(graph.edgeCount);
-        nodeMaskValue.clear();
-        edgeMaskValue.clear();
-
         if (filter === null && window === null) {
-            nodeMaskValue.fill();
-            edgeMaskValue.fill();
+            // Every row shown, saying which rows entered: clearing and filling moves the version with
+            // no row to say, and the renderer then reads every element of a million-edge graph
+            // again after each edit and undo (issue #9164).
+            nodeMaskValue.fillAll(graph.nodeCount);
+            edgeMaskValue.fillAll(graph.edgeCount);
             unresolvedValue = NO_PATHS;
             lastCompiled = null;
 
             return;
         }
+
+        nodeMaskValue.grow(graph.nodeCount);
+        edgeMaskValue.grow(graph.edgeCount);
+        nodeMaskValue.clear();
+        edgeMaskValue.clear();
 
         const compiled = compileVisibility(graph, filter, window, passSources(graph));
         runPass({ compiled, edges: edgeMaskValue, graph, nodes: nodeMaskValue });
@@ -2002,7 +2054,12 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         const nodeRows = inNodes.changedSince(outsideCache.key[0] as number);
         const edgeRows = inEdges.changedSince(outsideCache.key[1] as number);
         const { node, edge } = outsideCache.bytes;
-        if (nodeRows === null || edgeRows === null || node.length !== graph.nodeCount) {
+        if (
+            nodeRows === null ||
+            edgeRows === null ||
+            node.length !== graph.nodeCount ||
+            edge.length !== graph.edgeCount
+        ) {
             return null;
         }
 
@@ -2344,8 +2401,15 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         readonly FilterCondition[],
         { readonly nodes: readonly NodeId[]; readonly edges: readonly EdgeId[] }
     >();
-    /** The filter drafts still open, for {@link SessionVisibilityApi.openDrafts}. */
-    const drafts = new Set<FilterDraft>();
+    /** The filter drafts still open, for {@link VisibilityApi.openDrafts}, with what autosave keeps of each. */
+    const drafts = new Map<FilterDraft, () => SavedFilterDraft>();
+    const draftsChanged = new Set<() => void>();
+    const tellDrafts = (): void => {
+        draftsChanged.forEach((listener) => {
+            listener();
+        });
+        sources.onDraftsChanged?.([...drafts.keys()].map((each) => each.condition.id));
+    };
     /** The selection before a filter change dropped what it hides, by the visibility it reached. */
     const droppedFrom = new WeakMap<
         VisibilityState,
@@ -2932,7 +2996,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     const insideNodeCopy = copies(inNodes);
     const insideEdgeCopy = copies(inEdges);
 
-    return {
+    const api: SessionVisibilityApi = {
         nodeMask(): Uint8Array {
             upToDate();
 
@@ -3122,7 +3186,11 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         },
 
         openDrafts(): readonly FilterCondition[] {
-            return [...drafts].map((each) => each.condition);
+            return [...drafts.keys()].map((each) => each.condition);
+        },
+
+        draftOf(conditionId: string): FilterDraft | null {
+            return [...drafts.keys()].find((each) => each.condition.id === conditionId) ?? null;
         },
 
         draft(target: FilterConditionInput | string): FilterDraft {
@@ -3159,6 +3227,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
                 update(change: Partial<Omit<FilterCondition, "id">>): void {
                     requireOpen();
                     edits = { ...edits, ...change };
+                    tellDrafts();
                 },
                 counts(): FilterConditionCount {
                     const now = held();
@@ -3168,6 +3237,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
                     requireOpen();
                     open = false;
                     drafts.delete(made);
+                    tellDrafts();
                     // One step, as `updateCondition` or `addCondition` writes it, against the
                     // conditions as they stand now.
                     const now = conditionsNow();
@@ -3184,11 +3254,17 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
                     return editConditions(admitConditions([...now, added]), options, { id: added.id });
                 },
                 cancel(): void {
+                    if (!open) {
+                        return;
+                    }
+
                     open = false;
                     drafts.delete(made);
+                    tellDrafts();
                 },
             };
-            drafts.add(made);
+            drafts.set(made, () => (editing ? { id, edits } : { condition: held() }));
+            tellDrafts();
             return made;
         },
 
@@ -3445,4 +3521,9 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             tellNotDrawn();
         },
     };
+    setFilterDraftHooks(api, {
+        saved: () => [...drafts.values()].map((save) => save()),
+        changed: draftsChanged,
+    });
+    return api;
 }

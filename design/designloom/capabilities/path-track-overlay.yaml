@@ -1,0 +1,20 @@
+id: path-track-overlay
+name: "Paths and walks as colored tracks"
+category: visualization
+description: "Draw each GFA path or walk as a colored track through the nodes it visits in order and orientation, including repeat visits and reversed traversals; show or hide paths individually; count paths and visits per node."
+status: planned
+notes: "Research trace: genome-assembly-and-pangenome-graphs.md section 10, table row 5 (Must)."
+algorithms: []
+used_by_workflows:
+    - W1157
+    - W1158
+implemented_by_components: []
+requirements:
+    - "Must: Paths and walks as colored tracks through nodes (tube map), with per-path show and hide and a per-node
+      count of paths"
+sources:
+    - title: "Genome Assemblers, Microbial Genome Finishers and Pangenome Researchers: Assembly Graphs and Pangenome
+          Graphs (section 10, table row 5)"
+      url: design/user-research/genome-assembly-and-pangenome-graphs.md
+      summary: "Must in the research. Covered by Designloom when researched: Partial (path highlighting for one computed
+          path)"

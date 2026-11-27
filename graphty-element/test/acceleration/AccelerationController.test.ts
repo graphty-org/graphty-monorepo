@@ -1062,17 +1062,81 @@ describe("AccelerationController: device loss", () => {
 
         lost.resolve({ reason: "the GPU process crashed" });
 
-        // Two transitions, not one: the loss is reported first and recovery happens after it,
-        // so waiting for "idle" alone would pass on the idle the controller is already in.
-        await vi.waitUntil(() => seen.length === 2);
+        // The loss is reported first, then the reattach under way, then the recovered state, so
+        // waiting for "idle" alone would pass on the idle the controller is already in.
+        await vi.waitUntil(() => seen.length === 3);
         assert.deepStrictEqual(
-            seen.map((status) => status.state),
-            ["error", "idle"],
+            seen.map((status) => [status.state, status.recovering]),
+            [
+                ["error", undefined],
+                ["error", true],
+                ["idle", undefined],
+            ],
         );
         assert.strictEqual(seen[0]?.code, "E_DEVICE_LOST");
         assert.include(seen[0]?.reason, "the GPU process crashed");
         assert.strictEqual(controller.accelerator?.name, "second");
         assert.isUndefined(controller.status.code);
+        controller.dispose();
+    });
+
+    it("tries a failed reattach again when a device becomes available (issue #9987)", async () => {
+        const lost = deferred<{ reason: string }>();
+        const first = fakeAccelerator({ name: "first", lost: lost.promise });
+        const second = fakeAccelerator({ name: "second" });
+        const registry = new AcceleratorRegistry();
+        let built = 0;
+        registry.register({
+            name: "fake",
+            factory: () => {
+                built += 1;
+                return built === 2
+                    ? Promise.reject(new Error("the GPU is not back yet"))
+                    : Promise.resolve(built === 1 ? first : second);
+            },
+        });
+        const controller = new AccelerationController({ registry });
+        await controller.start();
+
+        lost.resolve({ reason: "destroyed" });
+        await vi.waitUntil(() => built === 2 && controller.status.recovering !== true);
+        assert.strictEqual(controller.status.state, "error");
+        assert.isNull(controller.accelerator);
+
+        controller.deviceAvailable();
+        assert.isTrue(controller.status.recovering);
+        await vi.waitUntil(() => controller.status.recovering !== true);
+        assert.strictEqual(built, 3, "the second try built the accelerator");
+        assert.strictEqual(controller.status.state, "idle");
+        assert.strictEqual(controller.status.backend, second.backend);
+        controller.dispose();
+    });
+
+    it("comes back from a device lost during the probe's self-check, rather than settling on the CPU", async () => {
+        // a GPU process crash that lands on the probe (issue #9731): the same loss a second later recovers
+        const registry = new AcceleratorRegistry();
+        let built = 0;
+        registry.register({
+            name: "fake",
+            factory: () => {
+                built += 1;
+                return Promise.resolve(
+                    createFakeAccelerator({
+                        name: `try ${String(built)}`,
+                        verify: built === 1 ? "E_DEVICE_LOST" : "ok",
+                    }),
+                );
+            },
+        });
+        const controller = new AccelerationController({ registry });
+
+        const status = await controller.start();
+
+        assert.strictEqual(status.state, "error");
+        assert.strictEqual(status.code, "E_DEVICE_LOST");
+        await vi.waitUntil(() => controller.accelerator !== null);
+        assert.strictEqual(controller.accelerator?.name, "try 2");
+        assert.strictEqual(controller.state, "idle");
         controller.dispose();
     });
 
@@ -1395,6 +1459,34 @@ describe("AccelerationController: the policy, the threshold and the listeners in
         controller.setPolicy("auto");
 
         assert.strictEqual(factory.mock.calls.length, 1);
+        controller.dispose();
+    });
+
+    it("probes nothing for a policy set before start, and probes on start (issue #9986)", async () => {
+        const registry = new AcceleratorRegistry();
+        const factory = vi.fn(() => Promise.resolve(fakeAccelerator()));
+        registry.register({ name: "fake", factory });
+        const device = {};
+        const controller = new AccelerationController({ registry, sharedDevice: () => Promise.resolve(device) });
+
+        controller.setPolicy("required");
+        // The controller runs no timers, only promise chains: one macrotask yield drains them
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        assert.strictEqual(factory.mock.calls.length, 0);
+
+        await controller.start();
+        assert.strictEqual(factory.mock.calls.length, 1);
+        assert.isTrue(controller.sharesRendererDevice);
+        controller.dispose();
+    });
+
+    it("says whether the attached accelerator was built on the renderer's device", async () => {
+        const controller = new AccelerationController({ registry: registryWith(fakeAccelerator()) });
+        assert.isUndefined(controller.sharesRendererDevice);
+
+        await controller.start();
+
+        assert.isFalse(controller.sharesRendererDevice);
         controller.dispose();
     });
 

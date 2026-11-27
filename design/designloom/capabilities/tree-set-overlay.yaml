@@ -1,0 +1,20 @@
+id: tree-set-overlay
+name: Tree Set Overlay and Consensus
+category: analysis
+description: Load thousands of trees on shared tips and show them overlaid (DensiTree style) or as a consensus, with
+    per-branch frequency, posterior or concordance labels.
+status: planned
+notes: "Research trace: phylogenetics-and-haplotype-networks.md section 10, table row 14 (Should)."
+algorithms: []
+used_by_workflows:
+    - W394
+    - W395
+implemented_by_components: []
+requirements:
+    - "Should: Import multi-tree NEXUS or Newick files; overlay (DensiTree style) or consensus view; per-branch
+      frequency or concordance labels (posterior, gCF, sCF)"
+sources:
+    - title: "Evolutionary Biologists, Population Geneticists and Protein-Family Analysts: Trees, Haplotype Networks,
+          Population Graphs and Similarity Networks (section 10, table row 14)"
+      url: design/user-research/phylogenetics-and-haplotype-networks.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

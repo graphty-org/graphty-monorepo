@@ -1,0 +1,19 @@
+id: strict-csp-offline-deployment
+name: Strict CSP and Offline Deployment
+category: analysis
+description: Works under a published strict Content Security Policy (no eval, no blob workers required, no
+    unsafe-inline), reports a code when workers or WebGPU are blocked, and lets every on-demand asset be bundled or
+    self-hosted with no runtime network calls unless configured.
+status: planned
+notes: "Research trace: developers-embedding-and-extending-graph-visualization.md section 10, table row 10 (Must)."
+algorithms: []
+used_by_workflows:
+    - W286
+implemented_by_components: []
+requirements:
+    - "Must: Works under a strict CSP with a published policy (no eval, no blob workers required); detects when workers
+      or WebGPU are blocked and reports a code instead of failing silently"
+sources:
+    - title: Developers Who Embed Graph Visualization in Products or Extend It With Plugins (section 10, table row 10)
+      url: design/user-research/developers-embedding-and-extending-graph-visualization.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

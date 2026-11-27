@@ -1,0 +1,160 @@
+id: W198
+name: Participatory Systems Mapping Workshop with Sub-Map Analysis
+category: analysis
+validated: false
+personas:
+    - participatory-systems-mapping-facilitator
+requires_capabilities:
+    - data-import
+    - data-validation
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - annotation
+    - details-on-demand
+    - ego-network
+    - neighborhood-expansion
+    - path-highlighting
+    - all-paths-finding
+    - centrality-degree
+    - centrality-betweenness
+    - filtering
+    - selection-statistics
+    - comparison-view
+    - analysis-history
+    - legend-display
+    - export-image
+    - signed-edges
+    - directed-closure
+    - graph-authoring
+    - structural-checks
+suggested_components:
+    - graph-canvas
+    - toolbar
+    - context-menu
+    - data-import-dialog
+    - node-details-panel
+    - visual-encoding-panel
+    - ego-network-dialog
+    - path-finder-dialog
+    - algorithm-panel
+    - ranked-node-table
+    - filter-panel
+    - comparison-view
+    - analysis-history-panel
+    - legend-panel
+    - image-export-dialog
+starting_state:
+    data_type: workshop map photographed or typed in, or a PRSM, Kumu or draw.io file; factor attributes from stickers or votes
+    node_count: about 20 at first, growing to 40-60
+    edge_density: sparse to medium
+    user_expertise: expert
+goal: >-
+    **Intent**: Run a participatory systems mapping process with stakeholders, digitize the map they built, and answer
+    the analysis questions agreed at design time with sub-maps: what an intervention reaches downstream, what drives an
+    outcome upstream, and where those overlap. The CECAN method and the free PRSM tool define this practice in UK
+    government and evaluation work.
+
+
+    **Mental Model**: "Zoom into the part of the map that answers the question." The full map is the participants'
+    shared picture; the analysis is a set of filtered views of it, each tied to a question.
+
+
+    **Task Phases**:
+
+    1. **Design** (before the workshop) - Focal problem, stakeholders, focal factors and analysis questions, because the
+    questions decide what attributes to collect
+
+    2. **Brainstorm and connect** (workshop) - Factors that can increase or decrease, about 20; focal factor
+    first; "+" and "-" links, uncertain links marked, agreed rationales
+
+    3. **Check** - Weakly connected nodes, positive-link bias, A to B to C duplicated by A to C,
+    over-connected favorites
+
+    4. **Collect attributes** - Controllability, importance and ownership per stakeholder group, vulnerability,
+    link strength
+
+    5. **Digitize** - Import or type the map; attach attributes; keep history so changes can be rolled back
+
+    6. **Analyze sub-maps** - Downstream set of an intervention, upstream set of an outcome, union and
+    intersection of several; paths between an intervention and an outcome; ego networks radius 1-3; size by out-degree,
+    in-degree or betweenness; drivers (no inputs) and sinks (no outputs); influential but uncontrollable factors as
+    vulnerabilities; optional layered layout by position in causal chains
+
+    7. **Verify and scenario** (follow-up session) - Alternative maps preserving disagreements; maps kept as living
+    documents
+
+
+    **Decision Points**:
+
+    - Which analysis questions drive what we collect?
+
+    - Merge two similar factors, or keep both?
+
+    - How many steps upstream or downstream is still meaningful?
+
+    - Which stakeholder group's importance or controllability scores to show?
+
+    - Keep a disagreement as an alternative map?
+
+
+    **Information Needs**:
+
+    - Upstream and downstream sets of selected factors, with set operations across several
+
+    - All paths between an intervention and an outcome
+
+    - Drivers and sinks listed
+
+    - Out-degree, in-degree and betweenness explained in plain words (drives many, is driven by many, sits between)
+
+    - Attribute overlays per stakeholder group (controllability against importance)
+
+    - Change history with who changed what
+
+
+    **Pain Points**:
+
+    - Large maps are visually overwhelming for participants
+
+    - Whiteboard tools used remotely have no causal semantics or analysis
+
+    - Sub-map analysis exists in few tools and is not combined with set operations elsewhere
+
+    - Losing which group supplied which attribute when maps are merged
+
+
+    **Data Flow**:
+
+    - Input: Workshop map (PRSM, Kumu JSON, GraphML, GEXF, GML, DOT, XLSX, draw.io) or hand entry; per-group attribute
+    votes
+
+    - Transformations: Directed reachability (upstream, downstream), set union and intersection, path enumeration, ego
+    extraction, degree and betweenness, attribute-based styling
+
+    - Output: Sub-map images per analysis question, factor rankings, alternative maps, a living master map
+success_criteria:
+    - metric: Question to sub-map
+      target: Downstream set of a chosen intervention shown in two actions
+    - metric: Set operations
+      target: User can show factors both downstream of intervention A and upstream of outcome B
+    - metric: Reversibility
+      target: Any edit can be rolled back from history
+sources:
+    - title: CECAN - Participatory Systems Mapping practical guide
+      url: https://www.cecan.ac.uk/wp-content/uploads/2020/09/PSM-Workshop-method.pdf
+      summary: Factors, connecting, checks, attributes per stakeholder group
+    - title: CECAN - How to design a PSM process
+      url: https://www.cecan.ac.uk/wp-content/uploads/2022/03/How-to-design-a-PSM-process-Final.pdf
+      summary: Analysis questions shape collection; alternative maps; living documents
+    - title: PRSM README
+      url: https://github.com/micrology/prsm
+      summary: Free browser-based live multi-user rooms; imports GraphML, GEXF, GML, DOT, XLSX, draw.io, Kumu JSON; history with rollback
+    - title: PRSM manual - Analysing
+      url: https://raw.githubusercontent.com/micrology/prsm/master/doc/help/docs/manual/Analysing.mdx
+      summary: Upstream, downstream, unions, intersections, paths, ego radius 1-3, sizing by centrality, trophic layout
+    - title: Scriptapedia - Causal Mapping in Small Groups
+      url: https://en.wikibooks.org/wiki/Scriptapedia/Causal_Mapping_in_Small_Groups
+      summary: Group model building script for causal mapping
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

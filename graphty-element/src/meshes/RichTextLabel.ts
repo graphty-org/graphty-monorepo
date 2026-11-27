@@ -249,6 +249,7 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "letterSize"
     | "wrapTrailingSpace"
     | "wrapSkipEndSpace"
+    | "wrapUnkerned"
     | "wrapEllipsis"
     | "wrapAnywhere"
     | "wrapSpaceCount"
@@ -621,6 +622,9 @@ export class RichTextLabel {
     /** Texture pixels per em the label is uploaded at for its size on screen; null uploads its canvas whole. */
     private screenTexelsPerEm: number | null = null;
 
+    /** Set while the label is made: its texture is drawn but not uploaded until its size on screen is known. */
+    private uploadHeld = false;
+
     /**
      * Draw every label of a scene with as many texture pixels as a capture of `scale` output pixels per
      * canvas pixel shows it at, so its words stay as sharp as on screen; 1 puts every label back.
@@ -955,6 +959,8 @@ export class RichTextLabel {
 
         this._calculateDimensions();
         const quads = this.glyphQuads();
+        // Uploaded once at the end, at its size on screen: see firstUpload.
+        this.uploadHeld = true;
         if (quads === null) {
             this._createTexture();
             this._createMaterial();
@@ -1001,6 +1007,9 @@ export class RichTextLabel {
         if (this.options.sizeMode === "screen" || this.options.keepInView === true) {
             this._setupScreenFit();
         }
+
+        this.uploadHeld = false;
+        this.firstUpload();
 
         // Don't start animations immediately - wait for startAnimation() to be called
         // This allows the layout to settle before animations begin
@@ -1444,9 +1453,34 @@ export class RichTextLabel {
     public fitTextureToScreen(camera: Camera): boolean {
         const { mesh, texture } = this;
         const shown = mesh?.isEnabled() === true && mesh.isVisible && mesh.visibility > 0;
-        const fittable = this.options.autoSize && this.captureScale === 1 && !capturing.has(this.scene);
-        if (!fittable || !(texture instanceof LabelTexture) || !shown) {
+        if (!(texture instanceof LabelTexture) || !shown) {
             return false;
+        }
+
+        const target = this.screenFit(camera, texture);
+        if (target === undefined || target === this.screenTexelsPerEm) {
+            return false;
+        }
+
+        this.screenTexelsPerEm = target;
+        this.uploadAt(texture, this.screenTexelsPerEm);
+        uploadPremultiplied(texture);
+        return true;
+    }
+
+    /**
+     * The texels per em that fit the label to the pixels its letters cover in the drawn frame, rounded up to a step
+     * of {@link TEXEL_STEPS_PER_DOUBLING}; see {@link fitTextureToScreen}.
+     * @param camera - The camera the frame is drawn from.
+     * @param texture - The label's texture.
+     * @returns The texels per em, null to upload its canvas whole, or undefined when the label is not fitted: it does
+     * not size its texture to its words, it is drawn for a capture, or it has no plane in front of the camera.
+     */
+    private screenFit(camera: Camera, texture: LabelTexture): number | null | undefined {
+        const { mesh } = this;
+        const fittable = this.options.autoSize && this.captureScale === 1 && !capturing.has(this.scene);
+        if (!fittable || !mesh) {
+            return undefined;
         }
 
         // Its world matrix as of now: the node it hangs from may have been rescaled this frame
@@ -1455,21 +1489,41 @@ export class RichTextLabel {
         // Pixels of the drawn frame: the canvas's CSS pixels times the element's pixel ratio.
         const onScreen = this.screenFontPx(camera);
         if (onScreen <= 0) {
-            return false;
+            return undefined;
         }
 
         const own = this.canvasTexelsPerEm(texture);
         const step = Math.ceil(Math.log2(Math.max(onScreen, MIN_TEXELS_PER_EM)) * TEXEL_STEPS_PER_DOUBLING);
         const wanted = 2 ** (step / TEXEL_STEPS_PER_DOUBLING);
-        const target = wanted >= own ? null : wanted;
-        if (target === this.screenTexelsPerEm) {
-            return false;
+        return wanted >= own ? null : wanted;
+    }
+
+    /**
+     * Upload a new label's texture for the first time, at its size on screen when it has a plane where the camera
+     * sees it (issue #10018).
+     *
+     * Uploaded whole and fitted later by the sweep (labelTextureFit), every new label was uploaded twice, and
+     * labeling 50,000 nodes made full-size textures faster than the sweep shrank them: 5.7 GB of them, until the GPU
+     * ran out of memory and lost the WebGL context. Fitted here, the sweep finds it fitted already. A label hidden
+     * now is fitted where it stands; the sweep fits it again once it is shown, if it has moved.
+     */
+    private firstUpload(): void {
+        const { texture } = this;
+        if (texture === null) {
+            return;
         }
 
-        this.screenTexelsPerEm = target;
-        this.uploadAt(texture, this.screenTexelsPerEm);
+        // Undefined, not null, in a scene that never had a camera.
+        const camera = this.scene.activeCamera;
+        if (texture instanceof LabelTexture && camera) {
+            const fit = this.screenFit(camera, texture);
+            if (fit !== undefined) {
+                this.screenTexelsPerEm = fit;
+                this.uploadAt(texture, fit);
+            }
+        }
+
         uploadPremultiplied(texture);
-        return true;
     }
 
     /**
@@ -1747,7 +1801,9 @@ export class RichTextLabel {
         const { width } = this.texture.getSize();
         const { height } = this.texture.getSize();
         this.paint(ctx, width, height);
-        uploadPremultiplied(this.texture);
+        if (!this.uploadHeld) {
+            uploadPremultiplied(this.texture);
+        }
     }
 
     /**
@@ -2362,13 +2418,15 @@ export class RichTextLabel {
             letterSize === undefined || letterSize <= 0
                 ? (wrapWidth * oneLinePx) / this.lineHeightInWorld()
                 : (wrapWidth * fontSize) / letterSize;
-        const { wrapTrailingSpace, wrapSkipEndSpace, wrapEllipsis, wrapAnywhere, wrapSpaceCount } = this.options;
+        const { wrapTrailingSpace, wrapSkipEndSpace, wrapUnkerned, wrapEllipsis, wrapAnywhere, wrapSpaceCount } =
+            this.options;
         this.parsedContent = wrapLines(ctx, this.parsedContent, widthPx, {
             trailingSpace: wrapTrailingSpace === true,
             skipEndSpace: wrapSkipEndSpace === true,
             ellipsis: wrapEllipsis === true,
             anywhere: wrapAnywhere === true,
             spaceCount: wrapSpaceCount,
+            unkerned: wrapUnkerned === true,
             maxLines,
             maxLinesEllipsis,
         });
@@ -2592,7 +2650,7 @@ export class RichTextLabel {
         const inside = Object.hasOwn(INSIDE, position) ? INSIDE[position as InsidePosition] : null;
         const inFront = (position === "center" || inside !== null) && !(target instanceof Vector3);
         const frontBounds = inFront ? bounds : null;
-        this.onFace = this.onFlatFace(target, bounds, inside);
+        this.onFace = this.onFlatFace(target, bounds, inside, position === "center");
         let newPos = target instanceof Vector3 ? target.clone() : this.parentTo(target, frontBounds);
         // A target drawn stretched (a group over its members' box) leaves its label the size the
         // label's style gives: the label undoes the stretch and its gaps are measured in it.
@@ -2762,25 +2820,29 @@ export class RichTextLabel {
     }
 
     /**
-     * Whether a label inside its target lies on the target's face: in a 3D view, on a target drawn
+     * Whether a label inside or centered on its target lies on the target's face: in a 3D view, on a target drawn
      * flat (a group's box behind its members, a flat shape), whose depth is a small part of its
      * width and height as drawn. Turned toward the camera and hung one bounding radius in front, as
-     * a solid's label is, it floated far off the box in perspective (issue #2320); on the face it is
-     * drawn where the box is, as the 2D view draws it.
+     * a solid's label is, it floated far off the box in perspective (issue #2320); a centered label on a wide box hung
+     * so far in front that framing put the orbit pivot ahead of the drawing, and a view that sizes nodes by their
+     * depth from the pivot drew every box larger, over its neighbors (issue #10071). On the face it is drawn where the
+     * box is, as the 2D view draws it.
      * @param target - What the label is attached to.
      * @param bounds - Its bounds, in its own frame.
      * @param bounds.min - Their lower corner.
      * @param bounds.max - Their upper corner.
      * @param inside - The side and end the label sits inside against, or null when it is not inside.
+     * @param center - Whether the label sits at its target's center.
      * @returns True when it lies on the face.
      */
     private onFlatFace(
         target: RichTextLabelOptions["attachTo"],
         bounds: { min: Vector3; max: Vector3 },
         inside: { x: Side; y: Side } | null,
+        center: boolean,
     ): boolean {
         if (
-            inside === null ||
+            (inside === null && !center) ||
             !(target instanceof AbstractMesh) ||
             (this.scene.metadata as GraphSceneMetadata | null)?.twoD === true
         ) {
@@ -3108,6 +3170,19 @@ export class RichTextLabel {
      */
     public get declutterOrder(): "degree" | "size" | undefined {
         return this.options.declutter;
+    }
+
+    /**
+     * Whether the label's style puts it on what it is attached to: at its center or inside it, not beside it.
+     * @returns True for a `"center"` or `"inside-*"` label attached to a mesh.
+     */
+    public get onTarget(): boolean {
+        const at = this.options.attachPosition;
+        return (
+            this.options.attachTo !== undefined &&
+            !(this.options.attachTo instanceof Vector3) &&
+            (at === "center" || Object.hasOwn(INSIDE, at))
+        );
     }
 
     /**

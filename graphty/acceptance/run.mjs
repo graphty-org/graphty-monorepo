@@ -10,6 +10,12 @@
  *   node graphty/acceptance/run.mjs --workers 1        one browser
  *   node graphty/acceptance/run.mjs --list             the routes, nothing run
  *   node graphty/acceptance/run.mjs --dist <dir>       another build (default graphty/dist)
+ *   node graphty/acceptance/run.mjs --features cosmograph  the app opened with these experiments on
+ *                                                      (?features=...); writes tmp/dry-run-<features>/
+ *
+ * Every route ends with a reload that empties session storage as Safari does, and fails when the screen
+ * (screen-fingerprint.mjs) comes back with anything gone or changed; a route lists a known loss in
+ * `reloadLoses: [{ what, issue }]`, and a run refuses one whose issue is not open.
  *
  * Writes tmp/dry-run/report.json (each route's result, time and reason) and, for a failed route,
  * tmp/dry-run/<route>.aria.txt: what the page offered a user when it failed, and tmp/dry-run/<route>.png
@@ -35,13 +41,18 @@ import { parseArgs } from "node:util";
 import { TEST_GUARD_MS, WAIT_GUARD_MS } from "../../tools/test-wait-guard.mjs";
 import * as readers from "./readers.mjs";
 import { routes } from "./routes.mjs";
+import { reloadKeepsScreen } from "./reload-check.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, "../..");
 const gitArgs = ["-C", here, "rev-parse", "--path-format=absolute", "--git-common-dir"];
 const commonDir = spawnSync("git", gitArgs, { encoding: "utf8" }); // eslint-disable-line sonarjs/no-os-command-from-path -- the developer's own git
 const main = dirname(commonDir.stdout.trim());
-const OUT = join(repo, "tmp/dry-run");
+// --features gets its own folder, so a run with an experiment on and one without can be compared
+// and can run at once.
+let OUT = join(repo, "tmp/dry-run");
+// the experiments the app opens with (--features): serve() sends the start page's address to them
+let FEATURES = "";
 const GATE = join(repo, "design/ui/studio/tool/with-browser.sh");
 const FILES = join(repo, "design/ui/studio/tool/files");
 // The GPU flags the design studio's tool proved on this machine (design/ui/studio/tool/real.mjs):
@@ -79,6 +90,7 @@ function options(argv) {
                 workers: { type: "string", default: "4" },
                 list: { type: "boolean", default: false },
                 dist: { type: "string", default: join(repo, "graphty/dist") },
+                features: { type: "string", default: "" },
                 worker: { type: "string" },
             },
         }));
@@ -92,12 +104,15 @@ function options(argv) {
         workers: Number(v.workers),
         dist: resolve(v.dist),
     };
+    if (o.features) OUT = `${OUT}-${o.features.replaceAll(",", "-")}`;
+    FEATURES = o.features;
     if (!Number.isInteger(o.workers) || o.workers < 1 || o.workers > 4) {
         console.error("--workers must be 1 to 4 (the machine's shared browser cap)");
         process.exit(2);
     }
     try {
         select(o.only);
+        if (!o.worker && !o.list) checkLosses(select(o.only));
     } catch (err) {
         console.error(err.message);
         process.exit(2);
@@ -159,7 +174,8 @@ async function runAll(o) {
     mkdirSync(join(OUT, "claims"), { recursive: true });
     mkdirSync(join(OUT, "results"), { recursive: true });
     const workers = Math.min(o.workers, picked.length);
-    console.log(`dry run: ${picked.length} routes on ${workers} browser(s), build ${o.dist}`);
+    const on = o.features ? `, features ${o.features}` : "";
+    console.log(`dry run: ${picked.length} routes on ${workers} browser(s), build ${o.dist}${on}`);
     // from when the run began to wait for its first browser slot (the entry below), so the report counts that wait
     const started = Number(process.env.DRY_RUN_STARTED) || Date.now();
     const ids = picked.map((r) => r.id).join(",");
@@ -178,6 +194,8 @@ async function runAll(o) {
                 ids,
                 "--dist",
                 o.dist,
+                "--features",
+                o.features,
             ],
             {
                 stdio: "inherit",
@@ -217,7 +235,7 @@ async function runAll(o) {
     const routeMs = results.reduce((t, r) => t + r.ms, 0);
     writeFileSync(
         join(OUT, "report.json"),
-        JSON.stringify({ wallMs: wall, routeMs, slotWait, workers, results }, null, 1) + "\n",
+        JSON.stringify({ features: o.features, wallMs: wall, routeMs, slotWait, workers, results }, null, 1) + "\n",
     );
     rmSync(join(OUT, "claims"), { recursive: true, force: true });
     console.log("\nroute                                     result    time  feature");
@@ -237,9 +255,19 @@ async function runAll(o) {
 
 // ---------------------------------------------------------------- a worker (one browser slot)
 
-function serve(dist) {
+/**
+ * Serve a build of the app on a loopback port: every path that is not a file is the app's own page.
+ * With experiments to open with, the start page's plain address is sent on to `/?features=<them>`, as a
+ * reader turns one on.
+ * @param dist the build
+ * @param features the experiments, comma separated, or "" for none
+ * @returns the listening server
+ */
+function serve(dist, features = FEATURES) {
     const http = createServer(async (req, res) => {
         const url = new URL(req.url, "http://x"); // eslint-disable-line sonarjs/no-clear-text-protocols -- parses the request's path; the server is loopback only
+        if (features && url.pathname === "/" && !url.searchParams.has("features"))
+            return res.writeHead(302, { location: `/?features=${features}` }).end();
         const path = normalize(decodeURIComponent(url.pathname)).replace(/^[/\\]+/, "");
         const f = join(dist, path);
         if (f !== dist && !f.startsWith(dist + sep)) return res.writeHead(403).end();
@@ -320,6 +348,31 @@ async function eventually(fn, g) {
     }
 }
 
+/**
+ * The fingerprint entries a route's `reloadLoses` excuses: `[{ what, issue }]`, each a known loss
+ * tracked by an issue that must still be open (checkLosses), so an excuse cannot outlive its bug.
+ * @param route the route
+ * @returns the entries
+ */
+const lossesOf = (route) => (route.reloadLoses ?? []).map((loss) => loss.what);
+
+/**
+ * Refuses a run whose routes excuse a reload loss with an issue that is not open.
+ * @param picked the routes
+ */
+function checkLosses(picked) {
+    const issues = [...new Set(picked.flatMap((r) => (r.reloadLoses ?? []).map((loss) => loss.issue)))];
+    for (const issue of issues) {
+        const args = ["issue", "view", String(issue), "--json", "state", "--jq", ".state"];
+        const view = spawnSync("gh", args, { encoding: "utf8" }); // eslint-disable-line sonarjs/no-os-command-from-path -- the developer's own gh
+        const state = view.stdout.trim() || "unreadable (" + view.stderr.trim() + ")";
+        if (state !== "OPEN")
+            throw new Error(
+                `a route's reloadLoses names issue #${issue}, which is ${state}: remove the excuse, the loss should be fixed`,
+            );
+    }
+}
+
 // What a user could see, read through graphty-element's public API (readers.mjs), bound to the page.
 const readersOf = (page) => ({
     page,
@@ -389,6 +442,7 @@ async function walk(chromium, route, origin) {
         ms: 0,
         reason: null,
         renderer: null,
+        renderPath: null,
     };
     let b = null;
     let stage = "launching the browser";
@@ -415,6 +469,15 @@ async function walk(chromium, route, origin) {
         );
         await Promise.race([run(), hang]);
         assert.deepEqual(pageErrors, [], "the page threw script errors");
+        stage = "reloading as Safari does (session storage emptied)";
+        await Promise.race([reloadKeepsScreen(b.page, lossesOf(route)), hang]);
+        assert.deepEqual(pageErrors, [], "the page threw script errors after the reload");
+        // which of graphty-element's render paths drew the route (null: no graph open), so a run with the
+        // cosmograph experiment on fails when the app still draws with the default path
+        stage = "reading the render path";
+        out.renderPath = await b.page.evaluate(() => document.querySelector("graphty-element")?.renderPath ?? null);
+        if (FEATURES.split(",").includes("cosmograph") && out.renderPath !== null)
+            assert.equal(out.renderPath, "batched", "the cosmograph experiment draws with the batched render path");
         out.result = "pass";
     } catch (err) {
         out.reason = `${stage}: ${err.message.split("\n").slice(0, 6).join(" ").replaceAll(/\s+/g, " ")}`;

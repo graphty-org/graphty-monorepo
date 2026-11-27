@@ -38,6 +38,7 @@ export function useRowDrag(
     onMove: (from: number, to: number) => void,
     rowsOf: (row: HTMLElement) => readonly HTMLElement[],
 ): { dragging: boolean; handlers: React.HTMLAttributes<HTMLElement> } {
+    // on reload: fresh: pointer: a drag in progress
     const [dragging, setDragging] = useState(false);
     const handlers: React.HTMLAttributes<HTMLElement> = {
         onPointerDown: (event) => {

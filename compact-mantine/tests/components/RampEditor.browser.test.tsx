@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { commands, userEvent } from "vitest/browser";
 
 import { compactTheme, RampEditor, type RampEditorBin, type RampEditorHandle } from "../../src";
+import { contrast, over, rgba } from "../harness/contrast";
 import { renderThemed, resetHarness } from "../harness/measure";
 
 afterEach(async () => {
@@ -251,48 +252,6 @@ function resolved(color: string): string {
     const out = getComputedStyle(probe).color;
     probe.remove();
     return out;
-}
-
-/**
- * The channels of a computed rgb() or rgba() color.
- * @param color - the computed color
- * @returns red, green, blue (0-255) and alpha (0-1)
- */
-function rgba(color: string): [number, number, number, number] {
-    const [r, g, b, a = 1] = (/rgba?\(([^)]*)\)/.exec(color)?.[1] ?? "").split(/[\s,/]+/).map(Number);
-    return [r, g, b, a];
-}
-
-/**
- * A translucent color laid over an opaque one.
- * @param top - the translucent color
- * @param ground - the opaque color under it
- * @returns the result, opaque
- */
-function over(
-    top: [number, number, number, number],
-    ground: [number, number, number, number],
-): [number, number, number, number] {
-    const a = top[3];
-    return [0, 1, 2].map((i) => top[i] * a + ground[i] * (1 - a)).concat(1) as [number, number, number, number];
-}
-
-/**
- * The WCAG contrast ratio of two opaque colors.
- * @param x - one color
- * @param y - the other
- * @returns the ratio, 1 to 21
- */
-function contrast(x: [number, number, number, number], y: [number, number, number, number]): number {
-    const lum = (c: [number, number, number, number]): number => {
-        const [r, g, b] = c.slice(0, 3).map((v) => {
-            const s = v / 255;
-            return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
-        });
-        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-    };
-    const [hi, lo] = [lum(x), lum(y)].sort((p, q) => q - p);
-    return (hi + 0.05) / (lo + 0.05);
 }
 
 describe("RampEditor for a screen reader", () => {

@@ -1,0 +1,119 @@
+id: W391
+name: Haplotype Network in R with pegas
+category: analysis
+validated: false
+personas:
+    - phylogeographer-population-geneticist
+requires_capabilities:
+    - data-import
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-force-directed
+    - node-selection
+    - view-bookmarks
+    - export-image
+    - node-glyph-charts
+    - edge-mutation-marks
+    - haplotype-network-inference
+suggested_components:
+    - data-import-dialog
+    - graph-canvas
+    - node-chart-overlay
+    - legend-panel
+    - layout-panel
+    - image-export-dialog
+starting_state:
+    data_type: aligned FASTA plus a per-sample factor (region or population) in R
+    node_count: 10-80 haplotypes
+    edge_density: sparse (minimum spanning backbone plus optional alternative links)
+    user_expertise: advanced
+goal: >-
+    **Intent**: Build and draw a haplotype network reproducibly from a script, with pies by region and mutations on
+    links, and fix the layout so pies do not overlap.
+
+
+    **Mental Model**: "The same network as PopART, but in code I can rerun." The minimum spanning backbone is one of
+    many equally good choices; dashed links show the alternatives.
+
+
+    **Task Phases**:
+
+    1. **Read and collapse** - read.dna("aln.fas", format = "fasta"); h <- haplotype(x); d <- dist.dna(h, "N")
+
+    2. **Choose a method** - haploNet(h) for TCS, mst(d), msn(d), rmst(d) or mjn(x, epsilon = 0)
+
+    3. **Frequencies** - sz <- summary(h); R <- haploFreq(x, fac = region, haplo = h)
+
+    4. **Plot** - plot(nt, size = sz, pie = R, legend = ...); threshold controls which alternative links are
+    drawn dashed; layout is equal-angle then energy minimization
+
+    5. **Annotate mutations** - mutations() and show.mutation label links with the mutated sites
+
+    6. **Fix overlaps** - replot() lets the user drag nodes and returns coordinates to reuse; or use
+    square-root sizes, link lengths equal to the sum of symbol sizes, and no labels
+
+    7. **Export** - PDF, often finished in Illustrator
+
+
+    **Decision Points**:
+
+    - Which method (TCS, MST, MSN, randomized MST, median-joining)?
+
+    - How many alternative links to show (threshold)?
+
+    - Linear or square-root size scaling?
+
+    - Keep the hand-adjusted coordinates as part of the script?
+
+
+    **Information Needs**:
+
+    - Haplotype frequencies and composition by region
+
+    - Mutation count and positions per link
+
+    - Which links are alternatives to the backbone
+
+    - Saved node coordinates that reproduce the figure
+
+
+    **Pain Points**:
+
+    - "There is no simple way" to stop pies overlapping
+
+    - The backbone MST is arbitrary with respect to the rest of the network
+
+    - Manual dragging is the only reliable overlap fix
+
+    - Final labeling still happens in Illustrator
+
+
+    **Data Flow**:
+
+    - Input: FASTA alignment, a region factor per sample
+
+    - Transformations: Haplotype collapsing, pairwise mutation distances, network inference, frequency matrix,
+    energy-minimized layout, manual coordinate edits
+
+    - Output: PDF figure and a reusable coordinate table
+success_criteria:
+    - metric: Overlap-free layout
+      target: Pies sized by count do not overlap without manual dragging
+    - metric: Reproducibility
+      target: Manually adjusted positions are saved and restored exactly on rerun
+    - metric: Mutation display
+      target: Every link shows its mutation count
+sources:
+    - title: Paradis - Plotting haplotype networks with pegas (vignette)
+      url: https://cran.nics.utk.edu/cran/web/packages/pegas/vignettes/PlotHaploNet.Rnw
+      summary: haplotype, haploNet, mst, msn, rmst, mjn, haploFreq, plot with pies, threshold, mutations, replot
+    - title: r-sig-genetics thread on overlapping pies (2022)
+      url: https://stat.ethz.ch/pipermail/r-sig-genetics/2022-July/000238.html
+      summary: No simple way to stop overlap; square-root sizes and link-length workaround
+    - title: haplotypes package - parsimnet
+      url: https://search.r-project.org/CRAN/refmans/haplotypes/html/parsimnet-methods.html
+      summary: Statistical parsimony with a 95% connection limit
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

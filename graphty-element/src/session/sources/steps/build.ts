@@ -454,13 +454,26 @@ function ruleFor(step: Step, column: string): ClashRule {
 }
 
 /**
- * The `aggregate` rule a step sets for one working column.
+ * The `aggregate` rule a step sets for one working column: its own, else the `"*"` rule, which
+ * never reduces a column the step matches or keys its rows by.
  * @param step - The step.
  * @param column - A working column name.
  * @returns The rule, or undefined when the column follows `repeated`.
  */
 function aggregateFor(step: Step, column: string): JoinReduce | undefined {
-    return "aggregate" in step ? step.aggregate?.[column] : undefined;
+    if (!("aggregate" in step) || step.aggregate === undefined) {
+        return undefined;
+    }
+    const own = step.aggregate[column];
+    if (own !== undefined || column === "*") {
+        return own;
+    }
+    const r = step.read;
+    const matched =
+        ("key" in r && r.key === column) ||
+        ("source" in r && (r.source === column || r.target === column)) ||
+        ("edgeId" in r && r.edgeId === column);
+    return matched ? undefined : step.aggregate["*"];
 }
 
 type Held = [origin: string, value: Value];
@@ -749,6 +762,7 @@ class Builder {
     readonly pairs = new Map<string, string>();
     readonly stats: StepStats[] = [];
     readonly issues: BuildIssue[] = [];
+    duplicate: BuildResult["duplicate"];
     readonly fates = new Map<string, Map<string, RowFate>>();
     readonly readerResults: ReaderResult[] = [];
     // what each count counted, by step place and count name (see DrillUnit)
@@ -1129,8 +1143,19 @@ class Builder {
                 }
             }
         }
-        const { nodes, edges, aliases, edgeAliases, stats, issues, fates, readerResults, drill } = this;
-        return { nodes, edges, aliases, edgeAliases, stats, issues, fates, readerResults, drill };
+        const { nodes, edges, aliases, edgeAliases, stats, issues, fates, readerResults, drill, duplicate } = this;
+        return {
+            nodes,
+            edges,
+            aliases,
+            edgeAliases,
+            stats,
+            issues,
+            fates,
+            readerResults,
+            drill,
+            ...(duplicate === undefined ? {} : { duplicate }),
+        };
     }
 
     // The elements each step made that the graph still holds, by their final type.
@@ -1710,12 +1735,15 @@ class Builder {
         const policy = a.repeated === undefined ? (this.input.repeatedEdges ?? "keep") : "keep";
         const type = typeOf(this.types, "edge", a.ctx, a.row);
         // 3.8, 8.6: edges of different types never reduce; meanings matter only to a combining rule
-        const byMeaning = policy !== "first" && policy !== "last";
+        const byMeaning = policy !== "first" && policy !== "last" && policy !== "error";
         const pairKey = (m: string | null): string => JSON.stringify([a.from.id, a.to.id, type, byMeaning ? m : null]);
-        if (policy !== "keep" && policy !== "error") {
+        if (policy !== "keep") {
             // ponytail: the pair index is not updated by later merges; fine for reductions inside the adds that make the pairs
             const twin = this.edges.get(this.pairs.get(pairKey(meaning)) ?? "");
-            if (twin) {
+            if (twin && policy === "error") {
+                // the build stays whole for a preview; a commit refuses it (E_DUPLICATE_EDGE)
+                this.duplicate ??= { from: a.from.id, to: a.to.id, repeat: a.row };
+            } else if (twin) {
                 // reduced across rows or sources: every contributing source supplies it, the row's key is an alias
                 supply(twin, a.load);
                 this.touch(twin, step, si, a.table, a.row, a.index);

@@ -111,7 +111,14 @@ export type Selector =
      * the data the same way. `edges` defaults to `clipped`, the edges between the rule's nodes.
      * "Top N by" any number column is a `threshold` leaf with `top`.
      */
-    | { readonly match: "rule"; readonly where: RuleTree; readonly edges?: EdgeReading }
+    | {
+          /** Selects by a rule tree. */
+          readonly match: "rule";
+          /** The rule tree that decides which nodes are in. */
+          readonly where: RuleTree;
+          /** Which edges come with the rule's nodes. Default `clipped`: the edges between them. */
+          readonly edges?: EdgeReading;
+      }
     /**
      * The elements a reader is pointing at now: in the selection (`"selected"`, nodes and edges as
      * the selection holds them), or under the pointer (`"hovered"`, one node at most; no edge is
@@ -391,7 +398,13 @@ export function selectorScope(selector: Selector): Scope | null {
 }
 
 /** A selector in its rule form, which an editor of rules reads and writes. */
-export type RuleSelector = Extract<Selector, { readonly match: "rule" }>;
+export type RuleSelector = Extract<
+    Selector,
+    {
+        /** Selects by a rule tree. */
+        readonly match: "rule";
+    }
+>;
 
 /**
  * Read any layer's selector as an editable rule, so an editor draws a run's layer the way it draws

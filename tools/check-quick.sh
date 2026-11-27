@@ -24,7 +24,10 @@
 #    committed images and the Figma lock;
 #    tools/check-quick.test.mjs fails when the Checks job gains a `pnpm run` step this script lacks;
 # 9. only with --with-dry-run: the graphty app's build, then its dry run (graphty/acceptance/run.mjs, every
-#    route, on this machine's NVIDIA card). Never by default: the agent that owns a long-lived branch
+#    route, on this machine's NVIDIA card), then the same routes, its canvas test and the selection
+#    workspace's test each once as is and once with the cosmograph experiment on (the batched render
+#    path), every route compared across the two, and every route and its reload once more with the Style panel v2
+#    experiments on (file-styles,style-panel-v2). Never by default: the agent that owns a long-lived branch
 #    asks for it before opening the pull request (CLAUDE.md, "Shipping a change", step 2; issue #3269).
 #
 # Left to CI, which runs them on every pull request that needs them (issue #8052): the documentation site
@@ -190,9 +193,29 @@ for lane in tests gpu checks; do
 done
 rm -rf "$LANES"
 # The dry run walks graphty/dist, so it never runs on a build the app step failed to refresh.
-dry_run() { pnpm exec nx run graphty:build && node graphty/acceptance/run.mjs; }
+# Every walk runs twice: on graphty-element's default render path, and with the cosmograph experiment on,
+# which draws with the batched render path; compare-reports.mjs then fails the step for every route or
+# scenario whose result differs between the two (graphty/acceptance/README.md, "On both render paths").
+# The canvas test exits 1 on its own failures, so it needs no comparison.
+SW_UAT=(tools/with-browser.sh node graphty/acceptance/selection-workspace-uat.mjs --dist graphty/dist --browser chromium)
+dry_run() {
+    pnpm exec nx run graphty:build || return 1
+    local rc=0
+    node graphty/acceptance/run.mjs || rc=1
+    node graphty/acceptance/run.mjs --features cosmograph || rc=1
+    node graphty/acceptance/run.mjs --features file-styles,style-panel-v2 || rc=1
+    node graphty/acceptance/compare-reports.mjs tmp/dry-run/report.json tmp/dry-run-cosmograph/report.json || rc=1
+    node graphty/acceptance/canvas-uat.mjs || rc=1
+    node graphty/acceptance/canvas-uat.mjs --features cosmograph || rc=1
+    "${SW_UAT[@]}" --out tmp/selection-workspace-uat --report tmp/selection-workspace-uat/report.json || rc=1
+    "${SW_UAT[@]}" --features cosmograph --out tmp/selection-workspace-uat-cosmograph \
+        --report tmp/selection-workspace-uat-cosmograph/report.json || rc=1
+    node graphty/acceptance/compare-reports.mjs tmp/selection-workspace-uat/report.json \
+        tmp/selection-workspace-uat-cosmograph/report.json || rc=1
+    return "$rc"
+}
 if [ "$DRY_RUN" = 1 ]; then
-    step "Dry run of the graphty app (NVIDIA GPU)" dry_run
+    step "Dry run of the graphty app on both render paths, compared (NVIDIA GPU)" dry_run
 fi
 
 echo "========================================"

@@ -25,8 +25,11 @@ export interface ElementDefined {
  * @returns Whether the tag is defined, whether loading it failed, and Retry
  */
 export function useElementDefined(where: string, load: () => Promise<void> = loadGraphtyElement): ElementDefined {
+    // on reload: fresh: read: whether the tag is defined is read again from the browser
     const [defined, setDefined] = useState(() => customElements.get("graphty-element") !== undefined);
+    // on reload: fresh: notice: a failed load, which loads again at start
     const [failed, setFailed] = useState(false);
+    // on reload: fresh: request: a press of Retry
     const [attempt, setAttempt] = useState(0);
     useEffect(() => {
         if (defined) {

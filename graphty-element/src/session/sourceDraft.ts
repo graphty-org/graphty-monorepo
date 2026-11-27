@@ -8,10 +8,12 @@
  * the DOM.
  */
 
-import type { SourceKey } from "../catalog/types";
+import type { EdgeId, SourceKey } from "../catalog/types";
 import { GraphtyError } from "../errors/GraphtyError";
 import type { ColumnRef } from "./shared";
+import type { SavedSourceDraft } from "./sourceDraftHooks";
 import type { StepsAct } from "./sources/steps/acts";
+import { copyKey } from "./sources/steps/build";
 import {
     built,
     draftAdd,
@@ -24,8 +26,16 @@ import {
     openQuestions,
     stepEdit,
 } from "./sources/steps/draft";
+import {
+    type DrawnIds,
+    idsOfRefs,
+    markCounts,
+    type StepBuckets,
+    stepRefs,
+    untouchedNodes,
+} from "./sources/steps/drawnIds";
 import { clearPicksEdit, drillCells, drillElements, drillRows, exceptOf, pickAllEdit } from "./sources/steps/drill";
-import { matchCounts, matchValues } from "./sources/steps/match";
+import { matchCounts, matchValues, suggestMatches } from "./sources/steps/match";
 import { contextIssues, type PreviewContext, previewOf } from "./sources/steps/preview";
 import { spaceProfile, tableHandle } from "./sources/steps/profile";
 import {
@@ -33,6 +43,7 @@ import {
     type Copies,
     editRows,
     mintEditId,
+    spaceRows,
     stepRows,
     type StepsEdit,
     type StepsSource,
@@ -51,10 +62,12 @@ import type {
     SourceDraftPreview,
     SourceElementRef,
     SourceExtractOptions,
+    SourceJoinAct,
     SourceMappingPatch,
     SourceMatchCounts,
     SourceMatchOptions,
     SourceMatchPair,
+    SourceMatchSuggestion,
     SourceMatchValues,
     SourceMatchValuesOptions,
     SourceMergeOptions,
@@ -99,6 +112,12 @@ export interface SourceDraftHost {
     /** Draw what the draft shows again: a commit that failed reopens it. */
     redraw(): void;
     /**
+     * The session id of each built edge drawn on one side.
+     * @param side - Before or After.
+     * @returns The ids by built edge id.
+     */
+    edgeIds(side: "before" | "after"): Readonly<Record<string, EdgeId>>;
+    /**
      * Publish `data:draft-changed`.
      * @param change - The change.
      */
@@ -112,6 +131,8 @@ export class SourceDraftHandle implements SourceDraft {
     private readonly base: DraftState;
     private readonly history: DraftState[] = [];
     private closed = false;
+    // The state a batch started from while one runs, so it records one undo entry.
+    private batchFrom: DraftState | null = null;
     // Whether the draft is drawn, and which side of its commit.
     private shown: { readonly on: boolean; readonly side: "before" | "after" } = { on: false, side: "after" };
     // The marks of the current state, kept until an act or an undo changes it.
@@ -231,7 +252,9 @@ export class SourceDraftHandle implements SourceDraft {
     private act(verb: string, next: (state: DraftState) => DraftState): void {
         this.live(verb);
         const after = built(next(this.state));
-        this.history.push(this.state);
+        if (this.batchFrom === null) {
+            this.history.push(this.state);
+        }
         this.state = after;
         this.host.emit({ draft: this.id, reason: "changed" });
     }
@@ -423,6 +446,11 @@ export class SourceDraftHandle implements SourceDraft {
     }
 
     /** @inheritdoc */
+    replaceStep(index: number, act: SourceJoinAct): void {
+        this.stepsAct("replaceStep", { act: "replace-step", index, with: act });
+    }
+
+    /** @inheritdoc */
     removeSource(source: SourceKey): void {
         this.live("removeSource");
         if (this.state.value.sources[source] === undefined) {
@@ -452,6 +480,62 @@ export class SourceDraftHandle implements SourceDraft {
             throw draftOpenError(this.id);
         }
         this.act("setMapping", (state) => mappingApply(state, source, patch));
+    }
+
+    /** @inheritdoc */
+    batch<T>(acts: () => T): T {
+        this.live("batch");
+        if (this.batchFrom !== null) {
+            return acts();
+        }
+        const from = this.state;
+        this.batchFrom = from;
+        try {
+            const out = acts();
+            if (this.state !== from) {
+                this.history.push(from);
+            }
+            return out;
+        } catch (error) {
+            if (this.state !== from) {
+                this.state = from;
+                this.host.emit({ draft: this.id, reason: "changed" });
+            }
+            throw error;
+        } finally {
+            this.batchFrom = null;
+        }
+    }
+
+    /**
+     * The session ids of draft elements on the side drawn now, while the draft is open and drawn.
+     * @param query - Element references, some counts of one step, or the untouched nodes.
+     * @returns The ids, or null.
+     */
+    drawnIds(
+        query: { readonly refs: readonly SourceElementRef[] } | StepBuckets | { readonly untouched: true },
+    ): DrawnIds | null {
+        if (this.closed || !this.shown.on) {
+            return null;
+        }
+        if ("untouched" in query) {
+            const marks = this.marks();
+            if (marks === null || this.shown.side !== "after") {
+                return { nodes: [], edges: [] };
+            }
+            return { nodes: [...untouchedNodes(this.state, marks)], edges: [] };
+        }
+        return this.idsOf("refs" in query ? query.refs : stepRefs(this.state, query));
+    }
+
+    /**
+     * The session ids of element references on the side drawn now.
+     * @param refs - The references.
+     * @returns The ids.
+     */
+    private idsOf(refs: readonly SourceElementRef[]): DrawnIds {
+        const { side } = this.shown;
+        return idsOfRefs(side === "after" ? this.state : this.base, refs, this.host.edgeIds(side));
     }
 
     /** @inheritdoc */
@@ -507,6 +591,21 @@ export class SourceDraftHandle implements SourceDraft {
     }
 
     /** @inheritdoc */
+    suggestMatches(source: SourceKey): readonly SourceMatchSuggestion[] {
+        this.live("suggestMatches");
+        const facts = this.sourceTable(source).summary();
+        const nodes = facts.tables.find((each) => each.table === "nodes");
+        if (nodes === undefined) {
+            return [];
+        }
+        const { value, copies } = this.state;
+        const rows = spaceRows(buildOf(value, copies));
+        const all = rows.filter((row) => row.nodes > 0).map((row) => row.space);
+        const own = facts.mapping.space ?? rows.find((row) => row.ownedBy === source)?.space;
+        return Object.freeze(suggestMatches(value, copies, source, nodes.columns, { all, own }, facts.mapping.key));
+    }
+
+    /** @inheritdoc */
     preview(): SourceDraftPreview {
         this.live("preview");
         const context = this.host.previewContext();
@@ -526,6 +625,11 @@ export class SourceDraftHandle implements SourceDraft {
                     rows: { value: (q: DrillQueryArg) => drillRows(base, state, q) },
                     elements: { value: (q: DrillQueryArg) => drillElements(state, q) },
                     cells: { value: (q: CellQueryArg) => drillCells(state, q) },
+                    marks: { value: Object.freeze(markCounts(state, draftMarks(base, state))), enumerable: true },
+                    ids: {
+                        value: (q: DrillQueryArg | { readonly refs: readonly SourceElementRef[] }) =>
+                            this.idsOf("refs" in q ? q.refs : drillElements(state, q)),
+                    },
                 },
             ) as unknown as SourceDraftPreview;
             this.previewed = { state: this.state, context: read, preview };
@@ -579,6 +683,111 @@ export class SourceDraftHandle implements SourceDraft {
         this.host.release();
         this.host.emit({ draft: this.id, reason: "discarded" });
     }
+
+    /**
+     * The draft as autosave keeps it: every state it went through, so Undo still steps back after a
+     * restore, and the rows of the sources it staged (the committed ones come back with the work).
+     * @returns It, as plain JSON.
+     */
+    saved(): SavedSourceDraft {
+        const held = this.host.committedCopies();
+        const copies: Record<string, unknown> = {};
+        const states = [...this.history, this.state].map((state) => {
+            for (const [id, copy] of Object.entries(state.copies)) {
+                if (!(id in held)) {
+                    copies[id] = copy;
+                }
+            }
+            return {
+                value: state.value,
+                copies: Object.keys(state.copies),
+                owned: [...state.owned],
+                ...(state.origins === undefined ? {} : { origins: state.origins }),
+                ...(state.questions === undefined ? {} : { questions: state.questions }),
+                ...(state.asking === undefined ? {} : { asking: [...state.asking] }),
+                ...(state.given === undefined ? {} : { given: state.given }),
+            };
+        });
+        return { askOverlap: this.options.askOverlap === true, shown: this.shown, states, copies };
+    }
+
+    /**
+     * Put back the states a kept draft went through, over the committed sources and steps.
+     * @param saved - The draft as {@link saved} kept it.
+     * @returns False when a copy a state reads is gone, which leaves the draft as it opened.
+     */
+    restore(saved: SavedSourceDraft): boolean {
+        const rows: Record<string, Copies[string]> = {
+            ...(saved.copies as Copies),
+            ...this.host.committedCopies(),
+        };
+        const committed = this.base.value.sources;
+        const renamed = renamedCopies(saved.states as readonly SavedState[], committed);
+        const states: DraftState[] = [];
+        for (const each of saved.states as readonly SavedState[]) {
+            const ids = each.copies.map((id) => renamed.get(id) ?? id);
+            if (ids.some((id) => !(id in rows))) {
+                return false;
+            }
+            const sources = Object.fromEntries(
+                Object.entries(each.value.sources).map(([id, src]) => [
+                    id,
+                    committed[id] === undefined ? src : { ...src, origin: committed[id].origin },
+                ]),
+            );
+            states.push({
+                value: { ...each.value, sources },
+                copies: Object.fromEntries(ids.map((id) => [id, rows[id]])),
+                owned: new Set(each.owned),
+                ...(each.origins === undefined ? {} : { origins: each.origins }),
+                ...(each.questions === undefined ? {} : { questions: each.questions }),
+                ...(each.asking === undefined ? {} : { asking: new Set(each.asking) }),
+                ...(each.given === undefined ? {} : { given: each.given }),
+            });
+        }
+        const current = states.pop();
+        if (current === undefined) {
+            return false;
+        }
+        this.history.push(...states);
+        this.state = built(current);
+        this.host.emit({ draft: this.id, reason: "changed" });
+        return true;
+    }
+}
+
+/** One state of a draft as {@link SourceDraftHandle.saved} keeps it. */
+interface SavedState {
+    readonly value: DraftState["value"];
+    readonly copies: readonly string[];
+    readonly owned: readonly string[];
+    readonly origins?: DraftState["origins"];
+    readonly questions?: DraftState["questions"];
+    readonly asking?: readonly string[];
+    readonly given?: DraftState["given"];
+}
+
+/**
+ * The copy ids the committed sources' rows are held under now, by the ids a kept draft read them
+ * by: once the work is opened again a committed source's rows may be held under another copy id.
+ * @param states - The kept states.
+ * @param committed - The committed sources now.
+ * @returns The new copy id by the kept one.
+ */
+function renamedCopies(
+    states: readonly SavedState[],
+    committed: DraftState["value"]["sources"],
+): ReadonlyMap<string, string> {
+    const renamed = new Map<string, string>();
+    for (const each of states) {
+        for (const [id, src] of Object.entries(each.value.sources)) {
+            const now = committed[id];
+            if (now !== undefined) {
+                renamed.set(copyKey(src), copyKey(now));
+            }
+        }
+    }
+    return renamed;
 }
 
 /**

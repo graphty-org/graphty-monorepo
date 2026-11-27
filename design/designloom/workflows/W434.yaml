@@ -1,0 +1,127 @@
+id: W434
+name: Compare Herbs within a Formula and Reposition the Formula
+category: analysis
+validated: false
+personas:
+    - herbal-formula-mechanism-lead
+    - network-pharmacology-graduate-student
+requires_capabilities:
+    - data-import
+    - filtering
+    - node-selection
+    - selection-statistics
+    - comparison-view
+    - centrality-degree
+    - centrality-betweenness
+    - removal-impact-analysis
+    - computed-attributes
+    - layout-hierarchical
+    - visual-encoding-nodes
+    - legend-display
+    - data-export
+    - export-image
+    - bipartite-projection
+    - layout-tiered-by-attribute
+    - set-operations
+    - layout-force-directed
+    - details-on-demand
+suggested_components:
+    - data-import-dialog
+    - data-table-panel
+    - filter-panel
+    - comparison-view
+    - ranked-node-table
+    - impact-analysis-dialog
+    - computed-attributes-panel
+    - network-list-panel
+    - visual-encoding-panel
+    - legend-panel
+    - graph-canvas
+    - data-export-dialog
+    - attribute-table-join-dialog
+    - algorithm-panel
+    - image-export-dialog
+starting_state:
+    data_type: compound-target network with a herb attribute per compound; target-pathway membership table; pathway-disease table
+    node_count: 100-300 targets; one-mode projections up to 280 nodes
+    edge_density: dense after projection (up to 6,500 edges)
+    user_expertise: advanced
+goal: >-
+    **Intent**: Explain why a formula combines its herbs -- what each herb contributes and where they overlap -- and
+    find which other diseases the formula could treat.
+
+
+    **Mental Model**: "Whose targets are these?" Every compound keeps its herb and every target remembers which herbs
+    reach it; overlaps are the synergy story, unique sets are each herb's role.
+
+
+    **Task Phases**:
+
+    1. **Keep per-herb provenance** - Each compound carries its herb; each target the set of herbs reaching it
+
+    2. **Compare the sets** - For example 20 compounds from one herb, 48 from the other, 2 shared; eight to twelve herbs
+    need a many-set view a Venn cannot draw
+
+    3. **Project two-mode to one-mode** - Turn the target-pathway membership into a target-target network (for example
+    279 nodes, 6,549 edges)
+
+    4. **Rank targets** - Degree, betweenness and loss of network efficiency on removal; keep the top 10%
+
+    5. **Check against literature** - Correlate the ranking with co-occurrence counts in a literature database
+
+    6. **Reposition** - Directed targets-pathways-diseases network; keep pathways and diseases above in-degree cutoffs;
+    read off candidate diseases
+
+
+    **Decision Points**:
+
+    - Which herbs to compare and whether shared compounds count for both?
+
+    - Project on shared pathways, and with what edge weight?
+
+    - Which ranking (efficiency loss, degree, betweenness) to report?
+
+    - Which in-degree cutoffs define a candidate disease?
+
+
+    **Information Needs**:
+
+    - Per-herb set sizes and all pairwise and many-way overlaps
+
+    - Degree labeled by layer so bipartite degree is not confused with projected degree
+
+    - Ranking table with several measures side by side
+
+
+    **Pain Points**:
+
+    - The herb label rarely survives spreadsheet joins
+
+    - Projection and efficiency ranking need Pajek, Gephi and custom Python
+
+    - Many-set comparisons do not fit in a Venn
+
+
+    **Data Flow**:
+
+    - Input: Typed compound-target network with herb attribute, target-pathway and pathway-disease tables
+
+    - Transformations: Per-herb set operations, bipartite projection, centrality and removal-impact ranking,
+    in-degree filtering on a directed network
+
+    - Output: Herb contribution comparison, ranked target table, candidate disease list, figures
+success_criteria:
+    - metric: Herb provenance
+      target: User can select one herb and see its compounds and targets, and which targets are shared
+    - metric: Projection
+      target: One-mode target network produced from the bipartite table without leaving the tool
+sources:
+    - title: Xiaoyao decoction study (PMC7075005)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC7075005/
+      summary: Pajek projection to a 279-node, 6,549-edge target network, Gephi, efficiency-loss ranking, CNKI co-occurrence check, ICD-11 repositioning at in-degree > 20
+    - title: Two-herb pair study (PMC7838196)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC7838196
+      summary: 20 compounds from one herb, 48 from the other, 2 shared
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

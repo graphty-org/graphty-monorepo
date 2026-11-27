@@ -207,14 +207,17 @@ await element.session.styles.add({
 
 ### Values the element provides
 
-A path that starts `graphty.` reads a value the element itself provides, not a column of your
-data:
+A path that starts `graphty.` or `store.` reads a value the element itself provides, not a column
+of your data. `store.<namespace>.` is the area where values kept on each node and edge live, one
+namespace per owner; graphty-element's own are under `store.graphty.`. A saved project or style
+that still reads a note value at its older address, `graphty.notes.<field>`, opens reading
+`store.graphty.notes.<field>`.
 
 | Path                                        | Value                                                                                                                                   |
 | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `graphty.notes.count`                       | How many notes name a node or an edge; no value when none do                                                                            |
-| `graphty.notes.latest`                      | The text of the newest of those notes                                                                                                   |
-| `graphty.notes.latestTime`                  | The `time` of the newest of those notes                                                                                                 |
+| `store.graphty.notes.count`                 | How many notes name a node or an edge; no value when none do                                                                            |
+| `store.graphty.notes.latest`                | The text of the newest of those notes                                                                                                   |
+| `store.graphty.notes.latestTime`            | The `time` of the newest of those notes                                                                                                 |
 | `graphty.degree`                            | How many edges a node has, as the graph stands now; no value on an edge                                                                 |
 | `graphty.inDegree`, `graphty.outDegree`     | How many edges reach a node, and how many leave it                                                                                      |
 | `graphty.members`                           | How many nodes a group holds directly; no value on a node that holds none. See [Groups](./data-sources#groups-nodes-inside-other-nodes) |
@@ -347,6 +350,8 @@ A channel is one visual property with one name. These are all of them:
 | `edge.tooltip`                | the words to show while the pointer is over the line                                                             |
 | `edge.tooltipStyle`           | as `edge.labelStyle`, for the tooltip                                                                            |
 | `edge.labelStyle`             | as `node.labelStyle`                                                                                             |
+| `edge.tooltip`                | the words to show while the pointer is over the edge                                                             |
+| `edge.tooltipStyle`           | as `node.labelStyle`, for the tooltip                                                                            |
 | `edge.labelColor`             | as `node.labelColor`                                                                                             |
 | `edge.labelSize`              | as `node.labelSize`                                                                                              |
 | `edge.labelLetterSize`        | as `node.labelLetterSize`                                                                                        |
@@ -680,8 +685,34 @@ await element.session.styles.add({
 vocabulary `node.labelStyle` takes. The words are what switch a tooltip on, so a layer that
 writes only the appearance draws nothing.
 
-An edge has a tooltip on the same terms: `edge.tooltip` carries the words and `edge.tooltipStyle`
-how they are drawn, and it is drawn beside the line's middle while the pointer is over the line.
+### A tooltip on an edge
+
+An edge's tooltip works the same way: nothing is drawn until a style layer gives an edge tooltip
+words, and then only while the pointer is over that edge, at the point where the pointer met the
+line. It works on straight, curved and patterned lines, in 2D and 3D, on both render paths.
+
+```typescript
+const element = document.querySelector("graphty-element");
+await element.session.data.addNodes([{ id: "Paris" }, { id: "Lyon" }]);
+await element.session.data.addEdges([{ src: "Paris", dst: "Lyon", road: "A6", km: 465 }]);
+
+await element.session.styles.add({
+    name: "Which road each edge is",
+    target: "edge",
+    selector: { match: "everything" },
+    encode: { "edge.tooltip": { template: ["{data.road}", "{data.km} km"] } },
+});
+
+element.addEventListener("graphty-edge-hover", (event) => {
+    console.log(event.detail.edgeId, event.detail.tooltip); // "A6\n465 km" over the line
+});
+```
+
+`edge.tooltipStyle` sets how it is drawn, in the `node.labelStyle` vocabulary, and
+`edge.tooltipSize`, `edge.tooltipColor` and `edge.tooltipBackground` set its size and colors
+alone. The `graphty-edge-hover` event fires whenever the pointer arrives on an edge, with the
+edge's id, and with the tooltip's words when it has some: a page that draws its own tooltip in
+HTML reads them there and writes no style for the element to draw.
 
 An arrow that is told nothing about its own appearance follows the line it caps, at either end:
 

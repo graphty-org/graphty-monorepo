@@ -72,6 +72,7 @@ export const FIELD_CASES: Readonly<Record<keyof LabelStyle, FieldCase>> = {
         text: SHORT_WORDS,
         bases: WRAP_SWEEP.map((wrapWidth) => ({ wrapWidth, wrapTrailingSpace: true })),
     },
+    wrapUnkerned: { value: true, text: SHORT_WORDS, bases: WRAP_SWEEP.map((wrapWidth) => ({ wrapWidth })) },
     wrapEllipsis: { value: true, base: { wrapWidth: 3, maxLines: 2 } },
     wrapAnywhere: { value: true, base: { wrapWidth: 2 } },
     wrapSpaceCount: { value: 4, text: SHORT_WORDS, bases: WRAP_SWEEP.map((wrapWidth) => ({ wrapWidth })) },

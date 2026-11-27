@@ -24,6 +24,7 @@ const ACCEPT = assetFileExtensions("image").join(",");
 function useImages(session: GraphSession | null): readonly ImagePickerItem[] {
     const records = (session?.assets.list() ?? []).filter((r) => r.kind === "image" && r.state === "accepted");
     const key = records.map((r) => r.id).join("\n");
+    // on reload: fresh: read: the image previews, read again from graphty-element's assets
     const [srcs, setSrcs] = useState<ReadonlyMap<string, string>>(new Map());
     useEffect(() => {
         if (session === null) {
@@ -97,8 +98,11 @@ export function ImageField({
 }: ImageFieldProps): React.JSX.Element | null {
     const { session, store } = useWorkspace();
     const images = useImages(session);
+    // on reload: fresh: in flight: an image or model upload under way
     const [busy, setBusy] = useState(false);
+    // on reload: fresh: notice: the last upload's problem
     const [problem, setProblem] = useState<string | undefined>(undefined);
+    // on reload: fresh: in flight: a model waiting for its parts
     const [model, setModel] = useState<{ readonly id: string; readonly name: string } | null>(null);
     // A model waiting for its parts is let go once the field goes, so it never takes files dropped later.
     const stray = useRef<string | null>(null);

@@ -1046,6 +1046,22 @@ const PATTERNS: Readonly<Record<string, readonly number[] | undefined>> = {
 };
 
 /**
+ * The shortest one border width of a pattern ({@link PATTERNS}) is drawn, in screen pixels: a hairline dashed border
+ * keeps dashes three pixels long and gaps two, and a dotted one dots of a pixel, where three widths of a half-pixel
+ * line would draw dashes too short to tell from dots. A border at least this wide is drawn as its width gives.
+ */
+export const PATTERN_UNIT_FLOOR_PX = 1;
+
+/**
+ * Whether a border style is cut into dashes or dots ({@link PATTERNS}), so its pattern has a floor on screen.
+ * @param style - The border's line style.
+ * @returns True for dashed, dotted and dash-dot.
+ */
+export function isPatternedBorder(style: string | undefined): boolean {
+    return style !== undefined && PATTERNS[style] !== undefined;
+}
+
+/**
  * The pieces a node border is drawn as: one closed ring for a solid border, two thin rings for a
  * double one, and a ring cut into dashes or dots along its length for the patterned styles.
  *
@@ -1056,9 +1072,17 @@ const PATTERNS: Readonly<Record<string, readonly number[] | undefined>> = {
  *   the strokes {@link strokedRing} draws (zigzag, sine wave, slashes, arrows).
  * @param wave - A zigzag's or sine wave's swing and period, in the units of `width`; given, the wave
  *   is drawn with them and `width` is the thickness of its line ({@link wavedRing}).
+ * @param dashUnit - The shortest one width of a dashed, dotted or dash-dot pattern is drawn, in the units of `width`
+ *   ({@link PATTERN_UNIT_FLOOR_PX} on screen): a thinner border's dashes and gaps are measured in it instead.
  * @returns The pieces.
  */
-export function borderRing(outline: readonly Point2[], width: number, style: string, wave?: WaveShape): RingPiece[] {
+export function borderRing(
+    outline: readonly Point2[],
+    width: number,
+    style: string,
+    wave?: WaveShape,
+    dashUnit = 0,
+): RingPiece[] {
     const waved = wave === undefined ? null : wavedRing(outline, width, style, wave);
     if (waved !== null) {
         return waved;
@@ -1093,20 +1117,22 @@ export function borderRing(outline: readonly Point2[], width: number, style: str
     return cutIntoDashes(
         inner,
         outer,
-        pattern.map((length) => length * width),
+        pattern.map((length) => length * Math.max(width, dashUnit)),
     );
 }
 
 /**
- * Cut a closed ring into dashes along its inner edge, fitting a whole number of pattern periods so
- * the pattern meets itself where it closes.
+ * Cut a closed ring into dashes along the middle of its band, fitting a whole number of pattern
+ * periods so the pattern meets itself where it closes. Measured along the middle, as a stroked
+ * outline's dashes are, a dot on a tight bend is as long as one elsewhere; measured along the inner
+ * edge it would fan out to twice that on its outer edge.
  * @param inner - The ring's inner edge.
  * @param outer - Its outer edge, point for point.
  * @param pattern - Each dash's length and the gap after it, in turn, before fitting.
  * @returns One open piece per dash.
  */
 function cutIntoDashes(inner: readonly Point2[], outer: readonly Point2[], pattern: readonly number[]): RingPiece[] {
-    const lengths = cumulativeLengths(inner);
+    const lengths = cumulativeLengths(inner.map(([x, y], i): Point2 => [(x + outer[i][0]) / 2, (y + outer[i][1]) / 2]));
     const perimeter = lengths.at(-1) ?? 0;
     const unfitted = pattern.reduce((sum, length) => sum + length, 0);
     const periods = Math.max(1, Math.round(perimeter / unfitted));
@@ -1141,10 +1167,11 @@ function cumulativeLengths(outline: readonly Point2[]): number[] {
 }
 
 /**
- * One stretch of a ring, between two distances along its inner edge.
+ * One stretch of a ring, between two distances along it.
  * @param inner - The ring's inner edge.
  * @param outer - Its outer edge, point for point.
- * @param lengths - {@link cumulativeLengths} of the inner edge.
+ * @param lengths - {@link cumulativeLengths} of the line the distances are measured along, point for point with
+ *   the edges.
  * @param from - Where the stretch starts.
  * @param to - Where it ends.
  * @returns The stretch, as an open piece.
@@ -1166,7 +1193,7 @@ function slice(
         return [x0 + (x1 - x0) * t, y0 + (y1 - y0) * t];
     };
     // each corner the stretch passes is taken by its index, not by its distance: a corner cut square (`mitredEdges`)
-    // is two points at one distance along the inner edge, and both of its outer points belong in the stretch, also
+    // is two points at one place on the inner edge, and both of its outer points belong in the stretch, also
     // when the stretch starts or ends on that corner (a dash from the start of an outline that starts at a sharp tip)
     const corners = lengths.map((length, i) => ({ length, i })).filter(({ length }) => length >= from && length <= to);
     const edgeOf = (edge: readonly Point2[]): Point2[] => [

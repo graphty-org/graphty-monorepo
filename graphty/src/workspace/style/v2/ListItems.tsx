@@ -390,6 +390,7 @@ const REGION = 4 * 28;
  */
 export function ColorLines({ state }: Readonly<{ state: ListState }>): React.JSX.Element {
     const { colors, share, value } = state;
+    // on reload: fresh: pointer: a drag's preview
     const [preview, setPreview] = useState<readonly number[] | null>(null);
     // A drag's write landed (or the list changed under it): the lines show what draws again.
     const drawn = state.shares.join(" ");

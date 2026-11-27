@@ -1,0 +1,134 @@
+id: W427
+name: Fit a Structural Equation Model and Publish Its Path Diagram
+category: reporting
+validated: false
+personas:
+    - sem-path-diagram-analyst
+requires_capabilities:
+    - data-import
+    - layout-hierarchical
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - annotation
+    - style-presets
+    - details-on-demand
+    - export-image
+    - journal-figure-export
+    - graph-authoring
+    - causal-node-roles
+    - causal-edge-marks
+    - causal-model-formats
+suggested_components:
+    - data-import-dialog
+    - graph-canvas
+    - layout-panel
+    - visual-encoding-panel
+    - node-details-panel
+    - legend-panel
+    - annotation-toolbar
+    - image-export-dialog
+starting_state:
+    data_type: lavaan model syntax plus fitted estimates (standardized coefficients, standard errors, p-values, fit indices)
+    node_count: 20-75 (5-15 latent factors, 15-60 indicators)
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Turn a fitted structural equation model into a journal-ready path diagram: ellipses for latent
+    factors, rectangles for observed indicators, loadings and regressions as single-headed arrows, covariances as
+    curved double-headed arrows, residual arrows, standardized estimates with significance stars, and fit indices --
+    one diagram per model, redrawn after each respecification.
+
+
+    **Mental Model**: "The model I specified, drawn by convention." The diagram is an authored hypothesis with latent
+    variables, not a layout to discover; its positions follow measurement-then-structure rows.
+
+
+    **Task Phases**:
+
+    1. **Specify** - lavaan syntax: =~ measurement, ~ regression, ~~ covariance; AMOS, lavaangui or Onyx users draw
+    latents and indicators instead and let the tool write the syntax
+
+    2. **Fit** - cfa() or sem(); summary with fit measures and standardized estimates; modification indices
+
+    3. **First diagram** - semPaths with standardized estimates, tree layout, rotated left to right
+
+    4. **Fix the figure** - Mark significance, standard errors or confidence intervals; rotate residual arrows; curve
+    covariances; place nodes through a layout matrix and edit node and edge tables
+
+    5. **Report** - One diagram per model, two or more fit indices, justified respecifications; often redrawn in TikZ,
+    PowerPoint or draw.io for the final figure
+
+
+    **Decision Points**:
+
+    - Which estimates to show (standardized or unstandardized, with stars, standard errors or intervals)?
+
+    - Which respecifications suggested by modification indices are theoretically justified?
+
+    - How to place indicators and residuals so arrows do not cross labels at column width?
+
+
+    **Information Needs**:
+
+    - Estimate, standard error and p-value per path, shown on the arrow
+
+    - Latent versus observed status per node, drawn as the conventional shape
+
+    - Fit indices for the figure caption
+
+    - Which paths changed between model versions
+
+
+    **Pain Points**:
+
+    - SEM plotting packages are very difficult to customize; default placement is not aesthetically pleasing
+
+    - semPaths adds no significance markers
+
+    - Free WYSIWYG options are few; AMOS is proprietary
+
+    - Each respecification means redrawing a hand-made figure
+
+
+    **Data Flow**:
+
+    - Input: lavaan syntax and fitted parameter table; or an AMOS or Onyx drawing
+
+    - Transformations: Layered layout (indicators, latents, structural paths), shape and label mapping from parameter
+    table, significance marking
+
+    - Output: SVG or PDF path diagram at journal column width, lavaan syntax, fit table
+success_criteria:
+    - metric: Figure without redrawing
+      target: A 10-factor model exports as a publishable diagram with no TikZ or PowerPoint step
+    - metric: Respecification turnaround
+      target: Updated estimates redraw the diagram while keeping manual positions
+sources:
+    - title: lavaan tutorial
+      url: https://lavaan.ugent.be/tutorial/
+      summary: Syntax operators, cfa and sem, fit measures, modification indices
+    - title: semPaths reference
+      url: https://search.r-project.org/CRAN/refmans/semPlot/html/semPaths.html
+      summary: what = "std", tree layout, rotation
+    - title: semptools vignette
+      url: https://cran.r-project.org/web/packages/semptools/vignettes/semptools.html
+      summary: mark_sig, mark_se, mark_ci, rotate_resid, set_curve
+    - title: tidySEM plotting vignette
+      url: https://cran.r-project.org/web/packages/tidySEM/vignettes/Plotting_graphs.html
+      summary: Layout matrix, prepare_graph, edited node and edge tables; existing packages hard to customize
+    - title: AMOS tutorial
+      url: https://www.datavis.ca/courses/CFA-SEM/exercises/Tutorial-AG.pdf
+      summary: Draw-to-specify SEM in a proprietary GUI
+    - title: lavaangui
+      url: https://lavaangui.org
+      summary: Free browser tool to draw a lavaan model
+    - title: SEM reporting practices
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC3755633
+      summary: A diagram per model and multiple fit indices
+    - title: pwSEM - piecewise SEM
+      url: https://cloud.r-project.org/web/packages/pwSEM/index.html
+      summary: Ecologists' piecewise SEM with d-separation tests
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -248,11 +248,15 @@ function Editor(props: EditorArgs): React.JSX.Element {
     const { session, element } = useWorkspace();
     // The preview follows every write the element settles.
     useStyleVersion(session, element);
+    // on reload: fresh: pointer: the sample the preview was stepped to for a look
     const [stepped, setStepped] = useState<string | null>(null);
+    // on reload: fresh: pointer: a list opened for a look
     const [listOpen, setListOpen] = useState(false);
+    // on reload: fresh: pointer: a picker held open by the pointer
     const [picking, setPicking] = useState(false);
     // Parts not yet written (a new empty line or words not typed yet), until the element hands back a new binding.
     const key = JSON.stringify(binding ?? null);
+    // on reload: fresh: in flight: parts not yet written
     const [held, setHeld] = useState<{ readonly key: string; readonly lines: LabelTemplateParts[] } | null>(null);
     const lines = held?.key === key ? held.lines : linesOf(binding);
     // A click on the Graph that selects a node moves the preview to it.
@@ -397,6 +401,7 @@ function PartsList({
     put: (next: LabelTemplateParts[]) => void;
 }>): React.JSX.Element {
     // The value whose Format pop-over is open, by its line and place.
+    // on reload: fresh: pointer: a format pop-over held open by its control
     const [formatting, setFormatting] = useState<string | null>(null);
     const withLine = (at: number, line: LabelTemplateParts): LabelTemplateParts[] =>
         lines.map((each, i) => (i === at ? line : each));

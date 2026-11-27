@@ -1,0 +1,124 @@
+id: W57
+name: Science Overlay Map for Benchmarking
+category: analysis
+validated: false
+personas:
+    - research-impact-librarian
+    - scientometrics-analyst
+    - patent-landscape-analyst
+    - research-portfolio-analyst
+requires_capabilities:
+    - data-import
+    - visual-encoding-nodes
+    - legend-display
+    - comparison-view
+    - computed-attributes
+    - selection-statistics
+    - tooltip-display
+    - view-bookmarks
+    - export-image
+    - report-generation
+    - record-projection
+    - fixed-base-map-layout
+    - diversity-metrics
+suggested_components:
+    - data-import-dialog
+    - attribute-table-join-dialog
+    - column-mapper
+    - visual-encoding-panel
+    - gradient-editor
+    - legend-panel
+    - comparison-view
+    - graph-canvas
+    - node-tooltip
+    - metric-card
+    - bookmark-panel
+    - image-export-dialog
+    - report-generator-dialog
+starting_state:
+    data_type: A fixed base map of subject categories, journals or patent classes with saved positions, plus a unit's records counted per category
+    node_count: 200-300 categories (227 in the Carley base map) or several thousand journals
+    edge_density: sparse
+    user_expertise: intermediate+
+goal: >-
+    **Intent**: Show where an institution's, funder's, company's or researcher's work sits in science, compared with
+    peers or across years, by painting the unit's counts onto a base map whose positions never move; and quantify how
+    interdisciplinary the unit is.
+
+
+    **Mental Model**: "A fixed atlas with a heat overlay." The base map is geography that every comparison shares; only
+    the overlay changes, so two maps can be compared side by side by eye.
+
+
+    **Task Phases**:
+
+    1. **Get a base map** - A category or journal map with fixed coordinates, such as the
+    227-category map built from 11,365 journals; for patents, an IPC class map built from USPTO citations
+
+    2. **Map the unit's records** - Assign each record to categories or journals and count them
+
+    3. **Overlay** - Keep positions fixed; size or color each category by the unit's count or share
+
+    4. **Compare** - Several units side by side, or one unit across years, on identical coordinates
+
+    5. **Quantify** - Rao-Stirling diversity over the classification, optionally network coherence
+
+
+    **Decision Points**:
+
+    - Which base map and classification match the unit's records?
+
+    - Counts or shares, and absolute or relative to a reference set?
+
+    - Which peers or years to compare?
+
+
+    **Information Needs**:
+
+    - Records that could not be mapped to any category
+
+    - Per-category count and share for each unit, with differences between units
+
+    - Diversity score with its components (variety, balance, disparity)
+
+
+    **Pain Points**:
+
+    - The overlay routine needs Web of Science access and must be updated when categories change
+
+    - General graph tools re-run the layout on load, so positions move and comparisons break
+
+    - Building matched side-by-side figures by hand
+
+
+    **Data Flow**:
+
+    - Input: Base map positions and category links; a unit's records with category or journal assignments
+
+    - Transformations: Category assignment and counting, fixed-position overlay encoding, comparison across units or
+    years, diversity computation
+
+    - Output: Overlay maps per unit or period on identical coordinates, comparison figure, diversity scores
+success_criteria:
+    - metric: Position stability
+      target: Base-map positions are identical across every overlay and export
+    - metric: Comparison
+      target: Two units or two periods shown side by side with a shared color scale and legend
+    - metric: Unmapped transparency
+      target: Count of records not assigned to any category is shown
+sources:
+    - title: Rafols, Porter and Leydesdorff - Science overlay maps
+      url: https://arxiv.org/abs/0912.3882
+      summary: Overlay method for benchmarking universities, corporations and funding agencies and for temporal change
+    - title: Carley et al. 2017 - Enhanced science overlay maps (JDIS)
+      url: https://dare.uva.nl/id/4f03cac6-50c1-40bd-8990-33eb53abaae5
+      summary: 227-category base map from 11,365 journals laid out in VOSviewer; needs Web of Science access and updates
+    - title: Leydesdorff, Kushnir and Rafols - overlay maps for USPTO data by IPC
+      url: https://arxiv.org/abs/1210.6456
+      summary: Patent-class base maps for overlay in VOSviewer or Pajek
+    - title: Rafols and Meyer 2010 - Diversity and network coherence
+      url: https://arxiv.org/abs/0901.1380
+      summary: Rao-Stirling diversity and coherence as interdisciplinarity measures
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

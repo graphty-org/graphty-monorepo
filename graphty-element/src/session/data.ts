@@ -27,6 +27,7 @@ import { sha256Hex, type SourceListing, type SourceListQuery, type SourceProbe }
 import {
     DATASET_NAMES,
     DatasetError,
+    DATASETS,
     fetchDataset,
     GENERATOR_CATALOG,
     type SampleGraph,
@@ -194,6 +195,7 @@ import type { SelectionTextMode } from "./selection";
 import { searchOf } from "./selection/targets";
 import type { CodedFact, ColumnRef, ProgressChange } from "./shared";
 import { draftOpenError, SourceDraftHandle } from "./sourceDraft";
+import { type SavedSourceDraft, setSourceDraftHooks } from "./sourceDraftHooks";
 import { ExpansionState, type HostEdge, type LoadStamp, type SourceHost } from "./sources/host";
 import {
     isSourceFactKey,
@@ -206,6 +208,7 @@ import {
 import { SourceLedger } from "./sources/ledger";
 import {
     type LoadFacts,
+    paramsOf,
     redactedParams,
     redactUrl,
     type ReferenceEntry,
@@ -329,9 +332,11 @@ import type {
     EdgePageOptions,
     EdgeRecord,
     EdgeRecordInput,
+    ElementKinds,
     FindKind,
     FindOptions,
     FindResult,
+    GraphKinds,
     GraphStatistics,
     GroupSummary,
     GroupTable,
@@ -426,8 +431,23 @@ import type { WorkingGraph, WorkingScope, WorkingView } from "./working/view";
 /** A node or an edge of a source-steps build. */
 type BuiltElementOf = BuiltNode | BuiltEdge;
 
+/** The attribute a load's kind mapping (`TableMapping.kind` and the like) writes each row's kind to. */
+const LOADED_KIND = "kind";
+
+/** The column names a node or edge kind is most often kept under, as `roleCandidate("kind")` offers them. */
+const KIND_COLUMNS: readonly string[] = ["type", "Type", "kind", "Kind", "category", "Category"];
+
 /** A value a column holds that can be given a name (`data.label`) or counted. */
 type ColumnScalar = string | number | boolean;
+
+/**
+ * Whether a value is a {@link ColumnScalar}.
+ * @param value - The value.
+ * @returns True for a string, number or boolean.
+ */
+function isColumnScalar(value: unknown): value is ColumnScalar {
+    return typeof value === "string" || typeof value === "number" || typeof value === "boolean";
+}
 
 /** Every summary `groupTable` writes. */
 const GROUP_SUMMARIES: readonly GroupSummary[] = ["count", "sum", "min", "max", "mean", "median"];
@@ -1166,6 +1186,7 @@ const ROLE_FIELDS: Readonly<Record<"node" | "edge", Partial<Readonly<Record<Colu
         label: "nodeLabelPath",
         weight: "nodeWeightPath",
         time: "nodeTimePath",
+        kind: "nodeKindPath",
         ...LOCATION_KIND_FIELDS,
         x: "nodeXPath",
         y: "nodeYPath",
@@ -1177,6 +1198,7 @@ const ROLE_FIELDS: Readonly<Record<"node" | "edge", Partial<Readonly<Record<Colu
         weight: "edgeWeightPath",
         time: "edgeTimePath",
         edgeId: "edgeIdPath",
+        kind: "edgeKindPath",
     },
 };
 
@@ -1187,7 +1209,15 @@ const ROLE_FIELDS: Readonly<Record<"node" | "edge", Partial<Readonly<Record<Colu
  * read again with the column in that role (`data.reloadSource` with a mapping).
  */
 export const COLUMN_ROLES: Readonly<
-    Record<"node" | "edge", { readonly inPlace: readonly ColumnRole[]; readonly atLoad: readonly ColumnRole[] }>
+    Record<
+        "node" | "edge",
+        {
+            /** The roles `data.setRole` gives a column of rows already loaded, taking effect at once. */
+            readonly inPlace: readonly ColumnRole[];
+            /** The roles that take effect only when the rows are read again (`data.reloadSource` with a mapping). */
+            readonly atLoad: readonly ColumnRole[];
+        }
+    >
 > = Object.freeze({
     node: rolesOf("node", "nodes"),
     edge: rolesOf("edge", "edges"),
@@ -1366,6 +1396,13 @@ export class SessionData implements SessionDataApi {
     /** What the last open read each reference from again, by load key: those loads are reloadable. */
     private openedInputs: ReadonlyMap<string, DataSourceInput> = new Map();
     /**
+     * The bytes of each kept file, by its `kept` token, once read: what autosave keeps so the
+     * reader's own work, restored, can still read each load again (issue #9848).
+     */
+    private readonly keptBytes = new Map<string, Uint8Array>();
+    /** Each kept input as autosave writes it, by `kept` token, built once. */
+    private readonly keptSaved = new Map<string, SavedInput>();
+    /**
      * The rows a draft read from each source, so `remap` and `reloadSource` read a load again
      * without opening its file or fetching its URL. ponytail: held as long as the source is,
      * which `kept` never lets go of; drop rows of loads no longer listed if memory shows up.
@@ -1440,6 +1477,37 @@ export class SessionData implements SessionDataApi {
         this.neighborLists = new RevisionCache(() => pages.revision(), NEIGHBOR_LISTS_KEPT);
         this.attributeCache = new RevisionCache(() => pages.dataRevision());
         this.edgeColumns = new RevisionCache(() => pages.dataRevision());
+        // Autosave keeps an open source draft with the work and opens it again after a restore.
+        setSourceDraftHooks(this, {
+            saved: () => this.sourceDraft?.saved() ?? null,
+            reopen: (saved) => this.reopenDraft(saved),
+        });
+    }
+
+    /**
+     * Open again a source draft autosave kept, drawn as it was.
+     * @param saved - The draft as autosave kept it.
+     * @returns False when it could not be: the experiment is off, a draft is open, or the rows it
+     *   read are gone.
+     */
+    private async reopenDraft(saved: SavedSourceDraft): Promise<boolean> {
+        if (!this.stepsOn() || this.sourceDraft !== null) {
+            return false;
+        }
+        this.draft({ askOverlap: saved.askOverlap });
+        const draft = this.sourceDraft as SourceDraftHandle | null;
+        if (draft === null) {
+            return false;
+        }
+        if (!draft.restore(saved)) {
+            draft.dispose();
+            return false;
+        }
+        if (saved.shown.on) {
+            await draft.display(true);
+            await draft.show(saved.shown.side);
+        }
+        return true;
     }
 
     /**
@@ -1746,6 +1814,19 @@ export class SessionData implements SessionDataApi {
     private keep(source: DataSourceInput): string {
         const token = `i${String(++this.keptSerial)}`;
         this.kept.set(token, source);
+        const blob = fileOf(source.config.file);
+        if (blob !== null) {
+            blob.slice(0, blob.size)
+                .arrayBuffer()
+                .then((buffer) => {
+                    this.keptBytes.set(token, new Uint8Array(buffer));
+                    // The autosave writes the data part again, now with this file in it.
+                    for (const listener of this.ledger.changed) {
+                        listener();
+                    }
+                })
+                .catch(() => undefined);
+        }
         return token;
     }
 
@@ -1867,7 +1948,10 @@ export class SessionData implements SessionDataApi {
             } catch (error) {
                 throw datasetError(name, baseUrl, signal, status, error);
             }
-            const sample = this.sampleLoad(snapshot, name, load);
+            // Named as the catalog names it ("Doubtful Sound dolphins", not "dolphins"); a dataset the catalog does not
+            // list (a mirror's own) by its name.
+            const title = DATASETS.find((each) => each.name === name)?.title ?? name;
+            const sample = this.sampleLoad(snapshot, title, load);
             await this.importVia(send, sample.source, load, turn, {
                 ...sample,
                 facts: { dataset: name, baseUrl },
@@ -4147,6 +4231,7 @@ export class SessionData implements SessionDataApi {
                 emit: (change) => this.writes.emit?.("data:draft-changed", change),
                 drawn: () => this.writes.drawing?.drawn() ?? Promise.resolve(),
                 redraw: () => this.writes.drawing?.resume(),
+                edgeIds: (side) => (side === "after" ? this.afterEdgeIds : null) ?? this.stepsEdgeIds(),
             },
             { value: this.stepsValue(), copies: this.stepsCopies() },
             { ...(options.askOverlap === undefined ? {} : { askOverlap: options.askOverlap }) },
@@ -4397,6 +4482,15 @@ export class SessionData implements SessionDataApi {
             this.shownMarks = { marks, ids, edges };
         }
         return { nodes: marks.nodes, edges: this.shownMarks.edges, side: draft.side };
+    }
+
+    /**
+     * The session ids of some elements of the drawn draft, on the side it draws.
+     * @param query - Element references, some counts of one step, or the untouched nodes.
+     * @returns The ids, or null while no draft is drawn or the experiment is off.
+     */
+    drawnDraftIds(query: Parameters<SourceDraftHandle["drawnIds"]>[0]): ReturnType<SourceDraftHandle["drawnIds"]> {
+        return this.stepsOn() ? (this.sourceDraft?.drawnIds(query) ?? null) : null;
     }
 
     /**
@@ -6103,8 +6197,9 @@ export class SessionData implements SessionDataApi {
 
     /**
      * The network load a load's nodes came from: of the loads no earlier entry took, the one most
-     * of the nodes it supplied carry, the newest of those on a tie. A node two loads share can
-     * carry the older load alone, so the first key a node carries can be another entry's.
+     * of the nodes it supplied carry; on a tie, the one most of them name first (a merge appends
+     * its key, an edit puts its new key first), then the newest. A node two loads share names
+     * both, so the first key a node carries can be another entry's.
      * @param nodes - The nodes the load supplied.
      * @param order - Every load's key, oldest first.
      * @param taken - The loads earlier entries took.
@@ -6117,25 +6212,35 @@ export class SessionData implements SessionDataApi {
     ): string | undefined {
         const snapshot = this.current();
         const counts = new Map<string, number>();
+        const leads = new Map<string, number>();
         for (const id of nodes) {
             const index = snapshot.ids.indexOf(id);
             if (index !== INVALID_INDEX) {
                 // An expansion's key is `<load>/x<n>`: the load is the part before the slash.
-                const loads = new Set(
-                    sourceLoadsOf(this.records?.nodeAttributes(index, id)).map((k) => k.split("/")[0]),
-                );
-                loads.forEach((load) => {
-                    if (!taken.has(load)) {
-                        counts.set(load, (counts.get(load) ?? 0) + 1);
-                    }
-                });
+                const loads = [
+                    ...new Set(sourceLoadsOf(this.records?.nodeAttributes(index, id)).map((k) => k.split("/")[0])),
+                ].filter((load) => !taken.has(load));
+                loads.forEach((load) => counts.set(load, (counts.get(load) ?? 0) + 1));
+                if (loads.length > 0) {
+                    leads.set(loads[0], (leads.get(loads[0]) ?? 0) + 1);
+                }
             }
         }
 
+        const rank = (load: string): readonly number[] => [
+            counts.get(load) ?? 0,
+            leads.get(load) ?? 0,
+            order.indexOf(load),
+        ];
+        const outranks = (load: string, other: string | undefined): boolean => {
+            const mine = rank(load);
+            const theirs = other === undefined ? [-1, -1, -1] : rank(other);
+            const at = mine.findIndex((value, i) => value !== theirs[i]);
+            return at !== -1 && mine[at] > theirs[at];
+        };
         let best: string | undefined;
-        for (const [load, count] of counts) {
-            const most = best === undefined ? -1 : (counts.get(best) ?? 0);
-            if (count > most || (count === most && order.indexOf(load) > order.indexOf(best ?? ""))) {
+        for (const load of counts.keys()) {
+            if (outranks(load, best)) {
                 best = load;
             }
         }
@@ -6382,6 +6487,48 @@ export class SessionData implements SessionDataApi {
     keepOpenedInputs(inputs: ReadonlyMap<string, DataSourceInput>): void {
         this.openedInputs = inputs;
         this.copyTick++;
+    }
+
+    /**
+     * What each load this session can read again was read from, as plain JSON, by load key: what
+     * autosave keeps beside the work (never a project file), so a restore can read the loads
+     * again. Internal. A file whose bytes are not read yet is left out until they are.
+     * @returns The inputs.
+     */
+    savedInputs(): Record<SourceKey, SavedInput> {
+        const saved: Record<SourceKey, SavedInput> = {};
+        for (const { key, input: token } of this.storedSources() as readonly (LoadedSource & {
+            readonly input?: string;
+        })[]) {
+            const input = token === undefined ? undefined : this.kept.get(token);
+            let written: SavedInput | undefined;
+            if (token !== undefined && input !== undefined) {
+                written = this.keptSaved.get(token) ?? savedInput(input, this.keptBytes.get(token));
+                if (written !== undefined) {
+                    this.keptSaved.set(token, written);
+                }
+            } else {
+                const opened = this.openedInputs.get(key);
+                written = opened === undefined ? undefined : savedInput(opened, undefined);
+            }
+            if (written !== undefined) {
+                saved[key] = written;
+            }
+        }
+        return saved;
+    }
+
+    /**
+     * Read again from what autosave kept (`savedInputs`) the loads of the reader's own work it
+     * restored, so they stay reloadable. Internal: autosave calls it once its restore is done.
+     * @param saved - What `savedInputs` returned, by load key.
+     */
+    keepSavedInputs(saved: Readonly<Record<SourceKey, SavedInput>>): void {
+        const inputs = new Map(this.openedInputs);
+        for (const [key, each] of Object.entries(saved)) {
+            inputs.set(key, inputOfSaved(each));
+        }
+        this.keepOpenedInputs(inputs);
     }
 
     /**
@@ -7722,6 +7869,9 @@ export class SessionData implements SessionDataApi {
         );
         add("edge", "time", knownFields.edgeTimePath);
         add("edge", "edgeId", knownFields.edgeIdPath);
+        const kinds = this.kindColumns();
+        put("node", "kind", kinds.node);
+        put("edge", "kind", kinds.edge);
         // The columns a load read the node ids and the edge ends from carry them as rows load, so
         // the real column (`account`, `from`) is the key, not only the id the element keeps.
         for (const { mapping } of this.storedSources()) {
@@ -7866,6 +8016,11 @@ export class SessionData implements SessionDataApi {
         if (role === "label") {
             const text = free.filter((a) => a.type === "string" || a.type === "category");
             return LABEL_COLUMNS.find((name) => text.some((a) => a.name === name)) ?? null;
+        }
+
+        if (role === "kind") {
+            const groups = free.filter((a) => a.type === "category" || a.type === "string");
+            return KIND_COLUMNS.find((name) => groups.some((a) => a.name === name)) ?? null;
         }
 
         if (role === "weight" && kind === "edge") {
@@ -8704,6 +8859,56 @@ export class SessionData implements SessionDataApi {
 
         const values = [...counts].sort((a, b) => b[1] - a[1]).map(([value, count]) => Object.freeze({ value, count }));
         return Object.freeze({ values: Object.freeze(values), missing, total });
+    }
+
+    /**
+     * The column each kind of element reads its kind from: the one the data configuration names
+     * (`data.setRole`, or a file that declares kinds), else the `kind` attribute a load's mapping
+     * wrote (`TableMapping.kind`, `kindName`, `sourceKind`, `targetKind`).
+     * @returns the node and edge columns, each null when none plays the role
+     */
+    private kindColumns(): { readonly node: string | null; readonly edge: string | null } {
+        const { knownFields } = this.readConfig();
+        const set = (value: unknown): boolean => value !== undefined && value !== null;
+        const tables = this.storedSources().flatMap(({ mapping }) => Object.values(mapping?.tables ?? {}));
+        const nodeKinds = tables.some((table) =>
+            table.rowsAre === "nodes"
+                ? set(table.kind) || set(table.kindName)
+                : set(table.sourceKind) || set(table.targetKind),
+        );
+        const edgeKinds = tables.some((table) => table.rowsAre !== "nodes" && set(table.kind));
+        const node = knownFields.nodeKindPath ?? (nodeKinds ? LOADED_KIND : null);
+        const edge = knownFields.edgeKindPath ?? (edgeKinds ? LOADED_KIND : null);
+        return { node, edge };
+    }
+
+    /**
+     * How many nodes and edges there are of each kind, read from the column with the `kind` role.
+     * @returns the counts of each kind of element, null for one with no kind column
+     */
+    kinds(): GraphKinds {
+        const columns = this.kindColumns();
+        const count = (kind: "node" | "edge"): ElementKinds | null => {
+            const column = columns[kind];
+            if (column === null) {
+                return null;
+            }
+
+            const snapshot = this.current();
+            const rows = kind === "node" ? snapshot.nodeCount : snapshot.edgeCount;
+            const { counts, present, total } = tallyScalars(
+                rows,
+                this.valueReader(kind, `data.${column}`),
+                this.shownOf(kind, undefined),
+                true,
+            );
+            const values = [...counts]
+                .sort((a, b) => b[1] - a[1])
+                .map(([value, n]) => Object.freeze({ value, count: n }));
+            return Object.freeze({ column, values: Object.freeze(values), missing: total - present, total });
+        };
+
+        return Object.freeze({ nodes: count("node"), edges: count("edge") });
     }
 
     /**
@@ -10192,6 +10397,85 @@ function consumerSnapshot(store: LaneStore): GraphSnapshot {
 }
 
 /**
+ * A load's input as autosave keeps it: the options as JSON, with a file's or inline data's bytes
+ * as `text` (valid UTF-8) or `base64`.
+ */
+export interface SavedInput {
+    readonly type?: string;
+    readonly name?: string;
+    readonly config: Readonly<Record<string, unknown>>;
+    /** Inline text, read again as text. */
+    readonly text?: string;
+    /** Bytes that are valid UTF-8, read again as those bytes. */
+    readonly utf8?: string;
+    /** Any other bytes. */
+    readonly base64?: string;
+}
+
+/**
+ * Bytes as autosave keeps them.
+ * @param bytes - The bytes.
+ * @returns Them as UTF-8 text when they are valid UTF-8, else as base64.
+ */
+function savedBytes(bytes: Uint8Array): { readonly utf8: string } | { readonly base64: string } {
+    try {
+        return { utf8: new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes) };
+    } catch {
+        let binary = "";
+        for (let at = 0; at < bytes.length; at += 0x8000) {
+            binary += String.fromCodePoint(...bytes.subarray(at, at + 0x8000));
+        }
+        return { base64: btoa(binary) };
+    }
+}
+
+/**
+ * An input as autosave keeps it.
+ * @param input - What the load was read from.
+ * @param bytes - The file's bytes, when it names a file.
+ * @returns It, or undefined when it is not kept (a network source, a URL, a file not read yet,
+ *     or options that carry a credential).
+ */
+function savedInput(input: DataSourceInput, bytes: Uint8Array | undefined): SavedInput | undefined {
+    const { file, data, ...config } = input.config;
+    const blob = fileOf(file);
+    let held: string | Uint8Array | undefined = bytes;
+    if (blob === null) {
+        held = isSourceData(data) ? toSourceInput(data) : undefined;
+    }
+    // Only bytes the session holds, and never an option that marks a credential (a URL's included):
+    // autosave writes no secret, as a save writes none.
+    const dropped = new Set<string>();
+    const options = paramsOf(config, dropped);
+    if (input.source !== undefined || held === undefined || typeof config.url === "string" || dropped.size > 0) {
+        return undefined;
+    }
+    let body = {};
+    if (typeof held === "string") {
+        body = { text: held };
+    } else if (held !== undefined) {
+        body = savedBytes(held);
+    }
+    return { type: input.type, name: input.name ?? blob?.name, config: options, ...body };
+}
+
+/**
+ * An input autosave kept, as `import` takes it again.
+ * @param saved - What {@link savedInput} wrote.
+ * @returns The input, its text or bytes inline.
+ */
+function inputOfSaved(saved: SavedInput): DataSourceInput {
+    const { text, utf8, base64, config, ...rest } = saved;
+    let data: string | Uint8Array | undefined = text;
+    if (utf8 !== undefined) {
+        data = new TextEncoder().encode(utf8);
+    } else if (base64 !== undefined) {
+        data = Uint8Array.from(atob(base64), (char) => char.codePointAt(0) ?? 0);
+    }
+    return { ...rest, config: data === undefined ? config : { ...config, data } };
+}
+
+/**
  * The file an import names, read structurally: a `File` in a browser, or anything with a name, a
  * size and a way to read its bytes.
  * @param value - The `file` option.
@@ -10299,6 +10583,7 @@ function narrows(filter: SourceElementsFilter): boolean {
  * @param rows - How many rows to read.
  * @param valueAt - A row's value.
  * @param shown - The rows to count, or null for every row.
+ * @param items - Whether a list value counts once under each distinct scalar item it holds.
  * @returns The counts (a Map keeps first-seen order, so a stable sort keeps a tie in it), how many
  *     rows carried a scalar, and how many rows were counted.
  */
@@ -10306,6 +10591,7 @@ function tallyScalars(
     rows: number,
     valueAt: (index: number) => unknown,
     shown: U32 | null = null,
+    items = false,
 ): { counts: Map<ColumnScalar, number>; present: number; total: number } {
     const counts = new Map<ColumnScalar, number>();
     let present = 0;
@@ -10317,9 +10603,15 @@ function tallyScalars(
 
         total++;
         const value = valueAt(index);
-        if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+        if (isColumnScalar(value)) {
             present++;
             counts.set(value, (counts.get(value) ?? 0) + 1);
+        } else if (items && Array.isArray(value)) {
+            const scalars = new Set(value.filter(isColumnScalar));
+            present += scalars.size > 0 ? 1 : 0;
+            for (const each of scalars) {
+                counts.set(each, (counts.get(each) ?? 0) + 1);
+            }
         }
     }
 

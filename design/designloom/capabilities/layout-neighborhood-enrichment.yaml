@@ -1,0 +1,17 @@
+id: layout-neighborhood-enrichment
+name: "Layout Neighborhood Enrichment (SAFE)"
+category: analysis
+description: "Test each node's neighborhood on a fixed 2D layout for enrichment of every attribute, SAFE-style. Neighborhood distance can be the layout-weighted shortest path (the default), straight-line distance on the drawing, which also works for edgeless scatter plots, or hop count. The radius is a fraction of the layout's width (default 0.1). 0/1 attributes get a hypergeometric test and quantitative scores a permutation test (1,000 shuffles), with a sign option: high values, low values, or both. The background is either the nodes that have a value or the whole network. Enrichment is called at p < 0.05, with FDR correction optional. An attribute is kept only if at least 10 neighborhoods are enriched and they form one connected region. Kept attributes are grouped into labeled domains by Jaccard distance (threshold 0.75). Every parameter is recorded together with the layout seed."
+status: planned
+notes: "Research trace: systems-biology-omics-networks.md section 10, requirement 28 (Should)."
+algorithms: []
+used_by_workflows:
+    - W252
+implemented_by_components: []
+requirements:
+    - "Should: Region-level enrichment overlay on a fixed layout"
+sources:
+    - title: Systems Biologists and Bench Scientists Working With Molecular Interaction Networks (section 10,
+          requirement 28)
+      url: design/user-research/systems-biology-omics-networks.md
+      summary: Should in the research.

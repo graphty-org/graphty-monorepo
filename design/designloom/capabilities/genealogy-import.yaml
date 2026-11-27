@@ -1,0 +1,20 @@
+id: genealogy-import
+name: GEDCOM and Genealogy Model Import
+category: data
+description: Import GEDCOM as an Ore graph (people, parent-child arcs, marriage edges) or a p-graph (family nodes),
+    keeping dates, child relationship type (birth, adopted, foster, step) and privacy flags.
+status: planned
+notes: "Research trace: digital-humanities-and-historical-networks.md section 9, table row 11 (Should)."
+algorithms: []
+used_by_workflows:
+    - W183
+    - W185
+implemented_by_components: []
+requirements:
+    - "Should: GEDCOM import as an Ore graph or p-graph (family nodes kept) with dates, child relationship type and
+      privacy flags"
+sources:
+    - title: "Digital Humanities Scholars and Historians: Correspondence, Prosopography, Kinship, Literary and
+          Archaeological Networks (section 9, table row 11)"
+      url: design/user-research/digital-humanities-and-historical-networks.md
+      summary: "Should in the research. Covered by Designloom when researched: Not covered (Pajek only)"

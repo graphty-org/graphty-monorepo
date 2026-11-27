@@ -70,6 +70,7 @@ export const EdgeArrowTypes = z.enum([
 ]);
 
 const ArrowStyle = z.strictObject({
+    /** The shape of the cap, one of `EdgeArrowTypes`; "none" draws no cap. Default "normal", a filled triangle. */
     type: EdgeArrowTypes.default("normal").optional(),
     /** 0 draws no cap, and the line runs as it would with none (EdgeMesh.createArrowHead). */
     size: z.number().nonnegative().default(1).optional(),
@@ -135,6 +136,7 @@ const ArrowStyle = z.strictObject({
      * empty. Other cap types ignore it.
      */
     fillColor: ColorStyle.optional(),
+    /** How opaque the cap is drawn, from 0 (invisible) to 1 (solid). Default 1. */
     opacity: z.number().min(0).max(1).default(1).optional(),
     /**
      * The picture an `image` cap draws, a URL or a data URL: stretched over the cap with its top
@@ -143,6 +145,7 @@ const ArrowStyle = z.strictObject({
      * draws nothing. Drawn flat, turned along its line, in 3D as in 2D.
      */
     image: z.string().optional(),
+    /** A caption drawn beside this end of the edge, with its own text, font, color and placement. */
     text: RichTextStyle.optional(),
     /**
      * Where the caption (`text`) sits along the line: unset, beside the cap at this end; set,
@@ -185,7 +188,12 @@ export const EdgeLineTypes = z.enum([
 export const EdgeOutlineTypes = z.enum(["solid", "dash", "dot", "dash-dot"]);
 
 const LineStyle = z.strictObject({
+    /** The line's pattern, one of `EdgeLineTypes` (solid, dot, dash, zigzag, ...). Default "solid". */
     type: EdgeLineTypes.optional(),
+    /**
+     * How fast a moving pattern runs along the line, as a multiple of the element's normal pace. Unset or 0, the
+     * line does not move. Default 0.
+     */
     animationSpeed: z.number().min(0).optional(),
     /** 0 draws no line, unless `minScreenWidth` is set; the arrow caps and the label are still drawn (Edge.createLine). */
     width: z.number().nonnegative().optional(),
@@ -260,6 +268,7 @@ const LineStyle = z.strictObject({
      * @experimental file-styles
      */
     dashArray: z.string().optional(),
+    /** The line's color, any CSS color. Default "darkgrey". */
     color: ColorStyle.optional(),
     /**
      * Draw the line in the color the style layers painted one of its nodes: "source" its source node's, "target" its
@@ -267,6 +276,7 @@ const LineStyle = z.strictObject({
      * node no layer colored leaves the line its own `color`. "none", or unset, draws the line in `color`.
      */
     colorFrom: z.enum(["source", "target", "none"]).optional(),
+    /** How opaque the line is drawn, from 0 (invisible) to 1 (solid). Unset, 1. */
     opacity: z.number().min(0).max(1).optional(),
     /**
      * Fade the line with its length on screen, in CSS pixels (cosmos.gl's
@@ -278,8 +288,11 @@ const LineStyle = z.strictObject({
      */
     fade: z
         .strictObject({
+            /** The on-screen length in CSS pixels up to which the line draws at full `opacity`. Default 0. */
             start: z.number().nonnegative().optional(),
+            /** The on-screen length in CSS pixels from which the line draws at its faded opacity. Unset, no fade. */
             end: z.number().nonnegative().optional(),
+            /** The share of the line's `opacity` a line of `end` pixels or longer keeps, from 0 to 1. Default 0.25. */
             opacity: z.number().min(0).max(1).optional(),
         })
         .optional(),
@@ -302,10 +315,17 @@ const LineStyle = z.strictObject({
      */
     outline: z
         .strictObject({
+            /** The outline band's color, any CSS color. */
             color: ColorStyle.optional(),
+            /**
+             * How much wider than the line the band is, in the line's width units, half on each side. Unset or 0, no band.
+             */
             width: z.number().nonnegative().optional(),
+            /** How many of the line's own widths across the band is, before `width` is added. Unset, 1. */
             scale: z.number().nonnegative().optional(),
+            /** How opaque the band is drawn, from 0 (invisible) to 1 (solid). */
             opacity: z.number().min(0).max(1).optional(),
+            /** The band's pattern, one of `EdgeOutlineTypes`. Default "solid". */
             type: EdgeOutlineTypes.optional(),
         })
         .optional(),
@@ -316,8 +336,11 @@ const LineStyle = z.strictObject({
      */
     overlay: z
         .strictObject({
+            /** The band's color, any CSS color. */
             color: ColorStyle.optional(),
+            /** How opaque the band is drawn, from 0 (invisible) to 1 (solid). Unset or 0, no band. */
             opacity: z.number().min(0).max(1).optional(),
+            /** How far the band reaches on each side of the line's middle, in the line's width units. */
             padding: z.number().nonnegative().optional(),
         })
         .optional(),
@@ -331,8 +354,13 @@ const LineStyle = z.strictObject({
      */
     gradient: z
         .strictObject({
+            /** The gradient's CSS colors, separated by spaces, from the start of the gradient to its end. */
             colors: z.string().optional(),
+            /** Where each color sits, as fractions from 0 to 1 separated by spaces. Unset, evenly spaced. */
             stops: z.string().optional(),
+            /**
+             * "linear" from the source end to the target end (the default), "radial" out from the middle, or "none".
+             */
             kind: z.enum(["linear", "radial", "none"]).optional(),
         })
         .optional(),
@@ -353,6 +381,10 @@ const LineStyle = z.strictObject({
             spacing: z.number().nonnegative().optional(),
         })
         .optional(),
+    /**
+     * True draws the line as a smooth curve: through its `bends` with rounded corners, or bowed apart from other
+     * edges between the same two nodes. Unset or false, a straight line.
+     */
     bezier: z.boolean().optional(),
     /**
      * The points the line passes through between its two nodes, as `along,across` pairs separated
@@ -392,15 +424,17 @@ const LineStyle = z.strictObject({
      * through each bend with its corner rounded; "midpoints", one smooth curve that uses the bends
      * as its control points rather than passing through them, running from the middle of each
      * segment to the next, pulled toward the bend between them, and leaving each end along its
-     * first and last segments (as Cytoscape desktop draws a curved edge through its handles, and
-     * the loops it draws itself); "bezier", one Bezier curve whose control points are the bends
+     * first and last segments; "midpoints-headroom", the same curve with each end that carries an
+     * arrowhead keeping its control at least the head's length behind the line's end, so a bend just
+     * behind a head draws the line doubling back under it (as Cytoscape desktop draws a curved edge
+     * through its handles, and the loops it draws itself); "bezier", one Bezier curve whose control points are the bends
      * (one bend a quadratic curve, two a cubic), leaving each end toward the bend next to it (as
      * vis-network draws its smooth edges); "arc", an arc of the circle through both ends and its one
      * bend, the bend on the arc between them (as yEd draws an arc edge, saving the arc's apex as its
      * bend; with another number of bends, drawn as "corners"). A file's rule arrives here through its
      * style layer.
      */
-    bendCurve: z.enum(["corners", "midpoints", "bezier", "arc"]).optional(),
+    bendCurve: z.enum(["corners", "midpoints", "midpoints-headroom", "bezier", "arc"]).optional(),
     /**
      * The curve a curved line (`bezier`) is drawn as when it does not fan out of a bundle: unset,
      * the element's own bow; a number, an arc of the circle through both node centers whose radius
@@ -499,14 +533,16 @@ const LineStyle = z.strictObject({
 /**
  * Everything a style layer can say about how one edge is drawn.
  *
- * `enabled` was withdrawn in 2.0: a switch superseded by the session's visibility mask, which is what
- * decides whether an edge is drawn. Nothing read it. Only the label block's own `enabled` is read, and
- * that one stays. The removal is recorded in `WITHDRAWN_CAPABILITIES` in `src/catalog/unreachable.ts`.
- * This object is strict, so a style document that still carries it is a parse error rather than a
- * silent no-op.
+ * `enabled` was withdrawn in 2.0: a switch superseded by the session's visibility mask, which is
+ * what decides whether an edge is drawn. Nothing read it. Only the label block's own `enabled` is
+ * read, and that one stays. The removal is recorded in `WITHDRAWN_CAPABILITIES` in
+ * `src/catalog/unreachable.ts`. This object is strict, so a style document that still carries the
+ * key is a parse error rather than a silent no-op.
  */
 export const EdgeStyle = z.strictObject({
+    /** The cap at the target end of the edge. Unset, no cap, except on a directed graph, which draws a "normal" one. */
     arrowHead: ArrowStyle.optional(),
+    /** The cap at the source end of the edge. Unset, no cap. */
     arrowTail: ArrowStyle.optional(),
     /**
      * A cap drawn part-way along the line, pointing toward the target, besides any at the ends
@@ -516,7 +552,12 @@ export const EdgeStyle = z.strictObject({
     arrowMiddleHead: MidArrowStyle.optional(),
     /** The same, pointing toward the source (Cytoscape.js `mid-source-arrow-*`); `position` from the source end. */
     arrowMiddleTail: MidArrowStyle.optional(),
+    /** How the line between the two nodes is drawn: its pattern, width, color, curve and route. */
     line: LineStyle.optional(),
+    /**
+     * The edge's label: its text, font, color and where it sits. Drawn above the line's middle unless `location`
+     * says otherwise.
+     */
     label: RichTextStyle.prefault({ location: "top" }).optional(),
     /**
      * A second label drawn beside the line's middle (Graphviz's `xlabel` on an edge that also has a label), switched
@@ -526,10 +567,10 @@ export const EdgeStyle = z.strictObject({
      */
     xlabel: RichTextStyle.optional(),
     /**
-     * Words drawn beside the line's middle while the pointer is over the line, and only then, switched on by its
-     * words (the `edge.tooltip` channel). Unset, it is black on a white panel up and right of the middle, as a
-     * node's tooltip is beside its node.
-     * @since 3.63.0
+     * The edge's tooltip, in the label's style vocabulary: drawn only while the pointer is over the
+     * edge, where the pointer met the line, and only when it has words. Unset fields default to the
+     * top right, black on white, as a node's tooltip.
+     * @since 3.40.0
      */
     tooltip: TooltipTextStyle.optional(),
     /**
@@ -541,7 +582,12 @@ export const EdgeStyle = z.strictObject({
     // effects: glow // https://playground.babylonjs.com/#H1LRZ3#35
 });
 
+/** The settings one edge is drawn with: the TypeScript type of what `EdgeStyle` accepts. */
 export type EdgeStyleConfig = z.infer<typeof EdgeStyle>;
+/**
+ * The look every edge starts from before any style layer: a solid dark gray line of width 8, not animated,
+ * with no arrow caps (a directed graph adds a target cap).
+ */
 export const defaultEdgeStyle: EdgeStyleConfig = {
     line: {
         type: "solid",

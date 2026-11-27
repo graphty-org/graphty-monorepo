@@ -1,0 +1,132 @@
+id: W40
+name: Path Queries Beyond One Shortest Path
+category: exploration
+validated: false
+personas:
+    - analyst-alex
+    - expert-emma
+requires_capabilities:
+    - shortest-path
+    - all-paths-finding
+    - path-highlighting
+    - search
+    - node-selection
+    - filtering
+    - details-on-demand
+    - temporal-analysis
+    - weight-semantics
+    - constrained-k-shortest-paths
+    - time-respecting-paths
+suggested_components:
+    - path-finder-dialog
+    - search-input
+    - search-panel
+    - graph-canvas
+    - filter-panel
+    - node-details-panel
+    - legend-panel
+    - temporal-controls
+starting_state:
+    data_type: directed, typed or timestamped graph
+    node_count: any
+    edge_density: any
+    user_expertise: intermediate+
+goal: >-
+    **Intent**: Answer "how do A and B connect?" with the right kind of path query: all tied shortest paths, the k
+    shortest loopless paths, paths restricted by edge type, direction or hop count, or time-respecting journeys -- and
+    get a clear reason when there is no path.
+
+
+    **Mental Model**: "One shortest path is one of many answers." Showing one tie hides the alternatives, and on
+    temporal data a static path may be impossible in time order.
+
+
+    **Task Phases**:
+
+    1. **Pick endpoints** - Search and select source and target
+
+    2. **Pick the query** - One shortest path; all shortest paths (ties); k shortest loopless paths (Yen);
+    constrained by type, direction or maximum hops; time-respecting journeys with a maximum waiting time
+
+    3. **Set the weight convention** - Unweighted, or a weight column read as a distance (see W39); a strength column
+    (as Gephi's Modularity and ForceAtlas2 read it) must be converted first, or the path follows the weakest ties
+
+    4. **Run and read** - Highlight paths, compare lengths and intermediates, note how ties were broken when k
+    cuts through a tie
+
+    5. **Handle no path** - Learn whether the endpoints are disconnected, or blocked by direction, edge type or
+    time order
+
+    6. **Report** - The query type, constraints, weight convention and tie handling with the paths
+
+
+    **Decision Points**:
+
+    - Is one path enough, or do tied and near-shortest alternatives matter?
+
+    - Which edge types and directions are allowed (for example, only money-transfer edges)?
+
+    - Must the path respect time order, and with what maximum waiting time?
+
+    - How should ties at the k-th path be handled and reported?
+
+
+    **Information Needs**:
+
+    - Number of tied shortest paths and the k-shortest list with lengths
+
+    - Edge type and direction of each step
+
+    - Reason for "no path" (disconnected, direction, type, time)
+
+    - Weight convention and constraints used
+
+
+    **Pain Points**:
+
+    - Gephi's Shortest Path tool sums raw weights as distances while its layout and Modularity read them as strengths,
+    so on strength data it draws the weakest route; it also shows one path
+
+    - Cypher's SHORTEST counts hops and ignores weights
+
+    - Cypher's SHORTEST k picks arbitrarily when k cuts through a tie
+
+    - No time-respecting path function found in NetworkX, igraph or Gephi documentation; static aggregation overstates
+    reachability
+
+    - "No path" with no explanation
+
+
+    **Data Flow**:
+
+    - Input: Graph with edge types, directions and optionally timestamps; source and target
+
+    - Transformations: Constrained, k-shortest, all-shortest or time-respecting path search
+
+    - Output: Highlighted path set with lengths, constraints, tie handling and no-path reason
+success_criteria:
+    - metric: Alternatives visible
+      target: Tied and k-shortest paths shown with tie handling stated
+    - metric: No-path explained
+      target: User can say why no path exists
+    - metric: Constraints honored
+      target: Type, direction, hop and time constraints applied and recorded
+sources:
+    - title: NetworkX shortest_simple_paths
+      url: https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.simple_paths.shortest_simple_paths.html
+      summary: Yen-style k shortest loopless paths; weight functions returning None hide edges
+    - title: Neo4j Cypher manual - shortest paths
+      url: https://neo4j.com/docs/cypher-manual/current/patterns/shortest-paths/
+      summary: ALL SHORTEST, SHORTEST k and quantified path patterns; ties cut by k are arbitrary
+    - title: Gephi ShortestPath.java (Shortest Path tool)
+      url: https://github.com/gephi/gephi/blob/master/modules/ToolsPlugin/src/main/java/org/gephi/tools/plugin/ShortestPath.java
+      summary: Runs Bellman-Ford on directed graphs and Dijkstra otherwise, summing edge weights as distances
+    - title: gephi/gephi issue 1816
+      url: https://github.com/gephi/gephi/issues/1816
+      summary: ForceAtlas2 reads weight as strength; a user reports the Shortest Path tool picks the lowest-weight route
+    - title: Temporal networks (Holme and Saramaki 2012)
+      url: https://arxiv.org/abs/1108.1780
+      summary: Time-respecting paths are not transitive; static aggregation overstates reachability
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

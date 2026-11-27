@@ -5,7 +5,7 @@
  * positioning, and transformation. Uses NullEngine for headless rendering.
  */
 
-import { AbstractMesh, Mesh, NullEngine, Scene, Vector3 } from "@babylonjs/core";
+import { AbstractMesh, NullEngine, Scene, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import type { EdgeStyleConfig } from "../../src/config";
@@ -27,13 +27,13 @@ function isDisposed(mesh: AbstractMesh | PatternedLineMesh | ArrowCap): boolean 
 
     return false;
 }
-import { Edge } from "../../src/Edge";
-import { DataManager } from "../../src/managers/DataManager";
+import { Edge, edgeInternals } from "../../src/Edge";
+import { DataManager, dataManagerInternals } from "../../src/managers/DataManager";
 import { EventManager } from "../../src/managers/EventManager";
-import type { GraphContext } from "../../src/managers/GraphContext";
+import { DefaultGraphContext } from "../../src/managers/GraphContext";
 import { LayoutManager } from "../../src/managers/LayoutManager";
 import { StatsManager } from "../../src/managers/StatsManager";
-import type { EdgePaint } from "../../src/managers/StylePainter";
+import { bootstrapNodePaint, type EdgePaint } from "../../src/managers/StylePainter";
 import type { ArrowCap } from "../../src/meshes/ArrowCapBatch";
 import { EdgeMesh } from "../../src/meshes/EdgeMesh";
 import { MeshCache } from "../../src/meshes/MeshCache";
@@ -41,38 +41,40 @@ import { Node } from "../../src/Node";
 import { Styles } from "../../src/Styles";
 
 /**
- * Create a minimal GraphContext mock for testing Edge creation
+ * A real graph context on the test's scene, holding real nodes drawn at the given positions.
+ * @param scene - The scene.
+ * @param meshCache - The mesh cache.
+ * @param styles - The styles.
+ * @param positions - Each node's id and where it is drawn.
+ * @returns The context.
  */
-function createMockGraphContext(
+function contextWith(
     scene: Scene,
     meshCache: MeshCache,
     styles: Styles,
-    nodes: Map<string | number, Node>,
-): GraphContext {
+    positions: Record<string, Vector3>,
+): DefaultGraphContext {
     const eventManager = new EventManager();
-    const statsManager = new StatsManager(eventManager);
     const dataManager = new DataManager(eventManager, styles);
+    const layoutManager = new LayoutManager(eventManager, dataManager, styles);
+    const context = new DefaultGraphContext(
+        () => styles,
+        dataManager,
+        layoutManager,
+        meshCache,
+        scene,
+        new StatsManager(eventManager),
+        {},
+    );
 
-    // Populate node cache with test nodes
-    for (const [id, node] of nodes) {
+    for (const [id, at] of Object.entries(positions)) {
+        const node = new Node(context, id, { ...bootstrapNodePaint(), meshKey: "edge-integration" }, { id });
+        dataManagerInternals.adoptNode(dataManager, node);
         dataManager.nodeCache.set(id, node);
+        node.setMeshPosition(at.x, at.y, at.z);
     }
 
-    const layoutManager = new LayoutManager(eventManager, dataManager, styles);
-
-    return {
-        getStyles: () => styles,
-        getDataManager: () => dataManager,
-        getLayoutManager: () => layoutManager,
-        getMeshCache: () => meshCache,
-        getScene: () => scene,
-        getStatsManager: () => statsManager,
-        is2D: () => false,
-        needsRayUpdate: () => false,
-        getConfig: () => ({}),
-        isRunning: () => false,
-        setRunning: vi.fn(),
-    };
+    return context;
 }
 
 /**
@@ -150,30 +152,6 @@ function createMinimalStyles(): Styles {
             directed: "auto",
         },
     });
-}
-
-/**
- * Create a mock Node for testing Edge creation
- */
-function createMockNode(scene: Scene, id: string, position: Vector3): Node {
-    // Create a minimal node mesh - use Mesh since AbstractMesh is abstract
-    const mesh = new Mesh(`node-${id}`, scene);
-    mesh.position = position.clone();
-    // Set bounding info for ray intersection calculations
-    mesh.getBoundingInfo().boundingSphere.radiusWorld = 0.5;
-
-    // Create a minimal Node-like object (we can't use the real Node constructor
-    // because it requires a full GraphContext, but we just need the mesh and id)
-    const mockNode = {
-        id,
-        mesh,
-        data: { id },
-        get drawnPosition() {
-            return mesh.position;
-        },
-    } as unknown as Node;
-
-    return mockNode;
 }
 
 /**
@@ -260,14 +238,10 @@ describe("Edge Integration", () => {
 
     describe("Complete Edge Creation", () => {
         test("creates edge with line mesh", () => {
-            const srcNode = createMockNode(scene, "src", new Vector3(0, 0, 0));
-            const dstNode = createMockNode(scene, "dst", new Vector3(5, 0, 0));
-
-            const nodes = new Map<string | number, Node>();
-            nodes.set("src", srcNode);
-            nodes.set("dst", dstNode);
-
-            const context = createMockGraphContext(scene, meshCache, styles, nodes);
+            const context = contextWith(scene, meshCache, styles, {
+                src: new Vector3(0, 0, 0),
+                dst: new Vector3(5, 0, 0),
+            });
 
             const edge = new Edge(context, "src", "dst", 0, defaultPaint, asData({}));
 
@@ -278,15 +252,31 @@ describe("Edge Integration", () => {
             assert.equal(edge.id, "0", "Edge.id is the element-assigned counter, printed");
         });
 
+        test("placing an edge whose ends both have a Node looks up no end by id", () => {
+            const context = contextWith(scene, meshCache, styles, {
+                src: new Vector3(0, 0, 0),
+                dst: new Vector3(5, 0, 0),
+            });
+            const edge = new Edge(context, "src", "dst", 0, defaultPaint, asData({}));
+            const rowOf = vi.spyOn(dataManagerInternals, "rowOf");
+
+            const [a, b] = [new Vector3(0, 0, 0), new Vector3(5, 0, 0)];
+            const ends = [edgeInternals.bareEnd(edge, "source", a, b), edgeInternals.bareEnd(edge, "target", b, a)];
+
+            // the end checks added for rows with no `Node` asked the id map up to four times an end, every frame
+            assert.strictEqual(rowOf.mock.calls.length, 0);
+            assert.deepEqual(
+                ends.map((p) => p.asArray()),
+                [a.asArray(), b.asArray()],
+            );
+            rowOf.mockRestore();
+        });
+
         test("creates edge with arrowHead when configured", () => {
-            const srcNode = createMockNode(scene, "src", new Vector3(0, 0, 0));
-            const dstNode = createMockNode(scene, "dst", new Vector3(5, 0, 0));
-
-            const nodes = new Map<string | number, Node>();
-            nodes.set("src", srcNode);
-            nodes.set("dst", dstNode);
-
-            const context = createMockGraphContext(scene, meshCache, styles, nodes);
+            const context = contextWith(scene, meshCache, styles, {
+                src: new Vector3(0, 0, 0),
+                dst: new Vector3(5, 0, 0),
+            });
             const edge = new Edge(context, "src", "dst", 0, arrowHeadPaint, asData({}));
 
             assert.exists(edge.mesh);
@@ -295,14 +285,10 @@ describe("Edge Integration", () => {
         });
 
         test("creates edge with arrowTail when configured", () => {
-            const srcNode = createMockNode(scene, "src", new Vector3(0, 0, 0));
-            const dstNode = createMockNode(scene, "dst", new Vector3(5, 0, 0));
-
-            const nodes = new Map<string | number, Node>();
-            nodes.set("src", srcNode);
-            nodes.set("dst", dstNode);
-
-            const context = createMockGraphContext(scene, meshCache, styles, nodes);
+            const context = contextWith(scene, meshCache, styles, {
+                src: new Vector3(0, 0, 0),
+                dst: new Vector3(5, 0, 0),
+            });
             const edge = new Edge(context, "src", "dst", 0, arrowTailPaint, asData({}));
 
             assert.exists(edge.mesh);
@@ -311,14 +297,10 @@ describe("Edge Integration", () => {
         });
 
         test("creates edge with bidirectional arrows", () => {
-            const srcNode = createMockNode(scene, "src", new Vector3(0, 0, 0));
-            const dstNode = createMockNode(scene, "dst", new Vector3(5, 0, 0));
-
-            const nodes = new Map<string | number, Node>();
-            nodes.set("src", srcNode);
-            nodes.set("dst", dstNode);
-
-            const context = createMockGraphContext(scene, meshCache, styles, nodes);
+            const context = contextWith(scene, meshCache, styles, {
+                src: new Vector3(0, 0, 0),
+                dst: new Vector3(5, 0, 0),
+            });
             const edge = new Edge(context, "src", "dst", 0, bidirectionalPaint, asData({}));
 
             assert.exists(edge.mesh);
@@ -329,14 +311,10 @@ describe("Edge Integration", () => {
         });
 
         test("updates edge style correctly", () => {
-            const srcNode = createMockNode(scene, "src", new Vector3(0, 0, 0));
-            const dstNode = createMockNode(scene, "dst", new Vector3(5, 0, 0));
-
-            const nodes = new Map<string | number, Node>();
-            nodes.set("src", srcNode);
-            nodes.set("dst", dstNode);
-
-            const context = createMockGraphContext(scene, meshCache, styles, nodes);
+            const context = contextWith(scene, meshCache, styles, {
+                src: new Vector3(0, 0, 0),
+                dst: new Vector3(5, 0, 0),
+            });
             const edge = new Edge(context, "src", "dst", 0, initialPaint, asData({}));
 
             assert.isTrue(edge.arrowCap === null, "no arrow before the repaint");
@@ -372,14 +350,10 @@ describe("Edge Integration", () => {
         });
 
         test("draws an arrow at the size its own style asks for, not at one fixed size", () => {
-            const srcNode = createMockNode(scene, "src", new Vector3(0, 0, 0));
-            const dstNode = createMockNode(scene, "dst", new Vector3(5, 0, 0));
-
-            const nodes = new Map<string | number, Node>();
-            nodes.set("src", srcNode);
-            nodes.set("dst", dstNode);
-
-            const context = createMockGraphContext(scene, meshCache, styles, nodes);
+            const context = contextWith(scene, meshCache, styles, {
+                src: new Vector3(0, 0, 0),
+                dst: new Vector3(5, 0, 0),
+            });
             const small = new Edge(context, "src", "dst", 0, arrowHeadPaint, asData({}));
             const large = new Edge(
                 context,
@@ -404,14 +378,10 @@ describe("Edge Integration", () => {
         });
 
         test("draws an arrow at the opacity its own style asks for", () => {
-            const srcNode = createMockNode(scene, "src", new Vector3(0, 0, 0));
-            const dstNode = createMockNode(scene, "dst", new Vector3(5, 0, 0));
-
-            const nodes = new Map<string | number, Node>();
-            nodes.set("src", srcNode);
-            nodes.set("dst", dstNode);
-
-            const context = createMockGraphContext(scene, meshCache, styles, nodes);
+            const context = contextWith(scene, meshCache, styles, {
+                src: new Vector3(0, 0, 0),
+                dst: new Vector3(5, 0, 0),
+            });
             const faint = new Edge(
                 context,
                 "src",
@@ -429,14 +399,10 @@ describe("Edge Integration", () => {
         });
 
         test("disposes edge resources when style changes", () => {
-            const srcNode = createMockNode(scene, "src", new Vector3(0, 0, 0));
-            const dstNode = createMockNode(scene, "dst", new Vector3(5, 0, 0));
-
-            const nodes = new Map<string | number, Node>();
-            nodes.set("src", srcNode);
-            nodes.set("dst", dstNode);
-
-            const context = createMockGraphContext(scene, meshCache, styles, nodes);
+            const context = contextWith(scene, meshCache, styles, {
+                src: new Vector3(0, 0, 0),
+                dst: new Vector3(5, 0, 0),
+            });
             const edge = new Edge(context, "src", "dst", 0, styleAPaint, asData({}));
 
             const oldMesh = edge.mesh;
@@ -634,14 +600,10 @@ describe("Edge Integration", () => {
 
     describe("Edge Ray Updates", () => {
         test("ray is created during edge construction", () => {
-            const srcNode = createMockNode(scene, "src", new Vector3(0, 0, 0));
-            const dstNode = createMockNode(scene, "dst", new Vector3(5, 0, 0));
-
-            const nodes = new Map<string | number, Node>();
-            nodes.set("src", srcNode);
-            nodes.set("dst", dstNode);
-
-            const context = createMockGraphContext(scene, meshCache, styles, nodes);
+            const context = contextWith(scene, meshCache, styles, {
+                src: new Vector3(0, 0, 0),
+                dst: new Vector3(5, 0, 0),
+            });
             const edge = new Edge(context, "src", "dst", 0, defaultPaint, asData({}));
 
             assert.exists(edge.ray);
@@ -654,12 +616,7 @@ describe("Edge Integration", () => {
 
     describe("Error Handling", () => {
         test("throws error when source node doesn't exist", () => {
-            const dstNode = createMockNode(scene, "dst", new Vector3(5, 0, 0));
-
-            const nodes = new Map<string | number, Node>();
-            nodes.set("dst", dstNode);
-
-            const context = createMockGraphContext(scene, meshCache, styles, nodes);
+            const context = contextWith(scene, meshCache, styles, { dst: new Vector3(5, 0, 0) });
 
             assert.throws(
                 () => new Edge(context, "src", "dst", 0, defaultPaint, asData({})),
@@ -668,12 +625,7 @@ describe("Edge Integration", () => {
         });
 
         test("throws error when destination node doesn't exist", () => {
-            const srcNode = createMockNode(scene, "src", new Vector3(0, 0, 0));
-
-            const nodes = new Map<string | number, Node>();
-            nodes.set("src", srcNode);
-
-            const context = createMockGraphContext(scene, meshCache, styles, nodes);
+            const context = contextWith(scene, meshCache, styles, { src: new Vector3(0, 0, 0) });
 
             assert.throws(
                 () => new Edge(context, "src", "dst", 0, defaultPaint, asData({})),

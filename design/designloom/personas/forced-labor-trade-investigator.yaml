@@ -1,0 +1,84 @@
+id: forced-labor-trade-investigator
+name: Forced-Labor Supply-Chain Investigator
+roster_persona: osint-investigator
+tier: A
+scope: in-scope
+role: Supply-Chain Researcher at a University Lab, NGO or Newsroom Tracing Forced Labor Through Trade Records
+quote:
+    I start from the cotton mill, not the brand. Every bill of lading that leaves it is a lead, and every brand at the
+    end of the chain gets a letter before we publish.
+bio: >-
+    Hanna Berg is a researcher on a university forced-labor lab of the kind Sheffield Hallam's Helena Kennedy Centre runs,
+    and she has worked with NGO and newsroom teams such as C4ADS, the Outlaw Ocean Project and the AP. Her trace runs
+    the opposite way from an importer's. She starts from an entity of concern -- a Chinese yarn maker with a plant in
+    the Uyghur Region, a seafood processing plant using transferred workers, a palm oil producer under a US import ban
+    -- and walks downstream through public or licensed shipment records (bills of lading from ImportGenius, Panjiva or
+    similar services) to third-country manufacturers and then to brands. Laundering Cotton (2021) followed five Chinese
+    textile makers to 53 garment suppliers in ten countries this way. She resolves the same company across its Chinese
+    legal name, its English trade names and the misspellings on shipping records; adds ownership links from corporate
+    registries; checks each link against product descriptions, dates and quantities; and treats redacted shippers and
+    freight forwarders as unknowns rather than gaps to fill. Her output is a published report or story with an annex
+    that cites a record for every link and the response of every named company, written knowing that a named supplier
+    may sue.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: expert
+motivations:
+    - Show which brands sell goods that trace back to an entity tied to forced labor, so policymakers, buyers and readers can act
+    - Find the third-country intermediaries that hide the origin of a material
+    - Cite a shipment record, registry record or disclosure for every link she publishes
+    - Give every named company a chance to respond, and publish the responses
+behaviors:
+    - Starts from an entity of concern or a list of them and walks downstream to buyers, tier by tier
+    - Collects every name an entity trades under (Chinese legal name, English names, former names, record misspellings) before searching shipment records
+    - Follows only shipments whose product fits the next production stage (yarn to fabric to garments; whole fish to fillets)
+    - Aggregates many shipments between the same two companies into one link with a count and a date range
+    - Adds ownership and subsidiary links from registries, for example a Chinese maker's own plant in Vietnam
+    - Marks each link as a potential risk until corroborated by product, timing, quantity or other evidence
+    - Records right-of-reply letters and responses per company and publishes them as an annex
+frustrations:
+    - Shipper and consignee names are misspelled, redacted or hidden behind freight forwarders
+    - Detailed shipment records exist only for some countries and often only through paid subscriptions
+    - Materials mix at each stage, so a trade link shows exposure, not that a given product contains the material
+    - A single wrong match in customs data can name an innocent company, and named suppliers can sue
+    - Screening platforms are sold to compliance teams and trace upstream from a supplier, not downstream from a source
+context:
+    frequency: as-needed
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W1090
+    - W90
+    - W92
+sources:
+    - title: Sheffield Hallam University - Laundering Cotton report (news release, November 2021)
+      url: https://www.shu.ac.uk/news/all-articles/latest-news/laundering-cotton-report
+      summary: Five leading Chinese manufacturers linked to 53 contract garment suppliers in ten countries through publicly available customs data and shipping records
+    - title: Murphy et al., Laundering Cotton (2021, Sheffield Hallam repository)
+      url: https://shura.shu.ac.uk/29641/1/Murphy-LaunderingCottonXinjiang%28VoR%29.pdf
+      summary: Traces downstream customers of five Chinese textile companies through bills of lading; names are often modified or misspelled on bills of lading (read via search summary; direct fetch refused)
+    - title: OpenSanctions - Companies Operating in the Uyghur Region (Sheffield Hallam list)
+      url: https://www.opensanctions.org/datasets/shu_uyghur_companies
+      summary: 53,397 entities with names, addresses and sectors in Chinese and English; English translations machine-generated
+    - title: Northeastern University - free supply chain data hub with Sheffield Hallam (2023)
+      url: https://news.northeastern.edu/2023/03/13/forced-labor-fashion-supply-chain/
+      summary: Machine learning over shipping data to connect forced-labor risk to corporate supply chains, free to anyone
+    - title: C4ADS - Spoiled Fruit (2022)
+      url: https://c4ads.org/?p=5126
+      summary: Mills upstream from traders' traceability lists and importers downstream from trade data; Cargill India 151 shipments from Sime Darby subsidiaries
+    - title: Exposing the Invisible - Supply chain and product investigations
+      url: https://kit.exposingtheinvisible.org/en/supply-chain.html
+      summary: Investigators usually follow the trail downstream from the entry point; customs data has false positives and multiple spellings; a very high standard of proof
+    - title: Earthsight - Timber Investigation Centre guidebook
+      url: https://earthsight.org.uk/tic/guidebook
+      summary: Two approaches, forward from a suspect source or backward from a consumer country; buyer and seller often concealed behind freight forwarders
+    - title: NYU Stern - Supply chain secrecy and redactions in US import records
+      url: https://www.stern.nyu.edu/index%2ephp/experience-stern/faculty-research/supply-chain-secrecy-how-forced-labor-scrutiny-relates-redactions-us-import-records.md
+      summary: About 16 percent of US maritime shipment records 2013-2023 have redacted identities, rising after the UFLPA in cotton and apparel
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -344,6 +344,8 @@ const PLAIN_STRING_MEMBERS = new Set([
     "BindingNumberFormat.prefix",
     "BindingNumberFormat.suffix",
     "BindingNumberFormat.currency",
+    // a CSS color the consumer passed to styles.showDraft, handed back by styles.shownDraft
+    "DraftView.untouched",
     "JoinChoices.membership",
     "JoinLink.kind",
     "SourceHubValue.value",

@@ -1,0 +1,147 @@
+id: W244
+name: Causal Signed Network from Phosphoproteomics or Expression
+category: analysis
+validated: false
+personas:
+    - signaling-network-modeler
+requires_capabilities:
+    - data-import
+    - data-validation
+    - visual-encoding-edges
+    - visual-encoding-nodes
+    - legend-display
+    - layout-hierarchical
+    - shortest-path
+    - all-paths-finding
+    - path-highlighting
+    - filtering
+    - centrality-degree
+    - export-image
+    - analysis-history
+    - signed-edges
+    - biological-network-formats
+    - suboptimal-paths
+suggested_components:
+    - data-import-dialog
+    - visual-encoding-panel
+    - legend-panel
+    - layout-panel
+    - path-finder-dialog
+    - filter-panel
+    - node-details-panel
+    - graph-canvas
+    - image-export-dialog
+starting_state:
+    data_type: signed directed prior network (OmniPath, SIGNOR, CollecTRI; 10,000+ edges) plus site- or gene-level measurements
+    node_count: 20-300 in the result; 10,000+ in the prior
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Explain measured changes as signed causal chains: which upstream kinases, phosphatases and transcription
+    factors, through which activations and inhibitions, account for the data.
+
+
+    **Mental Model**: "Follow the arrows and count the minus signs." Every edge is directed and signed; a path is
+    believable only if its signs agree with the observed up and down changes.
+
+
+    **Task Phases**:
+
+    1. **Install and prepare** - Install Java and the CausalPath jar, or the R packages for CARNIVAL and
+    COSMOS
+
+    2. **Format the data** - A tab file with an ID per site (for example G6PD_Y401), gene symbols, sites,
+    effect and a signed change value
+
+    3. **Set parameters** - Significance 0.1, 10,000 permutations, network FDR 0.1 (CausalPath); prior network
+    and inputs (CARNIVAL)
+
+    4. **Run** - CausalPath writes SIF and JSON; CARNIVAL and COSMOS solve for the smallest sign-consistent
+    subnetwork by integer programming; PathLinker ranks k shortest receptor to transcription factor paths
+
+    5. **View and style** - Load the result; arrows for activation, T-bars for inhibition, color by sign; node
+    color by measured change; hierarchical layout from receptors down
+
+    6. **Interrogate paths** - Select a source and a target, show directed paths and whether their signs are
+    consistent with the data
+
+    7. **Export** - Image with a legend of the edge notation; edge table for the supplement
+
+
+    **Decision Points**:
+
+    - Which prior network and which resources inside it (OmniPath has 103)?
+
+    - Site-level or protein-level inference?
+
+    - Is a causal model needed, or does kinase activity enrichment over known kinase-substrate links answer the
+    question (W3066, the more common route)?
+
+    - How many shortest paths (k) or how large a subnetwork to show?
+
+    - Hierarchical layout from receptor to nucleus, or the curated map's coordinates?
+
+
+    **Information Needs**:
+
+    - Sign and direction of every edge and the resource that supports it
+
+    - Whether an analysis treated the graph as directed
+
+    - Path list with sign consistency per path
+
+    - In-degree and out-degree separately
+
+    - Parameters and permutation FDR of the run
+
+
+    **Pain Points**:
+
+    - Arrow versus T-bar must be mapped by hand after every import
+
+    - Analyzers default to undirected and give wrong degrees and paths for a signed network
+
+    - CausalPath's web viewer has no image export
+
+    - BioPAX to SIF conversion is lossy
+
+    - Isoforms are not represented, so site ids can collide
+
+
+    **Data Flow**:
+
+    - Input: Signed directed prior (SIF, CausalTAB, data frames); site or gene measurements; parameters file
+
+    - Transformations: Causal inference or integer programming, directed path search, sign-consistency checks,
+    hierarchical layout
+
+    - Output: Signed causal subnetwork with notation legend, path list, edge table
+success_criteria:
+    - metric: Sign visible
+      target: Activation and inhibition are distinguishable without color
+    - metric: Direction respected
+      target: Degrees and paths reported are directed, and the run says so
+    - metric: Image export
+      target: A figure with legend comes out of the same tool that shows the result
+sources:
+    - title: CausalPath STAR Protocol
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8633371
+      summary: Step timings, input format, parameters, SIF and JSON outputs
+    - title: CARNIVAL
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6848167
+      summary: Integer programming over a signed prior network
+    - title: PathLinker
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5365231
+      summary: k shortest receptor to transcription factor paths
+    - title: OmniPath (Molecular Systems Biology 2021)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC7983032
+      summary: 103 resources integrated into signed directed interactions
+    - title: Pathway Commons formats
+      url: https://www.pathwaycommons.org/pc2/formats
+      summary: BioPAX to SIF is lossy in general
+    - title: STRING 12.5 (Nucleic Acids Research 2025)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11701646/
+      summary: Added a signed regulatory network
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

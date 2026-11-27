@@ -1,0 +1,142 @@
+id: W341
+name: Rule Compliance and Four-Eyes Check on a Process Map
+category: analysis
+validated: false
+personas:
+    - process-mining-auditor
+    - process-mining-consultant
+    - process-mining-analyst
+requires_capabilities:
+    - filtering
+    - saved-filters
+    - path-highlighting
+    - pattern-search
+    - node-selection
+    - details-on-demand
+    - selection-statistics
+    - analysis-history
+    - report-generation
+    - data-export
+    - process-map-derivation
+    - case-drilldown
+    - layout-hierarchical
+    - visual-encoding-edges
+suggested_components:
+    - graph-canvas
+    - context-menu
+    - filter-panel
+    - filter-chip
+    - pattern-search-dialog
+    - data-table-panel
+    - node-details-panel
+    - analysis-history-panel
+    - report-generator-dialog
+    - data-export-dialog
+starting_state:
+    data_type: full-period purchase-to-pay or order-to-cash event log with user ids
+    node_count: 20-45 activities (42 activities, 627 users in BPIC 2019)
+    edge_density: moderate
+    user_expertise: advanced
+goal: >-
+    **Intent**: Test every case against a control rule -- a mandatory step that must not be skipped, an order that must
+    hold, two steps that must be done by different people -- and produce the list of violating cases as evidence with
+    the exact filter that found them.
+
+
+    **Mental Model**: "An arrow that should not exist is a finding." The auditor reads the full-detail map for paths
+    the rules forbid, then turns a clicked path or activity into a precise rule and counts the cases.
+
+
+    **Task Phases**:
+
+    1. **Return to the full data** - Full log, sliders at full detail so rare paths show
+
+    2. **Spot a forbidden path** - For example invoice sent straight to payment authorization, skipping the
+    mandatory release step
+
+    3. **Turn the path into a rule** - Filter this path: directly or eventually followed, or never; optional time
+    constraint; optional four-eyes condition that an attribute such as resource is the same or different on both
+    events; or filter an activity as mandatory or forbidden
+
+    4. **Collect evidence** - Copy and filter into a named set; open each case (10 cases in the Disco tutorial)
+    and read its history
+
+    5. **Segregation of duties** - "Create PO item" eventually followed by "Record goods receipt" with the same
+    resource; compare rates between segments (49 percent of complete Service cases versus 0.8 percent of Standard
+    cases in BPIC 2019)
+
+    6. **Export the audit report** - Filtered cases as CSV, the filter recipe and a text report of each filter
+    and its counts
+
+
+    **Decision Points**:
+
+    - Is a rare path a violation or a data error (timestamp ties, missing events)?
+
+    - Directly or eventually followed?
+
+    - Same or different resource, and is "NONE" a resource?
+
+    - Which segment comparison makes the finding material?
+
+
+    **Information Needs**:
+
+    - Every path at full detail, including those with one case
+
+    - Count and list of matching cases for each rule
+
+    - Each case's full event history with resources and timestamps
+
+    - Flags for cases where tied timestamps make the order uncertain
+
+    - The exact filter chain with the count after each step
+
+
+    **Pain Points**:
+
+    - Simplified maps hide the rare paths that are the findings
+
+    - Timestamp ties make event order, and so the violation, uncertain
+
+    - Exhibits without their filter chain cannot be reproduced
+
+    - Rules expressed only as hand-built queries instead of from the map
+
+
+    **Data Flow**:
+
+    - Input: Event log with case id, activity, timestamp and resource
+
+    - Transformations: Follower, four-eyes, mandatory and forbidden filters; named filtered copies; per-segment counts
+
+    - Output: Violation case lists, case histories, filter recipe and audit report
+success_criteria:
+    - metric: Rule from the map
+      target: User can turn a clicked path into a follower rule with a four-eyes condition in under 2 minutes (design goal; no source measures it)
+    - metric: Evidence completeness
+      target: Every reported count comes with its case list and filter recipe
+    - metric: Uncertainty flagged
+      target: Cases with tied timestamps on the rule's events are counted separately
+sources:
+    - title: Fluxicon Process Mining in Practice - Tutorial
+      url: https://fluxicon.com/book/read/tutorial/
+      summary: Step 9 finds the skipped release step and filters it to 10 cases
+    - title: Fluxicon Process Mining in Practice - Filtering
+      url: https://fluxicon.com/book/read/filtering/
+      summary: Follower filter with never, time constraint and 4-Eyes options; attribute filter in mandatory or forbidden mode; audit report
+    - title: BPI Challenge 2019 report
+      url: https://ckmnet-website-blog.s3.amazonaws.com/CKM_BPI_Challenge2019_FINAL+(SUBMIT).pdf
+      summary: 3,384 same-user cases; 49 percent of Service versus 0.8 percent of Standard; timestamp ties
+    - title: Jans, Depaire and Vanhoof - process mining for internal audit
+      url: https://documentserver.uhasselt.be/bitstream/1942/13639/1/Process_Mining_EAA.pdf
+      summary: Segregation-of-duties violations and payments without approval found by process mining
+    - title: Celonis blog - process mining and internal audit
+      url: https://celonis.com/blog/process-mining-and-internal-audit-a-match-made-in-heaven
+      summary: Auditors test whole populations instead of samples
+    - title: Fluxicon Process Mining in Practice - export
+      url: https://fluxicon.com/book/read/export/
+      summary: Audit report as ZIP with filtered CSV, recipe file and filter text report
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

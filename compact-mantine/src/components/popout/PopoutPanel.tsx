@@ -20,6 +20,7 @@ import { useFloatingPanel } from "./hooks/useFloatingPanel";
 import { usePopoutAnchorContext } from "./PopoutAnchor";
 import { usePopoutContext, usePopoutManagerContext } from "./PopoutContext";
 import { PopoutHeader } from "./PopoutHeader";
+import { usePopoutRegionDefaults } from "./PopoutRegion";
 import { findPanelElement, type PopoutAnchorElements, resolveAnchorElement } from "./utils/anchor";
 import { calculatePopoutPosition, chooseBesideSide, measureContainingBlock, resolvePlacement } from "./utils/position";
 import { tabId, tabPanelId } from "./utils/tabs";
@@ -174,8 +175,6 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
         children,
         anchorX,
         anchorY,
-        placement = "left",
-        alignment = "start",
         gap,
         actions,
         more,
@@ -187,6 +186,9 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
         onDragEnd,
     } = props;
 
+    const regionDefaults = usePopoutRegionDefaults();
+    const placement = props.placement ?? regionDefaults.placement ?? "left";
+    const alignment = props.alignment ?? regionDefaults.alignment ?? "start";
     const { isOpen, close, triggerRef, id, parentId, region, exclusive = true } = usePopoutContext();
     // The context value is rebuilt whenever zIndexVersion changes, so this panel re-renders with
     // the z-index stack without reading it.
@@ -450,7 +452,7 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
             direction,
         });
 
-        if (typeof window !== "undefined") {
+        if (globalThis.window !== undefined) {
             const row = crossAnchor.getBoundingClientRect();
             fitInWindow(next, { width: renderedWidth, height: renderedHeight }, row, {
                 beside: !isBlockPlacement,

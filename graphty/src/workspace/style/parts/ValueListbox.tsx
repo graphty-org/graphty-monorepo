@@ -198,8 +198,10 @@ export function ValueListbox({
         extra?.section ??
         sections?.[0]?.name ??
         "";
+    // on reload: fresh: pointer: the section of a list opened for a look
     const [section, setSection] = useState(startSection);
     // The choice whose dedicated component is open beside the list, if any.
+    // on reload: fresh: pointer: a picker opened beside the list
     const [besideOf, setBesideOf] = useState<string | null>(null);
     const opener = extraChoices.find((choice) => choice.value === besideOf)?.beside;
     const rows = opened ? valueRows(session, descriptor, extraChoices, counts, icons) : [];
@@ -291,7 +293,8 @@ export function ValueListbox({
                     width={240}
                     height={320}
                     descriptions="end"
-                    {...(current === undefined && extra === undefined
+                    // Unset, the default it shows is in force but not chosen: the list checks no value.
+                    {...((current === undefined && extra === undefined) || unset
                         ? {}
                         : { highlight: current?.id ?? extra?.value })}
                     query={query}

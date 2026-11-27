@@ -1,0 +1,79 @@
+id: nadia-haddad
+name: Nadia Haddad
+roster_persona: attack-path-analyst
+tier: B
+scope: in-scope
+role: Application Security Architect (threat modeling)
+quote: Show me every arrow that crosses a trust boundary, and which of them still have an open threat. That is the meeting.
+bio: >-
+    Nadia Haddad is a security architect on a product security team. When a team designs a new service or makes a
+    major change, she runs a threat modeling session with the developers: they draw a data flow diagram of processes,
+    external interactors, data stores and data flows, put trust boundaries around what runs together, and walk every
+    flow that crosses a boundary with the STRIDE questions. She uses the Microsoft Threat Modeling Tool for Windows
+    teams, OWASP Threat Dragon in the browser for others, and pytm or Threagile for teams that keep the model as code
+    beside the source, where the diagram is generated and rules flag flows that cross, enter or leave a boundary. The
+    tools generate long threat lists; she triages each threat to a status and severity and hands the report to the
+    team. Her diagrams are small (tens of elements, an estimate; no source gives a count) and drawn or declared by
+    hand. The hard parts are not the drawing: scope is unclear, architecture documents are missing, and the model goes
+    stale once the code moves on. She thinks in elements, flows and boundaries, not in graph theory.
+characteristics:
+    expertise: expert
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Find every place untrusted data crosses a trust boundary before the design is built
+    - Leave the team a triaged threat list with owners, not a long unread report
+    - Keep the model current as the system changes, without redrawing it
+    - Make the session a team exercise that raises developers' security awareness
+behaviors:
+    - Starts from the four questions (what are we working on, what can go wrong, what are we going to do about it, did we do a good enough job) and uses the diagram to answer the first
+    - Draws typed stencils with child types (HTTP versus HTTPS flow) and sets properties such as encrypted, public network and stores credentials
+    - Marks elements out of scope with a written reason
+    - Generates threats per element by STRIDE type or from properties, then sets each to open, not applicable or a treatment (mitigated, accepted, transferred, avoided, eliminated) with a severity
+    - Clicks a threat to see its flow highlighted on the diagram
+    - For model-as-code teams, generates the diagram and report in CI and checks the model's age against the code
+frustrations:
+    - Scope is hard to set and architecture documentation is often missing
+    - Diagrams drawn in general tools carry no element types, so nothing can be generated from them
+    - Generated threat lists are long and every item needs triage; she keeps returning to the diagram to validate them
+    - Models go stale as the code changes, and follow-up on results is weak
+context:
+    frequency: as-needed
+    devices:
+        - laptop
+        - desktop
+    voluntary: false
+workflows:
+    - W117
+sources:
+    - title: OWASP - Threat modeling cheat sheet
+      url: https://cheatsheetseries.owasp.org/cheatsheets/Threat_Modeling_Cheat_Sheet.html
+      summary: Early in design, maintained alongside the system; reviewed by all stakeholders; DFD elements and trust boundaries
+    - title: Shostack - The Four Question Framework
+      url: https://shostack.org/files/papers/The_Four_Question_Framework.pdf
+      summary: Four questions; DFDs commonly answer the first (read through a search summary)
+    - title: Microsoft Learn - Threat Modeling Tool feature overview
+      url: https://learn.microsoft.com/en-us/azure/security/develop/threat-modeling-tool-feature-overview
+      summary: Stencils, out of scope with reason, analysis view, interaction focus, priority, report
+    - title: Threat Dragon docs - Threats
+      url: https://www.threatdragon.com/docs/usage/threats.html
+      summary: Threats by type or context; properties; status and severity values
+    - title: OWASP pytm
+      url: https://github.com/OWASP/pytm
+      summary: Model as Python; crosses, enters, exits conditions; generated DFD; staleness check
+    - title: Threagile
+      url: https://github.com/Threagile/threagile
+      summary: Model as YAML; about 40 built-in risk rules; generated DFDs (read through a search summary)
+    - title: Shostack - State of threat modeling 2024-2025
+      url: https://shostack.org/blog/state-of-threat-modeling-2024-2025/
+      summary: STRIDE in 88% of respondents' strategies; diagrams a main source for 37% of organizations
+    - title: Verreydt et al. - Threat modeling state of practice in Dutch organizations (SOUPS 2024)
+      url: https://usenix.org/conference/soups2024/presentation/verreydt
+      summary: Valued for finding threats and building awareness; challenges of scope, documentation, scaling, follow-up
+    - title: ESEM 2026 paper on threat validation in practice
+      url: https://drops.dagstuhl.de/storage/00lipics/lipics-vol394-esem2026/LIPIcs.ESEM.2026.57/LIPIcs.ESEM.2026.57.pdf
+      summary: Practitioners revisit the DFD while validating threats (read through a search summary)
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

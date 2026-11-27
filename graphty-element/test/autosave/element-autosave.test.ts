@@ -419,6 +419,41 @@ describe("a reload while this tab's work is being reopened", () => {
         assert.strictEqual(items.get(`graphty-autosave:own:${key}`), entry);
         assert.isFalse(items.has(`graphty-autosave:own-before:${key}`));
         assert.strictEqual(reopenSession.project.name, "The reader's work");
+        // The page's setup entry is gone, not kept as replaced work: loading the page sets it up
+        // again (issue #9978).
+        assert.deepEqual(
+            (await store.list(key)).map((meta) => meta.id),
+            [entry],
+        );
         reopening.depart();
+    });
+});
+
+describe("a graph opened while autosave starts", () => {
+    it("is the reader's work, kept when the project is replaced (issue #9978)", async () => {
+        const key = "test.graph-while-starting";
+        const store = memoryAutosaveStore();
+        const session = owned(sessionWithRuns());
+        const autosave = new ElementAutosave(() => undefined, page().env);
+        const starting = autosave.start({
+            session,
+            key,
+            options: { store },
+            restore: "manual",
+            pageConfig: {},
+            reloadPage: () => Promise.resolve(),
+        });
+        // The reader picks a graph before the start has listed the store.
+        await session.data.addNodes([{ id: "a" }, { id: "b" }]);
+        await starting;
+        await autosave.api.flush();
+        const { entry } = autosave.api.status;
+        assert.isNotNull(entry);
+
+        await session.data.clear();
+        await autosave.api.flush();
+        const kept = (await store.list(key)).find((meta) => meta.id === entry);
+        assert.strictEqual(kept?.ended, "replaced", "the opened graph is kept as replaced work");
+        autosave.depart();
     });
 });

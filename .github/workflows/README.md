@@ -189,8 +189,8 @@ only the selected test files where `test-select-rules.json` allows file-level se
 of them (31 jobs, the short shards grouped into `small-node` and `small-browser`). A change to a file in
 nx.json's `sharedGlobals` affects every package; a `pnpm-lock.yaml` change affects only the packages whose
 resolved dependencies changed. `graphty-element-lifecycle`, `graphty-element-fidelity-1` to `-4` (the style
-fidelity gate over every oracle, in four slices), `graphty-element-batched-webgpu` (the tests that need a GPU, on
-the batched render path on WebGPU) and `graphty-element-render-parity-webgl`, `-webgpu` and `-webkit` (every
+fidelity gate over every oracle, in four slices), `graphty-element-batched-webgpu-1` and `-2` (the tests that need a GPU,
+on the batched render path on WebGPU) and `graphty-element-render-parity-webgl`, `-webgpu` and `-webkit` (every
 captured story drawn on both render paths and compared pixel for pixel) run whole only in the full run; a pull
 request that adds or changes a graphty-element story draws just those stories on all three render-parity engines,
 in one job. `graphty-element-forced-batched-1` to `-12` (the browser and interaction tests on the batched render

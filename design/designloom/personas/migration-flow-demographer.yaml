@@ -1,0 +1,79 @@
+id: migration-flow-demographer
+name: Migration Flow Demographer
+roster_persona: migration-flow-demographer
+tier: B
+scope: in-scope
+role: Senior Demographer / State Demographic Center
+quote: Legislators want to know where people are moving from and to. I need the top origins, the net balance, and a map that does not draw a 30-person flow as confidently as a 30,000-person one.
+bio: >-
+    Teresa is a senior demographer at a state demographic center with an MA in demography. She writes R (tidycensus,
+    sf, tmap) and Excel and produces the state's annual migration brief. Her data is county-to-county flows for about
+    3,200 counties from two federal releases: the American Community Survey (ACS) 5-year flows, which carry an estimate
+    and a 90 percent margin of error per pair, and the IRS Statistics of Income migration files, which count returns,
+    exemptions and adjusted gross income for filers each year. She thinks in matrices: in-flows, out-flows, net flow
+    and gross exchange per county, and a net rate per 1,000 residents. Since the Census Flows Mapper was
+    decommissioned on October 8, 2024, a quick look at one county's flows needs R, a GIS or a third-party web tool. She
+    does not use graph algorithms by name; her questions are flow arithmetic, ranking and change between vintages.
+characteristics:
+    expertise: advanced
+    time_pressure: medium
+    graph_literacy: basic
+    domain_knowledge: expert
+motivations:
+    - Report each county's net migration and its main origins and destinations in the annual brief
+    - Show which flows changed since the last data vintage
+    - Distinguish gross exchange (in plus out) from net gain or loss
+    - Answer a legislator's "where are people moving from" question within a day
+    - Avoid a map that overstates small, uncertain flows
+behaviors:
+    - Pulls ACS flows with tidycensus get_flows() and the IRS SOI inflow and outflow CSVs, often both, and reconciles them
+    - Spends an hour or more cleaning release quirks -- IRS total rows coded 96, 97 and 98, the non-migrant self-flow row, flows under 20 returns folded into "Other Flows", ACS moves from abroad with no destination code, FIPS codes that lost leading zeros
+    - Computes net, gross and net rate per 1,000 residents and maps the net rate as a county choropleth
+    - Filters to the top N origins for one focal county, a minimum flow threshold, or only flows touching a selected county
+    - Draws web maps with mapdeck arcs, print maps in QGIS or ArcGIS, and chord diagrams with migest mig_chord() for regional summaries
+    - Footnotes margins of error because no tool she uses encodes them on the map
+frustrations:
+    - The ACS county-to-county series ended with 2016-2020 and continues only as state-to-county
+    - IRS files mix total and non-migrant rows into the flows, and the self-flow dwarfs every real flow
+    - Small flows have wide margins of error but are drawn with the same confidence as large ones
+    - Fifty states already make thousands of crossing links; the whole-map view is unreadable
+    - The retired Census Flows Mapper's select-a-county, inbound-outbound-net view has no no-code replacement
+context:
+    frequency: monthly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W380
+    - W381
+    - W383
+    - W384
+sources:
+    - title: tidycensus - Other datasets (get_flows)
+      url: https://walker-data.com/tidycensus/articles/other-datasets.html
+      summary: Pulling ACS county migration flows in R with MOVEDIN, MOVEDOUT, MOVEDNET rows, MOE and centroids
+    - title: IRS SOI Tax Stats - Migration Data
+      url: https://www.irs.gov/statistics/soi-tax-stats-migration-data
+      summary: County-to-county inflow and outflow files of returns, exemptions and AGI per year
+    - title: IRS migration data users guide
+      url: https://www.irs.gov/pub/irs-soi/2223inpublicmigdoc.pdf
+      summary: Total codes 96/97/98, non-migrant rows, flows under 20 returns aggregated
+    - title: Census Bureau - County-to-county migration flows guidance
+      url: https://www.census.gov/topics/population/migration/guidance/county-to-county-migration-flows.html
+      summary: County-to-county series ended with 2016-2020; state-to-county continues
+    - title: Census Flows Mapper announcement
+      url: https://www.census.gov/newsroom/archives/2014-pr/cb14-165.html
+      summary: The select-a-county inbound, outbound and net flow viewer, later decommissioned (October 8, 2024)
+    - title: migest mig_chord reference
+      url: https://search.r-project.org/CRAN/refmans/migest/html/mig_chord.html
+      summary: Chord diagrams for regional migration summaries
+    - title: FlowMapper.org (Koylu et al.)
+      url: https://arxiv.org/pdf/2110.03662
+      summary: Fifty states already form thousands of links; thresholding as a clutter control
+    - title: FRED blog - Mapping net migration by county
+      url: https://fred.stlouisfed.org/blog/2023/05/mapping-net-migration-by-county
+      summary: Net migration rate per county mapped as a choropleth
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

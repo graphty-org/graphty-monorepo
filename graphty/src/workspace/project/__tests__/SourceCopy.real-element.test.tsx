@@ -1,18 +1,15 @@
 /**
- * Saving each data source as a copy or a reference (the source references experiment, issue
- * #8813), from the app, on the REAL graphty-element: Save as shows one Copy / Reference switch for
- * every source and a settings pop-over with each source's own choice; a source graphty-element
- * refuses as a reference shows why and keeps Copy; differing choices show "Mixed"; the Data sources
- * list marks a referenced source "Ref"; a project saved with a reference reopens with its rows read
- * again, after the reader allows the host. With the experiment off none of it shows. Every web
- * request is answered by a stub of `fetch`; every choice is a click, and every assertion reads what
- * the element reports.
+ * The Data sources list's "Ref" mark for a source graphty-element keeps as a reference (the source
+ * references experiment, issue #8813), on the REAL graphty-element: the mark follows the source's
+ * choice, comes back on a reopened reference while the Data place shows, and with the experiment
+ * off never shows. Every web request is answered by a stub of `fetch`; every assertion reads what
+ * the reader sees or what the element reports.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import type { GraphSession } from "@graphty/graphty-element/session";
+import { browserProjects, type GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
@@ -63,6 +60,9 @@ beforeEach(() => {
 
 afterEach(async () => {
     await clearRecent();
+    for (const stored of await browserProjects.list()) {
+        await browserProjects.remove(stored.id);
+    }
     vi.restoreAllMocks();
 });
 
@@ -114,12 +114,16 @@ function choices(session: GraphSession): string[] {
 }
 
 /**
- * Opens Save as with Control+S.
+ * Opens Save as with Control+S and waits until its Save can be pressed.
  * @returns the dialog.
  */
 async function openSaveAs(): Promise<HTMLElement> {
     await userEvent.keyboard("{Control>}s{/Control}");
-    return screen.findByRole("dialog", { name: "Save Towns as" });
+    const dialog = await screen.findByRole("dialog", { name: "Save Towns as" });
+    await waitFor(() => {
+        assert.isFalse(within(dialog).getByRole<HTMLButtonElement>("button", { name: /^Save/ }).disabled);
+    });
+    return dialog;
 }
 
 /**
@@ -131,97 +135,8 @@ async function pick(group: HTMLElement, label: "Copy" | "Reference"): Promise<vo
     await userEvent.click(within(group).getByText(label));
 }
 
-/**
- * The segment a Copy / Reference control shows chosen.
- * @param group - the control.
- * @returns "Copy", "Reference", or null for neither.
- */
-function chosen(group: HTMLElement): string | null {
-    const checked = within(group)
-        .getAllByRole<HTMLInputElement>("radio")
-        .find((radio) => radio.checked);
-    return checked === undefined ? null : (checked.labels?.[0]?.textContent ?? null);
-}
-
-/**
- * Whether nothing is drawn over an element's middle: what the reader sees there is the element.
- * @param element - the element.
- * @returns true when it shows.
- */
-function uncovered(element: HTMLElement): boolean {
-    const box = element.getBoundingClientRect();
-    const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
-    return hit !== null && element.contains(hit);
-}
-
-describe("Copy or Reference, with the experiment on", () => {
+describe("the Ref mark, with the experiment on", () => {
     withFeatures(["source-references"]);
-
-    it("sets every source the switch can, overrides one in the settings pop-over, and shows Mixed", async () => {
-        const { session } = await threeLoads();
-        const dialog = await openSaveAs();
-        const all = within(dialog).getByRole("radiogroup", { name: "Data sources" });
-        assert.equal(chosen(all), "Copy");
-
-        // The switch sets both web addresses; the file graphty-element refuses stays a copy.
-        await pick(all, "Reference");
-        await waitFor(() => {
-            assert.equal(chosen(all), "Reference");
-        });
-        assert.equal(session.data.copies()[2]?.refused?.params.reason, "file");
-        assert.isNull(within(dialog).queryByText("Mixed"));
-
-        // The settings pop-over lists every source with its own choice.
-        await userEvent.click(within(dialog).getByRole("button", { name: /^Data source settings/ }));
-        const settings = await screen.findByRole("dialog", { name: "Data source settings" });
-        const farms = within(settings).getByRole("radiogroup", { name: "Save farms.json as" });
-        assert.isTrue(within(farms).getByRole<HTMLInputElement>("radio", { name: "Reference" }).disabled);
-        assert.equal(chosen(farms), "Copy");
-        assert.isNotNull(within(settings).getByText("Local file"));
-
-        const people = within(settings).getByRole("radiogroup", { name: "Save people.json as" });
-        const places = within(settings).getByRole("radiogroup", { name: "Save places.json as" });
-        assert.equal(chosen(people), "Reference");
-        await pick(places, "Copy");
-        await waitFor(() => {
-            assert.isNull(chosen(all), "neither choice is drawn while the sources differ");
-        });
-        // Mixed shows beside the switch, with the settings pop-over still open.
-        assert.isTrue(uncovered(within(dialog).getByText("Mixed")), "the pop-over leaves Mixed in view");
-
-        // The switch then sets both again.
-        await pick(all, "Copy");
-        await waitFor(() => {
-            assert.isNull(within(dialog).queryByText("Mixed"));
-        });
-        // Nothing reaches graphty-element before Save.
-        assert.deepEqual(choices(session), ["copy", "copy", "copy"]);
-    });
-
-    it("takes the choices only on Save; Cancel leaves the project as it was", async () => {
-        const { session } = await threeLoads();
-        let dialog = await openSaveAs();
-        await pick(within(dialog).getByRole("radiogroup", { name: "Data sources" }), "Reference");
-        await waitFor(() => {
-            assert.equal(chosen(within(dialog).getByRole("radiogroup", { name: "Data sources" })), "Reference");
-        });
-        assert.deepEqual(choices(session), ["copy", "copy", "copy"]);
-        await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
-        await waitFor(() => {
-            assert.isNull(screen.queryByRole("dialog", { name: "Save Towns as" }));
-        });
-        assert.deepEqual(choices(session), ["copy", "copy", "copy"]);
-
-        // Open again: the switch shows what graphty-element holds, not the canceled pick.
-        dialog = await openSaveAs();
-        const all = within(dialog).getByRole("radiogroup", { name: "Data sources" });
-        assert.equal(chosen(all), "Copy");
-        await pick(all, "Reference");
-        await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
-        await waitFor(() => {
-            assert.deepEqual(choices(session), ["reference", "reference", "copy"]);
-        });
-    });
 
     it("marks a referenced source Ref in the Data sources list, and Copy takes the mark away", async () => {
         const { session } = await threeLoads();
@@ -229,48 +144,78 @@ describe("Copy or Reference, with the experiment on", () => {
         const row = (): HTMLElement => screen.getByRole("listitem", { name: "people.json" });
         assert.isNull(within(row()).queryByText("Ref"));
 
-        /**
-         * Sets people.json's choice in Save as's settings pop-over, and saves.
-         * @param label - the choice.
-         */
-        const saveAs = async (label: "Copy" | "Reference"): Promise<void> => {
-            // From the main menu: once saved, Control+S saves again with no dialog.
-            await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-            await userEvent.click(await screen.findByRole("menuitem", { name: "Save as..." }));
-            const dialog = await screen.findByRole("dialog", { name: "Save Towns as" });
-            await userEvent.click(within(dialog).getByRole("button", { name: /^Data source settings/ }));
-            const settings = await screen.findByRole("dialog", { name: "Data source settings" });
-            await pick(within(settings).getByRole("radiogroup", { name: "Save people.json as" }), label);
-            await userEvent.keyboard("{Escape}");
-            await waitFor(() => {
-                assert.isNull(screen.queryByRole("dialog", { name: "Data source settings" }));
-            });
-            await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
-            await waitFor(() => {
-                assert.isNull(screen.queryByRole("dialog", { name: "Save Towns as" }));
-            });
-        };
-        await saveAs("Reference");
+        session.data.setCopy(people.key, "reference");
         await waitFor(() => {
             assert.isNotNull(within(row()).queryByText("Ref"));
         });
         // Named for what it is at any time, saved or not.
         assert.equal(within(row()).getByText("Ref").closest(".dp-source-ref")?.getAttribute("aria-label"), "Reference");
-        assert.equal(session.data.sources()[0]?.copy, "reference");
         assert.isNull(within(screen.getByRole("listitem", { name: "farms.json" })).queryByText("Ref"));
 
-        await saveAs("Copy");
+        session.data.setCopy(people.key, "copy");
         await waitFor(() => {
             assert.isNull(within(row()).queryByText("Ref"));
         });
-        assert.isUndefined(session.data.sources().find((each) => each.key === people.key)?.copy);
     });
+
+    it("Save as keeps the whole project as a version 1 file with the sources chosen as references, marked Ref", async () => {
+        const { store, session } = await threeLoads();
+        await userEvent.keyboard("{Control>}s{/Control}");
+        const dialog = await screen.findByRole("dialog", { name: "Save Towns as" });
+        await waitFor(() => {
+            assert.isFalse(within(dialog).getByRole<HTMLButtonElement>("button", { name: /^Save/ }).disabled);
+        });
+        await userEvent.click(
+            within(await within(dialog).findByRole("radiogroup", { name: "Sources" })).getByText("Reference"),
+        );
+        await userEvent.click(within(dialog).getByRole("button", { name: /^Save/ }));
+        await waitFor(() => {
+            assert.equal(store.get().notice?.message, "Saved Towns in this browser.");
+        });
+
+        // Both web addresses are references, the file a copy; the Data sources list says so.
+        assert.deepEqual(
+            session.data.copies().map((entry) => entry.copy),
+            ["reference", "reference", "copy"],
+        );
+        await waitFor(() => {
+            assert.isNotNull(within(screen.getByRole("listitem", { name: "people.json" })).queryByText("Ref"));
+        });
+        const [stored] = await browserProjects.list();
+        const file = stored === undefined ? undefined : await browserProjects.get(stored.id);
+        assert.strictEqual((JSON.parse((await file?.text()) ?? "{}") as { version?: number }).version, 1);
+    });
+
+    it("marks a reopened reference Ref while the Data place shows, without leaving it", async () => {
+        const { session } = await threeLoads();
+        const [people] = session.data.sources();
+        session.data.setCopy(people.key, "reference");
+        const saved = await session.project.save();
+        session.data.setCopy(people.key, "copy");
+        const row = (): HTMLElement => screen.getByRole("listitem", { name: "people.json" });
+        await waitFor(() => {
+            assert.isNull(within(row()).queryByText("Ref"));
+        });
+
+        const opening = session.project.open(saved.text, { discard: true });
+        const ask = await screen.findByRole("dialog", { name: "Open a web address?" });
+        await userEvent.click(within(ask).getByRole("button", { name: "Continue" }));
+        await opening;
+        assert.equal(session.data.sources()[0]?.copy, "reference");
+        await waitFor(() => {
+            assert.isNotNull(within(row()).queryByText("Ref"));
+        });
+    });
+});
+
+describe("a project saved with references, reopened", () => {
+    withFeatures(["source-references"]);
 
     it("saves a reference, reopens it from Recent projects with its rows read again, and names a changed one", async () => {
         const { store, session } = await threeLoads();
         const nodes = session.data.statistics().nodeCount;
         const dialog = await openSaveAs();
-        await pick(within(dialog).getByRole("radiogroup", { name: "Data sources" }), "Reference");
+        await pick(await within(dialog).findByRole("radiogroup", { name: "Sources" }), "Reference");
         await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
         await waitFor(() => {
             assert.equal(store.get().notice?.message, "Saved Towns in this browser.");
@@ -302,33 +247,18 @@ describe("Copy or Reference, with the experiment on", () => {
         assert.isNotNull(within(row).getByText("Ref"));
     });
 
-    it("marks a reopened reference Ref while the Data place shows, without leaving it", async () => {
-        const { session } = await threeLoads();
-        const [people] = session.data.sources();
-        session.data.setCopy(people.key, "reference");
-        const saved = await session.project.save();
-        session.data.setCopy(people.key, "copy");
-        const row = (): HTMLElement => screen.getByRole("listitem", { name: "people.json" });
-        await waitFor(() => {
-            assert.isNull(within(row()).queryByText("Ref"));
-        });
-
-        const opening = session.project.open(saved.text, { discard: true });
-        const ask = await screen.findByRole("dialog", { name: "Open a web address?" });
-        await userEvent.click(within(ask).getByRole("button", { name: "Continue" }));
-        await opening;
-        assert.equal(session.data.sources()[0]?.copy, "reference");
-        await waitFor(() => {
-            assert.isNotNull(within(row()).queryByText("Ref"));
-        });
-    });
-
     it("saves a sample opened from the start page's library as a reference", async () => {
         const { session, store } = await openSampleFromStart("Florentine families");
+        assert.isUndefined(session.data.copies()[0]?.refused);
+        // Set on the load: the version 2 Save as offers no Reference for a library sample, which
+        // a version 2 file cannot reference yet; the version 1 file Save writes keeps it.
+        const [sample] = session.data.sources();
+        session.data.setCopy(sample.key, "reference");
         await userEvent.keyboard("{Control>}s{/Control}");
         const dialog = await screen.findByRole("dialog", { name: /^Save .* as$/ });
-        assert.isUndefined(session.data.copies()[0]?.refused);
-        await pick(within(dialog).getByRole("radiogroup", { name: "Data sources" }), "Reference");
+        await waitFor(() => {
+            assert.isFalse(within(dialog).getByRole<HTMLButtonElement>("button", { name: /^Save/ }).disabled);
+        });
         await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
         await waitFor(() => {
             assert.match(store.get().notice?.message ?? "", /^Saved .* in this browser\.$/);
@@ -339,14 +269,8 @@ describe("Copy or Reference, with the experiment on", () => {
     it("names a reference that could not be read again, by its name", async () => {
         const { store, session } = await threeLoads();
         const dialog = await openSaveAs();
-        await userEvent.click(within(dialog).getByRole("button", { name: /^Data source settings/ }));
-        const settings = await screen.findByRole("dialog", { name: "Data source settings" });
-        await pick(within(settings).getByRole("radiogroup", { name: "Save people.json as" }), "Reference");
-        await userEvent.keyboard("{Escape}");
-        await waitFor(() => {
-            assert.isNull(screen.queryByRole("dialog", { name: "Data source settings" }));
-        });
-        assert.isNotNull(screen.queryByRole("dialog", { name: "Save Towns as" }), "Escape closes the pop-over only");
+        await userEvent.click(await within(dialog).findByRole("button", { name: "Each source" }));
+        await pick(await within(dialog).findByRole("radiogroup", { name: "Keep people.json" }), "Reference");
         await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
         await waitFor(() => {
             assert.equal(store.get().notice?.message, "Saved Towns in this browser.");
@@ -365,16 +289,54 @@ describe("Copy or Reference, with the experiment on", () => {
     });
 });
 
-describe("Copy or Reference, with the experiment off", () => {
+describe("the Ref mark, with the experiment off", () => {
     withFeatures([]);
 
-    it("shows no switch, no settings and no Ref mark", async () => {
-        const { session } = await threeLoads();
+    it("keeps a reference in a version 2 file, and Save after a reopen keeps it", async () => {
+        const { store, session } = await threeLoads();
         const dialog = await openSaveAs();
-        assert.isNull(within(dialog).queryByRole("radiogroup", { name: "Data sources" }));
-        assert.isNull(within(dialog).queryByRole("button", { name: /^Data source settings/ }));
-        assert.isNull(within(dialog).queryByText("Copy"));
+        await pick(await within(dialog).findByRole("radiogroup", { name: "Sources" }), "Reference");
+        await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+        await waitFor(() => {
+            assert.equal(store.get().notice?.message, "Saved Towns in this browser.");
+        });
+        /**
+         * The project kept in this browser, as JSON.
+         * @returns its version and its data section's sources.
+         */
+        const kept = async (): Promise<{ version?: number; sections?: { data?: { sources?: unknown[] } } }> => {
+            const [stored] = await browserProjects.list();
+            const file = stored === undefined ? undefined : await browserProjects.get(stored.id);
+            return JSON.parse((await file?.text()) ?? "{}") as {
+                version?: number;
+                sections?: { data?: { sources?: unknown[] } };
+            };
+        };
+        const before = await kept();
+        assert.strictEqual(before.version, 2, "only a version 2 file keeps a reference with the experiment off");
+
+        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Back to start" }));
+        await userEvent.click(await screen.findByRole("gridcell", { name: /^Towns/ }));
+        await elementSession(session);
+        await waitFor(() => {
+            assert.match(store.get().notice?.message ?? "", /^Opened Towns/);
+            assert.isNull(screen.queryByRole("dialog"));
+        });
+
+        // Save, with no Save as since the reopen, keeps the references the file held.
+        store.set({ notice: null });
+        await userEvent.keyboard("{Control>}s{/Control}");
+        await waitFor(() => {
+            assert.equal(store.get().notice?.message, "Saved Towns in this browser.");
+        });
+        const after = await kept();
+        assert.strictEqual(after.version, 2);
+        assert.deepEqual(after.sections?.data?.sources, before.sections?.data?.sources);
+    });
+
+    it("never shows", async () => {
+        await threeLoads();
         assert.isNull(document.querySelector(".dp-source-ref"));
-        assert.deepEqual(choices(session), ["copy", "copy", "copy"]);
     });
 });

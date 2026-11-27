@@ -12,7 +12,7 @@
  * `releaseKey` only name the hold and the release.
  */
 
-import { cdp, userEvent } from "vitest/browser";
+import { cdp, commands, server, userEvent } from "vitest/browser";
 
 /** A point in CSS pixels from an element's top-left corner. */
 export interface Point {
@@ -46,6 +46,24 @@ type Send = (method: string, params?: Record<string, unknown>) => Promise<unknow
  * @returns A function sending one protocol command.
  */
 function send(): Send {
+    if (server.browser !== "chromium") {
+        // WebKit has no DevTools protocol: the interactions-webkit project's dispatchMouseEvent command makes
+        // the mouse events with Playwright instead (vitest.config.ts). Wheel, touch and the device pixel ratio
+        // are Chromium only.
+        const { dispatchMouseEvent } = commands as unknown as {
+            dispatchMouseEvent?: (params?: Record<string, unknown>) => Promise<unknown>;
+        };
+        return async (method, params) => {
+            if (method !== "Input.dispatchMouseEvent" || dispatchMouseEvent === undefined) {
+                throw new Error(`${method} needs the DevTools protocol, which ${server.browser} has not got`);
+            }
+
+            // Sent on the whole pixel `reachable` names, so the pointer lands where the test says it does.
+            const { x, y } = params as { x: number; y: number };
+            return dispatchMouseEvent({ ...params, x: Math.round(x), y: Math.round(y) });
+        };
+    }
+
     const session = cdp() as unknown as { send: Send };
     return (method, params) => session.send(method, params);
 }
@@ -70,6 +88,36 @@ export function toPage(element: Element, point: Point): Point {
     return {
         x: box.left + frame.clientLeft * scale + (rect.left + point.x) * scale,
         y: box.top + frame.clientTop * scale + (rect.top + point.y) * scale,
+    };
+}
+
+/**
+ * Where the pointer really lands when sent to a point. Chromium's protocol takes fractional pixels, so that is the
+ * point itself. Playwright's WebKit mouse drops the fraction of the top page's coordinate, and the test frame is
+ * scaled, so there the pointer lands up to a pixel over the frame's scale short of the point: a test that reads
+ * `elementAt` or `screenToWorld` beside a pointer event asks them about this point.
+ * @param element - The element the point is on.
+ * @param point - The point asked for, in CSS pixels from the element's top-left corner.
+ * @returns The point the browser's pointer events will report, on the same element.
+ */
+export function reachable(element: Element, point: Point): Point {
+    if (server.browser === "chromium") {
+        return point;
+    }
+
+    const at = toPage(element, point);
+    const page = { x: Math.round(at.x), y: Math.round(at.y) };
+    const rect = element.getBoundingClientRect();
+    const frame = window.frameElement;
+    if (frame === null) {
+        return { x: page.x - rect.left, y: page.y - rect.top };
+    }
+
+    const box = frame.getBoundingClientRect();
+    const scale = box.width / window.innerWidth;
+    return {
+        x: (page.x - box.left - frame.clientLeft * scale) / scale - rect.left,
+        y: (page.y - box.top - frame.clientTop * scale) / scale - rect.top,
     };
 }
 
@@ -168,6 +216,23 @@ export async function click(
     await Promise.all([
         mouseEvent("mousePressed", element, point, 1, modifiers, undefined, button),
         mouseEvent("mouseReleased", element, point, 0, modifiers, undefined, button),
+    ]);
+}
+
+/**
+ * A left click whose hand shook: press at one point, move with the button held to another, and
+ * release there. All events are sent together, as `click` sends its press and release, so the
+ * press never reads as a long press however busy the page is; the protocol delivers them in order.
+ * @param element - The element the points are on.
+ * @param point - Where the press is.
+ * @param shaken - Where the release is.
+ */
+export async function shakyClick(element: Element, point: Point, shaken: Point): Promise<void> {
+    await mouseEvent("mouseMoved", element, point, 0);
+    await Promise.all([
+        mouseEvent("mousePressed", element, point, 1),
+        mouseEvent("mouseMoved", element, shaken, 1),
+        mouseEvent("mouseReleased", element, shaken, 0),
     ]);
 }
 

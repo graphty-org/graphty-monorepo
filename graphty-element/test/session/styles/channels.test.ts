@@ -45,6 +45,7 @@ const DECLARED = [
     "node.labelWrapWidth",
     "node.labelWrapTrailingSpace",
     "node.labelWrapSkipEndSpace",
+    "node.labelWrapUnkerned",
     "node.labelWrapEllipsis",
     "node.labelWrapAnywhere",
     "node.labelWrapSpaceCount",
@@ -362,6 +363,8 @@ const DECLARED = [
     "edge.animationSpeed",
     "edge.label",
     "edge.labelStyle",
+    "edge.tooltip",
+    "edge.tooltipStyle",
     "edge.labelTextAlign",
     "edge.labelLocation",
     "node.visible",
@@ -384,6 +387,7 @@ const DECLARED = [
     "edge.labelWrapWidth",
     "edge.labelWrapTrailingSpace",
     "edge.labelWrapSkipEndSpace",
+    "edge.labelWrapUnkerned",
     "edge.labelWrapEllipsis",
     "edge.labelWrapAnywhere",
     "edge.labelWrapSpaceCount",
@@ -438,8 +442,6 @@ const DECLARED = [
     "node.xlabelWeight",
     "node.xlabelItalic",
     "edge.labelTable",
-    "edge.tooltip",
-    "edge.tooltipStyle",
     "edge.xlabel",
     "edge.xlabelStyle",
     "edge.xlabelLocation",
@@ -471,9 +473,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into two hundred and twenty-six node channels and one hundred and ninety edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 226);
-        assert.strictEqual(channelsFor("edge").length, 190);
+    it("splits into two hundred and twenty-seven node channels and one hundred and ninety-one edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 227);
+        assert.strictEqual(channelsFor("edge").length, 191);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -535,7 +537,7 @@ describe("what the element can really draw", () => {
         assert.notInclude(LABEL_STYLE_FIELDS as string[], "wrap");
     });
 
-    it("says on every tooltip channel that a tooltip is hover-only, for a node and an edge alike", () => {
+    it("says on every tooltip channel that a tooltip is hover-only, for a node and an edge", () => {
         // A tooltip is drawn on hover, so a layer that writes one changes nothing on a graph at
         // rest -- which looks exactly like a layer that never landed.
         for (const channel of ["node.tooltip", "node.tooltipStyle", "edge.tooltip", "edge.tooltipStyle"] as const) {
@@ -857,6 +859,8 @@ describe("what a style editor needs to draw a row", () => {
         "edge.arrowTailTextOffsetY",
         "edge.label",
         "edge.labelStyle",
+        "edge.tooltip",
+        "edge.tooltipStyle",
         // A label, a caption or an edge label is drawn with no panel behind it until a style
         // asks for one; a node tooltip has a white panel by default.
         "node.labelBackground",
@@ -879,6 +883,7 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelWrapWidth",
         "node.labelWrapTrailingSpace",
         "node.labelWrapSkipEndSpace",
+        "node.labelWrapUnkerned",
         "node.labelWrapEllipsis",
         "node.labelWrapAnywhere",
         "node.labelWrapSpaceCount",
@@ -912,6 +917,7 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelWrapWidth",
         "edge.labelWrapTrailingSpace",
         "edge.labelWrapSkipEndSpace",
+        "edge.labelWrapUnkerned",
         "edge.labelWrapEllipsis",
         "edge.labelWrapAnywhere",
         "edge.labelWrapSpaceCount",

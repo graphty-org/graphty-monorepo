@@ -201,6 +201,16 @@ element.addEventListener("graphty-node-drag-end", (e) => {
 });
 ```
 
+When the pointer arrives on an edge, `graphty-edge-hover` carries the edge's id, and its tooltip's
+words when a style layer gave it one (`edge.tooltip`):
+
+```javascript
+element.addEventListener("graphty-edge-hover", (e) => {
+    const { edgeId, tooltip } = e.detail;
+    console.log("Over edge:", edgeId, tooltip ?? "(no tooltip)");
+});
+```
+
 Everything else the element emits reaches the DOM under its own unprefixed name, with the internal
 event as the detail:
 

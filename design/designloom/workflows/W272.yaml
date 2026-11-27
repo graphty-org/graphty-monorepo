@@ -1,0 +1,134 @@
+id: W272
+name: Check a Sampled Training Graph or Split
+category: analysis
+validated: false
+personas:
+    - gnn-model-debugger
+    - ml-engineer-recsys
+requires_capabilities:
+    - data-import
+    - ego-network
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - layout-radial
+    - filtering
+    - temporal-analysis
+    - temporal-navigation
+    - legend-display
+    - details-on-demand
+    - selection-statistics
+    - model-output-overlay
+suggested_components:
+    - data-import-dialog
+    - graph-canvas
+    - layout-panel
+    - visual-encoding-panel
+    - filter-panel
+    - temporal-controls
+    - legend-panel
+    - node-details-panel
+    - statistics-panel
+starting_state:
+    data_type: one sampled mini-batch (seed nodes, sampled neighbors with hop number and global ids) with split masks and optional edge timestamps
+    node_count: 1-276 per seed (fanout 25 then 10), up to a few thousand per batch
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Confirm that a sampled mini-batch or a train/validation/test split is what the engineer thinks it is --
+    no validation or test target edges in message passing, and no edges from after the prediction time.
+
+
+    **Mental Model**: "Audit the sampler." The batch is a small tree of hops around each seed; every edge should be
+    allowed by the split and by time. One forbidden edge silently inflates every metric.
+
+
+    **Task Phases**:
+
+    1. **Sample** (in code) - `NeighborLoader(data, num_neighbors=[25, 10], batch_size=128, input_nodes=train_mask)`;
+    the first batch_size nodes are seeds and n_id maps back to global ids; each seed reaches at most 1 + 25 + 250 nodes
+
+    2. **Draw one batch** - Seeds versus sampled neighbors, hop number as rings or color, split membership per
+    edge, global ids on hover
+
+    3. **Look for leaked targets** - For link prediction, mark any validation or test target edge that appears in
+    the message-passing edges; RandomLinkSplit keeps them out of training message passing, but PyG does not exclude
+    target edges from mini-batch graphs during training
+
+    4. **Temporal check** - Color or filter each edge by its time relative to the seed's prediction time and look
+    for any edge after it; NeighborLoader with time_attr and input_time keeps only earlier or equal neighbors, but a
+    split built without it trains on future edges
+
+    5. **Decide** - Fix the split or the sampler; record the finding in the experiment log
+
+
+    **Temporal graph learners variant**: Temporal Graph Benchmark splits chronologically 70/15/15 and ranks each true
+    future edge by filtered MRR; because older datasets have many repeated edges, the question is whether a prediction
+    repeats a past edge or is new, which needs a node's past edges laid out by time.
+
+
+    **Decision Points**:
+
+    - Is any target or future edge visible to message passing?
+
+    - Is the fanout producing the neighborhoods intended?
+
+    - Is a high score earned or a repeat of a past edge?
+
+
+    **Information Needs**:
+
+    - Seed versus sampled node, hop number
+
+    - Split membership of each edge (train message passing, train target, validation, test)
+
+    - Edge time relative to the seed's prediction time, with later edges marked
+
+    - Mapping from batch-local indices to global ids
+
+
+    **Pain Points**:
+
+    - Leakage silently inflates metrics
+
+    - Edge time is a column, never a visual channel, in existing viewers
+
+    - Batch-local indices must be mapped back to global ids
+
+
+    **Data Flow**:
+
+    - Input: Batch edge_index, n_id, batch_size, split masks, edge times, seed prediction times
+
+    - Transformations: Hop computation from seeds, split and time encoding, filtering to edges after the prediction time
+
+    - Output: A sampler or split fix and an experiment log entry
+success_criteria:
+    - metric: Leak detection
+      target: Any target or future edge in a batch is visibly marked without custom plotting code
+    - metric: Time to audit one batch
+      target: Under 10 minutes (design goal; no source measures it)
+sources:
+    - title: PyG NeighborLoader tutorial
+      url: https://pytorch-geometric.readthedocs.io/en/2.6.0/tutorial/neighbor_loader.html
+      summary: num_neighbors fanout, seeds first in the batch, n_id mapping to global ids
+    - title: Link prediction pitfalls
+      url: https://ar5iv.labs.arxiv.org/html/2306.00899
+      summary: Target edges left in mini-batch graphs during training inflate results
+    - title: PyG RandomLinkSplit
+      url: https://pytorch-geometric.readthedocs.io/en/2.5.2/generated/torch_geometric.transforms.RandomLinkSplit.html
+      summary: Keeps validation and test edges out of training message passing
+    - title: PyG loader reference
+      url: https://pytorch-geometric.readthedocs.io/en/latest/modules/loader.html
+      summary: time_attr keeps neighbors with an earlier or equal timestamp than the center node
+    - title: NVIDIA - How distributed training works
+      url: https://docs.nvidia.com/sdgm/how-distributed-training-works
+      summary: Without meticulous time filtering, training uses future edges
+    - title: Temporal Graph Benchmark
+      url: https://arxiv.org/html/2307.01026
+      summary: Chronological 70/15/15 split and filtered MRR
+    - title: TGB-Seq
+      url: https://arxiv.org/html/2502.02975v3
+      summary: Older datasets have excessive repeated edges, so models score by memorizing history
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

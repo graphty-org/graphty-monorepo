@@ -446,6 +446,7 @@ function TextValueField(props: KindFieldProps): React.JSX.Element {
             width="fill"
             title={React.useContext(FieldHint)}
             label={label}
+            // on reload: fresh: derived: the written value; typed words are written when the field is left
             defaultValue={start}
             placeholder={unsetWords === undefined ? placeholder : undefined}
             onFocus={(event) => {
@@ -498,6 +499,7 @@ function ModelPickField({
     onChange,
 }: Readonly<{ label: string; value: unknown; onChange: (value: string) => void }>): React.JSX.Element {
     const { session } = useWorkspace();
+    // on reload: fresh: pointer: a pop-over held open by its control
     const [open, setOpen] = useState(false);
     const box = useRef<HTMLButtonElement>(null);
     const ref = typeof value === "string" ? value : undefined;

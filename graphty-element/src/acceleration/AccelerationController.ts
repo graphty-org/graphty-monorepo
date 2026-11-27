@@ -158,8 +158,9 @@ interface AccelerationControllerOptions {
     /**
      * How many times to try attaching a fresh accelerator after a device loss before giving up.
      * Defaults to 3. The first try follows the loss at once; each later one waits for the next
-     * {@link AccelerationController.plan} call or factory registration while the state is
-     * `"error"`. The count starts again once a reattached device has finished a piece of work.
+     * {@link AccelerationController.plan} call, factory registration or renderer device restored
+     * while the state is `"error"`. The count starts again once a reattached device has finished a
+     * piece of work. `status.recovering` is present while a try runs.
      */
     readonly maxRecoveryAttempts?: number;
     /**
@@ -200,7 +201,11 @@ interface Attachment {
      * would never have attached it.
      */
     readonly software: boolean;
+    /** Whether the factory was handed the renderer's device to build it on, rather than opening its own. */
+    readonly shared: boolean;
     released: boolean;
+    /** Whether the element has started measuring this accelerator's device, so it does so once. */
+    calibrating?: boolean;
 }
 
 const logger = GraphtyLogger.getLogger(["graphty", "acceleration"]);
@@ -317,8 +322,11 @@ function sameStatus(a: AccelerationStatus, b: AccelerationStatus): boolean {
         a.vendor === b.vendor &&
         a.architecture === b.architecture &&
         a.device === b.device &&
+        a.exactMaxNodes === b.exactMaxNodes &&
+        a.exactMaxNodesBasis === b.exactMaxNodesBasis &&
         a.reason === b.reason &&
         a.code === b.code &&
+        a.recovering === b.recovering &&
         JSON.stringify(a.params) === JSON.stringify(b.params)
     );
 }
@@ -374,6 +382,12 @@ export class AccelerationController {
     #busy = 0;
     #probe: Promise<AccelerationStatus> | null = null;
     #probeSettled = false;
+    /**
+     * Whether {@link start} has been called. A policy set before then probes nothing: the probe waits for
+     * whoever starts it, who knows whether a renderer is on its way whose device the accelerator should share.
+     * Probing from the policy change instead opened a device of the accelerator's own (issue #9986).
+     */
+    #started = false;
     /**
      * Moves on every change a probe in flight must not outlive: a policy change, an injected
      * accelerator, a dispose. A probe remembers the value it started under and, finding it moved
@@ -485,6 +499,15 @@ export class AccelerationController {
     }
 
     /**
+     * Whether the attached accelerator runs on the device the renderer draws with: true when its factory
+     * was handed that device, false when it opened its own or was injected, undefined with none attached.
+     * @returns Where the attached accelerator runs.
+     */
+    get sharesRendererDevice(): boolean | undefined {
+        return this.#attachment?.shared;
+    }
+
+    /**
      * Subscribes to state changes.
      *
      * Called on every transition and never for an unchanged state, so a chip that re-renders on
@@ -543,7 +566,9 @@ export class AccelerationController {
         this.#probe = null;
         this.#probeSettled = false;
         this.#transition("probing", undefined, undefined);
-        void this.start();
+        if (this.#started) {
+            void this.start();
+        }
     }
 
     /**
@@ -659,6 +684,7 @@ export class AccelerationController {
      * @returns The status the probe settled on.
      */
     start(): Promise<AccelerationStatus> {
+        this.#started = true;
         if (this.#probe === null) {
             this.#probe = this.#probeNow();
         }
@@ -969,7 +995,15 @@ export class AccelerationController {
 
         this.#probeSettled = true;
 
-        if (!attached) {
+        if (!attached && this.#code === "E_DEVICE_LOST") {
+            // The device was lost while it was being built or checked: a GPU reset that happened to land on the probe,
+            // not a missing GPU. It recovers as a loss after attaching does, rather than leaving the graph on the CPU
+            // for the rest of the page's life (issue #9731).
+            const sentence = this.#reason ?? "the accelerator's device was lost while it was being probed";
+            this.#transition("error", sentence, "E_DEVICE_LOST", this.#params);
+            this.#failure = { sentence, code: "E_DEVICE_LOST" };
+            this.#retryRecovery();
+        } else if (!attached) {
             this.#transition("unavailable", this.#reason, this.#code, this.#params);
             reportUnavailable(this.#code, this.#reason);
         }
@@ -1014,7 +1048,7 @@ export class AccelerationController {
             }
 
             try {
-                const { accelerator, software } = await this.#build(registration.factory);
+                const { accelerator, software, shared } = await this.#build(registration.factory);
 
                 if (this.#stale(generation)) {
                     this.#disposeAccelerator(accelerator);
@@ -1022,7 +1056,7 @@ export class AccelerationController {
                 }
 
                 if (accelerator !== null) {
-                    this.#attach(accelerator, true, software);
+                    this.#attach(accelerator, true, software, shared);
                     return true;
                 }
 
@@ -1073,10 +1107,12 @@ export class AccelerationController {
      * factory contract has no other way to say so -- and it costs a hardware host nothing. What
      * it built has checked itself ({@link AccelerationController.#verify}) before it is returned.
      * @param factory - The registered factory.
-     * @returns What it built, and whether that is on a software adapter.
+     * @returns What it built, whether that is on a software adapter, and whether on the renderer's device.
      * @throws Whatever the factory or the self-check threw.
      */
-    async #build(factory: AcceleratorFactory): Promise<{ accelerator: GraphAccelerator | null; software: boolean }> {
+    async #build(
+        factory: AcceleratorFactory,
+    ): Promise<{ accelerator: GraphAccelerator | null; software: boolean; shared: boolean }> {
         const device = this.#sharedDevice === undefined ? undefined : await this.#sharedDevice();
         const exactMaxNodes = this.#exactMaxNodes;
         const asked = device === undefined ? { exactMaxNodes } : { exactMaxNodes, device };
@@ -1096,7 +1132,7 @@ export class AccelerationController {
             await this.#verify(built.accelerator);
         }
 
-        return built;
+        return { ...built, shared: device !== undefined };
     }
 
     /**
@@ -1136,15 +1172,18 @@ export class AccelerationController {
      * @param owned - True when this controller built it, so this controller disposes it. False for
      * an injected one, whose lifetime belongs to whoever built it.
      * @param software - True when it runs on a software adapter, which only `"required"` accepts.
+     * @param shared - True when it was built on the renderer's device.
      */
-    #attach(accelerator: GraphAccelerator, owned: boolean, software = false): void {
+    #attach(accelerator: GraphAccelerator, owned: boolean, software = false, shared = false): void {
         this.#detach();
 
-        const attachment: Attachment = { accelerator, owned, software, released: false };
+        const attachment: Attachment = { accelerator, owned, software, shared, released: false };
         this.#attachment = attachment;
         this.#backend = accelerator.backend;
         this.#device = accelerator.device;
         this.#failure = undefined;
+        // A reattach ends here when it succeeds, announced with the state below.
+        this.#recovering = false;
 
         const { lost } = accelerator;
         if (lost !== undefined) {
@@ -1238,9 +1277,10 @@ export class AccelerationController {
      * Starts one more try at reattaching after a device loss or a run that got no answer, when
      * the budget allows it.
      *
-     * Called at the loss itself, and then on the next `plan()` and the next factory registration
-     * while the state is still `"error"`: a browser often has no adapter to hand out in the first
-     * moments after a GPU reset, and those events are the moments worth trying again. No timer.
+     * Called at the loss itself, and then on the next `plan()`, the next factory registration and
+     * the renderer's next restored device while the state is still `"error"`: a browser often has no
+     * adapter to hand out in the first moments after a GPU reset, and those events are the moments
+     * worth trying again. No timer.
      */
     #retryRecovery(): void {
         const failure = this.#failure;
@@ -1258,10 +1298,33 @@ export class AccelerationController {
         }
 
         this.#recoveryAttempts += 1;
-        this.#recovering = true;
+        this.#setRecovering(true);
         void this.#recover(failure.sentence, failure.code).finally(() => {
-            this.#recovering = false;
+            // Already ended, and published, by the attach or the failure it came to; still set
+            // only when something overtook it (a policy change, a dispose).
+            if (this.#recovering) {
+                this.#setRecovering(false);
+            }
         });
+    }
+
+    /**
+     * Tells the controller a GPU device has just become available again -- the renderer's, after a
+     * loss -- which is a moment worth another try at a reattach that failed while the GPU was gone.
+     * Does nothing unless a reattach is owed and the recovery budget allows it.
+     * @internal
+     */
+    deviceAvailable(): void {
+        this.#retryRecovery();
+    }
+
+    /**
+     * Starts or ends a reattach, and publishes the change as {@link AccelerationStatus.recovering}.
+     * @param recovering - Whether a reattach is in flight now.
+     */
+    #setRecovering(recovering: boolean): void {
+        this.#recovering = recovering;
+        this.#transition(this.#state, this.#reason, this.#code, this.#params);
     }
 
     /**
@@ -1293,6 +1356,7 @@ export class AccelerationController {
         }
 
         const why = this.#reason ?? "no accelerator available";
+        this.#recovering = false;
         this.#transition("error", `${failure}; reattaching failed: ${why}`, code);
     }
 
@@ -1335,7 +1399,64 @@ export class AccelerationController {
         this.#busy = Math.max(0, this.#busy - 1);
         if (this.#busy === 0 && this.#attachment !== null && this.#state === "active") {
             this.#transition("idle", undefined, undefined);
+            this.#calibrateOnce(this.#attachment);
         }
+    }
+
+    /**
+     * Measures the attached accelerator's device once, after its first accelerated work has
+     * finished, and republishes the status with what was measured. Only an accelerator that
+     * offers `calibrate` is measured; the WebGPU one offers it only when the page opted in.
+     *
+     * Waiting for that work is what keeps the measurement off the critical path: the first frame
+     * and the first layout have already run on the shipped default. An accelerator whose ceiling
+     * was configured, or already measured on this device, is left alone, and so is one handed over
+     * through `setAccelerator`, whose owner tunes it. So is a software adapter, which
+     * only `"required"` attaches: its probes take tens of seconds of processor time, and its speed
+     * says nothing a layout could use. The measurement does
+     * not count as work, so the published state stays `"idle"` while it runs.
+     *
+     * A failed measurement is logged and changes nothing: the accelerator keeps its default, and
+     * a lost device is reported through `lost` as always. Nothing falls back to the CPU here,
+     * because no work depended on it.
+     * ponytail: work started while the measurement runs queues behind its probes on the device;
+     * pause it between probes if that ever shows in a trace.
+     * @param attachment - The attachment that just went idle.
+     */
+    #calibrateOnce(attachment: Attachment): void {
+        const { accelerator } = attachment;
+        if (
+            !attachment.owned ||
+            attachment.software ||
+            attachment.calibrating === true ||
+            accelerator.exactMaxNodes?.basis !== "default"
+        ) {
+            return;
+        }
+
+        const calibrate = accelerator.calibrate?.bind(accelerator);
+        if (calibrate === undefined) {
+            return;
+        }
+
+        attachment.calibrating = true;
+        // Through a promise, so a backend's `calibrate` that throws synchronously still lands in
+        // the rejection handler below instead of escaping the work's `finally`.
+        Promise.resolve()
+            .then(calibrate)
+            .then(
+                () => {
+                    if (!this.#disposed && !attachment.released && this.#attachment === attachment) {
+                        this.#transition(this.#state, this.#reason, this.#code);
+                    }
+                },
+                (error: unknown) => {
+                    logger.warn("Measuring the accelerator's device failed; it keeps its shipped tuning", {
+                        accelerator: accelerator.name,
+                        error: error instanceof Error ? error.message : String(error),
+                    });
+                },
+            );
     }
 
     /**
@@ -1598,6 +1719,12 @@ export class AccelerationController {
             }
         }
 
+        const exactMaxNodes = this.#attachment?.accelerator.exactMaxNodes;
+        if (exactMaxNodes !== undefined) {
+            status.exactMaxNodes = exactMaxNodes.value;
+            status.exactMaxNodesBasis = exactMaxNodes.basis;
+        }
+
         if (this.#reason !== undefined) {
             status.reason = this.#reason;
         }
@@ -1608,6 +1735,10 @@ export class AccelerationController {
 
         if (this.#params !== undefined) {
             status.params = this.#params;
+        }
+
+        if (this.#recovering) {
+            status.recovering = true;
         }
 
         return Object.freeze(status);

@@ -18,7 +18,7 @@ import { findTreeRow } from "../../graph-place/rows";
 import { LabelSection } from "../LabelSection";
 import type { RowContext } from "../PropertyRow";
 import { Section } from "../Section";
-import { experimentChannelsOff, type SectionSpec } from "../words";
+import { experimentChannelsOff, optionTileWord, type SectionSpec } from "../words";
 import { itemWord, partWord } from "./find";
 import { FindSettingBox, FindSettingResults } from "./FindSetting";
 import { PartPage } from "./PartPage";
@@ -44,9 +44,10 @@ function writesOf(session: GraphSession, ctx: RowContext): ReadonlySet<Channel> 
  * One part as a section of the Style tab.
  * @param part - the part.
  * @param writes - whether the row writes a channel.
+ * @param parts - every part of the kind, which the Shaders gallery's option tiles name.
  * @returns the section.
  */
-function sectionOf(part: PartSpec, writes: (channel: Channel) => boolean): SectionSpec {
+function sectionOf(part: PartSpec, writes: (channel: Channel) => boolean, parts: readonly PartSpec[]): SectionSpec {
     const channels = part.items.flatMap((item) => [...(item.main ?? []), ...(item.tail ?? [])]);
     // A part with no common property (Order and groups) offers its others from "+", so its "+" is never dead.
     const main = part.items.flatMap((item) => item.main ?? []);
@@ -66,7 +67,17 @@ function sectionOf(part: PartSpec, writes: (channel: Channel) => boolean): Secti
             ),
         ),
         ...(part.together === true ? { together: part.items.flatMap((item) => item.main ?? []) } : {}),
-        ...(part.id === "shaders" ? { shaders: true } : {}),
+        // The gallery's option tiles (Glow) say the part they are added in: "Effects option".
+        ...(part.id === "shaders"
+            ? {
+                  shaders: true,
+                  optionWords: Object.fromEntries(
+                      parts.flatMap((each) =>
+                          partChannels(each).map((channel) => [channel, optionTileWord(each.title)]),
+                      ),
+                  ),
+              }
+            : {}),
         ...(part.list === true
             ? {
                   items: part.items.map((item) => ({
@@ -122,7 +133,15 @@ export function PartsPanel({ ctx: row }: Readonly<{ ctx: RowContext }>): React.J
                 );
             }
             const listed = part.list === true ? { itemActions: (id: string) => itemPage(part, id) } : {};
-            return <Section key={part.id} ctx={ctx} spec={sectionOf(part, written)} actions={page(part)} {...listed} />;
+            return (
+                <Section
+                    key={part.id}
+                    ctx={ctx}
+                    spec={sectionOf(part, written, parts)}
+                    actions={page(part)}
+                    {...listed}
+                />
+            );
         });
     }
     return (

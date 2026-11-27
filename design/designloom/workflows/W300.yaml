@@ -1,0 +1,147 @@
+id: W300
+name: Survey Network Data - Roster (Sociometric) and Personal-Network (Egocentric) Surveys
+category: onboarding
+validated: false
+personas:
+    - graph-data-wrangler
+    - egocentric-survey-researcher
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - node-merging
+    - ego-network
+    - basic-statistics
+    - comparison-view
+    - computed-attributes
+    - survey-network-import
+    - entity-resolution-review
+    - network-collection-small-multiples
+    - egocentric-survey-import
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - node-merge-dialog
+    - network-list-panel
+    - statistics-panel
+    - comparison-view
+starting_state:
+    data_type: Wide survey export (respondent, friend1..friend5) for a bounded group; or ego, alter and alter-alter tables
+    node_count: 20-2,000 per roster; hundreds of egos with 5-30 alters each
+    edge_density: sparse (roster); dense within each ego network
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Turn survey responses into networks while keeping the survey's meaning: in a roster survey, reshape wide
+    nominations into edges, match recalled names to roster ids, and mark non-respondents as missing rather than
+    tie-less; in a personal-network survey, load many small ego networks as one collection keyed by ego id.
+
+
+    **Mental Model**: "Answers, not facts." A missing nomination from someone who did not answer is unknown, not zero;
+    each ego network is a separate world described by one respondent.
+
+
+    **Task Phases - roster branch** (no source gives step timings):
+
+    1. **Wide to long** - One row per respondent with friend1 to friend5 becomes one row per respondent-nominee pair; a
+    survey with several name-generator questions yields one edge set per question (see W303)
+
+    2. **Match names to roster ids** - By hand or with near-duplicate clustering
+
+    3. **Mark non-respondents as missing** - Treating unobserved ties as zero is the most-used approach, often by
+    default; non-respondents' incoming nominations are still observed and reconstruction methods use them; the choice
+    changes every centrality
+
+    4. **Check** - Response rate, nominations outside the roster, self-nominations
+
+
+    **Task Phases - egocentric branch**:
+
+    1. **Collect** - In Network Canvas or Qualtrics: each ego names up to N alters, describes them, and says which know
+    each other
+
+    2. **Export** - Network Canvas gives a GraphML file or a directory of CSV files (ego, alter and alter-alter tables,
+    one edge list per tie type); merging fails when a variable is numeric in one interview and text in another.
+    Qualtrics: drop two header rows, add an ego id, reshape with the egor package, drop blank alter slots
+
+    3. **Load as a set** - Keyed by ego id, each ego network independent and unweighted
+
+    4. **Analyze** - Per-ego size, density, composition and diversity across hundreds of egos, joined to the ego table
+
+
+    **Decision Points**:
+
+    - Missing-respondent rule: treat as missing, reconstruct, or zero?
+
+    - Which out-of-roster nominations to keep?
+
+    - One network per name-generator question, or combined?
+
+    - For egocentric data, which tie types and which alter attributes to compare?
+
+
+    **Information Needs**:
+
+    - Response rate and the list of non-respondents, flagged in the graph
+
+    - Unmatched nominee names with match candidates
+
+    - Per-ego size, density and composition in one table, with each ego network browsable singly
+
+
+    **Pain Points**:
+
+    - Network Canvas nodeID belongs to a different alter in each interview; only the UUID columns combine interviews
+
+    - Per-session GraphML, or one file with a graph per session, which most tools outside Network Canvas cannot open
+
+    - Wide-to-long reshaping and name matching happen in scripts or by hand
+
+    - Tools treat non-response as no tie by default, biasing every metric
+
+    - No general graph tool holds hundreds of separate ego networks as one comparable collection
+
+    - Type mismatches across interviews break merging
+
+
+    **Data Flow**:
+
+    - Input: Survey export (CSV, Qualtrics); Network Canvas CSV sets per session (ego, attributeList per node type,
+    edgeList per edge type, linked by networkCanvasEgoUUID) or one GraphML file per session, usually in one zip; egor
+    three-file tables (egos, alters, alter-alter edges with the ego id first)
+
+    - Transformations: Wide to long, name matching, missing-respondent flags; or ego, alter, alter-alter assembly by ego
+    id
+
+    - Output: Roster network with missingness preserved; or a collection of ego networks with per-ego measures
+success_criteria:
+    - metric: Missingness preserved
+      target: Non-respondents are flagged in the graph and metrics state how they were treated
+    - metric: Ego collection
+      target: Hundreds of ego networks load as one set and can be compared on per-ego measures
+sources:
+    - title: egor - Importing Qualtrics data
+      url: https://egor.tillt.net/articles/qualtrics.html
+      summary: Drop two header rows, add ego id, onefile_to_egor reads alter-alter questions by position
+    - title: ideanet - nc_read vignette
+      url: https://cran.r-project.org/web/packages/ideanet/vignettes/nc_read.html
+      summary: Network Canvas export as GraphML or CSV directory; ego, alter and alter-alter tables; type mismatch on merge
+    - title: ideanet - ego_netwrite vignette
+      url: https://cran.r-project.org/web/packages/ideanet/vignettes/ego_netwrite.html
+      summary: Each ego network treated as independent, no tie weights
+    - title: Huisman and Steglich 2008 - Treatment of non-response in longitudinal network studies
+      url: https://www.stats.ox.ac.uk/~snijders/siena/HuismanSteglich2008.pdf
+      summary: Non-respondents' incoming nominations are observed and used by reconstruction methods
+    - title: Study of non-response treatment in network data (dlib.si)
+      url: https://dlib.si/stream/URN:NBN:SI:DOC-ZRONLGAC/11c18f78-4757-406f-a6aa-de60f4a78124/PDF
+      summary: Treating unobserved ties as zero is the most-used approach, often by default
+    - title: Network Canvas - Data export
+      url: https://documentation.networkcanvas.com/en/desktop/key-concepts/data-export
+      summary: CSV files per session, node type and edge type keyed by UUIDs; GraphML one file per session
+    - title: egor - three-file format
+      url: https://rdrr.io/cran/egor/src/R/read.egonet.three.files.R
+      summary: Ego, alter and alter-alter files tied by ID.vars
+version: 1.1.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -6,6 +6,8 @@
  * made to print, at that moment, under a "[browser-crash-log]" heading:
  *
  * - which event it was (the page's `crash`, its `close`, the browser's `disconnected`) and the page's URL
+ * - every crash report Chromium printed (its "Received signal" header, the whole stack and the registers,
+ *   with the lines just before it, which name the process), kept whole however much it wrote after
  * - the last lines Chromium wrote to its stderr, and how its process ended
  *   ("<process did exit: exitCode=..., signal=SIGKILL>" is the kernel's out-of-memory killer)
  * - the machine's memory (/proc/meminfo), this cgroup's limit, use, peak and out-of-memory kills,
@@ -27,8 +29,46 @@ const PRINT_LINES = 60;
 /** What a report puts before each stderr line it quotes, so the capture never takes it back. */
 const QUOTE = "  | ";
 
+/**
+ * Where a crash report starts: the signal handler's header ("Received signal 11 SEGV_MAPERR ...") or, with no
+ * header, the first stack frame. A renderer that crashed can take minutes to be reported gone (#9850: 3.5 minutes,
+ * by when the report had scrolled out of the last 60 lines), so each report is kept apart from the tail.
+ */
+const CRASH_START = /Received signal \d+|\[err\] #0 0x/;
+/** Where it ends. */
+const CRASH_END = "[end of stack trace]";
+/** How many lines before a report are kept with it: Chromium's own log lines there carry the crashing pid. */
+const CRASH_CONTEXT = 10;
+/** The most lines one report keeps, and how many reports are kept (the newest). */
+const CRASH_LINES = 400;
+const KEEP_CRASHES = 4;
+
 const recent = [];
+/** Chromium's crash reports, each whole. */
+const crashes = [];
+/** The report still being written, until its end line. */
+let crash;
 let capturing = false;
+
+/**
+ * Keeps a stderr line of Chromium's, and keeps it in a crash report when one is being written.
+ * @param line - one line of the pw:browser log
+ */
+function keepBrowserLine(line) {
+    if (crash === undefined && CRASH_START.test(line)) {
+        crash = recent.slice(-CRASH_CONTEXT);
+        crashes.push(crash);
+        crashes.splice(0, Math.max(0, crashes.length - KEEP_CRASHES));
+    }
+    recent.push(line);
+    recent.splice(0, Math.max(0, recent.length - KEEP_LINES));
+    if (crash !== undefined) {
+        crash.push(line);
+        if (line.includes(CRASH_END) || crash.length >= CRASH_LINES) {
+            crash = undefined;
+        }
+    }
+}
 
 /**
  * Turns on Playwright's browser log and keeps its lines from this process's stderr. Before Playwright
@@ -44,6 +84,15 @@ function captureBrowserStderr() {
         return; // the run asked to see it: leave it on screen
     }
     process.env.DEBUG = debug ? `${debug},pw:browser` : "pw:browser";
+    // Playwright's copy of `debug` reads DEBUG once, when it loads. A config whose imports load Playwright before
+    // this runs (graphty-element's does) would otherwise never log a browser line, and its reports said "last 0
+    // stderr lines" even for a renderer out of memory (#9850). So it is switched on there as well.
+    try {
+        const { createRequire } = process.getBuiltinModule("node:module");
+        createRequire(import.meta.url)("playwright-core/lib/utilsBundle").debug.enable(process.env.DEBUG);
+    } catch {
+        // No Playwright to reach from here: its `debug` reads DEBUG when it loads.
+    }
     const write = process.stderr.write.bind(process.stderr);
     process.stderr.write = (chunk, ...rest) => {
         const text = typeof chunk === "string" ? chunk : Buffer.from(chunk).toString();
@@ -53,12 +102,11 @@ function captureBrowserStderr() {
         const others = [];
         for (const line of text.split("\n")) {
             if (isBrowserLine(line)) {
-                recent.push(line);
+                keepBrowserLine(line);
             } else {
                 others.push(line);
             }
         }
-        recent.splice(0, Math.max(0, recent.length - KEEP_LINES));
         const kept = others.join("\n");
         if (kept.trim()) {
             return write(kept, ...rest);
@@ -126,12 +174,16 @@ function memoryReport() {
 }
 
 /**
- * Prints what happened, Chromium's last stderr lines and the memory.
+ * Prints what happened, Chromium's crash reports, its last stderr lines and the memory.
  * @param event - what went away and how
  */
 function report(event) {
     const lines = [
         `[browser-crash-log] ${event} at ${new Date().toISOString()}`,
+        ...crashes.flatMap((lines, i) => [
+            `Chromium's crash report ${String(i + 1)} of ${String(crashes.length)}, whole:`,
+            ...lines.map((l) => `${QUOTE}${l}`),
+        ]),
         `Chromium's last ${String(Math.min(PRINT_LINES, recent.length))} stderr lines:`,
         ...recent.slice(-PRINT_LINES).map((l) => `${QUOTE}${l}`),
     ];

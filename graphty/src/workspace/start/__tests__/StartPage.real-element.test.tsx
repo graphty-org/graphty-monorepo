@@ -15,10 +15,11 @@ import { commands, page, userEvent } from "vitest/browser";
 import { withoutFeatures } from "../../../test/features";
 import { openBy } from "../../../test/open";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
-import { forgetUsageAnswer } from "../../privacy/usageData";
+import { assumeUsageDeclinedForTests, forgetUsageAnswer } from "../../privacy/usageData";
 import { clearRecent, rememberRecent } from "../../project/recent";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+import { HeroTurns } from "../heroTurns";
 
 // These tests drive the Style panel the app shows with file styles off; the panel by part of the
 // drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
@@ -44,7 +45,13 @@ async function startPage(): Promise<{
     unmount: () => void;
 }> {
     const store = createWorkspaceStore();
-    const { unmount } = render(<Workspace store={store} />);
+    // Held still, as Storybook holds it: a turning graph paused by its button stopped at whatever angle the
+    // clock had reached, so which nodes a pointer could reach changed from run to run.
+    const { unmount } = render(
+        <HeroTurns.Provider value={false}>
+            <Workspace store={store} />
+        </HeroTurns.Provider>,
+    );
     let element: Element | null = null;
     await waitFor(() => {
         element = document.querySelector<HTMLElementTagNameMap["graphty-element"]>("graphty-element[data-start-page]");
@@ -57,11 +64,6 @@ async function startPage(): Promise<{
     const hero = element as Element;
     // A still graph drawn on every animation frame made each click on the page take about a second.
     assert.isTrue(hero.renderOnDemand, "the start page's graph draws on demand");
-    // Stop the turning with the page's own button, so a node stays under the pointer.
-    const pause = screen.queryByRole("button", { name: "Pause the turning" });
-    if (pause !== null) {
-        await userEvent.click(pause);
-    }
     await hero.session.styles.settled();
     await hero.waitForStableFrame();
     return { store, element: hero, session: hero.session, unmount };
@@ -195,6 +197,9 @@ afterEach(async () => {
 
 describe("the start page's graph", () => {
     it("fades what a pointed-at node is not linked to, and nothing once the pointer leaves", async () => {
+        // The usage data question sits over the graph's lower right corner, where the seeded layout
+        // draws Napoleon; a reader who has answered it has the whole graph to point at.
+        assumeUsageDeclinedForTests();
         const { element, session } = await startPage();
         const at = pointOn(element, "Napoleon");
 

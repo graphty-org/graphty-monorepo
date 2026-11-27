@@ -1,0 +1,147 @@
+id: W233
+name: Build a Class Network from a Survey
+category: analysis
+validated: false
+personas:
+    - network-analysis-instructor
+    - class-project-student
+    - r-statistical-network-student
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - node-merging
+    - layout-force-directed
+    - degree-analysis
+    - visual-encoding-nodes
+    - legend-display
+    - details-on-demand
+    - comparison-view
+    - export-image
+    - survey-network-import
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - attribute-table-join-dialog
+    - node-merge-dialog
+    - visual-encoding-panel
+    - legend-panel
+    - graph-canvas
+    - comparison-view
+    - image-export-dialog
+starting_state:
+    data_type: wide survey export (one row per respondent, one column per nominee) plus a class roster with attributes
+    node_count: 20-110
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Turn a classroom name-generator survey ("list up to five classmates you seek help from most frequently")
+    into a directed, anonymized network, check reciprocity and missing respondents, and draw it colored by an attribute.
+    Done once per course by instructors who use the class as its own dataset (Aarhus, UT Dallas) and by education
+    researchers studying friendship or help networks.
+
+
+    **Mental Model**: "Each answer is an arrow." Every respondent row fans out into arrows to the people they named;
+    names must resolve to one roster entry, and real names must disappear before anyone else sees the data.
+
+
+    **Task Phases**:
+
+    1. **Write the name generator** - One question per relation, with a time frame and a roster to improve recall
+
+    2. **Choose roster or free recall, and a cap** - Rosters give more and cleaner nominations; free recall needs
+    error-prone cleanup
+
+    3. **Collect** - A form tool exports one row per respondent with one column per nominee (no source found describing
+    a class export; inference)
+
+    4. **Reshape and resolve names** - Wide table to long edge list (source is respondent, target is nominee); match
+    spellings to the roster; join attributes by name
+
+    5. **Anonymize** - Replace names with ids (1 to 27 in the LASER data) before sharing
+
+    6. **Import as directed** - Check reciprocity and mutual ties; note non-respondents who appear only because others
+    named them
+
+    7. **Draw and interpret** - Kamada-Kawai or force layout, color by gender or group, size by in-degree; compare
+    student-reported and teacher-reported networks
+
+
+    **Decision Points**:
+
+    - Roster or free recall, and how many nominations to allow
+
+    - How to resolve misspelled or ambiguous names
+
+    - Keep or drop non-respondents
+
+    - Which attribute to color by, given privacy constraints
+
+
+    **Information Needs**:
+
+    - Count of nominations that did not match the roster, with the unmatched names
+
+    - Respondent versus non-respondent marking
+
+    - Reciprocity rate and mutual-tie highlighting
+
+    - In-degree (popularity) and out-degree (nominations made) per student
+
+
+    **Pain Points**:
+
+    - Wide survey exports are not edge lists
+
+    - Name spelling variants create duplicate nodes
+
+    - Personal data about minors must be anonymized before sharing
+
+    - Missing respondents leave half-observed ties that distort structure
+
+
+    **Data Flow**:
+
+    - Input: Survey export (wide), roster with attributes
+
+    - Transformations: Wide-to-long reshape, roster name matching, id replacement, directed import, reciprocity
+    computation
+
+    - Output: Anonymized directed edge list and node table, figure colored by attribute, reciprocity summary
+success_criteria:
+    - metric: Name resolution transparency
+      target: User can state how many nominations matched the roster and list the ones that did not
+    - metric: Privacy
+      target: Exported data and figure contain no real names unless explicitly chosen
+    - metric: Direction preserved
+      target: Reciprocity rate shown and mutual ties distinguishable in the drawing
+sources:
+    - title: Data-edu computational social science cookbook, chapter 5
+      url: https://data-edu.github.io/computational-social-science-cookbook/chapter-5.html
+      summary: Help-seeking name generator, reshape and match by name, anonymize for IRB, directed import, reciprocity and mutual edges, missing responses
+    - title: Ross and Redhead - roster versus name-generator data collection
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC9046375/
+      summary: Rosters yield higher quality data with less post-processing but scale poorly; name generators need error-prone cleanup
+    - title: Neal meta-analysis of adolescent friendship outdegree
+      url: https://www.cambridge.org/core/journals/network-science/article/methodological-moderators-of-average-outdegree-centrality-a-metaanalysis-of-child-and-adolescent-friendship-networks/87FDEDEC3CD2A48DC1E84B19925DABE6
+      summary: About 4.25 nominations with free recall against 5.74 with rosters
+    - title: Traxler et al. - classroom network surveys
+      url: https://ar5iv.arxiv.org/html/2004.06446
+      summary: Roster and time frame boost recall; non-respondents' ties half observed
+    - title: Saxena et al. - negative ties in classrooms
+      url: https://ar5iv.labs.arxiv.org/html/1909.05079
+      summary: Students may not reveal negative ties
+    - title: LASER Institute network analysis case study
+      url: https://laser-institute.github.io/network-analysis/module-1/sna-1-case-study-key-python.html
+      summary: 27-student middle-school friendship network relabeled 1 to 27; Kamada-Kawai, color by gender, student versus teacher networks
+    - title: UT Dallas ATCM 3385 syllabus
+      url: https://dox.utdallas.edu/syl86627
+      summary: Students analyze an anonymized version of the class social network
+    - title: Aarhus University teaching case
+      url: https://educate.au.dk/en/teaching-cases/hands-on-data-analysis-visualising-networks
+      summary: Students' own network shows them that data is created
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

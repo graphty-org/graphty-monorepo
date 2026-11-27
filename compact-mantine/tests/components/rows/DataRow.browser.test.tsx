@@ -7,22 +7,11 @@
  * computed layout, which JSDOM does not do: it reports the spans as inline and joins the text
  * with no space. So these assertions run in a real browser.
  */
-import { MantineProvider } from "@mantine/core";
-import { render, screen } from "@testing-library/react";
-import React from "react";
+import { screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { compactTheme } from "../../../src";
 import { DataRow, DataRowHeader } from "../../../src/components/rows/DataRow";
-
-/**
- * Render inside the compact theme, the way the package is consumed.
- * @param ui - The element under test
- * @returns The testing-library render result
- */
-function renderRow(ui: React.ReactElement): ReturnType<typeof render> {
-    return render(<MantineProvider theme={compactTheme}>{ui}</MantineProvider>);
-}
+import { renderCompact as renderRow } from "../../harness/render";
 
 describe("DataRow", () => {
     it("keeps the whole string as its accessible name, ellipsis or not", () => {

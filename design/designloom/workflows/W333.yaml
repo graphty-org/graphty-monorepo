@@ -1,0 +1,127 @@
+id: W333
+name: org-roam Follow Mode and R igraph Analysis
+category: analysis
+validated: false
+personas:
+    - pkm-developer-note-taker
+requires_capabilities:
+    - data-import
+    - ego-network
+    - degree-analysis
+    - community-detection
+    - community-profiling
+    - visual-encoding-nodes
+    - layout-force-directed
+    - data-export
+    - live-graph-streaming
+    - embedded-host-view
+    - active-item-sync
+    - note-format-import
+suggested_components:
+    - graph-canvas
+    - ranked-node-table
+    - community-panel
+    - visual-encoding-panel
+    - ego-network-dialog
+    - data-export-dialog
+starting_state:
+    data_type: org-roam SQLite database (nodes and links tables) kept current by autosync
+    node_count: 1,000-5,000
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Keep a browser graph that follows the note open in Emacs, and periodically analyze the same note network
+    in R: degree, backlinks, communities and ego graphs, exported as an interactive page.
+
+
+    **Mental Model**: "My notes are a database; the graph is a live view of it and a dataset for scripts."
+
+
+    **Task Phases**:
+
+    Follow mode:
+
+    1. **Index** (automatic) - Org files and headings with IDs are nodes; ID links are edges; autosync keeps org-roam.db
+    current
+
+    2. **Start the viewer** - org-roam-ui starts a local server and connects over a WebSocket for real-time
+    updates
+
+    3. **Write and follow** (continuous) - The graph moves to the node open in Emacs; a command opens the current node in
+    local view
+
+    4. **Open from the graph** - Double-click a node to open it in Emacs; the graph reloads in full on each save
+
+    Analysis in R:
+
+    5. **Query** - Connect with RSQLite; select id and title from nodes; select source and dest from links where
+    type is id
+
+    6. **Build** - Strip quotes from titles, join links to nodes, build an igraph, simplify away multi-edges and
+    self-loops
+
+    7. **Degree** - Total, out ("Links") and in ("Backlinks"); list the top ten
+
+    8. **Communities** - Spinglass, each named after its member with the most backlinks; no agreed validation
+
+    9. **Plot** - Fruchterman-Reingold, color by community, size by sqrt(in-degree + 1), labels hidden
+
+    10. **Ego graph** - Order-2 neighborhood around one node, walktrap communities, Kamada-Kawai layout
+
+    11. **Export** - Interactive networkD3 force graph sized by backlinks, saved as HTML
+
+
+    **Decision Points**:
+
+    - Which community algorithm, and are its groups meaningful?
+
+    - Which node deserves an ego-graph study?
+
+    - Label communities by their most-backlinked member or by hand?
+
+
+    **Information Needs**:
+
+    - In- and out-degree as backlinks and links
+
+    - Community membership and a representative name per community
+
+    - Current node in the editor, marked in the graph
+
+
+    **Pain Points**:
+
+    - Full reload on every save
+
+    - 3D mode is slow
+
+    - Built-in org-roam-graph renders a static Graphviz image
+
+    - Community validation is a judgment call
+
+
+    **Data Flow**:
+
+    - Input: org-roam.db (SQLite: nodes, links), editor focus events
+
+    - Transformations: ID-link graph, simplification, degree, community detection, ego graph, force layouts
+
+    - Output: Ranked lists, community-colored plots, interactive HTML export
+success_criteria:
+    - metric: Incremental follow
+      target: Saving a note updates only that node's edges, not the whole graph
+    - metric: Scriptable parity
+      target: Degree and community results in the view match a script run on the same database
+sources:
+    - title: Org-roam manual
+      url: https://www.orgroam.com/manual.html
+      summary: Nodes, ID links, org-roam.db, autosync, org-roam-graph Graphviz output
+    - title: org-roam-ui
+      url: https://github.com/jethrokuan/org-roam-ui
+      summary: Local server, WebSocket updates, follow mode, double-click to open, full reload on save, slow 3D
+    - title: Peter Prevos - Visualise org-roam networks with igraph and R
+      url: https://www.r-bloggers.com/2021/08/visualise-org-roam-networks-with-igraph-and-r
+      summary: SQL, igraph, degree, spinglass and walktrap, ego graph, networkD3 export
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

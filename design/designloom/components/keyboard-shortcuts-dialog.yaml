@@ -9,6 +9,9 @@ implements_capabilities:
 used_in_workflows:
     - W02
     - W03
+    - W232
+    - W287
+    - W423
 dependencies:
     - keyboard-shortcut
     - divider

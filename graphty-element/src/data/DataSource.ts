@@ -51,7 +51,15 @@ export interface BaseDataSourceConfig {
     file?: File;
     /** A URL to fetch, as bytes. */
     url?: string;
+    /**
+     * How many nodes the reader hands the graph at a time while it loads, so a large file draws
+     * as it arrives. Defaults to {@link DataSource.DEFAULT_CHUNK_SIZE}.
+     */
     chunkSize?: number;
+    /**
+     * How many invalid nodes and edges the reader skips before it stops reading the file.
+     * Defaults to 100.
+     */
     errorLimit?: number;
     /**
      * Which graph to read from a file that holds several, by its 0-based position. The first
@@ -70,10 +78,17 @@ export interface BaseDataSourceConfig {
     /**
      * `"recommended"` chooses a layout for what was loaded, once it is loaded: the `fixed` layout,
      * which draws each node where the file put it, when every node arrived with a position, and a
-     * computed one otherwise. `"placed"` chooses the `fixed` layout in the same case and otherwise
-     * leaves the layout as it is. `"keep"` (the default) leaves the layout as it is.
+     * computed one otherwise. `"placed"` chooses the `fixed` layout in the same case, else the layout
+     * the file asks for (a DOT file's Graphviz program), and otherwise leaves the layout as it is.
+     * `"keep"` (the default) leaves the layout as it is.
      */
     layout?: "recommended" | "placed" | "keep";
+    /**
+     * `"data"` also pins every node the file marks fixed (a Graphviz `pos="x,y!"` or `pin=true`, a
+     * Cytoscape.js `"locked": true`), so a layout keeps them where the file put them and lays out
+     * the rest. `"keep"` (the default) pins nothing.
+     */
+    pins?: "data" | "keep";
 }
 
 /**
@@ -130,6 +145,7 @@ const ELEMENT_OWNED_OPTIONS: ReadonlySet<string> = new Set([
     "styles",
     "styleOptions",
     "layout",
+    "pins",
 ]);
 
 /**
@@ -258,8 +274,14 @@ function readGraphLister(type: string, value: unknown): GraphLister | undefined 
     return value as GraphLister;
 }
 
+/**
+ * One batch of a load: the nodes and edges a reader yields together. A custom reader yields these
+ * from {@link DataSource.sourceFetchData}.
+ */
 export interface DataSourceChunk {
+    /** The batch's nodes, one record each. */
     nodes: AdHocData[];
+    /** The batch's edges, one record each. An edge may name a node from an earlier or later batch. */
     edges: AdHocData[];
 }
 
@@ -356,7 +378,9 @@ const READER_KEYS: ReadonlySet<string> = new Set(["chunkSize", "errorLimit"]);
 
 /** The registrable reader {@link DataSource.fromImporter} returns. */
 export type ImporterDataSourceClass = (new (config: BaseDataSourceConfig) => DataSource) & {
+    /** The format's id, which a load names it by. */
     readonly type: string;
+    /** What the catalog publishes about the format. See {@link DataSource.descriptor}. */
     readonly descriptor: FormatDescriptor;
 };
 
@@ -485,7 +509,9 @@ function attemptError(error: unknown, timeout: number, last: { timeoutMs?: numbe
  * Provides common functionality for validation, chunking, error handling, and data fetching.
  */
 export abstract class DataSource {
+    /** The format's id, which a load names it by (`"json"`, `"graphml"`). A subclass sets it. */
     static readonly type: string;
+    /** How many nodes a reader hands the graph at a time when the config sets no `chunkSize`. */
     static readonly DEFAULT_CHUNK_SIZE = 1000;
 
     /**
@@ -523,7 +549,15 @@ export abstract class DataSource {
      */
     static listGraphs?: GraphLister;
 
+    /**
+     * A schema every edge must match, or null (the default) to take every edge. An edge that
+     * fails it is skipped and counts toward `errorLimit`.
+     */
     edgeSchema: z.core.$ZodObject | null = null;
+    /**
+     * A schema every node must match, or null (the default) to take every node. A node that
+     * fails it is skipped and counts toward `errorLimit`.
+     */
     nodeSchema: z.core.$ZodObject | null = null;
     protected errorAggregator: ErrorAggregator;
     protected chunkSize: number;
@@ -552,7 +586,12 @@ export abstract class DataSource {
         this.chunkSize = chunkSize;
     }
 
-    // abstract init(): Promise<void>;
+    /**
+     * Reads the source and yields its nodes and edges in batches. A custom reader implements it;
+     * the element validates each batch against {@link nodeSchema} and {@link edgeSchema} and draws
+     * it. A reader holding the whole graph at once can yield `this.chunkData(nodes, edges)`.
+     * @yields the batches, in order
+     */
     abstract sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown>;
 
     /**

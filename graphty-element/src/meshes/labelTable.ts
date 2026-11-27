@@ -108,6 +108,11 @@ export interface LabelTable {
      * (its `pixelSize`, else 1).
      */
     readonly imagePixel?: number;
+    /**
+     * On a node that does not grow round its label (no `labelFit`), a table larger than the node is drawn smaller,
+     * words and all, keeping its proportions, until it fits inside the node; unset, it is drawn at its own size.
+     */
+    readonly shrinkToNode?: boolean;
     readonly rows: readonly LabelTableRow[];
 }
 

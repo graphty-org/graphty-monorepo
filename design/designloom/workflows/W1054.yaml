@@ -1,0 +1,208 @@
+id: W1054
+name: Pollutant to Disease Mechanism Network (Network Toxicology)
+category: analysis
+validated: false
+personas:
+    - network-toxicology-researcher
+    - network-pharmacology-graduate-student
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - identifier-mapping
+    - set-operations
+    - filtering
+    - interactive-threshold
+    - component-analysis
+    - centrality-degree
+    - hub-screening
+    - centrality-betweenness
+    - centrality-closeness
+    - computed-attributes
+    - typed-heterogeneous-graphs
+    - node-selection
+    - selection-statistics
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-tiered-by-attribute
+    - layout-force-directed
+    - details-on-demand
+    - gene-set-enrichment
+    - model-output-overlay
+    - threshold-sweep
+    - provenance-tracking
+    - source-grading
+    - evidence-source-toggle
+    - input-rederivation
+    - analysis-history
+    - report-generation
+    - statistics-panel
+    - export-image
+    - data-export
+suggested_components:
+    - data-import-dialog
+    - file-drop-zone
+    - column-mapper
+    - attribute-table-join-dialog
+    - data-preview-table
+    - data-table-panel
+    - filter-panel
+    - filter-chip
+    - range-slider
+    - algorithm-panel
+    - ranked-node-table
+    - enrichment-results-table
+    - node-details-panel
+    - visual-encoding-panel
+    - legend-panel
+    - layout-panel
+    - comparison-view
+    - analysis-history-panel
+    - report-generator-dialog
+    - statistics-panel
+    - graph-canvas
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: one chemical or a congener family with CAS number, PubChem compound id and SMILES; predicted and curated chemical-gene target lists; disease gene list or a differential expression table; STRING TSV edge list; enrichment term table
+    node_count: 10-1,100 predicted targets narrowing to 70-350 intersected genes and 5-10 hubs
+    edge_density: medium (STRING network of 70-350 nodes)
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Explain how an environmental or food-borne chemical could cause a disease, by finding the human
+    proteins it is predicted or recorded to act on, intersecting them with the genes that move in that disease, ranking
+    the survivors as hubs, and docking the chemical into them. This is the pipeline of the papers that call themselves
+    network toxicology: 12 PubMed records in 2023, 54 in 2024, 497 in 2025 and 1,021 in the first eleven months of
+    2026, 1,448 of 1,503 with a China affiliation and 348 from Chinese-medicine institutions. It is the same recipe as
+    the herbal formula pipeline with a pollutant where the formula was.
+
+
+    **Mental Model**: "Narrow the funnel from one chemical." A single root node fans out into hundreds of predicted
+    targets; the disease narrows them; a confidence cutoff and a hub rule narrow them again; the handful left is the
+    mechanism, and every count ends up in the methods section.
+
+
+    **Task Phases**:
+
+    1. **Name the exposure** (10 min) - One chemical or a congener family, with CAS number, PubChem compound id and
+    SMILES string; six polychlorinated biphenyl congeners means six root nodes
+
+    2. **Predict toxicity endpoints** (20 min) - ProTox and ADMETlab give carcinogenicity, endocrine-receptor and
+    mitochondrial-toxicity calls, which become attributes of the root node
+
+    3. **Collect chemical targets** (30-90 min) - The curated route queries the Comparative Toxicogenomics Database by
+    CAS number and filters by the disease association; the predicted route runs SwissTargetPrediction, SuperPred,
+    STITCH or ChEMBL on the SMILES string, human only, and merges after UniProt normalization
+
+    4. **Collect disease genes** (30 min) - Either GeneCards above a relevance score plus OMIM and TTD, or
+    differential expression from TCGA or GEO (113 normal against 1,113 tumor samples, absolute log fold change at
+    least 1, adjusted p below 0.05)
+
+    5. **Intersect** (10 min) - Venny or the R venn package; 124 chemical-associated genes left 76 also differentially
+    expressed in one published example, 324 in another
+
+    6. **Build the protein interaction network and screen hubs** (30-60 min) - STRING at 0.7 or above 0.9, then
+    cytoHubba top-10 lists by degree, closeness and betweenness intersected, or the top five by degree, or a
+    machine-learning model (LASSO, random forest, SHAP) in place of the degree rule
+
+    7. **Enrich** (20 min) - clusterProfiler GO and KEGG with Benjamini-Hochberg adjustment
+
+    8. **Dock and simulate** (half a day to two days) - AutoDock Vina against the hubs, then Gromacs molecular
+    dynamics
+
+    9. **Confirm in one cell line** - Exposure at a stated concentration for a stated time, hubs read by RT-qPCR
+
+    10. **Robustness, when a reviewer asks** - Re-run at other thresholds, fix the direction of any
+    receiver-operating characteristic test from the discovery data, test the overlap against the genes the sources
+    could have returned rather than the whole protein-coding genome, and drop one chemical from a mixture
+
+
+    **Decision Points**:
+
+    - Curated chemical-gene evidence, predicted targets, or both merged?
+
+    - Which target server, when they return 14, 8 and 1,031 targets for the same chemical?
+
+    - Keyword disease genes or measured differential expression, and at which fold-change and adjusted-p cutoffs?
+
+    - Which STRING confidence, and which hub rule: intersected top-10 lists, top-N degree, or a model?
+
+    - Which hubs get the docking and the one cell-line experiment?
+
+
+    **Information Needs**:
+
+    - Which source or server contributed each target node, kept through the merge
+
+    - The count surviving each filter, so the methods paragraph cannot disagree with the figures
+
+    - The chemical identifiers that failed to resolve, and the gene symbols that failed to map
+
+    - A hub table showing degree, closeness and betweenness side by side with the rule that selected each hub
+
+    - Whether the hub list survives another confidence cutoff, and which genes enter only through one source
+
+    - The set of genes the sources could have returned, as the background for any enrichment claim
+
+
+    **Pain Points**:
+
+    - A chemical has four keys (CAS number, PubChem compound id, SMILES, congener name) and the pipeline joins on gene
+    symbols, so the root node is the one node nothing can match on
+
+    - Target servers disagree by an order of magnitude and the merged list records no source, so evidence class is lost
+    at exactly the step that creates it
+
+    - Hub ranks are not stable across confidence cutoffs: a published re-analysis found the top hub at 0.70 overtaken
+    by another gene at 0.85 and 0.90
+
+    - A stated docking threshold is reported and then not applied to the results table
+
+    - Re-running the pipeline at a second threshold means redoing every join, figure and count by hand
+
+
+    **Data Flow**:
+
+    - Input: Chemical identifiers and SMILES; predicted target lists per server; curated chemical-gene rows from the
+    Comparative Toxicogenomics Database; disease gene lists or a differential expression table; STRING TSV; enrichment
+    term table; docking scores
+
+    - Transformations: Identifier normalization, multi-source target merge with source recorded, set intersection,
+    protein interaction import at a confidence cutoff, centrality and model ranking, enrichment join as pathway nodes,
+    threshold re-runs
+
+    - Output: Four-tier exposure-target-pathway-disease figure, protein interaction network with its core subnetwork,
+    ranked hub table, enrichment plots, docking table, methods paragraph carrying every threshold and count
+success_criteria:
+    - metric: Source attribution
+      target: Every target node states which server or curated source contributed it, after the merge
+    - metric: Hub stability
+      target: User can see which hubs survive a second confidence cutoff without rebuilding the pipeline
+    - metric: Count consistency
+      target: Every count in the exported methods paragraph matches the networks and tables it describes
+sources:
+    - title: Polychlorinated biphenyls and breast cancer (Frontiers in Pharmacology 2025)
+      url: https://www.frontiersin.org/articles/10.3389/fphar.2025.1604993/full
+      summary: Comparative Toxicogenomics Database by CAS number filtered on Breast Neoplasms at p < 0.01; TCGA-BRCA 113 normal against 1,113 tumor samples giving 9,554 differentially expressed genes; 124 chemical targets, 76 differentially expressed; STRING 0.7; cytoHubba degree, closeness and betweenness top-10 overlap giving six hubs; AutoDock Vina; MCF-7 RT-qPCR at 1 micromolar for 48 hours
+    - title: 4-Nonylphenol and breast cancer (PLoS One 2025)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC12419657/
+      summary: ProTox and ADMETlab endpoints; SwissTargetPrediction 14, STITCH 8 and ChEMBL 1,031 targets for one chemical; GeneCards relevance above 10 plus OMIM and TTD giving 3,420 genes; 324 intersected; Cytoscape 3.10.3; STRING above 0.9; top five by degree; docking kept at -6.0 kcal/mol or better yet reporting TP53 at -4.8 and ESR1 at -5.1
+    - title: Dioctyl terephthalate and chronic spontaneous urticaria (Ecotoxicology and Environmental Safety 2025)
+      url: https://pubmed.ncbi.nlm.nih.gov/39923559/
+      summary: Authors at Chengdu University of Traditional Chinese Medicine; PubChem structure, SwissTargetPrediction and SuperPred, UniProt standardization, STRING and Cytoscape, 38 targets to six core, GO and KEGG, AutoDock, Gromacs molecular dynamics
+    - title: Benzo[a]pyrene and rheumatoid arthritis video protocol (JoVE, 26 May 2026)
+      url: https://www.jove.com/v/70636
+      summary: "The recipe published as a teachable protocol: STRING version 12, Cytoscape 3.10.1, cytoHubba degree algorithm, the R venn package, five core genes then machine-learning validation"
+    - title: Robustness re-analysis of a network toxicology result (Clinical, Cosmetic and Investigational Dermatology 2026)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC13604017/
+      summary: Core overlap zero above a 0.170 disease-gene tier threshold; enrichment 2.49-fold against the protein-coding genome but 1.29-fold against the 5,601 genes the sources could return; top hub at STRING 0.70 overtaken at 0.85 and 0.90; 7 of 10 validation estimates below 0.50 once test direction was fixed; the target source could not be re-queried and its release had not been recorded
+    - title: Comparative Toxicogenomics Database, 2025 update (Nucleic Acids Research)
+      url: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC11701581/
+      summary: Over 94 million toxicogenomic connections, of which 3.8 million are manually curated from more than 149,000 articles over 17,700 chemicals, 55,400 genes, 7,200 diseases and 214,000 exposures
+    - title: PubMed counts for "network toxicology" (E-utilities, run 2026-11-25)
+      url: https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi
+      summary: 1,503 records in total; 12 in 2023, 54 in 2024, 497 in 2025, 1,021 to 25 November 2026; 1,448 with a China affiliation; 1,178 also naming molecular docking, 384 molecular dynamics, 450 machine learning, 313 GEO, TCGA or differential expression; ToxCast or Tox21 named in only 2
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

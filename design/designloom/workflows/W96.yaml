@@ -1,0 +1,146 @@
+id: W96
+name: Chain-of-Command Mapping for Human Rights Accountability
+category: analysis
+validated: false
+personas:
+    - osint-investigator
+requires_capabilities:
+    - data-import
+    - data-validation
+    - layout-hierarchical
+    - temporal-analysis
+    - temporal-navigation
+    - filtering
+    - path-highlighting
+    - details-on-demand
+    - annotation
+    - visual-encoding-edges
+    - legend-display
+    - export-image
+    - data-export
+    - provenance-tracking
+    - temporal-validity
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - graph-canvas
+    - layout-panel
+    - temporal-controls
+    - filter-panel
+    - node-details-panel
+    - data-table-panel
+    - annotation-toolbar
+    - legend-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: cited claims about units, unit-to-unit relations, postings of persons, unit locations and incidents, each with a date range and status
+    node_count: no source found
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Reconstruct who commanded a security-force unit that committed an abuse on a given date, from public
+    sources, so that an incident can be attributed to a unit and a commander in a report, a UN submission or a court.
+    The model is Security Force Monitor's research handbook and its WhoWasInCommand publication.
+
+
+    **Mental Model**: "Every line on the org chart is a cited claim with dates." The chart is not one picture but a
+    picture as of a chosen day; conflicting sources are kept, not resolved away.
+
+
+    **Task Phases**:
+
+    1. **Build a source list and cite every claim** (ongoing) - A claim is an assertion evidenced by a citation;
+    every claim needs at least one
+
+    2. **Record claims by type** - Units; relations between units (child-of for hierarchy, member-of for joint
+    task forces), each with an optional class (command, administrative, or a training cohort); postings of persons to
+    units; positionings (where a unit was); incidents
+
+    3. **Date each claim as a range** (with step 2) - A precise range holds on every date in it; an imprecise range
+    held on at least one day in it; separate flags say whether a date is a real start or end; a current claim usually
+    ends at the citation's publication date; month-only dates are discouraged
+
+    4. **Mark status** (review) - Accepted, conflict, work needed or issue; a citation with partly conflicting detail
+    becomes a conflict claim plus a separate accepted claim without the conflicting detail, each with a public note
+
+    5. **Merge contiguous claims** (review) - Relations between the same two units whose ranges overlap or fall within
+    a day share one id
+
+    6. **Publish and read** (per case) - Each value shows its sources and confidence; a unit's parent chart is drawn
+    as of the last cited or end date of the parent relationship, using only command relations; linking incident to
+    unit to commander on a date is the attribution
+
+
+    **Decision Points**:
+
+    - Does a source support a precise or only an imprecise date range?
+
+    - Is a partly conflicting citation a conflict claim or a separate accepted claim?
+
+    - Which relations are command (drawn in the chart) and which administrative or informal?
+
+    - As of which date should the chart be drawn for this incident?
+
+
+    **Information Needs**:
+
+    - Per relation and posting - citations, status, start and end dates, precision flags, class
+
+    - The command hierarchy as of a chosen date, with only command relations
+
+    - The path from an incident's unit up to its commanders on the incident date
+
+    - Conflicting claims side by side with their notes
+
+
+    **Pain Points**:
+
+    - Graph tools that hold one value per edge and no date ranges, status or citations
+
+    - Charts that silently mix relations valid at different times
+
+    - Conflicts resolved by deletion, losing the record
+
+    - No source found on use of this data model outside the organization that built it
+
+
+    **Data Flow**:
+
+    - Input: Claims and citations (units, relations, postings, positionings, incidents) with date ranges, precision
+    flags, status and class
+
+    - Transformations: Merge of contiguous relations, filter by relation class and status, as-of-date slice,
+    hierarchical layout, incident-to-commander path
+
+    - Output: Dated command chart with sources and confidence on every value, attribution path, claims table
+success_criteria:
+    - metric: As-of chart
+      target: User picks a date and sees only command relations valid on that date
+    - metric: Claim provenance
+      target: Every edge in the chart opens to its citations, status and date precision
+    - metric: Attribution path
+      target: From an incident, the unit and its commanders on the incident date are highlighted in one action
+sources:
+    - title: Security Force Monitor research handbook - Our general data model
+      url: https://help.securityforcemonitor.org/en/latest/our-general-data-model.html
+      summary: Claims evidenced by citations; units, relations, postings, positionings, incidents
+    - title: Security Force Monitor research handbook - How dates work
+      url: https://help.securityforcemonitor.org/en/latest/how-dates-work.html
+      summary: Precise and imprecise ranges, real start and end flags, current claims end at publication date
+    - title: Security Force Monitor research handbook - Unit relations
+      url: https://help.securityforcemonitor.org/en/latest/units-relations.html
+      summary: child-of and member-of relations with command, administrative or cohort class; contiguous merge
+    - title: Security Force Monitor research handbook - Multiple citations and conflicting claims
+      url: https://help.securityforcemonitor.org/en/latest/multiple-citations-claims.html
+      summary: accepted, conflict, work_needed and issue status; split of partly conflicting citations with public notes
+    - title: WhoWasInCommand - Unit records
+      url: https://security-force-monitor.gitbook.io/sfm-research-handbook/en/whowasincommand/unitrec
+      summary: Sources and confidence for each value; parent chart drawn at the last cited or end date using command relations only
+    - title: UC Berkeley Human Rights Center - Berkeley Protocol on Digital Open Source Investigations
+      url: https://humanrights.berkeley.edu/programs/investigations/berkeley-protocol
+      summary: Evidence standards for open-source investigations (read via search summary)
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

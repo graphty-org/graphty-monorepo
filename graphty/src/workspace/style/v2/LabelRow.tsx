@@ -79,8 +79,11 @@ function TextSource({
     onTemplate?: (binding: TemplateWrite) => Promise<unknown>;
 }>): React.JSX.Element {
     const { store } = useWorkspace();
+    // on reload: fresh: pointer: a pop-over held open by its control
     const [open, setOpen] = useState(opensAtOnce);
+    // on reload: fresh: in flight: typed text not yet written
     const [typing, setTyping] = useState(false);
+    // on reload: fresh: pointer: the formatting pop-over held open by its control
     const [formatting, setFormatting] = useState(false);
     const { session } = ctx;
     const source = sourceText(ctx, words);
@@ -294,6 +297,7 @@ export function LabelRow({
     onOpenChange,
 }: LabelRowProps): React.JSX.Element {
     const { store } = useWorkspace();
+    // on reload: fresh: in flight: a rename under way
     const [renaming, setRenaming] = useState(false);
     const styleLine = entry === undefined ? lineIn(ctx, kind.style) : undefined;
     const style = entry === undefined ? styleOf(styleLine) : (entryOf(ctx, entry)?.style ?? {});

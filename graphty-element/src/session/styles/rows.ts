@@ -24,7 +24,6 @@ import type {
     StaticStyle,
 } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
-import { DRAFT_PATH } from "../sources/steps/paths";
 import { channelDescriptor } from "./channels";
 import type { CompiledLayer, PathDirectory } from "./Layer";
 import { ruleValuePath, type SelectorTarget } from "./predicate";
@@ -250,33 +249,17 @@ type StartingRowId =
     | "graphty:starting-selected"
     | "graphty:starting-hovered"
     | typeof PINNED_ROW_ID
-    | typeof DRAFT_ROW_ID
     | typeof TIMELINE_HIDDEN_ROW_ID;
 
 /** The template id the Pinned row carries. */
 const PINNED_ROW_ID = "graphty:starting-pinned";
 
-/** The template id the Draft row carries (experimental: source-steps). */
-const DRAFT_ROW_ID = "graphty:source-draft";
-
 /**
- * The Draft row's look: a ring on the nodes a drawn source draft's commit would merge, a dashed
- * border on the nodes it would add, and the edges it would add drawn dashed. The literal part is
- * `set`; what tells a merged node from a new one reads `graphty.draft` in `encode`.
+ * The template id the Draft row carried while new projects under the source-steps experiment got
+ * one. A project saved then still names it; nothing reads it differently from any other layer's
+ * source, and the join preview is drawn by `styles.showDraft` now.
  */
-const STARTING_DRAFT_LOOK = {
-    set: {
-        "node.haloColor": "#7048E8",
-        "node.haloScale": 1.4,
-        "node.borderColor": "#7048E8",
-        "node.borderStyle": "dashed",
-        "edge.style": "dash",
-    },
-    encode: {
-        "node.haloOpacity": { by: DRAFT_PATH, map: { merged: 1, new: 0 } },
-        "node.borderWidth": { by: DRAFT_PATH, map: { merged: 0, new: 0.1 } },
-    },
-} as const;
+export const LEGACY_DRAFT_ROW_ID = "graphty:source-draft";
 
 /** One default row: its template id, where it is pinned, and what it is written with. */
 export interface StartingRow {
@@ -351,10 +334,8 @@ export function outlineScaleOfBand(scale: number): number {
  * @param look.pinned.color - The halo's color.
  * @param look.pinned.scale - The halo's size.
  * @param look.pinned.opacity - How solid the halo is.
- * @param look.draft - Whether to add the Draft row (the source-steps experiment): it selects on
- *   `graphty.draft`, which reads nothing until a source draft is drawn.
  * @returns The rows, in the order they are added: Everything (pinned to the bottom), then Pinned,
- *   Draft, Selected and Hovered, each pinned to the top above the one before. Given `timelineHidden`
+ *   Selected and Hovered, each pinned to the top above the one before. Given `timelineHidden`
  *   instead, the timeline's one row, Timeline Hidden, pinned to the top: `"hidden"` sets
  *   `visible: false`; `"ghost"` draws what lies outside the time window gray and faint.
  */
@@ -369,7 +350,6 @@ export function startingRows(
               };
               readonly everything?: StaticStyle;
               readonly pinned?: { readonly color: string; readonly scale: number; readonly opacity: number };
-              readonly draft?: boolean;
           }
         | { readonly timelineHidden: TimelineHiddenLook },
 ): readonly StartingRow[] {
@@ -429,27 +409,6 @@ export function startingRows(
                       },
                   } as const,
               ]),
-        ...(look.draft === true
-            ? [
-                  {
-                      templateId: DRAFT_ROW_ID,
-                      pin: "top",
-                      spec: {
-                          name: "Draft",
-                          target: "both",
-                          // Read per element by each part: the node part rings merged nodes and
-                          // dashes new ones, the edge part dashes new edges (no edge is merged).
-                          selector: {
-                              match: "expression",
-                              where: `${DRAFT_PATH} == 'merged' || ${DRAFT_PATH} == 'new'`,
-                          },
-                          set: STARTING_DRAFT_LOOK.set,
-                          encode: STARTING_DRAFT_LOOK.encode,
-                          source: source(DRAFT_ROW_ID),
-                      },
-                  } as const,
-              ]
-            : []),
         {
             templateId: "graphty:starting-selected",
             pin: "top",

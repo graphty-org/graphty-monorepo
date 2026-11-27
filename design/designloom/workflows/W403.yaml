@@ -1,0 +1,165 @@
+id: W403
+name: Corpus to Word Co-occurrence Network in KH Coder
+category: analysis
+validated: false
+personas:
+    - text-network-analyst
+requires_capabilities:
+    - label-overlap-removal
+    - data-import
+    - data-preview
+    - filtering
+    - community-detection
+    - centrality-betweenness
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-force-directed
+    - details-on-demand
+    - search
+    - comparison-view
+    - analysis-history
+    - export-image
+    - data-export
+    - analysis-provenance
+    - backbone-extraction
+    - co-occurrence-weighting
+    - local-only-processing
+    - provenance-tracking
+    - shared-fixed-layout
+    - text-to-network
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - data-preview-table
+    - filter-panel
+    - range-slider
+    - status-bar
+    - community-panel
+    - visual-encoding-panel
+    - legend-panel
+    - graph-canvas
+    - node-details-panel
+    - comparison-view
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: raw text (open-ended answers, tweets, a novel) with document variables such as group or day
+    node_count: 50-150 drawn words cut from a vocabulary of thousands
+    edge_density: dense before thresholding; top 60 edges or Jaccard 0.1-0.2 after
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Turn a corpus into a network of words that co-occur in the same sentence, paragraph or document, read
+    its clusters as the themes of the corpus, compare them across groups or days, and go back to the passages behind
+    each cluster before writing about it. This is the main figure of a KH Coder study.
+
+
+    **Mental Model**: "Which words travel together?" Only the presence of an edge carries meaning; how close two words
+    sit on the page does not. Each cluster is a candidate theme that still has to be confirmed in the text.
+
+
+    **Task Phases**:
+
+    1. **Prepare text** - One plain-text file or a spreadsheet column; new line = paragraph, period =
+    sentence; heading tags define higher units (year, month, article); document variables from a separate file; remove
+    duplicates, bot retweets, user names and URLs
+
+    2. **Pre-process** - Tokenize and tag (MeCab for Japanese, Stanford for English); force-pick phrases as one
+    word, force-ignore unwanted strings
+
+    3. **Choose words** - Filter by part of speech and minimum frequency to about 60-150 words; check doubtful
+    words in a keyword-in-context concordance
+
+    4. **Build the network** - Choose the counting unit (sentence, paragraph, heading level) and words-words or
+    words-variables; Jaccard for small units, Cosine or Euclid for large ones
+
+    5. **Filter edges** - Top N edges (default 60) or a minimum Jaccard (0.1 or 0.2); read the status line of
+    drawn versus input counts, density and minimum coefficient
+
+    6. **Encode** - Line width by strength, node size by frequency, color by community (edge betweenness,
+    random walks, modularity; at most 12 colors) or by centrality; solid edges within communities, dashed between;
+    optional minimum spanning tree; avoid label overlap
+
+    7. **Lay out** (automatic) - Fruchterman-Reingold for words-words, Kamada-Kawai for words-variables
+
+    8. **Go back to text** - Search documents for the words of each cluster and read the passages; pick
+    quotations
+
+    9. **Repeat per group or period** - One network per day or group; each run has its own layout
+
+    10. **Export** - EMF, EPS, PDF, PNG, SVG or R source; matrices to CSV
+
+
+    **Decision Points**:
+
+    - Which unit: sentence, paragraph or document? The developer says the unit size matters more than the dataset size
+
+    - Jaccard or Cosine, and top N or a minimum coefficient?
+
+    - Which community method, knowing colors change with it?
+
+    - Is a cluster a real theme, or an artifact of a frequent word, once the passages are read?
+
+    - How many words make a readable figure?
+
+
+    **Information Needs**:
+
+    - Drawn versus total counts of words and edges, density and the weakest edge kept
+
+    - The passages behind a word or a word pair, in context
+
+    - Frequency and part of speech of each word
+
+    - Which community each word belongs to and which words bridge communities
+
+    - The exact parameters used, for the methods section
+
+
+    **Pain Points**:
+
+    - Every figure is a static plot; changing unit or threshold means re-running and re-reading
+
+    - Per-group or per-day networks have different layouts, so positions cannot be compared
+
+    - No click from a word or edge to the passages; search is a separate tool
+
+    - Readers read distance as meaning although only edges matter
+
+    - No GraphML or edge-list export, so the network cannot move to other tools
+
+    - Parameters are not recorded with the figure
+
+
+    **Data Flow**:
+
+    - Input: Plain text or a spreadsheet text column, document variables, stopword and phrase lists
+
+    - Transformations: Tokenizing and tagging, word selection by part of speech and frequency, per-unit
+    co-occurrence counting, Jaccard or Cosine weighting, top-N or threshold filtering, community detection
+
+    - Output: Word network figure per corpus, group or period; list of clusters with supporting quotations; matrices
+    as CSV
+success_criteria:
+    - metric: Parameter transparency
+      target: Unit, measure, threshold and drawn-of-total counts are visible with the figure and exported with it
+    - metric: Drill-back
+      target: User reaches the passages behind any word or edge in one click
+    - metric: Comparable group figures
+      target: Networks for different groups or days share node positions for shared words
+sources:
+    - title: KH Coder 3 reference manual
+      url: https://khcoder.net/en/manual_en_v3.pdf
+      summary: Units, co-occurrence network options, Top 60 default, Jaccard filter, status line, community colors, MST, Search Documents, export formats
+    - title: KH Coder developer discussion on measures by unit size
+      url: https://github.com/ko-ichi-h/khcoder/discussions/1108
+      summary: Jaccard for small units, Cosine or Euclid for large ones
+    - title: Yagahara et al. 2018, fear-related tweets after Fukushima
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5876491/
+      summary: 82,905 tweets filtered by 89 fear expressions, 100-150 words per day, Jaccard 0.1, seven daily networks
+    - title: KH Coder (Wikipedia)
+      url: https://en.wikipedia.org/wiki/KH_Coder
+      summary: Back-end taggers and R plotting, research paper counts
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

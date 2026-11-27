@@ -16,6 +16,7 @@ import type {
     DataSourceInput,
     GraphSession,
     GraphtyErrorCode,
+    JoinReduce,
     LoadDraft,
     NoteTargetInput,
     ScopeInput,
@@ -168,11 +169,10 @@ export type JoinDrill =
       };
 
 /**
- * How a merge settles a key source 2's rows repeat: keep the first row's values or the last's, as
- * the step's `repeated`, or reduce every column's rows to their count or their list, as its
- * `aggregate`.
+ * The ways the Join card offers for a key source 2's rows repeat, as a merge's `repeated` takes
+ * them: the first or last row's values, or every column's rows as their count or their list.
  */
-export type JoinRepeats = "first" | "last" | "count" | "list";
+export type JoinRepeats = Extract<JoinReduce, "first" | "last" | "count" | "list">;
 
 /** The Join card's choices that a preview changes in the element's draft step. */
 export type JoinChoices = Pick<JoinCardState, "ignoreCase" | "ignoreSpaces" | "repeated" | "unmatchedFrom">;
@@ -201,11 +201,18 @@ export interface WorkspaceState {
     } | null;
     readonly page: Page;
     readonly place: Place;
-    /** The open modal, by the id its package gives it ("export", "settings"), or null. */
+    /**
+     * The open modal, by the id its package gives it ("export", "settings"), or null. Kept across a
+     * reload, with the fields it opened with, except a dialog that asks about work in flight (see
+     * {@link askingDialog}).
+     */
     readonly dialog: string | null;
     /** Whether the project name is being renamed in place. */
     readonly renaming: boolean;
-    /** The paint-tree row whose name is being edited in place, or null. */
+    /**
+     * The row whose name is being edited in place: a paint-tree row by its id, or a Data place
+     * filter card as `filter:<its condition or draft id>`; null when none is.
+     */
     readonly renamingRow: string | null;
     readonly inspected: Inspected | null;
     /**
@@ -221,6 +228,13 @@ export interface WorkspaceState {
      * that kind, else the kind the row styles (combined Style panel, 2026-10-16).
      */
     readonly styleSide: "node" | "edge";
+    /**
+     * Style panel v2: the things a section's "+" added that the row does not set yet, waiting for their first
+     * value, by row, kind and section (`<row ids>:<kind>:<section>`).
+     */
+    readonly styleWaiting: Readonly<Partial<Record<string, readonly string[]>>>;
+    /** Style panel v2: the words in the Style tab's find box. */
+    readonly styleQuery: string;
     readonly leftWidth: number;
     /** The Assistant panel's width once the reader resized it; null for its default. */
     readonly assistantWidth: number | null;
@@ -301,13 +315,22 @@ export interface WorkspaceState {
     /**
      * The selection editor whose workspace is open over the canvas column
      * (design/ui/selection-groups/spec.md, section 3.0): one at a time, so opening another
-     * switches it. Null while it is closed.
+     * switches it. Null while it is closed. Kept across a reload: the editor that mounts under the
+     * same key reopens it, and a filter card's unwritten edits come back from graphty-element's
+     * autosave (its open filter drafts).
      */
     readonly selectionWorkspace: {
-        /** The editor that opened it: only it draws the workspace, and only it clears it. */
+        /**
+         * The editor that opened it, by its workspace key (`selector:<layer id>:<side>`,
+         * `filter:<condition id>:<side>`): only it draws the workspace, and only it clears it.
+         */
         readonly owner: string;
         /** Its host: a style layer's selector covers the left panel, a filter card the inspector. */
         readonly host: "selector" | "filter";
+        /** The row whose pane it shows (a step's id, or the title), or null. */
+        readonly selected?: string | null;
+        /** The name being edited in place: a group's id, or `title` for the selection's own; or null. */
+        readonly renaming?: string | null;
     } | null;
     /**
      * A new filter card to open once the Filters section shows it: on a field
@@ -356,6 +379,8 @@ export interface WorkspaceState {
      * (`data.currentDraft()`).
      */
     readonly sourceCard: { readonly kind: "add"; readonly source: SourceKey } | JoinCardState | StepCardState | null;
+    /** The join workspace is open over the canvas (the source-steps experiment, issue #9796). */
+    readonly joinWorkspace: boolean;
     /** The Data place's Reader edits list is open (the source-steps experiment). */
     readonly readerEditsOpen: boolean;
     /**
@@ -553,67 +578,74 @@ export interface WorkspaceState {
 /**
  * What a reload of this tab does with each field of {@link WorkspaceState}: "kept" puts it back as
  * the reader left it, and stashes it with the project's autosaved work so restoring that work in
- * another tab or on a later visit puts it back too; "this tab: <why>" puts it back after a reload
- * of this tab only; "fresh: <why>" starts it from its default. Every field is listed once, so a
- * new field does not compile until someone decides. What the reader arranged on screen is kept;
- * drafts, requests, in-flight work, notices and readings of the element are fresh. The graph itself
- * is graphty-element's and comes back through its autosave.
+ * another tab or on a later visit puts it back too ("kept: element-id" when what it holds is a
+ * graphty-element id, which must still name something after a restore); "this tab: <why>" puts it back after a reload
+ * of this tab only; "fresh: <kind>: <why>" starts it from its default, and is allowed only for
+ * the kinds of state in fresh-kinds.json (requests, work in flight, notices, readings, derived
+ * state, pointer state); "gap #<issue>: <why>" is state the reader made that should come back but
+ * does not yet, tracked by that issue (onReload.test.ts lets the number of gaps only go down).
+ * Every field is listed once, so a new field does not compile until someone decides. The graph
+ * itself, and a filter draft open in it, are graphty-element's and come back through its autosave.
  */
 export const ON_RELOAD = {
     project:
-        "fresh: reopened from graphty-element's autosave; its name, entry and opener are saved beside the kept fields",
+        "fresh: derived: reopened from graphty-element's autosave; its name, entry and opener are saved beside the kept fields",
     page: "kept",
     place: "kept",
-    dialog: "fresh: a dialog's form is not kept, so it would reopen empty",
-    renaming: "fresh: an edit in place, ended by the reload",
-    renamingRow: "fresh: an edit in place, ended by the reload",
-    inspected: "kept",
-    styleRow: "kept",
+    dialog: "kept",
+    renaming: "kept",
+    renamingRow: "kept: element-id",
+    inspected: "kept: element-id",
+    styleRow: "kept: element-id",
     tabs: "kept",
     styleSide: "kept",
+    styleWaiting: "kept",
+    styleQuery: "kept",
     leftWidth: "this tab: changes on every drag step, too often to write to autosaved work",
     assistantWidth: "this tab: changes on every drag step, too often to write to autosaved work",
-    assistantFrom: "fresh: holds an element to focus, which the reload replaced",
-    composerCalls: "fresh: a count of requests, not a place",
+    assistantFrom: "fresh: pointer: holds an element to focus, which the reload replaced",
+    composerCalls: "fresh: request: a count of requests, not a place",
     assistantDraft:
         "this tab: typed text changes on every key, and autosaved work is stored unencrypted beyond the tab",
-    assistantLinks: "fresh: counts this page's assistant set-ups",
-    assistantWaiting: "fresh: read from the element's assistant",
-    assistantTalkPress: "fresh: a press in flight",
-    assistantSpoken: "fresh: a spoken message in flight",
-    assistantScopeSelection: "fresh: about the selection, which a reload does not keep",
-    assistantRefused: "fresh: about the question that was open",
-    assistantEnded: "fresh: a notice about the last message",
+    assistantLinks: "fresh: derived: counts this page's assistant set-ups",
+    assistantWaiting: "fresh: read: read from the element's assistant",
+    assistantTalkPress: "fresh: in flight: a press in flight",
+    assistantSpoken: "fresh: in flight: a spoken message in flight",
+    assistantScopeSelection: "fresh: derived: about the selection, which a reload does not keep",
+    assistantRefused: "fresh: notice: about the question that was open",
+    assistantEnded: "fresh: notice: a notice about the last message",
     rightWidth: "this tab: changes on every drag step, too often to write to autosaved work",
     dockHeight: "this tab: changes on every drag step, too often to write to autosaved work",
     dockOpen: "kept",
     timeSpeed: "kept",
     dockTab: "kept",
-    dockColumn: "fresh: a one-time request the dock clears",
-    dockIssue: "fresh: a one-time request the dock clears",
-    dockRows: "fresh: a one-time request the dock clears",
-    editingSelection: "fresh: an open editor's draft, owned by a component the reload replaced",
-    selectionWorkspace: "fresh: owned by an editor the reload replaced",
-    filterDraft: "fresh: a one-time request the Filters section clears",
-    fieldsEntry: "fresh: a one-time request Fields clears",
+    dockColumn: "fresh: request: a one-time request the dock clears",
+    dockIssue: "fresh: request: a one-time request the dock clears",
+    dockRows: "fresh: request: a one-time request the dock clears",
+    editingSelection: "fresh: derived: the selection editor that reopens writes it again",
+    selectionWorkspace: "kept: element-id",
+    filterDraft: "fresh: request: a one-time request the Filters section clears",
+    fieldsEntry: "fresh: request: a one-time request Fields clears",
     dockMaximized: "kept",
-    joining: "fresh: holds a read file that cannot be saved",
-    editingJoin: "fresh: an edit in progress on the join screen",
-    ends: "fresh: a half-made choice of edge ends",
-    sourceCard: "fresh: its draft lives in the element, which a reload replaced",
-    readerEditsOpen: "fresh: a list opened for a look",
-    stagedEnds: "fresh: a half-made choice of edge ends",
-    draftOpen: "fresh: a question about a draft a reload discarded",
+    joining: "gap #9846: holds graphty-element's prepared load, which its autosave does not keep",
+    editingJoin: "kept",
+    ends: "kept",
+    sourceCard: "kept",
+    joinWorkspace:
+        "fresh: in flight: the workspace closes on a reload; its draft, which autosave keeps, opens with it the next time",
+    readerEditsOpen: "fresh: pointer: a list opened for a look",
+    stagedEnds: "kept",
+    draftOpen: "fresh: in flight: asks about a write this page made, which a reload ends",
     pickedSource: "kept",
     dataTab: "kept",
     timelineOpen: "kept",
     timeSheetOpen: "kept",
     legendShown: "kept",
-    keyHasEntries: "fresh: read from the element's legend",
+    keyHasEntries: "fresh: read: read from the element's legend",
     legendAsked: "kept",
     allLabelsShown: "kept",
-    textNext: "fresh: a one-time request the Style tab clears",
-    shaderNext: "fresh: a one-time request the Style tab clears",
+    textNext: "fresh: request: a one-time request the Style tab clears",
+    shaderNext: "fresh: request: a one-time request the Style tab clears",
     labelsAvoid: "kept",
     labelText: "kept",
     labelSampleCell: "kept",
@@ -622,47 +654,61 @@ export const ON_RELOAD = {
     lighting: "kept",
     autoRotate: "kept",
     followSelection: "kept",
-    exportOn: "fresh: set when the Export dialog opens",
-    lastView: "fresh: the camera itself is not kept across a reload",
-    tourProgress: "fresh: a tour ends when the page reloads",
+    exportOn: "kept",
+    lastView: "kept",
+    tourProgress: "fresh: read: read from graphty-element's tour-progress, whose keepCamera plays the tour on",
     viewsCamerasOpen: "kept",
     viewsToursOpen: "kept",
-    viewsFocus: "fresh: a one-time request the Views place clears",
-    viewsRename: "fresh: a one-time request the Views place clears",
-    exportTour: "fresh: set when the Export dialog opens",
-    exportView: "fresh: set when the Export dialog opens",
-    exportSource: "fresh: set when the Export dialog opens",
-    serverKind: "fresh: set when the server form opens",
-    analyzeOn: "fresh: set when a Quick actions row opens Analyze",
-    analyzeValues: "fresh: set when a result's Run again with changes... opens Analyze",
-    scoreOn: "fresh: set when a result's Combine into a score... opens the Custom score dialog",
-    serverEdit: "fresh: set when the server form opens",
-    singleKeyShortcuts: "fresh: read from this browser's settings at start",
-    mapDepthIndependentSize: "fresh: read from this browser's settings at start",
-    notice: "fresh: a notice",
-    noteDraft: "fresh: its edge targets are this page's ids, which a reload gives anew",
-    authorWarningClosed: "fresh: closed for this page view only",
-    announcement: "fresh: a status line already spoken",
-    announced: "fresh: a count of status lines",
-    opening: "fresh: an open in flight",
-    opened: "fresh: an open in flight",
-    autosave: "fresh: set by the application at start",
-    recovered: "fresh: looked up again at start",
+    viewsFocus: "fresh: request: a one-time request the Views place clears",
+    viewsRename: "fresh: request: a one-time request the Views place clears",
+    exportTour: "kept",
+    exportView: "kept",
+    exportSource: "kept",
+    serverKind: "kept",
+    analyzeOn: "kept",
+    analyzeValues: "kept",
+    scoreOn: "kept",
+    serverEdit: "kept",
+    singleKeyShortcuts: "fresh: read: read from this browser's settings at start",
+    mapDepthIndependentSize: "fresh: read: read from this browser's settings at start",
+    notice: "fresh: notice: a notice",
+    noteDraft: "kept",
+    authorWarningClosed: "fresh: notice: closed for this page view only",
+    announcement: "fresh: notice: a status line already spoken",
+    announced: "fresh: notice: a count of status lines",
+    opening: "fresh: in flight: an open in flight",
+    opened: "fresh: in flight: an open in flight",
+    autosave: "fresh: read: set by the application at start",
+    recovered: "fresh: read: looked up again at start",
     reportPins: "kept",
-} as const satisfies Record<keyof WorkspaceState, "kept" | `this tab: ${string}` | `fresh: ${string}`>;
+} as const satisfies Record<
+    keyof WorkspaceState,
+    "kept" | "kept: element-id" | `this tab: ${string}` | `fresh: ${string}: ${string}` | `gap #${number}: ${string}`
+>;
+
+/**
+ * The kept fields that name something graphty-element holds by id (a style row, a layer's
+ * selection editor): after a restore each must still name something, or the reader's pick is
+ * silently gone (restoreCheck.ts checks each one, issue #9973).
+ */
+export type ElementIdKey = {
+    [K in keyof typeof ON_RELOAD]: (typeof ON_RELOAD)[K] extends "kept: element-id" ? K : never;
+}[keyof WorkspaceState];
 
 /** The fields a reload of this tab puts back. */
 type KeptKey = {
-    [K in keyof typeof ON_RELOAD]: (typeof ON_RELOAD)[K] extends "kept" | `this tab: ${string}` ? K : never;
+    [K in keyof typeof ON_RELOAD]: (typeof ON_RELOAD)[K] extends "kept" | "kept: element-id" | `this tab: ${string}`
+        ? K
+        : never;
 }[keyof WorkspaceState];
 
 /** The fields a reload of this tab puts back, in the order the table lists them. */
 export const KEPT_FIELDS = (Object.keys(ON_RELOAD) as (keyof WorkspaceState)[]).filter(
-    (key): key is KeptKey => !ON_RELOAD[key].startsWith("fresh:"),
+    (key): key is KeptKey => ON_RELOAD[key].startsWith("kept") || ON_RELOAD[key].startsWith("this tab:"),
 );
 
 /** The fields stashed with the project's autosaved work: the kept ones, not the this-tab ones. */
-export const STASHED_FIELDS = KEPT_FIELDS.filter((key) => ON_RELOAD[key] === "kept");
+export const STASHED_FIELDS = KEPT_FIELDS.filter((key) => ON_RELOAD[key].startsWith("kept"));
 
 /** The part of the chrome a reload of this tab puts back. */
 export type KeptPlace = Pick<WorkspaceState, KeptKey>;
@@ -674,7 +720,25 @@ export type KeptPlace = Pick<WorkspaceState, KeptKey>;
  * @returns the kept fields it holds.
  */
 function keptFields(from: object, fields: readonly string[] = KEPT_FIELDS): Partial<KeptPlace> {
-    return Object.fromEntries(Object.entries(from).filter(([key]) => fields.includes(key)));
+    return Object.fromEntries(
+        Object.entries(from)
+            .filter(([key]) => fields.includes(key))
+            .map(([key, value]) => [key, key === "dialog" && ASKING.has(value as string) ? null : value]),
+    );
+}
+
+/** The dialogs a reload does not reopen: see {@link askingDialog}. */
+const ASKING = new Set<string>();
+
+/**
+ * Names a dialog that asks about work in flight (the changes an open would discard, a file being
+ * opened, a save waiting on an answer), which a reload ends: it is not reopened after one.
+ * @param id - the dialog's id.
+ * @returns the id.
+ */
+export function askingDialog<T extends string>(id: T): T {
+    ASKING.add(id);
+    return id;
 }
 
 /** Panel sizes: 240 is the design's panel width (PANEL_GRID.WIDTH). */
@@ -699,6 +763,8 @@ const INITIAL: WorkspaceState = {
     styleRow: null,
     tabs: {},
     styleSide: "node",
+    styleWaiting: {},
+    styleQuery: "",
     leftWidth: PANEL_MIN,
     assistantWidth: null,
     assistantFrom: null,
@@ -728,6 +794,7 @@ const INITIAL: WorkspaceState = {
     editingJoin: null,
     ends: null,
     sourceCard: null,
+    joinWorkspace: false,
     readerEditsOpen: false,
     stagedEnds: null,
     draftOpen: null,

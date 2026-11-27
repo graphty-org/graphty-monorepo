@@ -1,0 +1,19 @@
+id: submodel-collapse
+name: Collapsible submodels with interface ports
+category: analysis
+description: Collapse a group of nodes into one submodel node. Arcs that cross the boundary attach to the submodel, and
+    it expands in place. Also covers reusable class instances (Hugin object-oriented networks) and temporal plates.
+status: planned
+notes: "Research trace: causal-diagrams-and-bayesian-networks.md section 10, requirement 24 (Should)."
+algorithms: []
+used_by_workflows:
+    - W426
+implemented_by_components: []
+requirements:
+    - "Should: Collapsible submodel nodes with interface ports: arcs crossing the boundary attach to the submodel;
+      expand in place; reusable class instances (Hugin OOBN); temporal plates for dynamic BNs"
+sources:
+    - title: "Causal Diagram Users: DAGs, Bayesian Networks, Causal Discovery, Time-Series Causal Graphs and SEM Path
+          Diagrams (section 10, requirement 24)"
+      url: design/user-research/causal-diagrams-and-bayesian-networks.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

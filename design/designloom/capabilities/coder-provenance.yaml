@@ -1,0 +1,19 @@
+id: coder-provenance
+name: Coder Provenance
+category: analysis
+description: Segments carry their coder (person or model), the model's explanation and an accepted flag; edges can be
+    filtered by coder and agreement metrics shown.
+status: planned
+notes: "Research trace: text-and-qualitative-data-networks.md section 10, requirement 9 (Should)."
+algorithms: []
+used_by_workflows:
+    - W405
+    - W407
+implemented_by_components: []
+requirements:
+    - "Should: Coder or source attribute on segments (person, model), with model explanation and accepted flag; filter
+      edges by coder; show human and model codings as two networks on one layout"
+sources:
+    - title: Text and Qualitative Data Networks (section 10, requirement 9)
+      url: design/user-research/text-and-qualitative-data-networks.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

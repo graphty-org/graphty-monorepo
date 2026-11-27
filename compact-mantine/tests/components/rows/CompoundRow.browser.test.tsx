@@ -1,23 +1,13 @@
-import { MantineProvider } from "@mantine/core";
-import { render, screen, within } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { compactTheme } from "../../../src";
 import { CompoundRow } from "../../../src/components/rows/CompoundRow";
 import { AdvancedButton } from "../../../src/components/rows/TrailingSlot";
 import { PanelLabelsProvider } from "../../../src/context/PanelLabelsContext";
 import { UiGlyph } from "../../../src/icons";
-
-/**
- * Render inside the compact theme, the way the package is consumed.
- * @param ui - The element under test
- * @returns The testing-library render result
- */
-function renderRow(ui: React.ReactElement): ReturnType<typeof render> {
-    return render(<MantineProvider theme={compactTheme}>{ui}</MantineProvider>);
-}
+import { renderCompact as renderRow } from "../../harness/render";
 
 /**
  * A stand-in for the 14px color swatch the canonical row puts in its leading

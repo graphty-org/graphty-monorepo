@@ -20,7 +20,15 @@ import {
     routeOutside,
     type Xyz,
 } from "../src/meshes/edgeRoute";
-import { bezierSamples, curvePathPoint, curveSpan, loopShape, viaShare } from "../src/meshes/pulledCurve";
+import {
+    bezierSamples,
+    curvePath,
+    curvePathPoint,
+    curveSpan,
+    curveWork,
+    loopShape,
+    viaShare,
+} from "../src/meshes/pulledCurve";
 
 /** A seeded generator, so a failure names a case that comes back. */
 function seeded(seed: number): () => number {
@@ -158,6 +166,37 @@ describe("a pulled curve's path", () => {
 
         assert.isAtLeast(drawn, 200, "most cases draw a cut curve");
         assert.isAbove(uncut, 0, "some curves clear neither node and are drawn uncut");
+    });
+
+    it("cuts a lone curve from one working-out of its control points, and keeps the points it cut", () => {
+        let kept = 0;
+        for (const [i, { src, dst, rSrc, rDst }] of cases().entries()) {
+            curveWork.controls = 0;
+            curveWork.samplers = 0;
+            const span = curveSpan(src, dst, outsideOf(src, rSrc), outsideOf(dst, rDst));
+            if (span === null) {
+                continue;
+            }
+
+            assert.strictEqual(
+                curveWork.controls,
+                1,
+                `case ${String(i)}: control points worked out once per placement`,
+            );
+            assert.strictEqual(curveWork.samplers, 0, `case ${String(i)}: sampled straight into the flat samples`);
+            kept += span.points === undefined ? 0 : 1;
+            const want = Array.from({ length: span.pieces + 1 }, (_, j) => curvePathPoint(src, dst, span, j)).flatMap(
+                (p) => [p.x, p.y, p.z],
+            );
+            const got = curvePath(src, dst, span);
+            assert.strictEqual(got.length, want.length);
+            assert.isTrue(
+                got.every((v, k) => Object.is(v, want[k])),
+                `case ${String(i)}: the very points curvePathPoint gives`,
+            );
+        }
+
+        assert.isAtLeast(kept, 200, "a cut curve keeps the points it was cut to");
     });
 
     it("puts every point of a fanned arc where the object path's cut arc has it, drawn either way round", () => {

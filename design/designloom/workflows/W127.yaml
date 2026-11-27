@@ -1,0 +1,159 @@
+id: W127
+name: Insurance Claim Triage Through Link Analysis
+category: analysis
+validated: false
+personas:
+    - insurance-siu-investigator
+requires_capabilities:
+    - search
+    - ego-network
+    - neighborhood-expansion
+    - degree-analysis
+    - filtering
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - component-analysis
+    - details-on-demand
+    - tooltip-display
+    - temporal-navigation
+    - annotation
+    - export-image
+    - data-export
+    - bipartite-projection
+    - external-label-overlays
+    - geographic-layout
+suggested_components:
+    - search-input
+    - graph-canvas
+    - ego-network-dialog
+    - context-menu
+    - filter-panel
+    - histogram
+    - visual-encoding-panel
+    - legend-panel
+    - node-details-panel
+    - node-tooltip
+    - ranked-node-table
+    - temporal-controls
+    - annotation-toolbar
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: claims, policies, parties, vehicles, addresses, phones, emails, payout accounts and service providers (garages, credit-hire firms, solicitors, doctors); industry database matches
+    node_count: 20-500 in the working view (Zurich Switzerland's store holds about 20 million nodes)
+    edge_density: sparse, with hub providers linked to hundreds of claims
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Decide whether a claim referred by automated scoring is isolated or part of a staged-accident
+    (crash-for-cash) network, stop payment where justified, and refer networks to the fraud bureau or police. US
+    investigators must also report suspected fraud to the state.
+
+
+    **Mental Model**: "Each detail looks harmless alone." A shared garage, a shared solicitor and a shared payout account
+    across several claims, each innocent alone, together form a ring. Busy providers are hubs, not evidence.
+
+
+    **Task Phases**:
+
+    1. **Score and refer** (automated) - A rules engine refers claims above a threshold
+
+    2. **Open the claim network** - Claim with policies, customers, vehicles, payments and matches against
+    national databases and blacklists
+
+    3. **Expand to parties and their other claims** - Look for shared addresses, phones, payout accounts (fan-in
+    of payouts), garages, credit-hire firms, solicitors and doctors; for property claims layer geography; for medical
+    claims check whether providers share many patients
+
+    4. **Discount hubs** - A garage linked to hundreds of claims gets its own check instead of linking everything
+
+    5. **Check industry data** - UK: Cifas National Fraud Database, Insurance Fraud Register, IFB hub; Zurich UK
+    adds Companies House and Equifax; US: ClaimSearch match reports and NICB
+
+    6. **Decide** - Settle, or move to special fraud processing
+
+    7. **Refer** - IFB or police (UK); state fraud division, district attorney and NICB (US)
+
+    8. **Sweep the network** (periodic) - Find other claims in the same ring, including paid ones; academically, a
+    claims-parties bipartite graph ranked with BiRank seeded by known fraud
+
+
+    **Decision Points**:
+
+    - Isolated claim or ring?
+
+    - Which shared providers are hubs to discount?
+
+    - Settle or special fraud processing?
+
+    - Refer now, or keep investigating?
+
+
+    **Information Needs**:
+
+    - Each party's other claims, with dates and outcomes
+
+    - Claim count per provider and per payout account, so hubs stand out
+
+    - Industry database matches attached to parties
+
+    - Ranking of claims and parties by closeness to known fraud
+
+
+    **Pain Points**:
+
+    - Link analysis runs only after referral, so clean-looking ring members are paid
+
+    - Automated tools make 45 percent of referrals while SIU staffing grew 0.5 percent
+
+    - One shared garage links hundreds of innocent claims
+
+    - No public source records a click-by-click SIU session in a graph tool
+
+
+    **Data Flow**:
+
+    - Input: Referred claim id; claims system extract; industry database matches
+
+    - Transformations: Seeded expansion to parties and their claims, hub discounting, components, seeded ranking
+
+    - Output: Settle or special-fraud-processing decision, referral package with chart, list of linked claims for a sweep
+success_criteria:
+    - metric: Hub visibility
+      target: Every provider and payout account shows how many claims it links, and hubs can be excluded before reading the ring
+    - metric: Ring sweep
+      target: From a confirmed ring the user can list every linked claim, including paid ones
+sources:
+    - title: Neo4j customer story - Zurich Insurance
+      url: https://neo4j.com/customer-stories/zurich-insurance/
+      summary: Rules engine refers claims; investigators open the graph application; about 20 million nodes and 35 million relationships
+    - title: Linkurious - Insurance fraud investigation
+      url: https://linkurious.com/blog/insurance-fraud-investigation/
+      summary: Shared details look harmless alone; geography for property claims; shared patients for medical claims
+    - title: Oskarsdottir et al. - Social network analytics for insurance fraud detection (2021)
+      url: https://arxiv.org/abs/2009.08313
+      summary: Claims-parties bipartite graph scored with BiRank seeded by known fraud
+    - title: Cifas - National Fraud Database
+      url: https://www.cifas.org.uk/fraud-prevention-community/member-benefits/data/nfd
+      summary: Cross-sector fraud data
+    - title: Cifas release, 14 October 2015
+      url: https://cifas.org.uk/newsroom/cross-sector-fraud-data-unlock-millions-additional-insurance-savings
+      summary: 196 of 618 proven motor fraud cases matched details in Cifas cases
+    - title: Insurance Times - IFB launches industry fraud prevention platform
+      url: https://insurancetimes.co.uk/news/ifb-launches-new-industry-scale-fraud-prevention-platform/1429269.article
+      summary: Insurance Fraud Register and IFi Hub
+    - title: Verisk - Network analysis
+      url: https://verisk.com/products/network-analysis
+      summary: ClaimSearch with over 1.9 billion claims (vendor)
+    - title: Insurance Business - automated tools make 45 percent of SIU referrals
+      url: https://www.insurancebusinessmag.com/us/news/technology/automated-tools-now-make-45-of-siu-referrals--investigators-havent-kept-pace-596528.aspx
+      summary: SIU staffing grew 0.5 percent in a 35-carrier benchmark
+    - title: Which? - Crash-for-cash hotspots
+      url: https://www.which.co.uk/news/article/insurance-fraud-do-you-live-in-a-crash-for-cash-hotspot-aD76p9P9jfWm
+      summary: About 170,000 of 2.7 million motor claims linked to suspected networks
+    - title: California Department of Insurance - SIU requirements
+      url: https://www.insurance.ca.gov/0300-fraud/0100-fraud-division-overview/12-siu
+      summary: SIUs refer suspected fraud to the Fraud Division and district attorneys (read through search summary)
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

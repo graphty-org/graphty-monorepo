@@ -6,7 +6,8 @@ description: Interactive button for triggering actions. Supports multiple varian
 status: implemented
 notes: "Ships: Mantine Button, Mantine through compact-mantine, used across graphty/src."
 implements_capabilities: []
-used_in_workflows: []
+used_in_workflows:
+    - W149
 dependencies:
     - icon
 props:

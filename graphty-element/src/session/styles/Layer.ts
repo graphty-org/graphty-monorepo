@@ -99,7 +99,7 @@ import {
     toColorValue,
 } from "./channels";
 import { checkDataSpec, dataSpecPaths, type DataSpecReason, isDataChannel } from "./dataLists";
-import { listItemDescriptor, type RuleBinding, stopsProblem } from "./encoding";
+import { authoredValue, listItemDescriptor, missingValue, type RuleBinding, stopsProblem } from "./encoding";
 import { parseTemplate, TEMPLATE_CHANNELS } from "./labelTemplate";
 import { colorsProblem } from "./palettes";
 import { columnsFor, type CompiledSelector, type SelectorSource, type SelectorTarget } from "./predicate";
@@ -264,11 +264,11 @@ export interface ValidationResult {
      */
     readonly unresolvedPaths: readonly Path[];
     /**
-     * The bare `graphty.` paths read where the data also has a column of that name.
+     * The bare `graphty.` and `store.` paths read where the data also has a column of that name.
      *
-     * Not errors: every path starting `graphty.` reads a value graphty-element provides, never a
-     * column (`graphty.notes.count` is the note count). They are reported because the author may
-     * have meant the column, which reads as `data.graphty.<name>`.
+     * Not errors: every path starting `graphty.` or `store.` reads a value graphty-element provides,
+     * never a column (`store.graphty.notes.count` is the note count). They are reported because the
+     * author may have meant the column, which reads as `data.<name>`.
      */
     readonly shadowedPaths: readonly Path[];
     /**
@@ -1141,6 +1141,8 @@ function checkBinding(
 
     readsPath(log, binding.by);
     checkBindingOptions(descriptor, binding, path, options, log);
+    checkMissing(descriptor, binding, path, log);
+    checkOverrides(descriptor, binding, path, log);
 
     // Only a binding that paints a MISSING value reaches an element the run never measured: an
     // element with no value is otherwise not painted at all (encoding.ts), so a layer matching
@@ -1156,6 +1158,83 @@ function checkBinding(
             path: "selector",
             scope: { match: "has", path: binding.by },
         });
+    }
+}
+
+/**
+ * Check what a binding paints for a missing value with the same check the repaint applies, so a
+ * value the channel cannot draw is refused here rather than failing every repaint after (#9706).
+ * @param descriptor - The channel it writes.
+ * @param binding - The binding.
+ * @param path - Where in the specification it sits.
+ * @param log - Where problems are collected.
+ */
+function checkMissing(descriptor: ChannelDescriptor, binding: RuleBinding, path: string, log: ProblemLog): void {
+    const { missing } = binding;
+    if (missing === undefined || missing === "skip") {
+        return;
+    }
+
+    if (!isPlainObject(missing)) {
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: 'What a missing value paints is "skip" or { value }.',
+            path: `${path}.missing`,
+        });
+
+        return;
+    }
+
+    try {
+        missingValue(descriptor, binding);
+    } catch (error) {
+        report(log, problemFrom(error, `${path}.missing.value`));
+    }
+}
+
+/**
+ * Check each value a binding names itself -- its `map` entries, its `other` bucket and its
+ * `otherwise` -- with the same check the repaint applies, so a value the channel cannot draw is
+ * refused here rather than failing every repaint after (#9715).
+ * @param descriptor - The channel it writes.
+ * @param binding - The binding.
+ * @param path - Where in the specification it sits.
+ * @param log - Where problems are collected.
+ */
+function checkOverrides(descriptor: ChannelDescriptor, binding: RuleBinding, path: string, log: ProblemLog): void {
+    const check = (value: unknown, at: string): void => {
+        try {
+            authoredValue(descriptor, value as ChannelValue, `The value at ${at}`);
+        } catch (error) {
+            report(log, problemFrom(error, at));
+        }
+    };
+    const { map, other, otherwise } = binding as { map?: unknown; other?: unknown; otherwise?: unknown };
+
+    if (map !== undefined) {
+        if (isPlainObject(map)) {
+            for (const [name, value] of Object.entries(map)) {
+                check(value, `${path}.map.${name}`);
+            }
+        } else {
+            report(log, { code: "E_BAD_LAYER", message: "A map is { category: value }.", path: `${path}.map` });
+        }
+    }
+
+    if (other !== undefined) {
+        if (isPlainObject(other)) {
+            check(other.value, `${path}.other.value`);
+        } else {
+            report(log, {
+                code: "E_BAD_LAYER",
+                message: "The other bucket is { threshold, value }.",
+                path: `${path}.other`,
+            });
+        }
+    }
+
+    if (otherwise !== undefined) {
+        check(otherwise, `${path}.otherwise`);
     }
 }
 
@@ -1289,6 +1368,21 @@ function resolveTarget(spec: LayerSpec, channels: readonly string[], log: Proble
     return null;
 }
 
+/** Every key a {@link LayerSpec} has. */
+const LAYER_SPEC_KEYS: readonly string[] = [
+    "name",
+    "target",
+    "kind",
+    "selector",
+    "set",
+    "encode",
+    "source",
+    "enabled",
+    "userData",
+    "row",
+    "unmatched",
+];
+
 /**
  * Check the parts of a specification that are neither channels nor a selector. Any layer may write
  * no channel: it paints nothing until a value is written into it, whoever made it.
@@ -1296,6 +1390,19 @@ function resolveTarget(spec: LayerSpec, channels: readonly string[], log: Proble
  * @param log - Where problems are collected.
  */
 function checkShape(spec: LayerSpec, log: ProblemLog): void {
+    // A key the specification does not have is refused, not ignored: `style:` written for
+    // `encode:` otherwise adds a layer that paints nothing, with no signal (#9708).
+    for (const key of Object.keys(spec)) {
+        if (!LAYER_SPEC_KEYS.includes(key)) {
+            report(log, {
+                code: "E_BAD_LAYER",
+                message: `"${key}" is not part of a layer.`,
+                path: key,
+                candidates: LAYER_SPEC_KEYS,
+            });
+        }
+    }
+
     if (typeof spec.name !== "string" || spec.name.trim() === "") {
         report(log, {
             code: "E_BAD_LAYER",
@@ -1951,7 +2058,11 @@ export function checkLayerSpec(given: LayerSpec, options: LayerCheckOptions): La
         directory === undefined || target === null
             ? NO_PATHS
             : Object.freeze(
-                  log.paths.filter((path) => path.startsWith("graphty.") && directory.answers(`data.${path}`, target)),
+                  log.paths.filter(
+                      (path) =>
+                          (path.startsWith("graphty.") || path.startsWith("store.")) &&
+                          directory.answers(`data.${path}`, target),
+                  ),
               );
 
     if (log.problems.length > 0 || compiled === null || target === null) {

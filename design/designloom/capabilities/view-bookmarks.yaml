@@ -1,38 +1,100 @@
 id: view-bookmarks
 name: View Bookmarks
 category: interaction
-description: Save the current view state (zoom, pan, filters, selection) as a named bookmark. Return to saved views
-    during exploration. Essential for iterative analysis and findings communication.
-status: implemented
-notes: "Ships: saved views in the Camera menu, graphty/src/workspace/toolbar/WorkspaceToolbar.tsx."
+description: Save the current view state -- camera, filters, selection, styles and time window -- as a named view,
+    and return to it later. Users reuse a handful of saved configurations over and over (Obsidian graph presets),
+    share saved scenes view-only (Neo4j Aura Explore, Linkurious), and publish an ordered set of named, captioned views
+    as slides or a PDF (Kumu presentations). A saved view is also provenance -- the filters, time window and parameters
+    behind a figure travel with it.
+status: in-progress
+notes: "Partly ships: saved views in the Camera menu, graphty/src/workspace/toolbar/WorkspaceToolbar.tsx. Planned: export, import and shareable read-only links for views, and an ordered sequence of views published as a presentation. Any requirement below that this note does not name as shipping counts as planned."
 algorithms: []
 used_by_workflows:
+    - W3024
     - W02
     - W03
     - W07
     - W25
+    - W115
+    - W118
+    - W124
+    - W139
+    - W142
+    - W143
+    - W145
+    - W146
+    - W15
+    - W152
+    - W187
+    - W197
+    - W202
+    - W210
+    - W224
+    - W239
+    - W259
+    - W276
+    - W277
+    - W281
+    - W305
+    - W31
+    - W314
+    - W315
+    - W316
+    - W317
+    - W322
+    - W323
+    - W325
+    - W327
+    - W329
+    - W364
+    - W382
+    - W391
+    - W406
+    - W414
+    - W417
+    - W426
+    - W43
+    - W431
+    - W55
+    - W57
+    - W65
+    - W67
+    - W68
+    - W83
+    - W89
+    - W92
+    - W99
+    - W1018
+    - W105
 implemented_by_components:
     - bookmark-panel
 requirements:
-    - Save current view with user-provided name (1-50 characters)
-    - Store zoom level and camera position (x, y, z for 3D)
-    - Store active filter configuration at time of bookmark
-    - Store current node selection at time of bookmark
-    - Store visual encoding settings (color by, size by) at time of bookmark
-    - Restore all stored state when bookmark is activated
-    - Animate transition to bookmarked view over 500ms
-    - Display bookmark list panel with bookmark names
-    - Sort bookmarks by creation date (newest first) with option for alphabetical
-    - Show bookmark thumbnail preview (small snapshot of view) if feasible
-    - Provide 'Rename' action for existing bookmarks
-    - Provide 'Update' action to overwrite bookmark with current view
-    - Provide 'Delete' action with confirmation
-    - Persist bookmarks in browser localStorage by default
-    - Export bookmarks as JSON for sharing
-    - Import bookmarks from JSON file
-    - Limit bookmarks to 20 per graph; display warning at 18
-    - Display 'Bookmark saved' confirmation toast for 2 seconds after save
+    - "Must: Save the current view under a user-given name, with an optional caption and the time it was saved"
+    - "Must: Store the camera (position, target and zoom; x, y, z in 3D), the active filters, the selection, the style layers, the time window and pinned positions"
+    - "Must: Keep results scoped to a view (expansions, hidden nodes, computed values) with that view, never written back to the source data"
+    - "Library parity: Restore all stored state when a view is opened; animate the camera unless the reader asks for reduced motion"
+    - "Library parity: List saved views with rename, update (overwrite with the current view), reorder and delete"
+    - "Must: Save views inside the project or session file, so they travel with the data rather than one browser"
+    - "Should: Export and import saved views, and give a view a shareable link that opens it read-only"
+    - "Must: Publish an ordered sequence of views as a presentation, PDF or slides, each with its caption"
+    - "Must: Record each view's parameters (data source, filters, algorithms and their parameters, layout and seed, time window) so they can be exported with a figure as its provenance"
+    - "Library parity: Any limit on the number of saved views is a consumer option, not a fixed cap"
 sources:
-    - title: W02 Visual Exploration
-      url: https://graphty.app/docs/
-      summary: Difficulty returning to a previous view state - pain point
+    - title: Heer et al. 2008, Graphical histories for visualization
+      url: https://doi.org/10.1109/TVCG.2008.137
+      summary: Saving and revisiting visualization states during analysis
+    - title: Obsidian forum, graph view presets
+      url: https://forum.obsidian.md/t/graph-view-presets-to-save-and-load-filters-display-settings/8131
+      summary: '"I re-use a handful of graph view filter configurations over and over"'
+    - title: Neo4j Aura Explore, scenes and export
+      url: https://neo4j.com/docs/aura/explore/explore-features/scenes-export/
+      summary: Saved scenes shared view-only and copied to edit; deep links
+    - title: Kumu presentations
+      url: https://docs.kumu.io/guides/presentations
+      summary: Each slide keeps its view, zoom, focus and filter
+    - title: Google Model Explorer user guide
+      url: https://github.com/google-ai-edge/model-explorer/wiki/2.-User-Guide
+      summary: Bookmarked view states and permalinks
+    - title: Linkurious user manual
+      url: https://doc.linkurious.com/user-manual/latest/page.html
+      summary: Visualizations shared as view-only, edit, or edit and share

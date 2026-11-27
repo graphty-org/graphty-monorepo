@@ -252,12 +252,14 @@ export interface PopoutPanelProps {
     anchorY?: PopoutAnchorTarget;
     /**
      * Which side of the anchor the panel sits on.
-     * @default "left"
+     *
+     * Defaults to the enclosing `PopoutRegion`'s `placement`, else `"left"`.
      */
     placement?: PopoutPlacement;
     /**
      * Alignment along the axis the panel is placed against.
-     * @default "start"
+     *
+     * Defaults to the enclosing `PopoutRegion`'s `alignment`, else `"start"`.
      */
     alignment?: PopoutAlignment;
     /**

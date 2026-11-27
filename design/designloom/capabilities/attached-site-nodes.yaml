@@ -1,0 +1,28 @@
+id: attached-site-nodes
+name: Site nodes attached to their parent node
+category: visualization
+description: Draw a sub-entity of a node -- a phosphosite on a protein, a domain, a residue -- as its own small node
+    attached beside its parent, labeled with its position, so it can be an edge endpoint (kinase -> site) and carry its
+    own values; collapse the sites of one parent into a summary node showing their count, and expand them again.
+status: planned
+notes: "Research trace: systems-biology-omics-networks.md section 10, requirement 55 (Must)."
+algorithms: []
+used_by_workflows:
+    - W3066
+implemented_by_components: []
+requirements:
+    - "Must: Sites as their own graph elements: a phosphosite is a node attached to its protein, collapsible into a
+      per-protein summary that shows the count and expands again, with the residue position as a label"
+    - "Library parity: Group collapsed sites by parent and by a category (up, down, unchanged), as PTMNavigator does."
+    - "Must: Offer the alternative encodings the tools use -- site as a slice of the parent glyph (PhosNetVis) or as an edge style (PhosphoAtlas) -- from the same data."
+sources:
+    - title: Systems Biologists and Bench Scientists Working With Molecular Interaction Networks (section 5.2 and
+          section 10, requirement 55)
+      url: design/user-research/systems-biology-omics-networks.md
+      summary: "Must in the research. Covered by Designloom when researched: not covered"
+    - title: PTMNavigator (Nature Communications 2025)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11711753/
+      summary: One extra node per modified peptide beside its protein; same-protein, same-direction peptides collapse into a counted summary node
+    - title: PhosNetVis
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11247916
+      summary: Sites drawn as slices of the substrate cylinder, at most 10 per substrate

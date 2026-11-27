@@ -3,8 +3,9 @@
  * save its state; he named the data selection workspace and the picked layer). The reader adds a layer,
  * names it "test", picks it, and opens its data selection workspace from the v2 "Select nodes..." line;
  * after a reload, with this tab's session storage kept and emptied (as Safari empties it), the "test"
- * row is still picked and its workspace is open again. Real element, real autosave, real clicks and
- * typing. The fixes live on master (issue #9973); this branch fails here until it merges them.
+ * row is still picked and its workspace is open again. With the workspace
+ * remounted without a reload (a Vite hot swap in development, issue #9982) the same comes back. The find
+ * box's words come back too. Real element, real autosave, real clicks and typing (issue #9973).
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -34,6 +35,31 @@ async function picked(name: string): Promise<HTMLElement> {
     return within(tree).findByRole("treeitem", { selected: true, name: new RegExp(`^${name}, `) });
 }
 
+/**
+ * Opens the picked layer's Style tab on its node side.
+ * @returns the Style tab.
+ */
+async function nodeStyleTab(): Promise<HTMLElement> {
+    const inspector = screen.getByRole("complementary", { name: "Inspector" });
+    const style = await within(inspector).findByRole("tab", { name: "Style" });
+    if (style.getAttribute("aria-selected") !== "true") {
+        await userEvent.click(style);
+    }
+    const tab = await screen.findByTestId("style-tab");
+    await showKind("node");
+    return tab;
+}
+
+/** Adds a layer and names it "test", which picks it. */
+async function addTestLayer(): Promise<void> {
+    await userEvent.click(page.getByRole("button", { name: "Add a layer or a folder" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Layer" }));
+    const name = await screen.findByRole("textbox", { name: "Layer name" });
+    await userEvent.clear(name);
+    await userEvent.type(name, "test{Enter}");
+    await picked("test");
+}
+
 /** Waits until the selection workspace is open, fully drawn, on the layer "test". */
 async function workspaceOnTest(): Promise<void> {
     await waitFor(() => {
@@ -43,7 +69,7 @@ async function workspaceOnTest(): Promise<void> {
     });
 }
 
-describe.each<ReloadOptions>([{ lostSession: false }, { lostSession: true }])(
+describe.each<ReloadOptions>([{ lostSession: false }, { lostSession: true }, { remount: true }])(
     "the v2 Style panel across a reload (%o)",
     (how) => {
         withFeatures(["file-styles", "style-panel-v2"]);
@@ -55,25 +81,32 @@ describe.each<ReloadOptions>([{ lostSession: false }, { lostSession: true }])(
 
         it("a renamed layer stays picked and its Select nodes workspace comes back", async () => {
             const before = await openAutosaved("Les Miserables");
-            await userEvent.click(page.getByRole("button", { name: "Add a layer or a folder" }));
-            await userEvent.click(await screen.findByRole("menuitem", { name: "Layer" }));
-            const name = await screen.findByRole("textbox", { name: "Layer name" });
-            await userEvent.clear(name);
-            await userEvent.type(name, "test{Enter}");
-            await picked("test");
-            const inspector = screen.getByRole("complementary", { name: "Inspector" });
-            const style = await within(inspector).findByRole("tab", { name: "Style" });
-            if (style.getAttribute("aria-selected") !== "true") {
-                await userEvent.click(style);
-            }
-            const tab = await screen.findByTestId("style-tab");
-            await showKind("node");
+            await addTestLayer();
+            const tab = await nodeStyleTab();
             await userEvent.click(await within(tab).findByRole("button", { name: /^Select nodes\.\.\./ }));
             await workspaceOnTest();
 
             const after = await reload(before, how);
             await picked("test");
             await workspaceOnTest();
+            after.view.unmount();
+        });
+
+        it("the find box keeps its words", async () => {
+            const before = await openAutosaved("Les Miserables");
+            await addTestLayer();
+            const tab = await nodeStyleTab();
+            await userEvent.type(within(tab).getByRole("searchbox", { name: "Find a setting" }), "color");
+
+            const after = await reload(before, how);
+            await picked("test");
+            const again = await screen.findByTestId("style-tab");
+            await waitFor(() => {
+                assert.strictEqual(
+                    within(again).getByRole<HTMLInputElement>("searchbox", { name: "Find a setting" }).value,
+                    "color",
+                );
+            });
             after.view.unmount();
         });
     },

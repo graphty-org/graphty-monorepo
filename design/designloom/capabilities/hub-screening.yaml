@@ -1,0 +1,60 @@
+id: hub-screening
+name: Hub Screening by Recorded Rule
+category: analysis
+description: Screen the hub (core target) nodes of a network with a named, recorded rule -- top N on one measure, the
+    intersection of several measures' top-N lists, or thresholds at k times the median -- computing the cytoHubba and
+    CytoNCA measures the rule names, keeping the surviving core subnetwork beside its parent, and recording the rule,
+    its parameters and the node and edge count after each step so the published rule and the published result cannot
+    drift apart.
+status: planned
+notes: Proposed from the user research in design/user-research/network-pharmacology-herb-compound-target-networks.md
+    (workflow step 9, requirements R7 and R8). The algorithms package has no maximal clique enumeration or maximal
+    clique centrality today. Sweeping the rule across cutoffs is threshold-sweep's job; the recorded rule is one step
+    in provenance-tracking's pipeline record, so the three share one selection record (rule, parameters, counts).
+algorithms:
+    - Maximal Clique Centrality (MCC) -- sum over the maximal cliques containing v of (|C| - 1)!
+    - Density of Maximum Neighborhood Component (DMNC), epsilon 1.7
+    - Maximum Neighborhood Component (MNC)
+    - Edge Percolated Component (EPC), seeded
+    - Bottleneck (one-quarter shortest-path-tree rule)
+    - EcCentricity, Radiality, Stress
+    - Local Average Connectivity (LAC)
+    - Network Centrality (NC, edge clustering coefficient based)
+    - Subgraph centrality and information centrality
+used_by_workflows:
+    - W23
+    - W430
+    - W1054
+implemented_by_components: []
+requirements:
+    - "Must: Compute every cytoHubba measure (Degree, MNC, DMNC, MCC, EPC, Bottleneck, EcCentricity, Closeness, Radiality, Betweenness, Stress) and every CytoNCA measure (degree, betweenness, closeness, eigenvector, LAC, NC, subgraph, information) as node columns, with cytoHubba's published definitions and parameters (DMNC epsilon 1.7, EPC 1000 reduced networks) as defaults that can be changed."
+    - "Must: Make every random measure reproducible -- EPC takes a seed and its run count -- and state for each measure whether it read edge weights; cytoHubba's definitions use unweighted shortest paths, while CytoNCA accepts weighted networks."
+    - "Must: Apply a named rule -- top N by one measure; the intersection of top-N lists from several measures; degree at least k times the median followed by above-median filters on further measures -- and record the rule, its parameters, the measures' values at each cutoff and the node and edge count after every step."
+    - "Must: Keep the core subnetwork as its own view beside the parent network, its nodes flagged in the parent, so the full, filtered and core panels most papers publish come from one record."
+    - "Should: Re-run the same rule at other cutoffs or with other measures (through threshold-sweep) and compare the hub lists, with how many runs kept each node."
+    - "Must: Export the rule as a methods sentence with its counts, from the same record that drew the figure, so Methods and Results cannot disagree."
+sources:
+    - title: Chin et al. 2014, cytoHubba -- identifying hub objects and sub-networks from complex interactome
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4290687/
+      summary: Defines 11 ranking methods; MCC(v) is the sum of (|C| - 1)! over maximal cliques containing v, DMNC uses
+          epsilon 1.7, EPC averages 1000 randomly reduced networks, Bottleneck uses a quarter-of-the-tree rule;
+          distances are unweighted. MCC reached top-10 precision 0.90 for yeast essential proteins.
+    - title: CytoNCA app page (version 2.1.6, 2014)
+      url: https://apps.cytoscape.org/apps/cytonca
+      summary: Eight centralities (BC, CC, DC, EC, LAC, NC, SC, IC) for weighted and unweighted networks; LAC from Li et
+          al. 2011 and NC from Wang et al. 2012 (edge clustering coefficient).
+    - title: Shao et al. 2024, Tongxieyaofang network pharmacology (Front Cell Infect Microbiol)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11604607/
+      summary: Top 10 from four cytoHubba methods intersected into five core targets on an 82-node, 282-edge STRING
+          network at 0.9; Methods name Degree, Closeness, MCC and EcCentricity, Results name Betweenness instead of
+          EcCentricity.
+    - title: Two-herb pair network pharmacology (PMC7838196)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC7838196/
+      summary:
+          States a CytoNCA median rule in Methods but applies fixed degree cutoffs in Results (19 nodes, then 6), so
+          rule and result cannot be connected.
+    - title: Europe PMC REST search, open-access 2024 network pharmacology papers (queried 2026-11-25)
+      url: https://www.ebi.ac.uk/europepmc/webservices/rest/search
+      summary: Of 1,259 open-access 2024 papers with "network pharmacology" in title or abstract, the full text mentions
+          cytoHubba in 272, CytoNCA in 172, MCC or maximal clique centrality in 144, MCODE in 130 and "twice the
+          median" in 25. Keyword counts, not a coded sample of methods sections.

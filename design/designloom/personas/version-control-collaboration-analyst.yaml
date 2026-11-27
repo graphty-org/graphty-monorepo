@@ -1,0 +1,76 @@
+id: version-control-collaboration-analyst
+name: Engineering Lead Who Reads Who-Works-on-What Networks from Version Control
+roster_persona: dependency-impact-engineer
+tier: A
+scope: in-scope
+role: Engineering Manager or Staff Engineer; variants are an open source program office (OSPO) or community manager and a mining-software-repositories researcher
+quote: If Anna leaves next month, which code does nobody else know, and which two teams keep changing the same files?
+bio: >-
+    Hilde is an engineering manager and former staff engineer responsible for six teams working in one large repository.
+    Her graph does not come from imports: it comes from the git log. Every commit links an author to the files it
+    touched, so the history is a time-stamped two-mode graph of developers and files. She reads it three ways. Projected
+    onto files, it gives change coupling: files modified in the same commit, by the same programmer within a time
+    window, or under the same ticket ID, which CodeScene draws over the folder hierarchy and colors by whether the
+    coupling grows or fades. Projected onto developers, it gives a collaboration network: who edits code that whom
+    wrote. Rolled up to teams, it gives knowledge distribution: knowledge islands (code written mostly by one
+    developer), knowledge loss (code dominated by people marked as ex-developers), and coordination needs (code several
+    teams must coordinate on). Before a reorganization she sets the analysis start date to the last organizational
+    change, maps developers to teams, and merges the several names and emails each developer has committed under.
+    Her open-source counterpart, an OSPO or community manager, runs the same history through GrimoireLab or CHAOSS
+    metrics such as the Contributor Absence Factor (the fewest contributors who made half the contributions, formerly
+    called the bus factor), with identities merged in SortingHat. Researchers mine the same data at line level with
+    git2net or TNM to study co-editing and socio-technical congruence.
+characteristics:
+    expertise: intermediate
+    time_pressure: low
+    graph_literacy: intermediate
+    domain_knowledge: expert
+motivations:
+    - Find code that only one active person understands before that person leaves, and plan handover for it
+    - See which teams must coordinate because they keep changing the same or coupled code, and align team boundaries with the architecture
+    - Find hidden coupling that the import graph does not show, such as files in different services that always change together
+    - Track whether knowledge concentration and cross-team coupling improve after a reorganization
+behaviors:
+    - Exports the history with git log (numstat, short dates, author name) and excludes vendored and generated paths
+    - Merges author aliases with a .mailmap file or an identity tool before computing anything
+    - Chooses the analysis window deliberately, starting at the last reorganization for team analyses and using a longer span for technical ones
+    - Assigns developers to teams and marks people who have left, so results roll up to teams and show knowledge loss
+    - Sets thresholds on change coupling (minimum revisions, minimum shared revisions, minimum coupling percentage, maximum changeset size) so large refactoring commits do not couple everything
+    - Rolls file-level results up to components and teams before showing them to other managers
+frustrations:
+    - Authors appear under several names and emails, and bots commit too, so counts are wrong until identities are merged by hand
+    - The import graph and the change history disagree, and no tool overlays the two
+    - Results change with the time window, and the window is easy to forget when a chart is shared
+    - Commercial tools compute the networks but keep them inside their own views; open tools write CSV or JSON that she must draw elsewhere
+context:
+    frequency: monthly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W3078
+    - W3079
+    - W3080
+sources:
+    - title: CodeScene - Knowledge distribution
+      url: https://codescene.io/docs/guides/social/knowledge-distribution.html
+      summary: Knowledge islands, knowledge loss from Ex-Developers, coordination needs, team knowledge maps; knowledge computed per committer name; set the start date to the last organizational change for team analyses
+    - title: CodeScene - Change coupling
+      url: https://codescene.io/docs/guides/technical/change-coupling.html
+      summary: Coupled if modified in the same commit, by the same programmer within a period of time, or under the same ticket ID; hierarchical view; trend colors; architectural component and team overlays
+    - title: code-maat (Adam Tornhill)
+      url: https://github.com/adamtornhill/code-maat
+      summary: git log --numstat input; coupling, communication, main-dev and ownership analyses; coupling thresholds min-revs 5, min-shared-revs 5, min-coupling 30, max-changeset-size 30; one-day temporal period; regex file-to-component mapping
+    - title: CHAOSS - Contributor Absence Factor
+      url: https://chaoss.community/kb/metric-contributor-absence-factor/
+      summary: Smallest number of contributors responsible for 50% of total contributions; previously called Bus Factor
+    - title: git2net (Gote, Scholtes, Schweitzer)
+      url: https://arxiv.org/abs/1911.09484
+      summary: Directed, weighted, time-stamped co-editing networks from line-level edits; more than 1.2 million commits and more than 25,000 developers analyzed
+    - title: TNM - mining socio-technical data from git (JetBrains Research)
+      url: https://github.com/JetBrains-Research/tnm
+      summary: Assignment matrix, file dependency (co-commit) matrix, coordination needs, mirror congruence, co-edit networks; JSON output
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

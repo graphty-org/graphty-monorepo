@@ -1,0 +1,18 @@
+id: genealogy-layout
+name: Genealogy Edge Types and Generational Layout
+category: visualization
+description: Parent-child and union edge types kept distinct, with generations inferred from parent-child direction for
+    a layered layout.
+status: planned
+notes: "Research trace: academic-social-network-research.md section 10, table row 27 (Could); a Could in the research, so it is built after every Must and Should."
+algorithms: []
+used_by_workflows:
+    - W34
+implemented_by_components: []
+requirements:
+    - "Could: Genealogy: parent-child and union edge types, generation layout inferred from parent-child direction"
+sources:
+    - title: Academic Social Network Researchers (section 10, table row 27)
+      url: design/user-research/academic-social-network-research.md
+      summary: "Could in the research. Covered by Designloom when researched: NOT
+          covered"

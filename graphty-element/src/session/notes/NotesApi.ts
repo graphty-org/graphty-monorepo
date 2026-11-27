@@ -294,6 +294,15 @@ export function createNotesApi(dependencies: NotesDependencies): NotesApi {
             return Object.freeze([...authors]);
         },
 
+        savedTarget(target) {
+            if ("edge" in target && typeof target.edge === "string") {
+                const member = dependencies.edgeMember(target.edge);
+                return member === undefined ? undefined : Object.freeze({ edge: Object.freeze({ ...member }) });
+            }
+
+            return target as NoteTarget;
+        },
+
         tags() {
             const tags = new Set<string>();
             for (const note of notes().sort(newestFirst).reverse()) {

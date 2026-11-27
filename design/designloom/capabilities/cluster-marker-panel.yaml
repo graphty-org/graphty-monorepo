@@ -1,0 +1,18 @@
+id: cluster-marker-panel
+name: "Cluster marker expression panel"
+category: visualization
+description: "A per-cluster dot plot of selected node measurements (marker gene expression: mean and fraction expressing, scaled per gene) linked to the cluster map, so selecting a cluster or a marker in either view highlights it in the other, with imported labels and a confidence column shown per cluster."
+status: planned
+notes: "Research trace: systems-biology-omics-networks.md section 10, requirement 49 (Should)."
+algorithms: []
+used_by_workflows:
+    - W254
+implemented_by_components: []
+requirements:
+    - "Should: Cluster annotation beside the graph: a per-cluster marker expression dot plot linked to the cluster map,
+      a marker's expression painted on the cells, and imported cell-type labels with a confidence column (5.14)"
+sources:
+    - title: Systems Biologists and Bench Scientists Working With Molecular Interaction Networks (section 10,
+          requirement 49)
+      url: design/user-research/systems-biology-omics-networks.md
+      summary: Should in the research.

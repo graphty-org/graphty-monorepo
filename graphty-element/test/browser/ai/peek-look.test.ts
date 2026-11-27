@@ -41,7 +41,6 @@ async function slatePixels(): Promise<number> {
 beforeEach(async () => {
     element = document.createElement("graphty-element");
     element.style.cssText = "display:block;width:400px;height:300px";
-    element.features = ["assistant"];
     document.body.appendChild(element);
     await element.waitForSettled();
     const { session } = element;

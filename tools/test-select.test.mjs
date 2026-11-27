@@ -1,6 +1,5 @@
 /**
- * Tests of tools/test-select.mjs (the advisory test selector) and the log parsing of
- * tools/test-select-replay.mjs, on small hand-made import graphs.
+ * Tests of tools/test-select.mjs (the advisory test selector), on small hand-made import graphs.
  */
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
@@ -13,7 +12,6 @@ import { fileURLToPath } from "node:url";
 import { plan as matrixPlan, SHARDS } from "./ci-test-matrix.mjs";
 import { isolatedGitEnv } from "./isolated-git-env.mjs";
 import {
-    advisoryMisses,
     buildInput,
     changedImporters,
     estimate,
@@ -40,7 +38,6 @@ import {
     sameOutside,
     planRuns,
     projectSelected,
-    reportAdvisory,
     selectInGraph,
     selectPackages,
     selectShards,
@@ -57,15 +54,11 @@ import {
     selectedCommand,
     shardRuns,
     sourceOf,
-    startAdvisory,
     testRefs,
     useNamesRoot,
     wholePackageRule,
     withLockfile,
 } from "./test-select.mjs";
-import { ciFailures, parseGateLog } from "./test-select-replay.mjs";
-import { applyBudgets, keyOf, percentile, replayRecord, SETUP_MS, summarize } from "./light-check-replay.mjs";
-import { laneEnv, passStore } from "./prepush-inputs.mjs";
 import { candidateShards, changedSince, describePlan } from "./test-changed.mjs";
 import {
     mutant,
@@ -327,28 +320,7 @@ describe("buildInput", () => {
     });
 });
 
-describe("the replay's log parsing", () => {
-    it("reads the shard lines of a gate log", () => {
-        const log = [
-            "Left to CI (this push changes none of the files they test): graphty-element-browser-1, graphty-element-storybook-2",
-            "  [SKIP] layout: passed at 2026-10-20 on abc with byte-identical inputs",
-            "  [PASS] graph-io (331s)",
-            "  [FAIL] graphty-element-default (exit 1, 281s); the end of /x/graphty-element-default.log:",
-            " FAIL  |default| test/styles/a.test.ts > a > b",
-            "  [FAIL] graphty-element-default: its whole log is kept in /k/g.log",
-        ].join("\n");
-        const g = parseGateLog(log);
-        assert.deepEqual(g.skipped, ["layout"]);
-        assert.deepEqual(g.leftToCi, ["graphty-element-browser-1", "graphty-element-storybook-2"]);
-        assert.deepEqual(
-            g.ran.map((r) => [r.shard, r.ok, r.secs, r.kept ?? null]),
-            [
-                ["graph-io", true, 331, null],
-                ["graphty-element-default", false, 281, "/k/g.log"],
-            ],
-        );
-    });
-
+describe("failingFiles", () => {
     it("names the failing test files of a vitest log, stories and unhandled errors included", () => {
         const log = [
             "\u001b[31m FAIL \u001b[39m |browser (chromium)| test/browser/x.test.ts > a",
@@ -470,75 +442,6 @@ describe("file-level selection, allowed and measured", () => {
         assert.equal(changed.mode, "all");
         const [untouched] = selectShards([shard], select(["design/x.md"]).packages, g, new Set());
         assert.equal(untouched.mode, "none");
-    });
-});
-
-describe("the advisory record", () => {
-    const selection = [
-        { shard: "a", package: "pa", mode: "files", files: [{ file: "pa/test/a.test.ts" }], total: 4, reasons: [] },
-        {
-            shard: "b",
-            package: "pb",
-            mode: "all",
-            files: [],
-            total: 4,
-            reasons: ["not allowed"],
-            measured: { mode: "files", files: [{ file: "pb/test/x.test.ts" }] },
-        },
-        { shard: "c", package: "pc", mode: "none", files: [], total: 4, reasons: [] },
-    ];
-
-    it("counts a failing file outside a file selection as a miss, measured selections included", () => {
-        const results = [
-            { shard: "a", ok: false, failing: ["pa/test/a.test.ts", "pa/test/b.test.ts"] },
-            { shard: "b", ok: false, failing: ["pb/test/y.test.ts"] },
-            { shard: "c", ok: false, failing: [] },
-        ];
-        assert.deepEqual(advisoryMisses(results, selection), [
-            { shard: "a", file: "pa/test/b.test.ts" },
-            { shard: "b", file: "pb/test/y.test.ts" },
-            { shard: "c", file: null },
-        ]);
-    });
-
-    it("writes the failing files, both time figures and the misses, and prints one line", () => {
-        const main = mkdtempSync(join(ROOT, "tmp", "test-select-advisory-"));
-        try {
-            const log = join(main, "a.log");
-            writeFileSync(log, " FAIL  |unit| test/b.test.ts > fails\n");
-            const out = JSON.stringify({ everything: null, unexplainedRoot: [], shards: selection }) + "\n";
-            const results = [
-                { shard: "a", ok: false, secs: 40, log },
-                { shard: "b", ok: true, secs: 100, log: join(main, "none.log") },
-            ];
-            reportAdvisory({ root: ROOT, base: "x", gateBase: "y", main, results, done: true, out });
-            const rec = JSON.parse(readFileSync(join(main, "tmp/test-select/advisory.jsonl"), "utf8"));
-            assert.deepEqual(rec.results[0].failing, ["pa/test/b.test.ts"]);
-            assert.equal(rec.results[1].failing, undefined);
-            assert.deepEqual(rec.missed, [{ shard: "a", file: "pa/test/b.test.ts" }]);
-            assert.deepEqual(rec.time, { full: 140, selected: 110 });
-            assert.deepEqual(rec.measuredTime, { full: 140, selected: 35 });
-            assert.equal(rec.base, "x");
-            assert.equal(rec.gateBase, "y");
-        } finally {
-            rmSync(main, { recursive: true, force: true });
-        }
-    });
-
-    it("never throws into the gate when the selector failed or had not finished", async () => {
-        const main = mkdtempSync(join(ROOT, "tmp", "test-select-advisory-"));
-        try {
-            const adv = startAdvisory(ROOT, "no-such-ref-for-this-test", main);
-            adv.report([{ shard: "a", ok: true, secs: 1 }]);
-            await adv.closed;
-            const failed = startAdvisory(ROOT, "no-such-ref-for-this-test", main);
-            await failed.closed;
-            failed.report([{ shard: "a", ok: true, secs: 1 }]);
-        } catch (e) {
-            assert.fail(`report threw: ${e.message}`);
-        } finally {
-            rmSync(main, { recursive: true, force: true });
-        }
     });
 });
 
@@ -797,43 +700,6 @@ describe("building a package's import graph (a fixture package, walked by Vitest
     });
 });
 
-describe("the CI collector", () => {
-    const shards = [
-        { shard: "graph-io", package: "graph-io" },
-        { shard: "layout", package: "layout" },
-    ];
-    const dirs = ["graph-io", "layout"];
-    const check = (name, notes) => ({ name, annotations: { nodes: notes } });
-
-    it("reads failing test files from failure annotations, and failed shards from a group job", () => {
-        assert.deepEqual(
-            ciFailures(
-                check("Test (small-node)", [
-                    { path: "graph-io/test/a.test.ts", message: "slow", annotationLevel: "WARNING" },
-                    { path: ".github", message: "failed: graph-io, layout", annotationLevel: "FAILURE" },
-                ]),
-                shards,
-                dirs,
-            ).map((f) => [f.package, f.file]),
-            [
-                ["graph-io", null],
-                ["layout", null],
-            ],
-        );
-        assert.deepEqual(
-            ciFailures(
-                check("Test (graph-io)", [
-                    { path: "graph-io/test/a.test.ts", message: "boom\nstack", annotationLevel: "FAILURE" },
-                ]),
-                shards,
-                dirs,
-            ),
-            [{ package: "graph-io", shard: "graph-io", file: "test/a.test.ts", what: "boom" }],
-        );
-        assert.deepEqual(ciFailures(check("Lint", []), shards, dirs), []);
-    });
-});
-
 describe("running a selection", () => {
     const byName = (name) => SHARDS.find((s) => s.shard === name);
     const files = (...f) => f.map((file) => ({ file, why: "imports it" }));
@@ -920,22 +786,6 @@ describe("running a selection", () => {
         assert.match(text, /graphty\/src\/a\.test\.tsx {2}<- imports it/u);
         assert.match(text, /remote-logger: WHOLE SHARD/u);
         assert.match(text, /nothing to run: layout/u);
-    });
-
-    it("keeps a selected pass apart from a whole-shard pass, and a selecting gate apart from a full one", () => {
-        const main = mkdtempSync(join(ROOT, "tmp", "passes-"));
-        try {
-            const store = passStore(main);
-            const key = "a".repeat(64);
-            store.record("shard-selected", key, { shard: "graph-format", files: ["graph-format/test/a.test.ts"] });
-            assert.equal(store.get("shard", key), null);
-            assert.equal(store.get("shard-selected", key).shard, "graph-format");
-        } finally {
-            rmSync(main, { recursive: true, force: true });
-        }
-        assert.deepEqual(laneEnv({ PREPUSH_SELECT: "1", PATH: "/bin" }), [["PREPUSH_SELECT", "1"]]);
-        assert.deepEqual(laneEnv({ PREPUSH_SELECT_BASE: "origin/golden-cut" }), [["PREPUSH_SELECT_BASE", "cut"]]);
-        assert.deepEqual(laneEnv({ PREPUSH_SELECT_BASE: "origin/golden" }), []);
     });
 
     it("counts committed, staged, unstaged and untracked files as the change, not ignored ones", () => {
@@ -1934,111 +1784,6 @@ describe("packBins", () => {
         const ms = new Map(files.map((f) => [f, 550]));
         const { overheadMs, scale } = binCost("graphty-element-default");
         assert.equal(packBins(files, ms, BIN_LIMIT_MS, overheadMs, scale).length, 1);
-    });
-});
-
-describe("light-check-replay", () => {
-    const MIN = 60_000;
-    const fileLevel = new Set(["graphty-element", "graphty"]);
-    const sel = (shard, pkg, mode, files = [], extra = {}) => ({
-        shard,
-        package: pkg,
-        mode,
-        total: extra.total ?? files.length,
-        files: files.map((file) => ({ file })),
-        reasons: extra.reasons ?? [],
-    });
-    const durations = new Map([
-        [
-            "graphty",
-            new Map([
-                ["graphty/a.test.ts", 5 * MIN],
-                ["graphty/b.test.ts", 3 * MIN],
-            ]),
-        ],
-        ["graph-io", new Map([["graph-io/x.test.ts", 2 * MIN]])],
-    ]);
-
-    it("merges a family's slices and runs its longest bin after the setup", () => {
-        const record = {
-            at: "2026-10-23T00:00:00Z",
-            selection: [
-                sel("graphty-1", "graphty", "files", ["graphty/a.test.ts"]),
-                sel("graphty-2", "graphty", "files", ["graphty/a.test.ts", "graphty/b.test.ts"]),
-                sel("graph-format", "graph-format", "none"),
-            ],
-        };
-        const r = replayRecord(record, durations, fileLevel, 8 * MIN);
-        assert.deepEqual(r, {
-            key: "run:ci.yml:pr",
-            at: record.at,
-            bins: 2,
-            testMs: 5 * MIN * binCost("graphty").scale + binCost("graphty").overheadMs,
-            runMs: SETUP_MS + 5 * MIN * binCost("graphty").scale + binCost("graphty").overheadMs,
-            overLimit: false,
-        });
-    });
-
-    it("runs a whole family with its unrecorded files at the family's longest", () => {
-        const record = { selection: [sel("graph-io", "graph-io", "all", [], { total: 5 })] };
-        const r = replayRecord(record, durations, fileLevel, 8 * MIN);
-        assert.equal(r.key, "run:ci.yml:pr-graph-io", "a package off fileLevel has its own key");
-        assert.equal(r.bins, 2, "five 2-minute files plus their overhead make bins of three and two files");
-        assert.equal(r.testMs, 6 * MIN + 3 * FILE_OVERHEAD_MS);
-    });
-
-    it("keys a global input or a graphty-element build change as pr-wide", () => {
-        assert.equal(keyOf({ everything: "package.json", selection: [] }, [], fileLevel), "run:ci.yml:pr-wide");
-        const dependent = sel("graphty-1", "graphty", "all", [], {
-            reasons: ["depends on graphty-element, whose build changed"],
-        });
-        assert.equal(keyOf({ selection: [dependent] }, [], fileLevel), "run:ci.yml:pr-wide");
-        const byFile = sel("graphty-1", "graphty", "files", []);
-        byFile.files = [
-            { file: "graphty/src/App.test.tsx", why: "imports graphty-element/src/a.ts, from graphty-element's build" },
-        ];
-        assert.equal(
-            keyOf({ selection: [byFile] }, [], fileLevel),
-            "run:ci.yml:pr-wide",
-            "a dependent selected file by file",
-        );
-        const own = sel("graphty-element-1", "graphty-element", "files", []);
-        own.files = [{ file: "graphty-element/test/a.test.ts", why: "imports graphty-element/src/a.ts" }];
-        assert.equal(keyOf({ selection: [own] }, [], fileLevel), "run:ci.yml:pr", "graphty-element's own tests alone");
-        const longest = [
-            { package: "graphty", ms: 9 },
-            { package: "layout", ms: 3 },
-        ];
-        assert.equal(keyOf({ selection: [] }, longest, fileLevel), "run:ci.yml:pr-layout");
-    });
-
-    it("summarizes p50 and p90 per key and writes them as budgets", () => {
-        assert.equal(percentile([5, 1, 4, 2, 3], 0.5), 3);
-        assert.equal(percentile([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 0.9), 9);
-        assert.equal(percentile([], 0.9), 0);
-        const row = (runMs, at) => ({ key: "run:ci.yml:pr", at, bins: 2, runMs, overLimit: false });
-        const table = summarize([row(10 * MIN, "2026-10-22T01:00:00Z"), row(12.5 * MIN, "2026-10-23T01:00:00Z")]);
-        assert.deepEqual(table, [
-            {
-                key: "run:ci.yml:pr",
-                n: 2,
-                p50: 10,
-                p90: 12.5,
-                bins50: 2,
-                bins90: 2,
-                overLimit: 0,
-                from: "2026-10-22",
-                to: "2026-10-23",
-            },
-        ]);
-        const before = { version: 1, budgets: { "run:ci.yml:pr": { minutes: 20, owner: "pipeline" } } };
-        const after = applyBudgets(before, table);
-        assert.equal(before.budgets["run:ci.yml:pr"].minutes, 20, "the input is not changed");
-        assert.deepEqual(after.budgets["run:ci.yml:pr"], {
-            minutes: 13,
-            owner: "pipeline",
-            why: "light-check replay of 2 advisory records (2026-10-22 to 2026-10-23): p50 10 min, p90 12.5 min; table on #3418",
-        });
     });
 });
 

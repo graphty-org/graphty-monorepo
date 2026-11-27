@@ -517,7 +517,9 @@ export function ThingRow({
 }>): React.JSX.Element | null {
     const { store } = useWorkspace();
     // Held here, so the pop-over stays open while a switch redraws the row's main control.
+    // on reload: fresh: pointer: a pop-over held open by its control
     const [open, setOpen] = useState(false);
+    // on reload: fresh: pointer: a picker held open by the pointer
     const [picking, setPicking] = useState(false);
     const box = useRef<HTMLDivElement>(null);
     // A Pie, Chart or Record opens its data picker instead (DataRow).

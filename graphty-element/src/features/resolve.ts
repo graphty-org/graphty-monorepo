@@ -93,7 +93,7 @@ export function featureOff(feature: FeatureId, key: string): GraphtyError {
 }
 
 /**
- * Read experiment ids from a URL's query, such as `?features=assistant,location-map`.
+ * Read experiment ids from a URL's query, such as `?features=file-styles,source-steps`.
  * @param url - The URL, usually `location.href`.
  * @param param - The query parameter to read.
  * @returns The ids, comma separated, trimmed, lowercased and without duplicates, unknown ones

@@ -147,6 +147,7 @@ export function useAssetLine(args: AssetLineArgs): AssetLine | undefined {
     // Fill's Picture line, added with "+": its pop-over opens at once.
     const [pictureOpen, setPictureOpen] = useState(() => channel === "node.texture" && pending);
     // Style panel v2's Shape list: its New shader... opens the code dialog, set to the shapes' place.
+    // on reload: fresh: request: a one-time open of the code dialog
     const [replaceCode, setReplaceCode] = useState(false);
     // Focus back on the field, once the pop-over that took its place has gone.
     const focusField = useCallback(() => {
@@ -611,8 +612,6 @@ function shapeLine(args: LineHelpers, state: ShapeState): AssetLine {
                 </Popout.Trigger>
                 <Popout.Panel
                     width={POPOUT_WIDTH}
-                    placement="left"
-                    alignment="start"
                     header={{ variant: "title", title: "Model settings" }}
                     closeLabel={CUSTOM_MODEL.closeSettings}
                 >

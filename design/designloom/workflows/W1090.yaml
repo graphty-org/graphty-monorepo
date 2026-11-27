@@ -1,0 +1,187 @@
+id: W1090
+name: Downstream Trace from an Entity of Concern to Brands Through Shipment Records
+category: reporting
+validated: false
+personas:
+    - forced-labor-trade-investigator
+    - osint-investigator
+    - investigative-journalist
+requires_capabilities:
+    - data-import
+    - data-validation
+    - table-to-graph-builder
+    - record-derived-edges
+    - parallel-edge-aggregation
+    - entity-resolution-review
+    - node-merging
+    - batch-name-matching
+    - search
+    - neighborhood-expansion
+    - external-lookup-expansion
+    - supernode-safeguards
+    - typed-edge-filtering
+    - multilayer-networks
+    - provenance-tracking
+    - source-grading
+    - unknown-edge-marking
+    - watch-list-proximity
+    - layout-hierarchical
+    - geographic-layout
+    - filtering
+    - path-highlighting
+    - annotation
+    - details-on-demand
+    - structured-findings-export
+    - export-image
+    - data-export
+    - stage-constrained-trace
+    - cross-script-name-matching
+    - right-of-reply-tracking
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - node-merge-dialog
+    - search-panel
+    - graph-canvas
+    - layout-panel
+    - filter-panel
+    - path-finder-dialog
+    - annotation-toolbar
+    - node-details-panel
+    - data-table-panel
+    - report-generator-dialog
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: one to a few entities of concern plus their outbound shipment records (bills of lading), registry ownership records and a list of entities tied to forced labor
+    node_count: 50-1,000
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Start from a producer tied to forced labor and find every downstream buyer, through third-country
+    manufacturers, to the brands that sell the goods, citing a record for every link, so the findings can be published
+    as a report or a story. This is the reverse of the importer's upstream trace for one detained shipment (W230): the
+    starting point is the source, the evidence is public or licensed records rather than the importer's own documents,
+    and the output is a publication, not a filing.
+
+
+    **Mental Model**: "Follow the yarn out of the mill." One source fans out to many buyers at each tier; each link is a
+    lead until corroborated, and every company at the end gets a letter before publication.
+
+
+    **Task Phases**:
+
+    1. **Pick the entity of concern** - From a published list of companies operating in the Uyghur Region, a
+    report on labor transfers, a plant with worker testimony, or a company under an import ban
+
+    2. **Collect its names** - Chinese legal name from the business license, English trade names, former names,
+    subsidiaries, and the spellings that appear on shipping records
+
+    3. **Pull its outbound shipments** - Bills of lading where it is the shipper, from a commercial service or the
+    importing country's records; consignees become the first tier of buyers
+
+    4. **Walk downstream tier by tier** - For each buyer, pull its own outbound shipments and keep only those whose
+    product fits the next production stage (yarn to fabric to garment); aggregate repeat shipments into one link with a
+    count and date range; stop at brands and retailers
+
+    5. **Add ownership** - Registry and disclosure links (parents, subsidiaries, a source company's own plants in
+    third countries); flag any node within reach of a listed entity
+
+    6. **Corroborate and grade each link** - Product description, dates and quantities line up; other evidence
+    (satellite imagery, packaging, company disclosures, worker testimony); a link stays a potential risk until
+    corroborated
+
+    7. **Right of reply** - Write to every named company with the specific links; record each response
+
+    8. **Publish** - Report or story with a network figure from source to brands, an annex listing each link and its
+    records, and an annex of company responses; legal review before release
+
+
+    **Decision Points**:
+
+    - Is this consignee the same company as one already in the graph, or a namesake?
+
+    - Does the shipped product fit the next stage, or is the buyer trading something unrelated?
+
+    - Is a freight forwarder or a redacted name hiding the real buyer, and should it stay an unknown node?
+
+    - Is a link strong enough to name the company, or only enough to describe the risk?
+
+    - How many tiers to follow before the fan-out is too wide to verify?
+
+
+    **Information Needs**:
+
+    - Downstream tree from the source with every node labeled by tier and production stage
+
+    - Per link: shipment count, first and last date, product descriptions, quantities and record ids
+
+    - Every name variant behind each merged node, with the record each came from
+
+    - Which links are corroborated, which are potential risk only, and which endpoints are unknown or redacted
+
+    - Response status for each named company
+
+
+    **Pain Points**:
+
+    - Names are misspelled on shipping records, written in Chinese or translated by machine
+
+    - About 16 percent of US maritime shipment records 2013-2023 hide importer or supplier names, rising after the
+    UFLPA in cotton and apparel
+
+    - Detailed shipment records cover only some countries and often need a paid subscription
+
+    - Materials mix at each stage, so a trade link shows exposure, not content
+
+    - One wrong customs-data match can name an innocent company; named suppliers have sued
+
+    - Screening platforms trace upstream from a supplier for compliance buyers, not downstream from a source
+
+
+    **Data Flow**:
+
+    - Input: Entity-of-concern list, shipment records (CSV exports of bills of lading), registry and disclosure
+    records, company responses
+
+    - Transformations: Name collection and entity resolution, shipment rows to aggregated trade links, product-stage
+    filtering per hop, ownership edges, watch-list proximity, link grading
+
+    - Output: Source-to-brand network figure, link annex with records per link, company-response annex, data table for
+    fact-checking
+success_criteria:
+    - metric: Citation coverage
+      target: Every published link names at least one shipment, registry or disclosure record
+    - metric: Name resolution transparency
+      target: Every merged company shows the variants merged and the record behind each
+    - metric: Right of reply
+      target: Every named company in the figure has a recorded letter and response status
+sources:
+    - title: Sheffield Hallam University - Laundering Cotton report (news release, November 2021)
+      url: https://www.shu.ac.uk/news/all-articles/latest-news/laundering-cotton-report
+      summary: Five Chinese manufacturers to 53 garment suppliers in ten countries through customs data and shipping records
+    - title: Murphy et al., Laundering Cotton (2021)
+      url: https://shura.shu.ac.uk/29641/1/Murphy-LaunderingCottonXinjiang%28VoR%29.pdf
+      summary: Downstream customers traced through bills of lading; alternative and misspelled names matched (read via search summary)
+    - title: Exposing the Invisible - Supply chain and product investigations
+      url: https://kit.exposingtheinvisible.org/en/supply-chain.html
+      summary: Downstream from the entry point by default; customs data fields; false positives and multiple spellings; very high standard of proof
+    - title: Earthsight - Timber Investigation Centre guidebook
+      url: https://earthsight.org.uk/tic/guidebook
+      summary: Forward from a suspect source or backward from a consumer country; parties concealed behind freight forwarders
+    - title: C4ADS - Spoiled Fruit (2022)
+      url: https://c4ads.org/?p=5126
+      summary: Trade data used to find importers buying from a producer under a forced-labor import ban
+    - title: NYU Stern - Supply chain secrecy and redactions in US import records
+      url: https://www.stern.nyu.edu/index%2ephp/experience-stern/faculty-research/supply-chain-secrecy-how-forced-labor-scrutiny-relates-redactions-us-import-records.md
+      summary: About 16 percent of shipment records redacted, more after the UFLPA
+    - title: OpenSanctions - Companies Operating in the Uyghur Region
+      url: https://www.opensanctions.org/datasets/shu_uyghur_companies
+      summary: Bilingual list of 53,397 companies used as starting points
+    - title: Sayari forced labor screening (vendor)
+      url: https://sayari.com/enterprise/forced-labor-screening/
+      summary: Compliance platform tracing from direct supplier back to raw material origin; downstream tracing not described
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

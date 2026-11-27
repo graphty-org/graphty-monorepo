@@ -1,0 +1,165 @@
+id: W130
+name: Audit an LLM-Extracted Graph for Duplicates, Type Conflicts and Noise
+category: analysis
+validated: false
+personas:
+    - graphrag-developer
+    - enterprise-kg-engineer
+    - knowledge-engineer
+requires_capabilities:
+    - data-import
+    - data-validation
+    - basic-statistics
+    - degree-analysis
+    - metric-histograms
+    - component-analysis
+    - computed-attributes
+    - filtering
+    - search
+    - node-selection
+    - ego-network
+    - details-on-demand
+    - comparison-view
+    - node-merging
+    - analysis-history
+    - data-export
+    - entity-resolution-review
+    - graphrag-output-import
+    - multi-valued-categories
+    - rdf-export
+suggested_components:
+    - data-import-dialog
+    - statistics-panel
+    - histogram
+    - ranked-node-table
+    - data-table-panel
+    - filter-panel
+    - search-input
+    - graph-canvas
+    - node-details-panel
+    - ego-network-dialog
+    - comparison-view
+    - node-merge-dialog
+    - analysis-history-panel
+    - data-export-dialog
+starting_state:
+    data_type: LLM-extracted entity and relationship tables (GraphRAG parquet or a Neo4j graph) with descriptions and source chunk ids
+    node_count: 1000-100000
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Measure and clean the quality of a graph an LLM extracted from documents: profile it, find noise hubs,
+    find and adjudicate duplicate entities, resolve entities that received several types, and record every merge so it
+    survives the next run.
+
+
+    **Mental Model**: "Lint the extraction." The graph is a build artifact with bugs; each duplicate group or type
+    conflict is a defect to accept or reject, and the fixes feed back into prompts, stoplists and merge logs.
+
+
+    **Task Phases**:
+
+    1. **Load into something queryable** - pandas over parquet, or Neo4j via Microsoft's Cypher import notebook
+    or apoc.load.parquet; check which GraphRAG version wrote the tables
+
+    2. **Profile counts** - Entities, relationships and description coverage. Example: 2,000 news articles with
+    GPT-4o (about 35 minutes, about $30) gave 12,994 entities and 15,921 relationships; only 45.6 percent of entities and
+    35 percent of relationships had a description
+
+    3. **Degree distribution** - Log histogram (in the example mean 2.45, median 1, 75 percent of nodes degree 2
+    or less); list the top entities by degree to spot noise hubs and add them to a stoplist
+
+    4. **Entities per chunk** - About 3 per 300-token chunk without gleanings; raise max_gleanings if too low
+
+    5. **Components** - Weakly connected components (example 1,119 components, largest 9,109 nodes, median size
+    2); many tiny components signal missed relations or unmerged aliases
+
+    6. **Duplicate candidates** - Embed name plus description; kNN with topK 10 and similarity cutoff 0.95
+    written as SIMILAR edges; WCC over SIMILAR; keep pairs with edit distance under 3 or substring containment
+
+    7. **Review groups** - An LLM or a person decides each group, rejecting merges that differ in numbers,
+    dates or products; embedding false positives include Google/Apple at 0.96 and BMW/Mercedes Benz at 0.97. This step
+    most needs a side-by-side view of each group with its neighbors and source chunks
+
+    8. **Merge** - apoc.refactor.mergeNodes, or Neo4j LLM Graph Builder's dedup and Delete Disconnected Nodes
+    screens
+
+    9. **Type conflicts** - On a 700-page 5G specification 1,123 of 8,873 entities (12.7 percent) got two or
+    more types and PMIC got seven; vote a primary type, keep alternatives as properties, flag same-chunk conflicts
+
+    10. **Measure and compare runs** - Duplicate rate (for example RapidFuzz partial_ratio at 75 percent within
+    type plus expert review) before and after prompt or pipeline changes
+
+
+    **Decision Points**:
+
+    - Is this hub a real entity or boilerplate to stoplist?
+
+    - Merge, keep separate, or defer each candidate group?
+
+    - Which of several types is primary for a multi-typed entity?
+
+    - Is the duplicate rate low enough to stop tuning and ship?
+
+
+    **Information Needs**:
+
+    - Counts by type, description coverage, log degree histogram, top-k hubs, component sizes, isolates
+
+    - Candidate groups with similarity scores, each member's neighbors, descriptions and source chunk text
+
+    - Types-per-entity distribution and the chunks that produced each type
+
+    - Run-over-run comparison of counts and duplicate rates
+
+    - A merge log and rejection list that can be re-applied after the next extraction
+
+
+    **Pain Points**:
+
+    - Ids regenerate per run, so title is the de facto key and surface variants ("Ebenezer Scrooge" vs "Scrooge") become
+    separate nodes
+
+    - Embedding similarity gives confident false positives between competitors
+
+    - No review queue: groups are read as table rows without their neighborhoods or source text
+
+    - Merges are hard to undo and decisions are lost on the next run
+
+    - Most domains have no gold standard, so quality is judged by spot checks
+
+
+    **Data Flow**:
+
+    - Input: Entity and relationship tables or a Neo4j graph, text units or chunks, optional embeddings
+
+    - Transformations: Profiling statistics, similarity edges, component grouping, adjudication, node merges, type
+    voting
+
+    - Output: Cleaned graph, stoplist, prompt changes, merge and rejection log, duplicate-rate measurement
+success_criteria:
+    - metric: Quality profile
+      target: User can state counts by type, description coverage, component distribution and top hubs within 10 minutes of loading (design goal; no source measures it)
+    - metric: Review throughput
+      target: Each duplicate group is decided with its neighbors and source text visible, without leaving the view
+    - metric: Decision durability
+      target: Merge and rejection decisions re-apply to the next extraction run
+sources:
+    - title: Neo4j blog - global GraphRAG with Neo4j and LangChain
+      url: https://neo4j.com/blog/developer/global-graphrag-neo4j-langchain/
+      summary: 2,000-article profile, degree statistics, WCC, kNN 0.95 duplicate candidates, LLM adjudication, apoc merge
+    - title: Neo4j blog - Microsoft GraphRAG output in Neo4j
+      url: https://neo4j.com/blog/developer/microsoft-graphrag-neo4j/
+      summary: Importing parquet into Neo4j; Scrooge duplicates; Project Gutenberg noise hub
+    - title: One entity, seven identities
+      url: https://dev.to/eyanpen/the-biggest-pitfall-in-graphrag-one-entity-seven-identities-5d8d
+      summary: 12.7 percent of entities multi-typed on a 5G specification; PMIC with seven types; voting fix
+    - title: CORE-KG
+      url: https://arxiv.org/html/2510.26512
+      summary: GraphRAG baseline 30.53 percent duplicate nodes vs 20.28 percent; coreference resolution matters most
+    - title: Neo4j LLM Graph Builder features
+      url: https://neo4j.com/labs/genai-ecosystem/llm-graph-builder-features/
+      summary: Duplicate node merging and Delete Disconnected Nodes screens
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

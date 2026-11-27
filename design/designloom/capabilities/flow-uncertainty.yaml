@@ -1,0 +1,17 @@
+id: flow-uncertainty
+name: Per-flow uncertainty
+category: analysis
+description: Carry a margin of error per flow through filters and show it in details and on the map.
+status: planned
+notes: "Research trace: geographic-flow-and-mobility-networks.md section 10, requirement R13 (Should)."
+algorithms: []
+used_by_workflows:
+    - W380
+implemented_by_components: []
+requirements:
+    - "Should: Per-flow uncertainty (margin of error) carried through filters and shown"
+sources:
+    - title: "Geographic Flow and Mobility Networks: Migration, Commuting, Mobility and Trade Flows on a Map (section
+          10, requirement R13)"
+      url: design/user-research/geographic-flow-and-mobility-networks.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

@@ -125,7 +125,15 @@ export interface ReadSource {
  * needs both ends. Plain data, safe to import in Node.
  */
 export const LOAD_ROLES: Readonly<
-    Record<"nodes" | "edges", { readonly takes: readonly ColumnRole[]; readonly requires: readonly ColumnRole[] }>
+    Record<
+        "nodes" | "edges",
+        {
+            /** Every role a column of a table of this kind may be given. */
+            readonly takes: readonly ColumnRole[];
+            /** The roles a table of this kind must have a column for before it can load. */
+            readonly requires: readonly ColumnRole[];
+        }
+    >
 > = Object.freeze({
     nodes: Object.freeze({
         takes: Object.freeze(["key", "label", "time", "kind"] as const),

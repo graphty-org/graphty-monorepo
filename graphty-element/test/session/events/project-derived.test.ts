@@ -129,7 +129,7 @@ describe("project:derived", () => {
         await s.styles.add({
             name: "Noted",
             target: "node",
-            selector: { match: "has", path: "graphty.notes.count" },
+            selector: { match: "has", path: "store.graphty.notes.count" },
             set: { "node.shape": "box" },
         });
         await s.runs.start("degree", {}, { as: "deg" });

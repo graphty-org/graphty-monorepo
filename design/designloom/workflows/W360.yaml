@@ -1,0 +1,114 @@
+id: W360
+name: What-If Simulation over the Discovered Process
+category: analysis
+validated: false
+personas:
+    - process-mining-consultant
+    - process-mining-analyst
+requires_capabilities:
+    - comparison-view
+    - layout-hierarchical
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - removal-impact-analysis
+    - statistics-panel
+    - export-image
+    - process-model-notation
+suggested_components:
+    - graph-canvas
+    - comparison-view
+    - impact-analysis-dialog
+    - visual-encoding-panel
+    - legend-panel
+    - metric-card
+    - statistics-panel
+    - toggle-switch
+    - image-export-dialog
+starting_state:
+    data_type: >-
+        A discovered process map or BPMN model with measured frequencies and durations, plus scenario parameters (skip
+        an activity, remove rework, change a duration, set an automation rate, arrival and resource timetables)
+    node_count: 10-60 activities
+    edge_density: sparse process map
+    user_expertise: advanced
+goal: >-
+    **Intent**: Estimate what a change would do before making it -- skip a step, remove rework, speed up an activity,
+    automate part of it -- to justify the investment. The results are estimates, and the graph output is two derived
+    graphs over the same activities, as-is and scenario, overlaid or side by side.
+
+
+    **Mental Model**: "The same map twice: today in one color, the proposal in another."
+
+
+    **Task Phases**:
+
+    1. **Create a simulation** - Pick the process, optionally filter it (UiPath Process Simulation)
+
+    2. **Choose scenarios** - Skip an activity, remove direct rework, change an activity's or an edge's throughput time
+    by a percentage, set an automation rate; in Apromore set arrival timetables and inter-arrival distributions,
+    resources and their timetables, branching and durations on a BPMN model
+
+    3. **Run** - The tool produces a simulated log or simulated metrics
+
+    4. **Compare** - The process graph shows the as-is process in blue and the what-if process in purple on the same
+    graph; either can be hidden; node and edge metrics selectable; IBM shows baseline and scenario side by side
+
+    5. **Read results** - Simulated average throughput time with a range, automation rate; compare saved simulations;
+    export PNG
+
+
+    **Decision Points**:
+
+    - Which scenario parameters are realistic?
+
+    - Overlay on one layout or side by side?
+
+    - Is the improvement larger than the simulated range?
+
+
+    **Information Needs**:
+
+    - Per-node and per-edge difference between as-is and scenario
+
+    - Simulated throughput time with its range, not only a point value
+
+    - Which elements exist only in one of the two graphs
+
+    - Saved scenarios listed for comparison
+
+
+    **Pain Points**:
+
+    - Results are estimates that stakeholders may read as promises
+
+    - Overlay and side-by-side views exist only inside each vendor's tool
+
+    - Model-based simulation (Apromore) needs many parameters the analyst has to estimate
+
+
+    **Data Flow**:
+
+    - Input: Discovered map or BPMN with measured metrics, scenario parameters
+
+    - Transformations: Simulation (outside the graph view), derivation of the scenario graph, per-element differences
+
+    - Output: As-is and scenario graphs overlaid or side by side, KPI ranges, exported image
+success_criteria:
+    - metric: Overlay on one layout
+      target: As-is and scenario graphs share positions so differences are read per element
+    - metric: Range reporting
+      target: Simulated metrics are shown with their range
+sources:
+    - title: UiPath Process Mining - process simulation
+      url: https://docs.uipath.com/process-mining/automation-cloud/latest/user-guide/process-simulation
+      summary: Skip, remove rework, change durations, automation rate; as-is blue and what-if purple on one graph; results are estimates
+    - title: IBM Process Mining - what if simulation
+      url: https://www.ibm.com/docs/en/SSWR2IP_2.0.0/process-mining-documentation/user-manuals/bpa/simulation.html
+      summary: Process evolutions simulated and shown side by side with the baseline (preview)
+    - title: Apromore - simulation
+      url: https://documentation.apromore.org/simulation/index.html
+      summary: BPMN simulation with arrival distributions, resource timetables, branching and durations producing a simulated log
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -92,6 +92,19 @@ export function layoutOf(graph: Graph): SimulationLayoutEngine {
 }
 
 /**
+ * Fails a wait for the layout's accelerator once the graph has none and will look for none: the acceleration state
+ * `"unavailable"` or `"off"`. Nothing can land after that, so a wait that went on would only end at the file guard
+ * (issue #9731). A loss in progress (`"error"`) is not the end: the element is bringing the accelerator back.
+ * @param graph - The graph.
+ */
+export function assertCanLand(graph: Graph): void {
+    const { state, code, reason } = graph.acceleration.status;
+    if (state === "unavailable" || state === "off") {
+        assert.fail(`no batch can land: acceleration is ${state} (${code ?? "no code"}: ${reason ?? "no reason"})`);
+    }
+}
+
+/**
  * Waits for a frame, the only thing a layout's batches move on.
  * @returns After the next frame.
  */
@@ -150,6 +163,7 @@ export async function submitLayout(
     const options = { maxIter, settleThreshold: 1e-12 };
     await graph.setLayout("forceatlas2", seed === undefined ? options : { ...options, seed });
     while (!layoutOf(graph).isAccelerated || layoutOf(graph).iterationsDone === 0) {
+        assertCanLand(graph);
         await nextFrame();
     }
 }
@@ -161,6 +175,7 @@ export async function submitLayout(
 export async function landed(graph: Graph): Promise<void> {
     const before = layoutOf(graph).landedBatchesPublished;
     while (!layoutOf(graph).isAccelerated || layoutOf(graph).landedBatchesPublished <= before) {
+        assertCanLand(graph);
         await nextFrame();
     }
 }
@@ -199,6 +214,7 @@ export async function copied(graph: Graph): Promise<void> {
     assert.isNotNull(table);
     const before = table.copies;
     while (table.copies <= before) {
+        assertCanLand(graph);
         await nextFrame();
     }
 }
@@ -222,6 +238,7 @@ export function errorsOf(graph: Graph): Error[] {
  * @param maxIter - Iterations before the layout rests; by default more than any test waits for.
  * @param renderer - The renderer: WebGPU shares the layout's device, WebGL does not.
  * @param nodeCount - Nodes in the graph.
+ * @param policy - The acceleration policy.
  * @returns The graph.
  */
 export async function running(
@@ -229,9 +246,10 @@ export async function running(
     maxIter?: number,
     renderer: "webgpu" | "webgl" = "webgpu",
     nodeCount = NODE_COUNT,
+    policy: "auto" | "required" = "auto",
 ): Promise<Graph> {
     adapterSays("test-hardware");
-    const graph = await open("auto", renderer);
+    const graph = await open(policy, renderer);
     graph.setRenderPath(path);
     await startLayout(graph, maxIter, nodeCount);
     assert.strictEqual(graph.rendererStatus?.layoutDevice, renderer === "webgpu" ? "shared" : "separate");

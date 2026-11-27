@@ -1,6 +1,5 @@
-import { DirectionProvider, MantineProvider } from "@mantine/core";
+import { MantineProvider } from "@mantine/core";
 import { render, screen, waitFor } from "@testing-library/react";
-import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
@@ -9,32 +8,7 @@ import { ControlSection } from "../../src/components/ControlSection";
 import { AdvancedButton } from "../../src/components/rows/TrailingSlot";
 import { LabelsProvider } from "../../src/i18n";
 import { UiGlyph } from "../../src/icons";
-
-/**
- * Render inside the compact theme, the way the package is consumed.
- * @param ui - The element under test
- * @returns The testing-library render result
- */
-function renderSection(ui: React.ReactElement): ReturnType<typeof render> {
-    return render(<MantineProvider theme={compactTheme}>{ui}</MantineProvider>);
-}
-
-/**
- * Render inside a right-to-left direction context.
- *
- * `detectDirection` is off so the provider does not read a direction off the
- * document and does not write one back to it, which would leak into every other
- * test in the file.
- * @param ui - The element under test
- * @returns The testing-library render result
- */
-function renderRtl(ui: React.ReactElement): ReturnType<typeof render> {
-    return render(
-        <DirectionProvider initialDirection="rtl" detectDirection={false}>
-            <MantineProvider theme={compactTheme}>{ui}</MantineProvider>
-        </DirectionProvider>,
-    );
-}
+import { renderCompact as renderSection, renderRtl } from "../harness/render";
 
 const EXPLANATION = "How often a cat sits on the shortest path between two others.";
 

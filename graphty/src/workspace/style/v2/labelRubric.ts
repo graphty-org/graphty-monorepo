@@ -237,6 +237,7 @@ export const LABEL_RUBRIC: LabelRubric = {
                 { field: "keepBlankLines", name: "Keep blank lines" },
                 { field: "wrapTrailingSpace", name: "Trailing space" },
                 { field: "wrapSkipEndSpace", name: "Skip end space" },
+                { field: "wrapUnkerned", name: "Unkerned" },
                 { field: "wrapSpaceCount", name: "Space count" },
             ],
         },

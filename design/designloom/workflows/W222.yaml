@@ -1,0 +1,122 @@
+id: W222
+name: DER Hosting Capacity Across Feeders
+category: analysis
+validated: false
+scope: out-of-scope
+personas:
+    - distribution-planning-engineer
+requires_capabilities:
+    - data-import
+    - large-graph-rendering
+    - layout-hierarchical
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - metric-histograms
+    - filtering
+    - search
+    - details-on-demand
+    - comparison-view
+    - data-export
+    - export-image
+    - group-collapse
+    - geographic-layout
+    - state-aware-trace
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - network-list-panel
+    - graph-canvas
+    - visual-encoding-panel
+    - gradient-editor
+    - legend-panel
+    - histogram
+    - search-panel
+    - node-details-panel
+    - comparison-view
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: radial feeder models (buses, lines, transformers, regulators, switches) with per-node hosting capacity results per criterion
+    node_count: 142-6001 per feeder, thousands of feeders
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Publish how much distributed generation each node of each feeder can host before voltage, thermal or
+    protection limits are violated, screen interconnection requests against it, and roll results up to substations.
+
+
+    **Mental Model**: "A capacity heat map painted on every feeder." The feeder's limit is its weakest node.
+
+
+    **Task Phases**:
+
+    1. **Export feeder models** - From GIS into CYME, Synergi or OpenDSS with allocated load
+
+    2. **Set criteria** - ANSI C84.1 voltage, thermal, temporary voltage, protection
+
+    3. **Run** - Streamlined method (minutes per feeder) instead of brute force (about 40,000 scenarios per feeder)
+
+    4. **Read node results** - Heat maps and one-line color layers per criterion; feeder value is the minimum over nodes
+
+    5. **Use** - Screen requests against the node value; roll up to substation; rerun when models change
+
+
+    **Decision Points**:
+
+    - Which criterion limits each node?
+
+    - Is a low node value a model error or a real constraint?
+
+    - Which upgrade unlocks the most capacity?
+
+
+    **Information Needs**:
+
+    - Per-node value for each criterion and the limiting criterion
+
+    - Feeder minimum and its location
+
+    - Distribution of node values across the territory
+
+    - Which feeders changed since the last run
+
+
+    **Pain Points**:
+
+    - Iterative methods took 27 hours per feeder
+
+    - Results live per feeder; questions span thousands of feeders
+
+    - GIS and model identifiers do not match
+
+    - Switch changes reshape the radial topology
+
+
+    **Data Flow**:
+
+    - Input: Feeder models from GIS, load allocation, regulator and capacitor settings, interconnection queue
+
+    - Transformations: Hosting capacity per node (in the solver), minimum per feeder, roll-up to substation
+
+    - Output: Per-node heat maps on schematic and geographic views, feeder and substation tables, screened requests
+success_criteria:
+    - metric: Territory view
+      target: Node results from many feeders browsable in one session
+    - metric: Limiting criterion
+      target: Every node shows which criterion limits it
+    - metric: Request screening
+      target: A request location resolves to its node value in one search
+sources:
+    - title: Sandia 216-feeder hosting capacity study
+      url: https://www.osti.gov/servlets/purl/1581693
+      summary: 142 to 6,001 buses per feeder, 40,000 scenarios per feeder, average feeder 2.05 MW versus locational 5.1 MW
+    - title: SDG&E EPIC-1 Project 4 Module 3 final report
+      url: https://www.sdge.com/sites/default/files/EPIC-1%20Project%204_Module%203_Final%20Report_0.pdf
+      summary: 27 hours per feeder for the iterative method versus minutes for DRIVE
+    - title: CYME EPRI DRIVE module
+      url: https://cyme.com/software/cymeepri
+      summary: Heat maps and one-line color layers per criterion (read via search summary)
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

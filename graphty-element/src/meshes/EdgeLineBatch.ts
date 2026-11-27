@@ -32,6 +32,9 @@ const INITIAL_SLOTS = 32;
 /** Floats in one slot's color: red, green, blue and the opacity. */
 const FLOATS_PER_COLOR = 4;
 
+/** Rows of the default color written to the GPU at a time while no slot holds another. */
+const DEFAULT_COLOR_BLOCK = 4096;
+
 /**
  * What a batch's mesh is set to while any of its slots is translucent, which puts the batch in the
  * alpha-blended pass. The join shader never reads the mesh's visibility, so this is not ink.
@@ -224,9 +227,11 @@ export class EdgeLineBatch {
 
     /**
      * Per slot, 1 while the visibility mask hides it (the shader's `edgeHidden`): hiding or showing
-     * a joined line's slot writes this one float and leaves the slot as placed (issue #6025).
+     * a joined line's slot writes this one float and leaves the slot as placed (issue #6025). Null
+     * until the mask first hides a slot: until then every flag is 0, which the GPU buffer starts
+     * holding, and a batch nothing hides keeps no array of zeros.
      */
-    private hidden: Float32Array;
+    private hidden: Float32Array | null = null;
 
     /** The GPU buffer {@link EdgeLineBatch.hidden} is read from; null for a matrix batch. */
     private hiddenBuffer: Buffer | null = null;
@@ -236,10 +241,13 @@ export class EdgeLineBatch {
 
     /**
      * Per slot, its color and opacity (the shader's `edgeColor`), for a batch whose shader reads
-     * them per slot; null when the material holds them. Edges that differ only in color share
-     * such a batch, and recoloring one writes these four floats (issue #6026).
+     * them per slot. Edges that differ only in color share such a batch, and recoloring one writes
+     * these four floats (issue #6026). Null when the material holds them, and in a per-slot batch
+     * until a slot is first drawn in a color other than {@link EdgeLineBatch.defaultColor}: until
+     * then every slot holds the default, which the GPU buffer is filled with, so a batch of edges
+     * in one color keeps no array of copies of it.
      */
-    private colors: Float32Array | null;
+    private colors: Float32Array | null = null;
 
     /** What a slot is drawn in until its edge writes its own; see {@link EdgeLineMeta.color}. */
     private readonly defaultColor: readonly number[] | null;
@@ -358,10 +366,8 @@ export class EdgeLineBatch {
         const widened = meta.joinedLine === true && meta.widened === true;
         this.stride = widened ? WIDENED_FLOATS_PER_PIECE : FLOATS_PER_SLOT;
         this.parking = meta.joinedLine === true ? null : new ParkedSlots(this.stride);
-        this.hidden = new Float32Array(INITIAL_SLOTS);
         this.opaque = meta.opaque === true;
         this.defaultColor = meta.joinedLine === true && !widened ? (meta.color ?? null) : null;
-        this.colors = this.defaultColor === null ? null : this.colorRows(INITIAL_SLOTS);
         this.baseVisibility = mesh.visibility;
         this.statics = widened ? new Float32Array(INITIAL_SLOTS * EDGE_STATIC_FLOATS) : null;
         this.slots = new Float32Array(INITIAL_SLOTS * this.stride);
@@ -491,10 +497,10 @@ export class EdgeLineBatch {
         }
 
         this.forget(index);
-        if (this.colors !== null && this.defaultColor !== null) {
+        if (this.defaultColor !== null) {
             // Live again with the color it last held (a new slot holds the default), then given
             // the default, which writes nothing when it already holds it.
-            if (this.colors[index * FLOATS_PER_COLOR + 3] < 1) {
+            if (this.opacityOf(index) < 1) {
                 this.countTranslucent(1);
             }
             const [r, g, b, a] = this.defaultColor;
@@ -574,17 +580,33 @@ export class EdgeLineBatch {
      * @param a - The opacity, 0 to 1.
      */
     setColor(index: number, r: number, g: number, b: number, a: number): void {
-        const c = this.colors;
-        if (c === null || this.gone) {
+        const d = this.defaultColor;
+        if (d === null || this.gone) {
             return;
         }
 
-        const at = index * FLOATS_PER_COLOR;
         // Compared as the floats the array holds, so a value that rounds the same writes nothing.
         scratchColor[0] = r;
         scratchColor[1] = g;
         scratchColor[2] = b;
         scratchColor[3] = a;
+        let c = this.colors;
+        if (c === null) {
+            // Every slot holds the default until one is drawn in another color.
+            if (
+                scratchColor[0] === Math.fround(d[0]) &&
+                scratchColor[1] === Math.fround(d[1]) &&
+                scratchColor[2] === Math.fround(d[2]) &&
+                scratchColor[3] === Math.fround(d[3])
+            ) {
+                return;
+            }
+
+            c = this.colorRows(this.slots.length / this.stride);
+            this.colors = c;
+        }
+
+        const at = index * FLOATS_PER_COLOR;
         if (
             c[at] !== scratchColor[0] ||
             c[at + 1] !== scratchColor[1] ||
@@ -622,7 +644,8 @@ export class EdgeLineBatch {
     colorOf(index: number): [number, number, number, number] | null {
         const c = this.colors;
         if (c === null) {
-            return null;
+            const d = this.defaultColor;
+            return d === null ? null : [Math.fround(d[0]), Math.fround(d[1]), Math.fround(d[2]), Math.fround(d[3])];
         }
 
         const at = index * FLOATS_PER_COLOR;
@@ -649,7 +672,7 @@ export class EdgeLineBatch {
 
         // A free slot draws nothing and counts for no pass. It keeps its color, as the GPU does,
         // until `acquire` takes it again.
-        if (this.colors !== null && this.colors[index * FLOATS_PER_COLOR + 3] < 1) {
+        if (this.defaultColor !== null && this.opacityOf(index) < 1) {
             this.countTranslucent(-1);
         }
 
@@ -742,7 +765,8 @@ export class EdgeLineBatch {
         if (this.parking !== null) {
             this.parking.park(this.slots, index);
             this.collapse(index);
-        } else if (this.hidden[index] !== 1) {
+        } else if (this.hidden?.[index] !== 1) {
+            this.hidden ??= new Float32Array(this.slots.length / this.stride);
             this.hidden[index] = 1;
             this.hiddenRuns.mark(index, this.uploads.on, this.highWater);
         }
@@ -760,7 +784,7 @@ export class EdgeLineBatch {
         }
 
         if (this.parking === null) {
-            if (this.hidden[index] !== 1) {
+            if (this.hidden?.[index] !== 1) {
                 return false;
             }
 
@@ -785,7 +809,7 @@ export class EdgeLineBatch {
      * @returns True while it is parked.
      */
     isParked(index: number): boolean {
-        return this.parking === null ? this.hidden[index] === 1 : this.parking.isParked(index);
+        return this.parking === null ? this.hidden?.[index] === 1 : this.parking.isParked(index);
     }
 
     /**
@@ -809,7 +833,7 @@ export class EdgeLineBatch {
      * @returns True for a parked slot of a joined line.
      */
     private hiddenInPlace(index: number): boolean {
-        return this.parking === null && this.hidden[index] === 1;
+        return this.parking === null && this.hidden?.[index] === 1;
     }
 
     /**
@@ -819,7 +843,7 @@ export class EdgeLineBatch {
     private forget(index: number): void {
         if (this.parking !== null) {
             this.parking.forget(index);
-        } else if (this.hidden[index] !== 0) {
+        } else if (this.hidden !== null && this.hidden[index] !== 0) {
             this.hidden[index] = 0;
             this.hiddenRuns.mark(index, this.uploads.on, this.highWater);
         }
@@ -899,13 +923,7 @@ export class EdgeLineBatch {
         // Babylon rebuilds a thin-instance buffer empty after a lost GL context (it keeps no copy
         // of data uploaded in part), so the first frame after one uploads every slot again.
         if (batchUploadFrames.isRestoring(this.mesh.getScene())) {
-            this.slotRuns.whole();
-            this.ageRuns.whole();
-            this.hiddenRuns.whole();
-            this.colorRuns.whole();
-            if (this.statics !== null) {
-                this.staticRuns.whole();
-            }
+            this.restore();
         }
 
         if (this.gone) {
@@ -927,7 +945,9 @@ export class EdgeLineBatch {
         const shown = this.hiddenRuns.dirty;
         if (shown) {
             const runs = this.hiddenRuns.take(uploads.on);
-            this.send(runs, this.hidden, this.hiddenBuffer, 1);
+            if (this.hidden !== null) {
+                this.send(runs, this.hidden, this.hiddenBuffer, 1);
+            }
         }
 
         if (this.colorRuns.dirty && this.colors !== null) {
@@ -946,6 +966,22 @@ export class EdgeLineBatch {
         }
 
         this.afterFlush(placed || shown);
+    }
+
+    /** Upload every row again after a lost GL context, which rebuilt the buffers empty. */
+    private restore(): void {
+        this.slotRuns.whole();
+        this.ageRuns.whole();
+        this.hiddenRuns.whole();
+        this.colorRuns.whole();
+        if (this.statics !== null) {
+            this.staticRuns.whole();
+        }
+
+        // The color buffer holds no default now, and no array holds one to upload.
+        if (!this.gone && this.colors === null) {
+            this.fillDefaultColors();
+        }
     }
 
     /**
@@ -1079,26 +1115,86 @@ export class EdgeLineBatch {
         this.ageRuns.whole();
     }
 
-    /** Hand the hidden flags to the mesh as their own attribute, sized to the slots' capacity. */
+    /**
+     * Hand the hidden flags to the mesh as their own attribute, sized to the slots' capacity: a
+     * buffer of zeros by its size in bytes while nothing is hidden.
+     */
     private bindHidden(): void {
         this.hiddenBuffer?.dispose();
-        const buffer = new Buffer(this.mesh.getEngine(), this.hidden, true, 1, false, true);
+        const buffer = this.attributeBuffer(this.hidden, 1);
         this.mesh.setVerticesBuffer(buffer.createVertexBuffer("edgeHidden", 0, 1, 1, true));
         this.hiddenBuffer = buffer;
     }
 
-    /** Hand the colors to the mesh as their own attribute, sized to the slots' capacity. */
+    /**
+     * Hand the colors to the mesh as their own attribute, sized to the slots' capacity: while every
+     * slot holds the default, a buffer made by its size and filled with the default.
+     */
     private bindColors(): void {
-        if (this.colors === null) {
+        if (this.defaultColor === null) {
             return;
         }
 
         this.colorBuffer?.dispose();
-        const buffer = new Buffer(this.mesh.getEngine(), this.colors, true, FLOATS_PER_COLOR, false, true);
+        const buffer = this.attributeBuffer(this.colors, FLOATS_PER_COLOR);
         this.mesh.setVerticesBuffer(
             buffer.createVertexBuffer("edgeColor", 0, FLOATS_PER_COLOR, FLOATS_PER_COLOR, true),
         );
         this.colorBuffer = buffer;
+        if (this.colors === null) {
+            this.fillDefaultColors();
+        }
+    }
+
+    /**
+     * A per-slot attribute's buffer, sized to the slots' capacity: made from its rows, or, with none,
+     * made by its size in bytes, which a GPU buffer starts holding as zeros.
+     * @param rows - The rows, or null for none kept.
+     * @param width - Floats in a row.
+     * @returns The buffer.
+     */
+    private attributeBuffer(rows: Float32Array | null, width: number): Buffer {
+        const engine = this.mesh.getEngine();
+        const data =
+            rows ??
+            engine.createDynamicVertexBuffer(
+                (this.slots.length / this.stride) * width * Float32Array.BYTES_PER_ELEMENT,
+            );
+        return new Buffer(engine, data, true, width, false, true);
+    }
+
+    /**
+     * Write the default color into every row of the color buffer, a block of rows at a time, so the
+     * rows go up without an array of the whole capacity kept or made.
+     */
+    private fillDefaultColors(): void {
+        const gpu = this.colorBuffer?.getBuffer();
+        if (gpu === null || gpu === undefined) {
+            return;
+        }
+
+        const capacity = this.slots.length / this.stride;
+        const block = this.colorRows(Math.min(capacity, DEFAULT_COLOR_BLOCK));
+        const engine = this.mesh.getEngine();
+        const rowBytes = FLOATS_PER_COLOR * Float32Array.BYTES_PER_ELEMENT;
+        for (let at = 0; at < capacity; at += DEFAULT_COLOR_BLOCK) {
+            const rows = Math.min(DEFAULT_COLOR_BLOCK, capacity - at);
+            engine.updateDynamicVertexBuffer(gpu, block, at * rowBytes, rows * rowBytes);
+        }
+    }
+
+    /**
+     * The opacity one slot of a per-slot color batch holds.
+     * @param index - The slot.
+     * @returns The opacity, as the float the GPU reads.
+     */
+    private opacityOf(index: number): number {
+        const c = this.colors;
+        if (c !== null) {
+            return c[index * FLOATS_PER_COLOR + 3];
+        }
+
+        return Math.fround(this.defaultColor?.[3] ?? 1);
     }
 
     /**
@@ -1191,23 +1287,7 @@ export class EdgeLineBatch {
      * @returns The spacing.
      */
     private spacingFor(length: number): number {
-        if (!this.pattern) {
-            return 0;
-        }
-
-        const { elementLength, count, gap } = this.pattern;
-        // a gap of the line's own repeats from the line's start, as a dash pattern does, the last element cut
-        // where the line ends
-        if (gap !== undefined && count === undefined) {
-            return Math.max(elementLength + gap, 1e-6);
-        }
-        const n = discreteMeshCount(length, elementLength, count);
-        // one element: the next would start past the line's end
-        if (n < 2) {
-            return 2 * (length + elementLength);
-        }
-
-        return Math.max((length - elementLength) / (n - 1), 1e-6);
+        return patternSpacing(this.pattern, length);
     }
 
     /**
@@ -1397,9 +1477,11 @@ export class EdgeLineBatch {
             this.statics = statics;
         }
 
-        const hidden = new Float32Array(this.hidden.length * 2);
-        hidden.set(this.hidden);
-        this.hidden = hidden;
+        if (this.hidden !== null) {
+            const hidden = new Float32Array(this.hidden.length * 2);
+            hidden.set(this.hidden);
+            this.hidden = hidden;
+        }
 
         if (this.colors !== null) {
             const colors = this.colorRows((this.colors.length / FLOATS_PER_COLOR) * 2);
@@ -1435,4 +1517,32 @@ function pieceLength(flat: readonly number[], i: number): number {
     const z = flat[i * 3 + 5] - flat[i * 3 + 2];
 
     return Math.sqrt(x * x + y * y + z * z); // eslint-disable-line unicorn/prefer-modern-math-apis -- per piece, per frame; Math.hypot is measurably slower
+}
+
+/**
+ * The dash or dot spacing for an edge of one length: the center-to-center distance that puts the first element at the
+ * start and the last at the end, as `PatternedLineMesh` places its elements on a straight line. 0 for a solid line. A
+ * pulled line's shader runs the same rule (`edgeJoinShader`'s `pulledSpacing`).
+ * @param pattern - The line's pattern; undefined for a solid line.
+ * @param length - The edge's length along its pieces.
+ * @returns The spacing.
+ */
+export function patternSpacing(pattern: EdgeLineMeta["pattern"], length: number): number {
+    if (!pattern) {
+        return 0;
+    }
+
+    const { elementLength, count, gap } = pattern;
+    // a gap of the line's own repeats from the line's start, as a dash pattern does, the last element cut
+    // where the line ends
+    if (gap !== undefined && count === undefined) {
+        return Math.max(elementLength + gap, 1e-6);
+    }
+    const n = discreteMeshCount(length, elementLength, count);
+    // one element: the next would start past the line's end
+    if (n < 2) {
+        return 2 * (length + elementLength);
+    }
+
+    return Math.max((length - elementLength) / (n - 1), 1e-6);
 }

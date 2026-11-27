@@ -1,0 +1,77 @@
+id: molecular-systematist-taxonomist
+name: Molecular Systematist and Taxonomist
+roster_persona: phylogeographer-population-geneticist
+tier: A
+scope: in-scope
+role: Museum Curator / Assistant Professor in Systematics
+quote: The tree is the paper. If a bootstrap value lands on the wrong branch after I reroot, I have published an error.
+bio: >-
+    Dr. Kwame Asante is a museum curator who describes new species and revises genera. He aligns sequences with MAFFT,
+    infers trees with IQ-TREE (ModelFinder, ultrafast bootstrap and SH-aLRT) and with MrBayes or BEAST, checks Bayesian
+    convergence in Tracer, summarizes posteriors with TreeAnnotator and overlays them in DensiTree, and runs species
+    delimitation with ASAP, ABGD, mPTP and BOLD BINs. His trees have 50 to 2,000 terminals, each a voucher number plus a
+    GenBank accession, with a side table of names, localities and delimitation results. The annotated tree is the
+    central figure of every taxonomic paper he writes: rooted on an outgroup, support values on branches, weak clades
+    collapsed, delimitation bars beside the tips, new species highlighted. He draws it in FigTree or iTOL and finishes it
+    in Illustrator every time. DNA barcoding gives him neighbor-joining trees as a first look, read against a 2% scale
+    legend that flags samples for more work rather than defining species.
+characteristics:
+    expertise: advanced
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: expert
+motivations:
+    - Publish a correctly rooted tree with support values on the right branches
+    - Show species delimitation results from several methods side by side with the tree
+    - Demonstrate that the Bayesian run converged before reporting a relationship as resolved
+    - Reapply the same figure style each time the analysis is rerun with more sequences
+    - Avoid paying for a subscription or redrawing the figure in Illustrator
+behaviors:
+    - Reads Newick or NEXUS trees whose inner node labels hold support ("SH-aLRT/UFBoot") or BEAST [&posterior=...] comments
+    - Roots by outgroup or midpoint, orders nodes, and checks that support moved with its branch
+    - Collapses clades below a support threshold (commonly 70 bootstrap or 0.95 posterior)
+    - Joins a tab-delimited table keyed by tip label to add color strips, binary columns and bars
+    - Splits tip labels that mix voucher, accession and species name with regular expressions
+    - Loads thousands of posterior trees into DensiTree to see topological uncertainty
+    - Exports PDF or SVG and finishes fonts, scale bars and labels in Illustrator
+frustrations:
+    - Support stored as node labels moves to the wrong branch on rerooting in 8 of 20 tools tested
+    - FigTree annotation is limited; iTOL unrestricted use needs a paid subscription
+    - Convergence, summary and overlay live in three separate programs
+    - Every analysis change means rebuilding the figure by hand
+    - Newick forbids spaces, so labels change between tools and metadata keys stop matching
+context:
+    frequency: monthly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W393
+    - W394
+    - W395
+sources:
+    - title: Czech, Huerta-Cepas and Stamatakis 2017 - rerooting errors
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5435079
+      summary: 8 of 20 tools misplace branch support stored as node labels when rerooting
+    - title: Biostars - midpoint rooting moves support values
+      url: https://www.biostars.org/p/9616443
+      summary: User report of support values moving after midpoint rooting
+    - title: TreeViewer (Bianchini and Sanchez-Baracaldo 2024)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10834882/
+      summary: Tree figures need multiple programs and post-editing; iTOL unrestricted use needs a paid subscription; saved styles reapply to new trees
+    - title: BEAST FigTree workshop
+      url: https://beast.community/workshop_figtree
+      summary: Rooting, ordering, node labels, HPD bars and time axis in FigTree
+    - title: Taming the BEAST - Introduction to BEAST2
+      url: https://taming-the-beast.org/tutorials/Introduction-to-BEAST2/
+      summary: Tracer burn-in and ESS, TreeAnnotator settings, DensiTree steps
+    - title: BOLD FAQ
+      url: https://boldsystems.org/resource-hub/faq/
+      summary: Taxon ID Tree is neighbor-joining with a 2% scale legend and does not infer phylogeny; BINs
+    - title: Lee et al. 2019 - lepidopteran stemborer barcoding
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6504866
+      summary: 1,297 COI sequences, 64 species, four tree methods and five delimitation methods compared
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

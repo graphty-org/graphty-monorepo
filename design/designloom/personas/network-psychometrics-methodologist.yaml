@@ -1,0 +1,78 @@
+id: network-psychometrics-methodologist
+name: Network Psychometrics Methodologist
+roster_persona: symptom-network-researcher
+tier: B
+scope: in-scope
+role: Faculty Methodologist, Package Author and Workshop Teacher
+quote: Half my job is telling people that the distance between two nodes in a spring layout means nothing and that an interval crossing zero is not a non-significant edge.
+bio: >-
+    Professor Annika Kramer develops network estimators and teaches one-day network psychometrics workshops of the kind
+    run at IMPS and in Amsterdam, Singapore, Leiden and Groningen: cross-sectional estimation in bootnet and JASP in
+    the morning, longitudinal, multi-group and latent-variable models in psychonetrics in the afternoon. She works in
+    psychonetrics (ggm, prune, modelsearch, panelgvar), BGGM and easybgm for Bayesian edge evidence, EGAnet for
+    dimensionality, bnlearn for causal structure and qgraph for figures, and she reviews papers that use all of them.
+    Her goal is to move the field from exploratory pictures toward confirmatory tests and honest uncertainty, and her
+    complaint is that no drawing tool enforces the reporting standards she helped write.
+characteristics:
+    expertise: expert
+    time_pressure: low
+    graph_literacy: advanced
+    domain_knowledge: expert
+motivations:
+    - Move applied users from exploratory pictures toward confirmatory models and honest uncertainty
+    - Make the difference between no edge and not enough data visible (inclusion Bayes factors)
+    - Teach workshop participants to read stability and uncertainty before centrality
+    - Use layouts whose distances mean something (MDS with stress, Procrustes alignment) when position is to be read
+    - Reproduce published figures exactly from a saved layout and settings
+behaviors:
+    - Fits confirmatory GGMs, prunes edges and searches models, then tests the structure on a holdout sample
+    - Plots edge evidence colored by inclusion Bayes factor (included, excluded, inconclusive)
+    - Draws node predictability as a ring around each node
+    - Runs simulations (netSimulator) to judge whether a sample is big enough for the network size
+    - Uses EGA and bootEGA for dimensionality and item stability, and bnlearn DAGs with bootstrapped arc strength and direction
+    - Teaches with JASP and bootnet side by side and fields how-do-I questions on package issue trackers
+frustrations:
+    - Applied users read node distance in spring layouts as meaning
+    - Applied users read intervals that include zero as non-significance (double thresholding)
+    - Drawing tools do nothing to enforce or even support the reporting standards
+    - Defaults of easybgm and EGAnet differ between documentation and versions, so tutorials go stale
+    - DAG arcs carry two uncertainties (appearance and direction) with no standard way to draw both
+context:
+    frequency: daily
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W370
+    - W371
+    - W372
+    - W375
+    - W377
+    - W378
+    - W379
+sources:
+    - title: Psychometric Society - Psychometric network modeling short course (Epskamp and Isvoranu)
+      url: https://www.psychometricsociety.org/post/psychometric-network-modeling
+      summary: Workshop structure, bootnet and JASP then psychonetrics longitudinal, multi-group and latent-variable models
+    - title: psychonetrics prune reference
+      url: https://search.r-project.org/CRAN/refmans/psychonetrics/html/prune.html
+      summary: Confirmatory pruning with alpha and adjustment; multi-group equality constraints
+    - title: Huth et al. 2023 - Bayesian analysis of cross-sectional networks
+      url: https://pure.amsterdamumc.nl/ws/files/136904501/Bayesian-analysis-of-cross-sectional-networks.pdf
+      summary: Inclusion Bayes factors separate evidence of absence from absence of evidence
+    - title: easybgm edgeevidence reference
+      url: https://search.r-project.org/CRAN/refmans/easybgm/html/edgeevidence.html
+      summary: Edge evidence plot; colors and default threshold differ from the README
+    - title: Haslbeck and Waldorp - predictability in network models
+      url: https://arxiv.org/pdf/1610.09108
+      summary: mgm predictability per node drawn as a qgraph pie ring
+    - title: Burger et al. 2023 - Reporting standards
+      url: https://pure.uva.nl/ws/files/184239260/ContentServer_2_.pdf
+      summary: Rules against double thresholding and against reading spring-layout distances
+    - title: Jones, Mair and McNally 2018 - Visualizing psychological networks
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6156459/
+      summary: MDS layouts with stress and Procrustes alignment; force-directed positions cannot be interpreted
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

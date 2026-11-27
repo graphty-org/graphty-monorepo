@@ -1,0 +1,120 @@
+id: W178
+name: Temporal Change and Brokerage Across Historical Periods
+category: analysis
+validated: false
+personas:
+    - correspondence-historian
+    - letters-archive-data-steward
+requires_capabilities:
+    - temporal-analysis
+    - temporal-navigation
+    - centrality-betweenness
+    - removal-impact-analysis
+    - component-analysis
+    - comparison-view
+    - filtering
+    - animated-transitions
+    - export-image
+    - network-collection-small-multiples
+    - uncertainty-encoding
+suggested_components:
+    - temporal-controls
+    - range-slider
+    - impact-analysis-dialog
+    - ranked-node-table
+    - comparison-view
+    - graph-canvas
+    - filter-panel
+    - image-export-dialog
+starting_state:
+    data_type: dated letters or ties, often with uncertain date ranges, plus dated events such as executions or exile
+    node_count: 300-20,000
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Show how a network changed across periods or events and who kept it together, for example whether a
+    persecuted community fragmented as its leaders were executed. Brokerage over time is the core argument of many
+    correspondence studies.
+
+
+    **Mental Model**: "Replay history and watch who holds it together." Time slices and ordered removals are
+    experiments on the archive, not just animations.
+
+
+    **Task Phases**:
+
+    1. **Ordered removal** - Remove people in the historical order they died or were executed and recompute
+    betweenness after each removal (Protestant letters under Mary I: 289 letters, 377 actors, 795 ties; the network
+    "does not fragment" and couriers rise to the top)
+
+    2. **Edge spells** - Give each tie an onset and terminus (with censoring flags); uncertain ranges are
+    often averaged, which the lesson itself calls "not an ideal solution"
+
+    3. **Time-sliced views** - Filmstrip of periods, animated rendering, rolling betweenness centralization,
+    forward reachability (who could a message from X have reached by date D)
+
+    4. **In Gephi desktop** - Build intervals by merging start and end columns; filter with the timeline;
+    save often because dynamic data is unstable
+
+    5. **Traversal with dates** (nodegoat) - Apply dates along a path ("people who attended the same institute at the
+    same time")
+
+    6. **Report** - Figures per period and a table of rank changes
+
+
+    **Decision Points**:
+
+    - Which period boundaries (years, reigns, events)?
+
+    - How to treat a tie whose date is a range that spans two periods?
+
+    - Remove nodes in historical order or at random as a baseline?
+
+
+    **Information Needs**:
+
+    - Component count and largest-component size after each removal
+
+    - Betweenness rank of each person per period, with change
+
+    - Which ties have uncertain dates and how they were assigned to periods
+
+
+    **Pain Points**:
+
+    - Uncertain date ranges must be collapsed to points before tools accept them
+
+    - Gephi Lite has no dynamic graphs; desktop dynamic data is unstable
+
+    - Time-sliced metrics require R (tsna, ndtv) or custom scripts
+
+
+    **Data Flow**:
+
+    - Input: Edge list with onset and terminus (or earliest and latest date), ordered removal list
+
+    - Transformations: Time slicing, ordered node removal with recomputed betweenness, rolling centralization,
+    forward reachability
+
+    - Output: Per-period figures, rank-change tables, an animation for talks
+success_criteria:
+    - metric: Ordered removal
+      target: User can remove nodes in a chosen order and see component counts and betweenness ranks after each step
+    - metric: Uncertain dates
+      target: Ties with date ranges are assigned to periods by a stated rule the user can see
+sources:
+    - title: QMUL - Protestant letters network analysis
+      url: https://projects.history.qmul.ac.uk/digital/?p=29
+      summary: Removing the executed in date order; the network does not fragment and couriers rise
+    - title: Programming Historian - Temporal Network Analysis with R
+      url: https://programminghistorian.org/en/lessons/temporal-network-analysis-with-r
+      summary: Edge spells, filmstrip, animated rendering, rolling centralization, forward reachability; averaged uncertain dates
+    - title: Converting a network with dates into a dynamic one (Gephi tutorials)
+      url: https://seinecle.github.io/gephi-tutorials/generated-html/converting-a-network-with-dates-into-dynamic.html
+      summary: Merging date columns into intervals in Gephi desktop
+    - title: nodegoat - historical network research posts
+      url: https://nodegoat.net/blog.s/tag/historical+network+research
+      summary: Temporal traversal along relationship paths
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

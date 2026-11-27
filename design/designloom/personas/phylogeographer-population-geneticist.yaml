@@ -1,0 +1,80 @@
+id: phylogeographer-population-geneticist
+name: Phylogeographer and Molecular Ecologist
+roster_persona: phylogeographer-population-geneticist
+tier: A
+scope: in-scope
+role: Postdoctoral Researcher in Phylogeography and Molecular Ecology
+quote: I have 400 frogs from 30 ponds and one stretch of mitochondrial DNA. I need the haplotype network with pies by region, next to a map in the same colors, before my committee meeting.
+bio: >-
+    Dr. Lucia Ferreira is a postdoc studying how glaciation, rivers and islands shaped the genetic structure of a frog,
+    bird or plant. She sequences one to a few loci (mitochondrial COI, cytochrome b or the control region; chloroplast
+    regions in plants) from 100 to 600 individuals at 10 to 40 sites, giving 500 to 1,200 base pairs and 10 to 80
+    haplotypes. Her pipeline spans many programs: Geneious or MEGA for alignment, DnaSP to collapse sequences into
+    haplotypes and assign populations, PopART for a minimum spanning, TCS or median-joining network, Arlequin for AMOVA
+    and pairwise FST, BEAST and FigTree to date splits, QGIS or R for the map, and Illustrator to assemble the
+    multi-panel figure. She sometimes scripts the network in R with pegas. She knows substitution models, coalescent
+    theory and neutrality tests deeply, but rarely uses centrality or community detection; to her a graph is a
+    genealogy of sequences, with edges that count mutations.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: expert
+motivations:
+    - Argue for glacial refugia, range expansion or barriers to gene flow from where haplotypes sit on the map
+    - Produce one figure where the network pies and the map pies use the same colors for the same regions
+    - Report haplotype diversity, nucleotide diversity, Tajima's D and AMOVA beside the network
+    - Satisfy reviewers who distrust a single network method by showing a network and a tree together
+    - Redraw the figure quickly when new samples arrive or a reviewer asks for a different grouping
+behaviors:
+    - Starts from an aligned FASTA plus a sample sheet with site, latitude, longitude, region and lineage
+    - Collapses sequences into haplotypes in DnaSP and exports NEXUS and Arlequin files
+    - Types the PopART TRAITS block (one column per population, one row per sample) into the NEXUS file by hand
+    - Tries minimum spanning, TCS and median-joining networks and picks by habit and by what reviewers expect
+    - Reads circle area as haplotype count, slices as populations, hatch marks as mutations, black dots as unsampled ancestors
+    - Drags nodes by hand to stop large pies from overlapping, then cannot reproduce the layout later
+    - Exports SVG or PNG and finishes labels, map and statistics table in Illustrator or Inkscape
+frustrations:
+    - The PopART traits block must be hand-typed in the same sample order as the alignment
+    - PopART refuses to show NEXUS files until the file filter is set to All Files
+    - Pies overlap in R; the pegas author says there is no simple way to handle it
+    - Gap and ambiguous sites are silently masked, merging haplotypes that differ
+    - Reviewers question median-joining networks, so a second figure (a tree) is needed
+    - Map and network are drawn in different programs and the colors drift apart
+context:
+    frequency: monthly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W390
+    - W391
+    - W392
+    - W393
+    - W394
+sources:
+    - title: Master Labcourse 2024 - DnaSP, Arlequin and PopART steps
+      url: https://hackmd.io/@MarisolDominguez/Master-Labcourse-2024
+      summary: Lab-course walkthrough of haplotype definition in DnaSP, NEXUS export, PopART networks and Arlequin AMOVA and FST
+    - title: dcsoto - Building a haplotype network (2024 blog)
+      url: https://dcsoto.github.io/2024/09/30/haplotype-network
+      summary: PopART walkthrough; "the trickiest part ... was to figure out how to display the sample ancestry"; file filter workaround
+    - title: PopART - Leigh and Bryant 2015
+      url: https://datadryad.org/resource/doi:10.5061/dryad.4n4j1/3
+      summary: PopART network methods (MSN, TCS, median-joining, tight span walker, integer neighbor-joining), map view, statistics
+    - title: r-sig-genetics thread on overlapping pies (2022)
+      url: https://stat.ethz.ch/pipermail/r-sig-genetics/2022-July/000238.html
+      summary: Paradis - "There is no simple way to handle your problem"; square-root sizes and link lengths as workarounds
+    - title: PopART gap masking figure (PLOS ONE)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6490880/figure/pone.0215754.g003
+      summary: Gap or ambiguous sites masked so distinct haplotypes merge
+    - title: Kong et al. 2016 - critique of median-joining networks
+      url: https://www.scilit.net/publications/32fa40b8a50a89a7f4bce5e563de544c
+      summary: Argues median-joining networks cannot yield defensible evolutionary interpretations
+    - title: Hapsolutely (Vences et al. 2024)
+      url: https://mvences.de/p/p1/Vences_A556.pdf
+      summary: Separate programs are typically needed for phasing, reformatting input files and network construction
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -158,6 +158,19 @@ describe("project.assetChoices", () => {
         assert.isDefined(entriesOf((await opened.project.save()).text)[0].files);
     });
 
+    it("keeps a URL by its address in a version 2 file when the save says so", async () => {
+        stubSite({ [BALL]: sphereGlb(8, 4) });
+        const session = await baseSession();
+        await layer(session, "ball", { "node.model": BALL });
+        await session.assets.ready(BALL);
+        const saved = await session.project.save({ format: 2, assets: { [BALL]: "url" } });
+        const { style } = (JSON.parse(saved.text) as { sections: { style: { assets?: Entry[] } } }).sections;
+        const [entry] = style.assets ?? [];
+        assert.strictEqual(entry?.source, BALL);
+        assert.strictEqual(entry?.stored, "url");
+        assert.isUndefined(entry?.files, "nothing is embedded");
+    });
+
     it("remembers a copy's or an unwritten save's choice only once it is marked saved", async () => {
         stubSite({ [BALL]: sphereGlb(8, 4) });
         const session = await baseSession();

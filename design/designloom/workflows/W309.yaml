@@ -1,0 +1,136 @@
+id: W309
+name: Community Evolution and Two-Period Comparison
+category: analysis
+validated: false
+personas:
+    - temporal-network-researcher
+    - bibliometric-evolution-analyst
+    - social-media-dynamics-researcher
+    - animal-social-network-ecologist
+requires_capabilities:
+    - community-detection
+    - community-profiling
+    - comparison-view
+    - temporal-analysis
+    - temporal-navigation
+    - layout-force-directed
+    - visual-encoding-edges
+    - visual-encoding-nodes
+    - legend-display
+    - statistics-panel
+    - data-export
+    - export-image
+    - network-collection-small-multiples
+    - stable-temporal-layout
+    - community-evolution-tracking
+suggested_components:
+    - community-panel
+    - cluster-table
+    - comparison-view
+    - temporal-controls
+    - graph-canvas
+    - legend-panel
+    - ranked-node-table
+    - statistics-panel
+    - network-list-panel
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: snapshot series (one network per period, nodes matched by id), or events binned into periods
+    node_count: 100-10000
+    edge_density: any
+    user_expertise: advanced
+goal: >-
+    **Intent**: Find which communities formed, grew, merged, split or died across periods, check the changes are not
+    noise, and compare two periods edge by edge (what is new, gone, persistent, and which nodes rewired most).
+    Researchers report an alluvial figure and a table; public health ranks clusters by recent growth.
+
+
+    **Mental Model**: "Rivers merging and splitting." Each period's communities are streams; the alluvial view shows
+    which streams flow into which.
+
+
+    **Task Phases**:
+
+    1. **Detect communities per snapshot** - Same algorithm and parameters for every period
+
+    2. **Match across steps** - Match each community to its predecessor by overlap with a threshold (0.1 by
+    default in Greene et al.'s tracker); label births, deaths, merges and splits
+
+    3. **Test significance** - Bootstrap the networks (for example 1,000 resamples); keep nodes co-clustered
+    in 95 percent of runs as each community's significant core
+
+    4. **Draw the flow** - Alluvial diagram of membership across periods
+
+    5. **Two-period diff** - On one union layout, color edges only-in-first, only-in-second and in-both; rank
+    nodes by rewiring score
+
+    6. **Report** - Alluvial figure, births/deaths/merges/splits table, rewiring ranks, diff figure with legend
+
+
+    **Decision Points**:
+
+    - Which community algorithm and resolution, held fixed across periods?
+
+    - What overlap threshold counts as "the same community"?
+
+    - Are changes significant or within bootstrap noise?
+
+    - Which two periods to compare?
+
+    - Growth measured in absolute new members or relative to size?
+
+
+    **Information Needs**:
+
+    - Per-period community sizes and the matching table
+
+    - Event labels (birth, death, merge, split) with the periods involved
+
+    - Significant core membership per community
+
+    - Edge counts only-first, only-second, both; rewiring rank per node
+
+
+    **Pain Points**:
+
+    - Community detection is unstable; run-to-run changes look like evolution
+
+    - Matching and significance testing live in separate command-line tools
+
+    - Two-state comparison tools handle only two periods; series need alluvial views built elsewhere
+
+    - Different layouts per period defeat visual comparison; a union reference layout is needed
+
+
+    **Data Flow**:
+
+    - Input: Snapshot series or binned events with consistent node ids
+
+    - Transformations: Per-period community detection, cross-period matching, bootstrap significance, union layout,
+    edge set difference, rewiring score
+
+    - Output: Alluvial figure, community event table, diff figure, rewiring ranking CSV
+success_criteria:
+    - metric: Event labeling
+      target: User can list each community's birth, merges, splits and death with periods
+    - metric: Noise control
+      target: Reported changes are backed by a significance check or a stability measure
+    - metric: Diff clarity
+      target: Two-period diff shows new, gone and persistent edges on one stable layout with a legend
+sources:
+    - title: Greene, Doyle and Cunningham - dynamic community tracker
+      url: https://github.com/derekgreene/dynamic-community/blob/master/README.md
+      summary: Matching step communities with threshold -t (default 0.1) into dynamic communities
+    - title: Rosvall and Bergstrom 2010 - Mapping change in large networks
+      url: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2811724/
+      summary: Bootstrap significance cores and alluvial diagrams of merges and splits
+    - title: DyNet - visualization and analysis of dynamic molecular interaction networks (PMC5013899)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5013899
+      summary: Union central reference network, condition-specific edge coloring, rewiring score
+    - title: Khurana et al. 2011 - NetEvViz
+      url: https://www.cs.umd.edu/users/ben/papers/Khurana2011Visual.pdf
+      summary: NodeXL extension coloring edges only-first, only-second, both
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

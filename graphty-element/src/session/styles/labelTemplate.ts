@@ -19,7 +19,12 @@ import { escapeLabelMarkup } from "../../utils/labelMarkup";
 import { compareGroupKeys } from "../results/types";
 
 /** The channels a template may write: the ones whose words are drawn as label markup. */
-export const TEMPLATE_CHANNELS: readonly Channel[] = Object.freeze(["node.label", "edge.label", "node.tooltip"]);
+export const TEMPLATE_CHANNELS: readonly Channel[] = Object.freeze([
+    "node.label",
+    "edge.label",
+    "node.tooltip",
+    "edge.tooltip",
+]);
 
 /** What a placeholder asks of its path, and, for a `{=key}` one, how its value is written. */
 type Placeholder = {

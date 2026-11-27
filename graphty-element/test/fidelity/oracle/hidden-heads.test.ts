@@ -4,7 +4,7 @@
  */
 import { assert, describe, it } from "vitest";
 
-import { markHiddenHeads, withoutHiddenInBoth } from "./hidden-heads";
+import { markHiddenHeads, toHiddenTips, withoutHiddenInBoth } from "./hidden-heads";
 import type { PArrow, PEdge, PNode, Prim, PScene } from "./primitives";
 
 const node = (id: string, cx: number, order: number): PNode => ({
@@ -76,6 +76,47 @@ describe("an oracle arrowhead under a node", () => {
         assert.deepEqual(out.edges[0]?.hiddenEnds, ["target"]);
         const shown = markHiddenHeads(scene([node("cover", 100, 0)], [unread]), [head(1)]);
         assert.isUndefined(shown.edges[0]?.hiddenEnds);
+    });
+
+    it("carries a line ending at a hidden head's back on to its tip where graphty hides its head too (23 -> 144)", () => {
+        const unread: PEdge = {
+            ...edge("a", "b"),
+            points: [
+                [0, 100],
+                [96, 100],
+            ],
+            arrows: [],
+        };
+        const triangle: Prim = {
+            ...head(1),
+            points: [
+                [96, 97],
+                [100, 98.5],
+                [104, 100],
+                [100, 101.5],
+                [96, 103],
+                [96, 100],
+                [96, 97],
+            ],
+        };
+        const marked = markHiddenHeads(scene([node("cover", 100, 5)], [unread]), [triangle]).edges[0] ?? unread;
+        assert.deepEqual(marked.hiddenEnds, ["target"]);
+        const under: PArrow = {
+            end: "target",
+            length: 8,
+            width: 6,
+            filled: true,
+            shape: "triangle",
+            color: null,
+            hidden: true,
+        };
+        const tip = toHiddenTips(marked, [under]).points.at(-1) ?? [0, 0];
+        assert.approximately(tip[0], 104, 0.01);
+        assert.approximately(tip[1], 100, 0.01);
+        // graphty draws no head there, or shows it: the piece says nothing of where the line ends (json-cyjs-perf
+        // n109 -> n571), and the line is judged as drawn
+        assert.deepEqual(toHiddenTips(marked, []).points, unread.points);
+        assert.deepEqual(toHiddenTips(marked, [{ ...under, hidden: false }]).points, unread.points);
     });
 
     it("is not marked when the node is drawn before it, or is its own end", () => {

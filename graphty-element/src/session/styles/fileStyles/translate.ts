@@ -130,6 +130,15 @@ export interface FileStyleOptions {
      * no location of its own, so only this can give one.
      */
     readonly imageBaseUrl?: string;
+    /**
+     * Whether the data columns the load writes to hold the file's per-element style values (each node's own fill,
+     * each edge's own arrow size) are hidden as `session.data.setHidden` hides a column: `"shown"` (the default)
+     * leaves them like any other column; `"hidden"` hides them, so `data.attributes()` marks them `hidden` and a
+     * consumer that leaves hidden columns out of its lists and legend leaves these out too. A column the file
+     * itself carries as data is never hidden. Showing one again is `setHidden(columns, false)`.
+     * @since 3.40.0
+     */
+    readonly valueColumns?: "shown" | "hidden";
 }
 
 /**
@@ -208,8 +217,6 @@ export interface Translation {
     readonly layers: readonly TranslatedLayer[];
     /** The values the layers read, per kind and key, by the import's element index. */
     readonly columns: Readonly<Record<StyleTarget, ReadonlyMap<string, readonly (StyleScalar | null)[]>>>;
-    /** Per kind, the key of the column marking the elements the file hides, and how many; null when it hides none. */
-    readonly hidden: Readonly<Record<StyleTarget, { readonly key: string; readonly count: number } | null>>;
     /** The graph's background color, or null. */
     readonly background: string | null;
     /** How far the file turns the whole drawing counterclockwise, in degrees, or null when it is upright. */
@@ -892,6 +899,7 @@ function channelPlans(
             ["labelWrapWidth", [length("node.labelWrapWidth", factors.node * SCENE_PER_UNIT.node)]],
             ["labelWrapTrailingSpace", [id("node.labelWrapTrailingSpace")]],
             ["labelWrapSkipEndSpace", [id("node.labelWrapSkipEndSpace")]],
+            ["labelWrapUnkerned", [id("node.labelWrapUnkerned")]],
             ["labelWrapEllipsis", [id("node.labelWrapEllipsis")]],
             ["labelWrapAnywhere", [id("node.labelWrapAnywhere")]],
             ["labelWrapSpaceCount", [id("node.labelWrapSpaceCount")]],
@@ -1067,10 +1075,10 @@ function channelPlans(
         ["sourcePort", [id("edge.sourcePort")]],
         ["targetPort", [id("edge.targetPort")]],
         ["label", [id("edge.label")]],
+        ["tooltip", [id("edge.tooltip")]],
         ["targetLabel", [id("edge.arrowHeadText")]],
         ["sourceLabel", [id("edge.arrowTailText")]],
         ["xlabel", [id("edge.xlabel")]],
-        ["tooltip", [id("edge.tooltip")]],
         // Along the line, in the scene's units, as a node's lengths are.
         ["targetLabelOffset", [length("edge.arrowHeadTextDistance", factors.node * SCENE_PER_UNIT.node)]],
         ["sourceLabelOffset", [length("edge.arrowTailTextDistance", factors.node * SCENE_PER_UNIT.node)]],
@@ -1165,6 +1173,7 @@ export function fileStyleChannels(): readonly Channel[] {
 const BEND_CURVES: ReadonlyMap<string, string> = new Map([
     ["corners", "corners"],
     ["midpoints", "midpoints"],
+    ["midpoints-headroom", "midpoints-headroom"],
     ["bezier", "bezier"],
     ["arc", "arc"],
 ]);
@@ -1529,14 +1538,12 @@ export function translateFileStyles(input: TranslateInput): Translation {
     }
 
     const columns: Record<StyleTarget, Map<string, (StyleScalar | null)[]>> = { node: new Map(), edge: new Map() };
-    const hidden: Record<StyleTarget, { key: string; count: number } | null> = { node: null, edge: null };
     const byKind: Record<StyleTarget, TranslatedLayer[]> = { node: [], edge: [] };
     const predicted: Record<StyleTarget, ReadonlyMap<Channel, readonly unknown[]> | null> = { node: null, edge: null };
     const factors = lengthFactors(input);
     for (const kind of ["node", "edge"] as const) {
         const translation = new KindTranslation(input, kind, factors, notes, columns[kind]);
         byKind[kind].push(...translation.run());
-        hidden[kind] = translation.hidden;
         predicted[kind] = translation.predicted;
     }
 
@@ -1546,7 +1553,6 @@ export function translateFileStyles(input: TranslateInput): Translation {
     return {
         layers,
         columns,
-        hidden,
         background: typeof background === "string" ? background : null,
         rotation: typeof rotation === "number" && rotation % 360 !== 0 ? ((rotation % 360) + 360) % 360 : null,
         notes: notes.list(),
@@ -1760,8 +1766,6 @@ class KindTranslation {
     /** The kind a layer graphty wrote had, by rule id, where its rule is drawn by the neutral rule. */
     readonly #kinds = new Map<string, LayerKind>();
     #scopeKey: string | null = null;
-    /** The column marking the elements the file hides, once the visibility pass has run. */
-    hidden: { key: string; count: number } | null = null;
     /** The `data.` paths the reader put a column of the file at; undefined until first asked. */
     #heldPaths: ReadonlySet<string> | undefined = undefined;
     /** The `data.` paths whose column any rule of this kind reads from graph-io's copy; undefined until first asked. */
@@ -3278,20 +3282,36 @@ class KindTranslation {
         }
     }
 
-    /** The elements the file hides, for the session's visibility. */
+    /**
+     * The elements the file hides, drawn hidden by a layer on the `visible` channel above the topmost rule that writes
+     * it. Never through the visibility filter: that takes elements out of the graph on screen, and drawing a file's
+     * styles must not change which nodes and edges the graph holds (issue #9949).
+     */
     #visibility(): void {
-        if (!this.#rules.some((rule) => rule.set?.visible !== undefined || rule.map?.visible !== undefined)) {
+        // A layer rebuilt from one graphty wrote draws its own `visible` already.
+        const writes = this.#rules.map(
+            (rule) => !this.#rebuilt.has(rule) && (rule.set?.visible !== undefined || rule.map?.visible !== undefined),
+        );
+        const bucket = writes.lastIndexOf(true);
+        if (bucket < 0) {
             return;
         }
 
         const values = resolveStyles(this.#input.extracted, this.#kind, "visible", this.#input.snapshot);
         const marks = values.map((value) => (value === false ? true : null));
-        const count = marks.filter(Boolean).length;
-        if (count > 0) {
-            const key = this.#freshKey("hidden");
-            this.#keep(key, marks);
-            this.hidden = { key, count };
+        if (!marks.some(Boolean)) {
+            return;
         }
+
+        const path = this.#keepNew("hidden", marks);
+        const channel: Channel = this.#kind === "node" ? "node.visible" : "edge.visible";
+        const layer = this.#layerFor(this.#rules[bucket], bucket, this.#scoped({ match: "has", path }));
+        layer.spec.set[channel] = false;
+        recordPaint(
+            layer,
+            channel,
+            marks.map((hidden) => (hidden ? false : null)),
+        );
     }
 
     /**

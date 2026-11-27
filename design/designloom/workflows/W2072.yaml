@@ -1,0 +1,164 @@
+id: W2072
+name: Screening Public Tenders for Bid-Rigging Groups
+category: analysis
+validated: false
+personas:
+    - procurement-integrity-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - import-report
+    - data-preview
+    - entity-resolution-review
+    - bipartite-projection
+    - co-occurrence-weighting
+    - community-detection
+    - community-profiling
+    - null-model-ensembles
+    - seeded-runs
+    - multiplex-relations
+    - temporal-navigation
+    - per-window-metrics
+    - external-label-overlays
+    - case-list-triage
+    - filtering
+    - metric-histograms
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-force-directed
+    - details-on-demand
+    - provenance-tracking
+    - export-image
+    - data-export
+    - procurement-data-import
+    - co-bidding-group-screen
+    - cut-point-detection
+suggested_components:
+    - file-drop-zone
+    - column-mapper
+    - data-import-dialog
+    - data-table-panel
+    - visual-encoding-panel
+    - legend-panel
+    - graph-canvas
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: OCDS releases or a tender portal export with every bidder and bid price, optionally an ownership table
+    node_count: 1,000-15,000 firms per country and period
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Turn a year of public tenders into a short list of firm groups that bid together so tightly and
+    exclusively that they may be bidding rings, with the price, participation and ownership evidence behind each, for a
+    competition investigator or auditor to follow up.
+
+
+    **Mental Model**: "Who always shows up together, and who never really competes?" A ring is a group of firms that bid
+    on the same tenders and almost nowhere else, take turns winning, and file cover bids that lose on purpose. One
+    tender shows nothing; the pattern lives across hundreds of tenders and several buyers.
+
+
+    **Task Phases**:
+
+    1. **Load the tenders** - Read OCDS releases or a portal export and flatten them to one row per bid: tender, buyer,
+    product code, reserve price, date, bidder, bid price, winner flag
+
+    2. **Check the data** - Count tenders with only the winning bid, missing prices and unmatched firm identifiers;
+    collusion screens need individual bid values
+
+    3. **Build the co-bidding network** - Project the tender-firm table to firms, linking two firms that bid on the same
+    tenders, weighted by Jaccard similarity of their tender sets over tenders with at least one other bidder, one
+    network per year or per product market
+
+    4. **Find and score groups** - Run overlapping community detection, score each group's coherence and exclusivity,
+    and compare with null networks that shuffle bids within 2-digit product codes for the same year (seeded, so the
+    run can be repeated)
+
+    5. **Read the screens** - Beside each group: price relative to reserve, bid coefficient of variation, single
+    bidding, missing and superfluous losing bidders, winning probability, in-group protests
+
+    6. **Add ownership** - Match firms to an ownership table and add a second layer linking firms joined by any ownership
+    path; look for firms in cut-point positions
+
+    7. **Validate and hand over** - Mark firms and pairs already prosecuted, check the screen finds them, then export
+    the short list with each group's tenders, buyers and screen values
+
+
+    **Decision Points**:
+
+    - Which period and which market split (one national network, or one per product code)?
+
+    - Which edge weight: Jaccard similarity or the count of shared tenders?
+
+    - What null-model percentile counts as suspicious (80th in the source), and how many exclusive tenders a group needs
+    before it counts (30 a year in Georgia)?
+
+    - Is a group a ring, or a set of specialist suppliers in a small market, or firms under one owner?
+
+    - Which buyers see the group, and is the pattern spread across several of them?
+
+
+    **Information Needs**:
+
+    - Share of tenders with losing bids, and the firms that could not be matched to the ownership table
+
+    - Per-group coherence and exclusivity against the null distribution for that year
+
+    - Per-group screen values and the tenders and buyers behind them
+
+    - Group membership across years: which groups persist, grow or split
+
+    - Which firms and pairs are already prosecuted
+
+
+    **Pain Points**:
+
+    - Losing bids not published or not machine-readable
+
+    - Screens that are suggestive only and flag innocent groups
+
+    - Collusion spread across buyers who each see only part of it
+
+    - Null models, co-bidding projections and multiplex layers need custom code in today's tools
+
+
+    **Data Flow**:
+
+    - Input: OCDS releases or a portal export; optionally an ownership table and a list of prosecuted firms
+
+    - Transformations: Bid-level flattening, tender-firm two-mode graph, weighted co-bidding projection per year,
+    overlapping groups, null-model comparison, ownership layer
+
+    - Output: Ranked list of suspicious groups with screen values, a figure of each group's co-bidding and ownership
+    ties, and a table of its tenders and buyers
+success_criteria:
+    - metric: Data completeness shown
+      target: Before any screen runs, the analyst can state the share of tenders with losing bids and the unmatched firms
+    - metric: Flag explanation
+      target: Each flagged group shows its coherence, exclusivity, null percentile and the tenders behind each screen value
+    - metric: Validation
+      target: Prosecuted firms can be overlaid and the share of them inside flagged groups read off (design goal; no source measures it in a graph tool)
+sources:
+    - title: Wachs and Kertesz - A network approach to cartel detection in public auction markets (Scientific Reports 2019)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6658564
+      summary: Jaccard co-bidding weights over multi-bidder contracts; greedy overlapping groups; coherence and exclusivity above the 80th percentile of a CPV-shuffle null; 30 exclusive contracts a year; "only suggestive"
+    - title: Villamil, Kertesz and Fazekas - Collusion risk in corporate networks (Scientific Reports 2024)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10850496/
+      summary: Ownership and co-bidding layers per year in Sweden 2010-2015; single bidding, missing bidders, stable market structure, winning probability and cut-point position
+    - title: Baranek, Musolff and Titl - Detection of collusive networks in e-procurement (2021)
+      url: https://www.uu.nl/sites/default/files/LEG_USE_WP_21-11.pdf
+      summary: Pairs that never undercut each other in ProZorro auctions; prosecuted links drawn apart; validated on 863 prosecuted firms in 23,515 tenders
+    - title: Fazekas, Toth, Wachs and Abdou - Public procurement cartels (International Journal of Industrial Organization 2025)
+      url: https://unipub.lib.uni-corvinus.hu/12023/1/1-s2.0-S0167718725000943-main.pdf
+      summary: 73 proven cartels in 7 European countries, 2004-2021; 70-84 percent accuracy across countries and markets (read through search summary)
+    - title: CMA - Rigged bids, real costs (2026)
+      url: https://www.gov.uk/government/publications/procurement-in-the-national-interest/rigged-bids-real-costs-a-case-for-urgent-action-on-bid-rigging-in-uk-public-procurement
+      summary: Losing bids not routinely machine-readable; each buyer sees only part of the picture; Cerebro screens superfluous losing bidders
+    - title: Open Contracting Partnership - Cardinal red flags library
+      url: https://www.open-contracting.org/2024/06/12/cardinal-an-open-source-library-to-calculate-public-procurement-red-flags/
+      summary: OCDS red flags including identical bid prices; collusion flags need individual bid values; prepare step reports data-quality issues
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

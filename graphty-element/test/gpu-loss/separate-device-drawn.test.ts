@@ -12,6 +12,7 @@ import { WRITABLE_LANE } from "../../src/data/lane";
 import type { Graph } from "../../src/Graph";
 import {
     adapterSays,
+    assertCanLand,
     landed,
     layoutOf,
     nextFrame,
@@ -31,6 +32,7 @@ async function uploadedLanding(graph: Graph): Promise<void> {
     assert.isNotNull(table);
     const before = table.landedUploads;
     while (table.landedUploads <= before) {
+        assertCanLand(graph);
         await nextFrame();
     }
 }
@@ -158,8 +160,11 @@ describe("the layout filling the row table from a separate device", () => {
         const fromDevice = await settled(true);
         // The settled landing is fitted by the device's envelope, which agrees with a CPU walk of the same rows.
         // Compared within one run: two seeded runs on a software adapter need not lay out to the same bits.
-        const both = layoutOf(fromDevice.graph).envelopeAgreement();
+        const deviceEngine = layoutOf(fromDevice.graph);
+        const beforeAgreement = deviceEngine.envelopeRowsWalked;
+        const both = deviceEngine.envelopeAgreement();
         assert.isNotNull(both);
+        const oneFit = deviceEngine.envelopeRowsWalked - beforeAgreement;
         const { device, walked } = both;
         assert.isNotNull(device, "the settled landing was measured on the device");
         assert.isAbove(walked.box[5] - walked.box[2], 0, "a 3D layout, so z counts in the radius");
@@ -170,9 +175,61 @@ describe("the layout filling the row table from a separate device", () => {
         });
         unmount();
 
-        // the device measured the running layout's fits, the walk measured every one of them
+        // the device measured every landing; at most the fit before the first landing walked, however many frames
+        // the device queue ran behind the page (issue #9627)
+        assert.isAtMost(fromDevice.walked, oneFit);
+        // the walk measured every landing of the running layout
         const fromWalk = await settled(false);
         assert.isBelow(fromDevice.walked, fromWalk.walked);
+    });
+
+    it("walks no row for a fit with no new landing (issue #9627)", async () => {
+        const graph = await running("batched", undefined, "webgl");
+        const engine = layoutOf(graph);
+        // Walked, not measured on the device, so every landing costs a walk and only a landing may.
+        engine.deviceEnvelope = false;
+        await landed(graph);
+
+        // Fits with nothing landed in between measure the same rows: none walks again.
+        engine.publishPositions();
+        const once = engine.envelopeRowsWalked;
+        engine.publishPositions();
+        engine.publishPositions();
+        assert.strictEqual(engine.envelopeRowsWalked, once, "a refit of the same landing walked");
+
+        // Across frames, a walk comes only with a newly published landing, however many frames the queue lags.
+        const start = engine.envelopeRowsWalked;
+        let published = engine.landedBatchesPublished;
+        let walked = engine.envelopeRowsWalked;
+        let landings = 0;
+        while (landings < 3) {
+            await nextFrame();
+            const nowPublished = engine.landedBatchesPublished;
+            if (nowPublished === published) {
+                assert.strictEqual(engine.envelopeRowsWalked, walked, "a frame with no landing walked");
+            } else {
+                landings += 1;
+            }
+
+            published = nowPublished;
+            walked = engine.envelopeRowsWalked;
+        }
+
+        assert.isAbove(engine.envelopeRowsWalked, start, "the landings were walked");
+
+        // A pre-step batch rewrites the rows outside the frame loop's landings, so the next fit measures again. With
+        // the frames stopped, only a batch already in flight can land during it: such a try proves nothing, so again.
+        graph.engine.stopRenderLoop();
+        for (;;) {
+            engine.publishPositions();
+            const before = { walked: engine.envelopeRowsWalked, landings: engine.landedBatches };
+            await engine.stepAsync(1);
+            if (engine.landedBatches === before.landings) {
+                engine.publishPositions();
+                assert.isAbove(engine.envelopeRowsWalked, before.walked, "the fit after a pre-step reused a stale one");
+                break;
+            }
+        }
     });
 
     it("draws every landing of a running layout on demand (issue #8801)", async () => {
@@ -193,6 +250,61 @@ describe("the layout filling the row table from a separate device", () => {
         graph.scene.onAfterRenderObservable.remove(watch);
 
         assert.isAtLeast(new Set(drawn).size, 5, "every landing was drawn");
+    });
+
+    it("draws the owed landing, not the CPU copy, in the first frame after a WebGL restore", async () => {
+        const graph = await running("batched", undefined, "webgl");
+        const table = graph.getRowTable();
+        assert.isNotNull(table);
+        await uploadedLanding(graph);
+        await landed(graph);
+        const lane = graph.getDataManager()[WRITABLE_LANE];
+        const written = lane.changes;
+        await landed(graph);
+        assert.strictEqual(lane.changes - written, 0, "the landing is owed, not written");
+
+        // Lose the context, then read the texture as the first frame drawn after the restore left it.
+        const gl = graph.engine.getRenderingCanvas()?.getContext("webgl2");
+        const extension = gl?.getExtension("WEBGL_lose_context");
+        assert.isDefined(extension ?? undefined, "the context can be lost");
+        const lost = new Promise<void>((resolve) => {
+            graph.on("render-lost", () => {
+                resolve();
+            });
+        });
+        extension?.loseContext();
+        await lost;
+        // The expected rows are taken in the same callback that issues the read: a batch already in flight can land
+        // while the read is pending, and the texture read is queued ahead of any later upload.
+        const firstFrame = new Promise<{ drawn: Float32Array; rows: Float32Array }>((resolve) => {
+            graph.canvas.addEventListener(
+                "webglcontextrestored",
+                () => {
+                    graph.scene.onAfterRenderObservable.addOnce(() => {
+                        graph.engine.stopRenderLoop();
+                        const read = table.positionTexture.readPixels();
+                        // Where the lane puts every row: the owed landing, written.
+                        lane.settle();
+                        table.flush();
+                        const rows = table.rowPosition.slice(0, 4 * table.rows);
+                        void read?.then((pixels) => {
+                            resolve({ drawn: pixels as Float32Array, rows });
+                        });
+                    });
+                },
+                { once: true },
+            );
+        });
+        await graph.restartRenderer();
+        const { drawn, rows } = await firstFrame;
+
+        let worst = 0;
+        for (let i = 0; i < 4 * table.rows; i++) {
+            const want = rows[i] ?? 0;
+            worst = Math.max(worst, Math.abs((drawn[i] ?? Number.NaN) - want) / Math.max(1, Math.abs(want)));
+        }
+
+        assert.isBelow(worst, 1e-5, "the first frame after the restore drew the rows where the lane puts them");
     });
 
     it("publishes every landing on the CPU under renderPath objects", async () => {

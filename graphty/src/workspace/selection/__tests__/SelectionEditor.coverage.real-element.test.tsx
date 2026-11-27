@@ -15,7 +15,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession, Layer, RuleTree, UnionLeaf } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { withFeatures } from "../../../test/features";
@@ -70,7 +70,7 @@ async function openLayer(where?: UnionLeaf): Promise<{ session: GraphSession; la
     });
     await session.styles.settled();
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Calm, / }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Calm, / }));
     await waitFor(() => {
         assert.isNotNull(document.querySelector(".sel-rest"));
     });
@@ -82,7 +82,7 @@ async function openLayer(where?: UnionLeaf): Promise<{ session: GraphSession; la
  * @returns the workspace.
  */
 async function openModal(): Promise<HTMLElement> {
-    await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+    await userEvent.click(page.getByRole("button", { name: /^Style Nodes\.\.\./ }));
     return modal();
 }
 
@@ -139,7 +139,7 @@ const oneCard = (name?: string): UnionLeaf => ({
  * @param ws - the workspace.
  */
 async function done(ws: HTMLElement): Promise<void> {
-    await userEvent.click(within(ws).getByRole("button", { name: /^Done/ }));
+    await userEvent.click(page.elementLocator(ws).getByRole("button", { name: /^Done/ }));
     await waitFor(() => {
         assert.isNull(document.querySelector(".sel-ws"), "the workspace closed");
     });
@@ -176,7 +176,7 @@ describe("a style layer's workspace", () => {
         });
         await session.styles.settled();
         const tree = await screen.findByRole("tree", { name: "Style layers" });
-        await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Calm, / }));
+        await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Calm, / }));
         const ws = await openModal();
         await waitFor(() => {
             assert.lengthOf(cards(), most);
@@ -189,7 +189,7 @@ describe("a style layer's workspace", () => {
         within(ws).getByText(`${String(most)} cards at most`);
         assert.strictEqual(add.getAttribute("aria-description"), `At most ${String(most)} cards`);
 
-        await userEvent.click(within(ws).getByRole("button", { name: "More for A" }));
+        await userEvent.click(page.elementLocator(ws).getByRole("button", { name: "More for A", exact: true }));
         const duplicate = await screen.findByRole("menuitem", { name: /^Duplicate/ });
         assert.include(duplicate.textContent, "No more cards");
         assert.strictEqual(duplicate.getAttribute("aria-disabled"), "true", "Duplicate cannot run");
@@ -205,7 +205,7 @@ describe("a style layer's workspace", () => {
             return found;
         });
         assert.notInclude(card.textContent, "Passes none");
-        await userEvent.click(within(card).getByRole("button", { name: "All nodes" }));
+        await userEvent.click(page.elementLocator(card).getByRole("button", { name: "All nodes", exact: true }));
         await within(card).findByRole("button", { name: "No nodes" });
         await waitFor(() => {
             assert.include(card.textContent, "Passes none", "Keep from nothing keeps nothing");
@@ -219,8 +219,8 @@ describe("a style layer's workspace", () => {
     it("a card renamed to nothing goes back to its letter", async () => {
         const { session, layer } = await openLayer(oneCard("Busy"));
         const ws = await openModal();
-        await userEvent.click(await within(ws).findByRole("button", { name: "More for Busy" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Rename/ }));
+        await userEvent.click(page.elementLocator(ws).getByRole("button", { name: "More for Busy", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: /^Rename/ }));
         // The card's name turns into a box in its header, its name selected.
         await waitFor(() => {
             const box = ws.querySelector(".cm-card-head input");
@@ -243,7 +243,7 @@ describe("a style layer's workspace", () => {
         await waitFor(() => {
             assert.lengthOf(cards(), 1);
         });
-        await userEvent.click(within(ws).getByRole("button", { name: /^Card$/ }));
+        await userEvent.click(page.elementLocator(ws).getByRole("button", { name: /^Card$/ }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("Largest component{Enter}");
         await waitFor(() => {
@@ -269,7 +269,7 @@ describe("a style layer's workspace", () => {
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         assert.strictEqual(field.getAttribute("aria-expanded"), "true");
 
-        await userEvent.click(field);
+        await userEvent.click(page.elementLocator(ws).getByRole("button", { name: "Value", exact: true }));
         await waitFor(() => {
             assert.strictEqual(field.getAttribute("aria-expanded"), "true", "the list stays open");
             assert.isNotNull(screen.queryByRole("combobox", { name: "Find attributes, results" }));
@@ -280,8 +280,8 @@ describe("a style layer's workspace", () => {
     it("Done after deleting the only card keeps All", async () => {
         const { session, layer } = await openLayer(oneCard());
         const ws = await openModal();
-        await userEvent.click(await within(ws).findByRole("button", { name: "More for A" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Delete/ }));
+        await userEvent.click(page.elementLocator(ws).getByRole("button", { name: "More for A", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: /^Delete/ }));
         await waitFor(() => {
             const [card] = cards();
             assert.isDefined(card);
@@ -333,18 +333,18 @@ async function openPeople(): Promise<GraphSession> {
  * @returns the workspace.
  */
 async function boardCard(): Promise<HTMLElement> {
-    await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
-    await userEvent.click(await screen.findByRole("button", { name: "Value" }));
-    await userEvent.click(await screen.findByRole("option", { name: /^role(,|$)/ }));
+    await userEvent.click(page.getByRole("button", { name: "Add filter", exact: true }));
+    await userEvent.click(page.getByRole("button", { name: "Value", exact: true }));
+    await userEvent.click(page.getByRole("option", { name: /^role(,|$)/ }));
     const values = await screen.findByRole("group", { name: "role values" });
-    await userEvent.click(within(values).getByRole("checkbox", { name: /^board/ }));
+    await userEvent.click(page.elementLocator(values).getByRole("checkbox", { name: /^board/ }));
     return modal();
 }
 
 describe("a filter card's workspace", () => {
     it("switching a new card's side by its arrow keeps focus on the side, its value picker shut", async () => {
         await openPeople();
-        await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
+        await userEvent.click(page.getByRole("button", { name: "Add filter", exact: true }));
         // The new card arrives with its Value field focused, its picker shut.
         await within(await modal()).findByRole("button", { name: "Value" });
         // A press on the side chosen puts focus on it; the arrow switches the side.
@@ -373,15 +373,15 @@ describe("a filter card's workspace", () => {
         };
         // The card is named after what it holds until it is given a name of its own.
         const original = "role board, rename";
-        const first = await within(head()).findByRole("button", { name: original });
-        await userEvent.click(first);
+        const first = (): Locator => page.elementLocator(head()).getByRole("button", { name: original, exact: true });
+        await userEvent.click(first());
         await userEvent.keyboard("{Enter}");
         await within(head()).findByRole("button", { name: original });
 
-        await userEvent.click(within(head()).getByRole("button", { name: original }));
+        await userEvent.click(page.elementLocator(head()).getByRole("button", { name: original, exact: true }));
         await userEvent.keyboard("{Control>}a{/Control}Board{Enter}");
         await within(head()).findByRole("button", { name: "Board, rename" });
-        await userEvent.click(within(head()).getByRole("button", { name: "Board, rename" }));
+        await userEvent.click(page.elementLocator(head()).getByRole("button", { name: "Board, rename", exact: true }));
         await userEvent.keyboard("{Control>}a{/Control}{Backspace}{Enter}");
         await within(head()).findByRole("button", { name: original });
 
@@ -397,7 +397,7 @@ describe("a filter card's workspace", () => {
         await openPeople();
         await done(await boardCard());
         const list = await screen.findByRole("list", { name: "Filters" });
-        await userEvent.click(within(list).getByRole("checkbox", { name: /^Use/ }));
+        await userEvent.click(page.elementLocator(list).getByRole("checkbox", { name: /^Use/ }));
         await waitFor(() => {
             assert.isFalse(within(list).getByRole<HTMLInputElement>("checkbox", { name: /^Use/ }).checked);
         });

@@ -93,7 +93,7 @@ async function press(modal: HTMLElement, name: string, field: string): Promise<v
     if (header === undefined) {
         throw new Error(`no header for ${field}`);
     }
-    await userEvent.click(within(header).getByRole("button"));
+    await userEvent.click(page.elementLocator(header).getByRole("button"));
 }
 
 /**
@@ -239,15 +239,15 @@ describe("the join workspace's two tables (source-steps)", () => {
         await pickSources(modal, "people", "entries");
         await pickFields(modal, "badge", "badge");
         const shown = within(modal).getByRole("radiogroup", { name: "Rows shown" });
-        await userEvent.click(within(shown).getByText("Only entries"));
+        await userEvent.click(page.elementLocator(shown).getByText("Only entries", { exact: true }));
         await waitFor(() => {
             assert.deepStrictEqual([...rowsAt(modal, "entries").values()], ["B999"]);
         });
-        await userEvent.click(within(shown).getByText("Only people"));
+        await userEvent.click(page.elementLocator(shown).getByText("Only people", { exact: true }));
         await waitFor(() => {
             assert.strictEqual([...rowsAt(modal, "people").values()][0], "B30", "the first no entry names");
         });
-        await userEvent.click(within(shown).getByText("Matched"));
+        await userEvent.click(page.elementLocator(shown).getByText("Matched", { exact: true }));
         await waitFor(() => {
             assert.notInclude([...rowsAt(modal, "people").values()], "");
         });
@@ -347,7 +347,7 @@ describe("the join workspace's preview (source-steps)", () => {
         await pickFields(modal, "badge", "badge");
         await joinAs(modal, "Node per entries row, linked to people");
         await newest(session, (step) => step.act !== null, "joined");
-        await userEvent.click(within(modal).getByText("Styled", { exact: true }));
+        await userEvent.click(page.elementLocator(modal).getByText("Styled", { exact: true }));
         await waitFor(() => {
             assert.isNotNull(session.styles.shownDraft, "the draft is still drawn with its marks");
         });

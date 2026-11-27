@@ -48,7 +48,7 @@ describe("the Data place keeps graphty-element's error codes", () => {
     it("a filter change the element refuses says the element's reason", async () => {
         const session = await openWithGraph();
         await columnVerb("edge", "value", "Filter to...");
-        const from = await screen.findByRole("textbox", { name: "value from, number" });
+        const from = page.getByRole("textbox", { name: "value from, number", exact: true });
         await userEvent.clear(from);
         await userEvent.type(from, "9{Enter}");
         // The new card is written on Done in the selection workspace.
@@ -57,7 +57,9 @@ describe("the Data place keeps graphty-element's error codes", () => {
             assert.isNotNull(found);
             return found;
         });
-        await userEvent.click(within(workspace ?? document.body).getByRole("button", { name: "Done" }));
+        await userEvent.click(
+            page.elementLocator(workspace ?? document.body).getByRole("button", { name: "Done", exact: true }),
+        );
         await waitFor(() => {
             assert.lengthOf(session.visibility.conditions, 1);
         });
@@ -65,8 +67,8 @@ describe("the Data place keeps graphty-element's error codes", () => {
             new GraphtyError({ code: "E_HELD_BY_TRANSACTION", message: "English", source: "history" }),
         );
         const list = within(screen.getByRole("region", { name: "Data place" })).getByRole("list", { name: "Filters" });
-        await userEvent.click(within(list).getByRole("button", { name: "More" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Delete/ }));
+        await userEvent.click(page.elementLocator(list).getByRole("button", { name: "More", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: /^Delete/ }));
 
         await screen.findByText("The filter could not be changed: another change is still being made; try again.");
         assert.lengthOf(session.visibility.conditions, 1);

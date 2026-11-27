@@ -10,7 +10,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import { act, render, screen, waitFor, type Within, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
@@ -187,7 +187,7 @@ describe("F6 and Tab order, on the real element", () => {
             await session.runs.start("degree");
             await session.styles.settled();
         });
-        await userEvent.click(screen.getByRole("button", { name: "Analyze" }));
+        await userEvent.click(page.getByRole("button", { name: "Analyze", exact: true }));
         const filter = await screen.findByRole("combobox", { name: "Filter analyses" });
         await waitFor(() => {
             assert.strictEqual(document.activeElement, filter);
@@ -246,8 +246,8 @@ describe("F6 and Tab order, on the real element", () => {
         await openRings();
         await userEvent.click(await treeRow("Everything"));
         const color = await line("node.color");
-        const swatch = within(color).getByRole("button", { name: /^Pick node color/ });
-        await userEvent.click(swatch);
+        const swatch = (): Locator => page.elementLocator(color).getByRole("button", { name: /^Pick node color/ });
+        await userEvent.click(swatch());
         const picker = await screen.findByTestId("color-picker-saturation");
         const panel = picker.closest<HTMLElement>("[role='dialog']");
         assert.isNotNull(panel);
@@ -276,10 +276,10 @@ describe("F6 and Tab order, on the real element", () => {
         });
         await userEvent.click(await treeRow("Sized"));
         const size = await line("node.size");
-        await userEvent.click(within(size).getByRole("button", { name: /^Node size: / }));
+        await userEvent.click(page.elementLocator(size).getByRole("button", { name: /^Node size: / }));
         const popover = await screen.findByRole("dialog", { name: /^Size by / });
-        const from = within(popover).getByLabelText<HTMLInputElement>("Size from");
-        await userEvent.click(from);
+        const from = (): Locator => page.elementLocator(popover).getByLabelText("Size from", { exact: true });
+        await userEvent.click(from());
         await userEvent.keyboard("{Control>}a{/Control}2{Tab}");
         await waitFor(() => {
             assert.strictEqual(document.activeElement, within(popover).getByLabelText("Size to"), focused());

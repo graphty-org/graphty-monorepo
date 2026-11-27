@@ -29,9 +29,9 @@ describe("the Hovered layer's Values tab", () => {
         await element.waitForStableFrame();
 
         const tree = screen.getByRole("tree", { name: "Style layers" });
-        await userEvent.click(within(tree).getByRole("treeitem", { name: /^Hovered, / }));
+        await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: /^Hovered, / }));
         const inspector = await screen.findByRole("complementary", { name: "Inspector" });
-        await userEvent.click(await within(inspector).findByRole("tab", { name: "Values" }));
+        await userEvent.click(page.elementLocator(inspector).getByRole("tab", { name: "Values", exact: true }));
         const now = (): HTMLElement => within(inspector).getByRole("group", { name: "Now" });
         await waitFor(() => {
             within(now()).getByText("Nothing hovered");
@@ -42,13 +42,13 @@ describe("the Hovered layer's Values tab", () => {
             assert.isDefined(drawn, "the node is drawn");
             return drawn;
         });
-        await userEvent.hover(element, { position: { x: at?.x ?? 0, y: at?.y ?? 0 } });
+        await userEvent.hover(page.getByCss("graphty-element").first(), { position: { x: at?.x ?? 0, y: at?.y ?? 0 } });
         await waitFor(() => {
             assert.strictEqual(session.selection.hovered, "Valjean", "the element hovers the node");
             within(now()).getByText("Valjean");
         });
 
-        await userEvent.hover(tree);
+        await userEvent.hover(page.getByRole("tree", { name: "Style layers", exact: true }));
         await waitFor(() => {
             assert.isNull(session.selection.hovered, "the pointer left the drawing");
             within(now()).getByText("Nothing hovered");

@@ -12,7 +12,7 @@ import "@graphty/graphty-element";
 
 import { browserProjects, createGraphSession, type GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeAll, beforeEach, describe, it, vi } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import { withoutFeatures } from "../../../test/features";
 import { cleanup, render, screen, waitFor, within } from "../../../test/test-utils";
@@ -118,7 +118,7 @@ describe("web addresses a project names, from the app", () => {
         assert.isNotNull(within(dialog).getByText(`This project wants to open ${MODEL}. Continue?`));
         assert.notInclude(requested, MODEL, "nothing is fetched before the answer");
 
-        await userEvent.click(within(dialog).getByRole("button", { name: "Continue" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Continue", exact: true }));
         await reaches(session, MODEL, "drawn");
         assert.include(requested, MODEL);
     });
@@ -127,7 +127,7 @@ describe("web addresses a project names, from the app", () => {
         const session = await openWithGraph();
         await layerFromAFile(session);
         const dialog = await screen.findByRole("dialog", { name: "Open a web address?" });
-        await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Cancel", exact: true }));
         await reaches(session, MODEL, "rejected");
         assert.notInclude(requested, MODEL);
     });
@@ -136,7 +136,9 @@ describe("web addresses a project names, from the app", () => {
         const session = await openWithGraph();
         await layerFromAFile(session);
         const dialog = await screen.findByRole("dialog", { name: "Open a web address?" });
-        await userEvent.click(within(dialog).getByRole("button", { name: "Don't ask again for this project" }));
+        await userEvent.click(
+            page.elementLocator(dialog).getByRole("button", { name: "Don't ask again for this project", exact: true }),
+        );
         await reaches(session, MODEL, "drawn");
         assert.deepEqual(readProjectHosts(session.project.id), ["models.example.com"]);
         const { text } = await session.project.save({ markSaved: false, assets: { [MODEL]: "url" } });
@@ -163,7 +165,9 @@ describe("web addresses a project names, from the app", () => {
         const session = await openWithGraph();
         await layerFromAFile(session);
         const dialog = await screen.findByRole("dialog", { name: "Open a web address?" });
-        await userEvent.click(within(dialog).getByRole("button", { name: "Don't ask again for this project" }));
+        await userEvent.click(
+            page.elementLocator(dialog).getByRole("button", { name: "Don't ask again for this project", exact: true }),
+        );
         await reaches(session, MODEL, "drawn");
         cleanup();
 
@@ -178,7 +182,9 @@ describe("web addresses a project names, from the app", () => {
         const session = await openWithGraph();
         await layerFromAFile(session);
         const dialog = await screen.findByRole("dialog", { name: "Open a web address?" });
-        await userEvent.click(within(dialog).getByRole("button", { name: "Don't ask again" }));
+        await userEvent.click(
+            page.elementLocator(dialog).getByRole("button", { name: "Don't ask again", exact: true }),
+        );
         await reaches(session, MODEL, "drawn");
         assert.equal(session.network.policy, "allow");
         assert.equal(readPreference(OPEN_PROJECT_URLS), "allow");
@@ -192,7 +198,10 @@ describe("web addresses a project names, from the app", () => {
  */
 async function pasteModel(session: GraphSession, tab: HTMLElement): Promise<void> {
     const dialog = await openCustom(tab);
-    await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), `${MODEL}{Enter}`);
+    await userEvent.type(
+        page.elementLocator(dialog).getByRole("textbox", { name: "Model address", exact: true }),
+        `${MODEL}{Enter}`,
+    );
     await addModel(dialog);
     await reaches(session, MODEL, "drawn");
 }
@@ -227,10 +236,13 @@ describe("web addresses in the Style tab, with node models", () => {
 
     it("draws a picture pasted by URL in the Picture pop-over from Fill", async () => {
         const { session, tab } = await openShapes();
-        await userEvent.click(within(tab).getByRole("button", { name: "Add to node fill" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Picture" }));
+        await userEvent.click(page.elementLocator(tab).getByRole("button", { name: "Add to node fill", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Picture", exact: true }));
         const picture = await screen.findByRole("dialog", { name: "Picture" });
-        await userEvent.type(within(picture).getByRole("textbox", { name: "Picture address" }), `${PICTURE}{Enter}`);
+        await userEvent.type(
+            page.elementLocator(picture).getByRole("textbox", { name: "Picture address", exact: true }),
+            `${PICTURE}{Enter}`,
+        );
         await reaches(session, PICTURE, "drawn");
         assert.equal(written(session, "node.texture"), PICTURE);
     });
@@ -242,12 +254,12 @@ describe("web addresses in the Style tab, with node models", () => {
 
         await userEvent.keyboard("{Control>}s{/Control}");
         const saveAs = await screen.findByRole("dialog", { name: "Save Models as" });
-        await userEvent.click(within(saveAs).getByRole("button", { name: "Save" }));
+        await userEvent.click(page.elementLocator(saveAs).getByRole("button", { name: "Save", exact: true }));
         const keep = await screen.findByRole("dialog", { name: "Save files from the web" });
         assert.isNotNull(within(keep).getByTitle(MODEL), "the full address is the row's title");
         assert.isNotNull(within(keep).getByRole("radiogroup", { name: "Keep panel" }));
-        await userEvent.click(within(keep).getByText("Use URL"));
-        await userEvent.click(within(keep).getByRole("button", { name: "Save" }));
+        await userEvent.click(page.elementLocator(keep).getByText("Use URL", { exact: true }));
+        await userEvent.click(page.elementLocator(keep).getByRole("button", { name: "Save", exact: true }));
 
         const [entry] = await keptEntries();
         assert.equal(entry?.source, MODEL);
@@ -272,15 +284,18 @@ describe("web addresses in the Style tab, with node models", () => {
     it("names a model added by URL from the Main menu by its URL when picked in the project, so Save asks", async () => {
         await clearRecent();
         const { session, tab } = await openShapes();
-        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Add custom model..." }));
+        await userEvent.click(page.getByRole("button", { name: "Main menu", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Add custom model...", exact: true }));
         const dialog = await screen.findByRole("dialog", { name: "Load custom model" });
-        await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), `${MODEL}{Enter}`);
+        await userEvent.type(
+            page.elementLocator(dialog).getByRole("textbox", { name: "Model address", exact: true }),
+            `${MODEL}{Enter}`,
+        );
         await addModel(dialog, "Add to project");
 
         const models = await openModels(tab);
         const own = within(models).getByRole("group", { name: "In this project" });
-        await userEvent.click(within(own).getByRole("button", { name: "panel" }));
+        await userEvent.click(page.elementLocator(own).getByRole("button", { name: "panel", exact: true }));
         await waitFor(() => {
             assert.equal(written(session, "node.model"), MODEL);
         });
@@ -288,10 +303,10 @@ describe("web addresses in the Style tab, with node models", () => {
 
         await userEvent.keyboard("{Control>}s{/Control}");
         const saveAs = await screen.findByRole("dialog", { name: "Save Models as" });
-        await userEvent.click(within(saveAs).getByRole("button", { name: "Save" }));
+        await userEvent.click(page.elementLocator(saveAs).getByRole("button", { name: "Save", exact: true }));
         const keep = await screen.findByRole("dialog", { name: "Save files from the web" });
         assert.isNotNull(within(keep).getByTitle(MODEL));
-        await userEvent.click(within(keep).getByRole("button", { name: "Cancel" }));
+        await userEvent.click(page.elementLocator(keep).getByRole("button", { name: "Cancel", exact: true }));
     });
 
     it("Cancel in the question saves nothing and keeps the project's name", async () => {
@@ -301,12 +316,12 @@ describe("web addresses in the Style tab, with node models", () => {
 
         await userEvent.keyboard("{Control>}s{/Control}");
         const saveAs = await screen.findByRole("dialog", { name: "Save Models as" });
-        const field = within(saveAs).getByRole("textbox", { name: "Name" });
-        await userEvent.clear(field);
-        await userEvent.type(field, "Renamed");
-        await userEvent.click(within(saveAs).getByRole("button", { name: "Save" }));
+        const field = (): Locator => page.elementLocator(saveAs).getByRole("textbox", { name: "Name", exact: true });
+        await userEvent.clear(field());
+        await userEvent.type(field(), "Renamed");
+        await userEvent.click(page.elementLocator(saveAs).getByRole("button", { name: "Save", exact: true }));
         const keep = await screen.findByRole("dialog", { name: "Save files from the web" });
-        await userEvent.click(within(keep).getByRole("button", { name: "Cancel" }));
+        await userEvent.click(page.elementLocator(keep).getByRole("button", { name: "Cancel", exact: true }));
 
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog"));
@@ -323,18 +338,18 @@ describe("web addresses in the Style tab, with node models", () => {
 
         await userEvent.keyboard("{Control>}s{/Control}");
         const saveAs = await screen.findByRole("dialog", { name: "Save Models as" });
-        const field = within(saveAs).getByRole("textbox", { name: "Name" });
-        await userEvent.clear(field);
-        await userEvent.type(field, "Renamed");
-        await userEvent.click(within(saveAs).getByRole("button", { name: "Save" }));
+        const field = (): Locator => page.elementLocator(saveAs).getByRole("textbox", { name: "Name", exact: true });
+        await userEvent.clear(field());
+        await userEvent.type(field(), "Renamed");
+        await userEvent.click(page.elementLocator(saveAs).getByRole("button", { name: "Save", exact: true }));
         const keep = await screen.findByRole("dialog", { name: "Save files from the web" });
-        await userEvent.click(within(keep).getByText("Use URL"));
+        await userEvent.click(page.elementLocator(keep).getByText("Use URL", { exact: true }));
 
         // A modal dialog keeps every command key: Save as does not reach the page behind it.
         await userEvent.keyboard("{Control>}{Shift>}s{/Shift}{/Control}");
         assert.isTrue(keep.isConnected, "the question is still asking");
         assert.isNull(screen.queryByRole("dialog", { name: "Save Models as" }));
-        await userEvent.click(within(keep).getByRole("button", { name: "Cancel" }));
+        await userEvent.click(page.elementLocator(keep).getByRole("button", { name: "Cancel", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog"));
         });
@@ -342,13 +357,13 @@ describe("web addresses in the Style tab, with node models", () => {
         await userEvent.keyboard("{Control>}{Shift>}s{/Shift}{/Control}");
         const again = await screen.findByRole("dialog", { name: "Save Models as" });
         assert.equal(store.get().project?.name, "Models", "the canceled save's name is taken back");
-        await userEvent.click(within(again).getByRole("button", { name: "Save" }));
+        await userEvent.click(page.elementLocator(again).getByRole("button", { name: "Save", exact: true }));
         const asked = await screen.findByRole("dialog", { name: "Save files from the web" });
         assert.isTrue(
             within(asked).getByLabelText<HTMLInputElement>("Embed model").checked,
             "the canceled question's answer is not carried over",
         );
-        await userEvent.click(within(asked).getByRole("button", { name: "Save" }));
+        await userEvent.click(page.elementLocator(asked).getByRole("button", { name: "Save", exact: true }));
         await waitFor(() => {
             assert.isFalse(session.project.dirty);
         });
@@ -364,20 +379,22 @@ describe("web addresses in the Style tab, with node models", () => {
             downloads.push(this.download);
         });
         const saveCopy = async (): Promise<HTMLElement> => {
-            await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-            await userEvent.click(await screen.findByRole("menuitem", { name: "Save local copy..." }));
+            await userEvent.click(page.getByRole("button", { name: "Main menu", exact: true }));
+            await userEvent.click(page.getByRole("menuitem", { name: "Save local copy...", exact: true }));
             return screen.findByRole("dialog", { name: "Save files from the web" });
         };
 
-        await userEvent.click(within(await saveCopy()).getByRole("button", { name: "Cancel" }));
+        await userEvent.click(
+            page.elementLocator(await saveCopy()).getByRole("button", { name: "Cancel", exact: true }),
+        );
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog"));
         });
         assert.deepEqual(downloads, []);
 
         const keep = await saveCopy();
-        await userEvent.click(within(keep).getByText("Use URL"));
-        await userEvent.click(within(keep).getByRole("button", { name: "Save" }));
+        await userEvent.click(page.elementLocator(keep).getByText("Use URL", { exact: true }));
+        await userEvent.click(page.elementLocator(keep).getByRole("button", { name: "Save", exact: true }));
         await waitFor(() => {
             assert.deepEqual(downloads, ["Models.graphty.json"]);
         });
@@ -391,10 +408,10 @@ describe("web addresses in the Style tab, with node models", () => {
         await pasteModel(session, tab);
         await userEvent.keyboard("{Control>}s{/Control}");
         const saveAs = await screen.findByRole("dialog", { name: "Save Models as" });
-        await userEvent.click(within(saveAs).getByRole("button", { name: "Save" }));
+        await userEvent.click(page.elementLocator(saveAs).getByRole("button", { name: "Save", exact: true }));
         const keep = await screen.findByRole("dialog", { name: "Save files from the web" });
-        await userEvent.click(within(keep).getByText("Use URL"));
-        await userEvent.click(within(keep).getByRole("button", { name: "Save" }));
+        await userEvent.click(page.elementLocator(keep).getByText("Use URL", { exact: true }));
+        await userEvent.click(page.elementLocator(keep).getByRole("button", { name: "Save", exact: true }));
         await waitFor(() => {
             assert.isFalse(session.project.dirty);
         });
@@ -412,6 +429,6 @@ describe("web addresses in the Style tab, with node models", () => {
         await userEvent.keyboard("{Control>}s{/Control}");
         const asked = await screen.findByRole("dialog", { name: "Save files from the web" });
         assert.isTrue(within(asked).getByLabelText<HTMLInputElement>("Embed model").checked);
-        await userEvent.click(within(asked).getByRole("button", { name: "Cancel" }));
+        await userEvent.click(page.elementLocator(asked).getByRole("button", { name: "Cancel", exact: true }));
     });
 });

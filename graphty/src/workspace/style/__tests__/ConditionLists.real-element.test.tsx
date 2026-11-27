@@ -13,7 +13,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession, RuleTree } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { withoutFeatures } from "../../../test/features";
@@ -66,7 +66,7 @@ async function openPicker(session: GraphSession): Promise<{ id: string; region: 
     await session.styles.settled();
     await selectWithTwin(session, "Mine");
     if (screen.queryByRole("group", { name: "Which nodes" }) === null) {
-        await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
+        await userEvent.click(page.getByRole("button", { name: /^Which nodes, / }));
     }
     return { id: layer.id, region: await screen.findByRole("group", { name: "Which nodes" }) };
 }
@@ -79,7 +79,9 @@ async function openPicker(session: GraphSession): Promise<{ id: string; region: 
  */
 async function openList(region: HTMLElement): Promise<HTMLElement> {
     if (screen.queryByRole("combobox", { name: FIND_ATTRIBUTE }) === null) {
-        await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
+        await userEvent.click(
+            page.elementLocator(region).getByRole("button", { name: "Add a condition", exact: true }),
+        );
     }
     const search = await screen.findByRole("combobox", { name: FIND_ATTRIBUTE });
     await waitFor(() => {
@@ -308,8 +310,9 @@ describe("the cards", () => {
         const { id, region } = await openPicker(session);
         await openList(region);
         await userEvent.keyboard("amount{Enter}");
-        const from = await within(region).findByRole("textbox", { name: "amount from, number" });
-        await userEvent.click(from);
+        const from = (): Locator =>
+            page.elementLocator(region).getByRole("textbox", { name: "amount from, number", exact: true });
+        await userEvent.click(from());
         await userEvent.keyboard("{Control>}a{/Control}x{Enter}");
         assert.isNotNull(screen.queryByRole("group", { name: "Which nodes" }), "a refused number keeps the card open");
         await userEvent.keyboard("{Control>}a{/Control}4{Enter}");
@@ -331,7 +334,9 @@ describe("the cards", () => {
         await waitFor(() => {
             assert.strictEqual(document.activeElement, add, "focus is on Add a condition");
         });
-        await userEvent.click(add);
+        await userEvent.click(
+            page.elementLocator(region).getByRole("button", { name: "Add a condition", exact: true }),
+        );
         const search = await screen.findByRole("combobox", { name: FIND_ATTRIBUTE });
         await waitFor(() => {
             assert.strictEqual(document.activeElement, search, "the list opens with its search focused");
@@ -347,7 +352,7 @@ describe("the cards", () => {
             const { region } = await openPicker(session);
             await openList(region);
             await userEvent.keyboard("shared_ch");
-            const offer = await screen.findByRole("button", { name: "Add shared_chapters on the Edge tab" });
+            const offer = page.getByRole("button", { name: "Add shared_chapters on the Edge tab", exact: true });
             await (how === "Enter" ? userEvent.keyboard("{Enter}") : userEvent.click(offer));
             const tabs = screen.getByRole("tablist", { name: "Style for" });
             await waitFor(() => {

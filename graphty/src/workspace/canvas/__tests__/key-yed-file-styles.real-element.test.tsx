@@ -89,7 +89,7 @@ describe("a yEd file opened with its styles", () => {
         await waitFor(() => {
             assert.isNotNull(session.selection.hovered, "pointing at a node hovers it");
         });
-        await userEvent.hover(screen.getByRole("tree", { name: "Style layers" }));
+        await userEvent.hover(page.getByRole("tree", { name: "Style layers", exact: true }));
         await waitFor(() => {
             assert.isNull(session.selection.hovered, "the pointer left the canvas");
         });

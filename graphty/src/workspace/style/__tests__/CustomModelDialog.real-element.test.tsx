@@ -16,7 +16,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, describe, it, vi } from "vitest";
-import { commands, page, userEvent } from "vitest/browser";
+import { commands, type Locator, page, userEvent } from "vitest/browser";
 
 import animatedCubeUrl from "../../../../../babylonjs-models/test/fixtures/variants/gltf-animated/cube.glb?url";
 import { withoutFeatures } from "../../../test/features";
@@ -87,8 +87,8 @@ function models(session: GraphSession): (string | undefined)[] {
  * @returns the dialog.
  */
 async function fromMenu(): Promise<HTMLElement> {
-    await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: "Add custom model..." }));
+    await userEvent.click(page.getByRole("button", { name: "Main menu", exact: true }));
+    await userEvent.click(page.getByRole("menuitem", { name: "Add custom model...", exact: true }));
     return screen.findByRole("dialog", { name: "Load custom model" });
 }
 
@@ -101,7 +101,7 @@ async function fromMenu(): Promise<HTMLElement> {
 async function openSettings(dialog: HTMLElement): Promise<HTMLElement> {
     const button = within(dialog).getByRole("button", { name: "Model settings" });
     if (button.getAttribute("aria-expanded") !== "true") {
-        await userEvent.click(button);
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Model settings", exact: true }));
     }
     const popover = await screen.findByRole("dialog", { name: "Model settings" });
     assert.isFalse(dialog.contains(popover), "a pop-over over the dialog, not a part of it");
@@ -118,7 +118,7 @@ async function openSettings(dialog: HTMLElement): Promise<HTMLElement> {
  * Closes Model settings with the x on the pop-over, back to the dialog.
  */
 async function closeSettings(): Promise<void> {
-    await userEvent.click(screen.getByRole("button", { name: "Close model settings" }));
+    await userEvent.click(page.getByRole("button", { name: "Close model settings", exact: true }));
     await waitFor(() => {
         assert.isNull(screen.queryByRole("dialog", { name: "Model settings" }));
     });
@@ -233,7 +233,7 @@ async function assertTwoColumns(dialog: HTMLElement, where: string): Promise<voi
         return;
     }
     const last = rows.lastElementChild as HTMLElement;
-    await userEvent.click(rows.firstElementChild as HTMLElement);
+    await userEvent.click(page.elementLocator(rows).getByCss(":scope > *").first());
     assert.equal(document.activeElement, details, `Details takes focus to scroll (${where})`);
     await userEvent.keyboard("{End}");
     await waitFor(() => {
@@ -435,8 +435,10 @@ describe("the Load custom model dialog, on the real element", () => {
         ]);
         const files = await within(dialog).findByTestId("model-files");
         assert.isNotNull(await within(files).findByText("Not used"));
-        await userEvent.click(within(files).getByRole("combobox", { name: "File for colormap.png" }));
-        await userEvent.click(await screen.findByRole("option", { name: "paint.png" }));
+        await userEvent.click(
+            page.elementLocator(files).getByRole("combobox", { name: "File for colormap.png", exact: true }),
+        );
+        await userEvent.click(page.getByRole("option", { name: "paint.png", exact: true }));
         await waitFor(() => {
             assert.isNull(within(files).queryByRole("combobox", { name: "File for colormap.png" }), "answered");
         });
@@ -479,19 +481,21 @@ describe("the Load custom model dialog, on the real element", () => {
         );
         assert.isAtLeast(steps.getBoundingClientRect().top, box.getBoundingClientRect().bottom, "under the box");
 
-        await userEvent.click(within(dialog).getByRole("button", { name: "Next model" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Next model", exact: true }));
         await previewOf(dialog, "quad");
         assert.equal(position.textContent, "2 of 3");
         assert.equal(label.textContent, "quad");
         const preview = within(dialog).getByTestId("model-preview");
         assert.isNull(preview.getAttribute("data-skipped"));
-        await userEvent.click(within(dialog).getByRole("checkbox", { name: "Load this model" }));
+        await userEvent.click(
+            page.elementLocator(dialog).getByRole("checkbox", { name: "Load this model", exact: true }),
+        );
         assert.isNotNull(within(dialog).getByRole("button", { name: "Add 2 models" }));
         assert.equal(preview.getAttribute("data-skipped"), "true", "an unchecked model looks left out");
         assert.include(getComputedStyle(label).textDecorationLine, "line-through");
         assert.isBelow(Number(getComputedStyle(preview.querySelector(".ws-model-live") as Element).opacity), 1);
 
-        await userEvent.click(within(dialog).getByRole("button", { name: "Next model" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Next model", exact: true }));
         await previewOf(dialog, "wall");
         assert.isTrue(within(dialog).getByRole<HTMLInputElement>("checkbox", { name: "Load this model" }).checked);
         assert.isNull(preview.getAttribute("data-skipped"), "a checked model is drawn as usual");
@@ -503,15 +507,16 @@ describe("the Load custom model dialog, on the real element", () => {
         await assertTwoColumns(dialog, "a set with Model settings open");
         await closeSettings();
         await assertTwoColumns(dialog, "a set after Model settings closed");
-        const nameField = within(dialog).getByRole("textbox", { name: "Name" });
-        await userEvent.clear(nameField);
-        await userEvent.type(nameField, "Wall panel");
+        const nameField = (): Locator =>
+            page.elementLocator(dialog).getByRole("textbox", { name: "Name", exact: true });
+        await userEvent.clear(nameField());
+        await userEvent.type(nameField(), "Wall panel");
         await waitFor(() => {
             assert.equal(label.textContent, "Wall panel");
         });
 
         // The arrow keys on the arrows step too, wrapping round to the first.
-        await userEvent.click(within(dialog).getByRole("button", { name: "Next model" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Next model", exact: true }));
         await previewOf(dialog, "police");
         await userEvent.keyboard("{ArrowLeft}");
         await waitFor(() => {
@@ -545,11 +550,13 @@ describe("the Load custom model dialog, on the real element", () => {
             assert.isNotNull(within(list).getByRole("button", { name: `Remove ${file}` }));
         }
         // Unchecked in the list, it is unchecked under the preview too, and Add takes one fewer.
-        await userEvent.click(within(list).getByRole("checkbox", { name: "Load police.glb" }));
+        await userEvent.click(
+            page.elementLocator(list).getByRole("checkbox", { name: "Load police.glb", exact: true }),
+        );
         assert.isFalse(within(dialog).getByRole<HTMLInputElement>("checkbox", { name: "Load this model" }).checked);
         assert.isNotNull(within(dialog).getByRole("button", { name: "Add 2 models" }));
         // Its x takes the model out of the set.
-        await userEvent.click(within(list).getByRole("button", { name: "Remove quad.glb" }));
+        await userEvent.click(page.elementLocator(list).getByRole("button", { name: "Remove quad.glb", exact: true }));
         await waitFor(() => {
             assert.equal(within(dialog).getByTestId("model-position").textContent, "1 of 2");
         });
@@ -566,10 +573,14 @@ describe("the Load custom model dialog, on the real element", () => {
         const wall = new File([quadGlb()], "wall.glb", { type: "model/gltf-binary" });
         dropOn(within(dialog).getByTestId("custom-model"), [quadFile(), wall]);
         await previewOf(dialog, "quad");
-        await userEvent.click(within(dialog).getByRole("checkbox", { name: "Load this model" }));
-        await userEvent.click(within(dialog).getByRole("button", { name: "Next model" }));
+        await userEvent.click(
+            page.elementLocator(dialog).getByRole("checkbox", { name: "Load this model", exact: true }),
+        );
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Next model", exact: true }));
         await previewOf(dialog, "wall");
-        await userEvent.click(within(dialog).getByRole("checkbox", { name: "Load this model" }));
+        await userEvent.click(
+            page.elementLocator(dialog).getByRole("checkbox", { name: "Load this model", exact: true }),
+        );
         const add = within(dialog).getByRole("button", { name: "Add model" });
         assert.equal(add.getAttribute("aria-disabled"), "true");
     });
@@ -594,16 +605,18 @@ describe("the Load custom model dialog, on the real element", () => {
         const refusal = await within(dialog).findByTestId("model-refusal");
         assert.match(refusal.textContent, /^Not loaded: /, "damaged.ply cannot be drawn, said under the loader");
         assertNoPills(dialog, "a model it cannot draw");
-        await userEvent.click(within(dialog).getByRole("button", { name: "Next model" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Next model", exact: true }));
         await previewOf(dialog, "points");
         const add = within(dialog).getByRole("button", { name: "Add 2 models" });
         assert.equal(add.getAttribute("aria-disabled"), "true", "the model not on screen still blocks Add");
 
-        await userEvent.click(within(dialog).getByRole("button", { name: "Previous model" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Previous model", exact: true }));
         await within(dialog).findByTestId("model-refusal");
         assert.isNull(within(preview).queryByText(/Not loaded/), "the box shows the cube, not words");
-        await userEvent.click(within(dialog).getByRole("checkbox", { name: "Load this model" }));
-        await userEvent.click(within(dialog).getByRole("button", { name: "Next model" }));
+        await userEvent.click(
+            page.elementLocator(dialog).getByRole("checkbox", { name: "Load this model", exact: true }),
+        );
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Next model", exact: true }));
         await previewOf(dialog, "points");
         await addModel(dialog);
         await waitFor(() => {
@@ -623,7 +636,7 @@ describe("the Load custom model dialog, on the real element", () => {
         assert.equal(within(dialog).getByTestId("model-position").textContent, "1 of 2");
         const add = within(dialog).getByRole("button", { name: "Add 2 models" });
         assert.equal(add.getAttribute("aria-disabled"), "true", "the model never shown blocks Add");
-        await userEvent.hover(add);
+        await userEvent.hover(page.elementLocator(dialog).getByRole("button", { name: "Add 2 models", exact: true }));
         // Not "Loading zz-damaged" while it is checked: the reason it cannot be drawn.
         await screen.findByRole("tooltip", { name: /^zz-damaged: / });
         // Said on screen too, without stepping to it.
@@ -639,7 +652,9 @@ describe("the Load custom model dialog, on the real element", () => {
         const files = (): File[] => [quadFile(), new File([quadGlb()], "wall.glb", { type: "model/gltf-binary" })];
         dropOn(within(dialog).getByTestId("custom-model"), files());
         await previewOf(dialog, "quad");
-        await userEvent.click(within(dialog).getByRole("button", { name: "Remove 2 models" }));
+        await userEvent.click(
+            page.elementLocator(dialog).getByRole("button", { name: "Remove 2 models", exact: true }),
+        );
         dropOn(within(dialog).getByTestId("custom-model"), files());
         await previewOf(dialog, "quad");
         const add = within(dialog).getByRole("button", { name: "Add 2 models" });
@@ -752,12 +767,14 @@ describe("the Load custom model dialog, on the real element", () => {
             .filter((el) => !files.contains(el));
         assert.lengthOf(said, 1, "the name is said once");
         assert.isNotNull(within(files).getByText("quad.glb"), "Files lists the one file loaded");
-        const name = within(dialog).getByRole("textbox", { name: "Name" });
-        await userEvent.clear(name);
-        await userEvent.type(name, "Panel");
+        const name = (): Locator => page.elementLocator(dialog).getByRole("textbox", { name: "Name", exact: true });
+        await userEvent.clear(name());
+        await userEvent.type(name(), "Panel");
         await openSettings(dialog);
         await closeSettings();
-        await userEvent.click(within(dialog).getByRole("button", { name: "Remove quad.glb" }));
+        await userEvent.click(
+            page.elementLocator(dialog).getByRole("button", { name: "Remove quad.glb", exact: true }),
+        );
 
         await within(dialog).findByRole("button", { name: "Choose file" });
         assert.equal(
@@ -794,7 +811,9 @@ describe("the Load custom model dialog, on the real element", () => {
         await previewOf(dialog, "police");
         assert.isNotNull(within(dialog).getByRole("group", { name: "colormap.png" }), "the picture is still asked for");
 
-        await userEvent.click(await within(dialog).findByRole("button", { name: "Remove police.glb" }));
+        await userEvent.click(
+            page.elementLocator(dialog).getByRole("button", { name: "Remove police.glb", exact: true }),
+        );
         await choose(dialog, "Choose file", [`${VARIANTS}/obj-mtl-png/cube.obj`]);
         await previewOf(dialog, "cube");
         assert.isNotNull(within(dialog).getByRole("group", { name: "cube.mtl" }), "the material is still asked for");
@@ -846,7 +865,7 @@ describe("the Load custom model dialog, on the real element", () => {
         let dialog = await openCustom(tab);
         await choose(dialog, "Choose file", [quadFile()]);
         await previewOf(dialog, "quad");
-        await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Cancel", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog", { name: "Load custom model" }));
         });
@@ -866,7 +885,7 @@ describe("the Load custom model dialog, on the real element", () => {
         await choose(dialog, "Choose file", [quadFile()]);
         // The project's quad is never the dialog's to change: it loads a second model of it.
         await previewOf(dialog, "quad 2");
-        await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Cancel", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog", { name: "Load custom model" }));
         });
@@ -878,9 +897,9 @@ describe("the Load custom model dialog, on the real element", () => {
         const dialog = await openCustom(tab);
         await choose(dialog, "Choose file", [quadFile()]);
         await previewOf(dialog, "quad");
-        const name = within(dialog).getByRole("textbox", { name: "Name" });
-        await userEvent.clear(name);
-        await userEvent.type(name, "Cruiser{Enter}");
+        const name = (): Locator => page.elementLocator(dialog).getByRole("textbox", { name: "Name", exact: true });
+        await userEvent.clear(name());
+        await userEvent.type(name(), "Cruiser{Enter}");
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog", { name: "Load custom model" }));
         });
@@ -911,12 +930,12 @@ describe("the Load custom model dialog, on the real element", () => {
             within(rows).queryByRole("combobox", { name: /^Wireframe, / }),
             "a layer's own rows need a layer",
         );
-        await userEvent.click(within(rows).getByRole("combobox", { name: /^Up, / }));
-        await userEvent.click(await screen.findByRole("option", { name: "Z" }));
+        await userEvent.click(page.elementLocator(rows).getByRole("combobox", { name: /^Up, / }));
+        await userEvent.click(page.getByRole("option", { name: "Z", exact: true }));
         await waitFor(() => {
             assert.notEqual(previewPicture(dialog, "quad"), before);
         });
-        await userEvent.type(within(rows).getByRole("textbox", { name: /^Turn/ }), "90");
+        await userEvent.type(page.elementLocator(rows).getByRole("textbox", { name: /^Turn/ }), "90");
         await userEvent.tab();
         await addModel(dialog, "Add to project");
         const ref = await waitFor(() => {
@@ -942,7 +961,7 @@ describe("the Load custom model dialog, on the real element", () => {
         await previewOf(dialog, "police");
         const before = previewPicture(dialog, "police");
         const rows = await openSettings(dialog);
-        await userEvent.click(within(rows).getByLabelText("Model picture, Choose"));
+        await userEvent.click(page.elementLocator(rows).getByLabelText("Model picture, Choose", { exact: true }));
         const picture = await screen.findByRole("dialog", { name: "Picture" });
         await choose(picture, "Choose picture", [new File([dotPng()], "dot.png", { type: "image/png" })]);
         assert.isNotNull(await within(rows).findByLabelText("Model picture, dot"));
@@ -962,7 +981,9 @@ describe("the Load custom model dialog, on the real element", () => {
         const dialog = await openCustom(tab);
         await choose(dialog, "Choose file", [quadFile()]);
         await previewOf(dialog, "quad");
-        await userEvent.click(within(await openSettings(dialog)).getByLabelText("Model picture, Choose"));
+        await userEvent.click(
+            page.elementLocator(await openSettings(dialog)).getByLabelText("Model picture, Choose", { exact: true }),
+        );
         await screen.findByRole("dialog", { name: "Picture" });
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
@@ -978,7 +999,7 @@ describe("the Load custom model dialog, on the real element", () => {
         assert.isTrue(dialog.isConnected, "the dialog stays");
         assert.isNotEmpty(within(dialog).queryAllByTitle("quad.glb"), "with its model");
         // With both gone, Escape closes the dialog again.
-        await userEvent.click(within(dialog).getByRole("textbox", { name: "Name" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("textbox", { name: "Name", exact: true }));
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.isFalse(dialog.isConnected, "the dialog closed");
@@ -994,12 +1015,14 @@ describe("the Load custom model dialog, on the real element", () => {
         await closeSettings();
         // Hovered, the column draws its scrollbar when it overflows: the x stays clear of where the
         // thumb takes clicks (checked with a short window in a browser; this test's window is tall).
-        await userEvent.hover(dialog.querySelector(".ws-model-main") as HTMLElement);
+        await userEvent.hover(page.elementLocator(dialog).getByCss(".ws-model-main").first());
         const x = within(dialog).getByRole("button", { name: "Remove quad.glb" });
         const box = x.getBoundingClientRect();
         const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
         assert.isTrue(x.contains(hit), `the x is on top, not ${String(hit?.className)}`);
-        await userEvent.click(x);
+        await userEvent.click(
+            page.elementLocator(dialog).getByRole("button", { name: "Remove quad.glb", exact: true }),
+        );
         await within(dialog).findByRole("button", { name: "Choose file" });
     });
 
@@ -1036,8 +1059,8 @@ describe("the Load custom model dialog, on the real element", () => {
         const rows = await openSettings(dialog);
         await assertTwoColumns(dialog, "settings open");
         assert.deepEqual(preview.getBoundingClientRect().toJSON(), box.toJSON(), "the model stays where it was");
-        await userEvent.click(within(rows).getByRole("button", { name: "Tip forward" }));
-        await userEvent.click(within(rows).getByRole("button", { name: "Turn left" }));
+        await userEvent.click(page.elementLocator(rows).getByRole("button", { name: "Tip forward", exact: true }));
+        await userEvent.click(page.elementLocator(rows).getByRole("button", { name: "Turn left", exact: true }));
         await closeSettings();
         await assertTwoColumns(dialog, "settings closed again");
         assert.deepEqual(
@@ -1133,7 +1156,7 @@ describe("the Load custom model dialog, on the real element", () => {
         assert.include(within(dialog).getByTestId("model-again").textContent, "quad", "the dialog says so");
         assert.equal(within(dialog).getByRole<HTMLInputElement>("textbox", { name: "Name" }).value, "quad 2");
         const rows = await openSettings(dialog);
-        await userEvent.click(within(rows).getByRole("button", { name: "Tip forward" }));
+        await userEvent.click(page.elementLocator(rows).getByRole("button", { name: "Tip forward", exact: true }));
         await addModel(dialog, "Add to project");
         const accepted = session.assets.list().filter((r) => r.kind === "model" && r.state === "accepted");
         assert.equal(accepted.length, 2, "two models of one file");
@@ -1165,7 +1188,7 @@ describe("the Load custom model dialog, on the real element", () => {
         const dialog = await fromMenu();
         await choose(dialog, "Choose file", [`${VARIANTS}/zip-two-models/two.zip`]);
         await within(dialog).findByTestId("model-position");
-        await userEvent.click(within(dialog).getByRole("button", { name: "Next model" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Next model", exact: true }));
         await waitFor(() => {
             assert.equal(within(dialog).getByTestId("model-position").textContent, "2 of 2");
         });
@@ -1200,9 +1223,9 @@ describe("the Load custom model dialog, on the real element", () => {
         const group = within(rows).getByRole("group", { name: "Animation" });
         assert.isNotNull(within(group).getByRole("combobox", { name: /^Clip, spin, / }), "the first clip");
         // Off, the model is still; a clip chosen from the menu then holds a pose of it.
-        await userEvent.click(within(group).getByRole("switch", { name: "Playing" }));
-        await userEvent.click(within(group).getByRole("combobox", { name: /^Clip, / }));
-        await userEvent.click(await screen.findByRole("option", { name: /^spin, / }));
+        await userEvent.click(page.elementLocator(group).getByRole("switch", { name: "Playing", exact: true }));
+        await userEvent.click(page.elementLocator(group).getByRole("combobox", { name: /^Clip, / }));
+        await userEvent.click(page.getByRole("option", { name: /^spin, / }));
         const pose = await within(group).findByRole("slider", { name: "Pose" });
         await dragAcross(pose, 60);
         await waitFor(() => {
@@ -1225,7 +1248,7 @@ describe("the Load custom model dialog, on the real element", () => {
         await choose(dialog, "Choose file", [`${VARIANTS}/gltf-animated/cube.glb`]);
         await previewOf(dialog, "cube");
         const rows = await openSettings(dialog);
-        await userEvent.click(within(rows).getByRole("switch", { name: "Playing" }));
+        await userEvent.click(page.elementLocator(rows).getByRole("switch", { name: "Playing", exact: true }));
         assert.isNotNull(within(rows).getByRole("combobox", { name: /^Clip, Still/ }), "the menu reads Still");
         assert.isNull(within(rows).queryByRole("slider", { name: "Pose" }), "no pose without a clip");
         await addModel(dialog, "Add to project");
@@ -1260,16 +1283,16 @@ describe("the Load custom model dialog, on the real element", () => {
         assert.isNotNull(within(group).getByRole("textbox", { name: /^Speed/ }));
         assert.isNotNull(within(group).getByRole("textbox", { name: /^Start/ }));
         assert.isNull(within(group).queryByRole("slider", { name: "Pose" }));
-        await userEvent.click(within(group).getByRole("combobox", { name: /^Clip, / }));
-        const spin = await screen.findByRole("option", { name: /^spin, / });
+        await userEvent.click(page.elementLocator(group).getByRole("combobox", { name: /^Clip, / }));
+        await screen.findByRole("option", { name: /^spin, / });
         assert.isNull(screen.queryByRole("option", { name: "Still" }), "playing, the menu offers only clips");
-        await userEvent.click(spin);
+        await userEvent.click(page.getByRole("option", { name: /^spin, / }));
         // Speed starts unset: the placeholder, no minus.
         assert.isNull(within(group).queryByRole("button", { name: "Remove model speed" }));
         // Off: Still, then a clip chosen from the menu and its Pose, no Speed or Start.
-        await userEvent.click(playing);
-        await userEvent.click(within(group).getByRole("combobox", { name: /^Clip, Still/ }));
-        await userEvent.click(await screen.findByRole("option", { name: /^spin, / }));
+        await userEvent.click(page.elementLocator(group).getByRole("switch", { name: "Playing", exact: true }));
+        await userEvent.click(page.elementLocator(group).getByRole("combobox", { name: /^Clip, Still/ }));
+        await userEvent.click(page.getByRole("option", { name: /^spin, / }));
         const pose = await within(group).findByRole("slider", { name: "Pose" });
         pose.focus();
         await userEvent.keyboard("{ArrowRight}");
@@ -1277,7 +1300,7 @@ describe("the Load custom model dialog, on the real element", () => {
         assert.isNull(within(group).queryByText("Start"));
         assert.isNotNull(within(group).getByRole("combobox", { name: /^Clip, spin, / }));
         // On again: it plays.
-        await userEvent.click(within(group).getByRole("switch", { name: "Playing" }));
+        await userEvent.click(page.elementLocator(group).getByRole("switch", { name: "Playing", exact: true }));
         await within(group).findByText("Speed");
         assert.isNull(within(group).queryByRole("slider", { name: "Pose" }));
         // Off and on again leaves Speed and Start unset, as they were.
@@ -1362,7 +1385,9 @@ describe("the Load custom model dialog, on the real element", () => {
         const textures = within(rows).getByRole("group", { name: "Textures" });
         const all = within(textures).getByRole("checkbox", { name: "All textures" });
         assert.isTrue((all as HTMLInputElement).checked);
-        await userEvent.click(all);
+        await userEvent.click(
+            page.elementLocator(textures).getByRole("checkbox", { name: "All textures", exact: true }),
+        );
         await waitFor(() => {
             assert.notEqual(previewPicture(dialog, "police"), own, "drawn without its pictures");
         });
@@ -1400,7 +1425,9 @@ describe("the Load custom model dialog, on the real element", () => {
         assert.equal(getComputedStyle(name).textOverflow, "ellipsis");
         const edge = screen.getByRole("dialog", { name: "Model settings" }).getBoundingClientRect().right;
         assert.isAtMost(name.getBoundingClientRect().right, edge, "inside the pop-over");
-        await userEvent.hover(name);
+        await userEvent.hover(
+            page.elementLocator(rows).getByText(long, { exact: true }).and(page.getByCss(".ws-model-texture-name")),
+        );
         assert.isNotNull(await screen.findByText(long, { selector: ".mantine-Tooltip-tooltip" }));
     });
 
@@ -1438,7 +1465,7 @@ describe("the Load custom model dialog, on the real element", () => {
         const dialog = await openCustom(tab);
         await choose(dialog, "Choose file", [`${VARIANTS}/gltf-bin/cube.gltf`]);
         await within(dialog).findByRole("group", { name: "cube.bin" });
-        await userEvent.click(within(dialog).getByRole("button", { name: "Add model" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Add model", exact: true }));
         assert.isNotNull(await within(dialog).findByTestId("model-refusal"));
         assert.isTrue(dialog.isConnected, "the dialog stays");
     });
@@ -1449,7 +1476,7 @@ describe("the Load custom model dialog, on the real element", () => {
         await choose(dialog, "Choose file", [await fixture(policeUrl, "police.glb")]);
         await previewOf(dialog, "police");
         session.assets.setLimits({ sessionBytes: 1 });
-        await userEvent.click(within(dialog).getByRole("button", { name: "Add to project" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Add to project", exact: true }));
         assert.isNotNull(await within(dialog).findByTestId("model-refusal"));
         assert.isTrue(dialog.isConnected, "the dialog stays");
         assert.notInclude(models(session), "police.glb");
@@ -1468,7 +1495,10 @@ describe("the Load custom model dialog, on the real element", () => {
         const slow = slowFetch(url, body);
         const { session, tab } = await openShapes();
         const dialog = await openCustom(tab);
-        await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), `${url}{Enter}`);
+        await userEvent.type(
+            page.elementLocator(dialog).getByRole("textbox", { name: "Model address", exact: true }),
+            `${url}{Enter}`,
+        );
         assert.isNotNull(await within(dialog).findByText("Downloading"));
         const bar = within(dialog).getByRole("progressbar");
         const field = within(dialog).getByRole("textbox", { name: "Model address" });
@@ -1479,7 +1509,7 @@ describe("the Load custom model dialog, on the real element", () => {
         });
         slow.push?.(body);
         assert.isNotNull(await within(dialog).findByText(/ of /), "the bytes so far, of the size the server gave");
-        await userEvent.click(within(dialog).getByRole("button", { name: "Cancel load" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Cancel load", exact: true }));
         await waitFor(() => {
             assert.isFalse(
                 within(dialog).getByRole<HTMLButtonElement>("button", { name: "Choose file" }).disabled,
@@ -1498,8 +1528,9 @@ describe("the Load custom model dialog, on the real element", () => {
         const fetches = vi.mocked(globalThis.fetch);
         const { tab } = await openShapes();
         const dialog = await openCustom(tab);
-        const field = within(dialog).getByRole("textbox", { name: "Model address" });
-        await userEvent.type(field, url);
+        const field = (): Locator =>
+            page.elementLocator(dialog).getByRole("textbox", { name: "Model address", exact: true });
+        await userEvent.type(field(), url);
         await userEvent.tab();
         assert.isNotNull(await within(dialog).findByText("Downloading"), "Tab out of the field loads it");
         await waitFor(() => {
@@ -1509,7 +1540,7 @@ describe("the Load custom model dialog, on the real element", () => {
             ([input]) => String(input instanceof Request ? input.url : input) === url,
         );
         assert.lengthOf(asked, 1, "one download");
-        await userEvent.click(within(dialog).getByRole("button", { name: "Cancel load" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Cancel load", exact: true }));
         await waitFor(() => {
             assert.isTrue(slow.canceled, "the download stopped");
         });
@@ -1533,23 +1564,28 @@ describe("the Load custom model dialog, on the real element", () => {
         const { tab } = await openShapes();
         const dialog = await openCustom(tab);
         const field = within(dialog).getByRole<HTMLInputElement>("textbox", { name: "Model address" });
-        await userEvent.type(field, "https://github.com/acme/kit/blob/main/quad.glb");
+        await userEvent.type(
+            page.elementLocator(dialog).getByRole("textbox", { name: "Model address", exact: true }),
+            "https://github.com/acme/kit/blob/main/quad.glb",
+        );
         await userEvent.tab();
         assert.isNotNull(
             await within(dialog).findByText("Web page: github.com -- check the address or choose the file instead"),
         );
         assert.isNull(within(dialog).queryByRole("button", { name: "Retry" }), "a page is not retried");
 
-        await userEvent.click(within(dialog).getByRole("button", { name: "Use file address" }));
+        await userEvent.click(
+            page.elementLocator(dialog).getByRole("button", { name: "Use file address", exact: true }),
+        );
         assert.strictEqual(field.value, raw, "the file's own address is filled in");
         assert.isNull(within(dialog).queryByText(/^Web page: /), "the page's line goes");
         // The address filled in counts as given: leaving the field loads nothing, Enter loads it.
-        await userEvent.click(field);
+        await userEvent.click(page.elementLocator(dialog).getByRole("textbox", { name: "Model address", exact: true }));
         await userEvent.keyboard("{Enter}");
         assert.isNotNull(await within(dialog).findByText(/^Not reached: .*404 -- check the address/));
         assert.isNull(within(dialog).queryByRole("button", { name: "Use file address" }));
 
-        await userEvent.click(within(dialog).getByRole("button", { name: "Retry" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Retry", exact: true }));
         await previewOf(dialog, "quad");
         assert.strictEqual(asked, 2, "Retry asked for the same address again");
         assert.isNull(within(dialog).queryByRole("button", { name: "Retry" }), "loaded, nothing to retry");
@@ -1568,7 +1604,10 @@ describe("the Load custom model dialog, on the real element", () => {
             shown.add(dialog.querySelector("[data-testid=model-preview]")?.textContent ?? "");
         });
         watch.observe(dialog, { subtree: true, childList: true, characterData: true });
-        await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), `${base}police.glb`);
+        await userEvent.type(
+            page.elementLocator(dialog).getByRole("textbox", { name: "Model address", exact: true }),
+            `${base}police.glb`,
+        );
         await userEvent.tab();
         await previewOf(dialog, "police");
         watch.disconnect();
@@ -1586,13 +1625,13 @@ describe("the Load custom model dialog, on the real element", () => {
             "no size for a picture still on its way",
         );
         const rows = await openSettings(dialog);
-        await userEvent.click(within(rows).getByRole("button", { name: "Turn left" }));
+        await userEvent.click(page.elementLocator(rows).getByRole("button", { name: "Turn left", exact: true }));
         await closeSettings();
         const add = within(dialog).getByRole("button", { name: "Add to project" });
         assert.isNull(add.getAttribute("aria-disabled"), "Add can be pressed before its picture arrives");
         // Pressed while the picture downloads, Add waits for it: the model is added with its picture,
         // never without it (FlightHelmet and Sponza lost half their textures to an early Add, #8609).
-        await userEvent.click(add);
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Add to project", exact: true }));
         await waitFor(() => {
             assert.isNotNull(add.getAttribute("data-loading"), "Add shows it is waiting");
         });
@@ -1616,12 +1655,15 @@ describe("the Load custom model dialog, on the real element", () => {
         const served = waitingForPicture(`${base}cube.glb`, withOutsidePicture(cube, "pic.png"), `${base}pic.png`);
         const { session } = await openShapes();
         const dialog = await fromMenu();
-        await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), `${base}cube.glb`);
+        await userEvent.type(
+            page.elementLocator(dialog).getByRole("textbox", { name: "Model address", exact: true }),
+            `${base}cube.glb`,
+        );
         await userEvent.tab();
         await previewOf(dialog, "cube");
         assert.isNotNull(within(dialog).getByRole("button", { name: "Cancel load" }), "its picture still downloads");
         const add = within(dialog).getByRole("button", { name: "Add to project" });
-        await userEvent.click(add);
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Add to project", exact: true }));
         await waitFor(() => {
             assert.isNotNull(add.getAttribute("data-loading"), "Add waits for the picture");
         });
@@ -1640,10 +1682,13 @@ describe("the Load custom model dialog, on the real element", () => {
         const served = await policeWaitingForPicture(base);
         const { session, store } = await openShapes();
         const dialog = await fromMenu();
-        await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), `${base}police.glb`);
+        await userEvent.type(
+            page.elementLocator(dialog).getByRole("textbox", { name: "Model address", exact: true }),
+            `${base}police.glb`,
+        );
         await userEvent.tab();
         await previewOf(dialog, "police");
-        await userEvent.click(within(dialog).getByRole("button", { name: "Cancel load" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Cancel load", exact: true }));
         await waitFor(() => {
             assert.isTrue(served.stopped, "the picture's download stopped");
             assert.isNull(within(dialog).queryByRole("button", { name: "Cancel load" }), "nothing loads now");
@@ -1666,12 +1711,17 @@ describe("the Load custom model dialog, on the real element", () => {
         const served = await policeWaitingForPicture(base);
         await openShapes();
         const dialog = await fromMenu();
-        await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), `${base}police.glb`);
+        await userEvent.type(
+            page.elementLocator(dialog).getByRole("textbox", { name: "Model address", exact: true }),
+            `${base}police.glb`,
+        );
         await userEvent.tab();
         await previewOf(dialog, "police");
         const files = within(dialog).getByRole("region", { name: "Files" });
         assert.isNotNull(within(files).getByLabelText("Downloading colormap.png"), "still on its way");
-        await userEvent.click(within(files).getByRole("button", { name: "Remove colormap.png" }));
+        await userEvent.click(
+            page.elementLocator(files).getByRole("button", { name: "Remove colormap.png", exact: true }),
+        );
         await waitFor(() => {
             assert.isTrue(served.stopped, "the picture's download stopped");
         });
@@ -1687,12 +1737,15 @@ describe("the Load custom model dialog, on the real element", () => {
         const dialog = await openCustom(tab);
         // The browser's own tip on hover: the button's title.
         const folderButton = within(dialog).getByRole("button", { name: "Choose folder" });
-        await userEvent.hover(folderButton);
+        await userEvent.hover(page.elementLocator(dialog).getByRole("button", { name: "Choose folder", exact: true }));
         assert.match(
             String(folderButton.getAttribute("title")),
             /for a model exported with its textures and parts in a folder/,
         );
-        await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), `${url}{Enter}`);
+        await userEvent.type(
+            page.elementLocator(dialog).getByRole("textbox", { name: "Model address", exact: true }),
+            `${url}{Enter}`,
+        );
         assert.isNotNull(await within(dialog).findByText("Downloading"));
         await choose(dialog, "Choose file", [quadFile()]);
         await previewOf(dialog, "quad");
@@ -1714,7 +1767,7 @@ describe("the Load custom model dialog, on the real element", () => {
         // While its picture is missing, the model can still be set up before Add.
         assert.isNotNull(within(dialog).getByRole("button", { name: "Model settings" }));
         assert.isNotNull(within(dialog).getByTestId("model-details"));
-        await userEvent.click(remove);
+        await userEvent.click(page.elementLocator(files).getByRole("button", { name: "Remove cube.mtl", exact: true }));
         assert.isNotNull(await within(dialog).findByRole("group", { name: "cube.mtl" }), "asked for again");
         assert.isNull(within(files).queryByRole("button", { name: "Remove cube.mtl" }));
     });
@@ -1726,7 +1779,7 @@ describe("the Load custom model dialog, on the real element", () => {
         const row = await within(dialog).findByRole("group", { name: "cube.mtl" });
         await choose(row, "Choose cube.mtl", [`${VARIANTS}/obj-mtl/cube.mtl`]);
         const files = within(dialog).getByRole("region", { name: "Files" });
-        await userEvent.click(await within(files).findByRole("button", { name: "Remove cube.mtl" }));
+        await userEvent.click(page.elementLocator(files).getByRole("button", { name: "Remove cube.mtl", exact: true }));
         assert.isNotNull(await within(dialog).findByRole("group", { name: "cube.mtl" }), "asked for again");
         assert.isNull(within(files).queryByRole("button", { name: "Remove cube.mtl" }));
         const finished = session.assets.list().filter((r) => r.path === "cube.obj" && r.state === "accepted");
@@ -1754,7 +1807,10 @@ describe("the Load custom model dialog, on the real element", () => {
         });
         const { session } = await openShapes();
         const dialog = await fromMenu();
-        await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), `${base}pair.obj`);
+        await userEvent.type(
+            page.elementLocator(dialog).getByRole("textbox", { name: "Model address", exact: true }),
+            `${base}pair.obj`,
+        );
         await userEvent.tab();
         await previewOf(dialog, "pair");
         const textured = session.assets.list().find((r) => r.path === "pair.obj" && r.state === "accepted");
@@ -1777,15 +1833,17 @@ describe("the Load custom model dialog, on the real element", () => {
             await gate;
             return out;
         });
-        await userEvent.click(within(files).getByRole("button", { name: "Remove a.png" }));
-        await userEvent.click(within(files).getByRole("button", { name: "Remove b.png" }));
+        await userEvent.click(page.elementLocator(files).getByRole("button", { name: "Remove a.png", exact: true }));
+        await userEvent.click(page.elementLocator(files).getByRole("button", { name: "Remove b.png", exact: true }));
         release();
         await within(dialog).findByRole("group", { name: "a.png" });
         await within(dialog).findByRole("group", { name: "b.png" });
         assert.isNull(within(dialog).queryByTestId("model-refusal"), "no model lost on the way");
         for (const name of ["a.png", "b.png"]) {
             const row = within(dialog).getByRole("group", { name });
-            await userEvent.click(within(row).getByRole("button", { name: `Load without ${name}` }));
+            await userEvent.click(
+                page.elementLocator(row).getByRole("button", { name: `Load without ${name}`, exact: true }),
+            );
         }
         const details = within(dialog).getByRole("region", { name: "Details" });
         await waitFor(() => {
@@ -1810,18 +1868,23 @@ describe("the Load custom model dialog, on the real element", () => {
         const served = await policeWaitingForPicture(base);
         const { session } = await openShapes();
         const dialog = await fromMenu();
-        await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), `${base}police.glb`);
+        await userEvent.type(
+            page.elementLocator(dialog).getByRole("textbox", { name: "Model address", exact: true }),
+            `${base}police.glb`,
+        );
         await userEvent.tab();
         await previewOf(dialog, "police");
         const rows = await openSettings(dialog);
-        await userEvent.click(within(rows).getByRole("button", { name: "Turn left" }));
+        await userEvent.click(page.elementLocator(rows).getByRole("button", { name: "Turn left", exact: true }));
         await closeSettings();
         const before = session.history.steps.length;
         const add = within(dialog).getByRole("button", { name: "Add to project" });
         await waitFor(() => {
             assert.isNull(add.getAttribute("aria-disabled"));
         });
-        await userEvent.dblClick(add);
+        await userEvent.dblClick(
+            page.elementLocator(dialog).getByRole("button", { name: "Add to project", exact: true }),
+        );
         served.arrive(new Uint8Array(await (await fetch(colormapUrl)).arrayBuffer()));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog", { name: "Load custom model" }));
@@ -1842,7 +1905,10 @@ describe("the Load custom model dialog, on the real element", () => {
         const slow = slowFetch(url, quadGlb());
         const { tab } = await openShapes();
         const dialog = await openCustom(tab);
-        await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), `${url}{Enter}`);
+        await userEvent.type(
+            page.elementLocator(dialog).getByRole("textbox", { name: "Model address", exact: true }),
+            `${url}{Enter}`,
+        );
         assert.isNotNull(await within(dialog).findByText("Downloading"));
         dropOn(within(dialog).getByTestId("custom-model"), [quadFile()]);
         await previewOf(dialog, "quad");
@@ -1914,7 +1980,9 @@ describe("the Load custom model dialog, on the real element", () => {
         const dialog = await openCustom(tab);
         dropOn(within(dialog).getByTestId("custom-model"), [new File([dotPng()], "colormap.png")]);
         assert.isNotNull(await within(dialog).findByText(/^colormap is a picture, not a 3D model/));
-        await userEvent.click(within(dialog).getByRole("button", { name: "Use colormap as picture" }));
+        await userEvent.click(
+            page.elementLocator(dialog).getByRole("button", { name: "Use colormap as picture", exact: true }),
+        );
         await waitFor(() => {
             assert.match(String(written(session, "node.texture")), /^asset:/);
         });
@@ -1938,11 +2006,14 @@ describe("the Load custom model dialog, on the real element", () => {
         });
         const { session, tab } = await openShapes();
         const dialog = await openCustom(tab);
-        await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), `${url}{Enter}`);
+        await userEvent.type(
+            page.elementLocator(dialog).getByRole("textbox", { name: "Model address", exact: true }),
+            `${url}{Enter}`,
+        );
         await waitFor(() => {
             assert.include(asked, url);
         });
-        await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Cancel", exact: true }));
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog", { name: "Load custom model" }));
         });
@@ -1994,7 +2065,7 @@ describe("the Load custom model dialog, on the real element", () => {
         assert.isBelow(at.top - box.top, 12, "at its top edge");
         const hit = document.elementFromPoint(at.left + at.width / 2, at.top + at.height / 2);
         assert.isTrue(reset.contains(hit), "above the canvas");
-        await userEvent.click(reset);
+        await userEvent.click(page.elementLocator(dialog).getByRole("button", { name: "Reset view", exact: true }));
         await waitFor(() => {
             assert.equal(previewPicture(dialog, "cube"), start, "back to the first view");
         });
@@ -2013,14 +2084,14 @@ describe("the Load custom model dialog, on the real element", () => {
         await previewOf(dialog, "police");
         const own = previewPicture(dialog, "police");
         const rows = await openSettings(dialog);
-        await userEvent.click(within(rows).getByRole("combobox", { name: /^Color, / }));
-        await userEvent.click(await screen.findByRole("option", { name: "Node color only, no pictures" }));
+        await userEvent.click(page.elementLocator(rows).getByRole("combobox", { name: /^Color, / }));
+        await userEvent.click(page.getByRole("option", { name: "Node color only, no pictures", exact: true }));
         await waitFor(() => {
             assert.notEqual(previewPicture(dialog, "police"), own, "the pictures are gone");
         });
         const flat = previewPicture(dialog, "police");
-        await userEvent.click(within(rows).getByRole("combobox", { name: /^Wireframe, / }));
-        await userEvent.click(await screen.findByRole("option", { name: "On" }));
+        await userEvent.click(page.elementLocator(rows).getByRole("combobox", { name: /^Wireframe, / }));
+        await userEvent.click(page.getByRole("option", { name: "On", exact: true }));
         await waitFor(() => {
             assert.notEqual(previewPicture(dialog, "police"), flat, "drawn as wires");
         });
@@ -2054,9 +2125,9 @@ describe("the Load custom model dialog, on the real element", () => {
         const dialog = await openCustom(tab);
         await choose(dialog, "Choose file", [quadFile()]);
         await previewOf(dialog, "quad");
-        const name = within(dialog).getByRole("textbox", { name: "Name" });
-        await userEvent.clear(name);
-        await userEvent.type(name, "Panel");
+        const name = (): Locator => page.elementLocator(dialog).getByRole("textbox", { name: "Name", exact: true });
+        await userEvent.clear(name());
+        await userEvent.type(name(), "Panel");
         const said: string[] = [];
         const stop = store.subscribe(() => {
             said.push(store.get().announcement);
@@ -2079,10 +2150,11 @@ describe("the Load custom model dialog, on the real element", () => {
         await choose(dialog, "Choose file", [quadFile()]);
         await previewOf(dialog, "quad");
         const rows = await openSettings(dialog);
-        await userEvent.click(within(rows).getByRole("combobox", { name: /^Wireframe, / }));
-        await userEvent.click(await screen.findByRole("option", { name: "On" }));
-        const remove = await within(rows).findByRole("button", { name: "Remove model wireframe" });
-        await userEvent.click(remove);
+        await userEvent.click(page.elementLocator(rows).getByRole("combobox", { name: /^Wireframe, / }));
+        await userEvent.click(page.getByRole("option", { name: "On", exact: true }));
+        const remove = (): Locator =>
+            page.elementLocator(rows).getByRole("button", { name: "Remove model wireframe", exact: true });
+        await userEvent.click(remove());
         await waitFor(() => {
             assert.isNull(within(rows).queryByRole("button", { name: "Remove model wireframe" }), "its x goes");
         });

@@ -11,7 +11,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
@@ -73,7 +73,7 @@ async function openBinding(store: WorkspaceStore, layer: Layer, channel: Channel
     store.set({ inspected: { kind: "layer-row", id: layer.id } });
     const tab = await screen.findByTestId("style-tab", {});
     const pill = channel === "node.color" ? /^Node color: / : /^Edge color: /;
-    await userEvent.click(await within(tab).findByRole("button", { name: pill }));
+    await userEvent.click(page.elementLocator(tab).getByRole("button", { name: pill, exact: true }));
     return screen.findByRole("group", { name: "Color binding" });
 }
 
@@ -95,8 +95,8 @@ function bindingOf(session: GraphSession, layer: Layer, channel: Channel): DataB
  * @param option - the option's name.
  */
 async function pick(popover: HTMLElement, label: RegExp, option: RegExp): Promise<void> {
-    await userEvent.click(within(popover).getByRole("combobox", { name: label }));
-    await userEvent.click(await screen.findByRole("option", { name: option }));
+    await userEvent.click(page.elementLocator(popover).getByRole("combobox", { name: label, exact: true }));
+    await userEvent.click(page.getByRole("option", { name: option, exact: true }));
 }
 
 describe("the binding popover's other paths on the real element", () => {
@@ -117,7 +117,7 @@ describe("the binding popover's other paths on the real element", () => {
         });
 
         // A palette picked by name, then reset to the default.
-        await userEvent.click(within(popover).getByRole("combobox", { name: /^Palette/ }));
+        await userEvent.click(page.elementLocator(popover).getByRole("combobox", { name: /^Palette/ }));
         const other = (await screen.findAllByRole("option")).find((option) => option.textContent !== before);
         if (other === undefined) {
             throw new Error("only one palette is offered");
@@ -126,7 +126,9 @@ describe("the binding popover's other paths on the real element", () => {
         await waitFor(() => {
             assert.isString(bindingOf(session, layer, "node.color").palette, "the palette is named");
         });
-        await userEvent.click(await within(popover).findByRole("button", { name: /^Reset the .*palette to default/ }));
+        await userEvent.click(
+            page.elementLocator(popover).getByRole("button", { name: /^Reset the .*palette to default/ }),
+        );
         await waitFor(() => {
             assert.isUndefined(bindingOf(session, layer, "node.color").palette, "the reset clears the palette");
         });
@@ -136,8 +138,8 @@ describe("the binding popover's other paths on the real element", () => {
             const { missing } = bindingOf(session, layer, "node.color");
             assert.match(missing === "skip" || missing === undefined ? "" : String(missing.value), /^#/, "a color");
         });
-        const box = await within(popover).findByRole("textbox", { name: /^Value color/ });
-        await userEvent.click(box);
+        const box = (): Locator => page.elementLocator(popover).getByRole("textbox", { name: /^Value color/ });
+        await userEvent.click(box());
         await userEvent.keyboard("{Control>}a{/Control}#123456{Enter}");
         await waitFor(() => {
             assert.deepEqual(bindingOf(session, layer, "node.color").missing, { value: "#123456" });
@@ -145,7 +147,9 @@ describe("the binding popover's other paths on the real element", () => {
 
         // Read as written, the values paint themselves: no palette. "Use a palette" is offered back
         // but not clicked: it leaves an empty number ramp (#9622).
-        await userEvent.click(within(popover).getByRole("button", { name: "Use the values as colors" }));
+        await userEvent.click(
+            page.elementLocator(popover).getByRole("button", { name: "Use the values as colors", exact: true }),
+        );
         await waitFor(() => {
             assert.equal(bindingOf(session, layer, "node.color").scale, "passthrough");
             assert.isNull(
@@ -164,20 +168,23 @@ describe("the binding popover's other paths on the real element", () => {
         await waitFor(() => {
             assert.equal(bindingOf(session, layer, "node.color").palette, "purple-green");
         });
-        const midpoint = await within(popover).findByRole("textbox", { name: "Midpoint" });
-        await userEvent.click(midpoint);
+        const midpoint = (): Locator =>
+            page.elementLocator(popover).getByRole("textbox", { name: "Midpoint", exact: true });
+        await userEvent.click(midpoint());
         await userEvent.keyboard("{Control>}a{/Control}5{Enter}");
         await waitFor(() => {
             assert.equal(bindingOf(session, layer, "node.color").midpoint, 5);
         });
 
-        await userEvent.click(within(popover).getByRole("button", { name: "Reverse palette" }));
+        await userEvent.click(
+            page.elementLocator(popover).getByRole("button", { name: "Reverse palette", exact: true }),
+        );
         await waitFor(() => {
             assert.isTrue(bindingOf(session, layer, "node.color").reverse);
         });
 
         // Twenty-two nodes have no score: the chit gives them one color.
-        await userEvent.click(within(popover).getByRole("button", { name: /^No value: 22/ }));
+        await userEvent.click(page.elementLocator(popover).getByRole("button", { name: /^No value: 22/ }));
         await waitFor(() => {
             const { missing } = bindingOf(session, layer, "node.color");
             assert.isObject(missing, "the chit paints the nodes with no score");
@@ -191,8 +198,8 @@ describe("the binding popover's other paths on the real element", () => {
         const steps = await within(popover).findByRole("list", { name: "Steps" });
         const first = within(steps).getAllByRole("listitem")[0];
         const count = Number.parseInt((first.getAttribute("aria-label") ?? "").split(", ").pop() ?? "", 10);
-        await userEvent.click(within(first).getByRole("button", { name: / actions$/ }));
-        await userEvent.click(await within(popover).findByRole("menuitem", { name: /^Select these / }));
+        await userEvent.click(page.elementLocator(first).getByRole("button", { name: / actions$/ }));
+        await userEvent.click(page.elementLocator(popover).getByRole("menuitem", { name: /^Select these / }));
         await waitFor(() => {
             assert.equal(session.selection.edges.length, count, "the step's edges are selected");
             assert.isAbove(session.selection.nodes.length, 0, "with their end nodes");
@@ -200,7 +207,7 @@ describe("the binding popover's other paths on the real element", () => {
 
         const again = await openBinding(store, layer, "edge.color");
         const change = within(again).getByRole("button", { name: "Change source" });
-        await userEvent.click(change);
+        await userEvent.click(page.elementLocator(again).getByRole("button", { name: "Change source", exact: true }));
         await within(again).findByRole("group", { name: "Change source" });
         await userEvent.keyboard("{Tab}");
         await waitFor(() => {

@@ -127,7 +127,7 @@ async function openMaximized(): Promise<{
         assert.isTrue(store.get().dockOpen);
     });
     const dock = await screen.findByRole("region", { name: "Table" });
-    await userEvent.click(within(dock).getByRole("button", { name: "Maximize table" }));
+    await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Maximize table", exact: true }));
     const config = await within(dock).findByRole("complementary", { name: "Table configuration" });
     return { store, session, dock, config, list: within(config).getByRole("list", { name: "Issues" }) };
 }
@@ -158,7 +158,7 @@ describe("the table dock's configuration", () => {
         // The toggle keeps one name, pressed or not.
         const maximize = within(dock).getByRole("button", { name: "Maximize table" });
         assert.strictEqual(maximize.getAttribute("aria-pressed"), "false");
-        await userEvent.click(maximize);
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Maximize table", exact: true }));
         await waitFor(() => {
             assert.isTrue(store.get().dockMaximized);
         });
@@ -200,18 +200,24 @@ describe("the table dock's configuration", () => {
         // Every issue is in its header: the warning's hover lists it with its buttons, and the
         // header's menu offers the same fixes and Ignore for the keyboard.
         for (const tab of ["Nodes", "Edges"] as const) {
-            await userEvent.click(within(dock).getByRole("tab", { name: tab }));
+            await userEvent.click(page.elementLocator(dock).getByRole("tab", { name: tab, exact: true }));
             for (const issue of ISSUES.filter((each) => each.tab === tab)) {
                 const cell = await waitFor(() => headerCell(issue.header));
                 // Without hovering, a screen reader hears each issue as the warning's description.
                 const warning = within(cell).getByRole("img", { name: `Issues in ${issue.header}` });
                 const description = document.getElementById(warning.getAttribute("aria-describedby") ?? "");
                 assert.include(description?.textContent, issue.label);
-                await userEvent.hover(within(cell).getByRole("img", { name: `Issues in ${issue.header}` }));
+                await userEvent.hover(
+                    page.elementLocator(cell).getByRole("img", { name: `Issues in ${issue.header}`, exact: true }),
+                );
                 const hover = await screen.findByRole("list", { name: `Issues in ${issue.header}` });
                 within(hover).getByRole("button", { name: `Ignore ${issue.label}` });
-                await userEvent.unhover(within(cell).getByRole("img", { name: `Issues in ${issue.header}` }));
-                await userEvent.click(within(cell).getByRole("button", { name: `Options for ${issue.header}` }));
+                await userEvent.unhover(
+                    page.elementLocator(cell).getByRole("img", { name: `Issues in ${issue.header}`, exact: true }),
+                );
+                await userEvent.click(
+                    page.elementLocator(cell).getByRole("button", { name: `Options for ${issue.header}`, exact: true }),
+                );
                 const menu = await screen.findByRole("menu");
                 within(menu).getByText(issue.label);
                 assert.isAtLeast(within(menu).getAllByRole("menuitem", { name: "Ignore" }).length, 1);
@@ -227,24 +233,30 @@ describe("the table dock's configuration", () => {
 
     it("fixes, ignores, hides and filters from the maximized table's headers and Issues list", async () => {
         const { store, session, dock, config, list } = await openMaximized();
-        await userEvent.click(within(dock).getByRole("tab", { name: "Edges" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("tab", { name: "Edges", exact: true }));
 
         // A fix from the header's hover: the "N/A" becomes blank, and the issue goes.
         const amount = headerCell("amount");
-        await userEvent.hover(within(amount).getByRole("img", { name: "Issues in amount" }));
+        await userEvent.hover(page.elementLocator(amount).getByRole("img", { name: "Issues in amount", exact: true }));
         const amountHover = await screen.findByRole("list", { name: "Issues in amount" });
-        await userEvent.click(within(amountHover).getByRole("button", { name: "Make blank: 1 not a number" }));
+        await userEvent.click(
+            page.elementLocator(amountHover).getByRole("button", { name: "Make blank: 1 not a number", exact: true }),
+        );
         await waitFor(() => {
             assert.isUndefined(session.data.issues().find((issue) => issue.code === "not-a-number"));
         });
-        await userEvent.unhover(within(amount).getByRole("img", { name: "Issues in amount" }));
+        await userEvent.unhover(
+            page.elementLocator(amount).getByRole("img", { name: "Issues in amount", exact: true }),
+        );
         // The fixed issue is listed under Resolved, with the fix that settled it.
-        await userEvent.click(await within(config).findByRole("button", { name: "Resolved 1" }));
+        await userEvent.click(page.elementLocator(config).getByRole("button", { name: "Resolved 1", exact: true }));
         const resolved = within(config).getByRole("list", { name: "Resolved" });
         within(resolved).getByRole("button", { name: "Make blank: 1 not a number" });
 
         // Ignore in the list: the issue leaves the list and the headers, and the toggle brings it back.
-        await userEvent.click(within(list).getByRole("button", { name: "Ignore 5 repeated edges" }));
+        await userEvent.click(
+            page.elementLocator(list).getByRole("button", { name: "Ignore 5 repeated edges", exact: true }),
+        );
         await waitFor(() => {
             assert.isUndefined(session.data.issues().find((issue) => issue.code === "repeated-edge"));
             assert.isTrue(
@@ -252,7 +264,7 @@ describe("the table dock's configuration", () => {
             );
         });
         assert.isNull(within(list).queryByText("5 repeated edges"));
-        await userEvent.click(within(config).getByRole("button", { name: "Ignored 1" }));
+        await userEvent.click(page.elementLocator(config).getByRole("button", { name: "Ignored 1", exact: true }));
         await within(list).findByRole("button", { name: "Restore 5 repeated edges" });
 
         // The body holds records only: every control of the grid is in its header row.
@@ -264,27 +276,33 @@ describe("the table dock's configuration", () => {
         }
 
         // Hide others on holder leaves one column; Unhide brings one back, then all the rest.
-        await userEvent.click(within(dock).getByRole("tab", { name: "Nodes" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("tab", { name: "Nodes", exact: true }));
         const before = await waitFor(() => {
             const names = headerNames("Nodes");
             assert.include(names, "holder");
             return names;
         });
-        await userEvent.click(within(headerCell("holder")).getByRole("button", { name: "Options for holder" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Hide others" }));
+        await userEvent.click(
+            page.elementLocator(headerCell("holder")).getByRole("button", { name: "Options for holder", exact: true }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: "Hide others", exact: true }));
         await waitFor(() => {
             assert.deepEqual(headerNames("Nodes"), ["holder"]);
         });
         assert.isTrue(session.data.attributes().some((a) => a.name === "opened" && a.hidden === true));
-        await userEvent.click(within(headerCell("holder")).getByRole("button", { name: "Options for holder" }));
-        await userEvent.hover(await screen.findByRole("menuitem", { name: "Unhide" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "opened" }));
+        await userEvent.click(
+            page.elementLocator(headerCell("holder")).getByRole("button", { name: "Options for holder", exact: true }),
+        );
+        await userEvent.hover(page.getByRole("menuitem", { name: "Unhide", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "opened", exact: true }));
         await waitFor(() => {
             assert.deepEqual(headerNames("Nodes"), ["holder", "opened"]);
         });
-        await userEvent.click(within(headerCell("holder")).getByRole("button", { name: "Options for holder" }));
-        await userEvent.hover(await screen.findByRole("menuitem", { name: "Unhide" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Unhide all" }));
+        await userEvent.click(
+            page.elementLocator(headerCell("holder")).getByRole("button", { name: "Options for holder", exact: true }),
+        );
+        await userEvent.hover(page.getByRole("menuitem", { name: "Unhide", exact: true }));
+        await userEvent.click(page.getByRole("menuitem", { name: "Unhide all", exact: true }));
         await waitFor(() => {
             assert.deepEqual(headerNames("Nodes"), before);
         });
@@ -296,7 +314,7 @@ describe("the table dock's configuration", () => {
         assert.isBelow(shown, total);
         // Tier 3's count words while a filter hides some: "100 of 412 nodes".
         await within(dock).findByText(`${shown.toLocaleString("en-US")} of ${total.toLocaleString("en-US")} nodes`);
-        await userEvent.click(within(dock).getByText("All"));
+        await userEvent.click(page.elementLocator(dock).getByText("All", { exact: true }));
         await within(dock).findByText(`${total.toLocaleString("en-US")} nodes`);
         await session.visibility.set(null);
 
@@ -308,7 +326,7 @@ describe("the table dock's configuration", () => {
         assert.isNull(within(dock).queryByRole("complementary", { name: "Table configuration" }));
         assert.isFalse(document.querySelector<HTMLElement>(".ws-canvas")?.inert);
         assert.isTrue(store.get().dockOpen);
-        await userEvent.click(within(dock).getByRole("button", { name: "Maximize table" }));
+        await userEvent.click(page.elementLocator(dock).getByRole("button", { name: "Maximize table", exact: true }));
         await waitFor(() => {
             assert.isTrue(store.get().dockMaximized);
         });
@@ -326,8 +344,10 @@ describe("the table dock's configuration", () => {
         await waitFor(() => headerCell("holder"));
 
         // Rename...: the name is typed in a pop-over under the header; Enter renames.
-        await userEvent.click(within(headerCell("holder")).getByRole("button", { name: "Options for holder" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Rename..." }));
+        await userEvent.click(
+            page.elementLocator(headerCell("holder")).getByRole("button", { name: "Options for holder", exact: true }),
+        );
+        await userEvent.click(page.getByRole("menuitem", { name: "Rename...", exact: true }));
         const input = await screen.findByRole("textbox", { name: "Column name" });
         await waitFor(() => {
             assert.strictEqual(document.activeElement, input);
@@ -339,9 +359,13 @@ describe("the table dock's configuration", () => {
         });
 
         // Type > yes/no on flagged, after the row says how many will not convert.
-        await userEvent.click(within(headerCell("flagged")).getByRole("button", { name: "Options for flagged" }));
-        await userEvent.hover(await screen.findByRole("menuitem", { name: "Type" }));
-        await userEvent.click(await screen.findByRole("menuitemradio", { name: /^yes\/no/ }));
+        await userEvent.click(
+            page
+                .elementLocator(headerCell("flagged"))
+                .getByRole("button", { name: "Options for flagged", exact: true }),
+        );
+        await userEvent.hover(page.getByRole("menuitem", { name: "Type", exact: true }));
+        await userEvent.click(page.getByRole("menuitemradio", { name: /^yes\/no/ }));
         await waitFor(() => {
             assert.strictEqual(session.data.attributes().find((a) => a.name === "flagged")?.type, "boolean");
         });

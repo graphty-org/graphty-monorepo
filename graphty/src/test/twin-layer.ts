@@ -4,9 +4,9 @@
  * a twin of its layer and selects both, as a reader does with Ctrl and a click.
  */
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
-import { screen, within } from "./test-utils";
+import { screen } from "./test-utils";
 
 /**
  * Adds a twin of a layer, "<name> too", with the same target, rule and values, and selects the
@@ -22,8 +22,8 @@ export async function selectWithTwin(session: GraphSession, name: string): Promi
     await session.styles.add({ name: `${name} too`, target: layer.target, selector: layer.selector, set: layer.set });
     await session.styles.settled();
     const tree = await screen.findByRole("tree", { name: "Style layers" });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
     await userEvent.keyboard("{Control>}");
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name} too, `) }));
+    await userEvent.click(page.elementLocator(tree).getByRole("treeitem", { name: new RegExp(`^${name} too, `) }));
     await userEvent.keyboard("{/Control}");
 }

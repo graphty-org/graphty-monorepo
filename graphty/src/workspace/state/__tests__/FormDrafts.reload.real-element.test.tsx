@@ -11,7 +11,7 @@ import "@graphty/graphty-element";
 
 import { EditorView } from "@codemirror/view";
 import { afterEach, assert, beforeAll, beforeEach, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { forgetAutosave, openAutosaved, reload } from "../../../test/reload";
@@ -48,8 +48,8 @@ async function elementNow(): Promise<HTMLElementTagNameMap["graphty-element"]> {
  */
 async function pickEnd(form: HTMLElement, field: string, name: string): Promise<void> {
     const box = within(form).getByRole("combobox", { name: field });
-    await userEvent.click(box);
-    await userEvent.type(box, name);
+    await userEvent.click(page.elementLocator(form).getByRole("combobox", { name: field, exact: true }));
+    await userEvent.type(page.elementLocator(form).getByRole("combobox", { name: field, exact: true }), name);
     await within(form).findByRole("option", { name });
     await userEvent.keyboard("{Enter}");
     await waitFor(() => {
@@ -117,7 +117,7 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
             );
             const { session } = await elementNow();
             const runs = session.runs.list().length;
-            await userEvent.click(within(back).getByRole("button", { name: "Find path" }));
+            await userEvent.click(page.elementLocator(back).getByRole("button", { name: "Find path", exact: true }));
             await waitFor(() => {
                 assert.strictEqual(session.runs.list().length, runs + 1);
             });
@@ -138,7 +138,7 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
             const join = await screen.findByRole("region", { name: "Join depts.csv" });
             const ignore = within(join).getByRole<HTMLInputElement>("checkbox", { name: /^Ignore case/ });
             assert.isFalse(ignore.checked);
-            await userEvent.click(ignore);
+            await userEvent.click(page.elementLocator(join).getByRole("checkbox", { name: /^Ignore case/ }));
             await waitFor(() => {
                 assert.isTrue(ignore.checked);
             });
@@ -151,8 +151,8 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
 
         it("reopens the shader editor on the code the reader typed", async () => {
             const before = await openAutosaved("Les Miserables");
-            await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-            await userEvent.click(await screen.findByRole("menuitem", { name: "Add Shader..." }));
+            await userEvent.click(page.getByRole("button", { name: "Main menu", exact: true }));
+            await userEvent.click(page.getByRole("menuitem", { name: "Add Shader...", exact: true }));
             await userEvent.fill(await shaderCode(), TYPED_SHADER);
 
             const after = await reload(before, { lostSession });
@@ -166,10 +166,19 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
             await userEvent.keyboard("{Control>}e{/Control}");
             const dialog = await screen.findByRole("dialog", { name: "Export" });
             await userEvent.click(
-                within(within(dialog).getByRole("grid", { name: "What to export" })).getByText("Report"),
+                page
+                    .elementLocator(dialog)
+                    .getByRole("grid", { name: "What to export", exact: true })
+                    .getByText("Report", { exact: true }),
             );
-            await userEvent.type(await within(dialog).findByRole("textbox", { name: "Title" }), "Ring study");
-            await userEvent.type(within(dialog).getByRole("textbox", { name: "Summary" }), "Half written.");
+            await userEvent.type(
+                page.elementLocator(dialog).getByRole("textbox", { name: "Title", exact: true }),
+                "Ring study",
+            );
+            await userEvent.type(
+                page.elementLocator(dialog).getByRole("textbox", { name: "Summary", exact: true }),
+                "Half written.",
+            );
 
             const after = await reload(before, { lostSession });
             const back = await screen.findByRole("dialog", { name: "Export" });
@@ -188,9 +197,9 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
             const before = await openAutosaved("Les Miserables");
             await userEvent.keyboard("{Shift>}{Control>}s{/Control}{/Shift}");
             const dialog = await screen.findByRole("dialog", { name: "Save Les Miserables as" });
-            const name = within(dialog).getByRole("textbox", { name: "Name" });
-            await userEvent.clear(name);
-            await userEvent.type(name, "Half typed");
+            const name = (): Locator => page.elementLocator(dialog).getByRole("textbox", { name: "Name", exact: true });
+            await userEvent.clear(name());
+            await userEvent.type(name(), "Half typed");
 
             const after = await reload(before, { lostSession });
             const back = await screen.findByRole("dialog", { name: "Save Les Miserables as" });

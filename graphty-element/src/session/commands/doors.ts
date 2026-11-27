@@ -2240,6 +2240,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             drawnBoundingInfo: READ,
             paintedSourceMesh: READ,
             drawnByRowScan: READ,
+            selectionShowsOnlyHalo: READ,
             drawnInBatch: READ,
             togglesOwnMeshes: READ,
             walksEachFrame: READ,

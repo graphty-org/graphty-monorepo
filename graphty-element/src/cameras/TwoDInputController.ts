@@ -7,7 +7,7 @@ import { type CanvasKeyAction, canvasKeyAction } from "../catalog/canvasKeys";
 import { firstSight } from "../input/first-sight";
 import { type CameraGestureKind, type GestureEndHooks, WheelRun } from "./gestureEnd";
 import { wheelZoomFactor } from "./InputUtils";
-import { TwoDCameraController, TwoDCameraControlsConfigType } from "./TwoDCameraController";
+import { nominalFrames, TwoDCameraController, TwoDCameraControlsConfigType } from "./TwoDCameraController";
 
 interface GestureSession {
     panX: number;
@@ -377,8 +377,9 @@ export class InputController implements GestureEndHooks {
     /**
      * Applies keyboard input to camera velocity for inertia-based movement.
      * Processes WASD and arrow key presses.
+     * @param frames - How many nominal 60 Hz frames this pass stands for; see `nominalFrames`.
      */
-    public applyKeyboardInertia(): void {
+    public applyKeyboardInertia(frames = 1): void {
         if (!this.enabled) {
             return;
         }
@@ -390,23 +391,26 @@ export class InputController implements GestureEndHooks {
         // The velocity is damped every frame, so a held key settles at push / (1 - damping).
         // Scaling the push by (1 - damping) makes a held key zoom and turn by the configured
         // amount per frame, rather than many times it.
-        const zoomPush = c.zoomFactorPerFrame * (1 - c.zoomDamping);
-        const rotatePush = c.rotateSpeedPerFrame * (1 - c.rotateDamping);
+        // The pan push is a share of the view, so a held key crosses the view in the same time at any
+        // zoom: in world units it would crawl across a large graph's wide view.
+        const panPush = c.panAcceleration * this.cam.halfWidth * frames;
+        const zoomPush = c.zoomFactorPerFrame * (1 - c.zoomDamping) * frames;
+        const rotatePush = c.rotateSpeedPerFrame * (1 - c.rotateDamping) * frames;
 
         if (on("pan-up")) {
-            v.y += c.panAcceleration;
+            v.y += panPush;
         }
 
         if (on("pan-down")) {
-            v.y -= c.panAcceleration;
+            v.y -= panPush;
         }
 
         if (on("pan-left")) {
-            v.x -= c.panAcceleration;
+            v.x -= panPush;
         }
 
         if (on("pan-right")) {
-            v.x += c.panAcceleration;
+            v.x += panPush;
         }
 
         if (on("zoom-in")) {
@@ -452,10 +456,13 @@ export class InputController implements GestureEndHooks {
     /**
      * Updates camera based on keyboard input and applies inertia.
      * Should be called each frame in the render loop.
+     * @param frameMs - The frame's time, so the camera moves and coasts for the same time however
+     *   fast frames are drawn; 0 (a hand-pumped pass) counts as one nominal 60 Hz frame.
      */
-    public update(): void {
-        this.applyKeyboardInertia();
-        this.cam.applyInertia();
+    public update(frameMs = 0): void {
+        const frames = nominalFrames(frameMs);
+        this.applyKeyboardInertia(frames);
+        this.cam.applyInertia(frames);
         if (!this.enabled) {
             return;
         }

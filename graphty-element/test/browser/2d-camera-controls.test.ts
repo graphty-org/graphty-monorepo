@@ -81,6 +81,34 @@ describe("2D Camera Controls", () => {
         assert.isAbove(moved * sign, 0, `${key} moved the camera the expected way (moved ${moved})`);
     });
 
+    /**
+     * Hold the "d" key for a number of update passes and let it go.
+     * @param passes - The update passes the key is held for.
+     * @returns How far the view moved, as a share of its half-width.
+     */
+    async function holdPan(passes: number): Promise<number> {
+        graph.canvas.focus();
+        const start = cameraController.camera.position.x;
+        await holdKey("d");
+        for (let pass = 0; pass < passes; pass++) {
+            graph.camera.update();
+        }
+
+        await releaseKey("d");
+        return (cameraController.camera.position.x - start) / cameraController.halfWidth;
+    }
+
+    // Issue #10326: the push was in world units, so on a large graph's wide view a held key crawled.
+    test("a held pan key moves the same share of the view at any zoom", async () => {
+        const near = await holdPan(30);
+        cameraController.zoom(1000);
+        const far = await holdPan(30);
+
+        assert.isAbove(near, 0.25, "thirty passes pan more than a quarter of the half-width");
+        // The element's own loop also runs while the key goes down and up, a frame or two either way.
+        assert.closeTo(far / near, 1, 0.2, `the same share of a view 1000 times wider (${far} against ${near})`);
+    });
+
     test("mouse wheel zooms camera", async () => {
         const initialOrthoTop = cameraController.camera.orthoTop;
         const initialOrthoBottom = cameraController.camera.orthoBottom;

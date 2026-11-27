@@ -2514,7 +2514,7 @@ export class RenderManager implements Manager {
         this.camera.registerCamera("orbit", orbitCamera, orbitInput);
 
         const twoDCamera = new TwoDCameraController(this.scene, this.engine, this.canvas, {
-            panAcceleration: 0.02,
+            panAcceleration: 0.004,
             panDamping: 0.85,
             zoomFactorPerFrame: 0.02,
             zoomDamping: 0.85,
@@ -2534,7 +2534,7 @@ export class RenderManager implements Manager {
             inertiaEnabled: true,
         });
         const twoDInput = new InputController(twoDCamera, this.canvas, {
-            panAcceleration: 0.02,
+            panAcceleration: 0.004,
             panDamping: 0.85,
             zoomFactorPerFrame: 0.02,
             zoomDamping: 0.85,

@@ -302,6 +302,25 @@ describe("one data edit on a large graph", () => {
         }
     });
 
+    it("ends a stable-frame wait only after the walks a walk of every edge brings", async () => {
+        // On the objects path a walk of every edge leaves the edge count and the node positions to the next two
+        // passes, which walk every edge again. Nothing recorded them as owed, so a wait could end between them and the
+        // next edit was charged a walk of every edge (issue #10163).
+        const element = await mount(400, false);
+        const manager = element.graph.getUpdateManager();
+        manager.forceEdgeWalk();
+        await element.waitForStableFrame();
+
+        const placed = vi.spyOn(Edge.prototype, "update");
+        try {
+            manager.update();
+            manager.update();
+            assert.strictEqual(placed.mock.calls.length, 0, "the passes after the wait place no edge");
+        } finally {
+            placed.mockRestore();
+        }
+    });
+
     it("moves the edges stored with no Edge through a removal, its undo and redo without setting each again", async () => {
         // Under "batched" an edge a row line draws is stored with no `Edge`, column by column. A renumbering read every
         // one of them out and set it again: two thousand here, a million at the render ceiling (issue #9164).

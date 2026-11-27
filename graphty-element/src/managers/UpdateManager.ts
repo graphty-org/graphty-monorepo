@@ -3910,7 +3910,7 @@ export class UpdateManager implements Manager {
         this.pending.cameraTurnsByItself = this.autoTurning;
 
         // Always update camera
-        this.camera.update();
+        this.camera.update(frameMs);
 
         // Check if layout is running
         if (!this.layoutManager.running) {

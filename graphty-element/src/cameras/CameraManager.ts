@@ -74,7 +74,8 @@ export interface CameraController {
 interface InputHandler extends GestureEndHooks {
     enable(): void;
     disable(): void;
-    update(): void;
+    /** One frame's input; `frameMs` is the frame's time, 0 when unknown. */
+    update(frameMs?: number): void;
     /** Whether the wheel zooms toward the point under the pointer; absent, the input has no wheel. */
     zoomToPointer?: boolean;
     /** Whether the reader is moving the camera, or the input is switched off for a node drag. */
@@ -332,9 +333,10 @@ export class CameraManager {
     /**
      * Updates the active input handler.
      * Should be called each frame in the render loop.
+     * @param frameMs - The frame's time, 0 when unknown.
      */
-    public update(): void {
-        this.activeInputHandler?.update();
+    public update(frameMs = 0): void {
+        this.activeInputHandler?.update(frameMs);
     }
 
     /**

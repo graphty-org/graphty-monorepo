@@ -1,0 +1,133 @@
+id: W332
+name: Build an Entity Graph from Notes with an LLM, Review It, Write Links Back
+category: analysis
+validated: false
+personas:
+    - personal-knowledge-gardener
+    - pkm-vault-analyst
+requires_capabilities:
+    - algorithm-progress
+    - node-merging
+    - search
+    - ego-network
+    - shortest-path
+    - path-highlighting
+    - filtering
+    - visual-encoding-edges
+    - details-on-demand
+    - data-export
+    - typed-edge-filtering
+    - edge-evidence-review
+suggested_components:
+    - graph-canvas
+    - progress-bar
+    - node-merge-dialog
+    - search-input
+    - path-finder-dialog
+    - filter-panel
+    - node-details-panel
+    - data-table-panel
+starting_state:
+    data_type: notes plus model-extracted entities and relation triples with provenance and confidence
+    node_count: 100-10,000 entities
+    edge_density: moderate
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Get a graph of the people, concepts and organizations the notes mention without linking by hand, by
+    running a local or cloud language model over the notes, then inspect, clean and optionally write the result back
+    as real links. A fast-growing plugin category; the related-notes plugin Smart Connections has about 1.2 million
+    downloads.
+
+
+    **Mental Model**: "Let the machine find the links, but I decide which ones are real." Machine-made edges are
+    suggestions until accepted.
+
+
+    **Task Phases**:
+
+    1. **Choose a model** - Local (Ollama or another OpenAI-compatible server; a quick start pulls
+    about 5 GB of models) or a cloud provider with an API key; some plugins manage a local LightRAG server
+
+    2. **Run extraction** - "Analyze current note" or the whole vault; fixed entity types, free-form
+    relation verbs, replies validated against a JSON schema; first run processes every note, later runs only changed
+    notes
+
+    3. **Merge entities** - Resolve variants ("AI" and "artificial intelligence"); merge duplicates and edit
+    descriptions
+
+    4. **Inspect** - Interactive 2D or 3D graph with search, neighborhood focus and path finding; a typed-edge
+    list filtered by predicate with provenance
+
+    5. **Accept or reject** (varies) - Provenance (source note, confidence, timestamp, lineage) stored per triple; no
+    per-edge accept or reject step found in the plugins read -- answers link to source notes for checking
+
+    6. **Write back** (opt-in) - Mirror the graph into the vault as real links, so edges appear in the core
+    graph and backlinks
+
+
+    **Decision Points**:
+
+    - Local model (private, slower) or cloud model (note text leaves the machine)?
+
+    - Which entity variants are the same thing?
+
+    - Which extracted relations are worth writing back as links?
+
+
+    **Information Needs**:
+
+    - Progress and remaining time of a long extraction
+
+    - Source note and sentence behind every extracted edge, and the model and confidence that produced it
+
+    - Clear visual difference between written links, similarity edges and extracted edges
+
+    - Exactly which notes would be sent to a cloud model, including graph neighbors pulled in by expansion
+
+
+    **Pain Points**:
+
+    - Review steps are thin; no per-edge accept or reject
+
+    - Graph expansion can send notes the user did not select to a cloud model
+
+    - Plugins are small and young
+
+
+    **Data Flow**:
+
+    - Input: Note text, model choice and configuration, existing link graph
+
+    - Transformations: Entity and relation extraction, entity resolution and merging, provenance and confidence per
+    edge, optional embedding similarity
+
+    - Output: Entity graph in plugin storage (SQLite or JSON); accepted relations written into notes as links
+success_criteria:
+    - metric: Provenance on every inferred edge
+      target: User can open the source note for any extracted relation and see method and confidence
+    - metric: Reviewable write-back
+      target: User accepts or rejects relations before any link is written to notes
+    - metric: Privacy clarity
+      target: Before a cloud run, user sees which notes (including expanded neighbors) will leave the machine
+sources:
+    - title: Simple Graph Builder plugin
+      url: https://community.obsidian.md/plugins/simple-graph-builder
+      summary: Local or cloud model, 10 entity types, JSON-schema validation, entity resolution, search and path finding, opt-in write-back
+    - title: Obsidian forum - Neural Composer (LightRAG integration)
+      url: https://forum.obsidian.md/t/neural-composer-local-graph-rag-made-easy-lightrag-integration/109891
+      summary: Managed local LightRAG server, merge duplicates, 2D Sigma.js or 3D WebGL graph
+    - title: KG Forge plugin
+      url: https://community.obsidian.md/plugins/kg-forge
+      summary: Source, confidence, timestamp and lineage on every triple; no network requests
+    - title: MemVector plugin
+      url: https://community.obsidian.md/plugins/memvector-knowledge-engine
+      summary: Declared relations with embedding similarity as a second force; synthesis sends graph-hop neighbors to the provider
+    - title: Obsidian forum - LLM Wiki plugin
+      url: https://forum.obsidian.md/t/new-plugin-llm-wiki-turn-your-vault-into-a-queryable-knowledge-base-privately/113223
+      summary: About 5 GB of local models; first extraction can take hours; answers link to source notes
+    - title: Smart Connections plugin
+      url: https://community.obsidian.md/plugins/smart-connections
+      summary: Local embeddings by default; about 1.2 million downloads
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

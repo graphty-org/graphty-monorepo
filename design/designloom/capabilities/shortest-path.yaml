@@ -1,41 +1,99 @@
 id: shortest-path
 name: Shortest Path Finding
 category: analysis
-description: Find the shortest path(s) between two specified nodes. Essential for understanding how entities are
-    connected, tracing relationships, and calculating distances in the network.
-status: implemented
-notes: "Ships: graphty-element/src/algorithms/DijkstraAlgorithm.ts, BFSAlgorithm.ts and AStarAlgorithm.ts, run from graphty/src/workspace/analyze/PathForm.tsx."
+description: Find the shortest path(s) between two specified nodes -- one path, all tied shortest paths, or the k
+    shortest loopless paths -- and say which weight reading, direction and constraints produced them. Essential for
+    "how do A and B connect, and through whom?", the core question in investigations, security and network science.
+status: in-progress
+notes: "Partly ships: graphty-element/src/algorithms/DijkstraAlgorithm.ts (weight read as a distance, Follow Edges out, in or all, Read Strength as Closeness for a cost of 1 over the weight, Time Order), BFSAlgorithm.ts (hop count, Max Depth) and AStarAlgorithm.ts, run from graphty/src/workspace/analyze/PathForm.tsx and drawn through suggested style layers. Planned: all tied shortest paths with their count, Yen's k shortest loopless paths (neither graphty-element nor algorithms has it), edge-type filters, a no-path reason code naming direction, type or hop limit, and stepping through a path. Any requirement below that this note does not name as shipping counts as planned."
 algorithms:
-    - BFS for unweighted
-    - Dijkstra for weighted
-    - Yen's k-shortest paths
+    - BFS for unweighted (shipped)
+    - Dijkstra for weighted (shipped)
+    - Yen's k-shortest paths (planned)
 used_by_workflows:
     - W05
     - W08
     - W16
+    - W07
+    - W108
+    - W109
+    - W112
+    - W114
+    - W120
+    - W140
+    - W142
+    - W143
+    - W151
+    - W156
+    - W173
+    - W177
+    - W183
+    - W185
+    - W192
+    - W205
+    - W206
+    - W220
+    - W225
+    - W232
+    - W239
+    - W244
+    - W255
+    - W256
+    - W258
+    - W259
+    - W267
+    - W308
+    - W320
+    - W332
+    - W39
+    - W40
+    - W74
+    - W80
+    - W83
+    - W89
+    - W3102
 implemented_by_components:
     - algorithm-card
     - algorithm-panel
     - path-finder-dialog
 requirements:
-    - Find shortest path between user-specified source and target nodes
-    - Support unweighted paths (minimum hop count) using BFS
-    - Support weighted paths (minimum total weight) using Dijkstra's algorithm
-    - Return path as ordered list of node IDs from source to target
-    - Return path length as hop count for unweighted, total weight for weighted
-    - Return 'No path exists' message when source and target are disconnected
-    - Find all shortest paths when multiple paths of equal length exist
-    - Report count of shortest paths found
-    - Support directed path finding (follow edge direction) for directed graphs
-    - Support undirected path finding (ignore edge direction) for directed graphs
-    - Provide K-shortest paths using Yen's algorithm with configurable K from 1 to 20 (default 1)
-    - Display paths ranked by length with path details expandable
-    - Highlight path nodes and edges in graph visualization
-    - Allow stepping through path nodes one at a time
-    - Complete single shortest path within 500ms for graphs under 100,000 nodes
-    - Complete K=10 shortest paths within 3 seconds for graphs under 50,000 nodes
-    - Display intermediate nodes on path with their attributes
+    - "Must: Find shortest path between user-specified source and target nodes"
+    - "Must: Support unweighted paths (minimum hop count) using BFS"
+    - "Must: Weighted paths minimize the sum of distances as declared in weight-semantics; a column declared a strength is converted first (for example 1/w), never read silently as a distance"
+    - "Must: Return path as ordered list of node IDs from source to target"
+    - "Must: Report path length as hop count for unweighted paths; for weighted paths report the total together with the weight column, its declared meaning and the conversion used"
+    - "Must: When no path exists, return a no-path result with its reason (disconnected, or blocked by edge direction, edge type or the hop limit) as a code with parameters"
+    - "Must: Find all shortest paths when several paths tie for the minimum, and report how many there are; never show one tie as if it were the only path"
+    - "Must: Support directed path finding (follow edge direction) for directed graphs"
+    - "Library parity: Support undirected path finding (ignore edge direction) for directed graphs"
+    - "Must: Restrict paths to chosen edge types (relationship-type filter) and to a maximum number of hops"
+    - "Must: Provide k shortest loopless paths (Yen's algorithm) with a user-chosen k, and state how ties at the k-th place are handled"
+    - "Must: List each path node by node with the intermediate nodes' names and attributes, ranked by length"
+    - "Library parity: Highlight path nodes and edges in graph visualization"
+    - "Library parity: Allow stepping through path nodes one at a time"
+    - "Library parity: Time-ordered (time-respecting) paths are out of scope here and belong to time-respecting-paths; a static path over time-stamped edges is labeled as ignoring time order"
 sources:
-    - title: Graph Analysis Textbook - Chapter 10
-      url: https://graphty.app/docs/
-      summary: Pathfinding and Flow Analysis including shortest path algorithms
+    - title: Dijkstra 1959, A note on two problems in connexion with graphs
+      url: https://doi.org/10.1007/BF01386390
+      summary: The weighted shortest-path algorithm; weights are lengths (distances)
+    - title: Opsahl, tnet -- Shortest paths in weighted networks
+      url: https://toreopsahl.com/tnet/weighted-networks/shortest-paths/
+      summary: Tie strengths must be inverted (1/w) so a stronger tie is a shorter distance; the conversion changes results
+    - title: igraph betweenness (weights interpreted as distances)
+      url: https://r.igraph.org/reference/betweenness.html
+      summary: Path-based functions in igraph read weights as distances, so a strength column gives wrong paths unless converted
+    - title: NetworkX shortest_simple_paths (Yen's k shortest loopless paths)
+      url: https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.simple_paths.shortest_simple_paths.html
+      summary: k shortest loopless paths as practitioners compute them in code
+    - title: Neo4j Cypher manual, shortest paths
+      url: https://neo4j.com/docs/cypher-manual/current/patterns/shortest-paths/
+      summary: SHORTEST k and ALL SHORTEST; when k cuts through a tie the choice is arbitrary
+    - title: Holme and Saramaki 2012, Temporal networks
+      url: https://arxiv.org/abs/1108.1780
+      summary: Static aggregation overstates reachability; time-respecting paths are not transitive
+    - title: Network scientists and analysis method validity (workflows C and D, requirement R12)
+      url: design/user-research/network-scientists-and-analysis-method-validity.md
+      summary: Weight convention, all-shortest and k-shortest with ties, type and direction constraints, "no path because"
+    - title: Investigative journalism and OSINT (requirement R5)
+      url: design/user-research/investigative-journalism-and-osint.md
+      summary: Shortest and all shortest paths between two named nodes with relationship-type filter and hop limit is a Must

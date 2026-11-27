@@ -1,121 +1,64 @@
 id: W12
-name: Anomaly Detection
+name: Anomaly Detection (retired -- see W336 and the cybersecurity triage workflows)
 category: analysis
 validated: false
-personas:
-    - fraud-analyst
-    - cybersecurity-analyst
-    - analyst-alex
+scope: retired
+personas: []
 requires_capabilities:
     - anomaly-detection
-    - basic-statistics
-    - degree-analysis
-    - clustering-coefficient
-    - community-detection
-    - filtering
-    - visual-encoding-nodes
-    - details-on-demand
-    - computed-attributes
-    - selection-statistics
-    - metric-histograms
-    - saved-filters
+    - case-list-triage
 suggested_components:
-    - graph-canvas
-    - anomaly-panel
-    - statistics-panel
-    - histogram
-    - filter-panel
-    - visual-encoding-panel
-    - node-details-panel
-    - computed-attributes-panel
+    - ranked-node-table
 starting_state:
-    data_type: attributed graph
-    node_count: 1000+
-    edge_density: any
-    user_expertise: intermediate+
+    data_type: none -- this record is a pointer, not a workflow
+    node_count: n/a
+    edge_density: n/a
+    user_expertise: n/a
 goal: >-
-    **Intent**: Identify unusual patterns or entities that deviate from expected behavior. User wants to find anomalies
-    that could indicate fraud, errors, security threats, or interesting discoveries.
+    **Status**: Retired. This record used to describe a domain-free "find the anomalies" pass in six phases (establish
+    a baseline, statistical detection, structural detection, triage, investigation, classification). No tool manual or
+    practitioner report documents that sequence; it cited only research methods (OddBall and a survey of graph anomaly
+    methods). Every evidenced anomaly workflow starts from a domain rule or from known labels instead. The record is kept
+    so that old references resolve, and it is linked to no persona.
 
 
-    **Mental Model**: "Finding what doesn't fit" - like spotting the one person in a crowd wearing winter clothes in
-    summer. Anomalies are defined relative to a baseline of "normal."
+    **Use instead**:
+
+    - W336 Ranked Case List from Detection Rules or Seeded Scores -- the fraud, AML and security version: a saved
+    pattern query or a label-seeded score fills a ranked case list; each row opens its subgraph; the analyst assigns,
+    comments and confirms or dismisses. In Linkurious "The models of an alert are the detection patterns which users
+    set", the target entity is "used to deduplicate and group pattern occurences", and an alert runs every hour by
+    default. Neo4j's fraud series starts from flagged accounts and ranks the rest by weighted degree over shared
+    identifiers.
+
+    - W109 Enterprise Attack Path Management and Choke Point Remediation, W111 SOC Alert Triage with an EDR Process
+    Tree, and W112 Host-to-Host Logon Graph During Incident Response -- the security sequences.
 
 
-    **Task Phases**:
-
-    1. **Establish Baseline** - Define what "normal" looks like (degree distribution, clustering patterns, attribute
-    ranges)
-
-    2. **Statistical Detection** - Find entities with unusual metric values (z-score outliers, distribution tails)
-
-    3. **Structural Detection** - Find entities with unusual network positions (unexpected community membership, unusual
-    neighbors)
-
-    4. **Triage** - Rank anomalies by severity, group similar ones
-
-    5. **Investigation** - Deep dive into top anomalies
-
-    6. **Classification** - Label as error, threat, or genuine discovery
+    **What survives from the old record**: anomaly-detection only as the scoring step that feeds the ranked case list.
+    Where rows are ranked by a heavy-tailed centrality, use log, rank or within-module scores, not z-scores. The
+    anomaly-panel component is replaced by the ranked case list (ranked-node-table with case triage).
 
 
-    **Decision Points**:
-
-    - What constitutes "normal" for this domain?
-
-    - How many standard deviations makes something anomalous?
-
-    - Is this anomaly an error, a threat, or something interesting?
-
-    - Which anomalies warrant deeper investigation?
-
-    - Should I adjust the baseline definition?
-
-
-    **Information Needs**:
-
-    - Baseline metrics (mean, std dev of key measures)
-
-    - Anomaly scores for each entity
-
-    - Local context (what's unusual about this entity's neighborhood?)
-
-    - Temporal context (did this just change or was it always anomalous?)
-
-    - Similar anomalies (are there others like this?)
-
-
-    **Pain Points**:
-
-    - "Normal" is hard to define in heterogeneous networks
-
-    - Too sensitive = too many false positives
-
-    - Too strict = missing real anomalies
-
-    - Explaining why something is anomalous to non-technical stakeholders
-
-    - New entities always look anomalous (lack of history)
-
-
-    **Data Flow**:
-
-    - Input: Graph with node/edge attributes + baseline definition
-
-    - Transformations: Baseline computation, deviation scoring, ranking
-
-    - Output: Prioritized anomaly list with classification and evidence
+    **Evidence that a domain-free scan is not a practitioner workflow**: PyGOD returns a score per node, "the higher,
+    the more abnormal", with no workflow around it; the BOND benchmark by its authors found that "Most methods evaluated
+    fail to detect organic outliers" as opposed to injected ones.
 success_criteria:
-    - metric: Anomalies detected
-      target: True anomalies surfaced
-    - metric: False positive rate
-      target: Manageable triage workload
-    - metric: Classification accuracy
-      target: Anomalies correctly labeled as error/threat/discovery
+    - metric: No requirement is drawn from this record
+      target: Capabilities and components cite W336, W109, W111 or W112 instead
 sources:
-    - title: Practical Graph Analysis Guide - Chapter 4
-      url: https://graphty.app/docs/
-      summary: Anomaly Detection Pipeline
-version: 1.0.0
+    - title: Linkurious Enterprise user manual 4.2 - alert setup
+      url: https://doc.linkurious.com/user-manual/4.2/alert-setup/
+      summary: Alert models are user-set detection patterns; the target entity deduplicates and groups occurrences; runs every hour by default
+    - title: Exploring fraud detection with Neo4j Graph Data Science, part 3
+      url: https://neo4j.com/blog/developer/exploring-fraud-detection-neo4j-graph-data-science-part-3/
+      summary: Starts from flagged accounts, ranks others by weighted degree over shared identifiers, analysts label more fraud accounts
+    - title: BOND - benchmarking unsupervised outlier node detection on static attributed graphs (NeurIPS 2022)
+      url: https://arxiv.org/html/2206.10071
+      summary: Most methods evaluated fail to detect organic outliers as opposed to injected ones
+    - title: PyGOD 0.2.0 on PyPI
+      url: https://pypi.org/project/pygod/0.2.0/
+      summary: Returns an outlier score per node, higher is more abnormal; no analyst workflow
+version: 2.0.0
 created_at: 2026-01-16T16:42:48.018Z
-updated_at: 2026-01-16T16:42:48.018Z
+updated_at: 2026-11-25T00:00:00.000Z

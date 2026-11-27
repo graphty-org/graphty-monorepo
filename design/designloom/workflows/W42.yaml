@@ -1,0 +1,127 @@
+id: W42
+name: Measurement Robustness Before Reporting
+category: analysis
+validated: false
+personas:
+    - expert-emma
+    - network-neuroscience-researcher
+requires_capabilities:
+    - filtering
+    - comparison-view
+    - computed-attributes
+    - statistics-panel
+    - metric-histograms
+    - analysis-history
+    - algorithm-progress
+    - report-generation
+    - null-model-ensembles
+    - seeded-runs
+    - measurement-robustness
+    - backbone-extraction
+suggested_components:
+    - algorithm-panel
+    - range-slider
+    - slider
+    - comparison-view
+    - statistics-panel
+    - histogram
+    - progress-bar
+    - analysis-history-panel
+    - report-generator-dialog
+starting_state:
+    data_type: measured or derived graph (sampled data, thresholded similarity matrix)
+    node_count: 100-100000
+    edge_density: any
+    user_expertise: expert
+goal: >-
+    **Intent**: Check that reported results -- centrality ranks, communities, global statistics -- survive missing data,
+    another threshold, another representation, reruns of stochastic methods and another null, before they go into a
+    paper.
+
+
+    **Mental Model**: "Shake the data and see what falls off." A result that changes when 10% of edges disappear or the
+    threshold moves is not a finding.
+
+
+    **Task Phases**:
+
+    1. **Subsample** - Delete 5 to 50% of edges or nodes at random, recompute, correlate rankings with the
+    originals, repeat with recorded seeds
+
+    2. **Sweep thresholds for derived graphs** - Report results across densities; proportional thresholds give
+    more stable metrics but confound group differences in overall connectivity; the disparity filter (alpha often 0.05)
+    keeps locally significant edges in weighted one-mode graphs; projections need a bipartite null (W47)
+
+    3. **Rerun every stochastic method** - Communities, layouts, block-model fits, simulations; report the
+    spread
+
+    4. **Alternative representations** - In- and out-degree, weighted and unweighted, each layer
+
+    5. **Alternative nulls** - Degree-preserving plus spatial or layer-preserving where relevant
+
+    6. **Report** - Which results held, across what range, with seeds
+
+
+    **Decision Points**:
+
+    - What range of subsampling and thresholds is plausible for this data's error?
+
+    - Proportional or absolute thresholds, given a group comparison?
+
+    - Which results are robust enough to report, and which must be hedged?
+
+
+    **Information Needs**:
+
+    - Rank correlation of each centrality vs subsampling fraction, with spread
+
+    - Statistic vs threshold or density curves, per group
+
+    - Run-to-run spread for every stochastic result
+
+    - The same statistic under alternative representations and nulls
+
+
+    **Pain Points**:
+
+    - None of the GUI tutorials reviewed includes any of these steps
+
+    - Proportional thresholding can turn overall connectivity differences into spurious topology differences
+
+    - The disparity filter can produce high centralization and weak communities
+
+    - Doing this by hand means scripting loops outside the visual tool
+
+
+    **Data Flow**:
+
+    - Input: Graph (or similarity matrix) plus the results to be reported
+
+    - Transformations: Seeded subsampling, threshold sweep, backbone extraction, reruns, alternative representations and
+    nulls
+
+    - Output: Robustness table and curves attached to each reported result
+success_criteria:
+    - metric: Robustness reported
+      target: Each headline result shows its behavior under subsampling and, for derived graphs, across thresholds
+    - metric: Stochastic spread
+      target: Every stochastic result reported with its spread over seeded reruns
+sources:
+    - title: On the robustness of centrality measures under imperfect data (Borgatti et al. 2006)
+      url: https://scholars.uky.edu/en/publications/on-the-robustness-of-centrality-measures-under-conditions-of-impe/
+      summary: Centrality accuracy declines smoothly as error rises
+    - title: Influence of measurement errors on networks (Martin and Niemeyer 2019, Network Science)
+      url: https://www.cambridge.org/core/journals/network-science/article/influence-of-measurement-errors-on-networks-estimating-the-robustness-of-centrality-measures/80DEBC5D57537B2244C4DBBB5AE0030E
+      summary: Estimating centrality robustness under measurement error
+    - title: Proportional thresholding in resting-state fMRI (van den Heuvel et al. 2017)
+      url: https://research.vu.nl/en/publications/proportional-thresholding-in-resting-state-fmri-functional-connec/
+      summary: Proportional thresholds stabilize metrics but confound connectivity differences
+    - title: Extracting the multiscale backbone of complex weighted networks (Serrano, Boguna and Vespignani 2009)
+      url: https://arxiv.org/abs/0904.2389
+      summary: Disparity filter keeping locally significant edges at level alpha
+    - title: Atlas for the Aspiring Network Scientist (Coscia)
+      url: https://arxiv.org/pdf/2101.00863
+      summary: Disparity filter can produce high centralization and weak communities
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

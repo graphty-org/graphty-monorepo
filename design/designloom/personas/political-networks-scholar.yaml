@@ -1,0 +1,91 @@
+id: political-networks-scholar
+name: Political Networks Scholar of Legislatures and Alliances
+roster_persona: survey-network-researcher
+tier: B
+scope: in-scope
+role: Political Scientist (Legislative Cosponsorship, Roll-Call Agreement, Alliance and Conflict, Policy-Actor Networks)
+quote: Project the bills onto senators and everyone looks like a party loyalist. Show me the bills, and show me every session the same way.
+bio: >-
+    Dr. Yetunde Okafor is a political scientist in American and comparative politics who makes political networks her
+    whole research program. She is a variant of the archival-affiliation-researcher: the same record-based, two-mode,
+    temporal data, but drawn from released records that cover many sessions or many years. Her data are legislator-by-bill
+    cosponsorship records for every Congress or legislative period (Fowler's data cover all 280,000 bills from 1973 to
+    2004; parlnet covers 27 chambers in 19 European countries plus Israel), member-by-vote roll calls from Voteview keyed
+    by ICPSR code, Correlates of War alliance and dispute dyad-years among states, and policy-actor surveys of the
+    organizations in a policy field. She works in R (statnet, btergm, NetMix, peacesciencer, Rvoteview), uses UCINET
+    for quick descriptives and Pajek or Gephi for figures, and learned ERGM and TERGM at the summer workshops of APSA's
+    Political Networks section. Her questions are who cooperates across party lines and how that changes from session
+    to session, and whether cosponsorship, alliance or policy ties predict passage, votes or conflict.
+characteristics:
+    expertise: expert
+    time_pressure: medium
+    graph_literacy: advanced
+    domain_knowledge: advanced
+motivations:
+    - Compare cooperation across many sessions or years with the same rules, styling and layout in every panel
+    - Keep legislator-by-bill data two-mode so the analysis does not invent copartisan clustering
+    - State every threshold and weight rule so a reviewer can rebuild each session's network
+    - Fit ERGM, TERGM or bipartite block models in R and show one figure per session in the paper
+behaviors:
+    - Downloads cosponsorship and roll-call records for every session and joins them to member data by ICPSR code
+    - Builds one network per Congress, legislative period or year, with a node set that changes as members and states enter and leave
+    - Turns roll calls into agreement networks with a threshold (Andris and colleagues used the crossing point of same-party and cross-party agreement per Congress)
+    - Fits bipartite models of legislators and bills (biMMSBM in NetMix) or TERGMs over twelve Congresses with a binary cutoff on cosponsorship counts
+    - Cleans alliance and dispute dyad-years (duplicate directed dyads, several dispute onsets in one year) before building yearly networks
+    - Draws per-session figures colored by party and sized by degree, and reads cross-party edges and bridges
+frustrations:
+    - Projecting bills onto legislators inflates clustering and hides bipartisan bills
+    - The binary TERGM forces a cutoff on cosponsorship counts that changes the result
+    - Agreement-network thresholds are invisible in the published figure
+    - Dyad-year files carry duplicate directed dyads and several dispute onsets per year
+    - Every session has a different node set, so layouts and comparisons do not line up
+    - UCINET, which the field cites, runs only on Windows
+context:
+    frequency: weekly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W28
+    - W30
+    - W31
+    - W33
+    - W294
+    - W1042
+    - W1138
+    - W1139
+sources:
+    - title: APSA Political Networks section (Section 41)
+      url: https://apsanet.org/Section41
+      summary: Section founded in 2009; awards for student papers, articles and books
+    - title: Political Networks section conference and workshops
+      url: https://connect.apsanet.org/s41/?p=27
+      summary: Summer conference paired with introductory and advanced network-analysis workshops
+    - title: Lo, Olivella and Imai (2025) A Statistical Model of Bipartite Networks
+      url: https://www.cambridge.org/core/product/013054D312143518259551EEA9103FA0/core-reader
+      summary: Projection causes aggregation bias and inflated clustering; biMMSBM in NetMix on the 107th Senate
+    - title: Fowler (2006) Connecting the Congress
+      url: https://www.cambridge.org/core/journals/political-analysis/article/connecting-the-congress-a-study-of-cosponsorship-networks/B42907E13C3D1F12BBC7618C8E0EECED
+      summary: Cosponsorship networks over 280,000 bills, 1973-2004
+    - title: parlnet
+      url: https://github.com/briatte/parlnet
+      summary: 150 cosponsorship networks from 27 chambers in 19 European countries plus Israel
+    - title: Voteview members' votes
+      url: https://voteview.com/articles/data_help_votes
+      summary: Member-by-vote data keyed by ICPSR code
+    - title: Andris et al. (2015) The Rise of Partisanship and Super-Cooperators
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4405569
+      summary: Roll-call agreement network per House, 1949-2012, threshold at the crossing point of agreement distributions
+    - title: Craig et al. Race, ethnicity and gender in the cosponsorship network
+      url: https://arxiv.org/abs/1512.06141
+      summary: TERGM over the 97th-108th Houses with a binary cutoff on cosponsorship counts
+    - title: Correlates of War Formal Alliances v4.1
+      url: https://correlatesofwar.org/data-sets/formal-alliances
+      summary: Alliances 1816-2012 with a dyadic file and alliance types
+    - title: peacesciencer add_cow_mids
+      url: https://search.r-project.org/CRAN/refmans/peacesciencer/html/add_cow_mids.html
+      summary: Several dispute onsets in one dyad-year (France and Italy, 1860)
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

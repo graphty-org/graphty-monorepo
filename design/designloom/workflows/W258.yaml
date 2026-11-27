@@ -1,0 +1,153 @@
+id: W258
+name: Hypothesis Ranking in an Internal Pharma Knowledge Graph
+category: exploration
+validated: false
+personas:
+    - pharma-target-assessment-scientist
+requires_capabilities:
+    - large-graph-rendering
+    - search
+    - pattern-search
+    - all-paths-finding
+    - shortest-path
+    - path-highlighting
+    - neighborhood-expansion
+    - filtering
+    - saved-filters
+    - details-on-demand
+    - visual-encoding-edges
+    - visual-encoding-nodes
+    - legend-display
+    - comparison-view
+    - annotation
+    - data-export
+    - edge-evidence-review
+    - ranked-path-search
+    - evidence-source-toggle
+    - reachability-contrast
+suggested_components:
+    - search-panel
+    - pattern-search-dialog
+    - path-finder-dialog
+    - filter-panel
+    - filter-chip
+    - node-details-panel
+    - context-menu
+    - graph-canvas
+    - comparison-view
+    - annotation-toolbar
+    - data-export-dialog
+starting_state:
+    data_type: internal typed knowledge graph (compound, gene, disease, phenotype, assay, pathway) with per-edge source, uncertainty and PubMed links
+    node_count: 10-300 drawn from a graph of 10-30 million nodes
+    edge_density: dense
+    user_expertise: expert
+goal: >-
+    **Intent**: Produce ranked, explainable hypotheses of the form "this compound may act on this disease through this
+    gene" from the company knowledge graph, with every edge traceable to its evidence, and learn which evidence sources a
+    connection depends on. No public source shows the click-level interface; the steps are reconstructed from the query
+    patterns that Novartis and AstraZeneca describe.
+
+
+    **Mental Model**: "Short, strong, evidenced triangles." A hypothesis is a short typed path; its strength is the sum
+    of its edges' uncertainties; it is only believed after someone reads the abstracts behind each edge.
+
+
+    **Task Phases**:
+
+    1. **Load and weight** (platform team) - Text-mine about 25 million PubMed abstracts plus about ten other sources;
+    store co-occurrence lift scaled 0 to 1 on each edge as an uncertainty (inverse of strength) so it works as a distance
+
+    2. **Triangle search** - Find compound-gene-disease (or -phenotype) triangles for a query; sum the three
+    uncertainties; sort the triangles by that sum
+
+    3. **Check the evidence** - Open the PubMed articles behind each edge of each top triangle; a biologist
+    reviews and marks what holds
+
+    4. **Reachability contrast** - From screening results, find nodes reachable from active compounds but not
+    from inactive ones, then partition the graph (one example put 12 of 14 actives on one side and all inactives on the
+    other)
+
+    5. **Ablate an evidence type** - Remove text-mined edges and compare the resulting, weaker and more
+    roundabout connection
+
+    6. **Recommendation variant** - Ask an embedding service for the nearest gene nodes to a disease node; keep
+    evidence and context for each assertion
+
+    7. **Hand off** - Ranked hypothesis list with an evidence trail per edge to the target-assessment committee
+
+
+    **Decision Points**:
+
+    - What uncertainty threshold separates usable text-mined edges from noise (still being refined at Novartis)?
+
+    - Is a top result new, or will the biologist say "I knew that"?
+
+    - Does the connection survive removing one evidence source?
+
+    - Which hypotheses go to the committee?
+
+
+    **Information Needs**:
+
+    - Per-edge source, uncertainty and list of PubMed IDs or sentences
+
+    - Triangle and path lists ranked by summed edge weight, selecting into the drawing
+
+    - Node and edge type filters applied before expansion
+
+    - Active versus inactive membership of compounds
+
+    - A side-by-side of the same query with and without one evidence type
+
+
+    **Pain Points**:
+
+    - Graph browsers cap the drawing (Neo4j Browser 300 nodes) and need Cypher
+
+    - Evidence review is manual, edge by edge
+
+    - Internal and public identifiers disagree
+
+    - Association scores reflect data volume, not quality
+
+    - Confidential and licensed data cannot leave the company, so cloud viewers are excluded
+
+
+    **Data Flow**:
+
+    - Input: Query entities (compound, disease, gene sets), screening activity labels
+
+    - Transformations: Typed path and triangle search, weight summation and ranking, reachability from two sets,
+    evidence-type filtering
+
+    - Output: Ranked hypothesis table with evidence links; small subgraph figures for the dossier
+success_criteria:
+    - metric: Evidence traceability
+      target: Every edge in a shown hypothesis opens its source and abstracts in one click
+    - metric: Source contribution
+      target: User can compare a result with and without an evidence type in under a minute (design goal; no source measures it)
+    - metric: Ranking transparency
+      target: Rank order is explained by visible per-edge weights
+sources:
+    - title: Novartis - Connecting the dots in early drug discovery
+      url: https://neo4j.com/blog/connecting-dots-in-early-drug-discovery-at-novartis/
+      summary: Text-mined lift as uncertainty; triangles; reachability contrast; ablation of text-mined edges
+    - title: Neo4j case study - Novartis (2025)
+      url: https://neo4j.com/case-studies/novartis/
+      summary: Sort the triangles by summed uncertainty; PubMed review
+    - title: AstraZeneca talk - knowledge graph with Spark and NLP
+      url: https://www.slideshare.net/slideshow/building-a-knowledge-graph-with-spark-and-nlp-how-we-recommend-novel-drugs-to-our-scientists/189027597
+      summary: Embedding recommendations; keep evidence and context for each assertion
+    - title: AstraZeneca BIKG preprint
+      url: https://www.biorxiv.org/content/10.1101/2021.10.28.466262v1.full.pdf
+      summary: Graph scale and construction
+    - title: Neo4j customer story - leading pharma company (vendor-reported, 2026)
+      url: https://neo4j.com/customer-stories/leading-pharma-company/
+      summary: PageRank over genes and adverse events (unaudited vendor claim)
+    - title: Neo4j Browser settings
+      url: https://neo4j.com/docs/browser-manual/current/operations/browser-settings/
+      summary: Initial node display cap and neighbor expansion limits
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

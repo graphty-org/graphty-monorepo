@@ -1,0 +1,116 @@
+id: W166
+name: Extinction and Robustness Simulation
+category: analysis
+validated: false
+personas:
+    - pollination-network-ecologist
+    - food-web-ecologist
+requires_capabilities:
+    - removal-impact-analysis
+    - degree-analysis
+    - node-selection
+    - animated-transitions
+    - visual-encoding-nodes
+    - basic-statistics
+    - statistics-panel
+    - comparison-view
+    - data-export
+    - export-image
+    - bipartite-metrics
+    - perturbation-simulation
+suggested_components:
+    - impact-analysis-dialog
+    - graph-canvas
+    - ranked-node-table
+    - slider
+    - select
+    - metric-card
+    - statistics-panel
+    - comparison-view
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: weighted bipartite web or directed food web with species abundances
+    node_count: 30-200
+    edge_density: moderate
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Simulate species going extinct in a chosen order and measure how quickly the species that depend on
+    them lose all their partners (secondary extinctions), summarized as a single robustness number that can be
+    compared across sites or treatments.
+
+
+    **Mental Model**: "Pull species out one at a time and watch who is left stranded." The result is a curve of the
+    share of the other level still surviving against the number of species removed; the area under it is robustness.
+
+
+    **Task Phases**:
+
+    1. **Choose the level that goes extinct** - Higher level (for example pollinators), lower level, or both
+
+    2. **Choose the removal order** - Least abundant first, most connected first, random, or a supplied
+    sequence
+
+    3. **Set replicates** - Number of random sequences to average
+
+    4. **Run and plot the curve** - Share of the other level surviving against species removed
+
+    5. **Summarize** - Robustness as the area under the curve (1 means the other level survives almost to the
+    end, 0 means it collapses at once); the older extinction slope only for comparison
+
+    6. **Watch it interactively** (optional) - Click a species to remove it and see which partners lose all
+    their links; replay the removal sequence step by step
+
+    7. **Compare** - Robustness across sites or treatments, often against null webs
+
+
+    **Decision Points**:
+
+    - Which level goes extinct, and in what order is biologically plausible?
+
+    - How many random replicates?
+
+    - Report robustness only, or also the extinction slope?
+
+
+    **Information Needs**:
+
+    - Extinction curve with the number of secondary extinctions at each step
+
+    - Which species went secondarily extinct after each removal
+
+    - Robustness value per network and per removal order
+
+
+    **Pain Points**:
+
+    - Existing tools give only a curve and a number; no tool found lets a user remove a species and watch the
+    consequences
+
+    - The abundance order ignores replicates, which is easy to miss
+
+    - The extinction slope is an inferior measure but still asked for
+
+
+    **Data Flow**:
+
+    - Input: Interaction network, optional abundances or a custom removal sequence
+
+    - Transformations: Sequential node removal, secondary extinction detection, curve and area computation
+
+    - Output: Extinction curves, robustness table, optional replay of the removal sequence
+success_criteria:
+    - metric: Interactive insight
+      target: Removing a species highlights every partner that loses all links within one second (design goal; no source measures it)
+    - metric: Comparability
+      target: Robustness for all sites shown in one table with the removal order named
+sources:
+    - title: bipartite second.extinct help page
+      url: https://search.r-project.org/CRAN/refmans/bipartite/html/second.extinct.html
+      summary: Participant level, removal methods (abundance, random, degree, external) and replicates
+    - title: bipartite robustness help page
+      url: https://search.r-project.org/CRAN/refmans/bipartite/html/robustness.html
+      summary: Robustness as the area under the extinction curve; the slope called an inferior measure
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

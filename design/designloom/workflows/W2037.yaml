@@ -1,0 +1,115 @@
+id: W2037
+name: Find and Group the Case Law on One Provision
+category: analysis
+validated: false
+personas:
+    - legal-citation-network-scholar
+requires_capabilities:
+    - data-import
+    - component-analysis
+    - computed-attributes
+    - weight-semantics
+    - community-detection
+    - cluster-labeling
+    - search
+    - node-selection
+    - neighborhood-expansion
+    - visual-encoding-nodes
+    - legend-display
+    - details-on-demand
+    - analysis-provenance
+    - data-export
+    - export-image
+    - court-citation-import
+    - vector-similarity-edge-weights
+suggested_components:
+    - data-import-dialog
+    - attribute-table-join-dialog
+    - computed-attributes-panel
+    - algorithm-panel
+    - community-panel
+    - cluster-table
+    - search-panel
+    - graph-canvas
+    - node-details-panel
+    - legend-panel
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: Citation network of all decisions on one provision (for example ECtHR Article 8 from HUDOC) plus a per-decision topic vector from a text model
+    node_count: 1,000-10,000 decisions
+    edge_density: sparse, directed
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Find every decision on a legal topic and group them into coherent lines of case law, using the
+    citations between decisions and the similarity of their texts together, then check the groups against cases the
+    researcher already knows.
+
+
+    **Mental Model**: "Cases that cite each other and talk about the same thing belong together." Citations alone mix
+    topics; text alone ignores how judges link their reasoning.
+
+
+    **Task Phases**:
+
+    1. **Import** - Load the citation network and join a per-decision topic vector computed outside
+
+    2. **Trim** - Keep the largest connected part and note how many decisions fell outside it
+
+    3. **Weight** - Weight each citation by the cosine similarity of the two decisions' topic vectors
+
+    4. **Group** - Run community detection on the weighted network and compare with the unweighted run
+
+    5. **Check** - Search known seed decisions, open the community that holds them, list its members and read the
+    ones not already known
+
+    6. **Export** - Export the member list with community ids and the weighting used
+
+
+    **Decision Points**:
+
+    - Weighted or unweighted grouping, judged by how many known cases land together?
+
+    - Is a decision outside the largest part a real outlier or a missed citation?
+
+    - Which community size is reviewable by hand?
+
+
+    **Information Needs**:
+
+    - Share of decisions in the largest connected part
+
+    - Community sizes and the known seed cases in each
+
+    - Members of one community with date and title
+
+
+    **Pain Points**:
+
+    - Combining text similarity with citation links needs custom code
+
+    - Communities are unlabeled; the researcher names them by reading cases
+
+
+    **Data Flow**:
+
+    - Input: Citation edge list, decision table, topic vector columns
+
+    - Transformations: Largest component, similarity edge weights, community detection
+
+    - Output: Grouped decision list with community ids, figure
+success_criteria:
+    - metric: Seed recall
+      target: User can see how many known seed decisions fall in the community selected
+    - metric: Weighting recorded
+      target: Exported list names the edge weighting and community algorithm used
+sources:
+    - title: Mohammadi et al., topic modelling and citation network analysis of ECtHR Article 8 case law (2024)
+      url: https://arxiv.org/html/2401.16429v1
+      summary: 9,777 cases, giant part 7,234; LDA 17 topics; Louvain on topic-similarity weighted citations found and grouped case law best
+    - title: Lupu and Voeten, Precedent in International Courts (British Journal of Political Science, 2012)
+      url: https://www.cambridge.org/core/journals/british-journal-of-political-science/article/abs/precedent-in-international-courts-a-network-analysis-of-case-citations-by-the-european-court-of-human-rights/0751B7A11AE1D9671F7C3D439E76C375
+      summary: Communities of ECtHR case law determined by case-specific characteristics (abstract, search excerpt)
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

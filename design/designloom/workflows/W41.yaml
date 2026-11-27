@@ -1,0 +1,156 @@
+id: W41
+name: Hub Interpretation with Domain-Aware Normalization
+category: analysis
+validated: false
+personas:
+    - expert-emma
+    - analyst-alex
+    - network-neuroscience-researcher
+requires_capabilities:
+    - centrality-degree
+    - centrality-betweenness
+    - centrality-pagerank
+    - community-detection
+    - community-profiling
+    - ego-network
+    - neighborhood-expansion
+    - computed-attributes
+    - details-on-demand
+    - comparison-view
+    - visual-encoding-nodes
+    - legend-display
+    - null-model-ensembles
+    - hub-role-analysis
+    - measurement-robustness
+    - weight-semantics
+    - seeded-runs
+suggested_components:
+    - ranked-node-table
+    - algorithm-panel
+    - community-panel
+    - ego-network-dialog
+    - node-details-panel
+    - computed-attributes-panel
+    - graph-canvas
+    - legend-panel
+    - visual-encoding-panel
+starting_state:
+    data_type: graph with a community partition (or one to be computed)
+    node_count: 100-1000000
+    edge_density: any
+    user_expertise: intermediate+
+goal: >-
+    **Intent**: Decide which high-ranking nodes are genuine hubs and what role each plays -- a provincial hub inside one
+    module, a connector between modules, an artifact of how the data was collected, or infrastructure -- using
+    normalizations rather than a raw degree cutoff.
+
+
+    **Mental Model**: "High compared to what?" A hub is high relative to its module, to how often it was measured, and
+    to what a random graph with the same degrees would give.
+
+
+    **Task Phases**:
+
+    1. **Rank on several centralities** - Degree, betweenness on distances, PageRank; look for high-betweenness,
+    low-degree brokers that degree alone misses
+
+    2. **Normalize against modules** - Within-module degree z-score and participation coefficient P; z >= 2.5
+    marks module hubs; provincial hubs (P <= 0.30) stay in their module, connector hubs link many
+
+    3. **Normalize against collection effort** - Check whether degree tracks how often a node was screened or
+    studied; flag supernodes (a shared address, a bank) above a cap as likely artifacts
+
+    4. **Normalize against a null** - Hub-to-hub connectivity (rich club) only relative to a
+    degree-preserving null
+
+    5. **State uncertainty** - Centrality accuracy declines as data error rises; check rank stability under
+    subsampling (W42)
+
+    6. **Hand off** - A role label per hub (provincial or connector; artifact, infrastructure or genuine) with
+    its evidence
+
+
+    **Decision Points**:
+
+    - Which centralities answer the question (popularity, brokerage, influence)?
+
+    - Is the weight a strength or a distance? Betweenness and closeness read it as a distance, PageRank and
+    eigenvector as a strength; convert explicitly (1/w) and record the conversion
+
+    - Is this node's degree a property of the system or of the measurement effort?
+
+    - Above what degree is a node treated as a supernode and expanded selectively?
+
+    - Provincial or connector?
+
+
+    **Information Needs**:
+
+    - Several centrality ranks side by side
+
+    - Within-module z and participation coefficient per node, on a role map (z vs P)
+
+    - A study-effort or collection covariate where one exists
+
+    - Supernode count above the cap
+
+    - Rich-club rho(k) against the null
+
+
+    **Pain Points**:
+
+    - A protein's degree largely reflects how many times it was screened; study bias alone can produce a power law
+
+    - Burt's constraint mostly tracks inverse network size
+
+    - Supernodes swamp ego networks and layouts
+
+    - No tool found computes participation coefficient and within-module z in a GUI
+
+
+    **Data Flow**:
+
+    - Input: Graph, partition, optional collection-effort column
+
+    - Transformations: Multi-centrality ranking, module-normalized roles, effort normalization, null comparison
+
+    - Output: Hub table with roles and evidence, role map, highlighted figure
+success_criteria:
+    - metric: Hub threshold justified
+      target: Hubs defined by within-module z >= 2.5, a null comparison or an effort normalization, not an arbitrary degree
+    - metric: Roles assigned
+      target: Every reported hub labeled provincial or connector and genuine, artifact or infrastructure with evidence
+sources:
+    - title: Functional cartography of complex metabolic networks (Guimera and Amaral 2005)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC2175124
+      summary: z >= 2.5 for module hubs, P <= 0.30 provincial; about 80% of nodes link only within their module
+    - title: Bias tradeoffs in the creation and analysis of protein-protein interaction networks (Gillis, Ballouz and Pavlidis 2014)
+      url: https://repository.cshl.edu/id/eprint/29493/
+      summary: Degree reflects study effort
+    - title: Schaefer et al. 2015, Frontiers in Genetics
+      url: https://www.frontiersin.org/journals/genetics/articles/10.3389/fgene.2015.00260/full
+      summary: A protein's degree largely reflects the number of times it was screened
+    - title: Lucchetta et al. 2024, eLife
+      url: https://elifesciences.org/articles/99951.pdf
+      summary: Study bias alone can produce power-law degree distributions
+    - title: On the robustness of centrality measures under imperfect data (Borgatti, Carley and Krackhardt 2006)
+      url: https://scholars.uky.edu/en/publications/on-the-robustness-of-centrality-measures-under-conditions-of-impe/
+      summary: Centrality accuracy declines smoothly with data error
+    - title: Linkurious user manual - expand
+      url: https://doc.linkurious.com/user-manual/3.1/expand
+      summary: superNodeThreshold flags and limits expansion of supernodes
+    - title: Burt's constraint and network size (Strategy Science 2024)
+      url: https://pubsonline.informs.org/doi/10.1287/stsc.2024.0297
+      summary: Constraint mostly tracks inverse network size
+    - title: Detecting rich-club ordering (Colizza et al. 2006)
+      url: https://arxiv.org/abs/physics/0602134
+      summary: Rich club meaningful only against a degree-preserving null
+    - title: NetworkX betweenness_centrality
+      url: https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.centrality.betweenness_centrality.html
+      summary: Weights are used for weighted shortest paths, so they are interpreted as distances
+    - title: Gephi GraphDistance.java (betweenness and closeness)
+      url: https://github.com/gephi/gephi/blob/master/modules/StatisticsPlugin/src/main/java/org/gephi/statistics/plugin/GraphDistance.java
+      summary: Never reads edge weights; path lengths are hop counts
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

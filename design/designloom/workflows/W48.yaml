@@ -1,0 +1,103 @@
+id: W48
+name: Benchmarking Community Methods Against Planted Partitions
+category: analysis
+validated: false
+personas:
+    - expert-emma
+requires_capabilities:
+    - sample-datasets
+    - community-detection
+    - comparison-view
+    - algorithm-progress
+    - data-export
+    - report-generation
+    - seeded-runs
+    - partition-stability
+    - community-benchmark-mode
+suggested_components:
+    - sample-data-dialog
+    - algorithm-panel
+    - algorithm-card
+    - slider
+    - progress-bar
+    - comparison-view
+    - data-export-dialog
+    - report-generator-dialog
+starting_state:
+    data_type: generated benchmark graphs with planted community labels (LFR, planted-partition SBM)
+    node_count: 1000-100000
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Show how well community detection methods recover known communities as those communities get harder to
+    see, by generating graphs with planted partitions over a grid of mixing levels and scoring each method against the
+    planted labels.
+
+
+    **Mental Model**: "Plant the answer, then see who finds it." The standard methods-paper figure is NMI against the
+    mixing parameter mu, one curve per method, with error bars.
+
+
+    **Task Phases**:
+
+    1. **Generate graphs with known communities** - LFR with n, degree exponent tau1 (2-3), community-size
+    exponent tau2 (1-2), size bounds and mixing mu; or a simpler planted-partition block model; record seeds
+
+    2. **Sweep mu** - From 0 past 0.5, where communities stop being defined in the strong sense
+
+    3. **Run every method** - On each graph, with seeds
+
+    4. **Score** - Normalized mutual information (or adjusted Rand) against the planted labels
+
+    5. **Average over realizations** - 100 graphs per point in the original benchmark
+
+    6. **Plot** - NMI against mu, one curve per method, with error bars
+
+
+    **Decision Points**:
+
+    - Which LFR parameters represent the target domain?
+
+    - Which methods and settings compete?
+
+    - How many realizations per point?
+
+
+    **Information Needs**:
+
+    - Generator parameters and seeds per graph
+
+    - NMI per method per mu with spread
+
+    - Run time per method
+
+
+    **Pain Points**:
+
+    - The grid (methods x mu x realizations) is a scripting job no GUI supports
+
+    - Comparing partitions to planted labels needs NMI, which GUI tools do not compute
+
+
+    **Data Flow**:
+
+    - Input: Generator parameters grid, method list, seeds
+
+    - Transformations: Graph generation, seeded runs, NMI scoring, averaging
+
+    - Output: NMI-vs-mu curves with error bars, results table, provenance record
+success_criteria:
+    - metric: Benchmark figure
+      target: NMI against mu with error bars for every method
+    - metric: Reproducible grid
+      target: Every graph and run regenerable from recorded seeds
+sources:
+    - title: Benchmark graphs for testing community detection algorithms (Lancichinetti, Fortunato and Radicchi 2008)
+      url: https://arxiv.org/html/0805.4770v4
+      summary: LFR parameters tau1, tau2, mu; 100 graphs per point; NMI against mu
+    - title: Community detection in networks - a user guide (Fortunato and Hric 2016)
+      url: https://arxiv.org/abs/1608.00163
+      summary: Benchmarking practice and the mu = 0.5 strong-community boundary
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

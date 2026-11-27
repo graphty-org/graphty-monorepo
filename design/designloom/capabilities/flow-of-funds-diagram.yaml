@@ -1,0 +1,19 @@
+id: flow-of-funds-diagram
+name: Flow-of-funds (Sankey) view
+category: visualization
+description: Draw summed or allocated flows as a Sankey or flow-of-funds diagram with band widths proportional to
+    amount, each band drillable to and exportable as its underlying transactions.
+status: planned
+notes: "Research trace: financial-crime-fraud-aml-kyc.md section 10, requirement 19 (Must)."
+algorithms: []
+used_by_workflows:
+    - W121
+    - W126
+implemented_by_components: []
+requirements:
+    - "Must: Sankey or flow-of-funds view of an allocation or of summed flows, each band drillable to transactions"
+sources:
+    - title: "Financial crime investigators: fraud rings, anti-money-laundering, beneficial ownership, crypto tracing
+          and insurance fraud (section 10, requirement 19)"
+      url: design/user-research/financial-crime-fraud-aml-kyc.md
+      summary: Must in the research.

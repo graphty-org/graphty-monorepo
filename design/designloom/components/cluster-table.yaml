@@ -7,6 +7,54 @@ implements_capabilities:
     - community-profiling
 used_in_workflows:
     - W21
+    - W04
+    - W119
+    - W125
+    - W141
+    - W155
+    - W164
+    - W186
+    - W207
+    - W208
+    - W209
+    - W210
+    - W211
+    - W212
+    - W245
+    - W254
+    - W261
+    - W275
+    - W306
+    - W309
+    - W319
+    - W335
+    - W377
+    - W38
+    - W384
+    - W387
+    - W396
+    - W402
+    - W411
+    - W430
+    - W51
+    - W52
+    - W58
+    - W61
+    - W62
+    - W65
+    - W66
+    - W70
+    - W71
+    - W75
+    - W82
+    - W93
+    - W1060
+    - W1156
+    - W2037
+    - W2096
+    - W2097
+    - W2098
+    - W2099
 dependencies: []
 props: {}
 sources: []

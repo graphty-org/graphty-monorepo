@@ -1,0 +1,53 @@
+id: hta-evidence-review-assessor
+name: HTA Evidence Review Assessor
+roster_persona: nma-systematic-reviewer
+tier: B
+scope: in-scope
+role: Evidence Review Group Systematic Reviewer Critiquing Company Network Meta-Analyses
+quote: I need to see where an estimate gets its evidence from, and what is left when the weak trials go.
+bio: >-
+    Dr. Farah Siddiqui is a systematic reviewer in an academic evidence review group contracted by a health technology assessment agency. She critiques the network meta-analyses in company submissions, often retyping the data from a PDF appendix, re-runs them in MetaInsight and R netmeta with studies excluded, rates confidence in CINeMA, and sits with the appraisal committee to show the network before and after an exclusion. Company figures rarely state what node size and line width mean, and risk of bias sits in a table rather than on the network.
+characteristics:
+    expertise: advanced
+    time_pressure: high
+    graph_literacy: novice
+    domain_knowledge: advanced
+motivations:
+    - See which direct comparisons feed the estimate the decision rests on
+    - Test whether a conclusion survives removing high-risk or mismatched trials
+    - Show the committee the network before and after an exclusion
+behaviors:
+    - Re-runs the company model with checkboxes for excluded studies
+    - Colors comparisons by risk of bias with a majority, average or highest rule
+    - Reads closed loops and node-splitting results before trusting a ranking
+frustrations:
+    - Company network figures omit trial counts and encodings
+    - A comparator is presented as connected through a single old trial
+    - Risk of bias is reported in a table and never on the network
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: false
+workflows:
+    - W3054
+    - W3055
+    - W3056
+    - W3058
+sources:
+    - title: "Owen et al. 2019 - MetaInsight"
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6973101
+      summary: "Exclude studies and see the network before and after side by side; disconnected treatments disappear"
+    - title: "Papakonstantinou et al. 2020 - CINeMA software"
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8356302/
+      summary: "Network plot colored by majority, average or highest risk of bias; contribution matrix; one outcome per project"
+    - title: "ISPOR Europe 2025 - indirect comparisons in NICE submissions"
+      url: https://www.ispor.org/heor-resources/presentations-database/presentation-cti/ispor-europe-2025/poster-session-3-2/indirect-treatment-comparisons-in-health-technology-assessment-submissions-a-review-and-critique-of-best-practice
+      summary: "114 NICE appraisals with indirect comparisons, 61.4% NMA; heterogeneity concerns in 79%"
+    - title: "Jain, Li and Warner 2024 - Graphical presentations in anticancer NMAs"
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10927000/
+      summary: "441 plots in 162 NMAs; 76% circle layout; node size 58%, edge width 68%; hairball effect"
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

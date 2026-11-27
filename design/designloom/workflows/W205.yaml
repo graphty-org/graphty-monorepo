@@ -1,0 +1,172 @@
+id: W205
+name: Actor, Stakeholder or Power Map from a Shared Spreadsheet
+category: analysis
+validated: false
+personas:
+    - civic-power-researcher
+    - systems-change-strategist
+    - nonprofit-operations-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - node-merging
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - filtering
+    - search
+    - details-on-demand
+    - centrality-degree
+    - centrality-betweenness
+    - centrality-closeness
+    - centrality-eigenvector
+    - community-detection
+    - ego-network
+    - shortest-path
+    - legend-display
+    - export-image
+    - data-export
+    - bipartite-projection
+    - structured-item-fields
+    - wave-identity-matching
+    - attribute-grid-view
+    - multi-valued-attributes
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - node-merge-dialog
+    - graph-canvas
+    - visual-encoding-panel
+    - filter-panel
+    - search-panel
+    - node-details-panel
+    - algorithm-panel
+    - ranked-node-table
+    - community-panel
+    - ego-network-dialog
+    - path-finder-dialog
+    - legend-panel
+    - share-dialog
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: shared spreadsheet with an elements sheet and a relationships sheet (type, direction, source URL), often a live Google Sheet
+    node_count: 20-200 for a coalition or campaign; about 1,550 for long-running projects; a few thousand at most per map
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Map the people and organizations in a field, coalition or campaign and the typed relationships between
+    them, from a spreadsheet a team maintains together, then analyze who holds influence, who bridges clusters and who
+    is missing, and either publish the map or keep it private. Organizers do this as power analysis; evaluators and
+    foundations as actor mapping; engagement teams as stakeholder maps.
+
+
+    **Mental Model**: "Who is connected to whom, how, and who matters for our goal?" A sourced web of people and
+    organizations, read through the lens of a decision-maker, allies and opponents.
+
+
+    **Task Phases**:
+
+    1. **Frame** - Decision-maker, influencers, allies and opponents; or a bullseye by issue and sector; or
+    interest or alignment against influence
+
+    2. **Collect** - Brainstorm power holders, find hidden power, research each in registries, campaign
+    finance, lobbying disclosures and news; interviews or surveys
+
+    3. **Structure the sheet** - Elements with a label, type and attributes; relationships with from, to, type,
+    direction, date and source URL; multiple values in one cell; an ID column for updates
+
+    4. **Load** - Import, or link a live sheet re-read on refresh; re-import updates rows by ID instead of
+    duplicating
+
+    5. **Derive** - Project person-organization links into organization-organization interlocks or
+    person-person links
+
+    6. **Analyze** - Degree, closeness, betweenness, eigenvector, two-step reach; overlapping communities treated
+    as prompts for questions, not facts; core, periphery and bridges; paths to the decision-maker; two-axis grid of
+    influence against alignment
+
+    7. **Decide and publish or protect** - Who is missing, who bridges clusters, which triangles to close; publish
+    a public map or keep it private
+
+
+    **Decision Points**:
+
+    - Which relationship types count as influence?
+
+    - Are two rows the same entity (name variants)?
+
+    - Which projection (shared boards, shared funders) answers the question?
+
+    - Public, password-protected or private?
+
+
+    **Information Needs**:
+
+    - Several typed relationships between one pair, each with its source link
+
+    - Interlocks: organizations sharing board members or funders
+
+    - Paths of length two or three to the decision-maker
+
+    - Centralities with plain-language meaning (connector, broker, insider)
+
+    - Actors placed on an influence against alignment grid
+
+
+    **Pain Points**:
+
+    - Re-import creates duplicates; two-sheet sync needs constant attention
+
+    - Live sheet links are read-only and one-way
+
+    - Privacy costs extra on public map platforms, while power and donor data must stay private
+
+    - Maps slow down past a few thousand elements
+
+    - Community algorithm output presented as fact
+
+
+    **Data Flow**:
+
+    - Input: Elements and relationships sheets (CSV, XLSX, Google Sheets), LittleSis or Graph Commons exports
+
+    - Transformations: Upsert by ID, multi-valued attributes, multi-relational edges, bipartite projection, centralities,
+    overlapping communities, paths, attribute grid
+
+    - Output: Published or private interactive map, ranked actor lists, target and gap lists, images for campaign
+    materials
+success_criteria:
+    - metric: Re-import safety
+      target: Re-importing an edited sheet updates changed rows and adds new ones with zero duplicates
+    - metric: Provenance
+      target: Every relationship opens to its source URL
+    - metric: Interlock question
+      target: User can list organizations sharing a board member with a target in under a minute (design goal; no source measures it)
+sources:
+    - title: Kumu documentation (full text)
+      url: https://docs.kumu.io/llms-full.txt
+      summary: Label, From and To columns, pipe-separated multi-values, ID column for updates, Google Sheets link, Cluster and Bridge projections, SLPA communities, size limits
+    - title: Commons Library - A guide to power analysis in community organising
+      url: https://commonslibrary.org/a-guide-to-power-analysis-in-community-organising/
+      summary: Decision-maker, influencers, allies and opponents; hidden power
+    - title: Graph Commons API
+      url: https://graphcommons.github.io/api-v1
+      summary: Edges name endpoints by name and type; missing nodes created
+    - title: University of Arizona - AEA 2024 actor mapping poster
+      url: https://fmi.arizona.edu/sites/fmi.arizona.edu/files/2024-10/cred-aea-2024_actor-mapping.pdf
+      summary: Bullseye by issue experience and sector plus power type
+    - title: ODI - Alignment, Interest and Influence Matrix
+      url: https://www.researchtoaction.org/2012/01/the-alignment-interest-and-influence-matrix-aiim-a-basic-introduction
+      summary: Policy influence actors placed by alignment and interest against influence
+    - title: June Holley - Analyzing Network Maps
+      url: https://networkweaver.com/wp-content/uploads/2024/12/Analyzing-Network-Maps.pdf
+      summary: Core, periphery, bridges and closing triangles
+    - title: UNDP Jordan - Kumu blog
+      url: https://www.undp.org/jordan/blog/kumu-powerful-tool-mapping-and-visualizing-complex-data-0
+      summary: Food-system stakeholders mapped in Kumu; two-sheet sync needs attention to detail (search summary)
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

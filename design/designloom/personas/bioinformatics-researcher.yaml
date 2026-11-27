@@ -1,41 +1,55 @@
 id: bioinformatics-researcher
-name: Bioinformatics Researcher
-role: Computational Biologist / Drug Discovery Scientist
-quote: Every protein interaction is a clue - the network topology often reveals function before any wet lab experiment.
-bio: Dr. Chen completed her PhD in computational biology and now leads a research group studying protein-protein
-    interaction networks. She works with massive datasets from STRING, BioGRID, and internal experimental data, often
-    analyzing networks with tens of thousands of nodes. Her research focuses on identifying drug targets by finding
-    essential network hubs and understanding how diseases disrupt normal cellular pathways.
+name: Network Medicine Researcher
+roster_persona: bioinformatics-researcher
+tier: B
+scope: in-scope
+role: Postdoctoral Researcher / Academic Network Medicine Lab (drug repurposing)
+quote: A drug's targets sitting next to a hub means nothing. They have to sit closer to the disease module than a random, degree-matched set would.
+bio: >-
+    Dr. Wei Chen is a postdoc in an academic network medicine lab that screens approved drugs against diseases for
+    repurposing. She works on a lab-curated human interactome of 13,000 to 18,500 proteins and 140,000 to 350,000
+    physical interactions, kept as a TSV edge list and reduced to its largest connected component. Disease gene sets come
+    from OMIM, GWAS (p < 5e-8) or DisGeNET, keeping diseases with at least 20 genes; drug targets come from DrugBank,
+    ChEMBL and BindingDB at 10 micromolar affinity or better. In Python (NetMedPy, NetworkX) or R (SAveRUNNER, igraph)
+    she computes the closest-distance proximity between each drug's targets and the disease genes, builds a null model
+    from 1,000 degree-matched random sets, and ranks drugs by z-score; before that she tests whether the disease genes
+    form a module and grows it with DIAMOnD. Centrality describes a module but is not the method: proximity exists to
+    correct for the interactome's degree bias, and Open Targets treats essentiality as a safety liability. Her results
+    end as DataFrames, and every figure of a module, a drug's targets and the shortest paths between them is drawn by
+    hand-written igraph plot code or rebuilt in Gephi or Cytoscape. Wet-lab collaborators then screen the top 10 to 100
+    drugs.
 characteristics:
     expertise: expert
     time_pressure: low
     graph_literacy: advanced
     domain_knowledge: advanced
 motivations:
-    - Discover novel drug targets by identifying essential proteins in disease networks
-    - Publish high-impact research by uncovering previously unknown biological pathways
-    - Understand disease mechanisms through network perturbation analysis
-    - Validate computational predictions with experimental collaborators
-    - Build reproducible analysis pipelines that other researchers can use and cite
+    - Rank approved drugs for a disease by network proximity with a defensible null model
+    - Show that a disease's genes form a significant module before building on it
+    - Produce a figure of the top drugs' targets, the disease module and the shortest paths between them
+    - Hand wet-lab collaborators a short, justified list to screen
+    - Publish with every parameter (interactome version, seed list, ID mapping, null model, randomizations, random seed) reproducible
 behaviors:
-    - Imports data from public databases (STRING, BioGRID, KEGG) and merges with experimental results
-    - Uses network clustering to identify functional modules (protein complexes, pathways)
-    - Applies centrality measures to find essential genes - hub proteins are often lethal when knocked out
-    - Compares disease vs. healthy networks to identify differentially connected proteins
-    - Exports subnetworks for visualization in publications
-    - Runs pathway enrichment analysis on detected clusters
-    - Documents analysis parameters for reproducibility and peer review
+    - Merges physical interaction sources (IntAct, BioGRID, HPRD, CORUM) into one undirected interactome and keeps the largest component
+    - Maps every gene and drug-target identifier into the interactome's ID space and drops what does not map
+    - Computes closest-distance proximity and 1,000 degree-binned random draws per drug-disease pair, reporting z <= -2 (or z < -1.5 with p < 0.05) as significant
+    - Tests largest-component significance of a disease gene set against random sets of equal size, then grows the module with DIAMOnD for about 200 iterations
+    - Validates rankings by AUC against known indications and accepts that no single pipeline wins (best AUC about 0.63 in a 918-drug screen)
+    - Computes drug-pair separation to judge combinations that hit the module from separate neighborhoods
+    - Cuts a 20 to 300 node result subnetwork out of the interactome and draws it with seeds, added proteins and drug targets in different shapes
+    - Publishes supplementary CSV or XLSX tables of drugs with z and p, plus a GitHub repository
 goals:
-    - Identify potential drug targets for diseases
-    - Understand disease mechanisms through PPI networks
-    - Find hub proteins and bottleneck proteins
-    - Perform pathway enrichment analysis
-    - Generate publication-quality network visualizations
+    - Ranked drug table with proximity z-scores for one or more diseases
+    - Module figure with drug targets and connecting shortest paths
+    - Validation figure (AUC against known indications)
+    - Reproducible parameter record for the methods section
 frustrations:
-    - Poor integration with biological databases like STRING
-    - Limited pathway visualization
-    - No support for functional enrichment
-    - Difficulty exporting for publications
+    - The interactome is roughly 80 percent incomplete, so modules are partial and results depend on the null model
+    - Analysis and visualization are split; NetMedPy states that visualization happens outside the tool
+    - No tool loads a node set, per-node scores and path sets onto a large base graph and draws only that part
+    - Identifier mapping silently drops genes with no report of what was lost
+    - Figures are hand-coded with every encoding written by hand and nothing saved for the next run
+    - Existing tools present "find the hub" centrality as the target-finding method, which the field moved away from
 context:
     frequency: weekly
     devices:
@@ -53,16 +67,33 @@ workflows:
     - W23
     - W24
     - W25
+    - W256
+    - W257
 sources:
+    - title: Guney et al. 2016 - Network-based in silico drug efficacy screening
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4740350/
+      summary: Closest-distance proximity, 13,329-protein interactome, degree-matched null, z <= -2 threshold
+    - title: Menche et al. 2015 - Uncovering disease-disease relationships through the incomplete interactome
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4435741
+      summary: Interactome incompleteness, largest-component significance, modules under about 25 genes not observable
+    - title: Gysi et al. 2021 - Network medicine framework for identifying drug repurposing opportunities for COVID-19
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8126852
+      summary: 12 pipelines compared on a 918-drug screen; best AUC about 0.63; module figures drawn with igraph base plot
+    - title: NetMedPy
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC12401583
+      summary: Python proximity and separation with precomputed distance matrices; visualization performed outside the tool
+    - title: DIAMOnD module detection
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4390154/
+      summary: Seed-based module expansion by hypergeometric connectivity significance
+    - title: Open Targets target prioritisation
+      url: https://platform-docs.opentargets.org/web-interface/target-prioritisation
+      summary: Essentiality scored as a safety liability rather than a target-finding criterion
+    - title: Cheng, Kovacs and Barabasi 2019 - Network-based prediction of drug combinations
+      url: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6416394/
+      summary: Separation measure; complementary exposure pattern tracks clinical efficacy
     - title: STRING Database
       url: https://string-db.org
-      summary: Primary protein-protein interaction database - key data source for biological network analysis
-    - title: BioGRID
-      url: https://thebiogrid.org
-      summary: Repository of protein, genetic, and chemical interactions
-    - title: KEGG Pathway Database
-      url: https://www.kegg.jp
-      summary: Kyoto Encyclopedia of Genes and Genomes - pathway mapping resource
-    - title: PPI Network Analysis
-      url: https://www.cd-genomics.com/bmb/ppi-network-analysis.html
-      summary: Overview of protein-protein interaction network analysis techniques for drug discovery
+      summary: Weighted functional associations; used for omics overlays but usually excluded from proximity work
+version: 1.1.0
+created_at: 2026-09-08T02:34:20.000Z
+updated_at: 2026-11-25T00:00:00.000Z

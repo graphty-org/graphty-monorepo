@@ -1,0 +1,18 @@
+id: multilevel-cluster-view
+name: Two-level cluster view
+category: visualization
+description: A coarse cluster graph (for example PAGA) linked to its member nodes, with the fine layout seeded from
+    coarse positions.
+status: planned
+notes: "Research trace: systems-biology-omics-networks.md section 10, requirement 38 (Should)."
+algorithms: []
+used_by_workflows:
+    - W254
+implemented_by_components: []
+requirements:
+    - "Should: Two-level view: coarse cluster graph linked to its members; seed the fine layout from coarse positions"
+sources:
+    - title: Systems Biologists and Bench Scientists Working With Molecular Interaction Networks (section 10,
+          requirement 38)
+      url: design/user-research/systems-biology-omics-networks.md
+      summary: Should in the research.

@@ -1,42 +1,270 @@
 id: data-validation
 name: Data Validation
 category: data
-description: Validate imported graph data for quality issues before proceeding with analysis. Identify missing values,
-    orphan nodes, duplicate edges, type mismatches, and structural anomalies. Generate a quality report with actionable
-    recommendations.
-status: implemented
-notes: "Ships: the session's data issues (issues, ignoreIssue in graphty-element/api/session.api.md) listed by graphty/src/workspace/table/IssuesList.tsx."
+description: Check loaded graph data and report, as counts with the affected ids, what the import did and what looks
+    wrong -- unmatched edge endpoints, duplicate node ids, parallel edges, self-loops, reciprocal pairs, isolates,
+    missing ids, type mismatches and identifiers mangled by spreadsheets. Each issue is a code with its parameters and,
+    where there is one, a choice (create or drop, merge or keep); nothing is dropped silently and there is no single
+    quality score.
+status: in-progress
+notes: "Partly ships: the session's data issues (issues, ignoreIssue in graphty-element/api/session.api.md) listed by graphty/src/workspace/table/IssuesList.tsx. Planned: near-duplicate name detection, before-and-after counts for each fix, and export of the issue list as an import log. Any requirement below that this note does not name as shipping counts as planned."
 algorithms: []
 used_by_workflows:
+    - W3006
     - W01
     - W13
     - W18
     - W20
     - W22
+    - W08
+    - W10
+    - W100
+    - W107
+    - W108
+    - W11
+    - W112
+    - W116
+    - W119
+    - W123
+    - W125
+    - W126
+    - W128
+    - W129
+    - W130
+    - W131
+    - W132
+    - W136
+    - W137
+    - W14
+    - W140
+    - W148
+    - W151
+    - W152
+    - W153
+    - W154
+    - W157
+    - W158
+    - W16
+    - W160
+    - W163
+    - W167
+    - W168
+    - W171
+    - W172
+    - W173
+    - W174
+    - W176
+    - W179
+    - W180
+    - W182
+    - W183
+    - W185
+    - W187
+    - W188
+    - W19
+    - W193
+    - W194
+    - W198
+    - W199
+    - W201
+    - W204
+    - W205
+    - W206
+    - W207
+    - W208
+    - W209
+    - W210
+    - W212
+    - W214
+    - W215
+    - W217
+    - W219
+    - W221
+    - W224
+    - W227
+    - W228
+    - W229
+    - W230
+    - W231
+    - W233
+    - W234
+    - W235
+    - W236
+    - W237
+    - W240
+    - W241
+    - W242
+    - W243
+    - W244
+    - W251
+    - W256
+    - W257
+    - W259
+    - W26
+    - W260
+    - W261
+    - W253
+    - W265
+    - W266
+    - W27
+    - W279
+    - W289
+    - W29
+    - W291
+    - W292
+    - W293
+    - W294
+    - W295
+    - W296
+    - W297
+    - W298
+    - W299
+    - W300
+    - W301
+    - W302
+    - W303
+    - W304
+    - W305
+    - W306
+    - W307
+    - W308
+    - W310
+    - W311
+    - W33
+    - W335
+    - W337
+    - W430
+    - W339
+    - W34
+    - W340
+    - W343
+    - W344
+    - W346
+    - W348
+    - W361
+    - W365
+    - W367
+    - W369
+    - W37
+    - W370
+    - W373
+    - W380
+    - W381
+    - W382
+    - W384
+    - W385
+    - W386
+    - W387
+    - W388
+    - W389
+    - W390
+    - W393
+    - W396
+    - W398
+    - W402
+    - W405
+    - W407
+    - W410
+    - W412
+    - W413
+    - W424
+    - W425
+    - W426
+    - W428
+    - W429
+    - W431
+    - W432
+    - W433
+    - W435
+    - W438
+    - W47
+    - W49
+    - W50
+    - W51
+    - W52
+    - W53
+    - W54
+    - W59
+    - W60
+    - W61
+    - W62
+    - W63
+    - W64
+    - W66
+    - W67
+    - W68
+    - W70
+    - W71
+    - W72
+    - W73
+    - W74
+    - W75
+    - W78
+    - W82
+    - W86
+    - W90
+    - W91
+    - W94
+    - W96
+    - W97
+    - W1054
+    - W1060
+    - W323
+    - W1084
+    - W1090
+    - W1096
+    - W1120
+    - W1139
+    - W1156
+    - W1158
+    - W1162
+    - W2000
+    - W2006
+    - W2036
+    - W2072
+    - W3048
+    - W3050
+    - W3066
+    - W3103
 implemented_by_components:
     - data-preview-table
     - data-import-dialog
     - attribute-table-join-dialog
 requirements:
-    - Detect and report nodes missing required ID field
-    - Detect and report edges missing source or target field
-    - Identify orphan references where edge endpoints reference non-existent node IDs
-    - Count and list duplicate edges between identical node pairs
-    - Flag attribute type inconsistencies (e.g., numeric field with string values)
-    - Identify isolated nodes with degree 0
-    - Identify self-loops (edges where source equals target)
-    - Calculate attribute completeness as percentage of non-null values per field
-    - Generate overall data quality score from 0-100 based on weighted issue counts
-    - Categorize issues as 'Error' (blocks import), 'Warning' (allows import), or 'Info'
-    - Provide specific fix recommendation for each issue type
-    - Allow user to proceed with warnings after acknowledgment
-    - Block import for error-level issues until resolved
-    - Complete validation within 3 seconds for graphs under 10,000 edges
-    - Display validation progress for graphs over 10,000 edges
-    - Export validation report as JSON or CSV
-    - Provide 'Auto-fix' option for resolvable issues (e.g., remove orphan edges)
-    - Show before/after preview for auto-fix operations
+    - "Must: Detect node rows with a missing or empty id and edge rows with a missing source or target; report the count and the row numbers"
+    - "Must: Match edge endpoints to node ids and list every unmatched id with its count; offer to create the missing nodes or drop those edges, never blocking the import and never dropping them silently"
+    - "Must: Report key-type mismatches between node and edge tables (number versus string, whitespace, case) that stop ids from matching, and offer normalization (trim, case) at match time"
+    - "Must: Count duplicate node ids and report which row was kept"
+    - "Must: Count parallel edges (same source and target) and apply the chosen policy -- keep as multi-edges, or merge by count, sum, average, min, max, first or last -- and record the policy used"
+    - "Must: Count self-loops and reciprocal pairs (A-B and B-A), and report how many reciprocal pairs were collapsed when a directed table is read as undirected"
+    - "Must: Count isolated nodes (degree 0), which often mark edges that did not attach"
+    - "Must: Flag columns whose values do not fit the inferred type, with the count of cells that failed to parse"
+    - "Must: Flag identifiers that look converted by a spreadsheet (gene symbols such as SEPT2 turned into dates, long numeric ids rounded)"
+    - "Library parity: Report per-attribute completeness as the count and share of non-null values"
+    - 'Must: Report a missing respondent ("did not answer") separately from "no tie" when the data marks it'
+    - "Should: Flag near-duplicate node names (fingerprint, n-gram, phonetic) for review and merge"
+    - "Library parity: Classify each issue by whether it stops a graph from being built (no source or target column) or only needs a decision; the user can acknowledge or ignore each"
+    - "Library parity: Return each issue as a code with its parameters and the affected ids; the application writes the words and any recommendation"
+    - "Library parity: Show before and after counts for any fix (create missing nodes, drop edges, merge duplicates, remove self-loops) before applying it"
+    - "Library parity: Show progress for long validations"
+    - "Should: Export the issue list with the import settings and counts as JSON or CSV, as an import log for reproducibility"
 sources:
-    - title: Practical Graph Analysis Guide - Chapter 2
-      url: https://graphty.app/docs/
-      summary: Data Quality Assessment - completeness, accuracy, consistency checks
+    - title: Data preparation, import and first assessment (sections 4.1, 4.2, 4.9; requirements 1-5, 11, 12, 16, 19)
+      url: design/user-research/data-preparation-and-import.md
+      summary: Import report counts, endpoint matching with create-or-drop, key type, parallel-edge policy, identifier
+          safety and an import log are Must or Should; no research or tool asks for a quality score
+    - title: Gephi CSV import tutorial (seinecle)
+      url: https://seinecle.github.io/gephi-tutorials/generated-html/importing-csv-data-in-gephi-en.html
+      summary: Gephi's "Create missing nodes" choice when edge endpoints match no node
+    - title: Cytoscape manual, Creating Networks
+      url: https://manual.cytoscape.org/en/stable/Creating_Networks.html
+      summary: A network can be built from an edge table alone
+    - title: Gephi EdgeMergeStrategy API
+      url: https://gephi.org/gephi/0.9.2/apidocs/org/gephi/io/importer/api/EdgeMergeStrategy.html
+      summary: Parallel-edge merge options SUM, AVG, MAX, MIN, FIRST, LAST and NO_MERGE
+    - title: Cytoscape Quick Tour
+      url: https://manual.cytoscape.org/en/latest/Quick_Tour_of_Cytoscape.html
+      summary: Remove Duplicated Edges and Remove Self-Loops as cleanup steps after import
+    - title: Ziemann, Eren and El-Osta 2016, Gene name errors are widespread in the scientific literature
+      url: https://doi.org/10.1186/s13059-016-1044-7
+      summary: Excel converts gene symbols such as SEPT2 to dates

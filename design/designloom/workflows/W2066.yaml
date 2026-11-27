@@ -1,0 +1,159 @@
+id: W2066
+name: Spatial Neighbor Graph and Cell-Type Neighborhoods over a Tissue Image
+category: analysis
+validated: false
+personas:
+    - spatial-omics-tissue-analyst
+requires_capabilities:
+    - data-import
+    - columnar-table-import
+    - fixed-node-positions
+    - large-graph-rendering
+    - zoom-pan
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - neighborhood-label-mixing
+    - matrix-view
+    - linked-views-selection
+    - node-selection
+    - spatial-selection
+    - details-on-demand
+    - seeded-runs
+    - provenance-tracking
+    - comparison-view
+    - export-image
+    - data-export
+    - spatial-neighbor-graph
+    - raster-image-underlay
+    - label-pair-enrichment
+    - neighborhood-composition-clustering
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - graph-canvas
+    - heatmap-panel
+    - legend-panel
+    - node-details-panel
+    - data-table-panel
+    - image-export-dialog
+starting_state:
+    data_type: >-
+        Segmented cells (or Visium HD bins) with x, y centroids, a cell-type label and expression or marker columns, one
+        or more tissue sections, plus the tissue image for each section (H&E, DAPI or a multichannel stack)
+    node_count: 100,000-1,000,000 cells per section
+    edge_density: sparse (5-10 spatial neighbors per cell)
+    user_expertise: advanced
+goal: >-
+    **Intent**: Turn each cell's position in a tissue section into a spatial neighbor graph, find which cell types are
+    neighbors more or less often than chance, group cells into recurrent cellular neighborhoods, and see all of it on the
+    tissue image. This is the core analysis of spatial transcriptomics (Xenium, Visium HD) and multiplexed tissue imaging
+    (CODEX, imaging mass cytometry).
+
+
+    **Mental Model**: "Who lives next to whom." The tissue is a city map: cells are houses fixed where the microscope saw
+    them, edges join next-door neighbors, and the question is which kinds of residents cluster together into districts.
+
+
+    **Task Phases**:
+
+    1. **Load cells and image** - Import the cell table with centroids and labels; place every cell at its
+    coordinates; put the section's image underneath in the same coordinate frame (pixel size in micrometers)
+
+    2. **Build the spatial graph per section** - Choose Delaunay (with a maximum edge length), k nearest neighbors
+    (Squidpy's default is 6; Voyager uses 5) or a radius; never join cells from different sections; report how many cells
+    got no neighbors
+
+    3. **Check the graph on the tissue** - Zoom to a few cells and look at their edges over the image; compare two
+    graph rules on the same region
+
+    4. **Cell-type pair enrichment** - Count edges for every pair of cell types and compare with 1,000 seeded label
+    permutations; read the z-score heat map; click a heat map cell to select the cells and edges behind it
+
+    5. **Cellular neighborhoods** - For each cell, the cell-type make-up of its 10 nearest neighbors (or its graph
+    neighbors within n hops); cluster those profiles (k-means with k = 10 as in Schurch et al., or Leiden); paint
+    neighborhoods on the cells; read the neighborhood by cell-type composition table
+
+    6. **Compare and export** - Compare neighborhood frequencies between sections or patient groups; export the
+    tissue figure with legend, the heat map, the per-cell neighborhood column and the graph rule used
+
+
+    **Decision Points**:
+
+    - Which graph rule and parameter (Delaunay cutoff, k, radius in micrometers) fits the cell density and the question?
+
+    - Bins or segmented cells for Visium HD?
+
+    - How many neighborhoods (k, or a Leiden resolution), and which cluster is an imaging artifact to drop?
+
+    - Is a pair enrichment real, or driven by one region of one section?
+
+
+    **Information Needs**:
+
+    - Cells and edges over the tissue image, from the whole section down to single cells
+
+    - The graph rule, its parameters and the count of isolated cells, kept beside every statistic
+
+    - Cell-type pair z-scores and raw edge counts as a heat map, with the permutation count and seed
+
+    - The cells behind any heat map entry, highlighted on the tissue
+
+    - Neighborhood composition per cluster and neighborhood frequency per section or patient group
+
+
+    **Pain Points**:
+
+    - The graph rule changes every statistic but is taken from defaults; a radius that is too small gives a graph with
+    no edges, visible only in the matrix printout
+
+    - The enrichment heat map does not link back to cells or edges
+
+    - Neighborhood maps, the graph and the tissue image are separate plots or tools
+
+    - Tools draw the edges of a few cells to check the graph, but not the whole section interactively
+
+
+    **Data Flow**:
+
+    - Input: AnnData or SpatialData with spatial coordinates, or a cell CSV with centroids and labels, plus an image
+    per section
+
+    - Transformations: spatial graph per section, label-permutation enrichment, neighborhood-composition clustering
+
+    - Output: Neighborhood column per cell, cell-type pair statistics, tissue figure with legend, recorded parameters
+success_criteria:
+    - metric: Section scale
+      target: A 500,000-cell section with its spatial edges over the tissue image pans and zooms without a separate tool (design goal; no source measures it)
+    - metric: Graph transparency
+      target: The user can state the graph rule, its parameters and how many cells were isolated for any statistic shown
+    - metric: Statistic to cells
+      target: Any cell-type pair in the enrichment heat map selects the cells and edges that produced it on the tissue
+sources:
+    - title: squidpy.gr.spatial_neighbors
+      url: https://squidpy.readthedocs.io/en/stable/api/squidpy.gr.spatial_neighbors.html
+      summary: Grid or generic coordinates, 6 neighbors by default, Delaunay or radius options, results in obsp['spatial_connectivities']
+    - title: squidpy.gr.nhood_enrichment
+      url: https://squidpy.readthedocs.io/en/stable/api/squidpy.gr.nhood_enrichment.html
+      summary: Permutation test (n_perms 1,000) giving z-score and count per cluster pair
+    - title: Squidpy - building a spatial graph
+      url: https://squidpy.readthedocs.io/en/stable/notebooks/examples/graph/compute_spatial_neighbors.html
+      summary: Edges plotted for one cell to compare graph rules; a radius of 0.3 gives no edges
+    - title: Squidpy - IMC tutorial
+      url: https://squidpy.readthedocs.io/en/stable/notebooks/tutorials/tutorial_imc.html
+      summary: Spatial scatter, co-occurrence, neighborhood enrichment, interaction matrix and centrality; edges not drawn
+    - title: Squidpy - niche module source
+      url: https://squidpy.readthedocs.io/en/latest/_modules/squidpy/gr/_niche.html
+      summary: Neighborhood profiles over graph hops clustered with Leiden on a kNN graph (n_neighbors 15)
+    - title: Giotto - spatial networks
+      url: https://giottosuite.com/articles/networks.html
+      summary: Delaunay with an upper-whisker distance cutoff by default, kNN without one; network drawn over the cells
+    - title: Schurch et al. 2020 - Coordinated cellular neighborhoods (Cell)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC7479520/
+      summary: 10-nearest-neighbor windows over 258,385 cells, MiniBatchKMeans k = 10, 9 neighborhoods drawn as Voronoi maps over the tissue
+    - title: Xenium Human Lung Preview Data (10x Genomics)
+      url: https://www.10xgenomics.com/datasets/xenium-human-lung-preview-data-1-standard
+      summary: 295,883 and 531,165 cells detected per section
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

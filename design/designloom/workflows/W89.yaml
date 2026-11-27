@@ -1,0 +1,165 @@
+id: W89
+name: Search, Expand and Path-Find in a Consortium Leak Graph
+category: exploration
+validated: false
+personas:
+    - investigative-journalist
+requires_capabilities:
+    - search
+    - neighborhood-expansion
+    - ego-network
+    - shortest-path
+    - all-paths-finding
+    - path-highlighting
+    - degree-analysis
+    - centrality-pagerank
+    - filtering
+    - temporal-analysis
+    - details-on-demand
+    - large-graph-rendering
+    - progressive-loading
+    - annotation
+    - view-bookmarks
+    - data-export
+    - local-only-processing
+    - provenance-tracking
+    - batch-name-matching
+    - temporal-validity
+suggested_components:
+    - search-panel
+    - search-input
+    - search-result-item
+    - graph-canvas
+    - context-menu
+    - ego-network-dialog
+    - path-finder-dialog
+    - node-details-panel
+    - filter-panel
+    - ranked-node-table
+    - bookmark-panel
+    - share-dialog
+    - data-export-dialog
+starting_state:
+    data_type: prebuilt typed leak graph (entities, officers, intermediaries, addresses) built by a data team
+    node_count: about 950,000 (Panama Papers); 250,000 in the 2014 public Offshore Leaks release
+    edge_density: sparse
+    user_expertise: novice
+goal: >-
+    **Intent**: Inside a large graph that someone else built from a leak or a registry, find the people in a story,
+    see what they are tied to one or two hops out, and find the chain of companies, officers, intermediaries and
+    addresses that connects two names. This is how hundreds of consortium reporters used ICIJ's Panama, Paradise and
+    Pandora Papers graphs without writing a query language.
+
+
+    **Mental Model**: "Look someone up and follow the paperwork." Each node is a record from a filing; each edge is a
+    role (officer of, intermediary of, registered at). A path is a candidate story, not a finding, until the documents
+    behind each step are checked.
+
+
+    **Task Phases**:
+
+    1. **Search one name** - Type a name; fuzzy matching surfaces spelling variants and transliterations
+    ("Joaquin Loera" surfaced "Joaquin Guzman Loera")
+
+    2. **Batch search** - Upload a CSV of names (for example a country's politicians) and get a CSV of hits
+
+    3. **Expand** - Open a hit and expand to its officers, entities, intermediaries and address; expand again
+    for the second degree
+
+    4. **Find the path** - One-click shortest path between two names (a head of state to a company in three
+    steps), optionally restricted to relationship types and a hop limit (the public guide allows up to 10 hops over
+    officer, intermediary and registered-address edges)
+
+    5. **Ask harder questions** (technical reporters) - Companies a person controls directly and through
+    variable-length chains; intermediaries ranked by linked companies; officer pairs who repeatedly share entities
+    while excluding generic nominee names; fuzzy address search; PageRank
+
+    6. **Judge each hit** - Real person or namesake? Is the link current (inactivation dates)? Is a
+    nominee service the explanation? Add links the data does not contain (family ties) from reporting
+
+    7. **Share and save** - Share the visualization with partner reporters; save the documents behind each
+    step for the fact-check
+
+    8. **Publish** (later) - Embed a view in the article; later the public database, where every page disclaims that
+    being listed implies no wrongdoing
+
+
+    **Decision Points**:
+
+    - Is this hit the person in my story or a namesake?
+
+    - Is the relationship current or ended, given incorporation and inactivation dates?
+
+    - Is a central address or officer a registered agent or nominee that explains the link innocently?
+
+    - Which relationship types and how many hops make a meaningful path?
+
+
+    **Information Needs**:
+
+    - Ranked fuzzy matches with the matched variant shown
+
+    - Per-name hit list for a batch, including names with no hits
+
+    - Node type, role on each edge, start and end dates, and source record id for every step of a path
+
+    - Degree by relationship type, to spot registered-agent addresses with thousands of registrants
+
+    - A saved, shareable view of the expansion
+
+
+    **Pain Points**:
+
+    - Query languages most reporters will not write
+
+    - Hubs (the highest-degree node in one leak was an address with 9,268 links) that swamp layout and paths
+
+    - Duplicate records of one person under several spellings
+
+    - Losing the source document behind a link found weeks earlier
+
+
+    **Data Flow**:
+
+    - Input: A typed property graph (Offshore Leaks public release as one CSV per node type plus a relationships CSV,
+    or a Neo4j dump); a CSV of names to check
+
+    - Transformations: Fuzzy search, batch matching, one- and two-hop expansion, typed shortest path with hop limit,
+    degree by type, co-involvement counts
+
+    - Output: Hit lists, saved shareable views, path listings with source ids, embedded article graphics
+success_criteria:
+    - metric: Name to path without a query language
+      target: Novice finds the shortest path between two named people by search and click only
+    - metric: Batch match transparency
+      target: User sees hits per name, including names with zero hits
+    - metric: Path evidence
+      target: Every step of a path lists its relationship type, dates and source record id
+sources:
+    - title: Neo4j blog - ICIJ, Neo4j and Linkurious unravel the Panama Papers (Cabra 2016)
+      url: https://neo4j.com/blog/icij-neo4j-unravel-panama-papers/
+      summary: Fuzzy search, batch CSV search, expansion and one-click shortest path for 370+ reporters
+    - title: ICIJ - How ICIJ deals with massive data leaks (2018)
+      url: https://www.icij.org/inside-icij/2018/07/how-icij-deals-with-massive-data-leaks-like-the-panama-papers-and-paradise-papers/
+      summary: 2.6 TB, 11.5 million files, OCR on 30-40 servers, graph load and security
+    - title: Offshore Leaks database - Neo4j data shape
+      url: https://offshoreleaks-data.icij.org/offshoreleaks/neo4j/guide/datashape.html
+      summary: Entity, Officer, Intermediary, Address nodes; OFFICER_OF, INTERMEDIARY_OF, REGISTERED_ADDRESS, SAME_NAME_AS edges
+    - title: Neo4j sandbox - Panama Papers example queries
+      url: https://guides.neo4j.com/sandbox/icij-offshoreleaks/panama-papers-examples.html
+      summary: Variable-length control paths, intermediaries ranked, officer pairs sharing entities, shortest path up to 10 hops
+    - title: Linkurious - Analysing the Offshore Leaks with graphs (2014)
+      url: https://linkurious.com/blog/analysing-the-offshore-leaks-with-graphs/
+      summary: Shortest path from a head of state to a company in three steps
+    - title: Neo4j blog - In-depth graph analysis of the Paradise Papers
+      url: https://neo4j.com/blog/depth-graph-analysis-paradise-papers/
+      summary: Addresses had the highest maximum degree (9,268)
+    - title: Neo4j blog - Pandora Papers
+      url: https://neo4j.com/blog/pandora-papers-revealing-financial-secrets
+      summary: Rebuilding the provider database from mostly unstructured files before loading the graph
+    - title: ICIJ - The inside story of how the Offshore Leaks Database became a go-to resource
+      url: https://www.icij.org/investigations/pandora-papers/the-inside-story-of-how-the-offshore-leaks-database-became-a-go-to-resource-on-offshore-finance/
+      summary: Public database with a no-wrongdoing disclaimer; governments recovered $1.36B+
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

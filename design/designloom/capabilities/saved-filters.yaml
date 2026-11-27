@@ -1,43 +1,96 @@
 id: saved-filters
 name: Saved Filters
 category: interaction
-description: Save, name, and reuse filter and search configurations, enabling efficient repeated analysis and
-    pattern-based workflows.
-status: implemented
-notes: "Ships: saved filters in graphty/src/workspace/data-place/Filters.tsx."
+description: Save, name, combine and reapply filter and search configurations, so last month's analysis can be run on
+    this month's file and a filtered view can be handed to someone else. Saved filters belong to the project and can be
+    exported, versioned and shared as a file or a link. Searches with typed inputs that one user writes for others to run
+    are parameterized-saved-searches.
+status: in-progress
+notes: "Partly ships: saved filters in graphty/src/workspace/data-place/Filters.tsx. Planned: export and import of saved filters as JSON, duplicate, a link that reapplies a filter, and an origin mark per saved filter. Any requirement below that this note does not name as shipping counts as planned."
 algorithms: []
 used_by_workflows:
     - W07
     - W06
     - W09
-    - W12
     - W25
+    - W108
+    - W109
+    - W113
+    - W114
+    - W119
+    - W125
+    - W145
+    - W170
+    - W179
+    - W185
+    - W187
+    - W197
+    - W202
+    - W209
+    - W218
+    - W258
+    - W298
+    - W314
+    - W323
+    - W326
+    - W327
+    - W336
+    - W337
+    - W430
+    - W340
+    - W341
+    - W342
+    - W343
+    - W363
+    - W366
+    - W386
+    - W412
+    - W432
+    - W438
+    - W433
+    - W435
+    - W55
+    - W63
+    - W65
+    - W67
+    - W72
+    - W75
+    - W76
+    - W79
+    - W92
+    - W2000
+    - W251
 implemented_by_components:
     - filter-chip
     - filter-panel
 requirements:
-    - Save current filter configuration with user-provided name (1-50 characters)
-    - Save filter description field (optional, up to 200 characters)
-    - "Store all active filter criteria: attribute filters, range values, structural filters"
-    - Display saved filters list sorted by most recently used
-    - Apply saved filter with single click, restoring all filter criteria
-    - Display filter criteria summary in saved filter list item
-    - Provide 'Edit' action to modify saved filter name, description, or criteria
-    - "Provide 'Delete' action with confirmation: 'Delete filter [name]?'"
-    - Provide 'Duplicate' action to create copy of saved filter for modification
-    - Export saved filters as JSON file via 'Export' button
-    - Import saved filters from JSON file via 'Import' button
-    - Validate imported filters against current graph schema; warn on incompatible attributes
-    - "Support combining saved filters: 'Apply Filter A AND Filter B'"
-    - Display indicator icon next to currently active saved filter
-    # Corrected 2026-10-19 by design/data/data-management-requirements.md (saved filters belong to the project).
-    - Save saved filters in the project file as graphty-element rule sets, so they reopen with the project
-    - Sync saved filters to user account when logged in (if auth available)
-    - Limit saved filters to 50 per user; display warning at 45
+    - "Should: Save the current filter configuration under a user-provided name"
+    - "Library parity: Save an optional description with each filter"
+    - "Library parity: Store all active filter criteria (attribute filters, range values, structural filters) as the ordered list of steps, with each step's on or off state"
+    - "Library parity: Display saved filters list sorted by most recently used"
+    - "Should: Apply saved filter with single click, restoring all filter criteria"
+    - "Library parity: Display filter criteria summary in saved filter list item"
+    - "Library parity: Provide 'Edit' action to modify saved filter name, description, or criteria"
+    - "Library parity: Provide 'Delete' action with confirmation: 'Delete filter [name]?'"
+    - "Library parity: Provide 'Duplicate' action to create copy of saved filter for modification"
+    - "Should: Export saved filters as a JSON file, for version control and transfer"
+    - "Library parity: Import saved filters from a JSON file"
+    - "Library parity: Validate imported filters against current graph schema; warn on incompatible attributes"
+    - "Must: Reapply a saved filter to refreshed or replacement data, reporting each criterion that names an attribute or value the new data lacks"
+    - "Should: Share a filtered view as a link that reapplies the saved filter"
+    - "Library parity: Mark each saved filter's origin (shipped, personal, shared) and let the list be filtered by it"
+    - "Library parity: Support combining saved filters: 'Apply Filter A AND Filter B'"
+    - "Library parity: Display indicator icon next to currently active saved filter"
+    - "Must: Save saved filters in the project file as graphty-element rule sets, so they reopen with the project"
+    - "Library parity: A saved filter used outside its project travels as an exported file or a link, not as account state"
 sources:
     - title: Splunk Saved Searches
       url: https://docs.splunk.com/Documentation/Splunk/latest/Search/Savingsearches
       summary: Pattern for saving and reusing search configurations
-    - title: MITRE ATT&CK Detection Patterns
-      url: https://attack.mitre.org/
-      summary: Reusable threat patterns for security analysis workflows
+    - title: BloodHound, Cypher search and saved queries
+      url: https://bloodhound.specterops.io/analyze-data/explore/cypher-search
+      summary: Saved queries filterable by category and source (prebuilt, personal, shared), and shared between users
+    - title: Neo4j Bloom deep links
+      url: https://neo4j.com/docs/bloom-user-guide/current/bloom-tutorial/deep-links/
+      summary: A link that carries a search and runs it on open; the research found a link to a filtered view or a
+          saved query is the shareable unit in dependency analysis

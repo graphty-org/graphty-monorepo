@@ -1,0 +1,144 @@
+id: W325
+name: Replace or Extend the Built-in Note Graph with a Plugin
+category: administration
+validated: false
+personas:
+    - personal-knowledge-gardener
+    - pkm-vault-analyst
+    - pkm-developer-note-taker
+requires_capabilities:
+    - data-import
+    - graph-rendering
+    - large-graph-rendering
+    - progressive-loading
+    - node-selection
+    - details-on-demand
+    - ego-network
+    - layout-force-directed
+    - view-bookmarks
+    - manual-layout-preservation
+    - live-graph-streaming
+    - host-link-index-adapter
+    - embedded-host-view
+    - active-item-sync
+suggested_components:
+    - graph-canvas
+    - toolbar
+    - filter-panel
+    - layout-panel
+    - minimap
+    - bookmark-panel
+starting_state:
+    data_type: host note app's in-memory resolved link index plus file change events
+    node_count: 1,000-20,000 (long tail to about 40,000)
+    edge_density: sparse (about 1.6 to 3.1 links per note)
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Get a better graph without leaving the note app. Users who outgrow Obsidian's built-in graph install a
+    community plugin that registers its own view inside Obsidian and reads Obsidian's own link index; six-figure
+    download counts for graph-replacement plugins show this is how a large minority gets a better graph. This workflow
+    covers the user's install steps and what the plugin must do underneath, because a graph library that wants this
+    audience must be embeddable this way.
+
+
+    **Mental Model**: "My graph lives in my notes app." The plugin is part of the app: same link resolution, same
+    files, opens notes in the same panes, no network.
+
+
+    **Task Phases**:
+
+    1. **Install** - Settings > Community plugins; turn off Restricted Mode; Browse; search (for example
+    "Advanced Graph View"); Install; Enable. Obsidian warns that plugins run third-party code. Beta versions via the
+    BRAT plugin; manual installs into a folder named for the plugin id
+
+    2. **Open the view** - A ribbon icon or command opens the graph view; the plugin registers a view type and
+    opens a leaf in the right sidebar or main area
+
+    3. **Read the host's link graph** (automatic) - The plugin reads `metadataCache.resolvedLinks` (source path to
+    destination paths with link counts) and `unresolvedLinks`, so aliases, duplicate names and property links resolve
+    exactly as the app resolves them
+
+    4. **Stay in sync** (automatic, continuous) - Subscribe to metadata `changed` (per file), vault rename (not covered
+    by `changed`), `deleted` and `resolved` events and apply each as a small graph change
+
+    5. **Follow the active note** (continuous) - Opening a note anywhere moves the camera to it and marks it
+
+    6. **Open notes back in the editor** - Click opens the note in a pane beside the graph, or in a new tab;
+    pinned positions survive rebuilds and restarts
+
+    7. **Alternative: patch the core view** - Extended Graph modifies the built-in graph instead of replacing it;
+    experimental because the core graph has no API
+
+
+    **Decision Points**:
+
+    - Replace the built-in graph or patch it?
+
+    - Trust a plugin that runs third-party code -- does it make network requests or collect telemetry?
+
+    - Desktop-only plugin acceptable, or is mobile needed?
+
+
+    **Information Needs**:
+
+    - Whether the plugin makes any network request (plugins advertise "No telemetry. No analytics.")
+
+    - That its graph matches the app's own link resolution
+
+    - Which note is active, and that clicks open notes in the expected pane
+
+
+    **Pain Points**:
+
+    - Core graph has no API, so patching plugins are fragile
+
+    - Independent parsers give a graph slightly different from the app's
+
+    - Full rebuild on change is slow at 10,000+ notes (four minutes at 18,413 notes in the core graph)
+
+    - Many replacement plugins are desktop only
+
+    - Directory rules forbid telemetry, require disclosure of network use, and require listeners released on unload
+
+
+    **Data Flow**:
+
+    - Input: Host link index (resolved and unresolved, with counts), file metadata (tags, properties, times), change
+    events, active-note events
+
+    - Transformations: Initial graph build from the index, incremental diffs per event, off-main-thread layout, follow
+    and mark the active note
+
+    - Output: Open-note requests sent back to the host; saved pinned positions and view settings in plugin data
+success_criteria:
+    - metric: Link fidelity
+      target: Graph edges match the host's resolved links exactly, with no separate parsing
+    - metric: Incremental update
+      target: Editing one note updates the graph without a full rebuild or re-layout
+    - metric: Plugin compliance
+      target: No network requests, no telemetry, no innerHTML from user data, all listeners released on unload
+sources:
+    - title: Obsidian Help - Community plugins
+      url: https://obsidian.md/help/community-plugins
+      summary: Restricted Mode, Browse, Install, Enable; warning about third-party code
+    - title: Obsidian Developer Docs - Views
+      url: https://docs.obsidian.md/Plugins/User+interface/Views
+      summary: registerView, getRightLeaf, setViewState and revealLeaf for custom views
+    - title: Obsidian Developer Docs - MetadataCache
+      url: https://docs.obsidian.md/Reference/TypeScript+API/MetadataCache
+      summary: resolvedLinks and unresolvedLinks maps with counts; changed, resolved and deleted events
+    - title: Advanced Graph View plugin
+      url: https://community.obsidian.md/plugins/graph-insight
+      summary: Reads metadataCache, follow-active-note, side-pane open, persistent pins, no network, desktop only
+    - title: Extended Graph plugin
+      url: https://community.obsidian.md/plugins/extended-graph
+      summary: Patches the core graph; experimental because the core graph lacks an API
+    - title: Obsidian Developer Docs - Plugin guidelines
+      url: https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines
+      summary: Release listeners on unload, do not detach leaves in onunload, no innerHTML
+    - title: Obsidian Developer Docs - Developer policies
+      url: https://docs.obsidian.md/Developer+policies
+      summary: No client-side telemetry; disclose network use (search summary of the page)
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

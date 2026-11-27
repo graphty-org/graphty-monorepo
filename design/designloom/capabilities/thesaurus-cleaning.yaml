@@ -1,0 +1,21 @@
+id: thesaurus-cleaning
+name: Thesaurus-based entity cleaning
+category: analysis
+description: A reusable label-to-replacement table for any entity (terms, authors, organizations, assignees,
+    references), edited in place, applied without re-importing, importable and exportable as a VOSviewer thesaurus file,
+    with suggested variant groups (stems, abbreviations, company suffixes, subsidiary roll-up) and homonym warnings.
+status: planned
+notes: "Research trace: bibliometrics-and-science-mapping.md section 10, requirement 6 (Must)."
+algorithms: []
+used_by_workflows:
+    - W51
+    - W53
+    - W54
+    - W59
+implemented_by_components: []
+requirements:
+    - "Must: Thesaurus table for any entity, edited in place; VOSviewer thesaurus files"
+sources:
+    - title: Bibliometrics and Science Mapping (section 10, requirement 6)
+      url: design/user-research/bibliometrics-and-science-mapping.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

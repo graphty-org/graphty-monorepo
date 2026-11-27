@@ -1,0 +1,122 @@
+id: W148
+name: Pulling a Database Subgraph into a Notebook or Gephi
+category: analysis
+validated: false
+personas:
+    - graph-database-developer
+    - warehouse-graph-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - graph-rendering
+    - node-selection
+    - layout-force-directed
+    - data-export
+    - query-result-import
+    - algorithm-result-scope
+suggested_components:
+    - data-import-dialog
+    - file-drop-zone
+    - graph-canvas
+    - node-details-panel
+    - data-export-dialog
+starting_state:
+    data_type: graph database or warehouse graph; result moved into Python (Jupyter, Colab) or a desktop tool
+    node_count: "stored: millions or more; extracted: hundreds to about a thousand (APOC examples cap at 1,000)"
+    edge_density: any
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Take a subgraph out of the database into an environment where it can be analyzed with network science
+    tools (NetworkX, igraph, Gephi) or combined with other Python work. This is the hand-off point between the database
+    population and the network-science population.
+
+
+    **Mental Model**: "Query is the scissors." The database stays the source of truth; a query cuts out the piece worth
+    analyzing, which then becomes an ordinary in-memory graph.
+
+
+    **Task Phases**:
+
+    1. **Query from a notebook** - Neo4jGraphWidget(driver).show_cypher(query) draws returned elements;
+    autocomplete_relationships fills in relationships among them; selected ids feed the next query. Alternatives:
+    neo4j-viz (built on NVL; takes graph projections, query results or DataFrames), graph-notebook for Neptune, or
+    %%bigquery --graph for BigQuery
+
+    2. **Hand the subgraph to Gephi** - Start Gephi's Graph Streaming server, collect paths in Cypher (examples cap at
+    1,000) and call apoc.gephi.add(...), which assigns random coordinates because Gephi will not draw nodes without
+    them; the procedure lives in APOC Extended
+
+    3. **Or export a file** - GraphML or GEXF from Linkurious or yWorks Data Explorer, then open it in Gephi or NetworkX
+
+    4. **Analyze** - Centrality, communities and layout in the target tool, on the extracted subgraph only
+
+
+    No source gives per-step timings.
+
+
+    **Decision Points**:
+
+    - Which query bounds the subgraph so the analysis is meaningful?
+
+    - Stream live, or export a file?
+
+    - Are results on the extract representative of the stored graph?
+
+
+    **Information Needs**:
+
+    - Provenance: which database, which query, when it ran
+
+    - Count of nodes and edges extracted versus matched
+
+    - Which relationships among extracted nodes were included
+
+
+    **Pain Points**:
+
+    - apoc.gephi.add reported broken on Gephi 0.9 by one user ("now-defunct")
+
+    - "Invalid UTF-8" errors from special characters
+
+    - Coordinates invented on transfer; no layout carried
+
+    - Analysis results on the extract are silently scoped to it
+
+
+    **Data Flow**:
+
+    - Input: Cypher, Gremlin or GQL query against a live store
+
+    - Transformations: Driver records converted to an in-memory graph or a GraphML/GEXF file; optional streaming
+
+    - Output: A subgraph in a notebook or Gephi, with analysis results that apply to the extract
+success_criteria:
+    - metric: Hand-off effort
+      target: A query result becomes an analyzable graph without writing conversion code
+    - metric: Provenance retained
+      target: The extracted graph records its source, query text and time
+sources:
+    - title: yFiles Jupyter graphs for Neo4j
+      url: https://github.com/yWorks/yfiles-jupyter-graphs-for-neo4j
+      summary: Neo4jGraphWidget, show_cypher, autocomplete_relationships
+    - title: APOC Gephi export
+      url: https://neo4j.com/labs/apoc/5/export/gephi
+      summary: apoc.gephi.add signature, random coordinates, APOC Extended
+    - title: neo4j-viz (Neo4j python graph visualization)
+      url: https://github.com/neo4j/python-graph-visualization
+      summary: Built on NVL; GDS projections, query results or DataFrames
+    - title: Neptune graph-notebook visualization
+      url: https://docs.aws.amazon.com/neptune/latest/userguide/notebooks-visualization.html
+      summary: Notebook drawing of Gremlin paths and SPARQL triples
+    - title: BigQuery Graph visualization
+      url: https://docs.cloud.google.com/bigquery/docs/graph-visualization
+      summary: "%%bigquery --graph notebook magic"
+    - title: Neo4j community - Gephi integration update and warning
+      url: https://community.neo4j.com/t/gephi-integration-update-and-warning/22111
+      summary: apoc.gephi.add reported broken on Gephi 0.9; Invalid UTF-8 errors
+    - title: yWorks Data Explorer for Neo4j
+      url: https://www.yworks.com/products/data-explorer-for-neo4j
+      summary: GraphML export of explored subgraphs
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

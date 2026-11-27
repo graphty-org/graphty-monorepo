@@ -1,0 +1,24 @@
+id: note-format-import
+name: Note-app format importers
+category: data
+description: Standalone importers for a Markdown note folder (wikilinks, aliases, embeds, nested tags, property links,
+    unresolved links), org-roam SQLite and Logseq EDN, then Roam and TheBrain JSON, labeled as possibly differing from
+    the host's own resolution.
+status: planned
+notes: "Research trace: personal-knowledge-graphs-and-note-networks.md section 9, requirement 22 (Should)."
+algorithms: []
+used_by_workflows:
+    - W328
+    - W329
+    - W333
+    - W334
+implemented_by_components: []
+requirements:
+    - "Should: Standalone importers (secondary path) for published gardens and offline analysis: Markdown folder
+      (wikilinks, aliases, subpaths, embeds, nested tags, quoted property links, unresolved links, attachments
+      optional), org-roam SQLite, Logseq EDN; then Roam and TheBrain JSON. Results labeled as possibly differing from
+      the app's own resolution"
+sources:
+    - title: Personal Knowledge Graphs and Note Networks (section 9, requirement 22)
+      url: design/user-research/personal-knowledge-graphs-and-note-networks.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

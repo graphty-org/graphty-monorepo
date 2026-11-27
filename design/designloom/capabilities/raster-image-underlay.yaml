@@ -1,0 +1,18 @@
+id: raster-image-underlay
+name: "Raster Image Underlay"
+category: visualization
+description: "Draw a large raster image (H&E, DAPI or a multichannel tissue stack, tiled or pyramidal) under the graph in the nodes' coordinate frame, with a pixel-size scale in micrometers, from the whole image down to single cells, with channels switchable (requirement 51)."
+status: planned
+notes: "Research trace: systems-biology-omics-networks.md section 10, requirement 51 (Must)."
+algorithms: []
+used_by_workflows:
+    - W2066
+implemented_by_components: []
+requirements:
+    - "Must: A raster tissue image under the graph in the same coordinate frame (pixel size in micrometers), from
+      overview to single cells, with image channels switchable (5.18)"
+sources:
+    - title: Systems Biologists and Bench Scientists Working With Molecular Interaction Networks (section 10,
+          requirement 51)
+      url: design/user-research/systems-biology-omics-networks.md
+      summary: Must in the research.

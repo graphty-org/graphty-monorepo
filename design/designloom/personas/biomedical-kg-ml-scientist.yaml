@@ -1,0 +1,78 @@
+id: biomedical-kg-ml-scientist
+name: Biomedical Knowledge Graph ML Scientist
+roster_persona: ml-engineer-recsys
+tier: B
+scope: in-scope
+role: Machine Learning Scientist, Drug Repurposing and Biomedical Question Answering
+quote: The model's AUROC is fine. What clinicians need is the handful of paths it actually relied on, not 7,000 of them.
+bio: >-
+    Dr. Rohan Rao builds link-prediction models for drug repurposing on heterogeneous biomedical knowledge graphs, and
+    more recently large language model (LLM) question answering over them. He loads PrimeKG CSVs into NetworkX or igraph,
+    trains on DRKG triples with DGL-KE or PyKEEN, explores Hetionet in the public Neo4j Browser and het.io/search, and
+    uses TxGNN and KG-RAG over SPOKE. Public graphs hold 47,031 to 129,375 nodes and 2.25 to 8 million edges of 11 to 22
+    node types and 24 to 107 edge types; SPOKE has about 27 million nodes and no bulk download. He reports AUROC and
+    Hits@k on zero-shot splits, but his real bottleneck is explanation: each prediction becomes a list of drug-to-disease
+    paths too long to read, every lab builds its own explanation front end, and generated answers must show which
+    subgraph and which sources they came from. He differs from the knowledge graph builder, who curates and merges the
+    graph, in that he consumes it for prediction and has to make predictions believable to clinicians and pharmacists.
+characteristics:
+    expertise: expert
+    time_pressure: medium
+    graph_literacy: advanced
+    domain_knowledge: intermediate
+motivations:
+    - Improve AUROC and Hits@k in zero-shot repurposing settings
+    - Explain each prediction as a short, ranked set of typed paths a clinician accepts
+    - Show the subgraph and provenance behind every LLM answer
+    - Compare explanations across models and graph versions
+behaviors:
+    - Writes metapath queries (compound-binds-gene-associates-disease) and reads metapath statistics with permuted-network p-values
+    - Expands neighborhoods in the Neo4j Browser, which shows at most 300 nodes at first and 100 neighbors per expansion
+    - Thresholds edge importance (GraphMask 0 to 1, keeping edges above 0.5) to sparsify explanation subgraphs
+    - Filters literature-mined predications with a classifier before using them
+    - Retrieves a disease node's neighborhood as sentences with provenance and keeps those above a similarity percentile for an LLM prompt
+    - Exports subgraphs as Cytoscape JSON or SVG for papers and companion websites
+goals:
+    - Ranked repurposing predictions with path explanations
+    - A reviewable evidence view for clinicians and pharmacists
+    - Reproducible benchmarks across graph versions
+frustrations:
+    - Interpretation of large path lists is difficult; one drug can have thousands of reasoning paths
+    - Every graph or model has its own one-off viewer (het.io, SPOKE explorer, txgnn.org)
+    - Literature-mined edges are noisy (SemRep precision about 0.70)
+    - Licenses block redistribution (DrugBank non-commercial, SPOKE no bulk download, UMLS for SemMedDB)
+    - Disease and gene identifier mismatches create duplicate disconnected nodes
+context:
+    frequency: daily
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W262
+    - W263
+sources:
+    - title: PrimeKG - A precision medicine knowledge graph
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC9893183
+      summary: 129,375 nodes and about 8 million edges; MONDO disease grouping by ClinicalBERT similarity and manual approval
+    - title: DRKG - Drug Repurposing Knowledge Graph
+      url: https://github.com/gnn4dr/DRKG
+      summary: Triples and DGL-KE embeddings for repurposing
+    - title: Hetionet and Hetnet connectivity search
+      url: https://het.io/
+      summary: 47,031 nodes, 2.25 million relationships; metapath tables with adjusted p-values and up to 100 paths per metapath
+    - title: TxGNN clinician study
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11326339
+      summary: GraphMask edge importance with a threshold; explanations raised clinician accuracy by 46 percent in a 12-participant study
+    - title: KG-RAG over SPOKE (Soman et al. 2024)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11441322/
+      summary: Neighborhood retrieval with provenance, 75th percentile context pruning, 97 percent retrieval accuracy
+    - title: Path explanation interpretation difficulty
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10375517/
+      summary: Path-based explanations produce long lists, and interpretation of large lists is difficult
+    - title: PyKEEN
+      url: https://github.com/pykeen/pykeen
+      summary: Knowledge graph embedding training and evaluation library
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

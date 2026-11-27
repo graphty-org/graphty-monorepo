@@ -1,0 +1,31 @@
+id: backbone-extraction
+name: Derived Graph and Backbone Builder
+category: analysis
+description: Correlation or similarity matrix to graph by proportional or absolute threshold with signed weights;
+    disparity filter for weighted one-mode graphs; SDSM or FDSM backbones for bipartite projections.
+status: planned
+notes: "Research trace: network-scientists-and-analysis-method-validity.md section 9, requirement R17 (Should)."
+algorithms: []
+used_by_workflows:
+    - W3006
+    - W226
+    - W227
+    - W403
+    - W404
+    - W405
+    - W410
+    - W42
+    - W47
+    - W75
+    - W1006
+implemented_by_components: []
+requirements:
+    - "Should: Derived-graph and backbone builder: correlation matrix to graph by proportional or absolute threshold;
+      disparity filter for weighted one-mode graphs; SDSM or FDSM backbone for projections; signed weights"
+    - "Must: Cut a dense weighted network to a readable backbone by a fixed weight cutoff, a per-node relative rule (each node's strongest k percent of ties, mutual or not), or a null-model significance filter, with tie count, density and community count updating live and the chosen rule recorded alongside every figure and measure."
+    - "Must: Disparity-filter or threshold backbone for display while metrics use the full network, with node positions fixed across periods."
+    - "Must: Top-N edges, minimum weight, minimum spanning tree, disparity filter and k nearest neighbors, always reporting drawn-of-total node and edge counts."
+sources:
+    - title: Network Scientists and the Validity of Core Analysis Methods (section 9, requirement R17)
+      url: design/user-research/network-scientists-and-analysis-method-validity.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

@@ -1,0 +1,155 @@
+id: W97
+name: Importing Call Detail Records into a Link Chart
+category: analysis
+validated: false
+personas:
+    - crime-intelligence-analyst
+    - prosecution-trial-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - node-merging
+    - visual-encoding-edges
+    - degree-analysis
+    - statistics-panel
+    - details-on-demand
+    - entity-resolution-review
+    - provenance-tracking
+    - parallel-edge-aggregation
+    - saved-import-mappings
+    - identifier-normalization
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - node-merge-dialog
+    - data-table-panel
+    - ranked-node-table
+    - graph-canvas
+starting_state:
+    data_type: call detail record (CDR) warrant returns from one or more carriers (Excel, CSV, PDF or fixed-width text) plus each carrier's key and cell-site list
+    node_count: 50-5000 phone numbers
+    edge_density: sparse multigraph (many calls per pair)
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Turn each carrier's call records into one chart where every phone number is one node and the calls
+    between two numbers are drawn as directed links labeled with how many calls and how many minutes. This is the
+    first step of almost every telephone, timeline and cell-site analysis, and analysts keep one saved import
+    specification per carrier so the next return imports the same way.
+
+
+    **Mental Model**: "Rows become a calling network." Each row is one call; the calling number and the called number
+    are two entities; the date, time, duration, call type and cell ID belong on the link. The same number in two
+    carriers' files must become one node.
+
+
+    **Task Phases**:
+
+    1. **Obtain records** (outside the tool) - Serve legal process and request the carrier's CDR reference
+    document (the "carrier key") and its cell-site list; for prepaid resellers also get records from the underlying
+    network
+
+    2. **Clean** - Columns differ per carrier. Carriers report times in the device's zone, the switch's
+    zone, a central zone or UTC, and one CDR can mix zones; normalize to one zone. Normalize numbers with country and
+    dialling codes ("+420..." vs "00420...")
+
+    3. **Start the import** - Pick or create a saved specification for this carrier, set delimiter and header
+    rows, and choose an association (calling network) or timeline design
+
+    4. **Assign columns** - Calling number to entity 1 (telephone), called number to entity 2; date, time,
+    duration, type and cell ID to the link; an identity column per entity; column actions that replace or standardize
+    values so matching works
+
+    5. **Set formats** - Date and time format, and time zone, per column
+
+    6. **Set link multiplicity** - Multiple (every call a line), Directed (calls in one direction merged into
+    one line, the usual choice) or Single (one line per pair); label links with the count and the summed duration
+
+    7. **Match entities** - Choose the properties that identify an entity so a number in two carriers' files
+    becomes one node
+
+    8. **Save the specification** - Store it in a shared team folder, one per carrier
+
+    9. **Import and check** - List items and list the most-connected entities to confirm the import looks right
+
+
+    **Decision Points**:
+
+    - Which time zone is each carrier's column in, and does one file mix zones?
+
+    - Draw every call, one line per direction, or one line per pair?
+
+    - Which properties make two rows the same phone (number only, or number plus IMEI or IMSI)?
+
+    - Does an existing saved specification fit this carrier's latest layout, or has the layout changed?
+
+
+    **Information Needs**:
+
+    - Preview of each carrier file with the columns as the tool will read them
+
+    - Count of rows imported, rejected and matched to existing entities
+
+    - Per-pair call count and summed duration in each direction
+
+    - Most-connected numbers right after import as a sanity check
+
+    - The source file and row behind every link
+
+
+    **Pain Points**:
+
+    - Every carrier sends a different layout and time zone; normalization is done by hand in Excel
+
+    - Number formats that differ by prefix split one phone into two nodes
+
+    - Import mappings are not saved or shared, so each analyst rebuilds them
+
+    - Tools that keep only one edge per pair and lose the individual calls
+
+    - CDRs show who used a number, not who held the phone ("do not conclusively indicate who was using a device")
+
+
+    **Data Flow**:
+
+    - Input: Carrier CDR files (one row per call or session), carrier key, cell-site list, saved import specification
+
+    - Transformations: Time-zone and number normalization, column-to-entity and column-to-link mapping, entity
+    matching across files, parallel-link aggregation by direction with count and sum
+
+    - Output: Calling network with typed, timestamped, directed call links aggregated per direction; saved import
+    specification for the carrier
+success_criteria:
+    - metric: Repeat import time
+      target: A second return from the same carrier imports through the saved mapping in under 5 minutes (design goal; no source measures it)
+    - metric: Identity matching
+      target: The same number from two carriers' files is one node, and the analyst can see how many rows matched
+    - metric: Call-level fidelity
+      target: Every individual call stays retrievable behind an aggregated link, with its source file and row
+sources:
+    - title: IBM technote 6413409 - importing data into i2 Analyst's Notebook
+      url: https://www.ibm.com/support/pages/node/6413409
+      summary: Import specification steps for tabular data in Analyst's Notebook
+    - title: IBM technote 716175 - link labels and Sum Numeric Links
+      url: https://www.ibm.com/support/pages/node/716175
+      summary: Label merged links with the count and sum durations or amounts
+    - title: i2 Analyst's Notebook 9.4 - about links (multiplicity)
+      url: https://docs.i2group.com/anb/9.4.0/about_links.html
+      summary: Multiple, Directed and Single link multiplicity (documentation behind a login; read from search excerpt)
+    - title: IBM - changing and replacing values in an import specification column
+      url: https://www.ibm.com/support/pages/changing-and-replacing-values-i2-analysts-notebook-import-specification-data-column
+      summary: Column actions that standardize values so entities match
+    - title: IBM - analyzing the total number of links between entities
+      url: https://www.ibm.com/support/pages/analyzing-total-number-links-between-entities-ibm-i2-analysts-notebook
+      summary: List Items and List Most Connected after import
+    - title: SWGDE Recommendations for Cell Site Analysis 17-F-001 v2.0
+      url: https://www.swgde.org/wp-content/uploads/2024/06/2023-12-18-SWGDE-Recommendations-for-Cell-Site-Analysis-17-F-001-2.0.pdf
+      summary: Carrier keys and cell-site lists; carriers mix device, switch, central and UTC time zones, sometimes in one CDR
+    - title: Policing Insight - Analyzing call detail records with connected data
+      url: https://policinginsight.com/feature/analyzing-call-detail-records-with-connected-data/
+      summary: Phone number format mismatches such as +420 versus 00420
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

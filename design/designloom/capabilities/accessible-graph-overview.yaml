@@ -1,0 +1,22 @@
+id: accessible-graph-overview
+name: "Accessible Graph Overview and Announcement Facts"
+category: interaction
+description: "graphty-element produces neutral facts for a screen-reader reader. First, an overview that is read before any node-level step: node and edge counts, components, the most connected nodes and the current selection. Second, announcement facts for each node (kind, name, in and out degree, selection state) and each edge (kind, both ends, direction, weight or type), in a short form and a long form, plus a cue whenever the walk changes context. The facts are returned as { code, params } so the embedding application writes the words. Evidence: TADA (CHI 2024) and Zong et al. (EuroVis 2022) found readers want the overview before the detail. GSK (ASSETS 2014) added a verbosity level after its study, and Benthic (ASSETS 2025) found readers got lost when context changed without a cue. The existing element-accessibility capability should also widen its keyboard walk to follow the structure: neighbor, along an edge, into a group and back up the same path, and home. Its conformance statement should name WCAG 2.1 AA and testing with NVDA, JAWS and VoiceOver."
+status: planned
+notes: "Research trace: developers-embedding-and-extending-graph-visualization.md section 10, table row 12 (Must)."
+algorithms: []
+used_by_workflows:
+    - W287
+    - W1018
+implemented_by_components: []
+requirements:
+    - "Must: Accessibility inside the element: an overview of the graph before node-level movement; a keyboard walk that
+      follows the structure (neighbor to neighbor, along an edge, into a group and back up the same path, home); node
+      and edge announcement facts (kind, name, degree by direction, edge ends and direction) with a short and a long
+      form; a focus model with one Tab stop and an exit; a built-in find-node entry point; an element-generated
+      adjacency list or table; reduced motion and a pause for moving layouts; and a WCAG 2.1 AA and Section 508
+      conformance statement tested with NVDA, JAWS and VoiceOver"
+sources:
+    - title: Developers Who Embed Graph Visualization in Products or Extend It With Plugins (section 10, table row 12)
+      url: design/user-research/developers-embedding-and-extending-graph-visualization.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

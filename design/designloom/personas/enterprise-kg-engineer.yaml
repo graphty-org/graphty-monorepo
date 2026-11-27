@@ -1,0 +1,77 @@
+id: enterprise-kg-engineer
+name: Enterprise Property-Graph KG Engineer
+roster_persona: graph-database-developer
+tier: A
+scope: in-scope
+role: Senior Knowledge Graph Engineer (property graph, ETL, entity resolution)
+quote: I don't need the full graph. After every rebuild I need a quick sanity check that what loaded is what I modeled.
+bio: >-
+    Raj Venkataraman is a senior knowledge graph engineer at a financial firm. He builds the customer, supplier and
+    instrument graph from more than 30 source systems in Neo4j and rebuilds it nightly with Python ETL. He sketches the
+    model in arrows.app or Neo4j Data Importer, generates LOAD CSV ingestion with Neo4j Runway, imports FIBO terms with
+    neosemantics, and owns entity resolution. The graph has millions of nodes and edges with anywhere from 3 to
+    thousands of properties. He lives in Neo4j Browser and Cypher; he opens Bloom or a graph view after a load to check
+    the schema picture against his sketch, to look at duplicate clusters before merging, and to show the model to
+    business owners. He also runs LLM extraction pipelines when a source is unstructured.
+characteristics:
+    expertise: expert
+    time_pressure: medium
+    graph_literacy: advanced
+    domain_knowledge: intermediate
+motivations:
+    - Know after every rebuild that the loaded schema matches the intended model and counts are as expected
+    - Review duplicate clusters with their evidence before merging, because merges are hard to undo
+    - Keep links that reviewers marked wrong from coming back on the next rebuild
+    - Show business owners the model without drowning them in instances
+behaviors:
+    - Sketches labels and relationship types in Data Importer or arrows.app and maps each to a CSV file
+    - Runs CALL db.schema.visualization() after a load and compares the label-to-label picture with the sketch
+    - Counts nodes per label and relationships per type against source row counts and against last night's rebuild
+    - Spot-checks a few sample nodes per label in Browser or Bloom
+    - Builds duplicate candidates with name similarity and embeddings, groups them with WCC, and merges with apoc.refactor.mergeNodes
+    - Keeps an invalidation list in the ETL code because no tool re-applies reviewer decisions
+    - Raises the Neo4j Browser node limit and watches the UI freeze near 1,000 nodes
+frustrations:
+    - Neo4j Browser shows 300 nodes by default and users report freezes when raising it to 1,000
+    - db.schema.visualization is estimated from statistics and can show relationships that do not exist
+    - Invalidated links come back on every rebuild
+    - Long queries (15 minutes) with no interim results
+    - Whole-graph views turn into hairballs; consumers cannot read node-link diagrams at scale
+context:
+    frequency: daily
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W13
+    - W130
+    - W131
+    - W132
+    - W137
+    - W138
+sources:
+    - title: Knowledge Graphs in Practice - interviews with 19 practitioners (Li et al. 2023)
+      url: https://arxiv.org/pdf/2304.01311
+      summary: P6 wants a quick sanity check instead of the full graph; P16 invalidated links return on rebuild; P4 15-minute queries with no interim results
+    - title: Neo4j community - Browser node and relationship limit
+      url: https://community.neo4j.com/t/browser-node-relationship-limit/69507
+      summary: 300-node default and UI freezes reported near 1,000 nodes
+    - title: Neo4j Operations Manual - procedures
+      url: https://neo4j.com/docs/operations-manual/current/procedures/
+      summary: db.schema.visualization is estimated and may include relationships that do not exist
+    - title: Neo4j Data Importer - modeling
+      url: https://neo4j.com/docs/data-importer/current/modeling
+      summary: Draw labels and relationship types and map them to CSV files
+    - title: Neo4j Runway - Python ingestion
+      url: https://neo4j.com/blog/developer/neo4j-runway-python-ingestion/
+      summary: DataModel.from_arrows, model.visualize and IngestionGenerator for LOAD CSV
+    - title: Senior knowledge graph engineer posting
+      url: https://www.dice.com/job-detail/088cf988-dc6a-42b3-be23-f16b8633eae5
+      summary: Neo4j, Cypher, Python ETL and entity resolution as the expected toolset
+    - title: Neo4j blog - global GraphRAG with Neo4j and LangChain
+      url: https://neo4j.com/blog/developer/global-graphrag-neo4j-langchain/
+      summary: Duplicate candidates by embedding kNN at 0.95, WCC grouping and apoc.refactor.mergeNodes
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

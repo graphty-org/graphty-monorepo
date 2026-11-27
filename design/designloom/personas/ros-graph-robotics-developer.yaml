@@ -1,0 +1,80 @@
+id: ros-graph-robotics-developer
+name: Robotics Developer Debugging a Live ROS Node-and-Topic Graph
+roster_persona: dependency-impact-engineer
+tier: A
+scope: in-scope
+role: Robotics Software Engineer on ROS 2
+quote: The camera node is up and the detector is up, and the detector hears nothing. Show me which wire is missing and why.
+bio: >-
+    Rui is a robotics software engineer on a mobile-robot team that runs ROS 2. The robot's software is dozens of nodes
+    (drivers, perception, localization, planning, control) that talk over named topics, services and actions, started by
+    launch files that remap names and push nodes into namespaces. When something on the robot does not react, he opens
+    rqt_graph, which the official ROS 2 tutorials teach to every beginner, picks Nodes/Topics (active), filters to one
+    namespace, hovers a node to highlight its connections and follows a topic from publisher to subscriber. When a
+    topic looks missing he unchecks the Hide boxes; when it looks connected but silent he compares QoS profiles with
+    `ros2 topic info --verbose`, because an incompatible pair makes no connection and the drawing does not show it.
+    After each fix he presses Refresh, since the graph does not update by itself. ROS is large: the 2025 ROS Metrics
+    Report counts about 1.3 million unique users or IP addresses downloading ROS packages in October 2025, a lower
+    bound by the report's own account.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: basic
+    domain_knowledge: advanced
+motivations:
+    - Confirm that every node publishes and subscribes where the launch file meant it to, after remapping and namespacing
+    - Find why a subscriber receives nothing, before a field test is wasted
+    - See one subsystem at a time in a stack of dozens of nodes
+behaviors:
+    - Opens rqt_graph with ros2 run rqt_graph rqt_graph or Plugins > Introspection > Node Graph
+    - Filters by namespace or topic name with comma-separated regular expressions, and draws namespace boxes
+    - Keeps debugging nodes, parameter topics, tf and dead sinks hidden, and unhides them when a topic seems missing
+    - Hovers a node to highlight its incoming and outgoing connections
+    - Compares publisher and subscriber QoS with ros2 topic info --verbose
+    - Saves the filtered graph as DOT, SVG or an image for a pull request or bug report
+goals:
+    - See a topic with no publisher or no subscriber, and a pair that cannot connect, marked with the reason
+    - Watch the graph change as nodes start and stop, with everything else staying where it was
+    - Collapse and expand namespaces as nested groups
+frustrations:
+    - rqt_graph does not refresh by itself; an auto-refresh request has been open since 2016
+    - A QoS mismatch makes no connection, and nothing on the drawing says so
+    - The node details sidebar of the older rxgraph (publishers, subscribers, services) never came back
+    - The graph cannot be produced from the command line for a script or CI
+knows:
+    - ROS 2 nodes, topics, services, actions, namespaces, remapping and launch files
+    - QoS policies (reliability, durability, deadline, liveliness)
+    - Python and C++
+refuses_to_learn:
+    - Graph theory vocabulary
+    - A graph file format when the running system already reports its graph
+context:
+    frequency: weekly
+    devices:
+        - laptop
+        - desktop
+    voluntary: false
+workflows:
+    - W3096
+sources:
+    - title: 2025 ROS Metrics Report
+      url: https://discourse.openrobotics.org/t/2025-ros-metrics-report/52575
+      summary: 1,315,867 unique users or IPs downloading ROS packages in October 2025, up from 843,959 a year earlier; 984,135,185 downloads in 2025; ROS 2 is 91.2% of downloads; figures are a lower bound
+    - title: ROS 2 documentation - Understanding topics (Jazzy)
+      url: https://github.com/ros2/ros2_documentation/blob/jazzy/source/Tutorials/Beginner-CLI-Tools/Understanding-ROS2-Topics/Understanding-ROS2-Topics.rst
+      summary: rqt_graph taught to beginners; highlighting helps on complex systems; uncheck Hide to see all topics; refresh to see changes
+    - title: rqt_graph UI definition
+      url: https://github.com/ros-visualization/rqt_graph/blob/rolling/resource/RosGraph.ui
+      summary: Graph types, regex filters, namespace boxes, Hide and group options, highlight, refresh, DOT and SVG save and load
+    - title: rqt_graph issues 1, 2, 5 and 68
+      url: https://github.com/ros-visualization/rqt_graph/issues
+      summary: Panning large graphs (2013, closed), node information sidebar (open), auto-refresh (open since 2016), command-line generation (open since 2021)
+    - title: ROS 2 documentation - Quality of Service settings
+      url: https://github.com/ros2/ros2_documentation/blob/jazzy/source/Concepts/Intermediate/About-Quality-of-Service-Settings.rst
+      summary: Incompatible QoS profiles make no connection and pass no messages
+    - title: connection_inspector (ROS index)
+      url: https://index.ros.org/r/connection_inspector/
+      summary: A separate tool that marks QoS-incompatible, type-mismatched and dead links
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

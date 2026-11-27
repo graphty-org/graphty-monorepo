@@ -1,0 +1,24 @@
+id: security-format-import
+name: Security Format Import
+category: data
+description: Import SharpHound and AzureHound zips, BloodHound OpenGraph JSON, STIX 2.1 including Attack Flow, MISP
+    JSON, EVTX-derived CSV and Zeek logs.
+status: planned
+notes: "Research trace: cybersecurity-graph-work.md section 10, requirement 6 (Must)."
+algorithms: []
+used_by_workflows:
+    - W108
+    - W110
+    - W112
+    - W113
+    - W116
+    - W1162
+implemented_by_components: []
+requirements:
+    - "Must: Importers: SharpHound/AzureHound zips, OpenGraph JSON, STIX 2.1 (including Attack Flow), MISP JSON,
+      EVTX-derived CSV, Zeek logs"
+sources:
+    - title: "Cybersecurity Graph Work: Attack Paths, Threat-Intel Pivoting, Incident Response, Network, Cloud and
+          Binary Graphs (section 10, requirement 6)"
+      url: design/user-research/cybersecurity-graph-work.md
+      summary: "Must in the research. Covered by Designloom when researched: Not covered"

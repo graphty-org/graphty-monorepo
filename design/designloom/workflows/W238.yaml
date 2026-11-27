@@ -1,0 +1,114 @@
+id: W238
+name: AI Assistant in Student Network Work
+category: analysis
+validated: false
+personas:
+    - class-project-student
+    - network-science-coding-student
+    - network-analysis-instructor
+requires_capabilities:
+    - analysis-history
+    - statistics-panel
+    - guided-onboarding
+    - report-generation
+    - data-export
+    - analysis-provenance
+    - metric-explanations
+suggested_components:
+    - analysis-history-panel
+    - statistics-panel
+    - algorithm-card
+    - report-generator-dialog
+    - data-export-dialog
+starting_state:
+    data_type: any course dataset already loaded in a tool or notebook
+    node_count: 30-100000
+    edge_density: any
+    user_expertise: novice
+goal: >-
+    **Intent**: Use (or avoid) a chat or code assistant inside a graph assignment according to the course policy: ask
+    what a measure means or which call computes it, verify the answer, and disclose the prompts where required.
+    Instructors set the policy and must grade fairly whether or not students used an assistant.
+
+
+    **Mental Model**: "A tutor I must cite." The assistant explains and drafts; the student remains responsible for
+    correctness and must separate their own steps from generated ones.
+
+
+    **Task Phases**:
+
+    1. **Read the course policy** - Ban (Indiana counts help from ChatGPT or Copilot as cheating), limited use
+    (brainstorming only at Rutgers), or open use with documentation (Oklahoma, CMU guidance)
+
+    2. **Ask** - Point-and-click students ask what a measure means; coding students ask for code (inference from the
+    policies)
+
+    3. **Verify** - Check correctness; some courses test understanding with written quizzes on each assignment
+
+    4. **Disclose** - Submit prompts and AI-generated content with the notebook or report
+
+
+    **Decision Points**:
+
+    - Is assistant use allowed for this assignment, and for what?
+
+    - Which data may be pasted into an assistant (class surveys are personal data)
+
+    - How to mark which steps were generated
+
+
+    **Information Needs**:
+
+    - A plain-language, in-tool explanation of each measure, so asking an assistant is not required
+
+    - A methods record that lists every step, its settings and who made it
+
+    - An exportable disclosure section
+
+
+    **Pain Points**:
+
+    - The graph tool does not explain measures, pushing students to an assistant
+
+    - No record separates the student's steps from assisted ones
+
+    - Use when not allowed is common (25 percent of Princeton AB and 37 percent of BSE seniors in a 2025 survey)
+
+
+    **Data Flow**:
+
+    - Input: Course policy, the student's analysis state
+
+    - Transformations: Questions to an assistant, verification, step logging
+
+    - Output: Submitted work with a disclosed list of assisted steps
+success_criteria:
+    - metric: In-tool explanation
+      target: Student can read what a chosen measure means without leaving the tool
+    - metric: Disclosure export
+      target: The methods record can be exported with assisted steps marked
+sources:
+    - title: Indiana INFO I368 syllabus
+      url: https://iu.instructure.com/courses/2252897/assignments/syllabus
+      summary: Help from anyone or anything including ChatGPT or Copilot counted as cheating
+    - title: Rutgers SC&I 373 syllabus
+      url: https://kateto.net/teach/SCI%20373%20Network%20Analysis%20Syllabus%20-%20Ognyanova%20-%202025.pdf
+      summary: AI allowed to brainstorm ideas
+    - title: Oklahoma CS 5483 syllabus
+      url: https://www.ou.edu/content/dam/coe/cs/course-syllabi/fall-2025/CS_5483_Radhakrishnan_Fa25.pdf
+      summary: Students responsible for verifying correctness; prompts documented and submitted
+    - title: CMU - AI tools and academic integrity
+      url: https://www.cmu.edu/teaching/technology/aitools/academicintegrity/index.html
+      summary: Course policies ranging from prohibition to open use with attribution
+    - title: Black and Tomlinson - student AI use documentation
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11909101/
+      summary: 24 instances of Understanding Complex Topics among 39 students documenting AI use
+    - title: Chung 2026 - GenAI usage and assessment outcomes
+      url: https://arxiv.org/abs/2601.17024
+      summary: Written quizzes per assignment; no meaningful linear correlation between GenAI usage and outcomes
+    - title: Princeton Alumni Weekly - What's foul and fair when students use AI
+      url: https://paw.princeton.edu/article/whats-foul-and-fair-when-students-use-ai
+      summary: 25 percent of AB and 37 percent of BSE seniors used an LLM when not allowed
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

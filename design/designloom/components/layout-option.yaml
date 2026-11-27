@@ -9,6 +9,10 @@ implements_capabilities:
     - layout-radial
 used_in_workflows:
     - W15
+    - W167
+    - W413
+    - W43
+    - W67
 dependencies: []
 props:
     layout: string - Layout identifier

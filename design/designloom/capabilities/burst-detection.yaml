@@ -1,0 +1,20 @@
+id: burst-detection
+name: Time slicing and burst detection
+category: analysis
+description: Build per-period networks with per-slice node selection, merge them, and detect citation or term bursts
+    (Kleinberg) with strength, begin and end year exported as a table.
+status: planned
+notes: "Research trace: bibliometrics-and-science-mapping.md section 10, requirement 21 (Should)."
+algorithms: []
+used_by_workflows:
+    - W306
+    - W312
+    - W52
+implemented_by_components: []
+requirements:
+    - "Should: Time slicing and burst detection; burst table data"
+    - "Should: Kleinberg-style burst detection on node or edge activity with start, end and strength, shown as markers and a table."
+sources:
+    - title: Bibliometrics and Science Mapping (section 10, requirement 21)
+      url: design/user-research/bibliometrics-and-science-mapping.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

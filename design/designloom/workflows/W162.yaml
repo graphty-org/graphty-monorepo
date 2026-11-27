@@ -1,0 +1,127 @@
+id: W162
+name: Dynamic Brain Connectivity with Multilayer Communities
+category: analysis
+validated: false
+personas:
+    - computational-network-neuroscientist
+    - eeg-meg-connectivity-researcher
+requires_capabilities:
+    - data-import
+    - community-detection
+    - computed-attributes
+    - temporal-analysis
+    - temporal-navigation
+    - visual-encoding-nodes
+    - metric-histograms
+    - legend-display
+    - export-image
+    - data-export
+    - matrix-view
+    - matrix-stack-navigation
+suggested_components:
+    - data-import-dialog
+    - temporal-controls
+    - algorithm-panel
+    - community-panel
+    - heatmap-panel
+    - histogram
+    - graph-canvas
+    - legend-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: N x N x T stack of windowed connectivity matrices (sliding windows over fMRI or EEG/MEG time series)
+    node_count: 100-400 regions per layer, tens to hundreds of windows
+    edge_density: dense per layer
+    user_expertise: expert
+goal: >-
+    **Intent**: Track how brain regions change community over time by linking each window's network into a multilayer
+    graph, finding communities across layers, and summarizing each region's flexibility and its allegiance with
+    others.
+
+
+    **Mental Model**: "Communities as a movie." A region that switches communities often is flexible; two regions that
+    share a community in most windows are allies.
+
+
+    **Task Phases**:
+
+    1. **Window** - Compute one matrix per window (75-100 s windows gave the widest range of flexibility in
+    one study)
+
+    2. **Link layers** - Tie each node to itself in adjacent windows with weight omega; small omega gives more
+    independent partitions per window
+
+    3. **Maximize multilayer modularity** - Louvain-style heuristic, run many times, search the
+    gamma-omega plane for a stable partition (one study tuned omega over 0.1 to 10)
+
+    4. **Node measures** - Flexibility (community changes divided by T-1), module allegiance (fraction of
+    windows two nodes share a community), core-periphery labels
+
+    5. **Check window length** (iterated) - Long windows give mostly zero flexibility; short windows fail to separate
+    regions
+
+    6. **Visualize** - Node-by-window community heatmap or alluvial diagram, allegiance matrix reordered by
+    system, flexibility painted on parcels (W159)
+
+
+    **Decision Points**:
+
+    - Window length and overlap
+
+    - Gamma and omega values
+
+    - How many runs to call a partition stable
+
+
+    **Information Needs**:
+
+    - Community label of every node in every window
+
+    - Flexibility distribution across regions
+
+    - Allegiance matrix ordered by known systems
+
+
+    **Pain Points**:
+
+    - Results depend on window length, gamma and omega
+
+    - Multilayer community labels must be matched across windows to be readable
+
+    - Temporal views built for timestamped edges, not stacks of matrices
+
+
+    **Data Flow**:
+
+    - Input: Windowed matrix stack, node labels and system assignments
+
+    - Transformations: Interlayer coupling, multilayer modularity maximization, flexibility and allegiance computation
+
+    - Output: Node-by-window community table, flexibility per node, allegiance matrix, figures
+success_criteria:
+    - metric: Parameter exploration
+      target: User can rerun with a different gamma and omega and compare stability
+    - metric: Community over time
+      target: Node-by-window community labels viewable as a heatmap with consistent colors
+    - metric: Node summary
+      target: Flexibility and allegiance stored as node attributes for coloring and export
+sources:
+    - title: Bassett et al. 2011, Dynamic reconfiguration of human brain networks during learning
+      url: https://export.arxiv.org/pdf/1010.3775
+      summary: Multilayer modularity, flexibility predicting later learning
+    - title: Garcia et al. 2018, applications of community detection to brain data (tutorial)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6294140
+      summary: Interlayer coupling omega and its effect on partitions
+    - title: Telesford et al. 2016, window length and flexibility
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5133201
+      summary: 75-100 s windows gave the widest flexibility range
+    - title: Puxeddu et al. 2021, multilayer community detection benchmark
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC7956967/
+      summary: Omega tuned over 0.1 to 10; GenLouvain outperformed alternatives in most conditions
+    - title: Multilayer network neuroscience review
+      url: https://arxiv.org/pdf/1709.02325
+      summary: Review of multilayer methods for brain networks
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

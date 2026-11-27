@@ -1,0 +1,29 @@
+id: supernode-safeguards
+name: Supernode Safeguards
+category: analysis
+description: Show each node's count of undrawn relationships before expanding, open a selective expand (by type,
+    direction, neighbor category, most or least connected, maximum count) above a threshold, and never auto-expand a
+    hub.
+status: planned
+notes: "Research trace: graph-database-query-and-expand-exploration.md section 10, requirement 5 (Must)."
+algorithms: []
+used_by_workflows:
+    - W3024
+    - W142
+    - W143
+    - W146
+    - W150
+    - W281
+    - W282
+    - W284
+    - W1013
+    - W1090
+implemented_by_components: []
+requirements:
+    - "Must: Supernode handling: show hidden-degree badges before expanding, warn above a threshold, never auto-expand a
+      hub"
+    - "Must: A default cap on visible nodes with expandable markers showing hidden-neighbor counts, and an expand cap with a supernode safeguard that refuses with a count rather than freezing."
+sources:
+    - title: Graph Database Users Who Explore by Search, Query and Expand (section 10, requirement 5)
+      url: design/user-research/graph-database-query-and-expand-exploration.md
+      summary: Must in the research.

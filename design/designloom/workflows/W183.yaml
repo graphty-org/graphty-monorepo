@@ -1,0 +1,142 @@
+id: W183
+name: Kinship and Genealogical Network Analysis (GEDCOM, Ore Graph, P-Graph)
+category: analysis
+validated: false
+personas:
+    - kinship-demographer
+    - chinese-prosopography-historian
+requires_capabilities:
+    - data-import
+    - data-validation
+    - layout-hierarchical
+    - visual-encoding-edges
+    - filtering
+    - shortest-path
+    - path-highlighting
+    - all-paths-finding
+    - pattern-search
+    - computed-attributes
+    - details-on-demand
+    - export-image
+    - query-result-import
+    - genealogy-import
+    - kinship-analysis
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - layout-panel
+    - visual-encoding-panel
+    - filter-panel
+    - path-finder-dialog
+    - pattern-search-dialog
+    - node-details-panel
+    - graph-canvas
+    - image-export-dialog
+starting_state:
+    data_type: GEDCOM file, parish register reconstitution, or a kinship query (person, relation code, person)
+    node_count: 2,000-50,000
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Turn a genealogy into a kinship network, then count matrimonial circuits, measure how often marriages
+    re-link already related families, trace descent and consanguinity paths, and draw people in generation layers.
+    Kinship researchers do this in Pajek and Puck because general graph tools have no notion of a family.
+
+
+    **Mental Model**: "Generations are layers; marriages close loops." Descent is directed and acyclic, marriage is
+    undirected, and a cycle through marriages is the object of study.
+
+
+    **Task Phases**:
+
+    1. **Get the genealogy** - GEDCOM from family historians (family records assume one husband and one wife),
+    parish register reconstitution, or a CBDB kinship query
+
+    2. **Choose a model** (decision) - Ore graph (people are nodes, parent-child arcs, marriage edges) or p-graph
+    (couples are nodes, each person an arc from family of origin to family of procreation); Mrvar and Batagelj find
+    p-graphs more suitable for analyses
+
+    3. **Load** - Pajek reads GEDCOM directly as an Ore graph (father links value 1, mother 2, marriages 0)
+    and keeps birth, marriage and death years as vectors; others parse GEDCOM by script
+
+    4. **Normalize kin terms** - When ties come as relation labels, normalize to basic terms (CBDB: 484,066
+    relation instances among 255,149 persons) before trees can be rebuilt
+
+    5. **Analyze** - Generation depth (pseudogenerations), census of matrimonial circuits, 0-1 relinking index,
+    consanguinity paths, descent lines; reshuffling simulations test whether a marriage pattern beats chance
+
+    6. **Lay out by generation** - Layered or pedigree layout (Kinsources used Graphviz network simplex to
+    assign pseudogenerations), or a force picture in Gephi
+
+    7. **Compare** - Against Kinsources' 105 usable datasets (17 to about 50,000 individuals)
+
+
+    **Decision Points**:
+
+    - Ore graph or p-graph for this question?
+
+    - How to assign generations when spouses come from different generations?
+
+    - Which circuit types to count, and against what random baseline?
+
+
+    **Information Needs**:
+
+    - Generation of each person and generation depth of the whole network
+
+    - Kin type of each edge (father, mother, spouse, normalized kin code)
+
+    - Every path between two people through descent and marriage, with kin term
+
+    - Counts of circuits by type and the relinking index
+
+
+    **Pain Points**:
+
+    - No family or couple node, no generation layout and no kin-typed edges in general tools
+
+    - GEDCOM parsing scripts are hand-written per project
+
+    - Specialist tools are dated Windows desktop programs with little visualization
+
+
+    **Data Flow**:
+
+    - Input: GEDCOM (INDI and FAM records) or a person-relation-person table with kin codes
+
+    - Transformations: Ore graph or p-graph construction, kin-term normalization, generation assignment, circuit
+    census, relinking index, path search
+
+    - Output: Generation-layered diagrams, circuit tables, comparison with published datasets
+success_criteria:
+    - metric: Genealogy import
+      target: A GEDCOM file opens as an Ore graph or a p-graph with dates and kin types kept
+    - metric: Generation layout
+      target: People are drawn in generation layers with marriages visible as horizontal ties
+    - metric: Kin path
+      target: User can find and highlight every descent and marriage path between two people
+sources:
+    - title: Mrvar and Batagelj 2004 - Relinking marriages in genealogies
+      url: https://dlib.si/stream/URN:NBN:SI:DOC-7VRCE0CW/a6b4ecf9-7ca9-41a5-9e34-9fe88141a2ca/PDF
+      summary: Ore graphs, p-graphs, bipartite p-graphs and the relinking index
+    - title: UCINET datasets - Ragusan nobility genealogy
+      url: https://sites.google.com/site/ucinetsoftware/datasets/ragusan-nobility-genealogy
+      summary: GEDCOM read by Pajek as an Ore graph, link values for father, mother and marriage
+    - title: Roued-Cunliffe 2017 - GEDCOM structure
+      url: https://journals.aau.dk/index.php/ak/article/download/2684/2116/9131
+      summary: Family records assume one husband and one wife
+    - title: Kinsources networks study (2026)
+      url: https://arxiv.org/html/2606.18210
+      summary: Pseudogenerations by network simplex, 105 networks, up to 40 pseudogenerations
+    - title: CBDB kinship normalization (Li et al.)
+      url: https://cbdb.hsites.harvard.edu/resource/normalizationofkinshiprelationstoenrichfamilynetworkanalysispdf
+      summary: Normalizing kin relations before rebuilding family trees
+    - title: Puck on SourceForge
+      url: https://sourceforge.net/p/simpa-puck/
+      summary: Circuit censuses and reshuffling simulations
+    - title: Kinsources repository
+      url: https://csac.anthropology.ac.uk/bin/Research/Kinsources?rev=1.1
+      summary: Published kinship datasets for comparison
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,152 @@
+id: W2097
+name: Cross-Vendor DNA Match Clustering for a Client Report
+category: analysis
+validated: false
+personas:
+    - professional-genetic-genealogist
+starting_state:
+    data_type: match lists and in-common-with exports from two to five DNA vendors, plus segment files where the vendor provides them
+    node_count: 500-10,000 per vendor
+    edge_density: moderate
+    user_expertise: advanced
+goal: >-
+    **Intent**: Run one client's DNA case across every database the client tested in, cluster each one, reconcile the
+    clusters into a single picture of the family lines, and deliver a report figure with the reasoning, the evidence per
+    match and the thresholds used.
+
+
+    **Mental Model**: "One family, five partial views." Each vendor sees a different slice of the same relatives with
+    its own identifiers, so each is clustered on its own and the clusters are tied together through relatives who
+    tested more than once.
+
+
+    **Task Phases**:
+
+    1. **Collect what each vendor allows** - A match table with shared centimorgans, segments and longest
+    segment; pairs of matches who share with each other where the vendor reports them; a segment file where offered
+
+    2. **Choose the tool per database** - A larger download yields far larger clusters at the cost of a long
+    wait, so the depth is a deliberate choice per case
+
+    3. **Cluster each vendor separately** - Filter to a centimorgan band, drop the tester, cluster, and tune
+    until the clusters match known family lines
+
+    4. **Reconcile across vendors** - Match the clusters of two databases through relatives present in both, and
+    record which clusters have no counterpart
+
+    5. **Assemble the report** - The cluster figure, the cluster-to-couple table with its evidence, the shared
+    centimorgans per match, and the hypotheses that survived
+
+    6. **De-identify and record** - Replace living matches' names, and record the thresholds and tool versions
+    so the figure can be rebuilt later
+
+
+    **Decision Points**:
+
+    - How deep to download, given that a complete list takes far longer but triples cluster size?
+
+    - Which centimorgan band per vendor, given each vendor's own floor and ceiling?
+
+    - Which clusters of two vendors are the same family line?
+
+    - What does the report claim, what does it call likely, and what does it exclude?
+
+
+    **Information Needs**:
+
+    - The columns each vendor actually provides, and which are missing (pair data, segments)
+
+    - Cluster membership with each match's shared centimorgans and side where the vendor assigns one
+
+    - A record of every threshold and option used for each run
+
+    - Which matches appear in more than one database
+
+    - A figure that holds the cluster labels, the legend and the thresholds together
+
+
+    **Pain Points**:
+
+    - Every vendor's export differs, and one of the largest allows no match download at all
+
+    - A complete download through a third-party tool runs 12 to 24 hours
+
+    - Download tools have been served cease-and-desist letters, so a route can vanish mid-case
+
+    - Matrix, member list and tree chart are separate products, so the report figure is assembled by hand
+
+    - Reclustering at another resolution renumbers the clusters and loses the labels already assigned
+
+
+    **Data Flow**:
+
+    - Input: Per-vendor match tables and in-common-with pair tables; segment files; the client's known tree
+
+    - Transformations: Per-vendor band filter, ego removal, clustering, cluster labeling, cross-vendor reconciliation
+    through shared relatives, de-identification
+
+    - Output: A reconciled cluster picture, a cluster-to-couple table with evidence, a report figure and a record of
+    the thresholds
+success_criteria:
+    - metric: Reproducibility
+      target: The thresholds and options of every run are recorded with the figure
+    - metric: Label durability
+      target: Cluster labels survive reclustering at another resolution
+    - metric: Report assembly
+      target: One export carries the figure, the legend, the cluster labels and the member tables
+sources:
+    - title: DNA Explained - How to download your DNA match lists and segment files
+      url: https://dna-explained.com/2022/08/03/how-to-download-your-dna-match-lists-segment-files/
+      summary: Per-vendor downloads and columns; 23andMe's 1,500-match cap; Ancestry allows no match download
+    - title: DNA Explained - FamilyTreeDNA match download files are back
+      url: https://dna-explained.com/2024/08/29/familytreedna-match-download-files-are-back/
+      summary: Family Finder match CSV columns, all-segments download, no pair data between matches
+    - title: Shared Clustering wiki - versus other clustering tools
+      url: https://github-wiki-see.page/m/jonathanbrecher/sharedclustering/wiki/Shared-Clustering-versus-other-clustering-tools
+      summary: 1,800 of 2,000 matches clustered at 20 cM and up; adding smaller matches triples cluster size; 12-24 hour downloads
+    - title: Family Locket - 10 ways to group your DNA matches
+      url: https://familylocket.com/10-ways-to-group-your-dna-matches-into-genetic-networks
+      summary: Each vendor's shared-match feature, DNAGedcom's Collins-Leeds method, GEDmatch tier pricing
+    - title: DNA Explained - AutoClustering by Genetic Affairs
+      url: https://dna-explained.com/2018/12/04/autoclustering-by-genetic-affairs/
+      summary: Per-vendor match counts (1,233, about 1,500, 2,698), threshold choices, grid and match-list outputs
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z
+requires_capabilities:
+    - shared-match-pair-import
+    - ego-exclusion
+    - attribute-band-filter
+    - overlapping-cluster-membership
+    - cluster-seriated-matrix-view
+    - user-cluster-labels
+    - inter-cluster-link-counts
+    - data-import
+    - columnar-table-import
+    - saved-import-mappings
+    - import-report
+    - filtering
+    - community-detection
+    - resolution-sweep
+    - cluster-identity-across-runs
+    - cluster-labeling
+    - entity-resolution-review
+    - matrix-view
+    - analysis-provenance
+    - de-identified-display
+    - data-export
+    - export-by-cluster
+    - export-image
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - community-panel
+    - cluster-table
+    - heatmap-panel
+    - data-table-panel
+    - legend-panel
+    - graph-canvas
+    - data-export-dialog
+    - image-export-dialog

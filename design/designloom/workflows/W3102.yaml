@@ -1,0 +1,151 @@
+id: W3102
+name: Metabolite List to a Knowledge-Driven Metabolite, Gene and Disease Network
+category: analysis
+validated: false
+personas:
+    - metabolomics-network-analyst
+requires_capabilities:
+    - data-import
+    - identifier-mapping
+    - typed-heterogeneous-graphs
+    - neighborhood-expansion
+    - fixed-node-positions
+    - component-browser
+    - centrality-degree
+    - centrality-betweenness
+    - gene-set-enrichment
+    - shortest-path
+    - node-selection
+    - subgraph-from-selection
+    - search
+    - details-on-demand
+    - item-link-out
+    - visual-encoding-nodes
+    - legend-display
+    - export-image
+    - data-export
+suggested_components:
+    - data-import-dialog
+    - network-list-panel
+    - ranked-node-table
+    - enrichment-results-table
+    - path-finder-dialog
+    - search-panel
+    - node-details-panel
+    - visual-encoding-panel
+    - legend-panel
+    - graph-canvas
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type:
+        List of significant metabolites (compound names, HMDB or KEGG ids, optional fold changes), optionally with
+        a gene list; mapped onto the KEGG global metabolic map or onto metabolite, gene and disease interaction networks
+        from STITCH and HMDB
+    node_count: Seeds plus their direct neighbors; the tool advises keeping networks to 200-2000 nodes
+    edge_density: sparse; first-order subnetworks around seeds, often one large subnetwork plus small ones
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Place a list of significant metabolites (and genes, in multi-omics studies) on known interaction networks
+    to find hubs, links to genes and diseases, and enriched pathways that explain a phenotype.
+
+
+    **Mental Model**: "Put my hits on the map of what is known." The network is background knowledge; the user's
+    metabolites are seeds, and the interesting parts are the seeds that sit close together or share a hub.
+
+
+    **Task Phases**:
+
+    1. **Upload** - Paste a metabolite list and, optionally, a gene list; metabolites as compound names, HMDB ids
+    or KEGG compound ids; genes as Entrez, Ensembl, symbols or KEGG orthologs; fold changes optional
+
+    2. **Review the name mapping** - A mapping table per list shows each input and its match; the user checks and
+    downloads it
+
+    3. **Choose a network** - KEGG global metabolic network (metabolites as nodes, enzymes as edges, fixed map), or
+    one of four human-only networks built from STITCH (high-confidence gene-metabolite and metabolite-metabolite) and
+    HMDB (metabolite-disease), or their integration, metabolite-gene-disease
+
+    4. **Read the KEGG map** - Pathway analysis of the seeds is listed beside the map; ticking a pathway highlights
+    its hits, and a metabolite shared by several ticked pathways is drawn larger
+
+    5. **Build seed subnetworks** - Seeds plus direct neighbors form first-order subnetworks; those with three or
+    more nodes are listed and each can be opened or downloaded as SIF
+
+    6. **Rank and reduce** - Metabolites drawn as diamonds, genes as circles, diseases as squares; size by degree,
+    color by betweenness; sort the node table by degree or betweenness; delete nodes; extract highlighted nodes as a
+    new module
+
+    7. **Enrich** - Hypergeometric KEGG (or, for genes, GO and Reactome) enrichment on all, up-regulated,
+    down-regulated or highlighted nodes; tick a pathway to highlight its members
+
+    8. **Trace and select** - Shortest paths between two nodes; batch-select a pasted list of node names
+
+    9. **Export** - PNG or SVG image, GraphML, SIF subnetworks for Cytoscape, name-mapping table
+
+
+    **Decision Points**:
+
+    - Which network type answers the question (pathways, genes, diseases)?
+
+    - Which unmatched or ambiguous names to fix before building?
+
+    - Which hubs to delete or which highlighted nodes to extract as a module?
+
+    - Which node set to test for enrichment?
+
+
+    **Information Needs**:
+
+    - Matched, unmatched and ambiguous inputs with the chosen id
+
+    - Node type (metabolite, gene, disease) shown by shape and in the legend
+
+    - Degree and betweenness per node, sortable
+
+    - Database link per node (KEGG, HMDB, GenBank, OMIM) and the source of each edge
+
+    - Enriched pathways with hits and p-values
+
+
+    **Pain Points**:
+
+    - Dense networks slow the browser; the tool asks users to stay within 200-2000 nodes
+
+    - Labels appear only when a node is enlarged by double-clicking
+
+    - Deleting a hub re-arranges the whole network and can leave orphan nodes
+
+    - The four interaction networks apply to human studies only
+
+
+    **Data Flow**:
+
+    - Input: Metabolite list, optional gene list, optional fold changes
+
+    - Transformations: Name mapping, seed-plus-neighbor subnetworks, degree and betweenness, enrichment, shortest
+    paths, module extraction
+
+    - Output: Network image, GraphML or SIF for Cytoscape, hub list, enriched pathways
+success_criteria:
+    - metric: Mapping review
+      target: Matched, unmatched and ambiguous names visible and fixable before the network is drawn
+    - metric: Node types readable
+      target: Metabolites, genes and diseases distinguished by shape and listed in the legend
+    - metric: Hub ranking
+      target: Nodes sortable by degree and betweenness, with the selection linked to the drawing
+    - metric: Cytoscape handoff
+      target: Any subnetwork exported as GraphML or SIF in one step
+sources:
+    - title: MetaboAnalyst Network Explorer Tutorial I (Chong and Xia 2018)
+      url: https://api2.xialab.ca/api/download/metaboanalyst/tutorial8.pdf
+      summary: Upload, feature mapping, five networks, KEGG global map, Node, Function and Path Explorers, export formats
+    - title: MetaboAnalyst 5.0 Network Explorer tutorial (2022)
+      url: https://api2.xialab.ca/api/download/metaboanalyst/6_Network_Explorer.pdf
+      summary: Fold change optional, mapping download, updated KEGG global network, metabolite-gene-disease network
+    - title: Chong et al. 2018 - MetaboAnalyst 4.0
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6030889
+      summary: Network Explorer added with five network types from KEGG, HMDB and STITCH; SVG or PNG export
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

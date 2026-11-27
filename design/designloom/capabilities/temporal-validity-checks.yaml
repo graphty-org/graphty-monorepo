@@ -1,0 +1,19 @@
+id: temporal-validity-checks
+name: Temporal Validity Checks
+category: analysis
+description: Flag edges outside their endpoints' lifetimes, overlapping spells, and transmission or flow links that
+    violate event order or exposure windows, with an exportable list of flagged items.
+status: planned
+notes: "Research trace: temporal-and-dynamic-networks.md section 11, requirement T19 (Should)."
+algorithms: []
+used_by_workflows:
+    - W304
+    - W308
+implemented_by_components: []
+requirements:
+    - "Should: Validity checks: edges outside node lifetimes, overlapping spells, transmission or flow links that
+      violate order"
+sources:
+    - title: Temporal and Dynamic Network Data and Analysis (section 11, requirement T19)
+      url: design/user-research/temporal-and-dynamic-networks.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

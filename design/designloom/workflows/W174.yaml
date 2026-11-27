@@ -1,0 +1,132 @@
+id: W174
+name: From a Historical Source to Node and Edge Tables (Manual Coding)
+category: analysis
+validated: false
+personas:
+    - correspondence-historian
+    - literary-network-scholar
+    - prosopography-archivist
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - node-merging
+    - computed-attributes
+    - details-on-demand
+    - data-export
+    - uncertainty-encoding
+    - provenance-tracking
+    - parallel-edge-aggregation
+    - in-place-data-editing
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - data-table-panel
+    - node-merge-dialog
+    - graph-canvas
+    - data-export-dialog
+starting_state:
+    data_type: a set of primary sources (letters, court records, witness lists, a play) and an empty spreadsheet
+    node_count: 50-2,000
+    edge_density: sparse
+    user_expertise: novice
+goal: >-
+    **Intent**: Turn sources that were never meant to be data into a person table and a tie table that a network tool
+    can read, while keeping every row traceable to the passage it came from. This coding phase takes weeks to years
+    and is the dominant cost of any humanities network project.
+
+
+    **Mental Model**: "A tie is an argument." The scholar decides what counts as a relationship (Duering: "any action
+    which directly contributed to the survival of persecuted persons in hiding"), and that modeling choice shapes every
+    later picture. The spreadsheet is the edition; the network is one reading of it.
+
+
+    **Task Phases**:
+
+    1. **Define the tie** - Pick one relationship type deliberately (Grandjean calls this a deliberate modeling
+    choice); in literature, decide whether characters must speak, be present or merely be mentioned
+
+    2. **Design the coding scheme** - Columns such as Giver, Recipient, Form of Help, intensity, Duration, Date
+    (Duering used six-month steps); a separate person table; expect to adapt the scheme frequently
+
+    3. **Code while reading** - One row per act or letter, so the data is a directed multigraph;
+    unknown values coded with a sentinel such as 99; source citation (shelfmark, page) on each row
+
+    4. **Keep a master and a working copy** (ongoing) - "Use one spreadsheet for storage and a copy for visualization"
+
+    5. **Normalize names and assign ids** - Duke used a name-letter id scheme, Harvard a VLOOKUP;
+    nodegoat imports references first; homonyms within families are the hardest case
+
+    6. **Hand off** - Two CSVs (nodes, edges) for Gephi, one wide table for Palladio, or a nodegoat relational
+    model; then look at the first network and go back to fix duplicates
+
+
+    **Decision Points**:
+
+    - What single relationship does a tie represent, and which people become nodes?
+
+    - Which attributes are coded now, given that recoding thousands of rows later is expensive?
+
+    - Is a spelling variant the same person, a relative with the same name, or someone else?
+
+    - Keep one row per letter (multigraph) or aggregate to a weight per pair?
+
+
+    **Information Needs**:
+
+    - A list of probable duplicate names (spelling variants) with the rows behind each
+
+    - Counts of rows that reference a person id missing from the person table
+
+    - The source citation of any edge on click
+
+    - How many letters or acts lie behind each aggregated edge
+
+
+    **Pain Points**:
+
+    - A typo or variant spelling becomes a duplicate node, discovered only after the first picture
+
+    - Fixing the data means editing the spreadsheet and re-importing, because most tools cannot edit in place
+
+    - Tools collapse many letters between one pair into one edge, losing the per-letter rows and citations
+
+    - Partial dates ("after Easter 1648") fit no tool's date column
+
+
+    **Data Flow**:
+
+    - Input: Sources read by the scholar; a spreadsheet of one row per act, letter or scene, plus a person table
+
+    - Transformations: Name normalization and id assignment, duplicate merging, optional aggregation of parallel ties
+    to weights
+
+    - Output: Node CSV and edge CSV (or one wide table) with ids, dates, citations and certainty columns
+success_criteria:
+    - metric: Duplicate detection
+      target: Probable duplicate names are listed before the first analysis, not discovered in the picture
+    - metric: Provenance kept
+      target: Every edge can show the source rows and citations behind it
+    - metric: Round trip
+      target: A corrected spreadsheet can be re-imported without redoing styling or notes
+sources:
+    - title: Programming Historian - From Hermeneutics to Data to Networks (Duering)
+      url: https://programminghistorian.org/en/lessons/creating-network-diagrams-from-historical-sources
+      summary: Defining the tie, coding scheme, one row per act, 99 for unknowns, master and working copy
+    - title: Programming Historian - Designing a Database for Historical Research in nodegoat
+      url: https://programminghistorian.org/en/lessons/designing-database-nodegoat
+      summary: Relational model and importing references before relationships
+    - title: Duke London Literary Network
+      url: https://sites.duke.edu/earlymodernlondon/london-literary-network/
+      summary: Name-letter id scheme and homonyms that could not be traced
+    - title: Harvard histecon - Visualizing historical networks
+      url: https://histecon.fas.harvard.edu/visualizing/index.html
+      summary: VLOOKUP id assignment and one edge per pair in Gephi
+    - title: Endicott course - Salem trials student network
+      url: https://alice.endicott.edu/assignment_groups/63
+      summary: Student data collection was time-consuming
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

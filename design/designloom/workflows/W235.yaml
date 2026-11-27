@@ -1,0 +1,150 @@
+id: W235
+name: Python Problem Set in a Notebook (NetworkX)
+category: analysis
+validated: false
+personas:
+    - network-science-coding-student
+requires_capabilities:
+    - data-import
+    - data-validation
+    - large-graph-rendering
+    - progressive-loading
+    - component-analysis
+    - basic-statistics
+    - clustering-coefficient
+    - centrality-degree
+    - centrality-eigenvector
+    - centrality-betweenness
+    - community-detection
+    - visual-encoding-nodes
+    - layout-force-directed
+    - data-export
+    - export-image
+    - null-model-ensembles
+    - weight-semantics
+    - notebook-widget
+suggested_components:
+    - graph-canvas
+    - progressive-loader
+    - statistics-panel
+    - algorithm-panel
+    - visual-encoding-panel
+    - legend-panel
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: CSV edge lists or SNAP files loaded into NetworkX inside a hosted Jupyter notebook
+    node_count: 100-100000
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Answer a weekly problem set in a Jupyter notebook (often Google Colab) with NetworkX: build a graph,
+    compute measures, answer questions, and look at the structure. Coding-track courses (Leiden, Georgia Tech, Oklahoma,
+    Indiana, Rochester, Michigan's Coursera course) work this way, and their datasets reach 10^4 to 10^5 nodes.
+
+
+    **Mental Model**: "The notebook is the lab book." Every number must come from a cell that reruns; the picture is a
+    check on the numbers and, at the end, a figure for the report.
+
+
+    **Task Phases**:
+
+    1. **Open the notebook** - Hosted in Colab or with a pinned requirements file; no desktop installs
+
+    2. **Load and count** - Read CSVs into nx.Graph, print node and edge counts against the source
+
+    3. **First look** - nx.draw with matplotlib; above a few hundred nodes it is a hairball
+
+    4. **Ask an assistant** (where allowed) - For the call that computes a measure; document the prompt in the notebook
+
+    5. **Measures** - Density, transitivity, degree, eigenvector and betweenness centrality, greedy modularity
+    communities; take the largest component first because diameter fails on a disconnected graph
+
+    6. **Weights** - Decide whether weights are strengths or distances; invert strengths before path measures
+
+    7. **Export** - Write GEXF to finish the figure in Gephi, or display inline
+
+    8. **Interpret** - Say whether a diameter of 8 is large or small, and treat findings as an invitation to more
+    research
+
+
+    **Decision Points**:
+
+    - Work on the whole graph or the largest component
+
+    - Are weights strengths or distances?
+
+    - Which random seed to fix for layouts and community detection
+
+    - Draw in the notebook or export to a desktop tool
+
+
+    **Information Needs**:
+
+    - Counts and component sizes after loading
+
+    - Clear statement of how weights were interpreted by each measure
+
+    - Interactive view of 10^4 to 10^5 nodes colored by a computed column, inside the notebook
+
+    - Baseline values to judge whether a measure is large
+
+
+    **Pain Points**:
+
+    - Diameter and path measures fail on disconnected graphs
+
+    - Weights silently read as distances
+
+    - Layouts change every run until a seed is set
+
+    - Matplotlib drawing is unreadable at course dataset sizes
+
+    - Round trips to Gephi lose types or computed columns
+
+
+    **Data Flow**:
+
+    - Input: CSV edge lists, SNAP text files, instructor notebooks
+
+    - Transformations: Graph construction, largest-component extraction, centralities, communities, weight inversion
+
+    - Output: Answered notebook with computed values, figures, GEXF export, documented AI prompts
+success_criteria:
+    - metric: In-notebook view
+      target: A 10^5-node, 5 x 10^5-edge graph from NetworkX displays interactively in a hosted notebook
+    - metric: Weight clarity
+      target: The student can state whether each measure treated weights as strengths or distances
+    - metric: Reproducibility
+      target: Rerunning the notebook with the same seed gives the same layout and communities
+sources:
+    - title: Programming Historian - Exploring and Analyzing Network Data with Python
+      url: https://programminghistorian.org/en/lessons/exploring-and-analyzing-network-data-with-python
+      summary: Load CSVs, count check, density about 0.0248, diameter on the largest component, transitivity about 0.1694, greedy modularity, write GEXF, interpretation caveats
+    - title: NetworkX betweenness centrality documentation
+      url: https://networkx.org/documentation/networkx-2.8/reference/algorithms/generated/networkx.algorithms.centrality.betweenness_centrality.html
+      summary: Weights interpreted as distances
+    - title: graph-tool issue 294
+      url: https://git.skewed.de/count0/graph-tool/-/issues/294
+      summary: Strengths must be inverted before distance-based measures
+    - title: NetworkX drawing documentation
+      url: https://networkx.org/documentation/stable/reference/drawing.html
+      summary: Drawing is basic; use dedicated tools
+    - title: Indiana INFO I368 syllabus
+      url: https://iu.instructure.com/courses/2252897/assignments/syllabus
+      summary: Colab tested with assignments
+    - title: Georgia Tech CS 7280 syllabus
+      url: https://syllabus.gatech.edu/sites/default/files/2026-04/Syllabus%20for%20Network%20Science%20-%20CS-7280-O01%2C%20OAN_1.pdf
+      summary: Notebook plus requirements file per assignment
+    - title: Rochester ECE 442 homework
+      url: https://www.hajim.rochester.edu/ece/sites/gmateos/ECE442/homework.html
+      summary: Five homework sets, each a Colab notebook
+    - title: Oklahoma CS 5483 syllabus
+      url: https://www.ou.edu/content/dam/coe/cs/course-syllabi/fall-2025/CS_5483_Radhakrishnan_Fa25.pdf
+      summary: AI prompts documented and submitted with the notebook
+    - title: SNAP Epinions dataset
+      url: https://snap.stanford.edu/data/soc-Epinions1.html
+      summary: 75,879 nodes and 508,837 edges, used in Leiden's week-2 lab
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

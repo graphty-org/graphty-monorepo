@@ -17,14 +17,13 @@ import { Sources } from "./Sources";
 
 /**
  * The Data place, the left sidebar's data (data prototype spec sections 3.2 to 3.4): the graph's
- * name, then Sources, Join + (the source-steps experiment), and Filters (tier2-design.md section 1). The
+ * name, then Sources and Join + (the source-steps experiment), each source with its own Filters (tier2-design.md section 1). The
  * panel's first row is two tabs, Sources and Calculated (the results), as Figma's panel tabs are (the
  * owner, 2026-11-07); only the chosen tab's body scrolls.
  * Sources holds Data sources, one collapsible entry per load: closed, its name and counts; open,
  * its node and edge rows, the columns its rows carry, and its own Filters, which judge only that
- * load's elements. The filters
- * of no load (made before a second load came, or from the toolbar with several loads) sit under
- * Data sources. The tab is the reader's, kept per project. Every
+ * load's elements. The filters of no load (made before a second load came) sit in the picked
+ * load's entry, with no load under Data sources. The tab is the reader's, kept per project. Every
  * fact is the element's (`data.sources()`, `data.attributes()`, `visibility.steps`); this only
  * arranges them. The selected source is the reader's pick, kept in the workspace store so a visit to
  * another place keeps it, and the newest load until they pick one; picking one also opens it in the
@@ -77,9 +76,8 @@ export function DataPlace(): React.JSX.Element {
                 <Tabs.Panel value="loaded" className="dp-tab-body">
                     {sourcesSection}
                     {joining === null ? null : <JoinRow session={joining} />}
-                    {/* Each load's filters sit in its own entry; with no load, or several, the
-                        filters of every load sit here, under Data sources. */}
-                    {sources.length === 1 ? null : <FiltersSection unscoped={sources.length > 1} />}
+                    {/* Each load's filters sit in its own entry; only with no load do they sit here. */}
+                    {sources.length === 0 ? <FiltersSection /> : null}
                     <ServerPlace />
                     {sources.length === 0 ? <UnloadedFields /> : null}
                 </Tabs.Panel>

@@ -237,7 +237,7 @@ function summaryOf(source: LoadedSource): string | undefined {
  * @param props.selected - whether it is the picked source
  * @param props.opened - whether it is open
  * @param props.onOpenChange - opens or closes it; opening picks it
- * @param props.primary - whether it is the only load, whose filters the toolbar adds to
+ * @param props.primary - whether it is the picked load, whose filters the toolbar adds to
  * @returns the entry
  */
 export function SourceEntry({

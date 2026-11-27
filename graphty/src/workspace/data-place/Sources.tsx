@@ -73,6 +73,9 @@ export function Sources({
     const kept = (was: Readonly<Record<string, boolean>>): Readonly<Record<string, boolean>> =>
         selected === undefined ? was : { [selected]: true, ...was };
     const empty = sources.length === 0 && staged.length === 0;
+    // The picked load's entry, or the newest load's while a staged source is picked, holds the
+    // filters of no load and takes the Filters command and Filter to...
+    const primary = sources.some((each) => each.key === selected) ? selected : sources.at(-1)?.key;
     return (
         <ControlSection label="Data sources" actions={<AddSourceMenu />} empty={empty}>
             {empty ? null : (
@@ -88,7 +91,7 @@ export function Sources({
                             source={source}
                             selected={source.key === selected}
                             opened={opened[source.key] ?? source.key === selected}
-                            primary={sources.length === 1}
+                            primary={source.key === primary}
                             onOpenChange={(open) => {
                                 setOpened((was) => ({ ...kept(was), [source.key]: open }));
                                 // Opening an entry picks it; closing the picked one shows it in the

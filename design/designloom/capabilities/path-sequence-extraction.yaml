@@ -1,0 +1,17 @@
+id: path-sequence-extraction
+name: "Extract the sequence along a path"
+category: export
+description: "Spell and export (FASTA) the sequence of a selected or typed oriented path, reverse-complementing reversed nodes and removing link overlaps, with optional start and end offsets."
+status: planned
+notes: "Research trace: genome-assembly-and-pangenome-graphs.md section 10, table row 9 (Should)."
+algorithms: []
+used_by_workflows:
+    - W1157
+implemented_by_components: []
+requirements:
+    - "Should: Extract the sequence spelled by a selected path, honoring orientation and overlaps"
+sources:
+    - title: "Genome Assemblers, Microbial Genome Finishers and Pangenome Researchers: Assembly Graphs and Pangenome
+          Graphs (section 10, table row 9)"
+      url: design/user-research/genome-assembly-and-pangenome-graphs.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

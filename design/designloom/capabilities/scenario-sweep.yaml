@@ -1,0 +1,21 @@
+id: scenario-sweep
+name: Per-Node Scenario Sweep
+category: analysis
+description: Run an impact scenario for every node, group or region in one batch and store each result as a node
+    attribute for ranking, filtering and mapping.
+status: planned
+notes: "Research trace: supply-chain-and-physical-infrastructure-networks.md section 10, requirement R8 (Must)."
+algorithms: []
+used_by_workflows:
+    - W11
+    - W215
+    - W218
+    - W219
+    - W220
+implemented_by_components: []
+requirements:
+    - "Must: Run the impact scenario for every node or group; store results as attributes"
+sources:
+    - title: Supply Chain Risk Analysts and Physical Infrastructure Network Engineers (section 10, requirement R8)
+      url: design/user-research/supply-chain-and-physical-infrastructure-networks.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

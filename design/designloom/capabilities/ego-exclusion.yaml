@@ -1,0 +1,19 @@
+id: ego-exclusion
+name: "Designated ego excluded from the graph"
+category: data
+description: "Mark one entity as the ego of an egocentric dataset: it is left out of the graph and of every layout and clustering run, while its per-node measurement (shared centimorgans with the tester) stays available as a node attribute, size channel and filter input. Every DNA shared-match method deletes the tester by hand, or works with files that never contained them, and no tool knows an ego exists."
+status: planned
+notes: "Research trace: genetic-genealogy-dna-match-networks.md section 10, table row 2 (Must)."
+algorithms: []
+used_by_workflows:
+    - W2096
+    - W2097
+    - W2098
+implemented_by_components: []
+requirements:
+    - "Must: Designate an ego and exclude it from the graph, while keeping its per-node value (shared cM with the
+      tester) as a node attribute"
+sources:
+    - title: "Genetic Genealogists: DNA Shared-Match Networks and Clusters (section 10, table row 2)"
+      url: design/user-research/genetic-genealogy-dna-match-networks.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

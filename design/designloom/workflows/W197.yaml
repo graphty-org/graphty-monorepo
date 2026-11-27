@@ -1,0 +1,162 @@
+id: W197
+name: Hand-Authored Causal Loop Systems Map
+category: analysis
+validated: false
+personas:
+    - systems-change-strategist
+    - participatory-systems-mapping-facilitator
+requires_capabilities:
+    - visual-encoding-edges
+    - visual-encoding-nodes
+    - annotation
+    - details-on-demand
+    - path-highlighting
+    - pattern-search
+    - filtering
+    - saved-filters
+    - centrality-degree
+    - legend-display
+    - view-bookmarks
+    - data-import
+    - data-export
+    - export-image
+    - signed-edges
+    - graph-authoring
+    - structured-item-fields
+    - feedback-loops
+    - attribute-grid-view
+suggested_components:
+    - graph-canvas
+    - toolbar
+    - context-menu
+    - node-details-panel
+    - visual-encoding-panel
+    - annotation-toolbar
+    - filter-panel
+    - pattern-search-dialog
+    - legend-panel
+    - bookmark-panel
+    - data-import-dialog
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: sticky-note clusters and chains from workshops, typed in by hand; optionally a grants table to overlay
+    node_count: 30-80 factors, 15-30 named loops
+    edge_density: sparse to medium
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Turn weeks of workshop work into a digital causal loop systems map: factors that can go up or down,
+    joined by signed arrows, organized into named reinforcing and balancing feedback loops with narratives, then find
+    leverage and overlay the grant portfolio. Foundations (Hewlett, Democracy Fund, Omidyar) and government policy labs
+    use these maps to frame strategy.
+
+
+    **Mental Model**: "The system is a set of loops that keep the problem in place." Unlike a theory of change it is
+    cyclic by design and describes the whole system, not one actor's contribution. Loops are first-class things with
+    names and stories.
+
+
+    **Task Phases**:
+
+    1. **Enter factors and links** - Type factors from the sticky notes, theme by theme; draw arrows; mark each
+    as same direction or opposite direction (drawn solid vs dashed, or "+" and "-" at the arrow end); mark delays
+
+    2. **Arrange by hand** - Pin factors so each loop reads as a circle and loops sit in thematic regions around
+    one central dynamic; minimize crossing arrows; merge duplicate factors
+
+    3. **Name the loops** - Select the member connections of each loop, or detect cycles automatically (bounded,
+    since dense maps produce thousands); classify R or B by sign parity; give each a label and narrative
+
+    4. **Enrich** - Definition on each factor, a reason why two elements are causally related on each
+    connection, citations on loops, fields such as trend and needed change
+
+    5. **Socialize** - Walk partners through the map; record what resonates, surprises and is
+    missing, and the rationale for each change
+
+    6. **Find leverage** (3 h) - Tag factors and loops with qualitative leverage categories (frozen, energy for change,
+    bright spot, ripple effects); optionally an influence-versus-dependence grid; whole loops are candidates
+
+    7. **Overlay the portfolio** - Import grants and grantees as a second layer linked to the factors they address;
+    filter by program area; look for loops no grant touches
+
+    8. **Hand off and refresh** (ongoing) - Presentation (W202), narrative, grants overlay; revise every 3-12 months
+
+
+    **Decision Points**:
+
+    - Is this link same or opposite direction, and is there a meaningful delay?
+
+    - Is a cycle a real loop worth naming, or an artifact of a dense region?
+
+    - Which duplicate factors to merge, and at what level of zoom to stop?
+
+    - Which loops or factors to mark as leverage?
+
+    - Which grants map to which factors, and what gaps does that reveal?
+
+
+    **Information Needs**:
+
+    - Polarity and delay visible on every arrow without opening it
+
+    - List of cycles through a chosen factor, shortest first, each classified reinforcing or balancing
+
+    - Loop membership highlighted on the canvas when a loop is selected
+
+    - Factors with no incoming or no outgoing links (loops not closed)
+
+    - Grant count per factor and loops with no grant attached
+
+
+    **Pain Points**:
+
+    - Automatic layouts destroy deliberate loop arrangements; pinned positions must survive
+
+    - Automatic loop detection fails or explodes on dense maps
+
+    - Collaborators must refresh to see edits
+
+    - Exports to a spreadsheet drop loops and narratives
+
+    - Readers who did not build the map find it notoriously hard to navigate
+
+
+    **Data Flow**:
+
+    - Input: Hand-entered factors and signed links; optionally a spreadsheet of elements and connections and a grants
+    table
+
+    - Transformations: Signed directed edges, pinned positions, cycle enumeration with sign-parity classification,
+    loops stored as named objects, attribute-based filtering, grants joined as a second node type
+
+    - Output: Living systems map with loops and narratives, leverage tags, grants overlay, image and data exports that
+    keep loops
+success_criteria:
+    - metric: Loop fidelity
+      target: Every named loop survives save, export and re-import with its members, type and narrative
+    - metric: Loop classification
+      target: Reinforcing or balancing label agrees with sign parity for every enumerated cycle
+    - metric: Portfolio gap question
+      target: User can list loops with no grant attached in under a minute (design goal; no source measures it)
+sources:
+    - title: Omidyar Group - Systems Practice workbook
+      url: https://github.com/kumu/docs/raw/main/content/Workbook-012617.pdf
+      summary: Forces, cause and effect, loops, deep structure, build the map, socialize, leverage; phase durations and 15-30 loops
+    - title: Kumu documentation (full text)
+      url: https://docs.kumu.io/llms-full.txt
+      summary: Systems template, polarity notation, delays, loops, automatic loop detection limits, MICMAC, export dropping loops
+    - title: Hewlett Foundation - Madison Initiative systems map launch
+      url: https://hewlett.org/?p=66747
+      summary: Grants overlay map and narrative walk-through
+    - title: Media Impact Funders - Democracy Fund local news systems map
+      url: https://mediaimpactfunders.org/mapping-to-learn-applying-a-systems-lens-to-local-journalism
+      summary: Roughly 43 feedback loops reduced to 17 over a year
+    - title: Wikipedia - Causal loop diagram
+      url: https://en.wikipedia.org/wiki/Causal_loop_diagram
+      summary: Loop polarity by the parity of negative links
+    - title: FSG - Introduction to System Mapping
+      url: https://www.fsg.org/blog/introduction-system-mapping/
+      summary: Causal loop diagrams and actor maps in consultancy practice
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

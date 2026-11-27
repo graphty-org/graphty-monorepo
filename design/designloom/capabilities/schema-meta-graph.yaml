@@ -1,0 +1,24 @@
+id: schema-meta-graph
+name: Schema Meta-Graph
+category: analysis
+description: Compute from the loaded graph a label-to-label (or class-to-class) summary graph with exact node and edge
+    counts, and compare it with an intended model, highlighting missing and unexpected types.
+status: planned
+notes: "Research trace: knowledge-graph-engineers-and-graphrag.md section 10, table row 4 (Must)."
+algorithms: []
+used_by_workflows:
+    - W3024
+    - W13
+    - W131
+    - W132
+    - W144
+    - W151
+implemented_by_components: []
+requirements:
+    - "Must: Schema meta-graph view computed from a loaded graph: label-to-label (or class-to-class) edges with counts,
+      for comparison with an intended model"
+    - "Must: Draw the node and relationship types of a database or a declared warehouse graph as a meta-graph, readable for non-trivial schemas, with a diff against an intended model."
+sources:
+    - title: Knowledge Graph Engineers, Ontologists and GraphRAG Developers (section 10, table row 4)
+      url: design/user-research/knowledge-graph-engineers-and-graphrag.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

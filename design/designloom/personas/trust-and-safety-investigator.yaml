@@ -1,0 +1,79 @@
+id: trust-and-safety-investigator
+name: Trust and Safety Network Investigator
+roster_persona: osint-investigator
+tier: A
+scope: in-scope
+role: Investigator on a Platform Integrity, Deceptive-Behavior or Marketplace-Risk Team
+quote: Give me five known-bad accounts and I will find the other four hundred -- but I have to show the reviewer why each one is in the network and not just on the same coffee-shop wifi.
+bio: >-
+    Tara Nair is an investigator on a large platform's deceptive-behavior team, with four years in trust and safety
+    after a stint in payments fraud. Job postings for her role put SQL first, Python second and "investigations
+    experience focused on network analysis" as preferred, and that is how she works: she pulls account records from
+    the warehouse -- device fingerprints, IPs, emails and phone numbers, payment instruments, registration times,
+    content hashes and action logs -- builds an account-to-attribute graph in a notebook, projects it onto accounts and
+    takes connected components. Her cases start from a handful of seed accounts that user reports, a classifier or a
+    partner flagged. The platform's policy enforces on behavior, not on who the actors are or what they say, and
+    removes only the assets directly involved, so her hardest job is separating a coordinated network from authentic
+    users who share a device or a network by coincidence. No published source shows an investigator like her using a
+    standalone graph visualization tool day to day; she mostly lives in SQL, notebooks and internal case tools, and
+    would use a graph view to review a cluster, explain it to a reviewer and write it up in a threat report.
+characteristics:
+    expertise: expert
+    time_pressure: high
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - From a few known-bad seed accounts, find the whole network and enforce on it at once
+    - Separate hard links (phone, payment card, national id) from soft links (device fingerprint, cookie, IP)
+    - Prove coordination rather than coincidence before a takedown
+    - Feed confirmed indicators back into automated detection
+    - Write a defensible network summary for a reviewer or a public threat report
+behaviors:
+    - Pulls shared signals by SQL - devices, serialized email patterns, IPs within a short time window, phone numbers, payment methods, domain registrations, redirect chains
+    - Builds an account-to-attribute bipartite graph and projects it onto account-to-account edges weighted by what they share
+    - Takes connected components over hard links first, then inspects soft-link bridges by hand
+    - Builds co-action networks of accounts that posted the same object within seconds of each other, with a minimum participation and an edge-weight threshold
+    - Reviews each cluster by hand before enforcement, because no single signal proves much on its own
+    - Splits supposed networks that are really several groups linked only by mentions of the same public figures or hashtags
+frustrations:
+    - Shared attributes that link innocent users (legitimate accounts will likely share devices and network attributes)
+    - Proving coordination versus coincidence with no ground truth
+    - Graph views that cannot show which shared value created each edge
+    - Weak enforcement follow-through - only a small fraction of flagged accounts removed in one study
+    - Legally restricted data that cannot leave internal systems
+context:
+    frequency: daily
+    devices:
+        - desktop
+        - laptop
+    voluntary: false
+workflows:
+    - W93
+sources:
+    - title: TikTok - Deceptive Behaviors Investigation Analyst posting (via The Muse)
+      url: https://www.themuse.com/jobs/tiktok/deceptive-behaviors-investigation-analyst-usds
+      summary: SQL first, Python second, network-analysis investigations experience preferred (read via search snippet)
+    - title: Meta - Technical Investigator, Behavior Integrity posting (via The Muse)
+      url: https://www.themuse.com/jobs/meta/technical-investigator-behavior-integrity-operations-c619bd
+      summary: Same skill profile for a platform integrity investigator (read via search snippet)
+    - title: LegitScript - How network investigators stop bad actors on platforms
+      url: https://www.legitscript.com/fraud-risk-and-prevention/how-network-investigators-stop-bad-actors-on-platforms-and-how-you-can-too/
+      summary: Networks are built out from seed accounts known to be violative; no signal proves much alone, the proof is in the pattern (vendor blog)
+    - title: Castle - Finding links between fraudulent email domains using graph-based clustering
+      url: https://blog.castle.io/finding-links-between-fraudulent-email-domains-using-graph-based-clustering/
+      summary: NetworkX connected components over shared attributes in a fraud pipeline (vendor blog)
+    - title: Meta - Inauthentic behavior policy update (2019)
+      url: https://about.fb.com/news/2019/10/inauthentic-behavior-policy-update/
+      summary: Enforcement based on behavior, not on who the actors are or what they say
+    - title: Meta Transparency Center - Inauthentic behavior policy
+      url: https://transparency.meta.com/policies/community-standards/inauthentic-behavior
+      summary: Removes assets directly involved and leaves uninvolved authentic users in place
+    - title: arXiv 2505.10867 - Study of enforcement on flagged coordinated accounts
+      url: https://arxiv.org/html/2505.10867v2
+      summary: Only a small fraction of flagged accounts were removed
+    - title: Persona - 8 ways I use graph to uncover fraud rings
+      url: https://withpersona.com/blog/8-ways-i-use-graph-to-uncover-fraud-rings
+      summary: Legitimate accounts will likely share device and network attributes (read via search summary)
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,127 @@
+id: W331
+name: Academic Literature Notes from Zotero to a Concept and Citation Graph
+category: analysis
+validated: false
+personas:
+    - academic-literature-note-researcher
+requires_capabilities:
+    - data-import
+    - filtering
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - degree-analysis
+    - ego-network
+    - layout-hierarchical
+    - temporal-navigation
+    - details-on-demand
+    - typed-edge-filtering
+suggested_components:
+    - graph-canvas
+    - filter-panel
+    - visual-encoding-panel
+    - legend-panel
+    - data-table-panel
+    - node-details-panel
+    - layout-panel
+starting_state:
+    data_type: literature notes named by citekey with imported annotations, concept links and reference lists
+    node_count: 300-1,500 papers plus concepts and outside cited works
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Turn annotated papers into literature notes, link them to concepts and thesis chapters, and see which
+    papers share a concept and how sources cite each other.
+
+
+    **Mental Model**: "Papers are nodes, concepts are hubs, citations are a second kind of edge." The researcher thinks
+    in citekeys and chapters, not graphs.
+
+
+    **Task Phases**:
+
+    1. **Annotate in Zotero** (per paper) - Better BibTeX citekey; color-coded highlights (important, follow-up,
+    disagreement, critique, question); tag groups 0 to 4
+
+    2. **Import** - "Zotero: Create Literature Note"; a template creates Cite, Synthesis, Link,
+    Abstract, Annotations and Metadata sections
+
+    3. **Synthesize** - Write inside persist blocks; re-import pulls new annotations and overwrites
+    everything else
+
+    4. **Link** - "Related" field as [[@citekey]]; [[keyword]] links; literature notes feed permanent notes
+    gathered into chapter Maps of Content through an up-MOC property
+
+    5. **Overview** - A Dataview table of papers; the graph, if used, shows papers sharing keywords
+
+    6. **Citation graph (separate)** - A plugin builds citations from cite links, reference lists matched by
+    DOI or author-year-title, and OpenAlex; outside works are ghost nodes; Chronological and Layers layouts
+
+
+    **Decision Points**:
+
+    - Which concepts are worth their own note?
+
+    - Is this paper's claim support or opposition for a chapter argument?
+
+    - Include outside cited works as ghost nodes?
+
+
+    **Information Needs**:
+
+    - Papers per concept and concepts with only one or two sources
+
+    - Written concept links and citations as two distinguishable edge families in one view
+
+    - Publication year for chronological layout
+
+    - Relation lists (what supports or opposes a claim) -- discourse-graph users valued the relation list over the
+    picture
+
+
+    **Pain Points**:
+
+    - Note graph and citation graph are separate views
+
+    - Hub concepts dominate layouts
+
+    - Machine-imported, periodically overwritten content mixes with hand-written links
+
+    - Citekeys need letter suffixes to stay unique
+
+
+    **Data Flow**:
+
+    - Input: Zotero items with citekeys and annotations; literature notes with concept links; reference lists, DOIs,
+    OpenAlex records
+
+    - Transformations: Paper-concept bipartite graph; citation edges; chronological or layered layout; per-concept degree
+
+    - Output: Chapter outlines, literature tables, links added to notes
+success_criteria:
+    - metric: Two edge families
+      target: Concept links and citations appear in one view, each filterable and styled differently
+    - metric: Reading gaps
+      target: User can list concepts supported by fewer than a chosen number of papers
+sources:
+    - title: USU Groundwater Lab - A Zotero to Obsidian workflow
+      url: https://groundwater.usu.edu/blog/2023/A-Zotero-to-Obsidian-Workflow/
+      summary: Annotation colors, Create Literature Note template sections, persist blocks, Dataview table
+    - title: USU Groundwater Lab handbook - Reading a paper
+      url: https://groundwater.usu.edu/group_handbook/part3/reading_paper.html
+      summary: Lab reading workflow and tag groups
+    - title: Obsidian forum - Academic Zettelkasten with Obsidian and Zotero
+      url: https://forum.obsidian.md/t/academic-note-taking-and-making-system-with-the-zettelkasten-method-obsidian-zotero/64941/2
+      summary: Literature notes to permanent notes to MOCs via up-MOC
+    - title: Obsidian forum - Research, PhD, academics
+      url: https://forum.obsidian.md/t/research-phd-academics/1446
+      summary: Graph shows papers sharing keywords; citekey uniqueness
+    - title: Literature Graph plugin
+      url: https://community.obsidian.md/plugins/literature-graph
+      summary: Citation graph with ghost nodes, OpenAlex, Chronological and Layers layouts
+    - title: Chan et al. - Synthesis infrastructure (discourse graphs)
+      url: https://arxiv.org/html/2407.20666v2
+      summary: 70 percent of active respondents called the Discourse Context relation list core
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

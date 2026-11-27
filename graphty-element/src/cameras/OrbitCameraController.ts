@@ -715,11 +715,17 @@ export class OrbitCameraController {
      * keeps the box center's depth, and the graph turns about it as before.
      *
      * With `fitBounds` "turning" the pivot stays on the box's center, which the view turns about.
+     *
+     * While the graph moves (`moving`), every frame is framed again, so the drawing is centered on
+     * its box alone, work that does not grow with the node count: centering on every node cost a
+     * running 10,000-node layout several milliseconds a frame (issue #10154). The fit taken once it
+     * settles centers on the nodes, so the picture it ends on is the same.
      * @param min - The minimum corner of the bounding box
      * @param max - The maximum corner of the bounding box
      * @param spots - What the box holds; centered when they fill the box (a map around them does not).
+     * @param moving - Whether the graph is moving and will be framed again on a later frame.
      */
-    public zoomToBoundingBox(min: Vector3, max: Vector3, spots?: readonly FramingSpot[]): void {
+    public zoomToBoundingBox(min: Vector3, max: Vector3, spots?: readonly FramingSpot[], moving = false): void {
         const center = min.add(max).scale(0.5);
         const size = max.subtract(min);
         const turning = this.fitBounds === "turning" && spots !== undefined && spots.length > 0;
@@ -743,7 +749,6 @@ export class OrbitCameraController {
         const forward = Vector3.TransformNormal(Vector3.Forward(), world).normalize();
         // As far out as the box needs, as before; then what is drawn is centered.
         const box = [{ pos: Vector3.Zero(), half: size.scale(0.5) }];
-        const points = blocksIn(min, max, spots);
 
         const required = turning
             ? turningFitDistance(center, spots, tanX * free.width, tanY * free.height)
@@ -764,8 +769,10 @@ export class OrbitCameraController {
             // The camera stands `offset` sideways of the center and the pivot is drawn at the fit
             // area's center, `free.x * tanX * distance` sideways of the camera (updateCameraPosition).
             const d = this.cameraDistance;
-            const x = centeredOffset(points, right, forward, across.lo, across.hi, d) + free.x * tanX * d;
-            const y = centeredOffset(points, up, forward, upward.lo, upward.hi, d) + free.y * tanY * d;
+            const blocks = blocksIn(min, max, moving ? undefined : spots);
+            const depths = blockDepths(blocks, forward, d);
+            const x = centeredOffset(blocks, depths, right, forward, across.lo, across.hi, d) + free.x * tanX * d;
+            const y = centeredOffset(blocks, depths, up, forward, upward.lo, upward.hi, d) + free.y * tanY * d;
             this.pivot.position.addInPlace(right.scale(x)).addInPlace(up.scale(y));
             this.pivot.computeWorldMatrix(true);
         }
@@ -781,42 +788,58 @@ interface Block {
     readonly half: Vector3;
 }
 
+/** How many numbers {@link blocksIn} keeps for a block: its middle, then its half sides. */
+const BLOCK = 6;
+
 /**
  * What a fit centers: each spot cut to the box (a spot is as wide as its node's widest half on every
  * side, and stands out of a flat or tall node's box), when the spots fill the box; else the box,
- * as for a map framed around them.
+ * as for a map framed around them. Six plain numbers a block in one array, never a vector: this
+ * runs over every node on every frame a moving graph is framed (issues #9420, #10154).
  * @param min - The box's smallest corner.
  * @param max - Its largest corner.
  * @param spots - What the box holds, if known.
- * @returns The blocks, relative to the box's center.
+ * @returns The blocks, each one's middle relative to the box's center and then its half sides.
  */
-function blocksIn(min: Vector3, max: Vector3, spots: readonly FramingSpot[] | undefined): Block[] {
+function blocksIn(min: Vector3, max: Vector3, spots: readonly FramingSpot[] | undefined): Float64Array {
     const center = min.add(max).scale(0.5);
-    const whole = [{ pos: Vector3.Zero(), half: max.subtract(min).scale(0.5) }];
+    const size = max.subtract(min);
+    const whole = Float64Array.of(0, 0, 0, size.x * 0.5, size.y * 0.5, size.z * 0.5);
     if (spots === undefined || spots.length === 0) {
         return whole;
     }
 
-    const reach = new Vector3(Infinity, Infinity, Infinity);
-    const far = new Vector3(-Infinity, -Infinity, -Infinity);
-    // plain numbers: this runs over every node on every frame a moving graph is framed (issue #9420)
-    const blocks = spots.map(({ pos, half }) => {
+    const blocks = new Float64Array(spots.length * BLOCK);
+    let [reachX, reachY, reachZ] = [Infinity, Infinity, Infinity];
+    let [farX, farY, farZ] = [-Infinity, -Infinity, -Infinity];
+    for (let b = 0; b < spots.length; b++) {
+        const { pos, half } = spots[b];
         const lx = Math.max(pos.x - half, min.x);
         const ly = Math.max(pos.y - half, min.y);
         const lz = Math.max(pos.z - half, min.z);
         const hx = Math.min(pos.x + half, max.x);
         const hy = Math.min(pos.y + half, max.y);
         const hz = Math.min(pos.z + half, max.z);
-        reach.set(Math.min(reach.x, lx), Math.min(reach.y, ly), Math.min(reach.z, lz));
-        far.set(Math.max(far.x, hx), Math.max(far.y, hy), Math.max(far.z, hz));
-        return {
-            pos: new Vector3((lx + hx) / 2 - center.x, (ly + hy) / 2 - center.y, (lz + hz) / 2 - center.z),
-            half: new Vector3((hx - lx) / 2, (hy - ly) / 2, (hz - lz) / 2),
-        };
-    });
+        reachX = Math.min(reachX, lx);
+        reachY = Math.min(reachY, ly);
+        reachZ = Math.min(reachZ, lz);
+        farX = Math.max(farX, hx);
+        farY = Math.max(farY, hy);
+        farZ = Math.max(farZ, hz);
+        const o = b * BLOCK;
+        blocks[o] = (lx + hx) / 2 - center.x;
+        blocks[o + 1] = (ly + hy) / 2 - center.y;
+        blocks[o + 2] = (lz + hz) / 2 - center.z;
+        blocks[o + 3] = (hx - lx) / 2;
+        blocks[o + 4] = (hy - ly) / 2;
+        blocks[o + 5] = (hz - lz) / 2;
+    }
 
-    const slack = 1e-6 * (max.subtract(min).length() + 1);
-    const fills = reach.subtract(min).length() <= slack && max.subtract(far).length() <= slack;
+    centeringWork.walked += spots.length;
+    const slack = 1e-6 * (size.length() + 1);
+    const fills =
+        new Vector3(reachX, reachY, reachZ).subtract(min).length() <= slack &&
+        max.subtract(new Vector3(farX, farY, farZ)).length() <= slack;
     return fills ? blocks : whole;
 }
 
@@ -857,45 +880,104 @@ function axisFit(
     return { distance: (p - q) / (hi - lo), offset: (distance) => p - hi * distance };
 }
 
-/** How many directions {@link seenCorners} finds the outermost block in, to drop the blocks inside them. */
-const PRUNE_DIRECTIONS = 16;
+/** How few blocks {@link seenCorners} writes the corners of without pruning any. */
+const FEWEST_PRUNED = 16;
+
+/**
+ * Each direction's weights along the axis and in depth, before the drawing's spans scale them: evenly round.
+ * @param count - How many directions.
+ * @returns The weights.
+ */
+function pruneDirections(count: number): { cos: Float64Array; sin: Float64Array } {
+    return {
+        cos: Float64Array.from({ length: count }, (_, k) => Math.cos((2 * Math.PI * k) / count)),
+        sin: Float64Array.from({ length: count }, (_, k) => Math.sin((2 * Math.PI * k) / count)),
+    };
+}
+
+/**
+ * How many directions {@link seenCorners} finds the outermost block in, round by round, to drop the blocks inside
+ * them: a coarse polygon drops most blocks for little work on each, and a fine one, found from the blocks left alone
+ * (the outermost block in any direction is never one inside the coarse polygon), drops all but a few in a hundred.
+ * One round of 16 tested every block against 16 edges on both axes, every frame of a running layout, and left a
+ * fifth of a round drawing for the outline to sort (issue #10154).
+ */
+const PRUNE_ROUNDS = [8, 64].map((count) => pruneDirections(count));
+
+/**
+ * Each block's middle in depth from a camera `distance` behind the center, how far its corners reach past it in
+ * depth, and the nearest and furthest any corner is. The same for both screen axes, so a fit works it out once.
+ */
+interface Depths {
+    md: Float64Array;
+    rd: Float64Array;
+    lo: number;
+    hi: number;
+}
+
+/**
+ * The blocks' depths ({@link Depths}).
+ * @param blocks - The blocks, from {@link blocksIn}.
+ * @param forward - The line of sight, a unit vector.
+ * @param distance - How far behind the center the camera stands.
+ * @returns The depths.
+ */
+function blockDepths(blocks: Float64Array, forward: Vector3, distance: number): Depths {
+    const count = blocks.length / BLOCK;
+    const md = new Float64Array(count);
+    const rd = new Float64Array(count);
+    const [fx, fy, fz] = [forward.x, forward.y, forward.z];
+    let [lo, hi] = [Infinity, -Infinity];
+    for (let b = 0; b < count; b++) {
+        const o = b * BLOCK;
+        md[b] = blocks[o] * fx + blocks[o + 1] * fy + blocks[o + 2] * fz + distance;
+        rd[b] = Math.abs(blocks[o + 3] * fx) + Math.abs(blocks[o + 4] * fy) + Math.abs(blocks[o + 5] * fz);
+        lo = Math.min(lo, md[b] - rd[b]);
+        hi = Math.max(hi, md[b] + rd[b]);
+    }
+
+    centeringWork.walked += count;
+    return { md, rd, lo, hi };
+}
 
 /**
  * The corners of every block that can be on the outline of them all ({@link outline}), as each one's place along a
  * screen axis and its depth from a camera `distance` behind the center: a tangent (x - offset) / depth is widest over
  * a block at one of its corners.
  *
- * A block lying wholly inside the polygon of the outermost corners in {@link PRUNE_DIRECTIONS} directions has no corner
+ * A block lying wholly inside the polygon of the outermost corners in some directions ({@link PRUNE_ROUNDS}) has no corner
  * on the outline, so its corners are never written: on a moving 20,000-node graph every frame wrote all 160,000 on each
  * axis, and the outline sorted the tens of thousands left outside its four extremes (issue #9420). Each block is
  * tested once, by the box its corners span along the axis and in depth. The corners kept are worked out as before, so
  * the outline, and the fit, are the same to the last bit.
- * @param points - The blocks, relative to the center.
+ * @param blocks - The blocks, from {@link blocksIn}.
  * @param axis - The screen axis in world space, a unit vector.
  * @param forward - The line of sight, a unit vector.
  * @param distance - How far behind the center the camera stands.
+ * @param depths - The blocks' depths for that camera.
  * @returns The corners kept, eight a block: each one's place along the axis and its depth.
  */
 function seenCorners(
-    points: readonly Block[],
+    blocks: Float64Array,
     axis: Vector3,
     forward: Vector3,
     distance: number,
+    depths: Depths,
 ): { xs: Float64Array; depths: Float64Array } {
-    const keep = blocksOnOutline(points, axis, forward, distance);
+    const keep = blocksOnOutline(blocks, axis, forward, distance, depths);
     const xs = new Float64Array(keep.length * 8);
-    const depths = new Float64Array(keep.length * 8);
+    const ds = new Float64Array(keep.length * 8);
     let i = 0;
     for (const b of keep) {
-        const { pos, half } = points[b];
+        const o = b * BLOCK;
         for (let sx = -1; sx <= 1; sx += 2) {
             for (let sy = -1; sy <= 1; sy += 2) {
                 for (let sz = -1; sz <= 1; sz += 2) {
-                    const cx = pos.x + sx * half.x;
-                    const cy = pos.y + sy * half.y;
-                    const cz = pos.z + sz * half.z;
+                    const cx = blocks[o] + sx * blocks[o + 3];
+                    const cy = blocks[o + 1] + sy * blocks[o + 4];
+                    const cz = blocks[o + 2] + sz * blocks[o + 5];
                     xs[i] = cx * axis.x + cy * axis.y + cz * axis.z;
-                    depths[i] = Math.max(cx * forward.x + cy * forward.y + cz * forward.z + distance, Number.EPSILON);
+                    ds[i] = Math.max(cx * forward.x + cy * forward.y + cz * forward.z + distance, Number.EPSILON);
                     i++;
                 }
             }
@@ -903,67 +985,115 @@ function seenCorners(
     }
 
     centeringWork.outlined += i;
-    return { xs, depths };
+    return { xs, depths: ds };
 }
 
 /**
  * The blocks {@link seenCorners} writes: every one not wholly inside the polygon of the outermost corners, as seen
- * along the axis and in depth, in {@link PRUNE_DIRECTIONS} directions. Every block when there are too few to prune,
- * when one reaches behind the camera (its depth is clamped there), or when the blocks span nothing.
- * @param points - The blocks, relative to the center.
+ * along the axis and in depth, in each round's directions ({@link PRUNE_ROUNDS}). Every block when there are too few to prune,
+ * when one reaches behind the camera (its depth is clamped there), or when the blocks span nothing. Three walks over
+ * every block (their places along the axis, the outermost in the coarse round's directions, the test against its
+ * polygon), then two over the few the coarse round leaves.
+ * @param blocks - The blocks, from {@link blocksIn}.
  * @param axis - The screen axis in world space, a unit vector.
  * @param forward - The line of sight, a unit vector.
  * @param distance - How far behind the center the camera stands.
+ * @param depths - The blocks' depths for that camera.
  * @returns The blocks' indices, in order.
  */
-function blocksOnOutline(points: readonly Block[], axis: Vector3, forward: Vector3, distance: number): number[] {
-    const count = points.length;
+function blocksOnOutline(
+    blocks: Float64Array,
+    axis: Vector3,
+    forward: Vector3,
+    distance: number,
+    depths: Depths,
+): number[] {
+    const count = blocks.length / BLOCK;
     const all = (): number[] => Array.from({ length: count }, (_, b) => b);
-    if (count <= PRUNE_DIRECTIONS) {
+    if (count <= FEWEST_PRUNED) {
         return all();
     }
 
-    // each block's middle along the axis and in depth, and how far its corners reach past it each way
+    // each block's middle along the axis, and how far its corners reach past it
+    const { md, rd } = depths;
     const mx = new Float64Array(count);
-    const md = new Float64Array(count);
     const rx = new Float64Array(count);
-    const rd = new Float64Array(count);
-    let [xLo, xHi, dLo, dHi] = [Infinity, -Infinity, Infinity, -Infinity];
+    const [ax, ay, az] = [axis.x, axis.y, axis.z];
+    let [xLo, xHi] = [Infinity, -Infinity];
     for (let b = 0; b < count; b++) {
-        const { pos, half } = points[b];
-        mx[b] = pos.x * axis.x + pos.y * axis.y + pos.z * axis.z;
-        md[b] = pos.x * forward.x + pos.y * forward.y + pos.z * forward.z + distance;
-        rx[b] = Math.abs(half.x * axis.x) + Math.abs(half.y * axis.y) + Math.abs(half.z * axis.z);
-        rd[b] = Math.abs(half.x * forward.x) + Math.abs(half.y * forward.y) + Math.abs(half.z * forward.z);
+        const o = b * BLOCK;
+        mx[b] = blocks[o] * ax + blocks[o + 1] * ay + blocks[o + 2] * az;
+        rx[b] = Math.abs(blocks[o + 3] * ax) + Math.abs(blocks[o + 4] * ay) + Math.abs(blocks[o + 5] * az);
         xLo = Math.min(xLo, mx[b] - rx[b]);
         xHi = Math.max(xHi, mx[b] + rx[b]);
-        dLo = Math.min(dLo, md[b] - rd[b]);
-        dHi = Math.max(dHi, md[b] + rd[b]);
     }
 
+    centeringWork.walked += count;
     const xSpan = xHi - xLo;
-    const dSpan = dHi - dLo;
+    const dSpan = depths.hi - depths.lo;
     // a corner behind the camera is clamped to just in front of it, which no box below accounts for
-    if (!(xSpan > 0 && dSpan > 0 && dLo > 2 * Number.EPSILON)) {
+    if (!(xSpan > 0 && dSpan > 0 && depths.lo > 2 * Number.EPSILON)) {
         return all();
     }
 
-    const ring = outermostCorners(points, axis, forward, distance, { mx, md, rx, rd, xSpan, dSpan });
-    if (ring.length < 3) {
-        return all();
+    // each round keeps the blocks not wholly inside the polygon found from those the round before kept
+    const seen = { mx, md, rx, rd, xSpan, dSpan };
+    let keep: number[] | null = null;
+    for (const directions of PRUNE_ROUNDS) {
+        const ring = outermostCorners(blocks, keep, axis, forward, distance, seen, directions);
+        if (ring.length < 3) {
+            return keep ?? all();
+        }
+
+        keep = outsidePolygon(keep, ring, seen);
     }
 
-    // Inside every edge, counterclockwise, by more than a rounding: a block that close to an edge is kept.
+    return keep ?? all();
+}
+
+/**
+ * The blocks not wholly inside a convex polygon (counterclockwise) by more than a rounding, seen along the axis and
+ * in depth: a block that close to an edge is kept.
+ * @param among - The blocks' indices to test, in order, or null for all of them.
+ * @param ring - The polygon's corners.
+ * @param seen - Each block's middle and reach along the axis and in depth, and the spans of them all.
+ * @param seen.mx - Each block's middle along the axis.
+ * @param seen.md - Its middle in depth.
+ * @param seen.rx - How far its corners reach past the middle along the axis.
+ * @param seen.rd - How far they reach in depth.
+ * @param seen.xSpan - How far all the corners span along the axis.
+ * @param seen.dSpan - How far they span in depth.
+ * @returns The indices kept, in order.
+ */
+function outsidePolygon(
+    among: readonly number[] | null,
+    ring: readonly [number, number][],
+    seen: { mx: Float64Array; md: Float64Array; rx: Float64Array; rd: Float64Array; xSpan: number; dSpan: number },
+): number[] {
+    const { mx, md, rx, rd, xSpan, dSpan } = seen;
+    // each edge's start, run, their sizes and the rounding allowed: seven numbers an edge
+    const edges = new Float64Array(ring.length * 7);
+    for (let e = 0; e < ring.length; e++) {
+        const [ox, od] = ring[e];
+        const [tx, td] = ring[(e + 1) % ring.length];
+        const ex = tx - ox;
+        const ed = td - od;
+        const allowed = 1e-9 * (Math.abs(ex) + Math.abs(ed)) * (xSpan + dSpan);
+        edges.set([ox, od, ex, ed, Math.abs(ex), Math.abs(ed), allowed], e * 7);
+    }
+
     const keep: number[] = [];
-    for (let b = 0; b < count; b++) {
+    const count = among === null ? mx.length : among.length;
+    for (let i = 0; i < count; i++) {
+        const b = among === null ? i : among[i];
         let inside = true;
-        for (let e = 0; e < ring.length && inside; e++) {
-            const [ox, od] = ring[e];
-            const [ax, ad] = ring[(e + 1) % ring.length];
-            const ex = ax - ox;
-            const ed = ad - od;
-            const least = ex * (md[b] - od) - ed * (mx[b] - ox) - Math.abs(ex) * rd[b] - Math.abs(ed) * rx[b];
-            inside = least > 1e-9 * (Math.abs(ex) + Math.abs(ed)) * (xSpan + dSpan);
+        for (let e = 0; e < edges.length && inside; e += 7) {
+            const least =
+                edges[e + 2] * (md[b] - edges[e + 1]) -
+                edges[e + 3] * (mx[b] - edges[e]) -
+                edges[e + 4] * rd[b] -
+                edges[e + 5] * rx[b];
+            inside = least > edges[e + 6];
         }
 
         if (!inside) {
@@ -971,14 +1101,16 @@ function blocksOnOutline(points: readonly Block[], axis: Vector3, forward: Vecto
         }
     }
 
+    centeringWork.walked += count;
     return keep;
 }
 
 /**
- * The outermost corner of all the blocks in each of {@link PRUNE_DIRECTIONS} directions, going round
+ * The outermost corner of the blocks in each of a number of directions, going round
  * counterclockwise, as its place along the axis and its depth, repeats dropped: a convex polygon whose corners are
  * corners of blocks, so nothing inside it is on the outline.
- * @param points - The blocks, relative to the center.
+ * @param blocks - The blocks, from {@link blocksIn}.
+ * @param among - The blocks' indices to look among, or null for all of them.
  * @param axis - The screen axis in world space, a unit vector.
  * @param forward - The line of sight, a unit vector.
  * @param distance - How far behind the center the camera stands.
@@ -989,23 +1121,29 @@ function blocksOnOutline(points: readonly Block[], axis: Vector3, forward: Vecto
  * @param seen.rd - How far they reach in depth.
  * @param seen.xSpan - How far all the corners span along the axis.
  * @param seen.dSpan - How far they span in depth.
+ * @param directions - The directions' weights, from {@link pruneDirections}.
+ * @param directions.cos - Each one's weight along the axis.
+ * @param directions.sin - Its weight in depth.
  * @returns The polygon's corners.
  */
 function outermostCorners(
-    points: readonly Block[],
+    blocks: Float64Array,
+    among: readonly number[] | null,
     axis: Vector3,
     forward: Vector3,
     distance: number,
     seen: { mx: Float64Array; md: Float64Array; rx: Float64Array; rd: Float64Array; xSpan: number; dSpan: number },
+    directions: { cos: Float64Array; sin: Float64Array },
 ): [number, number][] {
+    // scaled by the spans, so the directions spread evenly round a drawing much wider than it is deep
+    const a = directions.cos.map((w) => w / seen.xSpan);
+    const c = directions.sin.map((w) => w / seen.dSpan);
+    const best = outermostBlocks(seen, among, a, c);
     const ring: [number, number][] = [];
     const same = (p: readonly [number, number], q: readonly [number, number] | undefined): boolean =>
         p[0] === q?.[0] && p[1] === q[1];
-    for (let k = 0; k < PRUNE_DIRECTIONS; k++) {
-        // scaled by the spans, so the directions spread evenly round a drawing much wider than it is deep
-        const a = Math.cos((2 * Math.PI * k) / PRUNE_DIRECTIONS) / seen.xSpan;
-        const c = Math.sin((2 * Math.PI * k) / PRUNE_DIRECTIONS) / seen.dSpan;
-        const corner = furthestCorner(points[outermostBlock(seen, a, c)], axis, forward, distance, a, c);
+    for (let k = 0; k < a.length; k++) {
+        const corner = furthestCorner(blocks, best[k], axis, forward, distance, a[k], c[k]);
         if (!same(corner, ring.at(-1))) {
             ring.push(corner);
         }
@@ -1019,38 +1157,49 @@ function outermostCorners(
 }
 
 /**
- * The block reaching furthest along `a * x + c * depth`, by the box its corners span.
+ * The block reaching furthest along `a[k] * x + c[k] * depth`, by the box its corners span, for every direction `k`
+ * in one walk over the blocks; the first such block when several reach as far.
  * @param seen - Each block's middle and reach along the axis and in depth.
  * @param seen.mx - Each block's middle along the axis.
  * @param seen.md - Its middle in depth.
  * @param seen.rx - How far its corners reach past the middle along the axis.
  * @param seen.rd - How far they reach in depth.
- * @param a - The direction's weight along the axis.
+ * @param among - The blocks' indices to look among, in order, or null for all of them.
+ * @param a - Each direction's weight along the axis.
  * @param c - Its weight in depth.
- * @returns The block's index.
+ * @returns Each direction's block index.
  */
-function outermostBlock(
+function outermostBlocks(
     seen: { mx: Float64Array; md: Float64Array; rx: Float64Array; rd: Float64Array },
-    a: number,
-    c: number,
-): number {
+    among: readonly number[] | null,
+    a: Float64Array,
+    c: Float64Array,
+): Int32Array {
     const { mx, md, rx, rd } = seen;
-    let best = 0;
-    let reach = -Infinity;
-    for (let b = 0; b < mx.length; b++) {
-        const r = a * mx[b] + c * md[b] + Math.abs(a) * rx[b] + Math.abs(c) * rd[b];
-        if (r > reach) {
-            reach = r;
-            best = b;
+    const absA = a.map((w) => Math.abs(w));
+    const absC = c.map((w) => Math.abs(w));
+    const best = new Int32Array(a.length);
+    const reach = new Float64Array(a.length).fill(-Infinity);
+    const count = among === null ? mx.length : among.length;
+    for (let i = 0; i < count; i++) {
+        const b = among === null ? i : among[i];
+        for (let k = 0; k < a.length; k++) {
+            const r = a[k] * mx[b] + c[k] * md[b] + absA[k] * rx[b] + absC[k] * rd[b];
+            if (r > reach[k]) {
+                reach[k] = r;
+                best[k] = b;
+            }
         }
     }
 
+    centeringWork.walked += count;
     return best;
 }
 
 /**
  * A block's corner furthest along `a * x + c * depth`, worked out as {@link seenCorners} works it.
- * @param block - The block.
+ * @param blocks - The blocks, from {@link blocksIn}.
+ * @param b - The block's index.
  * @param axis - The screen axis in world space, a unit vector.
  * @param forward - The line of sight, a unit vector.
  * @param distance - How far behind the center the camera stands.
@@ -1059,20 +1208,21 @@ function outermostBlock(
  * @returns The corner's place along the axis and its depth.
  */
 function furthestCorner(
-    block: Block,
+    blocks: Float64Array,
+    b: number,
     axis: Vector3,
     forward: Vector3,
     distance: number,
     a: number,
     c: number,
 ): [number, number] {
-    const { pos, half } = block;
+    const o = b * BLOCK;
     let corner: [number, number] = [0, 0];
     let far = -Infinity;
     for (let s = 0; s < 8; s++) {
-        const cx = pos.x + ((s & 1) === 0 ? -half.x : half.x);
-        const cy = pos.y + ((s & 2) === 0 ? -half.y : half.y);
-        const cz = pos.z + ((s & 4) === 0 ? -half.z : half.z);
+        const cx = blocks[o] + ((s & 1) === 0 ? -blocks[o + 3] : blocks[o + 3]);
+        const cy = blocks[o + 1] + ((s & 2) === 0 ? -blocks[o + 4] : blocks[o + 4]);
+        const cz = blocks[o + 2] + ((s & 4) === 0 ? -blocks[o + 5] : blocks[o + 5]);
         const x = cx * axis.x + cy * axis.y + cz * axis.z;
         const d = cx * forward.x + cy * forward.y + cz * forward.z + distance;
         if (a * x + c * d > far) {
@@ -1085,10 +1235,10 @@ function furthestCorner(
 }
 
 /**
- * How many corners a fit's centering has weighed over all its halvings, and how many it handed to the outline, so a
- * test can count the work.
+ * How many corners a fit's centering has weighed over all its halvings, how many it handed to the outline, and how
+ * many blocks (nodes, on a graph) it walked over in all, once a walk, so a test can count the work.
  */
-export const centeringWork = { corners: 0, outlined: 0 };
+export const centeringWork = { corners: 0, outlined: 0, walked: 0 };
 
 /**
  * The corners on the outline of all of them, as seen along one screen axis and in depth: the convex hull of the
@@ -1161,7 +1311,8 @@ function outline(corners: { xs: Float64Array; depths: Float64Array }): { x: numb
  * distance and the area's middle alone and not on how wide the area is. Halving the margin of the
  * area instead stopped at a step of the area's width: a canvas made shorter, which widens the
  * area across, moved the camera by about 5e-14 when nothing in the scene had moved.
- * @param points - The blocks, relative to the center.
+ * @param blocks - The blocks, from {@link blocksIn}.
+ * @param depths - Their depths for a camera `distance` behind the center.
  * @param axis - The screen axis in world space, a unit vector.
  * @param forward - The line of sight, a unit vector.
  * @param lo - The tangent of the area's near edge.
@@ -1170,14 +1321,15 @@ function outline(corners: { xs: Float64Array; depths: Float64Array }): { x: numb
  * @returns The offset.
  */
 function centeredOffset(
-    points: readonly Block[],
+    blocks: Float64Array,
+    depths: Depths,
     axis: Vector3,
     forward: Vector3,
     lo: number,
     hi: number,
     distance: number,
 ): number {
-    const corners = outline(seenCorners(points, axis, forward, distance));
+    const corners = outline(seenCorners(blocks, axis, forward, distance, depths));
     const middle = (lo + hi) / 2;
     let low = Infinity;
     let high = -Infinity;

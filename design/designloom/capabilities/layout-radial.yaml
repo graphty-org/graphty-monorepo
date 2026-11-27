@@ -1,35 +1,72 @@
 id: layout-radial
 name: Radial Layout
 category: visualization
-description: Position nodes in concentric circles emanating from a central focus node. Useful for ego-network
-    visualization where a selected node is placed at center with neighbors in successive rings by distance.
-status: implemented
-notes: "Ships: graphty-element/src/layout/RadialLayoutEngine.ts."
+description: Position nodes in concentric rings around a focus node by hop distance (ego networks), or a tree
+    around its root with angular sectors by subtree size. Personal-network researchers work with egos of about 5 to 50
+    alters; code-first analysts ask for k-hop neighborhoods around one or many seed nodes with hop distance as a visual
+    channel; systems mappers draw authored hierarchies such as Ripple Effects Mapping trees as radial trees. Changing
+    the focus animates between layouts so the reader keeps their place (Yee et al. 2001).
+status: in-progress
+notes: "Partly ships: graphty-element/src/layout/RadialLayoutEngine.ts places one root at the center with nodes in rings by hop distance, with scaling options. Planned: several focus nodes, maximum depth and ring spacing options, a peripheral marker for collapsed rings, ring values on each node, crossing reduction, refocus by double-click with an order-keeping animation, and an N-hop limit. Any requirement below that this note does not name as shipping counts as planned."
 algorithms:
-    - Radial tree layout
-    - Ego-centric placement
+    - Radial tree layout (shipped)
+    - Ego-centric placement (shipped for one root)
 used_by_workflows:
     - W17
+    - W134
+    - W161
+    - W194
+    - W203
+    - W248
+    - W265
+    - W272
+    - W29
+    - W329
+    - W364
+    - W373
+    - W374
+    - W376
+    - W378
+    - W393
+    - W401
+    - W405
+    - W406
+    - W409
+    - W422
+    - W431
+    - W437
+    - W430
+    - W67
+    - W68
+    - W78
+    - W87
 implemented_by_components:
     - layout-option
     - layout-panel
 requirements:
-    - Place designated focus node at exact center of viewport
-    - Arrange 1-hop neighbors in first ring around center
-    - Arrange 2-hop neighbors in second ring, and so on up to configurable maximum depth
-    - Distribute nodes evenly by angle within each ring (360° / node count)
-    - Allocate angular sector proportional to subtree size for hierarchical data
-    - Provide ring spacing parameter adjustable from 75 to 250 pixels (default 100)
-    - Provide maximum ring count parameter adjustable from 2 to 10 (default 5)
-    - Collapse nodes beyond maximum ring into 'peripheral' indicator
-    - Handle disconnected components by showing only connected component of focus node
-    - Display node count per ring as label option
-    - Minimize edge crossings within angular constraints using local optimization
-    - Support changing focus node via double-click on any node
-    - Animate transition when focus node changes over 500ms
-    - Complete layout of 500-node ego network within 1 second
-    - "Provide option to show only nodes within N hops of focus (default: all reachable)"
+    - "Library parity: Place the designated focus node at the center"
+    - "Library parity: Arrange 1-hop neighbors in the first ring, 2-hop neighbors in the second, and so on to a configurable maximum depth"
+    - "Must: Accept several focus nodes, placing each node by its hop distance to the nearest focus"
+    - "Library parity: Distribute nodes evenly by angle within each ring"
+    - "Library parity: Allocate angular sectors proportional to subtree size for hierarchical data"
+    - "Library parity: Provide ring spacing and maximum ring count options"
+    - "Library parity: Collapse nodes beyond the maximum ring into a peripheral marker that carries their count"
+    - "Library parity: Handle disconnected components by showing only the focus node's component, or placing the rest outside the rings"
+    - "Must: Expose each node's ring (hop distance) as a value, so an application can label rings or count nodes per ring"
+    - "Library parity: Reduce edge crossings within the angular constraints using local optimization"
+    - "Library parity: Support changing the focus node via double-click on any node"
+    - "Library parity: Animate the transition when the focus changes, keeping the angular order of nodes so the reader keeps their place, and skip the animation when reduced motion is requested"
+    - "Library parity: Provide an option to show only nodes within N hops of the focus (default: all reachable)"
 sources:
-    - title: Complete Graph Visualization Textbook - Chapter 4
-      url: https://graphty.app/docs/
-      summary: Radial layouts for hierarchies and ego-networks
+    - title: Yee, Fisher, Dhamija and Hearst 2001, Animated exploration of dynamic graphs with radial layout
+      url: https://doi.org/10.1109/INFVIS.2001.963279
+      summary: Radial layout around a focus node, with animated focus changes that preserve orientation and order
+    - title: Perry, Pescosolido and Borgatti 2018, Egocentric Network Analysis
+      url: https://doi.org/10.1017/9781316443255
+      summary: Ego networks, their extraction and per-ego measures
+    - title: GSS name generator (PMC9116615)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC9116615
+      summary: Personal-network surveys with small alter sets per ego
+    - title: University of Minnesota Extension, Ripple Effect Mapping
+      url: https://extension.umn.edu/learn-about/ripple-effect-mapping
+      summary: Ripple Effects Mapping produces a radial tree of a program's effects

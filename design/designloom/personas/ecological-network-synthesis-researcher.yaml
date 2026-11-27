@@ -1,0 +1,79 @@
+id: ecological-network-synthesis-researcher
+name: Ecological Network Synthesis and Prediction Researcher
+roster_persona: interaction-network-ecologist
+tier: B
+scope: in-scope
+role: Macroecologist / Quantitative Ecologist
+quote: I have 1,300 published networks with different names for the same species. Harmonize them, tell me which pairs we never sampled, and show me observed and predicted links in one picture.
+bio: >-
+    Dr. Kwesi Mensah is a macroecologist who analyzes hundreds of published interaction networks at once and predicts
+    interactions that were never observed. He downloads networks from Web of Life, Mangal (via rmangal), the
+    Interaction Web Database and GloBI, mostly webs of under 100 species each, with site, coordinates, date and
+    sampling method. He harmonizes taxonomy against GBIF or ITIS, computes null-corrected indices across every network,
+    maps where data are missing, and trains models on traits, phylogeny and co-occurrence to predict a regional metaweb
+    whose edges are probabilities, which he then downscales to local webs by species occurrence. He is a strong coder in
+    R, Julia or Python and uses emln for multilayer data and machine-learning libraries for link prediction.
+characteristics:
+    expertise: expert
+    time_pressure: low
+    graph_literacy: advanced
+    domain_knowledge: advanced
+motivations:
+    - Assemble a harmonized collection of published networks with metadata (location, date, method, taxonomy ids)
+    - Compute comparable, null-corrected indices across hundreds of networks
+    - Map geographic and taxonomic coverage gaps
+    - Predict unobserved interactions and build a regional metaweb that can be downscaled to local webs
+    - Show observed and predicted links together so readers can see what is data and what is inference
+behaviors:
+    - Retrieves networks in bulk through APIs and R packages and converts them to igraph objects
+    - Resolves synonyms and spelling differences through taxonomy backbones before merging networks
+    - Combines many local webs into one metaweb and treats absent pairs as possible false negatives
+    - Derives species features from co-occurrence, traits or phylogeny and trains classifiers to produce link probabilities
+    - Validates predictions on held-out data with ROC and precision-recall curves and picks a threshold
+    - Plots an embedding of species with empirical interactions in one color and imputed ones in another
+    - Runs the same analysis pipeline over every network and compares distributions of indices
+frustrations:
+    - Bare matrices from repositories lack metadata about where, when and how the network was sampled
+    - Species names differ across sources and nodes may be functional groups rather than species
+    - It is hard to tell a true absence of an interaction from one that was never sampled
+    - No common way to display observed and predicted links together
+    - Repositories have strong geographic gaps
+    - The lack of a robust shared software suite for ecological networks
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W163
+    - W164
+    - W165
+    - W167
+    - W171
+    - W1042
+sources:
+    - title: Strydom et al. 2021 - A roadmap towards predicting species interaction networks
+      url: https://par.nsf.gov/servlets/purl/10312503
+      summary: Metaweb from 51 host-parasite networks, features from co-occurrence, deep neural network predictor, ROC and PR validation, true versus false negatives
+    - title: Delmas et al. 2019 - Analysing ecological networks of species interactions
+      url: https://ecologia.ib.usp.br/guimaraes/papers/2019_Delmas.pdf
+      summary: Bare matrices lack metadata; lack of a robust software suite called a worrying trend
+    - title: Mangal synthesis manuscript (Poisot lab)
+      url: https://poisotlab.github.io/ms_mangal_synthesis
+      summary: Over 1,300 networks, 120,000 interactions and close to 7,000 taxa; most networks under 100 species; nodes may be functional groups
+    - title: rmangal on CRAN
+      url: https://cloud.r-project.org/web/packages/rmangal/index.html
+      summary: Search functions, conversion to igraph and taxonomy links to GBIF, ITIS and Catalogue of Life
+    - title: Web of Life
+      url: https://www.web-of-life.es/
+      summary: Ecological network repository with CSV and JSON downloads and an API
+    - title: emln - multilayer ecological networks
+      url: https://cran.r-project.org/web/packages/emln/readme/README.html
+      summary: 78 multilayer data sets and the MiRA browser viewer
+    - title: Interaction Web Database resources
+      url: https://iwdb.nceas.ucsb.edu/html/resources.html
+      summary: Text and Excel interaction matrices
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

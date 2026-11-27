@@ -613,6 +613,8 @@ interface FigureEdge {
     readonly target: number;
     readonly style: EdgeStyleConfig | undefined;
     readonly edge: Edge | undefined;
+    /** For a row line drawn as a curve, the points it is drawn through, in graph-root's space. */
+    readonly curve?: readonly Vector3[];
 }
 
 /**
@@ -634,10 +636,21 @@ function* drawnEdges(graph: Graph): Generator<FigureEdge> {
     }
 
     const lines = graph.getEdgeRowLines();
+    // a curve drawn with no `Edge` (`EdgeRowLines.forEachShownCurve`), four floats a point
+    const curves = new Map<number, Vector3[]>();
+    lines?.forEachShownCurve((row, points) => {
+        const curve: Vector3[] = [];
+        for (let at = 0; at < points.length; at += 4) {
+            curve.push(new Vector3(points[at], points[at + 1], points[at + 2]));
+        }
+
+        curves.set(row, curve);
+    });
     for (const row of lines?.rows() ?? []) {
         const ends = lines?.endsOf(row);
         if (ends !== undefined && !(lines?.isHidden(row) ?? true)) {
-            yield { source: ends[0], target: ends[1], style: painter.edgePaint(row)?.style, edge: undefined };
+            const style = painter.edgePaint(row)?.style;
+            yield { source: ends[0], target: ends[1], style, edge: undefined, curve: curves.get(row) };
         }
     }
 }
@@ -665,7 +678,7 @@ function edgeLines(
     const root = graph.scene.getTransformNodeByName("graph-root")?.getWorldMatrix() ?? Matrix.Identity();
     const fromWorld = root.clone().invert();
     const edges: FigureDrawing["edges"][number][] = [];
-    for (const { source, target, style, edge } of drawnEdges(graph)) {
+    for (const { source, target, style, edge, curve } of drawnEdges(graph)) {
         const src = shown.get(source);
         const dst = shown.get(target);
         if (!src || !dst || !style) {
@@ -679,9 +692,12 @@ function edgeLines(
         }
         // Where the canvas draws the line: along its curve, bends or bundle, or straight and stopped at
         // its arrowheads or a translucent node's outline; a row line drawn with no `Edge` runs between its
-        // nodes, stopped at a translucent one's outline as its pulled piece's shader stops it.
+        // nodes, stopped at a translucent one's outline as its pulled piece's shader stops it, or along its curve.
         const pulled = pulledHeadDrawn(graph, edge, style, source, target);
-        const path = figureLine(edge, pulled, src, dst, root, fromWorld);
+        const path =
+            curve === undefined
+                ? figureLine(edge, pulled, src, dst, root, fromWorld)
+                : curve.map((p) => Vector3.TransformCoordinates(p, root));
         const points = path.map((p): Point2 => {
             const at = graph.worldToScreen(p);
             return [at.x, at.y];

@@ -1,0 +1,144 @@
+id: W218
+name: Transmission Contingency Analysis (PSS/E ACCC)
+category: analysis
+validated: false
+scope: out-of-scope
+personas:
+    - power-grid-planning-engineer
+requires_capabilities:
+    - data-import
+    - large-graph-rendering
+    - filtering
+    - saved-filters
+    - node-selection
+    - neighborhood-expansion
+    - removal-impact-analysis
+    - visual-encoding-edges
+    - visual-encoding-nodes
+    - legend-display
+    - comparison-view
+    - details-on-demand
+    - data-export
+    - export-image
+    - geographic-layout
+    - scenario-sweep
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - graph-canvas
+    - filter-panel
+    - data-table-panel
+    - impact-analysis-dialog
+    - visual-encoding-panel
+    - gradient-editor
+    - legend-panel
+    - comparison-view
+    - node-details-panel
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: solved power flow base case (buses, branches, transformers) with ratings and substation coordinates
+    node_count: 2000-82000
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Find every thermal overload and voltage violation that the NERC TPL-001 planning events (P1 through P7)
+    cause in the study area, identify which outage causes each, and test mitigations.
+
+
+    **Mental Model**: "Take each element out, re-solve, and list what breaks." The graph defines where to look; the
+    power flow decides what fails.
+
+
+    **Task Phases**:
+
+    1. **Get a solved case** - Load the base case and solve the P0 power flow (public substitute: TAMU synthetic grids)
+
+    2. **Define subsystems** - Select buses by area, zone, kV range, owner or list (for example area 123, 100 to 999 kV)
+
+    3. **Define monitored elements** - Branches in the subsystem plus voltage limits
+
+    4. **Build the contingency list** - Automatic single-element outages plus scripted multi-element events
+
+    5. **Build the distribution factor file** - Rebuild whenever subsystems, monitored elements or contingencies change
+
+    6. **Run AC contingency analysis** - Optionally with remedial action tripping
+
+    7. **Export violations** - Flows, voltages and events to Excel; flag branches above 90 percent of Rate A that rose at
+    least 5 percent
+
+    8. **Review and mitigate** - Violation tables by area and contingency; one-line or geographic views with
+    post-contingency loading as line color or width; rerun after upgrades
+
+
+    **Decision Points**:
+
+    - Which buses and branches belong to the study area?
+
+    - Which multi-element events are credible for this area?
+
+    - Is a violation real, or an artifact of the case?
+
+    - Which mitigation clears the most violations at the least cost?
+
+
+    **Information Needs**:
+
+    - Subsystem membership by attribute, and the branches it implies
+
+    - Per contingency: the monitored elements violated, pre and post loading, and the causing element
+
+    - Location of violated and causing elements on a map or one-line
+
+    - Before-and-after comparison after a mitigation
+
+
+    **Pain Points**:
+
+    - Subsystem, monitored and contingency definitions are hand-edited text files - graph selection done as text editing
+
+    - One-lines show only a limited number of measurements legibly
+
+    - Many contingency states are hard to visualize together
+
+    - Cases are CEII and cannot leave controlled systems
+
+
+    **Data Flow**:
+
+    - Input: PSS/E .raw or .sav case, .sub, .mon, .con files; or MATPOWER or pandapower cases
+
+    - Transformations: Attribute-based subsystem selection, contingency enumeration, AC power flow per contingency (in the
+    solver), violation filtering
+
+    - Output: Violation table by area and contingency with causing element, loading overlays on map or one-line,
+    mitigation comparison
+success_criteria:
+    - metric: Study area definition
+      target: Subsystem and monitored list built by selection and exported without hand-editing text files
+    - metric: Violation traceability
+      target: Every violation shows its causing contingency on the same view
+    - metric: Mitigation comparison
+      target: Before and after loading visible side by side
+sources:
+    - title: Colorado State University ECE461 PSS/E Lab 4
+      url: https://www.engr.colostate.edu/ECE461/FA13/LAB4/LAB4.pdf
+      summary: .sub, .mon and .con syntax, DFAX rebuild rule, ACCC run
+    - title: Virginia Tech thesis automating TPL-001 studies
+      url: https://vtechworks.lib.vt.edu/bitstreams/efb3cbf5-f126-4d7a-8ad9-ec5d0ecc42cf/download
+      summary: pssexcel export; branches above 90 percent of Rate A rising at least 5 percent
+    - title: CAISO reliability assessment study results, Appendix C
+      url: https://www.caiso.com/documents/appendix-c-reliability-assessment-study-results.pdf
+      summary: Violation tables by area and contingency
+    - title: Visualizations for power system contingency analysis (PSERC 2004)
+      url: https://documents.pserc.wisc.edu/documents/publications/papers/2004_general_publications/Visualizations-for-Power-System_Nov-2004.pdf
+      summary: Post-contingency loading shown as line color or width
+    - title: pandapower contingency analysis
+      url: https://pandapower.readthedocs.io/en/latest/contingency.html
+      summary: Open-source run_contingency returns maximum loading and cause element
+    - title: NERC TPL-001-5.1
+      url: https://www.nerc.com/pa/Stand/Reliability%20Standards/TPL-001-5.1.pdf
+      summary: P0 through P7 planning events
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

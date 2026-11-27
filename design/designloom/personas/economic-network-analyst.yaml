@@ -1,0 +1,90 @@
+id: economic-network-analyst
+name: Economic Network Analyst
+roster_persona: economic-network-analyst
+tier: B
+scope: in-scope
+role: Economist or Systemic-Risk Analyst at a central bank, ministry or research institute
+quote: The trade matrix is almost complete, so a hairball tells me nothing. I need the indirect exposure numbers, a
+    backbone I can actually draw, and the same layout every year so the change is visible.
+bio: >-
+    Yuki is an economist at a central bank who studies how shocks travel through whole economic systems. Her networks
+    are dense weighted directed matrices released as yearly or quarterly panels: multi-regional input-output tables
+    (WIOD, OECD ICIO, EORA, EUREGIO) with about 1,400 industry-country nodes, bilateral trade flows (CEPII BACI), and
+    supervisory large-exposure reports covering 84 to 155 banks and 3,500+ counterparties. She computes direct and
+    indirect exposure through the Leontief inverse, weighted PageRank and backward linkages, runs default cascades and
+    DebtRank on the interbank network, and compares periods. Colleagues in venture finance research build syndication
+    networks per five-year window from round records, with ties directed from lead investors to the firms they invite. Colleagues in market-risk and portfolio research turn daily
+    asset returns into a correlation network per rolling window, filter it to a minimum spanning tree or planar
+    graph, and color assets by sector. She codes in R, Python (NetworkX), MATLAB or Stata and draws figures in Gephi or custom
+    plots. Bank-level results are confidential and cannot be published, so published charts hide labels or show groups.
+characteristics:
+    expertise: expert
+    time_pressure: low
+    graph_literacy: advanced
+    domain_knowledge: expert
+motivations:
+    - Quantify direct and indirect exposure of regions, industries or banks to a shock
+    - Identify the core of a dense network and how it changes between periods
+    - Produce publishable figures that respect confidentiality
+    - Answer policy questions quickly when a shock hits
+behaviors:
+    - Downloads input-output and trade panels by year and builds weighted directed networks with self-loops
+    - Computes exposure with matrix methods and runs statistics on the full network, thresholding only for display
+    - Extracts a disparity-filter backbone to draw a near-complete network
+    - Keeps node positions fixed across years and animates or compares periods
+    - Resolves counterparty names that lack a legal entity identifier
+    - Simulates threshold default cascades and DebtRank, reporting rounds and capital lost
+    - Projects investor-company rounds onto investor-investor co-investment links
+    - Builds venture syndication networks over trailing five-year windows with directed lead-to-member ties and
+      relates firm centrality to exit rates
+    - Builds asset correlation trees (minimum spanning tree or planar maximally filtered graph) from rolling windows
+      of daily returns, colors them by sector and tracks tree length and the mean occupation layer through crises
+frustrations:
+    - Trade networks are almost complete, so unfiltered drawings are unreadable
+    - Counterparty names lack an LEI in 70 percent of cases
+    - In co-investment maps the drawn edges are more or less decorative
+    - Bank-level results cannot be published, so every chart needs label hiding or grouping
+    - Backbone methods are blind to geography
+    - Each rolling-window asset tree is laid out from scratch, so assets jump between frames
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W226
+    - W227
+    - W228
+    - W3006
+sources:
+    - title: Cerina et al., World Input-Output Network (PLOS ONE 2015)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4519177/
+      summary: 1,400 industry-country nodes, almost complete network, weighted PageRank and communities
+    - title: Bank of England, toolkit for measuring regional supply chain exposure to global shocks (2025)
+      url: https://www.bankofengland.co.uk/-/media/boe/files/working-paper/2025/assessing-risk-a-toolkit-for-measuring-regional-supply-chain-exposure-to-global-shocks.pdf
+      summary: Direct and indirect exposure from WIOD, OECD ICIO, EORA, EUREGIO and BACI
+    - title: ECB Macroprudential Bulletin 2018, interbank network
+      url: https://www.ecb.europa.eu/press/financial-stability-publications/macroprudential-bulletin/html/ecb.mpbu201804_01.sv.html
+      summary: 84 institutions, 3,500+ counterparties, 70 percent without LEI, default cascade at 4.5 percent of risk-weighted assets
+    - title: RBA Bulletin June 2013, interbank network
+      url: https://www.rba.gov.au/publications/bulletin/2013/jun/6.html
+      summary: Large exposures from 155 institutions; results published as text by group
+    - title: Battiston et al., DebtRank (2012)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/3412322
+      summary: Propagation of partial distress with each edge used once
+    - title: OpenAlex, citations of the World Input-Output Database user guide (Timmer et al. 2015)
+      url: https://api.openalex.org/works/doi:10.1111/roie.12178
+      summary: 3,137 citing works on 2026-11-25; the size proxy for the population (medium)
+    - title: BIS Irving Fisher Committee annual report 2025
+      url: https://www.bis.org/ifc/publ/ifc_ar2025.pdf
+      summary: 110 member institutions, mostly central banks, at the end of 2025
+    - title: Venture co-investment map (reactionwheel.net)
+      url: https://reactionwheel.net/2010/11/venture-coinvestment-map.html
+      summary: Co-investment projection from Crunchbase; drawn edges more or less decorative
+    - title: Onnela et al., Dynamics of market correlations (Physical Review E 68, 056110, 2003)
+      url: https://arxiv.org/abs/cond-mat/0302546
+      summary: Minimum spanning tree per rolling window of stock returns; the tree tightens in crashes
+    - title: Craig and Saldias, Spatial dependence and data-driven networks of international banks (IMF WP 16/184)
+      url: https://www.imf.org/en/publications/wp/issues/2016/12/31/spatial-dependence-and-data-driven-networks-of-international-banks-44271
+      summary: Cleveland Fed and IMF staff build networks from daily stock returns of 418 banks, 1999-2014

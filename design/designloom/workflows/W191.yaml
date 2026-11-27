@@ -1,0 +1,122 @@
+id: W191
+name: New-Hire Integration and Retention Tracking
+category: analysis
+validated: false
+personas:
+    - workplace-collaboration-analyst
+    - hr-business-partner
+requires_capabilities:
+    - data-import
+    - filtering
+    - ego-network
+    - component-analysis
+    - computed-attributes
+    - temporal-analysis
+    - temporal-navigation
+    - comparison-view
+    - basic-statistics
+    - metric-histograms
+    - statistics-panel
+    - data-export
+    - report-generation
+    - bipartite-projection
+    - multiplex-relations
+    - ego-measures
+    - privacy-aggregation
+suggested_components:
+    - data-import-dialog
+    - attribute-table-join-dialog
+    - filter-panel
+    - ego-network-dialog
+    - computed-attributes-panel
+    - temporal-controls
+    - comparison-view
+    - histogram
+    - statistics-panel
+    - metric-card
+    - data-export-dialog
+    - report-generator-dialog
+starting_state:
+    data_type: weekly collaboration snapshots per channel (1:1 meetings, group meetings, chat, email) with hire dates and HR attributes
+    node_count: 1000-20000 new hires plus matched tenured peers
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Show how quickly new hires build their collaboration networks compared with tenured peers, and connect
+    network growth to performance and attrition so onboarding can be redesigned around it.
+
+
+    **Mental Model**: "Each new hire's network is a growth curve." The unit of analysis is the cohort, not the person;
+    individual rankings are never reported.
+
+
+    **Task Phases**:
+
+    1. **Define the cohort** - Start each hire at their first outbound activity; match a tenured comparison
+    group on organizational group, job function, manager status, location and team size
+
+    2. **Build weekly ego networks** - For 24 weeks, per channel, compute network size (distinct contacts),
+    intensity (sum of weights) and structural diversity (components left after removing the ego)
+
+    3. **Model the gap** - Mixed-effects regressions of each measure on tenure; report cohort curves, never
+    individual rankings
+
+    4. **Join outcomes** - Join to performance ratings and attrition; look for network factors that predict
+    leaving
+
+    5. **Design onboarding ramps** - Build introductions and onboarding steps around the factors found
+
+
+    **Decision Points**:
+
+    - Which channels count as integration (1:1 versus group meetings)?
+
+    - What matching variables make the tenured group comparable?
+
+    - Which network factors are actionable enough to design onboarding around?
+
+
+    **Information Needs**:
+
+    - Per-cohort weekly curves of size, intensity and structural diversity with the tenured benchmark
+
+    - Channel separation (for example 3.87 mean contacts in 1:1 meetings versus 12.68 in group meetings)
+
+    - Correlation of network size with ratings and attrition
+
+
+    **Pain Points**:
+
+    - Ego metrics over time need custom code; graph tools show one snapshot
+
+    - Reporting must stay at cohort level to avoid individual surveillance
+
+    - New joiners in one case took 2 to 3 years to reach high-performer network sizes, so windows are long
+
+
+    **Data Flow**:
+
+    - Input: Weekly per-channel collaboration edges, hire dates, HR attributes, performance and attrition records
+
+    - Transformations: Cohort and matched-group definition, weekly ego extraction, ego metrics, cohort aggregation,
+    regression
+
+    - Output: Cohort growth curves, gap estimates, list of network factors for onboarding design
+success_criteria:
+    - metric: Cohort view
+      target: User sees new-hire and tenured curves for network size over 24 weeks in one chart
+    - metric: Individual protection
+      target: No output lists individual new hires by network size
+sources:
+    - title: Microsoft new-hire network study (arXiv 2304.03441)
+      url: https://ar5iv.labs.arxiv.org/html/2304.03441
+      summary: Matched tenured group, 24 weekly ego networks, size, intensity, structural diversity, mixed-effects models, cohort-only reporting
+    - title: McChrystal Group - Harnessing data to identify burnout early and boost retention
+      url: https://www.mcchrystalgroup.com/capabilities/case-study/detail/2023/07/28/harnessing-data-to-identify-burnout-early-and-boost-retention
+      summary: 8,000-person CPG division; network size correlated with ratings; new joiners took 2-3 years to reach high-performer network sizes
+    - title: Cross, Davenport and Gray - Collaborate smarter, not harder (MIT Sloan Management Review)
+      url: https://sloanreview.mit.edu/article/collaborate-smarter-not-harder
+      summary: Booz Allen added network factors to an attrition model and built onboarding around five of them
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

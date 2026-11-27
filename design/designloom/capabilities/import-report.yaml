@@ -1,0 +1,36 @@
+id: import-report
+name: Import Report and Log
+category: data
+description: After any import, show and export rows read and skipped with reasons, nodes, edges, endpoints created,
+    duplicate edges merged, self-loops, reciprocal pairs collapsed, unmatched endpoints and join keys, and the settings
+    used (separator, direction, merge rule), so the import can be checked and reproduced.
+status: planned
+notes: "Research trace: data-preparation-and-import.md section 9, requirement 1 (Must)."
+algorithms: []
+used_by_workflows:
+    - W18
+    - W291
+    - W292
+    - W293
+    - W298
+    - W299
+    - W323
+    - W1084
+    - W90
+    - W1096
+    - W1156
+    - W1162
+    - W2000
+    - W2030
+    - W2036
+    - W251
+    - W2072
+    - W2097
+implemented_by_components: []
+requirements:
+    - "Must: Import report: rows read and skipped (with reasons), nodes, edges, endpoints created, duplicates merged,
+      self-loops, reciprocal pairs collapsed"
+sources:
+    - title: Data Preparation, Import and First Assessment Across All Graph Users (section 9, requirement 1)
+      url: design/user-research/data-preparation-and-import.md
+      summary: "Must in the research. Covered by Designloom when researched: Partial: W18 lists issues, not counts"

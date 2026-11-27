@@ -1,39 +1,140 @@
 id: component-analysis
 name: Connected Component Analysis
 category: analysis
-description: Identify connected components - maximal subgraphs where every pair of nodes is reachable. Find the giant
-    component (largest) and understand graph fragmentation. Essential for data quality assessment and scoping analysis.
-status: implemented
-notes: "Ships: graphty-element/src/algorithms/ConnectedComponentsAlgorithm.ts and StronglyConnectedComponentsAlgorithm.ts."
+description: Identify connected components -- maximal subgraphs where every pair of nodes is reachable -- and the
+    giant (largest) component with its share of nodes. Users read the component count as an import check (an
+    unexpected count points to mismatched or duplicated ids, isolates to edges that did not attach), filter to the
+    giant component to reduce clutter, and run path measures (diameter, average path length) on the giant component,
+    since they are undefined on a disconnected graph.
+status: in-progress
+notes: "Partly ships: graphty-element/src/algorithms/ConnectedComponentsAlgorithm.ts (components on the undirected view, which are the weakly connected components of a directed graph) and StronglyConnectedComponentsAlgorithm.ts (Tarjan; the caveats say which kind ran). Planned: giant component numbered 0 with its share, isolate counts, show-only-this-component and giant-component filters, the size histogram and merging small components into an other category. Any requirement below that this note does not name as shipping counts as planned."
 algorithms:
-    - BFS/DFS for undirected
-    - Tarjan's algorithm for strongly connected
-    - Kosaraju's algorithm
+    - BFS/DFS for undirected (shipped)
+    - Tarjan's algorithm for strongly connected (shipped)
+    - Kosaraju's algorithm (planned; Tarjan covers the same result)
 used_by_workflows:
+    - W3058
+    - W3054
     - W01
     - W11
     - W13
     - W20
+    - W06
+    - W08
+    - W09
+    - W104
+    - W107
+    - W119
+    - W125
+    - W127
+    - W128
+    - W129
+    - W130
+    - W131
+    - W136
+    - W142
+    - W154
+    - W170
+    - W177
+    - W178
+    - W191
+    - W192
+    - W194
+    - W207
+    - W209
+    - W214
+    - W219
+    - W220
+    - W229
+    - W231
+    - W234
+    - W235
+    - W237
+    - W253
+    - W256
+    - W257
+    - W26
+    - W265
+    - W266
+    - W274
+    - W275
+    - W291
+    - W295
+    - W296
+    - W298
+    - W303
+    - W313
+    - W319
+    - W326
+    - W336
+    - W337
+    - W430
+    - W34
+    - W36
+    - W367
+    - W37
+    - W38
+    - W387
+    - W389
+    - W392
+    - W396
+    - W397
+    - W402
+    - W410
+    - W411
+    - W412
+    - W45
+    - W49
+    - W56
+    - W61
+    - W62
+    - W63
+    - W65
+    - W66
+    - W70
+    - W71
+    - W72
+    - W74
+    - W75
+    - W85
+    - W86
+    - W93
+    - W1054
+    - W1060
+    - W1156
+    - W1157
+    - W2000
+    - W2036
+    - W2037
+    - W3048
+    - W3049
+    - W3050
 implemented_by_components:
     - algorithm-panel
 requirements:
-    - Find all connected components using BFS/DFS for undirected graphs
-    - Find weakly connected components for directed graphs (ignoring edge direction)
-    - Find strongly connected components for directed graphs using Tarjan's algorithm
-    - Report total number of components
-    - Report size (node count) of each component sorted by size descending
-    - Identify giant component as largest component; report its size and percentage of total nodes
-    - Assign component ID as integer to each node (starting from 0, giant component = 0)
-    - Store component ID as node attribute named 'component'
-    - Calculate fragmentation index as 1 - (giant_component_size / total_nodes) with 4 decimal places
-    - Report 'Graph is connected' when only one component exists
-    - Report count and percentage of isolated nodes (components of size 1)
-    - Provide filter to show only nodes in specified component
-    - Provide filter to show only giant component
-    - Complete analysis within 2 seconds for graphs under 100,000 nodes
-    - Display component size distribution histogram
-    - Support merging small components below threshold size into 'other' category for display
+    - "Must: Find all connected components using BFS/DFS for undirected graphs"
+    - "Must: Find weakly connected components for directed graphs (ignoring edge direction)"
+    - "Must: Find strongly connected components for directed graphs using Tarjan's algorithm"
+    - "Must: Report total number of components"
+    - "Must: Report size (node count) of each component sorted by size descending"
+    - "Must: Identify giant component as largest component; report its size and percentage of total nodes"
+    - "Library parity: Assign component ID as integer to each node (starting from 0, giant component = 0)"
+    - "Library parity: Store component ID as node attribute named 'component'"
+    - "Library parity: State in the result which kind of component was computed (connected, weakly connected or strongly connected)"
+    - 'Library parity: Return "the graph is connected" (one component) as a fact with a code, not as display text'
+    - "Must: Report count and share of isolated nodes (components of size 1), so isolates from edges that did not attach are visible after an import"
+    - "Must: Provide filter to show only nodes in specified component"
+    - "Library parity: Provide filter to show only giant component; when the graph has one component, say the filter changes nothing rather than silently doing nothing"
+    - "Must: Expose the giant component so path-based measures (diameter, average path length) can run on it with its share of nodes stated, instead of failing on a disconnected graph"
+    - "Must: Display component size distribution histogram"
+    - "Should: Support merging components below a user-chosen size into an 'other' category for display"
 sources:
-    - title: Graph Analysis Textbook - Chapter 3
-      url: https://graphty.app/docs/
-      summary: Connectivity - connected components and giant component analysis
+    - title: Tarjan 1972, Depth-first search and linear graph algorithms
+      url: https://doi.org/10.1137/0201010
+      summary: Linear-time strongly connected components by depth-first search
+    - title: Programming Historian, Exploring and Analyzing Network Data with Python
+      url: https://programminghistorian.org/en/lessons/exploring-and-analyzing-network-data-with-python
+      summary: Diameter fails on a disconnected graph; measure it on the largest component
+    - title: Warwick IM904, Gephi giant-component and degree filters
+      url: https://warwick.ac.uk/fac/cross_fac/cim/people/academic-technology/im904/week4
+      summary: Students filter to the giant component in the standard Gephi workflow (students-educators-and-first-time-users.md)

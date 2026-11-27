@@ -1,0 +1,126 @@
+id: W203
+name: Ripple Effects Mapping
+category: reporting
+validated: false
+personas:
+    - mel-theory-of-change-officer
+    - participatory-systems-mapping-facilitator
+requires_capabilities:
+    - layout-radial
+    - layout-hierarchical
+    - visual-encoding-nodes
+    - annotation
+    - filtering
+    - legend-display
+    - basic-statistics
+    - export-image
+    - data-export
+    - graph-authoring
+    - outline-import
+suggested_components:
+    - graph-canvas
+    - toolbar
+    - context-menu
+    - layout-panel
+    - visual-encoding-panel
+    - node-details-panel
+    - legend-panel
+    - filter-panel
+    - statistics-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: butcher-paper ripple map from a group session, or an XMind file
+    node_count: one root plus tens of effects (no source found for typical size)
+    edge_density: very sparse
+    user_expertise: novice
+goal: >-
+    **Intent**: Evaluate a community program's effects with Ripple Effects Mapping, a university extension method:
+    participants tell stories of how they used the program, the group maps immediate results and the ripples beyond
+    them around the program name, and the evaluator codes each effect by time horizon and Community Capitals and reports
+    counts with a printed map.
+
+
+    **Mental Model**: "Ripples on a pond." The program is the center; first branches are direct results; outer rings are
+    who else benefited. The graph is a rooted tree.
+
+
+    **Task Phases**:
+
+    1. **Prepare** - Facilitator, wall mapper and an optional software recorder; 12-20 participants;
+    questions from the program's logic model
+
+    2. **Interviews in pairs** - Appreciative inquiry stories of how the program was used
+
+    3. **Group mapping** (60+ min) - Program name in the center, immediate results as first branches, outer ripples from
+    probes; themes confirmed by the group; unintended consequences recorded
+
+    4. **Transfer to software** - Type the tree, add effects from follow-up interviews with absentees; project it
+    large enough to read
+
+    5. **Code** - Tag each effect short, medium or long term and by Community Capital (natural, cultural, human,
+    social, political, financial, built) or triple bottom line
+
+    6. **Report** - Poster-sized PDF map colored by capital, plus counts of coded effects
+
+
+    **Decision Points**:
+
+    - Which theme does an effect belong under?
+
+    - Is an effect short, medium or long term?
+
+    - Which Community Capital does it build?
+
+    - Which unintended consequences to include in the report?
+
+
+    **Information Needs**:
+
+    - Radial tree layout with the program at the center and readable labels
+
+    - Counts of effects by time horizon and by capital
+
+    - Effects filtered by one capital
+
+
+    **Pain Points**:
+
+    - Mind-mapping software projected too small to read in the room
+
+    - Coding happens in an Excel export, not on the map, so the map and the counts drift
+
+    - The printed map has no legend for the coding
+
+
+    **Data Flow**:
+
+    - Input: Hand-typed tree, or an outline (XMind, OPML or indented text)
+
+    - Transformations: Radial or tree layout, tagging by two categorical attributes, color by capital, counts by
+    category
+
+    - Output: Poster PDF map with legend, coded effect table, counts for the funder report
+success_criteria:
+    - metric: Transfer time
+      target: A 60-effect paper map typed into a readable radial tree in under an hour (design goal; no source measures it)
+    - metric: Coding on the map
+      target: Counts by time horizon and capital come from the map without a separate spreadsheet
+    - metric: Projection readability
+      target: Labels readable when projected for 20 people
+sources:
+    - title: Washington State University - REM facilitator handout (Hansen and Higgins 2010)
+      url: https://wpcdn.web.wsu.edu/extension/uploads/sites/54/2015/07/REM.FacilitatorHandout.pdf
+      summary: Team roles, 2-20 participants, appreciative inquiry pairs, group mapping, XMind
+    - title: University of Minnesota Extension - Ripple Effect Mapping
+      url: https://extension.umn.edu/learn-about/ripple-effect-mapping
+      summary: One-to-two-hour session; 12-20 participants ideal
+    - title: Virginia Tech - ALCE-297 REM case study
+      url: https://pubs.ext.vt.edu/ALCE/alce-297/alce-297.html
+      summary: Questions from the logic model; XMind projected too small; export to Excel; Community Capitals coding
+    - title: UF IFAS - WC482
+      url: https://edis.ifas.ufl.edu/publication/WC482
+      summary: Ripple Effects Mapping in extension evaluation
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

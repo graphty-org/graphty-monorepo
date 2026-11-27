@@ -15,9 +15,86 @@ implements_capabilities:
     - all-paths-finding
     - component-analysis
 used_in_workflows:
+    - W3006
     - W03
     - W04
     - W06
+    - W10
+    - W104
+    - W119
+    - W125
+    - W128
+    - W129
+    - W142
+    - W153
+    - W155
+    - W162
+    - W164
+    - W176
+    - W187
+    - W188
+    - W190
+    - W192
+    - W198
+    - W199
+    - W205
+    - W207
+    - W208
+    - W209
+    - W210
+    - W212
+    - W220
+    - W226
+    - W229
+    - W231
+    - W232
+    - W234
+    - W235
+    - W239
+    - W266
+    - W271
+    - W274
+    - W285
+    - W306
+    - W307
+    - W334
+    - W364
+    - W37
+    - W38
+    - W384
+    - W387
+    - W389
+    - W39
+    - W396
+    - W397
+    - W404
+    - W41
+    - W42
+    - W425
+    - W428
+    - W430
+    - W435
+    - W44
+    - W434
+    - W438
+    - W45
+    - W48
+    - W49
+    - W52
+    - W53
+    - W56
+    - W58
+    - W66
+    - W75
+    - W86
+    - W88
+    - W90
+    - W91
+    - W94
+    - W1054
+    - W228
+    - W2036
+    - W2037
 dependencies:
     - algorithm-card
     - select

@@ -74,16 +74,6 @@
         "src/workspace/data-place/ScoreDialog.tsx": ["name"],
         "src/workspace/export/CameraImageOutput.tsx": ["backgroundCheck"],
         "src/workspace/export/DocumentOutput.tsx": ["contents"],
-        "src/workspace/export/ExportDialog.tsx": [
-            "cameraImage",
-            "data",
-            "output",
-            "recent",
-            "recording",
-            "report",
-            "settingsOpen",
-            "tourVideo"
-        ],
         "src/workspace/export/ReportOutput.tsx": ["configs", "counts", "savedName"],
         "src/workspace/export/TourVideoOutput.tsx": ["estimate", "failure", "progress", "recording"],
         "src/workspace/frame/ElementHost.tsx": ["hosted"],
@@ -124,7 +114,6 @@
         ],
         "src/workspace/layout/TransitionRow.tsx": ["now"],
         "src/workspace/layout/methods.ts": ["resolved"],
-        "src/workspace/notes/NotesPlace.tsx": ["active", "error", "version", "view"],
         "src/workspace/options/OptionsForm.tsx": ["unread"],
         "src/workspace/privacy/SurveyCard.tsx": ["choice", "otherText", "survey"],
         "src/workspace/privacy/UsageDataCard.tsx": [

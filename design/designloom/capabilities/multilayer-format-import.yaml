@@ -1,0 +1,22 @@
+id: multilayer-format-import
+name: "Multilayer Format Import"
+category: data
+description: "Read muxViz inputs (an edge-colored configuration file of path;label;layout per layer, or a multilayer line with layer-info and layout files), extended edge lists (node, layer, node, layer, weight) and multinet text files (#TYPE, #LAYERS, #ACTORS, #VERTICES, #EDGES with intralayer and interlayer edge lines) into the multilayer-networks model, keeping state nodes per layer and interlayer links between node-layer pairs, never merging edges across layers."
+status: planned
+notes: "Research trace: data-preparation-and-import.md section 9, requirement 25 (Should)."
+algorithms: []
+used_by_workflows:
+    - W303
+    - W1162
+implemented_by_components: []
+requirements:
+    - "Should: Layers as data: import one file per layer, a layer column, an extended edge list (node, layer, node,
+      layer, weight), a muxViz configuration file with its layer, layer-info and layout files, or a multinet text file;
+      nodes present in several layers; optional interlayer links with weights; never merge edges across layers silently;
+      per-layer and cross-layer metrics (overlap, overlapping degree, participation, versatility); stacked,
+      side-by-side, edge-colored and flattened views"
+sources:
+    - title: Data Preparation, Import and First Assessment Across All Graph Users (section 9, requirement 25)
+      url: design/user-research/data-preparation-and-import.md
+      summary: "Should in the research. Covered by Designloom when researched: Partial: multilayer-networks holds the
+          model, file formats planned in multilayer-format-import"

@@ -1,0 +1,91 @@
+id: veterinary-movement-epidemiologist
+name: Veterinary Movement Epidemiologist
+roster_persona: public-health-cluster-epidemiologist
+tier: none
+scope: deferred
+role: Veterinary Epidemiologist, National Veterinary Institute
+quote: Within the hour I need every holding that could have infected this farm, and every holding it could have infected, in the right order.
+bio: >-
+    Anna Lindqvist traces livestock movements during outbreaks (foot-and-mouth disease, African swine fever, bovine
+    tuberculosis) and designs risk-based surveillance between outbreaks. She works in R against a national livestock
+    movement database, using the EpiContactTrace package, which was written at a national veterinary institute for
+    exactly this job. Her data is one row per movement: source holding, destination holding, date, and optionally
+    species, number of animals and individual animal identifiers. Volume is high for a graph of this kind: the
+    package's example dataset holds 70,190 movements over three months, and a 2010 national foot-and-mouth disease
+    exercise used real cattle, pig, sheep and goat movements over 90 days. When a holding tests positive she must
+    produce, within hours, the ingoing contact chain (holdings that could have passed infection in, traced backward
+    through time) and the outgoing contact chain (holdings it could have passed infection to, traced forward), and
+    then per-holding reports that field veterinarians take with them on farm visits. Outbreak tracing is the smaller
+    part of the field: a 2025 scoping review of 203 livestock and poultry movement network studies in 52 countries found
+    structural analysis of the network in 73.4% of them, epidemic modeling in 35.0%, targeted control and surveillance
+    in 31.5% and retrospective outbreak analysis in 14.8%. So between outbreaks she describes the trade network as a
+    whole and per month or year, ranks holdings and markets for targeted sampling or control, and, where the movement
+    records are partial (as in most low- and middle-income countries, where surveys stand in for a database), works
+    with simulated contact networks. National networks are large: the German pig trade network held 97,980 premises
+    and 6.4 million trade transactions over four years, and the British cattle network about 70,000 holdings a year.
+characteristics:
+    expertise: advanced
+    time_pressure: high
+    graph_literacy: advanced
+    domain_knowledge: expert
+motivations:
+    - Name every holding at risk fast enough for a movement standstill to still matter
+    - Avoid over-restricting farms that a time-ignorant path analysis would wrongly implicate
+    - Give each field veterinarian a report about one holding, not a national diagram
+    - Rank holdings by movement exposure for surveillance sampling when there is no outbreak
+    - Keep the trace defensible, because its output restricts or destroys other people's animals
+behaviors:
+    - Starts from one root holding and a time window, often the presumed infectious window for the disease
+    - Traces both directions with paths that respect movement order, so a later movement cannot feed an earlier one
+    - Counts a holding once however many times it appears in a chain
+    - Reads structure and summary separately: source, destination and distance from the root; then in-degree, out-degree and both contact chain sizes per root holding
+    - Generates per-holding HTML or PDF reports, for one holding or for many roots in a batch
+    - Draws contact maps over time where holding coordinates exist
+    - Reuses the same measures between outbreaks to rank holdings for risk-based sampling
+    - Re-runs the whole trace when the movement extract is refreshed, since late-reported movements change the answer
+    - Describes the network static and as monthly or yearly snapshots (components, degree, betweenness, reach), and compares static reach with reach along time-respecting paths
+    - Ranks holdings by out-degree, contact chain size, betweenness or closeness and checks each ranking by removing the top holdings and watching the largest component shrink, against random removal
+    - Works in R (igraph, EpiContactTrace for contact chains), or Python NetworkX, with SAS for statistics; fits generated networks (configuration, gravity, ERGM) where data is partial
+frustrations:
+    - Plain graph reachability overstates risk badly, because it ignores the order of movements; this is the reason the package counts time-respecting contact chains instead
+    - A trace is only as good as the reporting lag in the movement database, and late movements appear after decisions were made
+    - The output a field veterinarian needs is a document about one farm, which network tools do not produce
+    - Species and animal counts matter for risk but turn every edge into a multi-attribute record
+    - Batch reports for many root holdings means running the same analysis hundreds of times
+    - Holding coordinates exist for some farms and not others, so the map is always partial
+    - A static network overstates reach (by almost 35% on the German pig network), but temporal analysis needs longitudinal data that many countries lack
+    - No international movement database exists and few national ones are electronically available, so countries cannot be compared
+    - The best ranking measure for targeted control differs between supply chains, and few targeted strategies have been tried in the field
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: false
+workflows:
+    - W74
+    - W3048
+    - W3049
+    - W3050
+sources:
+    - title: Noremark and Widgren, EpiContactTrace - an R package for contact tracing (BMC Veterinary Research 2014, 10:71)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC3974595/
+      summary: Movement row format, ingoing and outgoing contact chains that respect movement order, NetworkStructure and NetworkSummary outputs, per-holding HTML and PDF reports, 70,190-movement example dataset and the 2010 Swedish foot-and-mouth disease exercise
+    - title: Sequeira et al., A systematic scoping review and thematic analysis of livestock and poultry movement networks (PLoS ONE 2025, 20(7):e0328518)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC12279109/
+      summary: 203 studies in 52 countries, 2006-2023 (cattle 40.3%, swine 33.2%, poultry 13.0%); five themes; 89.2% of studies in high- or upper-middle-income countries; data sources and their gaps
+    - title: Lentz et al., Disease spread through animal movements - a static and temporal network analysis of pig trade in Germany (PLoS ONE 2016)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4859575/
+      summary: 97,980 premises and 6,359,697 transactions (HI-Tier, 2011-2014); static reach overstated by almost 35%; betweenness best for targeted removal at scale
+    - title: Buttner et al., Efficient interruption of infection chains by targeted removal of central holdings in an animal trade network (PLoS ONE 2013)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC3771899/
+      summary: Targeted removal by seven measures against random removal; out-degree best in a pyramidal pork supply chain; NetworkX and SAS
+    - title: Fielding et al., Contact chains of cattle farms in Great Britain (Royal Society Open Science 2019)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6408381/
+      summary: Cattle Tracing System 2001-2015, about 70,000 holdings a year; ingoing contact chain sizes; R with igraph and EpiContactTrace
+    - title: Leung, Rudge and Fournie, Simulating contact networks for livestock disease epidemiology - a systematic review (Journal of the Royal Society Interface 2023)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10189310/
+      summary: 37 network-simulation models; traceability systems missing or unshared especially in low- and middle-income countries
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

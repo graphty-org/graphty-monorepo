@@ -1,0 +1,128 @@
+id: W268
+name: Diagnose Misclassified Nodes
+category: analysis
+validated: false
+personas:
+    - gnn-model-debugger
+requires_capabilities:
+    - data-import
+    - computed-attributes
+    - filtering
+    - ego-network
+    - neighborhood-expansion
+    - visual-encoding-nodes
+    - legend-display
+    - comparison-view
+    - details-on-demand
+    - selection-statistics
+    - data-preview
+    - annotation
+    - model-output-overlay
+    - label-split-neighbor-counts
+suggested_components:
+    - data-import-dialog
+    - filter-panel
+    - histogram
+    - graph-canvas
+    - ego-network-dialog
+    - visual-encoding-panel
+    - legend-panel
+    - comparison-view
+    - node-details-panel
+    - data-table-panel
+    - annotation-toolbar
+starting_state:
+    data_type: one large graph with per-node labels, predictions, split membership and features from a trained node classifier
+    node_count: 50-3000 (two-hop neighborhoods of tens to hundreds of misclassified nodes)
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Find why a GNN gets certain nodes wrong -- neighbors with other labels, missing features, mislabeled
+    data -- by looking at the neighborhoods of misclassified nodes with labels, predictions and training membership.
+
+
+    **Mental Model**: "Are we lost?" Aggregate accuracy says something is wrong with one class; the neighborhood shows
+    whether the cause is the structure, the features or the labels themselves.
+
+
+    **Task Phases**:
+
+    1. **Overview of errors** - Overall and test accuracy (GNNLens case: GCN on Amazon Photo, 7,650 products,
+    91.15% overall, 677 wrong); break errors down by true label to find the dominant class
+
+    2. **Form a hypothesis with derived attributes** - Per node: correct or not, label, whether the dominant
+    label of the nearest training nodes matches, shortest-path distance to a training node (most class-7 errors did not
+    match their nearest training labels, 264 of 331)
+
+    3. **Look at neighborhoods** - Show two-hop neighborhoods of about 150 misclassified nodes with label as
+    color, prediction as border, and training membership marked (`k_hop_subgraph(idx, 2, edge_index)`); look for
+    heterophily
+
+    4. **Compare models** - GCN against a features-only MLP and a structure-only GNN to see which information
+    source drives the error
+
+    5. **Read individual nodes** - Feature words and raw records (GNNLens Cora-ML: "markov", "model", "chain"
+    revealed a mislabeled paper, with three neighbors sharing the problem)
+
+    6. **Act** - Reweight the loss for the weak class or fix labels; the hand-off is a code change and a note
+
+
+    **Decision Points**:
+
+    - Is the error caused by neighbors with different labels, by features, or by a wrong label?
+
+    - Which model variant gets this node right?
+
+    - Reweight, relabel or change architecture?
+
+
+    **Information Needs**:
+
+    - Error counts by true label and by derived attribute
+
+    - Label, prediction, correctness and split membership per node, visible at once
+
+    - Distance to the nearest training node and the labels of the nearest training nodes
+
+    - Predictions from several models for the same node
+
+    - Raw features or source record of a selected node
+
+
+    **Pain Points**:
+
+    - Evaluation stops at aggregate metrics because deeper analysis lacks tools
+
+    - Converting a large DGL graph to NetworkX is CPU-only and slow
+
+    - Projection views become unreadable at about 300 nodes without clustering
+
+    - Labels, predictions and split masks are arrays, not first-class attributes in general viewers
+
+
+    **Data Flow**:
+
+    - Input: Graph, per-node arrays (label, prediction from each model, split mask, features), node id mapping
+
+    - Transformations: Derived attributes (correctness, label consistency, distance to training), filtering to errors,
+    two-hop extraction, multi-attribute encoding
+
+    - Output: A diagnosis note and a code change (loss weights, relabeling)
+success_criteria:
+    - metric: Hypothesis formation
+      target: User can state which information source (structure, features, labels) drives the dominant error class
+    - metric: Neighborhood readability
+      target: Two-hop neighborhoods of 150 selected nodes are readable with label, prediction and split all encoded
+sources:
+    - title: GNNLens
+      url: https://ar5iv.labs.arxiv.org/html/2011.11048
+      summary: Case One on Amazon Photo (677 errors, 264 of 331 class-7 errors inconsistent with nearest training labels); Case Two on Cora-ML finding mislabeled papers
+    - title: PyG utilities
+      url: https://pytorch-geometric.readthedocs.io/en/2.6.0/modules/utils.html
+      summary: k_hop_subgraph and to_networkx for extracting and drawing neighborhoods
+    - title: dgl.to_networkx
+      url: https://doc.dgl.ai/generated/dgl.to_networkx.html
+      summary: CPU-only conversion
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

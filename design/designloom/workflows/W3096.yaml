@@ -1,0 +1,136 @@
+id: W3096
+name: Debug a Robot's Node-and-Topic Wiring on the Live ROS Graph
+category: analysis
+validated: false
+personas:
+    - ros-graph-robotics-developer
+requires_capabilities:
+    - data-import
+    - dependency-format-import
+    - live-graph-streaming
+    - stable-id-data-binding
+    - filtering
+    - search
+    - group-collapse
+    - bipartite-layout
+    - layout-hierarchical
+    - focus-caller-callee-view
+    - details-on-demand
+    - pubsub-connection-diagnostics
+    - export-image
+suggested_components:
+    - graph-canvas
+    - filter-panel
+    - search-input
+    - cluster-collapse-control
+    - node-details-panel
+    - legend-panel
+starting_state:
+    data_type: live ROS 2 computation graph (nodes; topics with message types; publisher and subscriber endpoints with QoS profiles; services and actions), read from the running system through an in-process ROS node, Foxglove Bridge or Rosbridge, or a DOT file saved from rqt_graph
+    node_count: tens of nodes and around a hundred or more topics (two teams on the ROS Discourse report 61 nodes and 129 topics, and 80 nodes with 1,505 graph objects); no source gives a typical size for a production robot
+    edge_density: sparse; each topic links its publishers to its subscribers, and every node also carries parameter and logging endpoints that are hidden by default
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Confirm that a running robot's nodes publish and subscribe where its launch files meant them to, and find
+    why a subscriber receives nothing. The persona is ros-graph-robotics-developer: a robotics software engineer on ROS 2,
+    with students following the ROS 2 tutorials and integrators of large stacks such as Autoware as variants.
+
+
+    **Mental Model**: "Every wire is a topic name. If the names, namespaces, types and QoS match, the nodes are
+    connected; if one does not, the subscriber hears nothing and nothing says why."
+
+
+    **Task Phases** (no source gives per-step durations):
+
+    1. **Launch and open the graph** - Start the stack, open rqt_graph (`ros2 run rqt_graph rqt_graph`, or Plugins >
+    Introspection > Node Graph) or Foxglove's Topic Graph panel over a bridge; choose Nodes/Topics (active)
+
+    2. **Cut it down** - Filter by namespace (`/perception`) or topic name, with `-` patterns to exclude; keep debugging
+    nodes, parameter topics, tf and dead sinks hidden; group action, image and tf topics into one node each; draw
+    namespace boxes to a chosen depth
+
+    3. **Trace one wire** - Hover a node to highlight its incoming and outgoing connections; follow a topic from its
+    publisher to each subscriber
+
+    4. **Unhide when something is missing** - Uncheck the Hide boxes; a remapped or misspelled name shows as two topics
+
+    5. **Check compatibility** - For a connected but silent topic, compare publisher and subscriber QoS with `ros2 topic
+    info --verbose`; an incompatible pair makes no connection
+
+    6. **Change and refresh** - Fix the launch file or code, restart the node, press Refresh and compare by eye
+
+    7. **Share** - Save the filtered view as DOT, SVG or an image for a pull request or bug report
+
+
+    **Decision Points**:
+
+    - Which namespace or subsystem to look at first?
+
+    - Is the missing message a naming, typing or QoS problem, or is the publisher not running?
+
+    - Which hidden categories (parameter topics, debugging nodes, tf) to bring back?
+
+
+    **Information Needs**:
+
+    - Topics as their own nodes between publishers and subscribers, with message type
+
+    - Namespaces as nested, collapsible groups
+
+    - Topics with no publisher or no subscriber, and endpoint pairs that cannot connect, marked with the reason
+
+    - The graph updated as nodes start and stop, with unchanged nodes left where they were
+
+
+    **Pain Points**:
+
+    - rqt_graph does not refresh by itself; auto-refresh has been an open request since 2016
+
+    - QoS mismatches are invisible in the drawing
+
+    - No node details sidebar (publishers, subscribers, services) like the older rxgraph had
+
+    - The graph cannot be drawn from the command line for scripts or CI
+
+
+    **Data Flow**:
+
+    - Input: The live ROS graph via an in-process node, Foxglove Bridge or Rosbridge; an rqt_graph DOT file
+
+    - Transformations: Namespace grouping, regular-expression include and exclude filters, grouping of action, image and
+    tf topics, hiding of one-sided topics, compatibility checks per endpoint pair
+
+    - Output: A diagnosis (which wire is missing or incompatible), a fixed launch file or QoS setting, a saved picture of
+    the subsystem
+success_criteria:
+    - metric: Missing connection found
+      target: A topic with no publisher or no subscriber, and a publisher and subscriber pair that cannot connect, are marked on the graph with the reason
+    - metric: Stable refresh
+      target: Starting or stopping one node adds or removes only its own nodes and edges; every other node keeps its position
+    - metric: Subsystem view
+      target: User can show one namespace, collapsed or expanded, with parameter and debugging topics hidden, in one step
+sources:
+    - title: ROS 2 documentation - Understanding topics (Jazzy)
+      url: https://github.com/ros2/ros2_documentation/blob/jazzy/source/Tutorials/Beginner-CLI-Tools/Understanding-ROS2-Topics/Understanding-ROS2-Topics.rst
+      summary: rqt_graph via Plugins > Introspection > Node Graph; highlighting helps on complex systems; uncheck Hide to see all topics; ros2 topic info --verbose prints QoS; refresh to see changes
+    - title: ROS 2 documentation - Quality of Service settings
+      url: https://github.com/ros2/ros2_documentation/blob/jazzy/source/Concepts/Intermediate/About-Quality-of-Service-Settings.rst
+      summary: Incompatible requested and offered QoS profiles make no connection
+    - title: rqt_graph UI definition
+      url: https://github.com/ros-visualization/rqt_graph/blob/rolling/resource/RosGraph.ui
+      summary: Graph types, node and topic regex filters, namespace boxes, Hide and group options, highlight on mouse over, refresh, DOT and SVG save and load
+    - title: rqt_graph issue 5 - Auto-refresh graph
+      url: https://github.com/ros-visualization/rqt_graph/issues/5
+      summary: Open since 2016
+    - title: Autoware - Determining component dependencies
+      url: https://docs.autoware.org/main/tutorials/others/determining-component-dependencies/
+      summary: Launch Autoware, run rqt_graph, enter /perception in the namespace filter
+    - title: Foxglove - Topic Graph panel
+      url: https://docs.foxglove.dev/docs/visualization/panels/topic-graph
+      summary: Nodes, topics and services in a browser; needs a live data source (vendor)
+    - title: ROS Discourse - Scalability issues with large number of nodes
+      url: https://discourse.openrobotics.org/t/scalability-issues-with-large-number-of-nodes/36399
+      summary: 61 nodes, 129 topics, 627 services; 80 nodes with 1,505 graph objects
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

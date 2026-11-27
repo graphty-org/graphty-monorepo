@@ -1,0 +1,146 @@
+id: W2098
+name: Endogamy Check and Adapted Match Clustering
+category: analysis
+validated: false
+personas:
+    - endogamous-heritage-dna-researcher
+starting_state:
+    data_type: a match list from an endogamous community where almost every match shares DNA with almost every other
+    node_count: 1,000-20,000
+    edge_density: dense
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Decide whether shared-match clustering can separate anything at all for a tester from an intermarried
+    community, and if it can only partly, raise every threshold until the few real clusters stand out, and fall back to
+    ranked similarity within a cluster when clustering alone gives nothing.
+
+
+    **Mental Model**: "Everyone matches everyone." Community background sharing adds edges that mean no recent common
+    ancestor, so the graph is nearly complete and ordinary clustering returns one blob. A clean cluster is the
+    exception, and finding out early that the method does not apply is itself the result.
+
+
+    **Task Phases**:
+
+    1. **Test for endogamy first** - Run the endogamy check, or treat a complete low-threshold download that
+    would take days or weeks as the same signal
+
+    2. **Download differently** - Keep every match but only their shared matches above a raised floor, so the
+    pair table stays usable
+
+    3. **Raise every threshold** - A higher centimorgan floor for clustering and for the pairs, a minimum
+    cluster size, and no tolerance for multi-cluster members, accepting that only a small share of matches remains
+
+    4. **Read a speckly diagram** - Look for matches already identified, and for any group of three or four,
+    including unlabeled ones that may open a new branch
+
+    5. **Fall back to ranked similarity** - For one promising cluster at a time, rank the rest of the matches by
+    similarity to its members and work down the list
+
+    6. **Record that the method does not apply** - Where clustering separates nothing, say so, rather than
+    reading structure into background sharing
+
+
+    **Decision Points**:
+
+    - Is there enough endogamy that ordinary clustering will fail?
+
+    - How high must the centimorgan floors go before clusters appear, and is what remains still worth reading?
+
+    - Is a group of three or four matches a real line or background noise?
+
+    - When to stop working down a similarity list that tails off with no cutoff?
+
+
+    **Information Needs**:
+
+    - A diagnostic, before any analysis, of how dense the match network is and what share of matches clusters at all
+
+    - Live cluster counts and sizes as the thresholds move, so the floors can be found by trying
+
+    - Which matches are already identified, marked in the picture
+
+    - Every cluster a match belongs to, since here most belong to several
+
+    - A ranked similarity list within one cluster's members
+
+
+    **Pain Points**:
+
+    - Published methods and vendor defaults assume no endogamy and fail silently when it is present
+
+    - Only one Windows-only tool says in advance whether clustering can work
+
+    - At workable thresholds only a tiny percentage of the matches is left
+
+    - The diagram is speckly rather than clean squares, and nothing distinguishes background edges from real ones
+
+    - A node-link view cannot show a match that belongs to many lines at once
+
+
+    **Data Flow**:
+
+    - Input: Full match list and pair table with a raised floor on the pairs
+
+    - Transformations: Density and clusterability diagnostic, threshold raising, clustering with a minimum cluster
+    size, per-cluster similarity ranking
+
+    - Output: The few separable clusters with their members, a ranked similarity list per cluster, or a recorded
+    finding that clustering does not apply
+success_criteria:
+    - metric: Early warning
+      target: The tester learns before any clustering whether the network is too dense to separate
+    - metric: Threshold feedback
+      target: Cluster count, cluster sizes and the share of matches left are shown as the floors move
+    - metric: Honest negative
+      target: A finding of "not separable" is recordable, rather than an empty screen
+sources:
+    - title: Shared Clustering wiki - Endogamy, advanced analysis techniques
+      url: https://github-wiki-see.page/m/jonathanbrecher/sharedclustering/wiki/Endogamy---Advanced-analysis-techniques
+      summary: Endogamy check, Endogamy Special download of shared matches over 50 cM, settings of cluster size 3, gray 0, 50 cM and 50 cM, speckly background, per-cluster similarity reports
+    - title: Newman - DNA and endogamy (RootsTech 2025)
+      url: https://cms-z-assets.familysearch.org/bc/86/5633a4c2b3a3dfce11ae6ae3dd40/rootstech2025newman-dnaendogamy.pdf
+      summary: The Leeds method very likely will not work for endogamous testers; raise the minimum threshold
+    - title: Family Locket - Gephi part 5, analyze the network graph
+      url: https://familylocket.com/creating-network-graphs-with-gephi-part-5-analyze-the-network-graph
+      summary: Network graph analysis is not helpful with moderate to severe endogamy; such testers connect to many clusters
+    - title: 23andMe - How to use DNA Relatives Clustering
+      url: https://customercare.23andme.com/hc/en-us/articles/38509301730839-How-to-Use-DNA-Relatives-Clustering-at-23andMe
+      summary: Endogamy merges clusters through background sharing; raise the minimum to 30-50 cM
+    - title: DNA Painter - Chromosome mapping and endogamy
+      url: https://dnapainter.com/blog/chromosome-mapping-and-endogamy/
+      summary: Raising the 7 cM default to 10 or 15 cM for Ashkenazi testers
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z
+requires_capabilities:
+    - ego-exclusion
+    - attribute-band-filter
+    - overlapping-cluster-membership
+    - cluster-seriated-matrix-view
+    - clusterability-diagnostic
+    - data-import
+    - filtering
+    - interactive-threshold
+    - threshold-preview
+    - threshold-sweep
+    - community-detection
+    - resolution-sweep
+    - basic-statistics
+    - clustering-coefficient
+    - similarity-graph-construction
+    - matrix-view
+    - selection-statistics
+    - statistics-panel
+    - analysis-provenance
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - range-slider
+    - slider
+    - filter-panel
+    - community-panel
+    - cluster-table
+    - heatmap-panel
+    - graph-canvas
+    - ranked-node-table

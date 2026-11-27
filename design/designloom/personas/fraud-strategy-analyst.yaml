@@ -1,0 +1,67 @@
+id: fraud-strategy-analyst
+name: Fraud Strategy Analyst
+roster_persona: fraud-analyst
+tier: A
+scope: in-scope
+role: Fraud Strategy and Detection Analyst, digital bank or payments firm
+quote: One shared device links two accounts; one shared Wi-Fi hotspot links ten thousand. I need rings an investigator can explain, and a rule that keeps finding them.
+bio: >-
+    Victor Lee works on the fraud-strategy team of a digital bank. He does not work single alerts; he works the whole
+    customer base in weekly batches. His data is a two-mode graph: users on one side and the identifiers they use on the
+    other (cards, devices, IP addresses, phones, emails), plus peer-to-peer transfers and chargeback labels. In Neo4j Graph
+    Data Science and notebooks he inspects identifier degree, caps the super-connected ones that would merge innocent people,
+    projects the graph to user-to-user links by explicit rules, runs weakly connected components because it is deterministic
+    and easy to explain, propagates known-fraud labels across components, and ranks the next candidates by fraud-weighted
+    degree and similarity. He opens Bloom or Linkurious only to look at a single ring. His output is a ranked list handed to
+    investigators and a rule handed to the rule engine; confirmed and cleared dispositions should come back as labels for
+    the next run, and usually do not. He writes SQL, Python and Cypher.
+characteristics:
+    expertise: expert
+    time_pressure: medium
+    graph_literacy: advanced
+    domain_knowledge: advanced
+motivations:
+    - Find synthetic-identity and mule rings before a bust-out or cash-out
+    - Turn a ring found once into a rule that keeps finding the next one, and measure what the rule finds
+    - Give investigators rings they can explain link by link, not opaque scores
+    - Feed confirmed and cleared outcomes back as labels so the next run is better
+behaviors:
+    - Loads users and identifiers as a two-mode graph, plus peer-to-peer transfer edges
+    - Inspects the degree distribution of each identifier type and treats very high-degree identifiers as noise
+    - Projects to a user-to-user graph by rules (a shared card plus a transfer; a card or device shared by 10 or fewer accounts plus two more shared identifiers)
+    - Runs weakly connected components first and profiles components by size (most are single users)
+    - Propagates chargeback labels through components to flag new risk accounts
+    - Ranks further candidates by fraud-risk-weighted degree and Jaccard similarity with inverse-degree weights
+    - Opens one ring at a time in a visual tool to check that it makes sense before handing it off
+    - Reviews rules for inexact identifiers (IP addresses, devices used without consent)
+frustrations:
+    - Super-connected identifiers merge innocent customers into one giant component
+    - Investigators reject rings they cannot explain
+    - Dispositions do not flow back cleanly into labels
+    - Projection rules, degree caps and thresholds live in code and notebooks, so nobody else can rerun or audit them
+    - Community detection produces groupings that are harder to defend than plain components
+context:
+    frequency: weekly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W119
+    - W294
+sources:
+    - title: Exploring fraud detection with Neo4j and Graph Data Science, part 2
+      url: https://neo4j.com/blog/developer/exploring-fraud-detection-neo4j-graph-data-science-part-2/
+      summary: About 33,700 users, two-mode identifier graph, rule-based projections, weakly connected components (28,203 components, largest 175), label propagation
+    - title: Exploring fraud detection with Neo4j and Graph Data Science, part 3
+      url: https://neo4j.com/blog/developer/exploring-fraud-detection-neo4j-graph-data-science-part-3/
+      summary: Fraud-risk-weighted degree and Jaccard node similarity to rank further candidates; analysts triage to label more fraud accounts
+    - title: Neo4j - Synthetic identity fraud use case
+      url: https://neo4j.com/developer/industry-use-cases/finserv/retail-banking/synthetic-identity-fraud/
+      summary: Shared personal identifiers across applications as the synthetic-identity signal
+    - title: LexisNexis Risk - Uncovering synthetic identity fraud (white paper)
+      url: https://risk.lexisnexis.com/-/media/files/financial%20services/white-paper/lnrs-uncovering-synthetic-identity-fraud-white-paper-nxr14904-02-0923-en-us.pdf
+      summary: Names the synthetic-identity signal "contact field crowding"
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

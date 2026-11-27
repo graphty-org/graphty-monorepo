@@ -1,0 +1,167 @@
+id: W1126
+name: Crop Co-expression Hub Genes With Release-Specific Ids and Ortholog Annotation
+category: analysis
+validated: false
+personas:
+    - crop-coexpression-biologist
+requires_capabilities:
+    - data-import
+    - matrix-import
+    - identifier-mapping
+    - dataset-version-tracking
+    - gene-set-enrichment
+    - interactive-threshold
+    - metric-histograms
+    - centrality-degree
+    - community-profiling
+    - filtering
+    - large-graph-rendering
+    - visual-encoding-nodes
+    - legend-display
+    - details-on-demand
+    - provenance-tracking
+    - export-image
+    - data-export
+    - ortholog-annotation-transfer
+suggested_components:
+    - data-import-dialog
+    - attribute-table-join-dialog
+    - gene-set-import-dialog
+    - enrichment-results-table
+    - filter-panel
+    - slider
+    - histogram
+    - ranked-node-table
+    - node-details-panel
+    - visual-encoding-panel
+    - legend-panel
+    - graph-canvas
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: >-
+        WGCNA module export (edge list or topological overlap matrix) with module colors, keyed by crop gene ids from one
+        genome release or a de novo assembly, plus an ortholog table to Arabidopsis or rice
+    node_count: 100-20,000 genes per module (132-gene figure modules; modules up to 19,380 genes)
+    edge_density: complete before thresholding
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Find the co-expression modules that track a stress trait in a crop or tree, pick their hub genes, name
+    them through orthologs, run enrichment that works for the species, and draw the module for a paper.
+
+
+    **Mental Model**: "My genes only make sense through Arabidopsis." Each node has two identities: its own id, valid
+    for one genome release, and the ortholog that gives it a name and a function.
+
+
+    **Task Phases**:
+
+    1. **Reference and ids** - Map reads to a genome release (IWGSC RefSeq v1.0 assembly with v1.1 gene models) or
+    assemble de novo; ids encode the release (TraesCS...01G vs 02G, Zm00001d vs Zm00001eb) or the assembly (Unigene,
+    MSTRG)
+
+    2. **Co-expression modules** - Filter genes (top 75% by median absolute deviation, zero-heavy genes removed), pick
+    the soft-threshold power (10 to 16), blockwiseModules; 20 to 81 modules
+
+    3. **Trait modules** - Correlate module eigengenes with traits such as drought tolerance or tiller number
+
+    4. **Hubs** - Highest degree after keeping the top 100 edges, or more connections above weight 0.25, or the highest
+    scoring differentially expressed gene when the top-degree genes are not differentially expressed
+
+    5. **Annotate by orthology** - Copy GO terms across releases by sequence identity (over 99% identical across over
+    90% of the sequence), or from Arabidopsis and rice orthologs, or by BLAST and DIAMOND search; enrichment in agriGO or
+    PlantRegMap with the filtered gene set as background
+
+    6. **Optional interaction layer** (varies) - STRING directly for covered crops; Arabidopsis orthologs mapped back,
+    or an uploaded proteome, for the rest
+
+    7. **Draw and export** - Module network with nodes sized by degree and hubs labeled with the ortholog symbol; large
+    modules stay in R
+
+
+    **Decision Points**:
+
+    - Which genome release and annotation, and do old ids from other papers need converting?
+
+    - Which hub rule, and does the readable cut keep the hubs?
+
+    - Label nodes by own id or by ortholog symbol?
+
+    - Which enrichment tool and background?
+
+    - Add an interaction layer through orthologs, or show co-expression only?
+
+
+    **Information Needs**:
+
+    - Count of ids converted, unchanged and lost between genome releases
+
+    - Share of module genes with an ortholog and with GO terms
+
+    - Own id, release, ortholog id and ortholog symbol for a clicked node
+
+    - Live edge and component counts as the weight cut moves
+
+    - Enrichment table with background size and annotation coverage
+
+
+    **Pain Points**:
+
+    - Ids and annotation from different genome releases
+
+    - Borrowed annotation silently covers only part of the module
+
+    - Modules of about 2,000 genes or more do not load in Cytoscape
+
+    - No STRING entry for sugarcane, bamboo, birch or oil palm
+
+    - Hub rules differ from paper to paper
+
+
+    **Data Flow**:
+
+    - Input: Module edge list or TOM with module colors; ortholog table; optional old-to-new id table; plant GO or KEGG
+    gene sets
+
+    - Transformations: Id conversion between releases, ortholog join, weight threshold, degree within module, enrichment
+    with recorded background and coverage
+
+    - Output: Module figure with ortholog-named hubs, hub table with both ids, enrichment table, methods record (genome
+    release, threshold, hub rule, ortholog source)
+success_criteria:
+    - metric: Annotation coverage stated
+      target: User can state what share of module genes carry ortholog annotation, from the view itself
+    - metric: Release consistency
+      target: Every node id belongs to one named genome release, with a count of converted and unmatched ids
+    - metric: Large modules
+      target: A 10,000-gene module opens and can be thresholded interactively
+    - metric: Hub rule recorded
+      target: Export names the threshold and hub rule used
+sources:
+    - title: Wheat landrace early drought co-expression network
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10326901/
+      summary: GO copied from RefSeq v1.0 to v1.1 by identity; agriGO; 81 modules; Cytoscape struggled above about 2,000 genes
+    - title: Sugarcane drought co-expression hub genes
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10406934
+      summary: Top 100 edges, five highest-degree hubs, Cytoscape node size by degree
+    - title: Sugarcane drought resistance hub genes (de novo transcriptome)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC12636891/
+      summary: Unigene ids, weight above 0.25, BLAST and DIAMOND annotation, no PPI
+    - title: Sunflower seedling drought co-expression
+      url: https://Bmcplantbiol.Biomedcentral.com/counter/pdf/10.1186/s12870-024-04932-w.pdf
+      summary: Same WGCNA to Cytoscape hub-gene pattern in sunflower
+    - title: PlantTFDB 4.0
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5210657
+      summary: Orthology-based GO projection across 165 plant species
+    - title: STRING v12.0 species list
+      url: https://stringdb-downloads.org/download/species.v12.0.txt
+      summary: Which crops STRING covers
+    - title: STRING 2023 (proteome upload)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC9825434/
+      summary: Upload a FASTA proteome; interactions transferred by orthology
+    - title: Ensembl Plants maize annotation
+      url: https://plants.ensembl.org/Zea_mays/Info/Annotation/
+      summary: B73 v4 to v5 gene model mapping through the ID History Converter
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

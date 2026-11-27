@@ -1,0 +1,20 @@
+id: state-aware-trace
+name: State-Aware Network Trace and Isolation
+category: analysis
+description: Upstream, downstream and connected traces from designated sources where open switches or closed valves
+    remove edges from traversal; isolation query returning the minimum set of devices that cuts flow to a feature;
+    compare alternative switch-state configurations.
+status: planned
+notes: "Research trace: supply-chain-and-physical-infrastructure-networks.md section 10, requirement R17 (Must)."
+algorithms: []
+used_by_workflows:
+    - W219
+    - W222
+    - W223
+implemented_by_components: []
+requirements:
+    - "Must: Directed traversal from designated sources (upstream/downstream trace)"
+sources:
+    - title: Supply Chain Risk Analysts and Physical Infrastructure Network Engineers (section 10, requirement R17)
+      url: design/user-research/supply-chain-and-physical-infrastructure-networks.md
+      summary: "Must in the research. Covered by Designloom when researched: Partly"

@@ -1,0 +1,22 @@
+id: framework-neutral-embedding
+name: Framework-Neutral Embedding
+category: export
+description: "Install-to-graph in about 15 lines from a script tag, ES module or any framework: simple options as HTML
+    attributes, rich data as DOM properties, all events as DOM CustomEvents with typed detail, SSR-safe import, a
+    self-sizing container, and documented recipes for plain HTML, Vue, Angular and React 19."
+status: planned
+notes: "Research trace: developers-embedding-and-extending-graph-visualization.md section 10, table row 2 (Must)."
+algorithms: []
+used_by_workflows:
+    - W283
+    - W278
+    - W279
+implemented_by_components: []
+requirements:
+    - "Must: Framework-neutral surface: simple options settable as HTML attributes, rich data as DOM properties, all
+      events as DOM CustomEvents with typed detail; documented recipes for Vue, Angular, React 19 and plain HTML;
+      SSR-safe import"
+sources:
+    - title: Developers Who Embed Graph Visualization in Products or Extend It With Plugins (section 10, table row 2)
+      url: design/user-research/developers-embedding-and-extending-graph-visualization.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

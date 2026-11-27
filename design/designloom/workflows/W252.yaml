@@ -1,0 +1,202 @@
+id: W252
+name: Genetic Interaction Networks and Spatial Functional Enrichment (SAFE)
+category: analysis
+validated: false
+personas:
+    - network-biology-core-bioinformatician
+requires_capabilities:
+    - data-import
+    - interactive-threshold
+    - filtering
+    - layout-force-directed
+    - seeded-runs
+    - gene-set-enrichment
+    - community-profiling
+    - visual-encoding-nodes
+    - annotation
+    - legend-display
+    - large-graph-rendering
+    - search
+    - ego-network
+    - analysis-provenance
+    - data-export
+    - export-image
+    - layout-neighborhood-enrichment
+suggested_components:
+    - data-import-dialog
+    - range-slider
+    - filter-panel
+    - layout-panel
+    - enrichment-results-table
+    - visual-encoding-panel
+    - gradient-editor
+    - annotation-toolbar
+    - legend-panel
+    - search-input
+    - node-details-panel
+    - ego-network-dialog
+    - graph-canvas
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type:
+        genetic interaction profile-similarity network (or any network or 2D scatter plot) plus a node-by-attribute
+        table of 0/1 annotations or quantitative screen scores
+    node_count: about 2,500-5,000 (4,909 in the 2016 yeast map)
+    edge_density: medium (34,468 edges at PCC >= 0.2 in the 2016 yeast map)
+    user_expertise: advanced
+goal: >-
+    **Intent**: Turn a genome-scale genetic interaction or co-essentiality network into a functional map: lay it out,
+    find the regions of the drawing that are enriched for each annotation or screen score, group those into labeled
+    domains, and read where a gene of interest falls.
+
+
+    **Mental Model**: "The layout carries the meaning." Genes with similar interaction profiles sit together, so a
+    function or a drug sensitivity shows up as a patch of the drawing. SAFE (spatial analysis of functional enrichment)
+    measures those patches on the drawing itself, so the drawing must be fixed before the test runs.
+
+
+    **Task Phases**:
+
+    1. **Build the network** (varies) - Correlate interaction profiles and keep pairs at or above a Pearson cutoff (PCC
+    >= 0.2 in the yeast map); check node and edge counts at the cutoff
+
+    2. **Lay out and fix** - Spring layout (safepy: k 0.2, 100 iterations) or Kamada-Kawai, or keep imported
+    coordinates; record the seed; each edge's drawn length becomes its distance
+
+    3. **Define neighborhoods** - Choose the distance (layout-weighted shortest path by default, straight-line distance
+    on the drawing, or hop count) and the radius (default 0.1 of the layout's width); check the mean neighborhood size
+    (37.5 +/- 56.7 nodes on the 2016 map)
+
+    4. **Load attributes** - A node-by-attribute table: 0/1 columns such as GO terms, or quantitative columns such as a
+    chemical-genomic sensitivity score; choose the background (nodes with a value, or the whole network)
+
+    5. **Test enrichment** - Hypergeometric test for 0/1 columns, permutation test (1,000 shuffles, neighborhood sum)
+    for quantitative ones; choose the sign (high values, low values, or both as a signed score); score = -log10 p,
+    capped at 16; enriched at p < 0.05; FDR correction optional
+
+    6. **Inspect one attribute** - Color nodes by signed enrichment on a two-color scale, switch to raw values or to
+    significant nodes only, label chosen genes
+
+    7. **Keep region-specific attributes** - Keep an attribute only if at least 10 neighborhoods are enriched and its
+    enriched nodes form one connected region
+
+    8. **Group into domains and label** - Cluster kept attributes by Jaccard distance of their enriched nodes (cut at
+    0.75 of the tallest merge), assign each node to the domain holding most of its enriched attributes, drop domains
+    with fewer than 10 nodes, label each domain from its attribute names, color nodes by domain
+
+    9. **Query a gene** (ongoing) - Search a gene, see its marker and the domain around it, open its direct neighbors
+    with a correlation slider, switch the annotation standard, read its row in a table
+
+    10. **Export** - Domain, attribute and node tables with every parameter, and the map as PDF or SVG
+
+
+    **Decision Points**:
+
+    - Correlation cutoff for edges (PCC >= 0.2 in the yeast map; TheCellMap's slider starts at 0.20)
+
+    - Layout algorithm and seed (the defaults file leaves the seed blank, so an unseeded run cannot be redrawn)
+
+    - Node distance: layout-weighted shortest path, straight-line distance on the drawing (needed for scatter plots with
+    no edges), or hop count
+
+    - Neighborhood radius as a fraction of the layout's width (default 0.1; published examples use 0.15 and 0.06)
+
+    - Annotation set or screen to test, and the background: nodes with a value, or the whole network
+
+    - For quantitative scores, which tail to map: high, low, or both
+
+    - Enrichment threshold (default p < 0.05) and whether to apply FDR correction (off by default in safepy)
+
+    - Minimum number of enriched neighborhoods per attribute and per domain (default 10)
+
+    - Domain grouping threshold (default 0.75; the GO example uses 0.65)
+
+
+    **Information Needs**:
+
+    - Edge and component count at the chosen cutoff
+
+    - Mean and spread of neighborhood size at the chosen radius
+
+    - Per attribute: number of enriched neighborhoods, number of connected regions, kept or not and why
+
+    - Per domain: label, member attributes, node count, top enrichment score
+
+    - Per node: primary domain and its score, raw attribute value
+
+    - Where a searched gene sits, or a note that it has no partner at the cutoff
+
+    - Every parameter and the layout seed, kept with the map
+
+
+    **Pain Points**:
+
+    - Enrichment is computed on the drawing, so a new layout changes the result; the layout must be fixed and
+    reproducible
+
+    - The radius is a fraction of the layout's width, not a graph distance, so it means different things on different
+    drawings
+
+    - A domain count (19 regions in one 2016 run; 64 domains, 36 then trimmed, in the GO example) depends on every parameter above,
+    yet is often reported without them
+
+    - Co-essentiality networks carry a mitochondrial bias; human co-essentiality maps are usually clustered then
+    annotated instead
+
+
+    **Data Flow**:
+
+    - Input: Profile similarity matrix or edge list (or a 2D scatter plot); node-by-attribute table (0/1 or
+    quantitative)
+
+    - Transformations: Thresholding, seeded layout, edge lengths from the drawing, radius neighborhoods,
+    hypergeometric or permutation enrichment, region-specificity filter, Jaccard grouping into domains
+
+    - Output: Functional map colored by domain, per-attribute enrichment maps, domain/attribute/node tables with the
+    parameters, figure
+success_criteria:
+    - metric: Parameters recorded
+      target: Every SAFE parameter and the layout seed are saved with the map and reproduce the same domains
+    - metric: Domains labeled
+      target: Every kept domain has a label and a list of member attributes
+    - metric: Quantitative input
+      target: A screen score can be mapped for high, low or both values without converting it to a gene set
+    - metric: Scale
+      target: 5,000 nodes and 35,000 edges interactive, with enrichment on 4,000 attributes
+sources:
+    - title: Global genetic interaction network (Costanzo et al. 2016)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5661885
+      summary: Profile similarity at PCC > 0.2, spring-embedded, SAFE regions by GO process
+    - title: TheCellMap.org (Usaj et al. 2017)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5427489
+      summary: 4,909 nodes and 34,468 edges at PCC >= 0.2; 569 GO terms in 19 regions covering 1,480 genes; gene search,
+          subnetwork slider, annotation standards, table and SVG export
+    - title: SAFE (Baryshnikova 2016, Cell Systems)
+      url: https://pubmed.ncbi.nlm.nih.gov/27237738/
+      summary: Method; chemical genomics linked vesicle transport to bortezomib resistance
+    - title: SAFE protocol preprint
+      url: https://www.biorxiv.org/content/10.1101/094904.full.pdf
+      summary: Spatial analysis of functional enrichment in large networks
+    - title: safepy default settings
+      url: https://raw.githubusercontent.com/baryshnikova-lab/safepy/master/safepy/safe_default.ini
+      summary: Distance type, radius 0.1 x diameter, sign both, threshold 0.05, minimum size 10, Jaccard 0.75
+    - title: safepy code and examples
+      url: https://github.com/baryshnikova-lab/safepy
+      summary: Hypergeometric vs 1,000-permutation test, optional FDR, connectivity check, domain grouping; doxorubicin,
+          GO and scatter-plot examples
+    - title: Cytoscape SAFE app
+      url: https://apps.cytoscape.org/apps/safe
+      summary: Over- and under-representation, attribute and domain tables, domain report, score export
+    - title: Human co-essentiality network (Kim et al. 2019)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6464042
+      summary: 3,483 nodes, 68,813 edges; MCL clusters annotated, not SAFE
+    - title: DepMap co-essentiality networks
+      url: https://pubmed.ncbi.nlm.nih.gov/33859415/
+      summary: Human counterpart
+    - title: Mitochondrial bias in co-essentiality
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10632734
+      summary: Known bias
+version: 1.1.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

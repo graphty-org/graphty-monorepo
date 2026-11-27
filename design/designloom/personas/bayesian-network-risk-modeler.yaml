@@ -1,0 +1,84 @@
+id: bayesian-network-risk-modeler
+name: Bayesian Network Risk Modeler
+roster_persona: causal-dag-epidemiologist
+tier: B
+scope: in-scope
+role: Senior Risk Analyst / Reliability Engineer who builds Bayesian networks and influence diagrams
+quote: The manager wants one number. I need to show her that the endpoint moves when we set this evidence, and which three parameters it moves on.
+bio: >-
+    Dr. Esther Okafor is a senior risk analyst at an environmental consultancy (her counterpart at an offshore operator
+    does the same for equipment reliability). She builds probabilistic Bayesian networks and influence diagrams in GeNIe
+    or Netica, sometimes Hugin's object-oriented networks or AgenaRisk, and lives in one model for months through
+    alpha, beta and gamma versions. Her models have 15 to 60 discrete nodes with 2 to 5 states each; larger ones are
+    split into submodels. Structure comes from an expert workshop; conditional probability tables come from monitoring
+    data learned with EM and from expert elicitation sheets in Excel. About a quarter of her models add decision and
+    utility nodes, and some have time slices for monitoring. Her daily work is querying: setting evidence and watching
+    the belief bars on every node update, running sensitivity analysis to see which parameters and observations move
+    the endpoint, and choosing the management option with the highest expected utility. Stakeholders and regulators
+    read her models but cannot open them, so results travel as screenshots, tornado charts and scenario tables in
+    reports.
+characteristics:
+    expertise: expert
+    time_pressure: medium
+    graph_literacy: advanced
+    domain_knowledge: expert
+motivations:
+    - Build a model that stakeholders understand and trust
+    - Run scenarios and see every node's posterior update when evidence is entered
+    - Rank which parameters and observations move the endpoint (tornado diagram, sensitivity to findings)
+    - Pick the management option with the highest expected utility
+    - Validate the model against held-out cases and document every assumption
+    - Let a regulator or client explore the model without buying a desktop license
+behaviors:
+    - Draws the conceptual causal web with experts before defining any states
+    - Builds chance nodes with named states, arcs parent to child, and groups large models into submodels
+    - Learns CPTs from a case file with EM (missing values allowed) or enters elicited numbers by hand
+    - Reads belief bars (state, percentage, bar) on every node after compiling
+    - Sets evidence by right-clicking a node and picking a state; runs predictive and diagnostic queries
+    - Marks target nodes and runs sensitivity analysis; the graph recolors by importance and a tornado chart opens per target
+    - Adds decision (rectangle) and utility (diamond) nodes and solves for expected utility
+    - Validates with k-fold or leave-one-out cross-validation and reads accuracy, confusion matrix, ROC and calibration
+    - Pastes screenshots with belief bars and tornado charts into reports and slides
+frustrations:
+    - Managers want exact advice rather than probability distributions
+    - Desktop, licensed tools that stakeholders cannot open
+    - GeNIe became harder for students to obtain after licensing changes
+    - Moving models between tools is best effort; native formats (DNE, XDSL, OOBN classes) are proprietary or undocumented
+    - Sensitivity and tornado results sit in separate windows, not on the graph that stakeholders look at
+    - Discretization choices often go undocumented
+context:
+    frequency: daily
+    devices:
+        - desktop
+        - laptop
+    voluntary: false
+workflows:
+    - W426
+sources:
+    - title: Kaikkonen et al. 2021 - Bayesian networks in environmental risk assessment (review of 72 models)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC7821106
+      summary: Most models are expert systems, 7 learned structure, 18 had decision or utility nodes; managers prefer exact advice; discretization often undocumented
+    - title: GeNIe manual - sensitivity analysis in Bayesian networks
+      url: https://support.bayesfusion.com/docs/GeNIe/bn_sensitivitybn.html
+      summary: Targets, red recoloring of important nodes, tornado diagram sorted most to least sensitive
+    - title: GeNIe manual - learning parameters
+      url: https://support.bayesfusion.com/docs/GeNIe/learning_parameters.html
+      summary: EM parameter learning from a case file with missing values and an equivalent sample size weight
+    - title: GeNIe manual - submodels
+      url: https://support.bayesfusion.com/docs/GeNIe/components_submodels.html
+      summary: Submodel nodes host sub-graphs; arcs crossing the boundary attach to the submodel icon
+    - title: Netica help - sensitivity to findings
+      url: https://documentation.help/Netica/X_Sensitivity_to_Findings.htm
+      summary: Ranks nodes by mutual information or variance reduction of a query node
+    - title: Marcot et al. 2006 - guidelines for developing and updating Bayesian belief networks
+      url: https://bvbvf1.bib-bvb.de/vufind/PrimoRecord/cdi_proquest_journals_230532283
+      summary: Alpha, beta and gamma model versions; conceptual influence diagram first
+    - title: Linkoping course meeting notes on GeNIe
+      url: https://www.ida.liu.se/~732A66/info/Meeting9_21.pdf
+      summary: Setting evidence by right-click; GeNIe harder to obtain for students after licensing changes
+    - title: bnlearn - foreign file formats
+      url: https://www.bnlearn.com/documentation/man/foreign.html
+      summary: Reading and writing NET and DSC is best effort
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

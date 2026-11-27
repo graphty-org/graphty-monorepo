@@ -12,6 +12,15 @@ used_in_workflows:
     - W06
     - W09
     - W07
+    - W115
+    - W284
+    - W325
+    - W418
+    - W47
+    - W63
+    - W67
+    - W69
+    - W82
 dependencies: []
 props:
     graph: Graph - Graph data to display

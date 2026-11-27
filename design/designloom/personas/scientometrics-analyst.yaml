@@ -1,0 +1,78 @@
+id: scientometrics-analyst
+name: Scientometrics Analyst
+roster_persona: expert-emma
+tier: B
+scope: in-scope
+role: Professional Scientometrician / Research Analyst in a Ministry or Research Institute
+quote: The pipeline is code. What I need is a display that any institution can embed, that labels itself, and that draws the same map from the same seed.
+bio: >-
+    Dr. Isabel Ribeiro holds a PhD in information science and works in a national research ministry's data team, modeled
+    on France's scanR team; her peers sit at CWTS in Leiden and at Drexel. She works continuously and in code: Python,
+    Elasticsearch, OpenAlex snapshots, igraph or graphology. Her data is millions of publications with disambiguated
+    author, affiliation and topic identifiers. For the ministry portal she precomputes entity pairs, keeps the top 2,000
+    links, caps a displayed network at about 300 nodes by betweenness, lays it out with ForceAtlas2, clusters it with
+    Louvain, labels communities with a language model, and ships VOSviewer Online JSON embedded by iframe. For field
+    classification she clusters the direct-citation graph of tens of millions of papers with Leiden at several
+    resolutions. She also runs main path analysis, time-sliced co-citation and science overlay maps for evaluation
+    studies, and cares about counting methods, normalization and reproducibility more than any other user here.
+characteristics:
+    expertise: expert
+    time_pressure: low
+    graph_literacy: advanced
+    domain_knowledge: advanced
+motivations:
+    - Publish interactive community maps that any institution can embed and that label themselves
+    - Maintain a stable, hierarchical classification of publications for field-normalized indicators
+    - Make every map reproducible from data, parameters and seed
+    - Use the right counting, normalization and clustering method for each question, not a tool default
+behaviors:
+    - Builds projections herself from record-level data and chooses full or fractional counting per question
+    - Filters to the strongest links and caps node counts before drawing
+    - Runs Leiden or Louvain at several resolutions and checks modularity and cluster stability
+    - Labels clusters automatically (LLR, tf-idf, or a language model over the most cited titles)
+    - Computes main paths with SPC weights and draws them as year-layered graphs
+    - Lays out embeddings of titles and abstracts as point maps and kNN graphs with a fixed seed
+    - Embeds maps in portals through VOSviewer Online JSON and iframes
+frustrations:
+    - VOSviewer's layout less intuitive than ForceAtlas2 for her team
+    - Hyperauthored papers bloat co-authorship networks
+    - No Leiden algorithm in Graphology
+    - Display tools that cannot take her precomputed layout, clusters and labels as data
+    - Projection hides which authors were on one paper and can change node rankings
+context:
+    frequency: daily
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W53
+    - W55
+    - W56
+    - W57
+    - W58
+sources:
+    - title: Barbier and Jeangirard - Mapping scientific communities at scale (scanR)
+      url: https://arxiv.org/html/2501.10035
+      summary: 4 million publications, top 2000 links, 300-node cap by betweenness, ForceAtlas2, Louvain, LLM labels, VOSviewer Online iframe
+    - title: OpenAlex Topics and the CWTS classification dataset
+      url: https://help.openalex.org/hc/en-us/articles/24736129405719-Topics
+      summary: Direct-citation clustering of about 87 million publications into 4,516 topics labeled from the 250 most cited titles
+    - title: Traag, Waltman and van Eck - From Louvain to Leiden
+      url: https://www.nature.com/articles/s41598-019-41695-z
+      summary: Leiden algorithm guarantees connected communities; used at several resolutions for hierarchies
+    - title: Waltman and van Eck - A new methodology for constructing a publication-level classification system
+      url: https://arxiv.org/abs/1203.0532
+      summary: Direct-citation clustering of almost ten million publications
+    - title: VOSviewer Online - embedding
+      url: https://app.vosviewer.com/docs/sharing/embedding
+      summary: Interactive maps embedded by iframe over hosted JSON
+    - title: Perianes-Rodriguez, Waltman and van Eck - full and fractional counting
+      url: https://arxiv.org/abs/1607.02452
+      summary: Fractional counting preferred for many purposes in co-authorship and co-citation networks
+    - title: Hypergraph analysis of co-authorship networks
+      url: https://arxiv.org/pdf/1911.06523
+      summary: Projecting a hypergraph to a graph can change node rankings
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

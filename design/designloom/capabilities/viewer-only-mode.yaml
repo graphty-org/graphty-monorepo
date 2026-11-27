@@ -1,0 +1,17 @@
+id: viewer-only-mode
+name: "Viewer-only mode"
+category: export
+description: "Open a delivered graph (link, embed or file) with no analysis interface and no install or account: step through saved views, read the legend and open an element's details, but no editing, filtering or tools. Requirement R17 of communicating-findings-and-deliverables.md."
+status: planned
+notes: "Research trace: communicating-findings-and-deliverables.md section 10, requirement R17 (Should)."
+algorithms: []
+used_by_workflows:
+    - W1018
+implemented_by_components: []
+requirements:
+    - "Should: Viewer-only mode that opens a delivered file without the analysis UI"
+sources:
+    - title: "Communicating findings: the deliverables each population hands to someone else (section 10, requirement
+          R17)"
+      url: design/user-research/communicating-findings-and-deliverables.md
+      summary: "Should in the research. Covered by Designloom when researched: Gap"

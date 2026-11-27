@@ -1,33 +1,65 @@
 id: animated-transitions
 name: Animated Transitions
 category: visualization
-description: Animate changes to the visualization (layout changes, filtering, expansion) to help users maintain mental
-    models of the data. Smooth transitions show how elements move from old to new positions.
-status: implemented
-notes: "Ships: graphty-element/src/transitions/ and the layout transition row graphty/src/workspace/layout/TransitionRow.tsx."
+description: Animate changes to the drawing (layout changes, filtering, expansion and collapse, camera moves) so the
+    reader can follow elements from old to new positions, with duration and easing as options, and motion that can
+    be turned off, following the reader's reduced-motion preference.
+status: in-progress
+notes: "Partly ships: animated layout transitions in graphty-element/src/transitions/ with a duration, and the layout transition row graphty/src/workspace/layout/TransitionRow.tsx; the app reads the reader's reduced-motion setting. Planned: filter fades, expansion and collapse animation, staged changes, easing options per transition kind and a finished event. Any requirement below that this note does not name as shipping counts as planned."
 algorithms: []
 used_by_workflows:
     - W02
     - W19
+    - W111
+    - W166
+    - W178
+    - W202
+    - W213
+    - W221
+    - W226
+    - W287
+    - W304
+    - W307
+    - W312
+    - W317
+    - W321
+    - W322
+    - W329
+    - W33
+    - W340
+    - W344
+    - W345
+    - W346
+    - W412
+    - W44
 implemented_by_components:
     - graph-canvas
 requirements:
-    - Animate node position changes over 300-500ms duration for layout transitions
-    - Animate node position changes over 800-1000ms duration for major layout algorithm changes
-    - Animate filtered nodes with fade-out (opacity 1.0 to 0.0) over 200ms before removal
-    - Animate restored nodes with fade-in (opacity 0.0 to 1.0) over 200ms after addition
-    - Animate node expansion with radial spread from parent over 400ms
-    - Animate node collapse with convergence to parent over 300ms
-    - Animate zoom changes with smooth interpolation over 250ms
-    - Animate pan changes with momentum-based easing over 150-300ms
-    - Use ease-in-out easing function for position animations
-    - Use ease-out easing function for fade animations
-    - Provide 'Reduce motion' setting that disables all animations
-    - Provide 'Instant transitions' setting that sets all durations to 0ms
-    - Maintain minimum 30fps during animations; skip frames if below threshold
-    - Cancel in-progress animation when new animation targets same property
-    - Queue sequential animations when multiple layout changes occur within 100ms
+    - "Library parity: Animate node positions from the old layout to the new one when the layout or its parameters change"
+    - "Library parity: Fade nodes and edges out when a filter removes them and in when it restores them"
+    - "Library parity: Animate expansion outward from the expanded node and collapse back into it"
+    - "Library parity: Animate camera zoom and pan rather than jumping"
+    - "Library parity: Expose duration and easing for each kind of transition as options; any default duration is a design choice recorded as such, since no source in the research sets one"
+    - "Library parity: Allow staging a complex change (for example remove, then move, then add) rather than doing everything at once"
+    - "Library parity: Honor the reader's prefers-reduced-motion setting, and offer an option that turns all transition motion off (instant changes) for any consumer, such as an embedded or published view"
+    - "Library parity: When a new transition targets the same elements or property, replace the running one from its current state instead of jumping back to its start"
+    - "Library parity: Report when a transition finishes, so a consumer can wait for it (for example before capturing an image)"
+    - "Library parity: Keep transitions separate from temporal playback; time-based animation and video or HTML export with fixed timing belong to temporal-analysis and export"
 sources:
-    - title: Complete Graph Visualization Textbook - Chapter 6
-      url: https://graphty.app/docs/
-      summary: Animation - transitions help maintain mental models (300-1000ms)
+    - title: Heer and Robertson 2007, Animated transitions in statistical data graphics
+      url: https://doi.org/10.1109/TVCG.2007.70539
+      summary: Studied animated and staged transitions between data graphics; cited for this record in
+          design/user-research/data-preparation-and-import.md
+    - title: Yee et al. 2001, Animated exploration of dynamic graphs with radial layout
+      url: https://doi.org/10.1109/INFVIS.2001.963279
+      summary: Animated transitions between graph layouts that keep the reader oriented
+    - title: WCAG 2.2, Understanding 2.3.3 Animation from Interactions
+      url: https://www.w3.org/WAI/WCAG22/Understanding/animation-from-interactions.html
+      summary: Motion animation triggered by interaction can be disabled unless essential
+    - title: MDN, prefers-reduced-motion
+      url: https://developer.mozilla.org/en-US/docs/Web/CSS/@media/prefers-reduced-motion
+      summary: The browser signal for a reader's reduced-motion preference
+    - title: WCAG 2.2, Understanding 2.2.2 Pause, Stop, Hide
+      url: https://www.w3.org/WAI/WCAG22/Understanding/pause-stop-hide.html
+      summary: Moving content that starts automatically needs a way to pause, stop or hide it;
+          communicating-findings-and-deliverables.md R11 requires embeddable exports with motion off

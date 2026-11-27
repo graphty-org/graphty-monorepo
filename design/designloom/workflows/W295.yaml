@@ -1,0 +1,146 @@
+id: W295
+name: Matrix Input - Adjacency, Similarity and Distance Matrices to a Thresholded Network
+category: onboarding
+validated: false
+personas:
+    - graph-data-wrangler
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - filtering
+    - metric-histograms
+    - basic-statistics
+    - component-analysis
+    - comparison-view
+    - matrix-import
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - data-preview-table
+    - histogram
+    - range-slider
+    - statistics-panel
+    - network-list-panel
+starting_state:
+    data_type: Square matrix (adjacency, correlation, topological overlap, pairwise distance), sometimes one per subject
+    node_count: 20-30,000 rows before thresholding
+    edge_density: complete before thresholding
+    user_expertise: intermediate to expert
+goal: >-
+    **Intent**: Turn a matrix into a network by deciding which cells become edges: read an adjacency matrix as is, or
+    threshold a similarity or distance matrix, symmetrize or dichotomize it, and see how the threshold changes edge
+    count, density and components. The threshold decides the network, so it has to be visible and recorded.
+
+
+    **Mental Model**: "Every pair has a number; draw the line somewhere." Above the line is an edge, below is nothing,
+    and moving the line rebuilds the network.
+
+
+    **Task Phases** (no source gives step timings):
+
+    1. **Identify the matrix** - Sociometric grid (UCINET full matrix, Excel), gene co-expression (correlation or
+    topological overlap), sequence distance (tn93 pairwise), symptom correlations, one brain region-by-region matrix per
+    subject
+
+    2. **Read it** - Tool support varies: yEd imports a matrix with exactly one edge property; Kumu needs conversion to a
+    connection list; Gephi reads UCINET DL fullmatrix; NetworkX reads entry (i, j) as an edge from i to j; whole tools
+    exist only to convert matrices to edge lists
+
+    3. **Threshold similarity** - Pick a cutoff (WGCNA export defaults to 0.5, a tutorial uses 0.02, forum answers say
+    the choice is up to you); watch edge count, since too low a cutoff produces files no desktop tool opens
+
+    4. **Threshold distance** - Edge when distance is at or below a cutoff (1.5% TN93 is common for HIV pol); clusters
+    are connected components at that cutoff; too high a cutoff yields many spurious links
+
+    5. **Threshold by density for subject stacks** - Absolute cutoff by value, or proportional: keep a fixed share of
+    the strongest edges so every subject has the same density; sweep several densities as a batch; proportional
+    thresholds can inflate group differences when one group's connectivity is lower
+
+    6. **Symmetrize or dichotomize** - Maximum, minimum, sum or average of the two directions; dichotomizing may throw
+    away considerable information
+
+
+    **Decision Points**:
+
+    - Absolute value, proportional density, or data-driven threshold?
+
+    - Keep weights or dichotomize?
+
+    - Which symmetrization rule for asymmetric matrices?
+
+    - Keep negative correlations, take absolute values, or drop them?
+
+
+    **Information Needs**:
+
+    - Histogram of matrix values with the cutoff marked
+
+    - Edge count, density, component count and giant-component share at the chosen cutoff, previewed before loading
+
+    - The same descriptors across a sweep of cutoffs
+
+    - For subject stacks, per-subject density and isolates at each threshold
+
+
+    **Pain Points**:
+
+    - Most general graph tools cannot read a matrix directly
+
+    - Thresholds chosen by default rather than by data (the reason AUTO-TUNE exists)
+
+    - A low threshold produces monstrous files
+
+    - Batch thresholding of many subjects requires scripting
+
+    - The threshold used is not recorded with the network
+
+
+    **Data Flow**:
+
+    - Input: Delimited matrix with row and column labels, UCINET DL, or a stack of matrices
+
+    - Transformations: Read, symmetrize, threshold (absolute or proportional), dichotomize or keep weights
+
+    - Output: Thresholded weighted or binary network (or a set of them) with the threshold recorded
+success_criteria:
+    - metric: Threshold preview
+      target: User sees edge count, density and components for a cutoff before the network is built
+    - metric: Threshold recorded
+      target: The cutoff and symmetrization rule travel with the network and its export
+    - metric: Batch support
+      target: A stack of matrices can be thresholded with one setting and compared
+sources:
+    - title: yEd manual - Importing Excel files
+      url: https://yed.yworks.com/support/manual/import_excel.html
+      summary: Matrix import with exactly one edge property; no adjacency lists
+    - title: Kumu FAQ - How do I restructure my adjacency matrix
+      url: https://docs.kumu.io/frequently-asked-questions/how-do-i-restructure-my-adjacency-matrix
+      summary: Matrices must be converted to a connection list first
+    - title: Gephi User Manual - UCINET DL format
+      url: https://docs.gephi.org/desktop/User_Manual/Import/UCINET_DL_Format
+      summary: Reads DL fullmatrix, edgelist1 and nodelist formats
+    - title: NetworkX - from_pandas_adjacency
+      url: https://networkx.org/documentation/latest/reference/generated/networkx.convert_matrix.from_pandas_adjacency.html
+      summary: Entry (i, j) is an edge from i to j
+    - title: WGCNA - exportNetworkToCytoscape
+      url: https://search.r-project.org/CRAN/refmans/WGCNA/html/exportNetworkToCytoscape.html
+      summary: Default threshold 0.5
+    - title: Biostars - choosing the WGCNA export threshold
+      url: https://www.biostars.org/p/9514423/
+      summary: The choice is up to you
+    - title: AUTO-TUNE - data-driven distance thresholds for HIV transmission networks
+      url: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC11289888/
+      summary: tn93 -t 0.015 then hivnetworkcsv; too high a threshold gives many spurious links
+    - title: Garrison et al. 2015 - stability of graph theoretical measures
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4554838
+      summary: Measures more stable across proportional than absolute thresholds; published r cutoffs from 0.1 to 0.8
+    - title: van den Heuvel et al. 2017 - Proportional thresholding in resting-state fMRI
+      url: https://research.vu.nl/en/publications/proportional-thresholding-in-resting-state-fmri-functional-connec/
+      summary: Proportional thresholds can inflate group differences when connectivity differs
+    - title: Hanneman and Riddle - Working with network data
+      url: https://faculty.ucr.edu/~hanneman/nettext/C6_Working_with_data.html
+      summary: UCINET Symmetrize options and Dichotomize, which may throw away information
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

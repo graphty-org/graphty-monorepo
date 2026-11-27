@@ -1,0 +1,19 @@
+id: code-text-nodes
+name: Code Text Nodes
+category: analysis
+description: Nodes that render multi-line monospace text such as basic blocks of code, in a layered layout with ordered
+    branch edges and back edges for loops.
+status: planned
+notes: "Research trace: cybersecurity-graph-work.md section 10, requirement 20 (Should)."
+algorithms: []
+used_by_workflows:
+    - W115
+implemented_by_components: []
+requirements:
+    - "Should: Nodes that render multi-line monospace text (code blocks), with collapse of node groups into one labeled
+      node"
+sources:
+    - title: "Cybersecurity Graph Work: Attack Paths, Threat-Intel Pivoting, Incident Response, Network, Cloud and
+          Binary Graphs (section 10, requirement 20)"
+      url: design/user-research/cybersecurity-graph-work.md
+      summary: "Should in the research. Covered by Designloom when researched: Not covered"

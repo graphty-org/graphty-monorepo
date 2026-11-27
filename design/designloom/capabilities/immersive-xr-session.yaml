@@ -1,0 +1,28 @@
+id: immersive-xr-session
+name: Browser immersive VR and AR session
+category: visualization
+description: Offer Enter VR or Enter AR only when supported; controllers, hand tracking and gaze-and-pinch input;
+    two-handed grab to move, rotate and scale; ray selection with tolerance for small distant nodes; passthrough with
+    surface placement; a documented node budget for standalone headsets; selection, camera and findings kept when the
+    session ends and the 2D page returns.
+status: planned
+notes: "Research trace: three-dimensional-and-immersive-network-analysis.md section 10, requirement R17 (Must)."
+algorithms: []
+used_by_workflows:
+    - W412
+    - W414
+    - W415
+    - W416
+    - W418
+    - W420
+    - W421
+implemented_by_components: []
+requirements:
+    - "Must: Browser XR session flow: offer Enter VR or Enter AR only when supported; controllers, hand tracking and
+      Vision Pro transient-pointer input; passthrough with a transparent background and the graph placed on a detected
+      surface; keep selection, camera and findings when the session ends and the 2D page returns"
+sources:
+    - title: Analysts Who Work With Networks in 3D and in Immersive VR or AR (section 10, requirement R17)
+      url: design/user-research/three-dimensional-and-immersive-network-analysis.md
+      summary: "Must in the research (the document says: must for XR). Covered by Designloom when researched: Not
+          covered"

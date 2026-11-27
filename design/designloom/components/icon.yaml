@@ -6,7 +6,8 @@ description: Displays an icon from the icon library. Supports sizing, coloring, 
 status: implemented
 notes: "Ships: graphty/src/workspace/glyphs.ts."
 implements_capabilities: []
-used_in_workflows: []
+used_in_workflows:
+    - W145
 dependencies: []
 props:
     name:

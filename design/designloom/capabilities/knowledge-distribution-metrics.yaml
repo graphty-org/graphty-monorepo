@@ -1,0 +1,41 @@
+id: knowledge-distribution-metrics
+name: Knowledge Distribution and Truck Factor
+category: analysis
+description: "From a developer-file history, compute who knows each file (main developer, share of lines or
+    revisions per author, with credit kept for original authors after later edits), knowledge islands (files mostly
+    written by one active developer), knowledge loss (files dominated by developers marked as departed), the truck
+    factor (the fewest developers whose departure leaves more than half the files without a knowledgeable author) and
+    CHAOSS's Contributor Absence Factor (the fewest contributors who made half of all contributions). Roll every result
+    up to components and teams, and state the time window and identity merges the numbers rest on."
+status: planned
+notes: "Research trace: dependency-and-impact-analysis-engineers.md section 10, requirement R39 (Should)."
+algorithms:
+    - Degree-of-authorship or degree-of-knowledge ownership per file
+    - Greedy truck factor estimation (Avelino et al.)
+    - Contributor Absence Factor (CHAOSS)
+used_by_workflows:
+    - W3078
+    - W3080
+implemented_by_components: []
+requirements:
+    - "Should: Per-file knowledge ownership, knowledge islands, knowledge loss from departed developers, truck factor
+      and Contributor Absence Factor, rolled up to components and teams, with the time window and identity merges
+      stated"
+sources:
+    - title: CodeScene - Knowledge distribution
+      url: https://codescene.io/docs/guides/social/knowledge-distribution.html
+      summary: Knowledge islands, knowledge loss from Ex-Developers, Inconclusive when the window is shorter than the
+          codebase's life; individual and team knowledge maps; coordination needs
+    - title: "A novel approach for estimating truck factors (Avelino, Passos, Hora, Valente, ICPC 2016)"
+      url: https://arxiv.org/abs/1604.06766v1
+      summary: Truck factor estimated from commit history for the 133 most popular GitHub projects
+    - title: "What is the Truck Factor of popular GitHub applications? A first assessment (preprint)"
+      url: https://peerj.com/preprints/1233v2.html
+      summary: Of 133 applications, 46% had truck factor 1 and 28% truck factor 2
+    - title: CHAOSS - Contributor Absence Factor
+      url: https://chaoss.community/kb/metric-contributor-absence-factor/
+      summary: Smallest number of contributors responsible for 50% of total contributions; previously called Bus Factor;
+          computable over commits, issues, comments or documentation
+    - title: TNM - FilesOwnershipMiner
+      url: https://github.com/JetBrains-Research/tnm
+      summary: Per-developer knowledge score per file based on Degree of Knowledge, plus line-level authorship

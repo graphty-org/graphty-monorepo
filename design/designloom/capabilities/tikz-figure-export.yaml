@@ -1,0 +1,20 @@
+id: tikz-figure-export
+name: "TikZ figure export"
+category: export
+description: "Export the drawn graph (positions, vertex labels, highlighted structure) as a TikZ picture for a LaTeX paper, as the House of Graphs drawing tool does. The SEM path-diagram and causal-DAG personas also redraw their figures in TikZ, so their workflows (for example W427) may link it too."
+status: planned
+notes: "Research trace: students-educators-and-first-time-users.md section 9, requirement 34 (Should)."
+algorithms: []
+used_by_workflows:
+    - W2030
+implemented_by_components: []
+requirements:
+    - "Should: Export the drawn graph (positions, vertex labels, highlighted structure) as a TikZ picture for a LaTeX document"
+    - "Should: Keep a hand adjustment of an automatic drawing with the graph, so the exported picture matches the screen"
+sources:
+    - title: "House of Graphs 2.0 (Coolsaet, D'hondt, Goedgebeur, 2022)"
+      url: "https://arxiv.org/html/2210.17253"
+      summary: "The House of Graphs drawing tool exports TikZ"
+    - title: "Students, educators and first-time users, section 9, requirement 34"
+      url: "design/user-research/students-educators-and-first-time-users.md"
+      summary: "Hand adjustment kept with the graph and TikZ export, Should"

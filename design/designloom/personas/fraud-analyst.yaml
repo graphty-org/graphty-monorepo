@@ -1,41 +1,48 @@
 id: fraud-analyst
-name: Fraud Detection Analyst
-role: Financial Crime Investigator
-quote: I need to see the money trail - where it came from, where it went, and who touched it along the way.
-bio: Sarah has spent 8 years investigating financial crimes, starting with rule-based alert triage before transitioning
-    to graph-based investigation techniques. She handles 50+ alerts daily and has developed an intuitive sense for
-    spotting anomalous transaction patterns. She's frustrated by tools that can't keep pace with her expertise or that
-    hide the underlying data structures she needs to build prosecutable cases.
+name: Fraud Operations Analyst
+roster_persona: fraud-analyst
+tier: A
+scope: in-scope
+role: Bank fraud-operations analyst on the scam and mule team (fraud alerts and victim reports, one seed at a time), UK or US bank
+quote: Is this account part of a mule ring we already know about? And if a scam payment just landed here, where did it go in the last fifteen minutes?
+bio: >-
+    Sarah works in a bank's fraud-operations team, not its anti-money-laundering unit: Level 1 and Level 2 transaction
+    monitoring alerts and suspicious activity report writing belong to the AML investigators, and finding rings across the
+    whole customer base belongs to the fraud strategy team, whose ranked lists land in her queue. Her cases start from a
+    fraud alert (a new device on an old account, an application whose phone and address crowd with others), a ranked
+    candidate from a strategy rule, or a scam report from another bank, never from a graph file. For each one she looks at
+    the account's 1 to 2 hop neighborhood through shared identifiers (device, phone, email, address, card, payout account),
+    discounts identifiers shared by very many accounts, and decides whether the account belongs to a known ring, a new
+    ring or none, writing the link that decided it. On the receiving side she works the other direction: since October
+    2024 UK banks share the cost of reimbursing authorised push payment scam victims, and when a sending bank reports that
+    a victim's payment landed in one of her customers' accounts she seeds the graph with that payment and follows it
+    forward hop by hop, deciding at each account whether to hold, freeze or notify the next bank, because in Lloyds data
+    on known mules over half of the value left within an hour. She is strong on red flags and Excel, moderately
+    comfortable with "linked", "hops" and "cluster", and does not code.
 characteristics:
     expertise: intermediate
     time_pressure: high
     graph_literacy: moderate
     domain_knowledge: advanced
 motivations:
-    - Protect institutions and individuals from financial loss through early fraud detection
-    - Build legally defensible cases with clear evidence chains for prosecution
-    - Advance career by developing expertise in emerging graph-based investigation techniques
-    - Reduce false positives to focus time on genuine threats rather than noise
-    - Stay ahead of increasingly sophisticated fraud schemes that evade rule-based detection
+    - Decide quickly and defensibly whether an alerted or reported account belongs to a mule or fraud ring
+    - Show the specific shared identifier or payment that connects the account to known-bad accounts
+    - Freeze scam proceeds before they leave the bank, and notify the next bank in time
+    - Avoid working the same ring five times as five separate alerts
 behaviors:
-    - Starts investigation by examining temporal patterns - when transactions occurred relative to account creation
-    - Uses degree centrality to identify hub accounts that touch many others suspiciously
-    - Traces multi-hop paths to follow money through layering schemes (A→B→C→D)
-    - Looks for cycle detection to identify round-tripping patterns
-    - Compares current graph patterns against known fraud typologies (mule networks, bust-out schemes)
-    - Documents evidence trail meticulously for legal proceedings
-    - Works under time pressure - suspicious transactions may need to be frozen quickly
-goals:
-    - Detect fraud rings before they cause significant losses
-    - Reduce false positives from rule-based systems
-    - Identify bad actors across multiple accounts
-    - Trace money flows through complex schemes
-    - Prioritize investigations based on risk
+    - Starts from the fraud alert, the ranked case list or the victim report, not from a graph file; opens the graph only when the case needs context
+    - Looks at the account's 1 to 2 hop neighborhood through shared identifiers, colored by open alert, prior case and confirmed fraud label
+    - Checks how many accounts share each identifier and discounts the super-connected ones (a public Wi-Fi address, a busy branch) instead of treating them as evidence
+    - Groups the accounts that the shared identifiers connect into one ring and works it as one case
+    - Writes a close, confirm or escalate rationale that names the specific link or payment that decided it
+    - For a reported scam payment, follows only the payments that left after it arrived and up to the amount received, marking each account's hold, freeze or notify decision
+    - Hands confirmed and cleared labels back to the fraud strategy team for the next rule run
 frustrations:
-    - Alert fatigue from high false positive rates
-    - Difficulty visualizing complex fraud rings
-    - Slow investigation workflows
-    - Disconnected data sources
+    - Graph views that open with every neighbor and turn into a hairball
+    - Super-connected identifiers that make innocent customers look linked
+    - Outbound monitoring tools that do not help with inbound scam money, and notifications that arrive too slowly
+    - The trail goes dark at the bank's edge, where the next hop is another bank's customer
+    - Nothing she finds in the graph flows into the case rationale; she retypes it
 context:
     frequency: daily
     devices:
@@ -43,19 +50,39 @@ context:
         - laptop
     voluntary: false
 workflows:
-    - W01
-    - W04
-    - W05
+    - W336
     - W06
-    - W12
-    - W15
+    - W122
+    - W05
     - W17
+    - W15
 sources:
     - title: "Enterprise Fraud Management: Investigation v Detection"
       url: https://cambridge-intelligence.com/enterprise-fraud-management-investigation-v-detection/
       summary:
           Distinguishes fraud detection (automated alerts) from investigation (analyst-driven exploration) - key workflow
           distinction
+    - title: Exploring fraud detection with Neo4j and Graph Data Science, part 3
+      url: https://neo4j.com/blog/developer/exploring-fraud-detection-neo4j-graph-data-science-part-3/
+      summary: Ring detection by components and shared-identifier similarity, with ranked lists handed to analysts whose confirmed labels feed the next run
+    - title: Linkurious - AML investigation solution
+      url: https://linkurious.com/aml-investigation-solution
+      summary: Vendor; alerted subject's 1-2 hop neighborhood styled by open alerts and prior SARs
+    - title: Redhead - SWIFT Institute / RUSI working paper on transaction monitoring (2021)
+      url: https://swift.com/swift-resource/252235/download
+      summary: False-positive rates about 70 to 95 percent and alert-to-report conversion 2 to 10 percent (read through search summary)
+    - title: RUSI - Following the fraud, the role of money mules (Westmore and Owen, 2025)
+      url: https://static.rusi.org/following-the-fraud-the-role-of-money-mules.pdf
+      summary: In Lloyds data on known mules nearly 28 percent of value left within 15 minutes and a further 25 percent within an hour
+    - title: FCA - Proceeds of fraud, detecting and preventing money mules (2023)
+      url: https://www.fca.org.uk/publications/multi-firm-reviews/proceeds-fraud-detecting-preventing-money-mules
+      summary: Firms focus on outbound monitoring without adequate inbound monitoring; receiving firms slow to respond to notifications
+    - title: PSR - APP fraud reimbursement final details
+      url: https://www.psr.org.uk/news-and-updates/latest-news/news/psr-continues-to-take-bold-action-on-app-fraud-as-it-publishes-final-reimbursement-details-ahead-of-2024-implementation/
+      summary: Mandatory reimbursement of APP scam victims from 7 October 2024, cost shared between sending and receiving firms
+    - title: Teal - Financial crime investigator job summary
+      url: https://www.tealhq.com/job/financial-crime-investigator_7ea1aff6730272e3d301aed85f4a8ad542d60
+      summary: Postings ask for Excel and red-flag spotting rather than coding
     - title: Leveraging Graph Databases for Fraud Detection in Financial Systems
       url: https://cacm.acm.org/blogcacm/leveraging-graph-databases-for-fraud-detection-in-financial-systems/
       summary:
@@ -64,3 +91,6 @@ sources:
       bibliography:
           date: 2024-10
           publisher: Communications of the ACM
+version: 1.2.0
+created_at: 2026-01-16T16:39:01.568Z
+updated_at: 2026-11-25T00:00:00.000Z

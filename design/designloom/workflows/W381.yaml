@@ -1,0 +1,138 @@
+id: W381
+name: Commuting Flows from LEHD LODES
+category: analysis
+validated: false
+personas:
+    - urban-mobility-analyst
+    - migration-flow-demographer
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - node-merging
+    - computed-attributes
+    - filtering
+    - node-selection
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - large-graph-rendering
+    - export-image
+    - geographic-layout
+    - od-flow-import
+    - spatial-aggregation
+    - geospatial-file-io
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - node-merge-dialog
+    - filter-panel
+    - range-slider
+    - visual-encoding-panel
+    - legend-panel
+    - graph-canvas
+    - image-export-dialog
+    - attribute-table-join-dialog
+starting_state:
+    data_type: LODES origin-destination file for one state and year (census-block workplace and residence pairs with job counts by segment)
+    node_count: 1000-10000 after aggregation to tracts
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Turn the Census Bureau's LEHD Origin-Destination Employment Statistics (LODES) file for one state into
+    commuting flows between tracts or counties, filtered and drawn so a planner can see where a city's residents work
+    or where a job center's workers live.
+
+
+    **Mental Model**: "Home to work, aggregated up." Each row is a workplace block and a home block with a job count;
+    blocks are too small and noisy, so the real places are tracts or counties, and the flows are sums.
+
+
+    **Task Phases**:
+
+    1. **Download one state-year** (minutes to an hour) - Files such as ca_od_main_JT00_2022.csv.gz (main: live and
+    work in the state; aux: live elsewhere); California's 2022 main file is 92 MB compressed; years 2002-2023; job
+    types JT00 to JT05
+
+    2. **Read with types** (a common trap) - w_geocode and h_geocode are 15-character block codes that must stay text
+    to keep leading zeros; S000 is total jobs, followed by age, earnings and industry segments; the first column is
+    the workplace (destination), the second the residence (origin)
+
+    3. **Aggregate** (minutes) - Roll blocks up to tracts (first 11 characters) or counties because block level is
+    sensitive to imputation errors; lehdr grab_lodes(agg_geo = "tract") does it in one call
+
+    4. **Filter** (a decision) - Keep pairs with S000 of at least 5, optionally a maximum distance to drop far-away
+    headquarters artifacts, and keep or drop same-tract pairs
+
+    5. **Draw** - A choropleth of destination tracts for one city's residents, or desire lines sized by jobs
+
+
+    **Decision Points**:
+
+    - Main, aux or both files; which job type?
+
+    - Tract or county level?
+
+    - Minimum job count and maximum commute distance?
+
+    - Keep same-tract (live and work in the same tract) flows?
+
+    - Total jobs or one segment (age, earnings, industry)?
+
+
+    **Information Needs**:
+
+    - Confirmation that the workplace column was read as the destination and the residence as the origin
+
+    - Count of ids that lost leading zeros or matched no place
+
+    - Flow totals before and after aggregation and filtering, so nothing disappears unnoticed
+
+    - Per-place totals of resident workers, jobs and same-place commuters
+
+
+    **Pain Points**:
+
+    - Block codes read as numbers silently lose leading zeros and break the join
+
+    - The destination-first column order is the reverse of most OD tables
+
+    - Block-level files are large and noisy; aggregation must happen before drawing
+
+    - Headquarters artifacts create implausible long-distance commutes
+
+
+    **Data Flow**:
+
+    - Input: LODES OD CSV (w_geocode, h_geocode, S000 and segment columns) plus a block-to-tract or county crosswalk
+    and tract centroids
+
+    - Transformations: Typed import, origin and destination column assignment, prefix or crosswalk roll-up with
+    summed counts, minimum-count and distance filter
+
+    - Output: Tract or county commuting flow network, choropleth or desire-line map, aggregated flow table
+success_criteria:
+    - metric: Id integrity
+      target: Zero block or tract ids lose leading zeros on import
+    - metric: Time from downloaded file to tract-level flow map
+      target: Under 15 minutes (design goal; no source measures it)
+    - metric: Aggregation transparency
+      target: User can state total jobs before and after aggregation and filtering
+sources:
+    - title: LODES technical document 8.4
+      url: https://lehd.ces.census.gov/data/lodes/LODES8/LODESTechDoc8.4.pdf
+      summary: File naming, main and aux files, job types, column order with workplace first, segment columns
+    - title: LEHD code samples - LODES basic examples
+      url: https://lehd.ces.census.gov/data/lehd-code-samples/sections/lodes/basic_examples.html
+      summary: Reading geocodes as text and aggregating blocks to tracts
+    - title: Stanford Future Bay - Commute data
+      url: https://stanfordfuturebay.github.io/advanced/commute-data.html
+      summary: Filtering pairs to S000 of at least 5 and a maximum distance to drop headquarters artifacts
+    - title: LODES8 California OD directory
+      url: https://lehd.ces.census.gov/data/lodes/LODES8/ca/od/
+      summary: California 2022 main JT00 file is 92 MB compressed
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

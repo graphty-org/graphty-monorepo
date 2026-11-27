@@ -1,0 +1,120 @@
+id: W3080
+name: Map Who Collaborates with Whom in a Project's History
+category: analysis
+validated: false
+personas:
+    - version-control-collaboration-analyst
+requires_capabilities:
+    - version-control-history-import
+    - temporal-data-model-import
+    - entity-resolution-review
+    - bipartite-projection
+    - temporal-analysis
+    - community-detection
+    - centrality-degree
+    - knowledge-distribution-metrics
+    - socio-technical-congruence
+    - layout-force-directed
+    - visual-encoding-nodes
+    - details-on-demand
+    - data-export
+suggested_components:
+    - file-drop-zone
+    - graph-canvas
+    - temporal-controls
+    - community-panel
+    - ranked-node-table
+    - node-details-panel
+    - data-export-dialog
+starting_state:
+    data_type: git history (optionally line-level co-edits from git2net, and issue, pull request or mailing-list interactions from GrimoireLab), with merged identities and organization affiliations
+    node_count: tens to thousands of developers per project; a foundation spans hundreds of projects (git2net's studies covered more than 25,000 developers and 1.2 million commits)
+    edge_density: sparse, core-periphery; a small core collaborates densely, most contributors touch little
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Build the developer collaboration network of a project or a foundation from its history, find its core
+    and periphery, its communities and the paths newcomers take, and track them over time. OSPO and community
+    managers do this for project health (CHAOSS metrics in GrimoireLab); mining-software-repositories researchers do
+    it at line level with git2net and pathpy or Codeface. The persona is version-control-collaboration-analyst.
+
+
+    **Mental Model**: "Two people are linked when one edits code the other wrote, or when they work on the same
+    code in the same window."
+
+
+    **Task Phases** (no source gives per-step durations):
+
+    1. **Collect** - git history; optionally issues, pull requests and mailing lists (GrimoireLab)
+
+    2. **Merge identities and affiliations** - SortingHat or gambit; organization per developer
+
+    3. **Choose the tie** - Co-editing at line level (git2net: directed, weighted, time-stamped) or file-level
+    co-authorship within a window (projection of the developer-file graph)
+
+    4. **Slice by time** - Fixed windows, so the network can be compared release by release
+
+    5. **Analyze** - Core and periphery, communities, degree, Contributor Absence Factor, organizational diversity
+
+    6. **Follow newcomers** - When and to whom a new contributor first connects, and whether they stay
+
+    7. **Report** - Network images and per-window metrics for the community or the paper
+
+
+    **Decision Points**:
+
+    - Line-level co-editing or file-level co-authorship?
+
+    - Which window length, and are bots and merge commits removed?
+
+    - Is a drop in connectivity a real change or an identity artifact?
+
+
+    **Information Needs**:
+
+    - The tie definition and window behind each network
+
+    - Core-periphery position and community per developer, per window
+
+    - Organizational affiliation on each node
+
+
+    **Pain Points**:
+
+    - Identities must be merged before any network is meaningful
+
+    - Tools that mine the networks (git2net, TNM, GrimoireLab) write tables and JSON, and drawing them is a separate step
+
+
+    **Data Flow**:
+
+    - Input: git history, optional issue and communication data, identity and affiliation tables
+
+    - Transformations: Identity merge, developer-file graph, projection or line-level co-editing, time slicing, community and core-periphery analysis
+
+    - Output: Collaboration network per window, metrics table, report figures
+success_criteria:
+    - metric: Network
+      target: User builds a developer network from history with the tie definition and window recorded
+    - metric: Change over time
+      target: User compares core, periphery and communities across windows
+    - metric: Newcomers
+      target: User traces a new contributor's first ties
+sources:
+    - title: "Analysing time-stamped co-editing networks in software development teams using git2net (Gote, Scholtes, Schweitzer)"
+      url: https://arxiv.org/abs/1911.09484
+      summary: Directed, weighted, time-stamped co-editing networks from line-level edits; more than 1.2 million commits and 25,000 developers
+    - title: git2net
+      url: https://github.com/gotec/git2net
+      summary: Tutorials for author disambiguation with gambit and network analysis with pathpy
+    - title: "Classifying developers into core and peripheral (Joblin, Apel, Hunsen, Mauerer)"
+      url: https://arxiv.org/abs/1604.00830
+      summary: Network-based core-periphery classification on 10 open-source projects, checked with 166 developers
+    - title: CHAOSS - Contributor Absence Factor
+      url: https://chaoss.community/kb/metric-contributor-absence-factor/
+      summary: Smallest number of contributors responsible for 50% of contributions
+    - title: SortingHat (GrimoireLab) - ICSE 2019 demonstration
+      url: https://2019.icse-conferences.org/details/icse-2019-Demonstrations/13/SortingHat-Wizardry-on-Software-Project-Members
+      summary: Unique identities and organization enrollments of project members
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

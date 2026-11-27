@@ -1,0 +1,137 @@
+id: W261
+name: Pharmacovigilance Co-reporting Networks
+category: analysis
+validated: false
+scope: deferred
+personas:
+    - pharmacovigilance-network-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - node-merging
+    - filtering
+    - community-detection
+    - community-profiling
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-force-directed
+    - details-on-demand
+    - search
+    - export-image
+    - data-export
+    - group-collapse
+    - interactive-threshold
+suggested_components:
+    - file-drop-zone
+    - column-mapper
+    - data-import-dialog
+    - filter-panel
+    - range-slider
+    - community-panel
+    - cluster-table
+    - cluster-collapse-control
+    - visual-encoding-panel
+    - legend-panel
+    - node-details-panel
+    - graph-canvas
+    - share-dialog
+    - image-export-dialog
+starting_state:
+    data_type: deduplicated adverse event reports (suspect drugs, MedDRA-coded reactions) and derived disproportionality and co-reporting statistics
+    node_count: 50-500 grouped reaction terms or drugs
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Find signals of disproportionate reporting and clusters of co-reported adverse reactions that make
+    clinical sense, from spontaneous report databases such as FAERS. Statistics run in R; the network is grouped by the
+    MedDRA hierarchy and shared as an interactive page filterable by significant signals.
+
+
+    **Mental Model**: "Reactions reported together form syndromes." Each node is a grouped reaction term (or a drug);
+    edges are co-reporting associations after removing confounding; clusters are candidate syndromes to check clinically.
+
+
+    **Task Phases**:
+
+    1. **Extract reports** - Download FAERS quarterly files (not the dashboard) and remove duplicates; select a
+    cohort (7,082 COVID-19 reports from 2020 in Fusaroli 2021)
+
+    2. **Group terms** - Map Preferred Terms to their primary High-Level Terms (387 HLTs); drop non-specific
+    System Organ Classes such as Investigations
+
+    3. **Disproportionality** - Reporting odds ratio with at least 3 cases and a 95 percent interval above 1 (54
+    signals); others use PRR, IC or EBGM, or add bipartite network features to the signal score
+
+    4. **Build the event-event network** - Nodes are HLTs with at least 10 cases; edges are partial correlations
+    of co-reporting pruned by LASSO (Ising model): 136 nodes and 87 links
+
+    5. **Detect communities** - Louvain (13 clusters); check assortativity by disproportionality and by organ
+    class
+
+    6. **Review clusters** - Clinical plausibility and reporting bias
+
+    7. **Publish** - Interactive visNetwork page filterable by significant ROR; static figures for the paper
+
+    8. **Polypharmacy variant** - Drug-drug side effect predictions (645 drugs, 964 side effect types) currently shown
+    only as a t-SNE plot
+
+
+    **Decision Points**:
+
+    - Which MedDRA level to group at (PT, HLT, SOC)?
+
+    - Which disproportionality measure and minimum case count?
+
+    - Which clusters are clinically plausible versus reporting artifacts?
+
+
+    **Information Needs**:
+
+    - Per-node case count, ROR with confidence interval, SOC
+
+    - Per-edge association strength and sign
+
+    - Cluster membership and organ-class composition per cluster
+
+    - The PT terms inside each grouped HLT
+
+
+    **Pain Points**:
+
+    - Reporting biases the network does not remove
+
+    - Thousands of Preferred Terms unreadable until grouped
+
+    - Interactive versions hand-built per study
+
+    - Polypharmacy predictions have no network view
+
+
+    **Data Flow**:
+
+    - Input: FAERS quarterly files; MedDRA hierarchy; computed ROR and partial correlations
+
+    - Transformations: Deduplication, ontology grouping, disproportionality, LASSO-pruned co-reporting edges, Louvain
+
+    - Output: Signal table, clustered event network, interactive page
+success_criteria:
+    - metric: Grouping
+      target: Reaction terms collapse and expand along the MedDRA hierarchy in the view
+    - metric: Signal filtering
+      target: Reader filters to significant signals with one control
+    - metric: Shareable interactive output
+      target: Network shared to reviewers without hand-built HTML
+sources:
+    - title: Fusaroli et al. 2021 - The COVID-19 adversome
+      url: https://www.frontiersin.org/articles/10.3389/fphar.2021.740707/full
+      summary: FAERS extraction, HLT grouping, ROR signals, Ising/LASSO network of 136 nodes and 87 links, Louvain, visNetwork
+    - title: Drug-adverse event bipartite network study (2022)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8762263/
+      summary: Bipartite network features in signal detection
+    - title: Decagon (Zitnik et al. 2018)
+      url: https://academic.oup.com/bioinformatics/article/34/13/i457/5045770
+      summary: Polypharmacy side effects over 4.65 million drug-drug edges; t-SNE visual only
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

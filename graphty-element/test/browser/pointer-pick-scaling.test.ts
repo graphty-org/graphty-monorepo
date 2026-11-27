@@ -198,11 +198,24 @@ describe("one click on a node", () => {
         // Each pick walks every mesh on the "objects" path. One for the move the click arrives
         // with (the hover) and one for the press. Before, the release picked again to tell a node
         // from the background, and again to look for a close button no label in the scene has:
-        // four walks for one click (issue #10116).
-        assert.strictEqual(pickWork.meshPicks - before, 2, "the hover's walk and the press's, nothing more");
-        // Babylon picks the move, the press and the release again, for the cursor and the node's actions. The press and
-        // the release are answered from the press's walk, where they were two more walks of every mesh, about 45 ms
-        // each at 99,000 nodes (issue #10116).
-        assert.strictEqual(pickWork.pointerPicks - babylonBefore, 1, "Babylon walks the meshes for the move only");
+        // four walks for one click (issue #10116). On "batched" the hover reads the node ID target
+        // instead, so only the press walks.
+        const batched = element.renderPath === "batched";
+        assert.strictEqual(
+            pickWork.meshPicks - before,
+            batched ? 1 : 2,
+            batched ? "the press's walk, nothing more" : "the hover's walk and the press's, nothing more",
+        );
+        // Babylon picks the move, the press and the release again, for the cursor and the node's actions. On "objects"
+        // the press and the release are answered from the press's walk, where they were two more walks of every mesh,
+        // about 45 ms each at 99,000 nodes (issue #10116). On "batched" the row scan answers the press, which Babylon's
+        // picks cannot reuse, so it makes all three.
+        assert.strictEqual(
+            pickWork.pointerPicks - babylonBefore,
+            batched ? 3 : 1,
+            batched
+                ? "Babylon picks the move, the press and the release"
+                : "Babylon walks the meshes for the move only",
+        );
     });
 });

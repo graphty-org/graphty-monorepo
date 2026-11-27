@@ -7,6 +7,14 @@ implements_capabilities:
     - data-import
 used_in_workflows:
     - W22
+    - W08
+    - W237
+    - W256
+    - W257
+    - W296
+    - W430
+    - W412
+    - W1126
 dependencies: []
 props: {}
 sources: []

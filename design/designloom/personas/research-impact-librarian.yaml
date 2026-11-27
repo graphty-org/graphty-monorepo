@@ -1,0 +1,99 @@
+id: research-impact-librarian
+name: Research Impact Librarian
+roster_persona: bibliometric-analyst
+tier: A
+scope: in-scope
+role: Bibliometrics and Research Intelligence Librarian
+quote: The dean asked who we collaborate with. I have twenty hours, a roster with half the ORCIDs missing, and an audience that has never seen a network map.
+bio: >-
+    Tunde Oyelaran is a Health Research Intelligence Librarian at a research university library, with an MLIS and
+    three years in a bibliometrics unit. He answers strategic requests from leadership: which institutions and countries
+    a department collaborates with, which internal groups bridge to which partners, what a center's topic structure looks
+    like. He pulls a department's publications for 5 to 10 years (hundreds to a few thousand records) from Web of
+    Science, Scopus, Dimensions or OpenAlex, matches authors to a staff roster by ORCID or Scopus Author ID, cleans names
+    in Python, R or OpenRefine, and uses InCites and SciVal for indicators and their built-in world maps. When a question
+    is about structure rather than counts, he builds organization and country co-authorship maps and keyword maps in
+    VOSviewer or Gephi and delivers them as a short report or a Tableau dashboard "for non-technical audiences" with
+    documented methods. He is often a team of one and works to a fixed hour budget per report, like the NIH Library's
+    20 staff hours and 8-week turnaround.
+characteristics:
+    expertise: intermediate
+    time_pressure: high
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Answer a leadership question with a clear picture and a defensible method inside the hour budget
+    - Reuse the same cleaning and mapping steps for the next department instead of rebuilding by hand
+    - Show collaboration structure that SciVal's tables and world map cannot show
+    - Keep reports on named researchers accurate, because errors are visible and sensitive
+behaviors:
+    - Scopes the question first and decides whether a network is needed or a SciVal table answers it
+    - Exports within each database's limit or pulls from OpenAlex, Crossref or Semantic Scholar APIs
+    - Matches authors to a roster by ORCID or Scopus Author ID and keeps a thesaurus of name and organization variants
+    - Uses fractional counting for organization and country co-authorship and caps authors per document
+    - Builds organization, country and keyword maps with the same settings as earlier reports
+    - Writes a methods appendix and a plain-language summary for a dean or center director
+    - Produces dashboards in Tableau or Shiny and shares interactive VOSviewer Online links
+frustrations:
+    - Name homonyms create false bridges in co-author networks, worst for common Chinese and Korean surnames
+    - Every report rebuilt by hand because the cleaning and mapping steps are not saved as a repeatable run
+    - Hour budgets cut cleaning short
+    - Export limits that change between releases and differ by database
+    - Network maps that non-technical readers cannot read without explanation
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W50
+    - W51
+    - W54
+    - W57
+    - W18
+    - W294
+    - W297
+    - W298
+    - W317
+    - W323
+sources:
+    - title: UNC-Chapel Hill Health Research Intelligence Librarian posting (IASSIST jobs)
+      url: https://iassistdata.org/jobs-repository/2026-07-22_2/
+      summary: Asks for network analysis and collaboration mapping (VOSviewer, Gephi, NetworkX), Python or R, reproducible workflows, non-technical summaries
+    - title: University of Waterloo - Bibliometrics and Research Impact Librarian
+      url: https://uwaterloo.ca/lib/about/work-libraries/bibliometrics-and-research-impact-librarian
+      summary: Strategic requests from leadership using InCites and SciVal; sensitivity of reports on researchers
+    - title: NIH Library bibliometrics classes and services
+      url: https://www.nihlibrary.nih.gov/about-us/news/bibliometrics-classes-and-services
+      summary: Teaches VOSviewer network visualization; basic service capped at 20 staff hours per report
+    - title: SciVal Collaboration module
+      url: https://www.elsevier.support/scival/answer/collaboration-module-identify-and-evaluate-existing-and-potential-collaboration-partners
+      summary: World map and collaborator table filtered by years and subject, with no network graph
+    - title: Velden et al. on author name homonymy in co-author networks
+      url: https://arxiv.org/pdf/1106.2473
+      summary: Homonyms create spurious links, worst for common East Asian surnames
+    - title: UCL library - downloading data for research metrics
+      url: https://library-guides.ucl.ac.uk/research-metrics/downloading-data
+      summary: Current per-export limits for Web of Science and Scopus
+    - title: Leiden University Library - VOSviewer collaboration guide
+      url: https://gorlaeus-library.github.io/VOSviewer/collab.html
+      summary: Export, concatenate, thesaurus, co-authorship analysis; first map is very colored with many small clusters
+    - title: University of Notre Dame LibGuide - VOSviewer demo
+      url: https://libguides.library.nd.edu/vos-viewer/demo
+      summary: Ignore documents with more than 25 authors; minimum documents per author
+    - title: UIC research guide - VOSviewer
+      url: https://researchguides.uic.edu/bibliometrics/vosviewer
+      summary: Web of Science and Scopus export steps for VOSviewer
+    - title: bibliometrix - Introduction vignette
+      url: https://bibliometrix.org/vignettes/Introduction_to_bibliometrix.html
+      summary: Scripted conversion of bibliographic exports to collaboration and co-occurrence networks in R
+    - title: Perianes-Rodriguez, Waltman and van Eck - Constructing bibliometric networks, full and fractional counting
+      url: https://arxiv.org/abs/1607.02452v4
+      summary: Full versus fractional counting changes link weights and the resulting maps
+    - title: Graphty user research - Data preparation, import and first assessment
+      url: https://github.com/graphty-org/graphty-monorepo/blob/master/design/user-research/data-preparation-and-import.md
+      summary: Composite persona section 2.3 and the bibliographic workflow in section 4.7
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,136 @@
+id: W3049
+name: Choosing Holdings for Targeted Surveillance and Control by Network Position
+category: analysis
+validated: false
+scope: deferred
+personas:
+    - veterinary-movement-epidemiologist
+requires_capabilities:
+    - data-import
+    - temporal-analysis
+    - event-window-aggregation
+    - degree-analysis
+    - centrality-degree
+    - centrality-betweenness
+    - centrality-closeness
+    - time-respecting-paths
+    - component-analysis
+    - removal-impact-analysis
+    - attack-robustness-curves
+    - node-selection
+    - filtering
+    - comparison-view
+    - statistics-panel
+    - data-export
+    - report-generation
+suggested_components:
+    - temporal-controls
+    - ranked-node-table
+    - impact-analysis-dialog
+    - statistics-panel
+    - comparison-view
+    - graph-canvas
+    - filter-panel
+    - data-export-dialog
+    - report-generator-dialog
+starting_state:
+    data_type: livestock movement network built from dated movement records, static and per period
+    node_count: 100-100000
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Between outbreaks, decide which holdings, markets or traders to sample, restrict, vaccinate or
+    biosecure first, by ranking them on network measures and checking how much each ranking would break up the trade
+    network. Targeted control and surveillance was a theme in 64 of the 203 studies (31.5%) in a 2025 scoping review,
+    which also notes that "few have demonstrated their implementation in real-world scenarios".
+
+
+    **Mental Model**: "A few holdings carry most of the risk, and removing them cuts the chains." Random removal
+    barely changes the network; removal ranked by the right measure fragments it quickly. Which measure is right
+    depends on the network's direction and shape, so the choice is measured, not assumed.
+
+
+    **Task Phases**:
+
+    1. **Pick the network and the period** - Static over the whole period, yearly or monthly, since rankings move
+    between periods.
+
+    2. **Rank holdings by several measures** - In-degree, out-degree, ingoing and outgoing contact (infection) chains
+    that respect movement order, betweenness, and ingoing and outgoing closeness.
+
+    3. **Remove in rank order and measure** - Remove the top-ranked holdings step by step and track the largest
+    weakly or strongly connected component; compare with random removal (repeated, for example 1,000 times) and, on
+    small networks, with the best possible small set.
+
+    4. **Read the curves** - In one German pork producer community (483 holdings over three years), removing 31
+    holdings (6%) ranked by out-degree cut the largest component by more than 75%, while ranking by ingoing infection
+    chain needed 362 (75%); the authors put the difference down to "the pyramidal structure and the directed nature of
+    the pork supply chain". On the national German pig network (97,980 premises) halving the giant strongly connected
+    component took about 100 targeted removals against about 30,000 random ones; closeness or degree did best for up
+    to about 50 removals and betweenness beyond 100.
+
+    5. **Check stability** - See whether the same holdings stay at the top in each yearly or monthly network; outgoing
+    measures were relatively stable over time in the German community.
+
+    6. **Turn the ranking into a sampling or control list** - Export the ranked holdings, markets or regions with
+    their measures, for risk-based sampling or for targeted measures at high-centrality markets.
+
+
+    **Decision Points**:
+
+    - Which measure to rank by, given that the answer differs between supply chains and network sizes
+
+    - Static or per-period ranking, and how often to refresh it
+
+    - How many holdings the budget can cover, read off the removal curve
+
+    - Holdings or markets as the target, since high-centrality markets may be the efficient point of control
+
+
+    **Information Needs**:
+
+    - Several rankings side by side for the same holdings
+
+    - Removal curves (largest component share against holdings removed) per measure, with random removal as a baseline
+
+    - The same ranking per period, to see which holdings stay central
+
+    - Holding type and location for the shortlisted holdings
+
+
+    **Pain Points**:
+
+    - The best measure is not fixed: out-degree won in one German pork community and betweenness on the national
+    German pig network
+
+    - Rankings drift between months, so a list built on a static network may not hold
+
+    - Few targeted strategies have been tried in the field, so the curve is evidence for a decision, not a result
+
+
+    **Data Flow**:
+
+    - Input: a movement network (static and per period) and holding attributes
+
+    - Transformations: rankings by degree, contact chain size, betweenness and closeness; stepwise targeted and
+    random removal with component sizes; per-period rank comparison
+
+    - Output: ranked holding lists, removal curves per measure, and an export for the sampling or control plan
+success_criteria:
+    - metric: Measures compared, not assumed
+      target: At least two rankings and a random baseline appear on the same removal plot
+    - metric: Stability visible
+      target: A holding's rank can be read for each period of the chosen network
+sources:
+    - title: Sequeira et al., A systematic scoping review and thematic analysis of livestock and poultry movement networks (PLoS ONE 2025, 20(7):e0328518)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC12279109/
+      summary: Targeted control and surveillance as a theme in 64 of 203 studies (31.5%); targeted surveillance at high-centrality markets; few strategies demonstrated in real-world use
+    - title: Buttner et al., Efficient interruption of infection chains by targeted removal of central holdings in an animal trade network (PLoS ONE 2013, 8(9):e74292)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC3771899/
+      summary: 15,372 movements between 658 holdings, 2006-2009; seven ranking measures against random removal (1,000 iterations) and an optimal three-holding set, judged by the largest weakly connected component; out-degree needed 31 holdings (6%) for a reduction of more than 75% in the three-year graph against 362 (75%) for ingoing infection chain; NetworkX and SAS
+    - title: Lentz et al., Disease spread through animal movements - a static and temporal network analysis of pig trade in Germany (PLoS ONE 2016)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4859575/
+      summary: About 100 targeted against about 30,000 random removals to halve the giant strongly connected component; closeness or degree best up to about 50 nodes, betweenness from 100; "Overall, betweenness centrality shows the best performance for disease control"
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

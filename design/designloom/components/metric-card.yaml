@@ -8,7 +8,35 @@ implements_capabilities:
     - basic-statistics
     - selection-statistics
 used_in_workflows:
+    - W3054
     - W01
+    - W109
+    - W114
+    - W153
+    - W164
+    - W165
+    - W166
+    - W168
+    - W177
+    - W181
+    - W189
+    - W191
+    - W193
+    - W194
+    - W195
+    - W201
+    - W307
+    - W316
+    - W342
+    - W345
+    - W360
+    - W37
+    - W407
+    - W57
+    - W60
+    - W62
+    - W65
+    - W75
 dependencies:
     - icon
     - tooltip

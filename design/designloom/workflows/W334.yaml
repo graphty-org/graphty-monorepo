@@ -1,0 +1,116 @@
+id: W334
+name: Export a Note Vault and Analyze It Elsewhere
+category: analysis
+validated: false
+personas:
+    - pkm-vault-analyst
+    - pkm-developer-note-taker
+requires_capabilities:
+    - data-import
+    - data-export
+    - centrality-pagerank
+    - community-detection
+    - link-prediction
+    - computed-attributes
+    - visual-encoding-nodes
+    - temporal-navigation
+    - host-link-index-adapter
+    - note-format-import
+suggested_components:
+    - data-import-dialog
+    - data-export-dialog
+    - algorithm-panel
+    - link-prediction-panel
+    - community-panel
+    - computed-attributes-panel
+    - ranked-node-table
+    - graph-canvas
+starting_state:
+    data_type: whole-vault link graph extracted from the note app's cache or a parser
+    node_count: 5,000-40,000
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Get the whole note graph out of the note app, run real network analysis on it (centrality, modularity,
+    link prediction, clustering) and, ideally, bring the results back into the notes.
+
+
+    **Mental Model**: "My vault is a dataset." The user wants the analysis on exactly the graph the app resolves, and
+    the answers back as links or properties.
+
+
+    **Task Phases**:
+
+    1. **Extract** - jq over the app's cache to CSV, hand-cleaned; obsidiantools' vault.graph; a Neo4j export
+    plugin; or resolvedLinks through the developer console (about 6 ms) because per-note CLI commands took 1,296 calls on
+    a 1,296-note vault
+
+    2. **Analyze** - Centrality and modularity in Gephi; in-app, Jaccard, Adamic-Adar, common neighbors,
+    co-citation and label propagation relative to the current note; PageRank, link counts, recency and Louvain clusters
+    named by TF-IDF
+
+    3. **Read** - Qualitatively: co-citation as a "2nd order backlinks panel"; which ideas hold everything
+    together
+
+    4. **Round trip** (unsolved) - Users asked how to bring Gephi results back; no answer existed
+
+
+    **Decision Points**:
+
+    - Include tags, attachments and unresolved links as nodes?
+
+    - Which metric names the notes that hold everything together?
+
+    - Which suggested links to add?
+
+
+    **Information Needs**:
+
+    - Edge list that matches the app's own resolution exactly
+
+    - Ranked tables of notes by centrality and suggested links relative to the current note
+
+    - Cluster labels from note content
+
+
+    **Pain Points**:
+
+    - No built-in whole-graph export; "No one script yet, just a series of moves"
+
+    - External parsers differ slightly from the app's graph
+
+    - No round trip from the analysis tool back into notes
+
+
+    **Data Flow**:
+
+    - Input: Note link graph (resolved links with counts, tags, metadata, creation times)
+
+    - Transformations: Export to CSV, GEXF or GraphML; centrality, community detection, link prediction; computed
+    attributes
+
+    - Output: Ranked lists, cluster labels, suggested links; ideally properties or links written back into notes
+success_criteria:
+    - metric: One-step export
+      target: Whole note graph exported to GraphML, GEXF or CSV in one action
+    - metric: Results round trip
+      target: Computed metrics and accepted link suggestions can be handed back to the host as per-note values
+sources:
+    - title: Obsidian forum - Obsidian graph to Gephi
+      url: https://forum.obsidian.md/t/obsidian-graph-to-gephi/10563
+      summary: jq to CSV, Neo4j Graph View plugin, centrality and modularity; no way back
+    - title: obsidiantools (PyPI)
+      url: https://pypi.org/project/obsidiantools/
+      summary: NetworkX vault.graph; may differ slightly from the app
+    - title: Graph Analysis plugin
+      url: https://github.com/skepticmystic/graph-analysis
+      summary: Jaccard, Adamic-Adar, common neighbors, co-citation, label propagation
+    - title: Advanced Graph View plugin
+      url: https://community.obsidian.md/plugins/graph-insight
+      summary: PageRank, link counts, recency and Louvain clusters named by TF-IDF
+    - title: Obsidian forum - CLI command for the whole link graph
+      url: https://forum.obsidian.md/t/cli-a-command-for-the-whole-link-graph-not-one-note-at-a-time/119161
+      summary: 1,296 per-note calls vs about 6 ms through resolvedLinks; whole-graph export requested October 2026
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

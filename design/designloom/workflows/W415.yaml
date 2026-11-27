@@ -1,0 +1,116 @@
+id: W415
+name: Team Cyber Analysis on HoloLens 2 (Virtual Data Explorer)
+category: exploration
+validated: false
+personas:
+    - immersive-cyber-defense-analyst
+requires_capabilities:
+    - data-import
+    - graph-rendering
+    - visual-encoding-edges
+    - visual-encoding-nodes
+    - node-selection
+    - hover-highlight
+    - details-on-demand
+    - neighborhood-expansion
+    - path-highlighting
+    - annotation
+    - fixed-node-positions
+    - immersive-xr-session
+    - multi-user-session
+suggested_components:
+    - data-import-dialog
+    - graph-canvas
+    - visual-encoding-panel
+    - legend-panel
+    - node-details-panel
+    - ranked-node-table
+    - annotation-toolbar
+starting_state:
+    data_type: exercise packet captures aggregated to sessions, with a layout of logical and functional groups
+    node_count: up to 958 nodes and groups
+    edge_density: sparse (789 edges, directed, weighted by traffic)
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Learn an unfamiliar defended network with a partner in shared mixed reality, then find the attacking
+    hosts and the internal hosts abused for lateral movement.
+
+
+    **Mental Model**: "Walk through the network the way defenders picture it." Groups are placed where analysts think of
+    them, not where machines physically sit.
+
+
+    **Task Phases**:
+
+    1. **Build the layout from mental models** (before the session) - Interviews group entities into logical and
+    functional groups placed in space; the views are not geospatial
+
+    2. **Load the exercise data** - Blue-team topology as cubes, edges for session counts, brightness for
+    traffic volume
+
+    3. **Learn and explain the topology** (no time limit) - One partner learns it and explains it to the other in the
+    shared space
+
+    4. **Find the top five attacking hosts** - Walk through the space, grab nodes, rank by edge
+    brightness
+
+    5. **Find lateral movement** (remaining time) - Follow sessions from attackers into internal hosts
+
+    6. **Debrief** - Pairs using the 3D tool found more attackers and compromised segments with less communication and
+    more confidence; pairs using the 2D tool recognized the topology better afterward
+
+
+    **Decision Points**:
+
+    - Which hosts rank as top attackers by traffic?
+
+    - Is an internal host compromised or just busy?
+
+    - Does the 3D grouping reflect the real network well enough to trust?
+
+
+    **Information Needs**:
+
+    - Traffic volume per edge, legible as more than brightness
+
+    - Each host's real network segment alongside its position in the mental-model layout
+
+    - What the partner is pointing at
+
+
+    **Pain Points**:
+
+    - Headsets overheated and needed battery packs
+
+    - A layout that does not match reality can create false confidence
+
+    - Worse topology recall after the session than with a 2D view
+
+
+    **Data Flow**:
+
+    - Input: Aggregated sessions between hosts, host groups, analyst-designed positions
+
+    - Transformations: Group placement, edge weighting by session count and volume, shared selection
+
+    - Output: List of attacker hosts and compromised segments, team findings
+success_criteria:
+    - metric: Attacker identification
+      target: Pair names the top five attacking hosts within 40 minutes (design goal; no source measures it)
+    - metric: Shared focus
+      target: Each partner can see what the other selected without verbal description
+    - metric: Topology recall
+      target: Recall after the session is no worse than with a 2D view
+sources:
+    - title: Ask et al. 2023 - Virtual Data Explorer on HoloLens 2 (Frontiers in Big Data)
+      url: https://www.frontiersin.org/articles/10.3389/fdata.2023.1042783
+      summary: Dyad tasks, Locked Shields 2022 data, results and hardware problems
+    - title: Army project aligns data visualization with mental models of cyber defenders
+      url: https://www.army.mil/article/235291/army_project_aligns_data_visualization_with_mental_models_of_cyber_defenders
+      summary: Layouts from analysts' mental models, not geospatial
+    - title: Kullman, Ben Asher, Sample 2019
+      url: https://mdsoar.org/handle/11603/26337
+      summary: Analyst interviews favoring 3D views (abstract)
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

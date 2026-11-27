@@ -1,0 +1,167 @@
+id: W62
+name: Choosing a Genetic Distance Threshold
+category: analysis
+validated: false
+personas:
+    - phl-genomic-epidemiologist
+    - outbreak-response-epidemiologist
+requires_capabilities:
+    - data-import
+    - data-validation
+    - filtering
+    - component-analysis
+    - basic-statistics
+    - statistics-panel
+    - metric-histograms
+    - selection-statistics
+    - comparison-view
+    - algorithm-progress
+    - visual-encoding-nodes
+    - layout-force-directed
+    - analysis-history
+    - data-export
+    - export-image
+    - distance-threshold-network
+    - nearest-neighbor-pruning
+    - expensive-run-cost-warning
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - range-slider
+    - slider
+    - histogram
+    - filter-panel
+    - cluster-table
+    - statistics-panel
+    - metric-card
+    - progress-bar
+    - graph-canvas
+    - comparison-view
+    - analysis-history-panel
+    - data-export-dialog
+starting_state:
+    data_type: aligned pathogen sequences or a pairwise genetic distance list
+    node_count: 500-200000
+    edge_density: dense
+    user_expertise: advanced
+goal: >-
+    **Intent**: Decide what genetic distance counts as a link for this pathogen, this dataset and this question,
+    before any cluster is reported. The threshold is the single most consequential parameter in molecular cluster
+    detection: move it slightly and clusters merge, split or disappear. This is research and laboratory work; a
+    health department running a national program instead uses the thresholds the program fixes (workflow W61).
+
+
+    **Mental Model**: "Add links shortest first and watch the structure snap." As the threshold rises, isolated pairs
+    become clusters and then one giant blob. A good threshold sits just before the snap: the largest cluster has not
+    yet swallowed the second largest, and the number of clusters has stopped rising steeply.
+
+
+    **Task Phases**:
+
+    1. **Prepare sequences** - Align, and remove sequences with long runs of ambiguous bases;
+    unclean input produces confident nonsense
+
+    2. **Compute distances** - Pairwise distance with a generous maximum (for example 3% for
+    HIV, since it may need revising upward for divergent sequences); cost grows with the square of the sequence
+    count, and 185,849 sequences took about 32 minutes on 64 cores plus about 20 minutes to align
+
+    3. **Profile candidate thresholds** - Add edges from shortest to longest and record network
+    statistics at each distance: cluster count, largest cluster size, ratio of largest to second largest
+
+    4. **Score and shortlist** - Prefer a threshold where the largest-to-second-largest ratio jumps and the
+    cluster count has flattened; an automated scorer accepts a candidate outright when it scores at least 1.9 out of
+    2 and is unique or tightly grouped, and otherwise asks a human to read the score plot
+
+    5. **Stress the choice** - Stratify by subtype, check whether risk-group assortativity holds across
+    thresholds, and shorten the threshold for a rapid injection-drug-use outbreak
+
+    6. **Build at the chosen threshold** - Set ambiguity handling, minimum sequence overlap (roughly 2
+    divided by the threshold), maximum ambiguity fraction, drug-resistance site masking, removal or reporting of
+    spurious transitive triangle edges, and a contaminant check against a public reference database
+
+    7. **Record it** - Keep the threshold, the flags and the scoring evidence beside the resulting network,
+    because the number will be questioned
+
+
+    **Decision Points**:
+
+    - Which distance measure: a substitution model distance, a SNP count, or allele differences
+
+    - Which candidate threshold, when the automated score is ambiguous (scores exceeded 1.5 in only 6 of 18
+    comparisons in one evaluation)
+
+    - Whether to accept a threshold that differs from the published convention: an automated scorer chose larger than
+    published in 13 of 21 datasets and smaller in 8
+
+    - How much sparse sampling is distorting the answer: 25% sampling moved one selected threshold from 0.0170 to
+    0.0215
+
+    - Whether to prune transitive edges that exist only because of a shared intermediate
+
+
+    **Information Needs**:
+
+    - A distance histogram, with the ability to set the threshold by clicking a bar and see that bar's distance
+
+    - Cluster count, largest cluster size and the largest-to-second-largest ratio as functions of the threshold
+
+    - Live cluster count and size distribution while the threshold moves, not after a rebuild
+
+    - Starting points by pathogen: HIV 0.005 to 0.015 TN93 distance, hepatitis C about 0.052 (or a validated 0.037
+    corrected Hamming distance in a dedicated tool), SARS-CoV-2 6 to 16 SNPs, mpox 0 to 1, tuberculosis 5 or 15,
+    Neisseria gonorrhoeae 16, Neisseria meningitidis 35, group A streptococcus 20, hepatitis A 0
+
+    - Which pairs sit just inside and just outside the chosen threshold
+
+    - A record of every parameter, for the methods section and for the next run
+
+
+    **Pain Points**:
+
+    - Distance computation is quadratic, so each re-profile on a big dataset is a real wait with no partial result
+
+    - The automated score is often ambiguous, and the fallback is a human reading a plot in another tool
+
+    - Published conventions and data-driven choices disagree, and both have to be defended
+
+    - Sparse sampling biases the choice, and nothing in the output says how sparse the sampling was
+
+    - Command-line only, so the person who understands the pathogen often cannot run it
+
+    - Transitive triangle edges look like transmission and are not
+
+
+    **Data Flow**:
+
+    - Input: Aligned FASTA, or a long-form pairwise distance list (source, target, distance), optionally with
+    attributes packed into sequence names
+
+    - Transformations: Pairwise distance computation, incremental edge addition by distance, per-threshold network
+    statistics, scoring, component extraction at the chosen threshold, optional transitive-edge and contaminant
+    screens
+
+    - Output: A chosen threshold with its evidence, a thresholded network, a per-threshold statistics table, and a
+    parameter record
+success_criteria:
+    - metric: Threshold responsiveness
+      target: Moving the threshold updates cluster count and size distribution without rebuilding the network
+    - metric: Evidence trail
+      target: The chosen threshold ships with the per-threshold statistics that justified it
+    - metric: Scale
+      target: A quadratic distance computation reports progress and can be resumed or reused, not restarted blind
+sources:
+    - title: AUTO-TUNE - automated threshold selection for genetic distance networks (Frontiers in Bioinformatics 2024)
+      url: https://www.frontiersin.org/journals/bioinformatics/articles/10.3389/fbinf.2024.1400003/full
+      summary: Incremental edge addition, scoring from a jump in the largest-to-second-largest ratio and a penalized cluster count, the 1.9 acceptance rule, 13 of 21 datasets choosing larger than published, and the 25% sampling shift from 0.0170 to 0.0215
+    - title: HIV-TRACE - a tool for large-scale molecular epidemiology of HIV and other pathogens
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5995201
+      summary: Pipeline flags for ambiguity handling, minimum overlap, ambiguity fraction, resistance-site masking, transitive edge handling and contaminant checks, with quadratic distance timing
+    - title: hivclustering
+      url: https://github.com/veg/hivclustering
+      summary: Auto-profile reporting of network statistics at each candidate distance and cluster identity across runs
+    - title: CDC genomic epidemiology toolkit, module 3.2
+      url: https://www.cdc.gov/advanced-molecular-detection/media/pdfs/ToolkitModule_3.2-508C.pdf
+      summary: Threshold starting points by pathogen, the warning about unclean sequences, and reading a network against a tree
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

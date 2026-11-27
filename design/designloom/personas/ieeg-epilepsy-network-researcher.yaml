@@ -1,0 +1,59 @@
+id: ieeg-epilepsy-network-researcher
+name: Intracranial EEG Epilepsy Network Researcher
+roster_persona: network-neuroscientist
+tier: B
+scope: in-scope
+role: Epileptologist or Biomedical Engineer / Surgical Epilepsy Center
+quote: Every patient has a different set of contacts in a different brain. I need to see which ones drive the network and whether they fall inside what the surgeon removed.
+bio: >-
+    Dr. Claudia Iglesias works in a surgical epilepsy center, analyzing stereo-EEG (depth electrodes) and ECoG (grids
+    and strips) recorded before surgery from patients whose seizures do not respond to drugs. Each patient has 100 or
+    more contacts placed for clinical reasons, localized by fusing a post-implant CT with the patient's own MRI; nodes
+    are those contacts in patient-native coordinates, not atlas regions, so no two patients share a node set. She
+    computes a connectivity matrix per patient for each frequency band or recording segment (undirected coherence or
+    cross-correlation, or directed Granger causality, DTF or PDC), ranks contacts by out-strength, strength or
+    betweenness, and compares the top-ranked contacts with the clinician-marked seizure-onset zone, the resected or
+    ablated contacts, and the surgical outcome. Samples are small (20 to 33 patients in published studies) and the
+    stakes are clinical. She scripts in MATLAB or Python and is fluent in signal processing.
+characteristics:
+    expertise: expert
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Find contacts whose network role marks the epileptogenic zone
+    - Test whether highly ranked contacts inside the resection predict a good surgical outcome
+    - Show each patient's network in that patient's own brain with the resection region overlaid
+    - Compare rankings across frequency bands and recording segments
+behaviors:
+    - Localizes contacts and marks which lie in gray matter before computing any connectivity
+    - Computes one adjacency matrix per band or segment from interictal or ictal recordings of minutes to hours
+    - Ranks each contact by the sum of its outward connection weights, by strength or by betweenness
+    - Corrects strength for distance between contacts, with different corrections for depth and surface electrodes
+    - Overlays the clinician-marked seizure-onset zone and the resected contacts, then relates rankings to Engel outcome class
+frustrations:
+    - Atlas-based tools assume shared node sets and a standard brain; her nodes are patient-specific
+    - Binarization threshold choice strongly affects which contacts rank highest
+    - Directed measures need arrowheads and in/out views that most brain figure tools lack
+    - Small samples make every visual check of a single patient matter
+context:
+    frequency: weekly
+    devices:
+        - desktop
+    voluntary: true
+workflows:
+    - W152
+    - W161
+sources:
+    - title: Stone et al., interictal Granger causality network ranking in SEEG
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10553068
+      summary: Contacts ranked by summed outward Granger weights over 10 minutes of interictal SEEG in 20 patients; resected high-rank nodes tied to favorable outcome
+    - title: Bernabei et al., electrode-type specific distance correction of node strength
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8361393
+      summary: Nodes ranked by strength in 33 patients with a distance correction specific to depth or surface electrodes
+    - title: Review of graph measures for the epileptogenic zone (Frontiers in Neurology 2013)
+      url: https://www.frontiersin.org/articles/10.3389/fneur.2013.00175/full
+      summary: Betweenness and out-degree tied to the epileptogenic zone; binarization threshold strongly affects results
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

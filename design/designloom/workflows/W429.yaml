@@ -1,0 +1,137 @@
+id: W429
+name: Causal Root-Cause Analysis on a Service or Business Graph
+category: analysis
+validated: false
+personas:
+    - causal-rca-data-scientist
+requires_capabilities:
+    - data-import
+    - data-validation
+    - layout-hierarchical
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - path-highlighting
+    - neighborhood-expansion
+    - anomaly-detection
+    - removal-impact-analysis
+    - details-on-demand
+    - legend-display
+    - large-graph-rendering
+    - export-image
+    - data-export
+    - causal-attribution-overlay
+    - causal-model-formats
+suggested_components:
+    - data-import-dialog
+    - graph-canvas
+    - anomaly-panel
+    - ranked-node-table
+    - node-details-panel
+    - impact-analysis-dialog
+    - legend-panel
+    - visual-encoding-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: a service call graph from tracing (or a hand-written business graph) plus normal-period and incident-period samples per node
+    node_count: 10 to a few hundred metric nodes (11 in the DoWhy notebook, up to 212 in benchmarks)
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Attribute an anomaly or a lasting shift in a target metric (website latency, profit) to upstream
+    causes using a graphical causal model, with confidence intervals, and estimate what a fix would change -- then show
+    the result on the graph that on-call engineers and business owners already know.
+
+
+    **Mental Model**: "Walk upstream from the symptom." The causal graph is the dependency graph with arrows reversed
+    (latency flows from callee to caller); each node gets a score for how much it explains the anomaly.
+
+
+    **Task Phases**:
+
+    1. **Start from the dependency graph** - Export the service graph from tracing and invert every arrow; or write a
+    business graph by hand (shopping event, ad spend, page views, unit price, sold units, revenue, operational cost,
+    profit)
+
+    2. **Assign mechanisms** - Root nodes get a distribution, others an additive noise model, by hand or automatically
+    from normal data
+
+    3. **Fit and evaluate** - Fit on normal data; evaluation flags violated assumptions per node and tests whether the
+    data reject the graph
+
+    4. **Attribute a single anomaly** - Per-node attribution scores for the target with bootstrap confidence intervals,
+    read as a bar chart (the notebook finds the caching service is the main driver); negative scores mean a node made
+    the anomaly less likely
+
+    5. **Attribute a lasting shift** - Compare normal and incident data and attribute the change in the target's mean
+    to changed mechanisms
+
+    6. **Ask what-if** - Interventional samples (reduce one service's latency by one second) and the change at the
+    target (about one second in the notebook)
+
+    7. **Explain drivers** - Arrow strength and intrinsic causal influence on a business metric's variance
+
+
+    **Decision Points**:
+
+    - Is the reversed service graph a valid causal graph, or does it need edits?
+
+    - Does the model evaluation reject the graph or a mechanism?
+
+    - Which root causes are confident enough to act on, given the intervals?
+
+    - Which fix to simulate first?
+
+
+    **Information Needs**:
+
+    - Attribution score with interval on each node, ranked, signed
+
+    - The causal path from the top root cause to the symptom
+
+    - Per-node evaluation warnings
+
+    - Predicted change at the target for an intervention
+
+
+    **Pain Points**:
+
+    - Results are bar charts detached from the graph
+
+    - Discovery methods struggle with large graphs and edge directions; run time grows with system size
+
+    - DoWhy models have no interchange format beyond pickled Python objects
+
+    - Negative scores confuse readers
+
+
+    **Data Flow**:
+
+    - Input: Service graph (NetworkX DiGraph, GML or DOT) or hand-written graph; per-node metric samples for normal and
+    incident periods
+
+    - Transformations: Edge reversal, mechanism assignment and fitting, model evaluation, anomaly and
+    distribution-change attribution with bootstrap, interventional simulation
+
+    - Output: Ranked root causes with intervals, graph colored by attribution, what-if estimates, incident report figure
+success_criteria:
+    - metric: Root cause on the graph
+      target: On-call engineer can see the top root cause and its path to the symptom in one view
+    - metric: Time from incident data to ranked causes
+      target: no source found for a baseline
+sources:
+    - title: DoWhy GCM - RCA in a microservice architecture
+      url: https://www.pywhy.org/dowhy/main/example_notebooks/gcm_rca_microservice_architecture.html
+      summary: Inverted service graph of 11 nodes and 13 edges, anomaly and distribution-change attribution, what-if
+    - title: AWS Open Source blog - root cause analysis with DoWhy
+      url: https://aws.amazon.com/blogs/opensource/root-cause-analysis-with-dowhy-an-open-source-python-library-for-causal-machine-learning
+      summary: Business profit-drop graph, arrow strength, intrinsic causal influence, negative scores
+    - title: Pham, Ha and Zhang - ASE 2024 evaluation of causal RCA methods
+      url: https://arxiv.org/html/2408.13729v1
+      summary: 21 methods on benchmarks up to 212 metrics; large graphs and edge directions are hard
+    - title: DoWhy repository
+      url: https://github.com/py-why/dowhy
+      summary: Graph inputs as GML, DOT or NetworkX DiGraph
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,21 @@
+id: input-rederivation
+name: Re-derive downstream networks from replaced inputs
+category: analysis
+description: Replace an input list (compounds after serum profiling, disease genes after GEO analysis, a changed cutoff)
+    and rebuild every downstream network, count and figure while keeping styling and layout, with each step's count
+    recorded.
+status: planned
+notes: "Research trace: network-pharmacology-herb-compound-target-networks.md section 10, requirement R23 (Must)."
+algorithms: []
+used_by_workflows:
+    - W430
+    - W431
+    - W432
+    - W1054
+implemented_by_components: []
+requirements:
+    - "Must: Swaps one input list, for example compounds measured in serum or disease genes from GEO, and rebuilds every downstream network, count and figure. Styling and layout are kept, and every threshold and step count is recorded so the numbers cannot drift."
+sources:
+    - title: "Network Pharmacology Researchers: Herb-Compound-Target-Disease Networks (section 10, requirement R23)"
+      url: design/user-research/network-pharmacology-herb-compound-target-networks.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

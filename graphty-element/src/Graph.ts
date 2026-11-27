@@ -185,7 +185,7 @@ import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema"
 import { type ExportGraphOptions, type ExportResult, exportSession } from "./data/export";
 import { WRITABLE_LANE, writableLane } from "./data/lane";
 import { fetchBytes, sampleOf } from "./data/source-bytes";
-import type { Edge } from "./Edge";
+import { type Edge, edgeInternals } from "./Edge";
 import { GraphtyError, isGraphtyError } from "./errors";
 import type { GraphtyErrorCode } from "./errors/codes";
 import {
@@ -5775,6 +5775,18 @@ export class Graph implements GraphContext {
                     this.renderManager.requestFrame();
                 },
                 settled: () => !this.isRunning() || this.layoutManager.layoutEngine?.isSettled !== false,
+                outside: (row, centre) => {
+                    // a row a `Node` draws (one dragged, read or hovered) is measured by that `Node`, building none
+                    const measure =
+                        this.#nodeBatches?.columnRowOf(row) ??
+                        dataManagerInternals.builtNodeAtRow(this.dataManager, row);
+                    return measure === undefined ? null : edgeInternals.outside(measure, centre);
+                },
+                edgesJoining: (source, target) => dataManagerInternals.edgesJoining(this.dataManager, source, target),
+                refused: (row) => {
+                    this.getStylePainter()?.queue("edge", row);
+                    this.renderManager.requestFrame();
+                },
             });
             const batches = this.#nodeBatches;
             const target = new NodeIdTarget(this.scene, {
@@ -8133,6 +8145,9 @@ export class Graph implements GraphContext {
         return {
             forEachShown: (visit, only) => {
                 lines.forEachShown(visit, only);
+            },
+            forEachShownCurve: (visit, only) => {
+                lines.forEachShownCurve(visit, only);
             },
             idOf: (row) => dataManagerInternals.unbuiltEdgeId(this.dataManager, row),
         };

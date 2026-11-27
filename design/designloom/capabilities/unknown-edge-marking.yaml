@@ -1,0 +1,21 @@
+id: unknown-edge-marking
+name: Unknown and Unresolved Edge Marking
+category: analysis
+description: Show unresolved endpoints (IP-only, unknown process), components with missing dependency data and dropped
+    or low-traffic edges distinctly, treating missing edges as unknown rather than absent.
+status: planned
+notes: "Research trace: dependency-and-impact-analysis-engineers.md section 10, requirement R21 (Should)."
+algorithms: []
+used_by_workflows:
+    - W76
+    - W78
+    - W82
+    - W1090
+implemented_by_components: []
+requirements:
+    - "Should: Unresolved endpoints (IP-only, unknown process) shown distinctly; missing edges treated as unknown"
+sources:
+    - title: "Engineers Who Analyze Dependencies: IT Services, Networks, Software and Data Lineage (section 10,
+          requirement R21)"
+      url: design/user-research/dependency-and-impact-analysis-engineers.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

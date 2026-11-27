@@ -5919,7 +5919,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         snapshot,
         nodeValues: (path) =>
             sessionColumns(session, [], {}, "layout").read(snapshot(), path, "node", String)?.values ?? null,
-        nodeColumns: (paths) => readNodeColumns(session, snapshot(), paths).map((column) => column?.values ?? null),
+        nodeColumns: (paths, rows) =>
+            readNodeColumns(session, snapshot(), paths, rows).map((column) => column?.values ?? null),
         runOf: (path) => results.roots.find((root) => root.fields.some((field) => field.path === path))?.runId,
         nodeAttributes: () => data.columns().flatMap((a) => (a.kind === "node" ? [a.name] : [])),
         locationDesignation: () => session.config.data.knownFields,
@@ -6075,6 +6076,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             results: () => results,
             projectShaders: () => shaders.descriptors(),
             nodeValues: (path) => planning.nodeValues?.(path) ?? null,
+            nodeColumns: planning.nodeColumns,
             fileStyles: fileStylesOn,
             timeCandidates: () => time.api.candidates(),
             query: {

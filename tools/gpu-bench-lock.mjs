@@ -214,17 +214,17 @@ async function run({ waitMin, capMin, cmd }) {
     });
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-    if (process.argv[2] === "status") {
-        console.log(statusLines().join("\n"));
-    } else {
-        const args = parseArgs(process.argv.slice(2));
-        if (!args) {
-            console.error(
-                "usage: node tools/gpu-bench-lock.mjs [--wait <minutes>] [--cap <minutes>] <command...> | status",
-            );
-            process.exit(2);
-        }
-        await run(args);
+const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
+const cliArgs = process.argv.slice(2);
+if (isMain && cliArgs[0] === "status") {
+    for (const line of statusLines()) console.log(line);
+} else if (isMain) {
+    const args = parseArgs(cliArgs);
+    if (!args) {
+        console.error(
+            "usage: node tools/gpu-bench-lock.mjs [--wait <minutes>] [--cap <minutes>] <command...> | status",
+        );
+        process.exit(2);
     }
+    await run(args);
 }

@@ -1757,8 +1757,8 @@ class Session implements ElementSession {
     }
 
     /**
-     * Subscribe a handler that hears each detail once a frame has drawn the paint queued, then in a task of
-     * its own: a frame waits for every task in front of it, so a handler run straight after the
+     * Subscribe a handler that hears each detail as `afterFrame()` does: once every repaint asked
+     * for has run and a frame has drawn its paint, then in a task of its own: a frame waits for every task in front of it, so a handler run straight after the
      * draw, still inside it, would hold that frame off the screen as surely as one run before it.
      * @param event - Which event.
      * @param handler - Called with each detail, in order.
@@ -1769,23 +1769,35 @@ class Session implements ElementSession {
         handler: (detail: SessionEventMap[K]) => void,
     ): () => void {
         let live = true;
+        let waiting = false;
         const held: Array<SessionEventMap[K]> = [];
-        const deliver = (): void => {
-            const due = held.splice(0);
+        const wait = async (): Promise<void> => {
+            waiting = true;
+            // After the dispatch that published the first detail has queued its repaint (an
+            // edit's `history:changed` fires before it), so any event waits for that repaint.
+            await Promise.resolve();
+            // A detail told while this wait runs may have a repaint of its own: it waits again.
+            const count = held.length;
+            await this.afterFrame();
+            waiting = false;
+            const due = held.splice(0, count);
             if (!live || this.disposed) {
+                held.length = 0;
                 return;
             }
 
             for (const detail of due) {
                 publish(new Map([[event, new Set([handler])]]), event, detail);
             }
+
+            if (held.length > 0) {
+                void wait();
+            }
         };
         const stop = this.on(event, (detail) => {
             held.push(detail);
-            if (held.length === 1) {
-                void this.paintDrawn().then(() => {
-                    setTimeout(deliver, 0);
-                });
+            if (!waiting) {
+                void wait();
             }
         });
 

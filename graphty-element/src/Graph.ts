@@ -5446,7 +5446,8 @@ export class Graph implements GraphContext {
         // cannot starve the listeners; a longer repaint is heard after its first frames.
         for (let frame = 0; frame < PAINT_DRAWN_FRAMES; frame++) {
             const before = this.renderManager.scene.getRenderId();
-            await this.renderManager.frameDrawn();
+            // Through the draw a paint still to apply holds: the next tick applies it, then draws.
+            await this.renderManager.frameDrawn(true);
             if (!this.getStylePainter().hasPending || this.renderManager.scene.getRenderId() === before) {
                 return;
             }

@@ -7746,7 +7746,9 @@ export interface SessionListenOptions {
      * that re-reads the picture -- `styles.legend()`, `styles.counts()` -- on `style:batch-changed`
      * or `project:derived` runs in the same task as the repaint it announces, so its work holds
      * back the frame that shows that repaint. With this set, the frames that apply it are drawn
-     * first (a long repaint is applied over several) and the listener runs right after. Details are delivered in order, each once; with no frame
+     * first (a long repaint is applied over several) and the listener runs right after. Any event
+     * may be heard this way: one that fires before its repaint has run (`history:changed` at an
+     * edit) waits for that repaint too, as `afterFrame()` does. Details are delivered in order, each once; with no frame
      * coming (a hidden page, a stopped render loop, a session that draws nothing) they are
      * delivered in the next task.
      * @defaultValue false

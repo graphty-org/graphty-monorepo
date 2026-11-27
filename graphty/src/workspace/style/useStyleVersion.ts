@@ -2,8 +2,6 @@ import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { useEffect, useState } from "react";
 
-import { REPAINT_EVENTS } from "../sessionEvents";
-
 /** The session's events that change what the Style tab reads: the layers, the runs, the data. */
 const EVENTS = ["style:changed", "run:changed", "project:derived", "history:changed"] as const;
 
@@ -46,7 +44,7 @@ function useBumpedVersion(
  * @returns the unsubscribes.
  */
 const listenAll = (session: GraphSession, bump: () => void): (() => void)[] =>
-    EVENTS.map((event) => session.on(event, bump, { afterFrame: REPAINT_EVENTS.has(event) }));
+    EVENTS.map((event) => session.on(event, bump, { afterFrame: true }));
 
 /**
  * Re-renders the caller whenever the element reports a change to its styles, runs or data, or to

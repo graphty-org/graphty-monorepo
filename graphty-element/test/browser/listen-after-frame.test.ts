@@ -13,7 +13,9 @@ import { mountElement, unmountElements } from "../helpers/mount-element";
 
 afterEach(unmountElements);
 
-const EVENTS = ["style:batch-changed", "project:derived"] as const;
+// `history:changed` fires at the write, before its repaint has run: it is still heard only once that
+// repaint is drawn, so any event is safe to hear after the frame.
+const EVENTS = ["style:batch-changed", "project:derived", "history:changed"] as const;
 
 describe("a listener asking to hear events after the frame", () => {
     test("runs only after a frame has drawn the repaint it announces, once per event", async () => {
@@ -35,16 +37,17 @@ describe("a listener asking to hear events after the frame", () => {
         const told: string[] = [];
         const heard: string[] = [];
         for (const event of EVENTS) {
-            let framesAtEvent = -1;
+            // The frame count at each detail told, in order: each is heard only after a later frame.
+            const framesAtEvent: number[] = [];
             s.on(event, () => {
-                framesAtEvent = frames;
+                framesAtEvent.push(frames);
                 told.push(event);
             });
             s.on(
                 event,
                 () => {
                     heard.push(event);
-                    if (frames <= framesAtEvent) {
+                    if (frames <= (framesAtEvent.shift() ?? Infinity)) {
                         early.push(event);
                     }
 

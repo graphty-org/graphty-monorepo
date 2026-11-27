@@ -20,17 +20,6 @@ export const INSPECTOR_EVENTS = [
  */
 export const HOVER_EVENTS = ["selection:hover-changed"] as const;
 
-/**
- * The events a repaint publishes in the task that finishes it, before the frame that draws it: a
- * listener hears these `afterFrame`. Any other event (a history step, a run) fires before its
- * repaint has arrived, so a listener held for a frame would land in the middle of the repaint.
- */
-export const REPAINT_EVENTS: ReadonlySet<keyof SessionEventMap> = new Set([
-    "style:changed",
-    "style:batch-changed",
-    "project:derived",
-]);
-
 /** No events: for a caller of `useSessionEvents` that follows none for now. */
 export const NO_EVENTS = [] as const;
 
@@ -148,7 +137,7 @@ export function useSessionEvents(
                     ];
                 }
                 // Heard once the frame showing the repaint is drawn, so a re-render never holds it back.
-                return [session.on(event, bump, { afterFrame: REPAINT_EVENTS.has(event) })];
+                return [session.on(event, bump, { afterFrame: true })];
             }),
         ];
         return () => {

@@ -498,10 +498,9 @@ await session.afterFrame();
 status.textContent = `Node color now red, on ${session.styles.counts(id).matched} nodes`;
 ```
 
-Only listen after the frame to the events a repaint announces as it finishes (`style:changed`,
-`style:batch-changed`, `project:derived`). An event that fires before its repaint has arrived, such
-as `history:changed` at the moment of an edit, is heard after the next frame, in the middle of the
-repaint, and pushes the repaint later.
+Any event can be heard after the frame. An event that fires before its repaint has run, such as
+`history:changed` at the moment of an edit, is held until that repaint is drawn, so a listener never
+lands in the middle of it.
 
 ## Event Timing
 

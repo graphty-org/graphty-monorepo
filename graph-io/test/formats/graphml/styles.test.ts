@@ -206,6 +206,27 @@ describe("GraphML styles: yEd", () => {
         expect(text).not.toMatch(/fontFamily="[^"]*DejaVu/);
     });
 
+    it("draws a line under the words of a label yEd marks underlinedText, and writes it back", async () => {
+        // yed-graphml-specimen-edge-labels.svg draws a line under the edge label "Lbl" marked underlinedText="true"
+        const node = (id: string, label: string): string =>
+            `<node id="${id}"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="50" x="0" y="0"/>` +
+            `<y:NodeLabel ${label}>${id}</y:NodeLabel></y:ShapeNode></data></node>`;
+        const doc = [
+            YED_HEAD,
+            node("under", 'underlinedText="true"'),
+            node("plain", 'underlinedText="false"'),
+            '<edge id="e0" source="under" target="plain"><data key="d10"><y:PolyLineEdge>' +
+                '<y:EdgeLabel underlinedText="true">Lbl</y:EdgeLabel></y:PolyLineEdge></data></edge>',
+            "</graph></graphml>",
+        ].join("\n");
+        const { snapshot, styles } = await load(doc, false);
+        expect(resolveStyles(styles, "node", "labelUnderline", snapshot)).toEqual([true, null]);
+        expect(resolveStyles(styles, "edge", "labelUnderline", snapshot)).toEqual([true]);
+        const back = await load(await registry.exportGraphToString(snapshot, "graphml", { styles }), false);
+        expect(resolveStyles(back.styles, "node", "labelUnderline", back.snapshot)).toEqual([true, null]);
+        expect(resolveStyles(back.styles, "edge", "labelUnderline", back.snapshot)).toEqual([true]);
+    });
+
     it("draws a label's background color behind its words, and none where hasBackgroundColor is false", async () => {
         const node = (id: string, label: string): string =>
             `<node id="${id}"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="50" x="0" y="0"/>` +

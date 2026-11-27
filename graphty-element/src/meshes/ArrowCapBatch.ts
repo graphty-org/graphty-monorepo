@@ -10,6 +10,7 @@ import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import type { Scene } from "@babylonjs/core/scene.js";
 
 import { DirtyRuns, sendThinInstanceMatrices } from "./DirtyRuns";
+import { FLAT_CAP_LIFT } from "./flatHalo";
 import { batchUploadFrames, type RangedUploads } from "./FrameRoster";
 import { ParkedSlots } from "./ParkedSlots";
 import { takePoolReserve } from "./poolReserve";
@@ -86,6 +87,7 @@ const EVERY_BUFFER = ["matrix", ...(Object.keys(BILLBOARD_BUFFERS) as BillboardB
 const scratchScaling = new Vector3(1, 1, 1);
 const scratchMatrix = new Matrix();
 const scratchRotation = new Quaternion();
+const scratchLifted = new Vector3();
 
 /** No turn at all, for the caps whose shape reads the same from every side. */
 const NO_ROTATION = Quaternion.Identity();
@@ -1479,7 +1481,9 @@ export class ArrowCap {
         Quaternion.RotationAxisToRef(Vector3.Forward(), angle, scratchRotation);
         // "Turn into the plane first, then along the line" composes as alongLine * intoPlane.
         scratchRotation.multiplyInPlace(INTO_XY_PLANE);
-        this.batch?.placeOriented(this.slot, position, scratchRotation, this.size * this.scale);
+        // in front of a selected node's halo, which lies in front of the edges (FLAT_CAP_LIFT)
+        scratchLifted.copyFromFloats(position.x, position.y, position.z - FLAT_CAP_LIFT);
+        this.batch?.placeOriented(this.slot, scratchLifted, scratchRotation, this.size * this.scale);
     }
 
     /**

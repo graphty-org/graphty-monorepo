@@ -13,6 +13,7 @@ import { Scene } from "@babylonjs/core/scene.js";
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { ArrowCap, type ArrowCapBatch, arrowCapBatch, pulledCapHosts } from "./ArrowCapBatch";
 import { ROW_END_GLSL } from "./edgeTrim";
+import { FLAT_CAP_LIFT } from "./flatHalo";
 import { MaterialHelper } from "./MaterialHelper";
 import { PerSceneMaterials } from "./PerSceneMaterials";
 
@@ -405,6 +406,8 @@ void main() {
     // it under the orthographic camera, off its center.
     vec3 forward = normalize(vec3(lineDir.xy, 0.0));
     vec3 toCamera = vec3(0.0, 0.0, 1.0);
+    // in front of a selected node's halo, which lies in front of the edges, as ArrowCap.place2D lifts its mesh
+    worldCenter.z -= ${FLAT_CAP_LIFT.toFixed(4)};
 #else
     vec3 forward = normalize(lineDir);                    // Arrow points along line
     vec3 toCamera = normalize(cameraPosition - worldCenter);

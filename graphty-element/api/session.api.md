@@ -1845,7 +1845,7 @@ export interface GraphSession {
     readonly layout: SessionLayout;
     readonly network: NetworkApi;
     readonly notes: NotesApi;
-    on<K extends keyof SessionEventMap>(event: K, handler: (detail: SessionEventMap[K]) => void): () => void;
+    on<K extends keyof SessionEventMap>(event: K, handler: (detail: SessionEventMap[K]) => void, options?: SessionListenOptions): () => void;
     plan(command: SessionCommand): Promise<Plan>;
     readonly positions: SessionPositions;
     readonly project: ProjectApi;
@@ -7012,7 +7012,7 @@ export interface SessionDataApi {
 // @public
 export type SessionDataConfig = Readonly<z.output<typeof DataConfig>>;
 
-// @public
+// @public (undocumented)
 export interface SessionEventMap {
     "camera:gesture-end": {
         readonly kind: CameraGestureKind;
@@ -7224,6 +7224,11 @@ export interface SessionLayout {
     settle(): Promise<boolean>;
     readonly step: number;
     tick(count?: number): void;
+}
+
+// @public
+export interface SessionListenOptions {
+    readonly afterFrame?: boolean;
 }
 
 // @public

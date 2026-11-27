@@ -1684,7 +1684,7 @@ const TOLERANCE_TEXT: Record<OracleProperty, string> = {
     "label.text": "same words (whitespace folded)",
     "label.size": `font size ratio in [${ORACLE_TOLERANCES.fontSizeRatio.join(", ")}]`,
     "label.weight": `CSS weight within ${String(ORACLE_TOLERANCES.fontWeight)}`,
-    "label.style": "same style (normal / italic)",
+    "label.style": "same style (normal / italic), underlined or not",
     "label.color": `deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}`,
     "label.rotation": `within ${String(ORACLE_TOLERANCES.rotationDeg)} degrees (an edge label's against its own line where the layouts are unrelated)`,
     "label.offset": `label center relative to its node (its group's box) within ${String(ORACLE_TOLERANCES.labelOffsetOfSize)} of its font size (at least ${String(ORACLE_TOLERANCES.pixel)} render px)`,
@@ -4151,7 +4151,9 @@ function judgeLabelFont(j: Judge, kind: string, id: string, o: PText, g: PText, 
         g.sizePx * scale,
     );
     j.add("label.weight", kind, id, Math.max(0, Math.abs(o.weight - g.weight) - T.fontWeight), o.weight, g.weight);
-    j.add("label.style", kind, id, o.style === g.style ? 0 : 1, o.style, g.style);
+    // an underline is part of the lettering's style: yEd's underlinedText, drawn or left out
+    const styleOf = (t: PText): string => (t.underline === true ? `${t.style} underline` : t.style);
+    j.add("label.style", kind, id, styleOf(o) === styleOf(g) ? 0 : 1, styleOf(o), styleOf(g));
     // a pinned face the program names is judged as that face (DejaVu Sans against Liberation Sans is two faces of
     // one class); any other family by its class
     const oFace = programFace(o.family);

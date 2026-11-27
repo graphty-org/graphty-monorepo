@@ -1452,6 +1452,7 @@ export const EdgeStyle: z.ZodObject<{
                 normal: "normal";
                 italic: "italic";
             }>>>;
+            underline: z.ZodOptional<z.ZodBoolean>;
             lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             lineBox: z.ZodOptional<z.ZodEnum<{
                 font: "font";
@@ -1755,6 +1756,7 @@ export const EdgeStyle: z.ZodObject<{
                 normal: "normal";
                 italic: "italic";
             }>>>;
+            underline: z.ZodOptional<z.ZodBoolean>;
             lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             lineBox: z.ZodOptional<z.ZodEnum<{
                 font: "font";
@@ -2223,6 +2225,7 @@ export const EdgeStyle: z.ZodObject<{
             normal: "normal";
             italic: "italic";
         }>>>;
+        underline: z.ZodOptional<z.ZodBoolean>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         lineBox: z.ZodOptional<z.ZodEnum<{
             font: "font";
@@ -2472,6 +2475,7 @@ export const EdgeStyle: z.ZodObject<{
             normal: "normal";
             italic: "italic";
         }>>>;
+        underline: z.ZodOptional<z.ZodBoolean>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         lineBox: z.ZodOptional<z.ZodEnum<{
             font: "font";
@@ -2721,6 +2725,7 @@ export const EdgeStyle: z.ZodObject<{
             normal: "normal";
             italic: "italic";
         }>>>;
+        underline: z.ZodOptional<z.ZodBoolean>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         lineBox: z.ZodOptional<z.ZodEnum<{
             font: "font";
@@ -7171,6 +7176,7 @@ export const NodeStyle: z.ZodObject<{
             normal: "normal";
             italic: "italic";
         }>>>;
+        underline: z.ZodOptional<z.ZodBoolean>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         lineBox: z.ZodOptional<z.ZodEnum<{
             font: "font";
@@ -7420,6 +7426,7 @@ export const NodeStyle: z.ZodObject<{
             normal: "normal";
             italic: "italic";
         }>>>;
+        underline: z.ZodOptional<z.ZodBoolean>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         lineBox: z.ZodOptional<z.ZodEnum<{
             font: "font";
@@ -7669,6 +7676,7 @@ export const NodeStyle: z.ZodObject<{
             normal: "normal";
             italic: "italic";
         }>>>;
+        underline: z.ZodOptional<z.ZodBoolean>;
         lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         lineBox: z.ZodOptional<z.ZodEnum<{
             font: "font";
@@ -8699,6 +8707,7 @@ export const RichTextStyle: z.ZodObject<{
         normal: "normal";
         italic: "italic";
     }>>>;
+    underline: z.ZodOptional<z.ZodBoolean>;
     lineHeight: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     lineBox: z.ZodOptional<z.ZodEnum<{
         font: "font";

@@ -177,6 +177,29 @@ describe("styles.counts keeps what a change cannot move", () => {
         session.dispose();
     });
 
+    it("counts again after a set's members change, for a layer that names the set", async () => {
+        const session = await chain();
+        const set = session.sets.create({ kind: "fixed", nodes: ["n0", "n1"], reading: "listed" });
+        const layer = await session.styles.add({
+            name: "In the set",
+            target: "node",
+            selector: { match: "member", of: { set } },
+            set: { "node.color": "#cc79a7" },
+        });
+        await session.styles.settled();
+        const drawn = (): number | undefined => session.styles.counts(layer.id).visible?.matched;
+        const legend = (): number | undefined =>
+            session.styles.legend().find((block) => block.layerId === layer.id)?.scope?.count;
+        assert.strictEqual(drawn(), 2);
+        assert.strictEqual(legend(), 2);
+        session.sets.redefine(set, { kind: "fixed", nodes: ["n0", "n1", "n2", "n3", "n4"], reading: "listed" });
+        await session.styles.settled();
+        assert.strictEqual(session.styles.counts(layer.id).matched, 5);
+        assert.strictEqual(drawn(), 5, "the drawn count follows the set");
+        assert.strictEqual(legend(), 5, "and so does the legend");
+        session.dispose();
+    });
+
     it("still moves the revision a count carries on every style change", async () => {
         const session = await chain();
         const id = idOf(session, "Kind one");

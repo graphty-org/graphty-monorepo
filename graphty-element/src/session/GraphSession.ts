@@ -4087,7 +4087,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // Change notification (design/sets 11): live users of a set re-resolve from here, before any
     // public event. The store owner's side -- freezes and attribute writes -- arrives on the tick.
     const notifier = new SetsNotifier();
+    // Moves on every set commit, which moves what a layer naming the set selects with no input tick.
+    let setsRevision = 0;
     keptSets.onCommit((changes) => {
+        setsRevision++;
         notifier.notify({ kind: "sets", ids: changes.map((change) => change.id) });
     });
     // The attribute fields record edits changed since the graph hook last ran, by element: what
@@ -5466,6 +5469,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         stateRevision: () => stateRevision,
         stateRevisionBesidesPointer: () => stateRevisionBesidesPointer,
         inputRevisionBesidesPointer: () => inputs.tick.value - pointerTicks,
+        setsRevision: () => setsRevision,
         onChange: (change) => {
             // Only the scopes the stack names stay live.
             layerScopes.keep(layerScopesOf(stack));

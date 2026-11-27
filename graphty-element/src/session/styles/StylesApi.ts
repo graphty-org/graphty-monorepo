@@ -1898,6 +1898,8 @@ export interface StylesSources {
     readonly stateRevisionBesidesPointer?: () => number;
     /** {@link inputRevision} less its moves for the selection, the hover and the pins; see `stateRevisionBesidesPointer`. */
     readonly inputRevisionBesidesPointer?: () => number;
+    /** Moves on every commit of a set's members, which a `member` selector reads with no input move. */
+    readonly setsRevision?: () => number;
     /**
      * Aborted when the session holding the stack is disposed. Every edit still pending is
      * canceled with it, so a caller awaiting one gets an `AbortError` rather than waiting for
@@ -2503,6 +2505,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                       viewPending,
                       input(),
                       state(),
+                      sources.setsRevision?.() ?? 0,
                       dispatcher.state.config.get("editableBase"),
                       ...countShape(),
                   ],
@@ -2542,7 +2545,9 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         state: (() => number) | undefined,
     ): ReturnType<typeof createReadingCache> =>
         createReadingCache(() =>
-            input === undefined || state === undefined ? null : [branchesShown, viewPending, input(), state()],
+            input === undefined || state === undefined
+                ? null
+                : [branchesShown, viewPending, input(), state(), sources.setsRevision?.() ?? 0],
         );
     const keptMembership = membershipCache(sources.inputRevision ?? ((): number => 0), sources.stateRevision);
     /** {@link keptMembership} across selection, hover and pin changes, for a selector that does not follow them. */

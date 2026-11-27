@@ -55,8 +55,8 @@ The layer name and menu, "Select nodes..." / "Select edges..." (no Style nodes /
 | Unnamed | `.ws-field:not([data-named])`: control spans name and control | panel 176, popover 200                                                  |
 
 The two trailing slots are the same on every line, panel and popover alike: slot one is the
-line's settings ("...") on a thing row, its by-data link on a popover line, and empty on a line under a row
-(2.5); slot two is "-", the right-most icon (Input rules, 2026-11-23, which replace E550's "..." at the far
+line's settings ("...") on a thing row whose pop-over holds more settings, else its by-data link (a thing row with
+no "..." and every popover line), and the by-data link on a line under a row (2.5); slot two is "-", the right-most icon (Input rules, 2026-11-23, which replace E550's "..." at the far
 right).
 
 **Number fields.** Every number field on the Node, Edge and Graph tabs is Figma's scrubbable number input
@@ -182,9 +182,13 @@ refuses nesting).
 - **Lines**: unset, the control shows the value graphty-element would draw (Input rules, "Every input has a
   value"), with no "-"; writing a value sets it and shows "-". A set boolean unchecked writes
   `false`; "-" unsets it. A location line draws only its segments until written (R2).
-- **Never empty**: a row whose main value can be bound always has its main value line in Main, bound or not,
-  so its "..." always opens lines. A row whose main value cannot be bound and whose thing has no other settings
-  leaves its "..." slot empty (as Figma does) and is drawn `[<> name] [main] [-]`.
+- **Only when there is more**: a row has a "..." only when its pop-over holds a setting the panel does not already
+  show: a line not drawn on the row or under it, a group, a tab strip, a Switch to, a list or a Combine line (owner,
+  2026-11-27: "a style setting should only have an advanced button if it has more settings to show"). A row whose
+  pop-over would only repeat its panel lines (Visibility, Wireframe, a row whose every line is set) has none: its
+  by-data link sits in that slot on the row itself, drawn `[<> name] [main] [link] [-]`, and a row whose main value
+  cannot be bound (a Finish's Shading) leaves the slot empty (as Figma does), drawn `[<> name] [main] [-]`. An open
+  pop-over stays until it is closed, so writing its last unset line never takes it away.
 - **Depth**: panel, the settings popover, a group pop-over beside it, and a dedicated component (a picker,
   the link dialog) beside either; never in place, never a fourth (Input rules, "Nesting"). The popover opens scrolled to its first set line; height follows content, capped at the viewport.
 
@@ -506,6 +510,8 @@ Added 2026-11-24 (one-of choices are tabs; any-of groups are a menu):
   from "...". Only one group pop-over is open at a time. Every group pop-over is at most six rows; a group that
   would be taller is split into two menu entries, never given a "..." of its own.
 - A "..." menu has at most 16 entries, grouped under headings of at most 6 entries each.
+- A row has a "..." only when its pop-over has more settings to show than the panel (2.6, "Only when there is
+  more"); a row whose pop-over would only repeat its lines carries its link on the panel line instead.
 - A group of one line is not a menu entry: it joins the main pop-over.
 - A list of copies of the same thing (pie slices, gradient stops, strands) is neither tabs nor a menu: it stays
   a list with "+". "+" adds copies to a list; it is never used to reveal a group of settings.
@@ -514,6 +520,8 @@ Added 2026-11-27:
 
 - "options that are only available in 3D should be hidden while in 2D; options that are only available in 2D should
   be hidden while in 3D."
+- "a style setting should only have an advanced button if it has more settings to show. ... the link button could
+  just be in the main panel."
 
 This replaces the earlier wording that the Advanced "..." opens a new pop-over: "..." opens a menu of the
 thing's groups when it has more than one, and each opens a new pop-over.

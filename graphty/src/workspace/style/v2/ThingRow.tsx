@@ -39,6 +39,7 @@ import { unsetIn } from "./lineWrites";
 import { firstItemWords, ITEM_LISTS, listOf } from "./lists";
 import { listChanged } from "./listState";
 import { EntryLookMenu, KindMenu, MemberMenu } from "./MemberMenu";
+import { popoverRepeats } from "./popoverLines";
 import { takeReopening } from "./reopening";
 import { rowNames } from "./rowNames";
 import {
@@ -262,6 +263,23 @@ function withShape(thingId: string, covered: ReadonlySet<Channel>): ReadonlySet<
 }
 
 /**
+ * The pop-over's line for the row's main value (`popoverHead`), none without a rubric.
+ * @param rubric - the thing's rubric, if any.
+ * @param thingId - the thing.
+ * @param main - the row's main channel.
+ * @param listed - whether the pop-over draws a list of it.
+ * @returns the line, if any.
+ */
+function headOf(
+    rubric: ThingRubric | undefined,
+    thingId: string,
+    main: Channel,
+    listed: boolean,
+): LineSpec | undefined {
+    return rubric === undefined ? undefined : popoverHead(rubric, main, headless(thingId, listed));
+}
+
+/**
  * Whether a pop-over has no line for the row's main value: a list edits it, or it is a Shape's, whose row draws its
  * one control (the drop-down choosing the shape, model or shader, or a model varying by data's binding): a model's
  * pop-over has no Model line (owner, 2026-11-24: one path to any control).
@@ -271,6 +289,49 @@ function withShape(thingId: string, covered: ReadonlySet<Channel>): ReadonlySet<
  */
 function headless(thingId: string, listed: boolean): boolean {
     return listed || thingId === "shape";
+}
+
+/**
+ * Whether the pop-over draws a Combine line for the row's main value (`FirstLines`): a number the layer combines.
+ * @param ctx - the row.
+ * @param main - the row's main value.
+ * @returns true when it does.
+ */
+function combined(ctx: RowContext, main: ChannelDescriptor): boolean {
+    const own = lineIn(ctx, main.channel);
+    return main.accepts === "number" && typeof own?.value === "number" && own.combine !== undefined;
+}
+
+/**
+ * Whether a row's pop-over would only repeat its panel lines: a rubric, nothing in `beyond`, no Combine line, and every line it shows drawn on the row
+ * or under it (`popoverRepeats`).
+ * @param ctx - the row.
+ * @param rubric - the thing's rubric.
+ * @param main - the row's main value.
+ * @param head - the pop-over's line for the main value, if any.
+ * @param setLines - the lines drawn under the row.
+ * @param beyond - what only its pop-over draws, each undefined when it has none: its Switch to, a shader's
+ * parameters, the list it edits.
+ * @returns true when it holds nothing more.
+ */
+function repeatsPanel(
+    ctx: RowContext,
+    rubric: ThingRubric | undefined,
+    main: ChannelDescriptor,
+    head: LineSpec | undefined,
+    setLines: readonly LineSpec[],
+    beyond: readonly unknown[],
+): boolean {
+    if (rubric === undefined || beyond.some((each) => each !== undefined)) {
+        return false;
+    }
+    const onPanel = new Set<Channel>([
+        main.channel,
+        ...(rubric.row === undefined ? [] : lineChannels(rubric.row)),
+        ...(rubric.rowOwns ?? []),
+        ...setLines.flatMap((line) => lineChannels(line)),
+    ]);
+    return !combined(ctx, main) && popoverRepeats(ctx, rubric, head, onPanel);
 }
 
 /** What a thing row's main line is drawn from: see `MainLine`. */
@@ -522,6 +583,14 @@ export function ThingRow({
     // on reload: fresh: pointer: a picker held open by the pointer
     const [picking, setPicking] = useState(false);
     const box = useRef<HTMLDivElement>(null);
+    // Whether the last draw showed the row's "..." with its pop-over open.
+    const settingsShown = useRef(false);
+    // A pop-over "+" opened on a row with no "..." closes again.
+    useEffect(() => {
+        if (open && !settingsShown.current) {
+            setOpen(false);
+        }
+    }, [open]);
     // A Pie, Chart or Record opens its data picker instead (DataRow).
     const fromData = dataChannelOf(ctx, thing.id, entry?.id) !== undefined;
     useEffect(() => {
@@ -571,6 +640,7 @@ export function ThingRow({
     const listed = list ?? items;
     const popoverList =
         listed === undefined ? undefined : <ItemListEditor ctx={ctx} channel={main.channel} list={listed} />;
+    const head = headOf(rubric, thing.id, main.channel, listed !== undefined);
     // Every thing's pop-over holds at least its main value's line, which varies by data (design 2.6, 7.1).
     const settings = (
         <RowSettings
@@ -598,7 +668,7 @@ export function ThingRow({
                             <FirstLines ctx={ctx} main={main} />
                         </>
                     }
-                    head={popoverHead(rubric, main.channel, headless(thing.id, popoverList !== undefined))}
+                    head={head}
                     extra={params?.main}
                     moreGroups={params?.groups}
                     after={popoverList}
@@ -699,15 +769,12 @@ export function ThingRow({
     // A basic shape's row has no settings pop-over (owner, 2026-11-23): its drop-down picks the shape, a model or a
     // shader, and the lines a layer sets (Rotation, Corners, Custom shape) are drawn under it.
     const plainShape = thing.id === "shape" && replacing === undefined && main.channel === "node.shape";
-    // A row whose value list spans channels (a Finish's Shading) has no data link, so with no other lines its
-    // pop-over would only repeat the row: no "..." then.
-    const bare =
-        rubric?.row?.choices !== undefined &&
-        rubric.main.length === 0 &&
-        common.length === 0 &&
-        (rubric.groups ?? []).length === 0 &&
-        rubric.strip === undefined &&
-        others.length === 0;
+    // A row whose pop-over would only repeat its panel lines has no "..." (design "Input rules", 2026-11-27): its link
+    // (none for a value list spanning channels, a Finish's Shading) is on its own line. An open pop-over stays until
+    // closed, so writing its last unset line never takes it away under the pointer.
+    const repeats = repeatsPanel(ctx, rubric, main, head, setLines, [member, params, listed]);
+    const bare = repeats && !settingsShown.current;
+    settingsShown.current = open && !bare;
     const slots: RowSlots =
         plainShape || bare
             ? { slot: shapeLink(ctx, plainShape), removeLabel, onRemove: remove }

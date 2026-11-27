@@ -9670,6 +9670,7 @@ export class UpdateManager implements Manager {
     // @internal
     frozenListEpoch(): number | null;
     getRenderFrameCount(): number;
+    glideToCleared(nodes: readonly Node_2[]): void;
     // @internal
     gpuFrames: {
         fenced: () => number;

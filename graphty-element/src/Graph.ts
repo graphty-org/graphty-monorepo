@@ -2230,10 +2230,15 @@ export class Graph implements GraphContext {
         for (const type of ["pointerdown", "pointerup", "contextmenu"]) {
             this.element.addEventListener(type, pressMenu, { capture: true, signal: this.#teardown.signal });
         }
-        this.session.on("selection:changed", ({ cause, added, removed }) => {
+        this.session.on("selection:changed", ({ cause, added, removed, nodes }) => {
             const causes = this.styles.config.behavior.camera.pivotOnSelectionCauses;
             if (!menuPress && (causes === undefined || causes.includes(cause))) {
                 pivoted = true;
+                // The last node left: the glide ends on what was selected, even when no frame has
+                // run since it was selected to start the glide (Escape right after a click, #10256).
+                if (nodes === 0 && removed.length > 0) {
+                    this.updateManager.glideToCleared(removed.flatMap((id) => this.dataManager.getNode(id) ?? []));
+                }
                 return;
             }
 

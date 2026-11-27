@@ -2418,8 +2418,15 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                   sources.liftDrawn?.() ?? false,
                   sources.encodingRevision?.() ?? 0,
               ];
+    /**
+     * Run a fresh read with each element state resolved once for it (`SelectorSource.reading`).
+     * @param read - The read.
+     * @returns What it returns.
+     */
+    const reading = <T>(read: () => T): T =>
+        sources.elements.reading === undefined ? read() : sources.elements.reading(read);
     /** A reading of the stack, kept while nothing it reads changes (see `readingCache.ts`). */
-    const kept = createReadingCache(readingToken);
+    const kept = createReadingCache(readingToken, reading);
     /**
      * Counts kept across selection, hover and pin changes, for a layer those states cannot move
      * ({@link pointerFree}): the same token with the state revision that ignores them.
@@ -2430,9 +2437,9 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         return token === null || input === undefined || state === undefined
             ? null
             : [...token.slice(0, 4), input(), state(), ...token.slice(6)];
-    });
+    }, reading);
     /** The selector answers of one moment, kept apart from the readings: a reading asks for them mid-read. */
-    const keptMatches = createReadingCache(readingToken);
+    const keptMatches = createReadingCache(readingToken, reading);
 
     /** One disabled stand-in per element base layer, so a repaint sees the same object each time. */
     const baseStandIns = new WeakMap<CompiledLayer, CompiledLayer>();
@@ -2921,7 +2928,13 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * @param id - The layer.
      * @returns How many, and out of how many of its kind.
      */
-    const selectsAmongDrawn = (id: LayerId): { count: number; of: number } => {
+    const selectsAmongDrawn = (id: LayerId): { count: number; of: number } => reading(() => walkSelectsAmongDrawn(id));
+    /**
+     * The walk behind {@link selectsAmongDrawn}.
+     * @param id - The layer.
+     * @returns How many, and out of how many of its kind.
+     */
+    const walkSelectsAmongDrawn = (id: LayerId): { count: number; of: number } => {
         const whole = sources.resolveScope?.(WHOLE_GRAPH) ?? emptyScope();
         const compiled = byId().get(id);
         const edges = compiled?.layer.target === "edge";

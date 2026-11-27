@@ -552,20 +552,19 @@ export function canBeRows(found: FoundField): boolean {
 
 /**
  * Which side of a match a join reads as rows: the one that can be, then the one whose matched values
- * repeat, then the one with no nodes of its own, then the one loaded later.
+ * repeat, then the one with no nodes of its own, then the one loaded later. The values are compared as
+ * written, so turning Ignore case or spaces on never swaps the side.
  * @param value - The value.
  * @param copies - The rows as read.
  * @param match - The two fields.
  * @param match.a - One.
  * @param match.b - The other.
- * @param o - How values compare.
  * @returns The side, or null when neither can be.
  */
 export function rowsSide(
     value: SourceSteps,
     copies: Copies,
     match: { readonly a: FoundField; readonly b: FoundField },
-    o: MatchOptions,
 ): "a" | "b" | null {
     const { a, b } = match;
     const aRows = canBeRows(a) && canBeInto(value, b);
@@ -576,8 +575,9 @@ export function rowsSide(
         }
         return bRows ? "b" : null;
     }
-    const repeats = repeatsIn(value, copies, a, b, o).rows;
-    if (repeats !== repeatsIn(value, copies, b, a, o).rows) {
+    const exact = {};
+    const repeats = repeatsIn(value, copies, a, b, exact).rows;
+    if (repeats !== repeatsIn(value, copies, b, a, exact).rows) {
         return repeats ? "a" : "b";
     }
     if (a.data.ownNodes !== b.data.ownNodes) {
@@ -764,7 +764,7 @@ export function joinRows(value: SourceSteps, copies: Copies, o: JoinRowsOptions)
         a: [lines.matched, lines.onlyA],
         b: [lines.matched + lines.onlyA, onlyB],
     }[o.only ?? "all"];
-    const rowsOf = rowsSide(base, copies, { a: found.a, b: found.b }, o);
+    const rowsOf = rowsSide(base, copies, { a: found.a, b: found.b });
     return {
         total,
         rows: page(total, (i) => line(lines.a[start + i], lines.b[start + i], lines.repeat[start + i] ?? 0)),

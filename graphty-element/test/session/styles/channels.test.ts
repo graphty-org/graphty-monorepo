@@ -42,6 +42,7 @@ const DECLARED = [
     "node.labelFont",
     "node.labelWeight",
     "node.labelItalic",
+    "node.labelUnderline",
     "node.labelWrapWidth",
     "node.labelWrapTrailingSpace",
     "node.labelWrapSkipEndSpace",
@@ -391,6 +392,7 @@ const DECLARED = [
     "edge.labelFont",
     "edge.labelWeight",
     "edge.labelItalic",
+    "edge.labelUnderline",
     "edge.labelWrapWidth",
     "edge.labelWrapTrailingSpace",
     "edge.labelWrapSkipEndSpace",
@@ -478,9 +480,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into two hundred and thirty node channels and one hundred and ninety-three edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 230);
-        assert.strictEqual(channelsFor("edge").length, 193);
+    it("splits into two hundred and thirty-one node channels and one hundred and ninety-four edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 231);
+        assert.strictEqual(channelsFor("edge").length, 194);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -884,9 +886,11 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelFont",
         "node.labelWeight",
         "node.labelItalic",
+        "node.labelUnderline",
         "edge.labelFont",
         "edge.labelWeight",
         "edge.labelItalic",
+        "edge.labelUnderline",
         // Unset, no shader parameter is set and no effect is drawn.
         "node.shaders",
         "edge.shaders",

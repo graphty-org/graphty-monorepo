@@ -1350,6 +1350,15 @@ export class RenderManager implements Manager {
                     return;
                 }
 
+                // The canvas's new box is taken now, so this frame is drawn at it. Left to the
+                // ResizeObserver, which runs after the animation frames, the resize cleared this
+                // frame and drew the scene a second time in the same rendering step: one more whole
+                // frame (about 60 ms at 50,000 nodes) for a panel opening beside the canvas
+                // (issue #10229). The observer then finds the size unchanged and draws nothing.
+                if (this.fitCanvas()) {
+                    this.camera.onResize();
+                }
+
                 // The frame before this one, measured now that its GPU wait is known.
                 this.measureFrame(drawAt - drewBefore, waitMs, gpuWasBehind);
                 this.drawFrame(drawAt, rests);
@@ -1582,20 +1591,28 @@ export class RenderManager implements Manager {
      * @internal
      */
     resize(): void {
-        const width = this.engine.getRenderWidth();
-        const height = this.engine.getRenderHeight();
-        this.engine.resize();
-        // The camera's projection follows the new aspect ratio before the frame is drawn.
-        this.camera.onResize();
         // Only a canvas whose size changed was cleared; the observer's first delivery or a box
         // change that keeps the render size are not. An XR session draws in its own frames, so
         // nothing is drawn outside them.
-        const resized = width !== this.engine.getRenderWidth() || height !== this.engine.getRenderHeight();
+        const resized = this.fitCanvas();
+        // The camera's projection follows the new aspect ratio before the frame is drawn.
+        this.camera.onResize();
         const xrState = (this.scene.metadata as { xrHelper?: { baseExperience?: { state?: WebXRState } } } | null)
             ?.xrHelper?.baseExperience?.state;
         if (resized && (xrState === undefined || xrState === WebXRState.NOT_IN_XR)) {
             this.drawNow();
         }
+    }
+
+    /**
+     * Sizes the drawing buffer to the canvas's box.
+     * @returns Whether the render size changed, which cleared the canvas.
+     */
+    private fitCanvas(): boolean {
+        const width = this.engine.getRenderWidth();
+        const height = this.engine.getRenderHeight();
+        this.engine.resize();
+        return width !== this.engine.getRenderWidth() || height !== this.engine.getRenderHeight();
     }
 
     /**

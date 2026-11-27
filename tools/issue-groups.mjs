@@ -876,15 +876,17 @@ export function compact(ledger, now) {
  * @param scan the parsed free-queue.json: `{ builtAt, jobs: [{ issues, files, why, members?: [{ n, test, with,
  *   class, why, points }] }] }`
  * @param now ms
- * @returns `{ groups, issues, unreasoned }` counts
+ * @returns `{ groups, issues, unreasoned, waiting }`: counts, and the scanned issues left out for a live wait
  */
 export function importScan(ledger, scan, now) {
     if (!Array.isArray(scan?.jobs)) throw new Refused("the scan has no jobs list");
     const keep = ledger.groups.filter((g) => g.state !== "proposed" || g.after);
     const taken = new Set(keep.filter((g) => isLive(g)).flatMap((g) => g.members.map((m) => m.n)));
-    for (const w of liveWaits(ledger)) taken.add(w.issue);
+    const waiting = new Set(liveWaits(ledger).map((w) => w.issue));
+    for (const n of waiting) taken.add(n);
     ledger.groups = keep;
-    const counts = { groups: 0, issues: 0, unreasoned: 0 };
+    const scanned = new Set(scan.jobs.flatMap((j) => j.issues ?? []));
+    const counts = { groups: 0, issues: 0, unreasoned: 0, waiting: [...waiting].filter((n) => scanned.has(n)) };
     for (const job of scan.jobs) importJob(ledger, job, taken, now, counts);
     // A block blocked again keeps its earlier due time while that is still ahead, so a scan that writes "now + N"
     // each time cannot push it on
@@ -1419,20 +1421,27 @@ export function drift(ledger, facts, now, isAncestor = () => false) {
     return out;
 }
 
+// A wait target that names a pull request leads with it: `#N`, `pr:N`, `PR #N`, `pull request N`, maybe followed by
+// prose ("pull request 8596 (member answers) merging"). A `#N` later in prose is a mention, never the target (#10171:
+// "the next NeonLine failure, which now names the pixel (#9759)" ended when #9759 merged, and jobs offered #9739).
+const PR_TARGET = /^(?:#|pr[:\s]\s*#?|pull request\s+#?)(\d+)\b/i;
+const BRANCH_TARGET = /^(?:branch[:\s]\s*)?([\w.-]+\/[\w./-]+)(?:\s|$)/i;
+
 /**
  * The pull request a wait names outside a frozen group (a frozen group's merge or close settles its own waits):
- * `{ pr }` for `#<n>` anywhere in the target, else `{ branch }` for a branch name, else null (a group id).
+ * `{ pr }` for a target that leads with a pull request, `{ branch }` for one that leads with a branch name
+ * (`branch:` or `branch ` allowed), else null (a group id, or prose that only its due time ends).
  * @param ledger the ledger
  * @param w the wait
  * @returns `{ pr }`, `{ branch }` or null
  */
 export function waitPrRef(ledger, w) {
     if (isX9(w) || resolveTarget(ledger, w.on)?.state === "frozen") return null;
-    const text = String(w.on);
-    const pr = /#(\d+)/.exec(text);
+    const text = String(w.on).trim();
+    const pr = PR_TARGET.exec(text);
     if (pr) return { pr: Number(pr[1]) };
-    const branch = text.split(" ")[0];
-    return /^[\w.-]+\/[\w./-]+$/.test(branch) ? { branch } : null;
+    const branch = BRANCH_TARGET.exec(text);
+    return branch ? { branch: branch[1] } : null;
 }
 
 // A READY group whose branch reached master another way (combined into a branch that merged): its ready commit is on
@@ -2641,7 +2650,8 @@ const COMMANDS = {
         return c.change((ledger) => {
             const r = importScan(ledger, scan, c.now);
             const alone = r.unreasoned ? `; ${r.unreasoned} members with no reason of their own started alone` : "";
-            return ok(`imported ${r.groups} proposed groups, ${r.issues} issues${alone}\n${summary(ledger)}`);
+            const held = r.waiting.length ? `\nskipped for a live wait: ${hashes(r.waiting)}` : "";
+            return ok(`imported ${r.groups} proposed groups, ${r.issues} issues${alone}${held}\n${summary(ledger)}`);
         });
     },
     start: (c) => {
@@ -2812,6 +2822,20 @@ export function main(argv, deps = {}) {
     }
 }
 
+/**
+ * Live waits whose target names no pull request, branch or group and that have no due time: nothing ends them but
+ * `wait --end`, so check lists them rather than silently keeping them (#10171).
+ * @param ledger the ledger
+ * @returns one line naming them, or none
+ */
+export function unparsedWaitLines(ledger) {
+    const open = liveWaits(ledger).filter((w) => !w.due && !isX9(w) && !resolveTarget(ledger, w.on));
+    const stuck = open.filter((w) => !waitPrRef(ledger, w));
+    if (!stuck.length) return [];
+    const named = stuck.map((w) => "#" + w.issue + ' on "' + w.on + '"');
+    return [`waits only wait --end ends: ${named.join(", ")}`];
+}
+
 const findingLine = (d) => {
     const issue = d.issue ? `#${d.issue} ` : "";
     const fix = d.fix ? ` (fix: ${d.fix.op})` : "";
@@ -2881,7 +2905,10 @@ function check(ledgerPath, o, ctx, now, isAncestor) {
         const found = drift(ledger, facts, now, isAncestor);
         if (o.json) return { code: found.length ? 1 : 0, out: JSON.stringify(found, null, 2) };
         const lines = found.map((d) => findingLine(d));
-        lines.push(`${found.length} differences, ${found.filter((d) => d.fix).length} fixable with --fix`);
+        lines.push(
+            ...unparsedWaitLines(ledger),
+            `${found.length} differences, ${found.filter((d) => d.fix).length} fixable with --fix`,
+        );
         return { code: found.length ? 1 : 0, out: ascii(lines.join("\n")) };
     }
     const openPrs = readOpenPrs(ctx);
@@ -2891,7 +2918,7 @@ function check(ledgerPath, o, ctx, now, isAncestor) {
         if (openPrs) current.openPrs = { at: new Date(now).toISOString(), prs: openPrs };
         notePriorities(current, facts.issues);
         landedAny = applyDrift(current, drift(current, facts, now, isAncestor), now, lines);
-        lines.push(summary(current));
+        lines.push(...unparsedWaitLines(current), summary(current));
         return ok(ascii(lines.join("\n")));
     });
     // a landed branch's issues still carry in-progress: the sweep releases them now (check makes no label writes)

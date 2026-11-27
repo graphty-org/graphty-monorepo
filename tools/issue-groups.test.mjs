@@ -47,6 +47,8 @@ import {
     size,
     start,
     summary,
+    unparsedWaitLines,
+    waitPrRef,
     validate,
 } from "./issue-groups.mjs";
 
@@ -241,7 +243,7 @@ describe("risk classes, any member and each member's reason", () => {
                 },
             ],
         };
-        assert.deepEqual(importScan(l, scan, NOW), { groups: 4, issues: 5, unreasoned: 2 });
+        assert.deepEqual(importScan(l, scan, NOW), { groups: 4, issues: 5, unreasoned: 2, waiting: [] });
         assert.deepEqual(
             l.groups.map((g) => g.members.map((m) => m.n)),
             [[1, 2], [3], [4], [5]],
@@ -574,7 +576,7 @@ describe("archive, compact, import and validate", () => {
             ],
         };
         scan.jobs[0].issues.push(last);
-        assert.deepEqual(importScan(l, scan, NOW), { groups: 2, issues: over.length + 1, unreasoned: 0 });
+        assert.deepEqual(importScan(l, scan, NOW), { groups: 2, issues: over.length + 1, unreasoned: 0, waiting: [] });
         assert.deepEqual(
             l.groups.map((g) => [g.id, g.members.map((m) => m.n)]),
             [
@@ -2128,6 +2130,67 @@ describe("landed branches", () => {
             [[8197, "wait-target-done", "fix/8189-x landed on master"]],
         );
         assert.match(summary(l), /; 1 owner-blocked$/);
+    });
+
+    it("reads a pull request or branch only where the wait target leads with it (#10171)", () => {
+        const l = fresh();
+        const ref = (on) => waitPrRef(l, { on, test: "X6" });
+        assert.deepEqual(ref("#8596"), { pr: 8596 });
+        assert.deepEqual(ref("pr:9519"), { pr: 9519 });
+        assert.deepEqual(ref("PR #8596 (owner review)"), { pr: 8596 });
+        assert.deepEqual(ref("pull request 10090 (style sidebar) merging"), { pr: 10090 });
+        assert.deepEqual(ref("pull request #8596"), { pr: 8596 });
+        assert.deepEqual(ref("fix/8609-model-dialog-round-5"), { branch: "fix/8609-model-dialog-round-5" });
+        assert.deepEqual(ref("branch:fix/9372-lift-2d-into-3d"), { branch: "fix/9372-lift-2d-into-3d" });
+        assert.deepEqual(ref("branch fix/264-algorithm-on-session"), { branch: "fix/264-algorithm-on-session" });
+        for (const prose of [
+            "the next NeonLine WebKit render-parity failure, which now names the pixel (#9759)",
+            "owner items #3436 #8465 #3425",
+            "issue #9506",
+            "full run on 9db9e0ea9",
+            "owner (visual-review/trusted is owner-only)",
+        ])
+            assert.equal(ref(prose), null, prose);
+    });
+
+    it("ends a free-prose wait only at its due time, never on a pull request it mentions (#10171)", () => {
+        const l = fresh();
+        l.scannedAt = new Date(NOW).toISOString();
+        const due = new Date(NOW + HOUR).toISOString();
+        const on = "the next NeonLine WebKit render-parity failure, which now names the pixel (#9759)";
+        addWait(l, { n: 9739, on, due, why: "intermittent", now: NOW });
+        addWait(l, { n: 9083, on: "pull request 8596 (member answers) merging", why: "builds on it", now: NOW });
+        addWait(l, { n: 9988, on: "pull request 10090 (x) merging", why: "same file", now: NOW });
+        const prs = new Map([
+            [9759, { number: 9759, state: "MERGED" }],
+            [8596, { number: 8596, state: "OPEN" }],
+            [10090, { number: 10090, state: "MERGED" }],
+        ]);
+        const found = drift(l, { issues: new Map(), prs }, NOW);
+        assert.deepEqual(
+            found.map((d) => [d.issue, d.detail]),
+            [[9988, "#10090 merged"]],
+            "the prose wait and the wait on the open pull request stay",
+        );
+        for (const d of found) applyFix(l, d, NOW);
+        const r = ledgerJobs(l, q([9739, "critical"], [9083, "high"]), NOW);
+        assert.deepEqual([r.jobs, r.rescan], [[], []], "a live wait holds its issue: no job, no unscanned job");
+        assert.deepEqual(
+            drift(l, { issues: new Map(), prs }, NOW + 2 * HOUR).map((d) => [d.issue, d.kind]),
+            [[9739, "wait-due"]],
+            "its due time ends it",
+        );
+    });
+
+    it("lists live waits nothing but wait --end ends, and import-scan names the issues it skips for a wait", () => {
+        const l = fresh();
+        addWait(l, { n: 1, on: "owner (figma)", why: "owner", now: NOW });
+        addWait(l, { n: 2, on: "#8596", why: "pr", now: NOW });
+        addWait(l, { n: 3, on: "a recurrence", due: new Date(NOW + HOUR).toISOString(), why: "due", now: NOW });
+        assert.deepEqual(unparsedWaitLines(l), ['waits only wait --end ends: #1 on "owner (figma)"']);
+        const r = importScan(l, { builtAt: new Date(NOW).toISOString(), jobs: [{ issues: [2, 4], why: "x" }] }, NOW);
+        assert.deepEqual(r.waiting, [2]);
+        assert.equal(r.issues, 1);
     });
 });
 

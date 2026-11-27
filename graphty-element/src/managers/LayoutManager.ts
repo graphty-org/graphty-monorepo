@@ -3143,7 +3143,7 @@ export class LayoutManager implements Manager {
      * Placed first for the reason `replayPins` places before it pins: a live simulation's own idea
      * of where a node is starts wherever its initialization put it, and d3 fixes a node at that.
      * @param engine - The engine about to become current.
-     * @param nodes - Every node in the graph.
+     * @param nodes - The nodes the engine was handed (`nodesWithBodies`); a row stored with no `Node` is placed by row.
      */
     private applyHold(engine: LayoutEngine, nodes: readonly Node[]): void {
         for (const node of nodes) {
@@ -3152,7 +3152,48 @@ export class LayoutManager implements Manager {
             }
         }
 
-        this.applyHoldMask(engine);
+        if (this.members === null && this.draftHeld === null) {
+            engine.setHoldMask(null, 0);
+            return;
+        }
+
+        const [held, rows] = this.holdMaskOf();
+        this.holdRowsOnPlane(engine, held, rows);
+        // A simulation's held rows with no `Node` are placed by row as the mask holds them (`holdRowBodies`).
+        engine.setHoldMask(held, rows);
+    }
+
+    /**
+     * Under a 2D static engine, put each held row stored with no `Node` (renderPath "batched") on the plane in the
+     * array and have the engine take it by row, as {@link putOnPlane} does: getting its `Node` would build one for
+     * every held row (issue #10052). A simulation places its held rows itself as it holds them.
+     * @param engine - The engine about to become current.
+     * @param held - The hold mask ({@link holdMaskOf}): the rows the layout may not move.
+     * @param rows - The rows the mask covers.
+     */
+    private holdRowsOnPlane(engine: LayoutEngine, held: NodeMask, rows: number): void {
+        if (this.engineDimension !== 2 || !(engine instanceof StaticLayoutEngine)) {
+            return;
+        }
+
+        const lane = this.dataManager[WRITABLE_LANE];
+        const placed = { x: 0, y: 0, z: 0 };
+        let rowsWritten = false;
+        for (let row = 0; row < Math.min(lane.count, rows); row++) {
+            if (!maskTest(held, row) || !lane.isPlaced(row)) {
+                continue;
+            }
+
+            lane.read(row, placed);
+            if (placed.z !== 0 && dataManagerInternals.builtNodeAtRow(this.dataManager, row) === undefined) {
+                lane.write(row, placed.x, placed.y, 0);
+                rowsWritten = true;
+            }
+        }
+
+        if (rowsWritten) {
+            engine.takeRows();
+        }
     }
 
     /**
@@ -3507,7 +3548,8 @@ export class LayoutManager implements Manager {
 
         this.membersOwed = false;
         this.members = this.captureMembers(true, false);
-        this.applyHold(engine, this.members === null ? [] : [...this.dataManager.nodes.values()]);
+        // The nodes a build hands the engine: every `Node` only where the engine takes no rows (issue #10052).
+        this.applyHold(engine, this.members === null ? [] : this.nodesWithBodies(engine));
     }
 
     /**

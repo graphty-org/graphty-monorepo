@@ -3264,9 +3264,18 @@ export class Graph implements GraphContext {
      * @returns The counts.
      */
     #drawnCounts(): Record<string, number> {
+        // By row: walking `nodes` builds a `Node` for every row drawn with no `Node` (renderPath "batched").
         let nodesDrawn = 0;
-        for (const node of this.dataManager.nodes.values()) {
+        for (const node of dataManagerInternals.builtNodes(this.dataManager)) {
             if (node.isDrawn) {
+                nodesDrawn++;
+            }
+        }
+
+        const batches = this.#nodeBatches;
+        for (const index of batches?.columnRowIndices() ?? []) {
+            const row = batches?.columnRowOf(index);
+            if (row !== undefined && batches?.draws(row) === true) {
                 nodesDrawn++;
             }
         }

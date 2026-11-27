@@ -1758,6 +1758,8 @@ class Session implements ElementSession {
         // Style edits are runs the runs list does not hold, so they are canceled on their own.
         this.stopStyleEdits();
         this.shadersController.dispose();
+        // The element left the page: its model and picture downloads stop with it (#10329).
+        this.assets.dispose();
         // The last event: a host drops the session here, before anything re-reads it.
         publish(this.watchers, "session:disposed", {});
         this.watchers.clear();

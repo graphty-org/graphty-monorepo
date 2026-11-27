@@ -143,7 +143,8 @@ Row: `[<> name] [main] [...] [-]` (Input rules, "Slot order").
 ### 2.5 Lines under a row
 
 Under a row show only the lines the layer sets for that thing, in popover order, each named, each with its
-"-". A line appears when its value is set (in the popover, or by "+" writing a required partner, 5.1) and goes
+"-". An advanced setting is never drawn under its row, set or not: a model's Fallback shape stays in the model's
+pop-over (owner, 2026-11-27). A line appears when its value is set (in the popover, or by "+" writing a required partner, 5.1) and goes
 when it is unset; there are no empty lines waiting to be written. Every line is the one common pattern: name,
 value control, "-" (E674). A line under a row carries its by-data link in its second trailing slot, as every line in
 the popover does (2.6, E679), and binds from it or by "=" in its field (2.4). A line that holds no value of its own
@@ -382,7 +383,9 @@ way to Glyph, which no "+" menu offers (E275, E276).
 3. **Shared**: switching to Model keeps `node.shape` (`x-shape-model`), drawn while the model loads or if it
    fails. A model's pop-over has a Fallback shape line, which sets that shape and leaves the model in place, fixed
    or varying by data (owner, 2026-11-25). It is not a second path: a shape picked in the row's drop-down replaces
-   the model, while the Fallback shape line sets the shape drawn under it.
+   the model, while the Fallback shape line sets the shape drawn under it. The Fallback shape is an advanced
+   setting: it is drawn only in the model's pop-over, never as a line under the row, though the layer sets it
+   (owner, 2026-11-27).
 
 ### 5.1 Starting writes
 
@@ -700,7 +703,8 @@ thing's groups when it has more than one, and each opens a new pop-over.
   rules test fails a value edited by two different controls. Model... opens the Models gallery beside the list,
   which stays open, and the gallery's Add custom model... is the one way to the Load custom model dialog from the
   Shape. The model varies by data from the Shape's by-data link, whose list opens with a "Which value" choice
-  (Shape or Model): the basic Shape row's link, and while a model draws the Fallback shape line's, so a fixed model
+  (Shape or Model): the basic Shape row's link, and while a model draws the link on its pop-over's Fallback shape
+  line, so a fixed model
   becomes one varying by data without being removed first. A model varying by data is drawn as every bound row is;
   each value of the field draws the model it is mapped to in the binding's group list (a value to a model, picked
   from the Models gallery), and a value mapped to none keeps the fallback shape. A value of the data is never

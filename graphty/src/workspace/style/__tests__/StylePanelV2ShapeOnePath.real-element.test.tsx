@@ -2,7 +2,7 @@
  * Style panel v2's Shape on the REAL graphty-element, by real clicks (owner, 2026-11-24: "There should only be one
  * path to any control"; design "Input rules", "Nesting"): the Shape list's Model... opens the Models gallery beside
  * the list, with no back button, and the gallery is the one way to the Load custom model dialog; picking the section
- * shown keeps its shapes listed; a model's Fallback shape line sets the shape under it; and the model varies by data
+ * shown keeps its shapes listed; a model's Fallback shape line, in its pop-over only, sets the shape under it; and the model varies by data
  * from the Shape's one link, each value mapped to a model, never read as a web address.
  */
 
@@ -35,6 +35,23 @@ async function withShape(
     await session.styles.settled();
     const tab = await openStyle("Key people");
     return { session, layer: id, shape: () => sectionOf(tab, "node-shape") };
+}
+
+/**
+ * Opens a model's settings pop-over from its row's "...", as a reader does.
+ * @param row - the Shape row.
+ * @returns the open pop-over, holding the model's own settings.
+ */
+async function openModelSettings(row: HTMLElement): Promise<HTMLElement> {
+    const more = within(row).getByRole("button", { name: settingsName("Node shape") });
+    await userEvent.hover(more);
+    await userEvent.click(more);
+    return waitFor(() => {
+        const found = document.getElementById(more.getAttribute("aria-controls") ?? "");
+        assert.isNotNull(found);
+        assert.isNotNull(found.querySelector('[data-line="node.modelTint"]'), "the model's own settings");
+        return found;
+    });
 }
 
 /**
@@ -123,15 +140,9 @@ describe("Style panel v2's Shape, one path to each value", () => {
             );
             return found;
         });
-        const more = within(row).getByRole("button", { name: settingsName("Node shape") });
-        await userEvent.hover(more);
-        await userEvent.click(more);
-        const pop = await waitFor(() => {
-            const found = document.getElementById(more.getAttribute("aria-controls") ?? "");
-            assert.isNotNull(found);
-            assert.isNotNull(found.querySelector('[data-line="node.modelTint"]'), "the model's own settings");
-            return found;
-        });
+        // The fallback shape is the model's advanced setting: never a line in the panel (owner, 2026-11-27).
+        assert.isNull(within(shape()).queryByText("Fallback shape"), "no Fallback shape line under the row");
+        const pop = await openModelSettings(row);
         assert.isNull(pop.querySelector('[data-line="node.model"]'), "no Model line repeats the row's drop-down");
         const fallback = pop.querySelector<HTMLElement>('[data-line="node.shape"]');
         assert.isNotNull(fallback, "the Fallback shape line");
@@ -148,7 +159,15 @@ describe("Style panel v2's Shape, one path to each value", () => {
 
     it("a fixed model varies by data from the Shape's link, mapped value to model and never read as an address", async () => {
         const { session, layer, shape } = await withShape({ "node.model": "asset:sample/person" });
-        const link = await waitFor(() => within(shape()).getByRole("button", { name: "Node shape by attribute" }));
+        const fixed = await waitFor(() => {
+            const found = shape().querySelector<HTMLElement>('[data-thing="shape"]');
+            assert.isNotNull(found);
+            return found;
+        });
+        // The link is the pop-over's Fallback shape line's: the panel draws no line for it.
+        const fallback = (await openModelSettings(fixed)).querySelector<HTMLElement>('[data-line="node.shape"]');
+        assert.isNotNull(fallback, "the Fallback shape line");
+        const link = within(fallback).getByRole("button", { name: "Node shape by attribute" });
         await userEvent.hover(link);
         await userEvent.click(link);
         const which = await screen.findByRole("radiogroup", { name: "Which value" });
@@ -161,6 +180,8 @@ describe("Style panel v2's Shape, one path to each value", () => {
             assert.strictEqual(binding?.unmapped, "skip", "a value draws a model only once it is mapped to one");
         });
         assert.lengthOf(session.network.pending(), 0, "no value of the data is asked about as a web address");
+        await userEvent.keyboard("{Escape}");
+        await closeSettings();
         const row = await waitFor(() => {
             const found = shape().querySelector<HTMLElement>('[data-thing="shape"]');
             assert.isNotNull(found, "the row stays");
@@ -171,15 +192,7 @@ describe("Style panel v2's Shape, one path to each value", () => {
             return found;
         });
         // The pop-over holds no Model line repeating the row's binding.
-        const more = within(row).getByRole("button", { name: settingsName("Node shape") });
-        await userEvent.hover(more);
-        await userEvent.click(more);
-        const pop = await waitFor(() => {
-            const found = document.getElementById(more.getAttribute("aria-controls") ?? "");
-            assert.isNotNull(found);
-            assert.isNotNull(found.querySelector('[data-line="node.modelTint"]'));
-            return found;
-        });
+        const pop = await openModelSettings(row);
         assert.isNull(pop.querySelector('[data-line="node.model"]'), "no Model line in the pop-over");
         await closeSettings();
         // Map one kind to a model from the binding's group list.

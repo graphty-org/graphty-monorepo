@@ -4451,8 +4451,12 @@ const APP_LATE_MORE = [
             // A click that started no run is a set-up failure, and is never followed by an undo: the undo would take
             // back earlier history instead (it once emptied the graph for every later repetition).
             if ((await page.evaluate(RUNS)) <= runs) {
+                const run = page.getByRole("button", { name: /^Run PageRank/ });
+                const left = (await run.count())
+                    ? `the Run button is still shown${(await run.first().isDisabled()) ? ", disabled" : ""}`
+                    : "the Run button is gone";
                 await dismiss(page);
-                throw new Error("set-up: the Run click started no PageRank run");
+                throw new Error(`set-up: the Run click started no PageRank run (${left})`);
             }
             await undoUntimed(page, ctx);
             // The next repetition starts only once the run and its layer are gone.

@@ -688,6 +688,9 @@ export function ThingRow({
             });
     };
     const removeLabel = `Remove ${title.toLowerCase()}`;
+    // A data or text row below always draws its "...": its pop-over may stay open (the row's last draw is reset
+    // further down for every other row).
+    settingsShown.current = open;
     // A node's Pie, Chart or Record: its row picks data entries or Fixed, and draws its entries under it.
     const data = dataChannelOf(ctx, thing.id, entry?.id);
     if (data !== undefined) {

@@ -871,6 +871,9 @@ describe("source-steps: save and reopen", () => {
         const steps = on.data.steps().map((s) => [s.op, s.source]);
         const state = on.data.sources({ staged: true }).find((s) => s.key === key);
         assert.isDefined(state);
+        // A reopened source cannot be read again by this session, so it no longer lists `reloadable`.
+        const { reloadable, ...kept } = state ?? {};
+        assert.isTrue(reloadable);
         const { q, problems } = await reopen(on);
         assert.deepStrictEqual(problems, []);
         assert.strictEqual(graphOf(q), graph);
@@ -880,7 +883,7 @@ describe("source-steps: save and reopen", () => {
         );
         assert.deepStrictEqual(
             q.data.sources({ staged: true }).find((s) => s.key === key),
-            state,
+            kept,
         );
         q.dispose();
     });

@@ -9,10 +9,10 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import SAMPLES from "../../../graph-io/test/corpus/programs/samples.json";
 import type { Scene } from "../../../graph-io/test/fidelity/scene";
-import { fileFacts } from "../../../graph-io/test/programs/program-file-facts";
+import { fileFacts, widthToSpacing } from "../../../graph-io/test/programs/program-file-facts";
 import type { Graphty } from "../../index.js";
 import { drawnScene, mountSample, readSample, unmount } from "../fidelity/mount";
-import { checkStyled, EXPECTED, type Expected, widthToSpacing } from "../fidelity/program-sample-checks";
+import { checkStyled, EXPECTED, type Expected } from "../fidelity/program-sample-checks";
 
 /** A sample whose format carries no styling: the column its node labels come from, and one node's text in it. */
 interface Unstyled {

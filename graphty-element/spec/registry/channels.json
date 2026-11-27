@@ -136,6 +136,11 @@
             "accepts": "boolean"
         },
         {
+            "channel": "node.labelUnderline",
+            "target": "node",
+            "accepts": "boolean"
+        },
+        {
             "channel": "node.labelWrapWidth",
             "target": "node",
             "accepts": "number",
@@ -622,6 +627,11 @@
             "max": 100,
             "step": 0.1,
             "experimental": "file-styles"
+        },
+        {
+            "channel": "node.onTop",
+            "target": "node",
+            "accepts": "boolean"
         },
         {
             "channel": "node.borderColor",
@@ -2884,6 +2894,11 @@
         },
         {
             "channel": "edge.labelItalic",
+            "target": "edge",
+            "accepts": "boolean"
+        },
+        {
+            "channel": "edge.labelUnderline",
             "target": "edge",
             "accepts": "boolean"
         },

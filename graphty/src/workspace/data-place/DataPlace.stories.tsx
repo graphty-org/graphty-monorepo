@@ -193,6 +193,31 @@ export const TwoSources: Story = {
     },
 };
 
+/** Two sources, every entry closed: each shows its name and its node and edge counts. */
+export const ClosedEntries: Story = {
+    args: { initialState: OPEN },
+    play: async ({ canvasElement }) => {
+        const element = await loadLog(canvasElement);
+        await element.session.data.import({ config: { file: new File([HOSTS_CSV], "hosts.csv") } }, { mode: "merge" });
+        await element.waitForStableFrame();
+        const place = within(canvasElement).getByRole("region", { name: "Data place" });
+        const list = await within(place).findByRole("list", { name: "Data sources" });
+        await waitFor(() => {
+            if (within(list).queryAllByRole("listitem").length !== 2) {
+                throw new Error("two entries");
+            }
+        });
+        for (const toggle of list.querySelectorAll<HTMLElement>("[aria-expanded=true]")) {
+            await userEvent.click(toggle);
+        }
+        await waitFor(() => {
+            if (list.querySelector("[aria-expanded=true]") !== null) {
+                throw new Error("every entry closed");
+            }
+        });
+    },
+};
+
 /**
  * The open selection workspace, waited for.
  * @returns its modal.

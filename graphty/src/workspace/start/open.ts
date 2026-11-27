@@ -107,7 +107,6 @@ export function openProject(
             },
         }),
         ends: null,
-        sourceCard: null,
         stagedEnds: null,
         draftOpen: null,
         pickedSource: null,

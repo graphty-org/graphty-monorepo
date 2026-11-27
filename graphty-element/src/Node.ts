@@ -1566,7 +1566,7 @@ export class Node implements ModelUser {
             const halo = NodeMesh.createHalo(
                 this.context.getMeshCache(),
                 { styleId: key, is2D: this.context.is2D(), size: this.size },
-                style.shape,
+                { shape: style.shape, border },
                 style[kind],
                 kind,
                 this.#anchor as AbstractMesh,

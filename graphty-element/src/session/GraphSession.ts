@@ -21,7 +21,7 @@ import {
     type GraphAccelerator,
     type XrCapability,
 } from "../acceleration";
-import { sessionColumns } from "../algorithms/input/columns";
+import { readNodeColumns, sessionColumns } from "../algorithms/input/columns";
 import { shareInputs } from "../algorithms/input/ScopedInput";
 import type { Tour } from "../camera/tour";
 import type { CameraState } from "../camera/types";
@@ -5756,6 +5756,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         snapshot,
         nodeValues: (path) =>
             sessionColumns(session, [], {}, "layout").read(snapshot(), path, "node", String)?.values ?? null,
+        nodeColumns: (paths) => readNodeColumns(session, snapshot(), paths).map((column) => column?.values ?? null),
         runOf: (path) => results.roots.find((root) => root.fields.some((field) => field.path === path))?.runId,
         nodeAttributes: () => data.columns().flatMap((a) => (a.kind === "node" ? [a.name] : [])),
         locationDesignation: () => session.config.data.knownFields,

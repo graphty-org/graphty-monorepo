@@ -1054,7 +1054,7 @@ export class NodeMesh {
      * cached under the node's style key as its outer border is.
      * @param cache - The mesh cache the node's own mesh came from.
      * @param options - The node's mesh options.
-     * @param shape - The node's shape block.
+     * @param createOptions - The node's shape, and its border, whose inset a solid's fill is drawn in by.
      * @param halo - The underlay or overlay.
      * @param kind - Which of the two.
      * @param fill - The node's own mesh, whose outline and depth it follows.
@@ -1064,12 +1064,13 @@ export class NodeMesh {
     static createHalo(
         cache: MeshCache,
         options: NodeMeshOptions,
-        shape: NodeStyleConfig["shape"],
+        createOptions: Pick<NodeMeshCreateOptions, "shape" | "border">,
         halo: NodeStyleConfig["underlay"],
         kind: "underlay" | "overlay",
         fill: AbstractMesh,
         scene?: Scene,
     ): InstancedMesh | null {
+        const { shape, border } = createOptions;
         const opacity = halo?.opacity ?? 0;
         if (shape?.type === undefined || opacity <= 0) {
             return null;
@@ -1079,6 +1080,9 @@ export class NodeMesh {
         const pad = (halo?.padding ?? 0) * perSize;
         const sized = this.extentsOf(shape, Math.max(shape.size ?? options.size, MIN_NODE_SIZE));
         const flat = isFlatShape(shape.type);
+        // a fitted solid's fill is drawn in by a centered or inside border (createMeshWithoutCache); grow its outline
+        // back out to the box first
+        const reach = flat || !this.isFitted(shape) ? pad : pad + this.borderFit(shape, border, sized).inset;
         const instance = cache.get(`node-${kind}-${options.styleId}-${options.is2D ? "2d" : "3d"}`, () => {
             const own = halo?.shape;
             const corner = halo?.cornerRadius === undefined ? undefined : halo.cornerRadius * perSize;
@@ -1097,7 +1101,7 @@ export class NodeMesh {
                 );
             } else {
                 const nodeOutline = flat ? this.flatOutline(shape, sized) : this.solidOutline(fill);
-                outline = offsetOutline(nodeOutline, pad);
+                outline = offsetOutline(nodeOutline, reach);
             }
             fill.computeWorldMatrix(true);
             const box = fill.getBoundingInfo().boundingBox;
@@ -1115,7 +1119,7 @@ export class NodeMesh {
                 mesh.refreshBoundingInfo();
             }
             if (!ownOutline && !flat && !options.is2D) {
-                this.followView(mesh, fill, depth, (round) => piecesOf(offsetOutline(round, pad)));
+                this.followView(mesh, fill, depth, (round) => piecesOf(offsetOutline(round, reach)));
             }
             mesh.material = this.createBorderMaterial(halo?.color ?? "#000000", opacity, scene);
 

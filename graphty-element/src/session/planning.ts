@@ -335,6 +335,8 @@ export interface PlanningContext {
     readonly snapshot?: () => GraphSnapshot;
     /** The values a layout's `groupBy` names, by row of the snapshot, or null when no node carries it. */
     readonly nodeValues?: (path: string) => readonly unknown[] | null;
+    /** {@link PlanningContext.nodeValues} of many paths, each node's record read once for all of them. */
+    readonly nodeColumns?: (paths: readonly string[]) => readonly (readonly unknown[] | null)[];
     /** The run whose result field a `groupBy` path is, or undefined for a data attribute. */
     readonly runOf?: (path: string) => string | undefined;
     /** Every node attribute's name, for a layout that looks for its input among them. */
@@ -893,7 +895,12 @@ function layoutRefusal(
  * @returns The columns.
  */
 function nodeColumns(context: PlanningContext): ColumnValues[] {
-    return (context.nodeAttributes?.() ?? []).map((name) => ({ name, values: context.nodeValues?.(name) ?? [] }));
+    const names = context.nodeAttributes?.() ?? [];
+    const read = context.nodeColumns?.(names);
+    return names.map((name, at) => ({
+        name,
+        values: (read === undefined ? context.nodeValues?.(name) : read[at]) ?? [],
+    }));
 }
 
 /**

@@ -173,3 +173,51 @@ export function sessionColumns(
         },
     };
 }
+
+/**
+ * Many node columns at once, each as {@link InputColumns.read} reads it on nodes, from one read of
+ * each node's record rather than one per column: a reader that looks over every column (the
+ * location map's search for its columns) read every record once per column, a full copy of the
+ * record each time (issue #10229).
+ * @param session - The session: its records and its published results.
+ * @param graph - The snapshot whose rows the values are laid out over.
+ * @param paths - `data.<key>` (or the bare key), or `results.<run>.<field>`.
+ * @returns Each path's values, or null where nothing carries it, in the order of `paths`.
+ */
+export function readNodeColumns(
+    session: GraphSession,
+    graph: GraphSnapshot,
+    paths: readonly string[],
+): (ColumnValues | null)[] {
+    const carried = new Set(session.data.attributes().flatMap((a) => (a.kind === "node" ? [a.name] : [])));
+    const keys = paths.map((path) => {
+        if (path.startsWith(RESULT_PREFIX)) {
+            return null;
+        }
+
+        const key = path.startsWith(ATTRIBUTE_PREFIX) ? path.slice(ATTRIBUTE_PREFIX.length) : path;
+        return carried.has(key) ? key : null;
+    });
+    const columns = keys.map((key) => (key === null ? null : new Array<unknown>(graph.nodeCount)));
+    if (columns.some((column) => column !== null)) {
+        for (let row = 0; row < graph.nodeCount; row++) {
+            const record = session.data.node(graph.ids.idOf(row));
+            keys.forEach((key, at) => {
+                const column = columns[at];
+                if (key !== null && column !== null) {
+                    column[row] = record?.[key] ?? undefined;
+                }
+            });
+        }
+    }
+
+    const reader = sessionColumns(session, [], {}, "layout");
+    return paths.map((path, at) => {
+        const values = columns[at];
+        if (values !== null) {
+            return { kind: "node", values };
+        }
+
+        return path.startsWith(RESULT_PREFIX) ? reader.read(graph, path, "node", String) : null;
+    });
+}

@@ -2938,6 +2938,20 @@ export interface SessionDataApi {
         },
     ): Promise<LoadDraft>;
     /**
+     * The draft the last `prepare` handed back, while it is neither loaded nor disposed, with what
+     * it was read from and `onto` as `prepare` was given it. Autosave keeps it with the work: after a restore it is that draft read
+     * again (a file from the bytes autosave kept), so an application can reopen what it showed
+     * for it, such as a join screen.
+     *
+     * ```ts
+     * await element.autosaver.restore(entryId);
+     * const held = session.data.prepared();
+     * if (held?.onto === "graph") showJoinScreen(held.draft, held.source.name);
+     * ```
+     * @returns The draft and its source, or null when none is held.
+     */
+    prepared(): { readonly draft: LoadDraft; readonly source: DataSourceInput; readonly onto?: "graph" } | null;
+    /**
      * Every table joined onto the graph and still loaded, oldest first: the join each was made
      * with. Saved with the project.
      * @returns The joins.
@@ -4315,8 +4329,8 @@ export interface ImportOptions {
     /**
      * `"data"` also pins, in the same step, every node the file marks fixed -- a Graphviz node
      * written `pos="x,y!"` or `pin=true`, a Cytoscape.js node with `"locked": true`, any column
-     * graph-io gives the `fixed` role -- so a layout keeps those nodes where the file put them and
-     * lays out the rest. `"keep"` (the default) pins nothing. Undoing the load undoes the pins.
+     * graph-io gives the `fixed` role, a sample dataset's `fixed` column -- so a layout keeps those
+     * nodes where the file put them and lays out the rest. `"keep"` (the default) pins nothing. Undoing the load undoes the pins.
      * @since 3.40.0
      */
     readonly pins?: "data" | "keep";

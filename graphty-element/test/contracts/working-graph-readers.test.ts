@@ -335,6 +335,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "data.overRepresented()": { view: (s) => s.data.overRepresented("data.type") },
     "data.pendingSourceLoads()": "not the graph",
     "data.prepare()": "writes",
+    "data.prepared()": "not the graph",
     "data.preparePage()": {
         view: async (s) => {
             await s.data.preparePage("node", { sort: { key: "id" } });

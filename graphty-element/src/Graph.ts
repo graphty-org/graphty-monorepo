@@ -8190,7 +8190,8 @@ export class Graph implements GraphContext {
      * for nothing else. When it resolves, everything asked for has been carried out; the layout
      * may still be running, the camera may still be moving, and a picture -- a background image,
      * a node's image or 3D model -- may still be loading, because none of those is a queued
-     * operation.
+     * operation. One exception: a layout a WebGPU device loss interrupted is waited for until it
+     * has settled again, on the accelerator brought back or on the CPU.
      *
      * For a picture that will not change again -- a screenshot, a video frame, a visual
      * regression snapshot -- wait for {@link Graph.waitForStableFrame} instead, which waits for

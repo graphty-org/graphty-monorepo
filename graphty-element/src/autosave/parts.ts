@@ -15,12 +15,13 @@
  * | `stash` | the consumer's stash |
  * | `drafts` | the filter drafts still open, reopened after a restore |
  * | `sourceDraft` | the draft of the sources and steps still open, written with `drafts` and reopened after a restore |
+ * | `prepared` | the draft `data.prepare` handed back and still held (a file's bytes included), written with `drafts` and prepared again after a restore |
  * @module autosave
  */
 
 import type { RunId } from "../catalog/types";
 import { assetsMember } from "../session/assets/projectMember";
-import type { SavedInput, SessionData } from "../session/data";
+import type { SavedInput, SavedPrepared, SessionData } from "../session/data";
 import { dispatcherOf, sessionRunsOf } from "../session/dispatchers";
 import {
     arrangementMember,
@@ -297,6 +298,8 @@ function partsNow(
         parts.sourceDraft = attempt("sourceDraft", () =>
             JSON.stringify(sourceDraftHooks(session.data)?.saved() ?? null),
         );
+        const prepared = (session.data as Partial<Pick<SessionData, "savedPrepared">>).savedPrepared?.() ?? null;
+        parts.prepared = prepared === null ? null : attempt("prepared", () => JSON.stringify(prepared));
     }
 
     return { parts, runs, order: [...finished.keys()], ...(assets === undefined ? {} : { assets }) };
@@ -391,6 +394,16 @@ export function draftsOf(parts: AutosaveParts): SavedFilterDraft[] {
 export function sourceDraftOf(parts: AutosaveParts): SavedSourceDraft | null {
     const text = parts.sourceDraft;
     return typeof text === "string" ? (JSON.parse(text) as SavedSourceDraft | null) : null;
+}
+
+/**
+ * The prepared draft an entry holds; an entry written before prepared drafts were kept holds none.
+ * @param parts - The entry's parts.
+ * @returns The draft as kept, or null.
+ */
+export function preparedOf(parts: AutosaveParts): SavedPrepared | null {
+    const text = parts.prepared;
+    return typeof text === "string" ? (JSON.parse(text) as SavedPrepared) : null;
 }
 
 /**

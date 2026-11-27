@@ -1,7 +1,8 @@
 /**
- * A reload of this tab puts back the Data page's join work the reader was in the middle of (issue
- * #9660): the join screen editing a joined table's join, and, with sources and steps on, the join
- * workspace with its draft, drawn on the side the reader left it. The draft is
+ * A reload of this tab puts back the Data page's join work the reader was in the middle of (issues
+ * #9660, #9846): the join screen for a second file dropped and not yet joined, the join screen
+ * editing a joined table's join, and, with sources and steps on, the join workspace with its draft,
+ * drawn on the side the reader left it. The draft is
  * graphty-element's, which its autosave keeps. Safari ends a background tab and loads it again,
  * often with its session storage emptied, so each case runs with that storage kept and with it
  * emptied. Real element, real autosave, real input.
@@ -93,6 +94,25 @@ describe.each([{ lostSession: false }, { lostSession: true }])(
 
         describe("with sources and steps off", () => {
             withFeatures([]);
+
+            it("reopens the join screen for a second file dropped and not yet joined (issue #9846)", async () => {
+                const { before, session } = await emptyKept();
+                drop("links.csv", LINKS);
+                await waitFor(() => {
+                    assert.lengthOf(session.data.nodes(), 3);
+                });
+                drop("depts.csv", DEPTS);
+                await screen.findByRole("region", { name: "Join depts.csv" });
+
+                const after = await reload(before, { lostSession });
+                const join = await screen.findByRole("region", { name: "Join depts.csv" });
+                await userEvent.click(within(join).getByRole("button", { name: "Join" }));
+                const reopened = await sessionNow();
+                await waitFor(() => {
+                    assert.lengthOf(reopened.data.joins(), 1);
+                });
+                after.view.unmount();
+            });
 
             it("reopens the join screen editing a joined table's join", async () => {
                 const { before, session } = await emptyKept();

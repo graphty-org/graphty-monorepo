@@ -216,7 +216,7 @@ import {
 } from "./styles";
 import { placementLayers } from "./styles/autoApply";
 import { atStylePath, channelsFor } from "./styles/channels";
-import { createHoverSource } from "./styles/hover";
+import { coalescedHoverRepaint, createHoverSource, hoverRowsToRepaint } from "./styles/hover";
 import { readsWholeColumn } from "./styles/labelTemplate";
 import type { CompiledLayer } from "./styles/Layer";
 import { renamePaths, rulePath } from "./styles/predicate";
@@ -5489,24 +5489,42 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     });
 
     stack = styles;
-    // ponytail: a hover change repaints every element when any layer reads the pointer (an
-    // inverted hover layer flips the whole graph anyway); repaint only the old and new
-    // neighborhoods if a graph large enough to feel it needs that.
+    // What the hover layers were last repainted from: the hovered node and the focused one (the
+    // hovered node, else a lone selected one), by row, on that snapshot.
+    let hoverPainted: { graph: GraphSnapshot | null; hovered?: number; focus?: number } = { graph: null };
+    // A hover or selection change repaints only the rows whose hover reading can have moved: the
+    // old and new node's neighborhoods, for each layer whose followed node moved. An inverted
+    // layer turning on or off, or a new snapshot, still repaints every element. Rows asked for
+    // while an earlier hover pass waits its turn join that pass.
+    const requestHoverRepaint = coalescedHoverRepaint((dirty) => {
+        const pass = painter.repaintElements(styles.compiled(), dirty, {
+            signal: teardown.signal,
+            report: () => undefined,
+        });
+        pass.catch(repaintFailed("hover"));
+        return pass;
+    }, snapshot);
     repaintHover = (): void => {
+        const graph = snapshot();
+        const hoveredId = selection?.hovered ?? null;
+        const focusId = focusedNode();
+        const now = {
+            graph,
+            hovered: hoveredId === null ? undefined : nodeIndex(hoveredId),
+            focus: focusId === null ? undefined : nodeIndex(focusId),
+        };
+        const before = hoverPainted;
+        hoverPainted = now;
         const compiled = styles.compiled();
-        if (!compiled.some((entry) => entry.selector.match === "hover")) {
+        const selectors = compiled.flatMap(({ layer }) => (layer.selector.match === "hover" ? [layer.selector] : []));
+        if (selectors.length === 0) {
             return;
         }
 
-        const graph = snapshot();
-        const all = (count: number): number[] => Array.from({ length: count }, (_, index) => index);
-        painter
-            .repaintElements(
-                compiled,
-                { node: all(graph.nodeCount), edge: all(graph.edgeCount) },
-                { signal: teardown.signal, report: () => undefined },
-            )
-            .catch(repaintFailed("hover"));
+        const rows = before.graph === graph ? hoverRowsToRepaint(graph, selectors, before, now) : null;
+        if (rows?.node.length !== 0 || rows.edge.length !== 0) {
+            requestHoverRepaint(rows);
+        }
     };
 
     // `session.hidden`, forward or on undo and redo: repaint the nodes whose hiding moved and the

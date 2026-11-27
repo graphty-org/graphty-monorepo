@@ -843,7 +843,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         by: "query.node",
         kind: BY_DESIGN,
     },
-    { root: "SessionDataApi", members: ["prepare"], reason: "needs-host", kind: BY_DESIGN },
+    { root: "SessionDataApi", members: ["prepare", "prepared"], reason: "needs-host", kind: BY_DESIGN },
     // The column a role would pick: `columns.list` gives each column's facts to choose from.
     {
         root: "SessionDataApi",

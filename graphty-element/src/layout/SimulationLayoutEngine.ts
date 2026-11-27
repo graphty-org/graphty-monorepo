@@ -1445,8 +1445,19 @@ export class SimulationLayoutEngine extends LayoutEngine {
         this.#attachShort();
         this.#iterationsDone += iterations;
         this.#syncWork();
+        const simulation = this.#simulation;
         try {
-            await this.#simulation.step(iterations);
+            // A SATURATED SIMULATION SUBMITS NOTHING: it hands back the oldest frame batch in flight. Frame batches
+            // submitted before a load land as nothing, so a chunk taken by one of them was never computed and a slow
+            // device ran fewer pre-steps than a fast one. Wait for that batch to land and submit the chunk again.
+            for (;;) {
+                const batch = simulation.step(iterations);
+                const saturated = batch !== undefined && this.#caught.has(batch);
+                await batch;
+                if (!saturated || simulation !== this.#simulation || this.#failed) {
+                    break;
+                }
+            }
         } finally {
             // The batch rewrote the simulation's array without the frame loop's landing count seeing it.
             this.#simWrites += 1;

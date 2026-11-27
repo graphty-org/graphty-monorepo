@@ -526,7 +526,7 @@ export const ON_RELOAD = {
     filterDraft: "fresh: request: a one-time request the Filters section clears",
     fieldsEntry: "fresh: request: a one-time request Fields clears",
     dockMaximized: "kept",
-    joining: "gap #9846: holds graphty-element's prepared load, which its autosave does not keep",
+    joining: "fresh: read: read again from graphty-element's prepared load (data.prepared()), which its autosave keeps",
     editingJoin: "kept",
     ends: "kept",
     joinWorkspace: "kept",

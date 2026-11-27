@@ -14,7 +14,11 @@ name="Chromium"
 if [ "${HIT:-}" = "true" ]; then
     debs=("$dir"/*.deb)
     echo "Installing ${#debs[@]} cached packages"
-    if [ ${#debs[@]} -gt 0 ]; then sudo dpkg -i "${debs[@]}"; fi
+    # dpkg unpacks in name order, so a set that upgrades an installed package can unpack one half of a
+    # pair first (libasound2-data before libasound2t64) and be refused by a Breaks on the other's
+    # installed version (#10235). --auto-deconfigure lets dpkg deconfigure that package until the set's
+    # newer one is unpacked, as apt itself runs dpkg; dpkg still fails if any package ends unconfigured.
+    if [ ${#debs[@]} -gt 0 ]; then sudo dpkg -i --auto-deconfigure "${debs[@]}"; fi
 else
     # apt-get keeps what it downloads by default; this says so in case the image's config does not.
     echo 'APT::Keep-Downloaded-Packages "true";' | sudo tee /etc/apt/apt.conf.d/99keep-downloaded-packages

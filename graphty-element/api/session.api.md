@@ -6927,6 +6927,11 @@ export interface SessionDataApi {
         readonly guess?: "names" | "values";
         readonly onProgress?: (change: ProgressChange) => void;
     }): Promise<LoadDraft>;
+    prepared(): {
+        readonly draft: LoadDraft;
+        readonly source: DataSourceInput;
+        readonly onto?: "graph";
+    } | null;
     preparePage(kind: "node" | "edge", options?: EdgePageOptions, control?: PreparePageControl): Promise<void>;
     previewSource(source: SourceInput, options?: SourcePreviewOptions): Promise<SourcePreview>;
     previewType(column: ColumnRef, type: ValueType): TypeChangePreview;

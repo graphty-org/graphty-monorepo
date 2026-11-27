@@ -109,6 +109,8 @@ const ZOOM_STEP_FACTOR = 1.25;
  * globe. Single-precision positions are good to about a pixel there, whatever the map's size.
  */
 const MAP_CLEARANCE = 1e-4;
+/** The most frames an after-frame listener waits for a repaint spread over several to finish. */
+const PAINT_DRAWN_FRAMES = 8;
 
 /**
  * The gap a held draft preview keeps between a node the draft adds and any other node, as a share of the two
@@ -1625,6 +1627,7 @@ export class Graph implements GraphContext {
                 baselineWindow: true,
                 // Late-bound on purpose: a change of renderer replaces the render manager.
                 renderedFrame: () => this.renderManager.frameDrawn(),
+                paintDrawn: () => this.paintDrawn(),
                 // Under "batched" only, the repaint fills a uniform dirty set's mesh keys at once.
                 batched: this.#batchesDraw,
                 nodeSizeSpace: () => this.styles.config.behavior.node.sizeSpace,
@@ -5429,6 +5432,25 @@ export class Graph implements GraphContext {
      */
     getStyles(): Styles {
         return this.styles;
+    }
+
+    /**
+     * Settles once a frame has drawn every row of style paint queued so far, or as soon as no
+     * frame is coming. A repaint applied over several frames is waited out whole, so a listener
+     * held for it does not land between those frames and stretch them.
+     * @returns Settles as above; never rejects.
+     * @internal
+     */
+    private async paintDrawn(): Promise<void> {
+        // ponytail: at most this many frames, so a paint rewritten every frame (an animation)
+        // cannot starve the listeners; a longer repaint is heard after its first frames.
+        for (let frame = 0; frame < PAINT_DRAWN_FRAMES; frame++) {
+            const before = this.renderManager.scene.getRenderId();
+            await this.renderManager.frameDrawn();
+            if (!this.getStylePainter().hasPending || this.renderManager.scene.getRenderId() === before) {
+                return;
+            }
+        }
     }
 
     /**

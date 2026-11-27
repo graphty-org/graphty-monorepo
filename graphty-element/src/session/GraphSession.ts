@@ -531,8 +531,8 @@ interface SessionParts {
     readonly dispatcher: Dispatcher;
     /** Saved results waiting for the runs a project open starts; the executor answers from it. */
     readonly canned: CannedOutcomes;
-    /** Settles on the next drawn frame, or at once when none is coming; absent with no renderer. */
-    readonly renderedFrame?: () => Promise<void>;
+    /** Settles once a frame has drawn the style paint queued, or at once when none is coming; absent with no renderer. */
+    readonly paintDrawn?: () => Promise<void>;
 }
 
 /**
@@ -547,6 +547,8 @@ interface SessionInternals {
     readonly baselineWindow?: boolean;
     /** Settles on the next drawn frame, or at once when no frame is coming; absent with no renderer. */
     readonly renderedFrame?: () => Promise<void>;
+    /** Settles once a frame has drawn all the style paint queued, or none is coming; absent with no renderer. */
+    readonly paintDrawn?: () => Promise<void>;
     /** Whether the element draws on the `"batched"` render path, which allows the repaint's uniform mesh-key fill. */
     readonly batched?: () => boolean;
     /** The renderer's graph-wide node size space (`layoutBehavior.node.sizeSpace`); absent with no renderer. */
@@ -666,8 +668,8 @@ class Session implements ElementSession {
     private readonly sessionRuns: SessionRunsApi;
     private readonly planning: PlanningContext;
     private readonly watchers: Watchers;
-    /** See {@link SessionParts.renderedFrame}. */
-    private readonly renderedFrame: () => Promise<void>;
+    /** See {@link SessionParts.paintDrawn}. */
+    private readonly paintDrawn: () => Promise<void>;
     /** The layout's motion: the renderer's, or the runner's in a session that draws nothing. */
     private motion: LayoutMotion = "settled";
     /** Runs the layout when no renderer has handed the dispatcher its own. */
@@ -714,7 +716,7 @@ class Session implements ElementSession {
      */
     constructor(parts: SessionParts) {
         this.store = parts.store;
-        this.renderedFrame = parts.renderedFrame ?? (() => Promise.resolve());
+        this.paintDrawn = parts.paintDrawn ?? (() => Promise.resolve());
         this.ownedStore = parts.ownedStore;
         this.unfollowStore = parts.unfollowStore;
         this.sessionData = parts.data;
@@ -1743,7 +1745,7 @@ class Session implements ElementSession {
     }
 
     /**
-     * Subscribe a handler that hears each detail once the next frame is drawn, then in a task of
+     * Subscribe a handler that hears each detail once a frame has drawn the paint queued, then in a task of
      * its own: a frame waits for every task in front of it, so a handler run straight after the
      * draw, still inside it, would hold that frame off the screen as surely as one run before it.
      * @param event - Which event.
@@ -1769,7 +1771,7 @@ class Session implements ElementSession {
         const stop = this.on(event, (detail) => {
             held.push(detail);
             if (held.length === 1) {
-                void this.renderedFrame().then(() => {
+                void this.paintDrawn().then(() => {
                     setTimeout(deliver, 0);
                 });
             }
@@ -6106,7 +6108,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         watchers,
         dispatcher,
         canned,
-        ...(internals.renderedFrame === undefined ? {} : { renderedFrame: internals.renderedFrame }),
+        ...(internals.paintDrawn === undefined ? {} : { paintDrawn: internals.paintDrawn }),
     });
     sessionInputs.set(session, inputs);
     sessionScopes.set(session, scope);

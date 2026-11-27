@@ -195,6 +195,18 @@ function deliverPointerEvent(scene: Scene, roster: NodePointerRoster, pointerInf
 
     switch (pointerInfo.type) {
         case PointerEventTypes.POINTERDOWN: {
+            // A SECOND FINGER MAKES IT A PINCH. A press on a node switches the camera's input off,
+            // its pinch recognizer with it, so a pinch whose first finger landed on a node moved
+            // nothing at all. A press that has not started dragging gives the camera its input back,
+            // and no finger after the first presses a node.
+            if ((pointerInfo.event as Partial<PointerEvent>).isPrimary === false) {
+                for (const handler of roster.engaged) {
+                    handler.cancelPress();
+                }
+
+                break;
+            }
+
             // nodeId from mesh metadata works with both regular and instanced meshes
             const pickedId = pickPressedNodeId(scene);
             roster.pressed = { id: pickedId, x: scene.pointerX, y: scene.pointerY };
@@ -991,6 +1003,21 @@ export class NodeDragHandler {
         this.pressed = true;
         this.roster.engaged.add(this);
         (this.scene.metadata as { cameraManager?: CameraManager } | null)?.cameraManager?.temporarilyDisableInput();
+    }
+
+    /**
+     * Drop a press that has not started dragging, as if it never happened: no click, no drag, and
+     * the camera has its input back. A drag already under way carries on.
+     */
+    public cancelPress(): void {
+        if (!this.pressed) {
+            return;
+        }
+
+        this.pressed = false;
+        this.clickState = null;
+        this.releaseCamera();
+        this.settle();
     }
 
     /** A move: carry this node along while it is being dragged. Called for engaged handlers. */

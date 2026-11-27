@@ -251,7 +251,10 @@ export class OrbitInputController implements GestureEndHooks {
     }
 
     private attachMouseTouch(): void {
-        this.hammer = new Hammer.Manager(this.canvas);
+        // Touch events, not pointer events: a recognizer rebuilt while fingers are down (a press on
+        // a node becoming a pinch) learns every finger from the next touch event's list, where
+        // pointer input knows only the fingers it saw land.
+        this.hammer = new Hammer.Manager(this.canvas, { inputClass: Hammer.TouchInput });
         this.hammer.add(new Hammer.Pinch());
         this.hammer.add(new Hammer.Rotate());
 

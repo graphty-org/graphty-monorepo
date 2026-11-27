@@ -67,6 +67,7 @@ tools/issue-groups.test.mjs
 tools/issue-queue.test.mjs
 tools/issue-round-idle-hook.test.mjs
 tools/lfs-pre-push.test.mjs
+tools/lfs-pull-retry.test.mjs
 tools/lib/git.test.mjs
 tools/lib/github.test.mjs
 tools/lint-base-drift.test.mjs

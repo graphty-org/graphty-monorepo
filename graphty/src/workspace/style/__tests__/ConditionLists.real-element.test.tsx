@@ -247,7 +247,12 @@ describe("the Add a condition list", () => {
             const names = within(list)
                 .getAllByRole("option")
                 .map((each) => each.getAttribute("aria-label"));
-            assert.deepEqual(names, ["Node id"]);
+            // Other columns may match "id" too (the source-steps experiment's Ids from and Id in
+            // source); the data column itself is never listed beside Node id.
+            assert.deepEqual(
+                names.filter((name) => name === "Node id" || name?.startsWith("id, ") === true),
+                ["Node id"],
+            );
         });
     });
 

@@ -3811,7 +3811,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             ceilings,
             slice,
             measure: async (command, config) => {
-                const scratch = createGraphSession({ config: { data: config, acceleration: { policy: "off" } } });
+                // Held to the ceilings in force, so the report's tooLarge agrees with the load (#10365).
+                const scratch = createGraphSession({
+                    config: { data: config, acceleration: { policy: "off" } },
+                    limits: ceilings.effective,
+                });
                 try {
                     await dispatcherOf(scratch).dispatch(command);
                     const report = scratch.data.lastImport();

@@ -16,7 +16,7 @@ import type {
 import { showUndoNotice } from "../frame/undoNotice";
 import type { WorkspaceStore } from "../state/store";
 import { askIfDraftOpen } from "./preview";
-import { refusedWords, STAGED_WORDS, WORKSPACE_WORDS } from "./words";
+import { committedWords, refusedWords, STAGED_WORDS } from "./words";
 
 /**
  * The staged sources, oldest first.
@@ -91,19 +91,16 @@ export async function commitWorkspace(
     },
 ): Promise<boolean> {
     const before = undoTarget(session);
-    const joins = (): number => session.data.steps().filter((row) => row.op !== "join.add").length;
-    const joined = joins();
     try {
         await draft.commit();
     } catch (error) {
         onError(error);
         return false;
     }
-    const step = undoTarget(session);
-    if (step !== undefined && step !== before) {
-        // Only sources added, and no join: say so.
-        const words = joins() === joined && joined === 0 ? WORKSPACE_WORDS.committedAdd : WORKSPACE_WORDS.committed;
-        showUndoNotice(session, workspace, words, () => undoTarget(session) === step);
+    const next = session.history.nextUndo;
+    const step = next?.kind === "undo" ? next.step : undefined;
+    if (step !== undefined && step.id !== before) {
+        showUndoNotice(session, workspace, committedWords(step.fact), () => undoTarget(session) === step.id);
     }
     return true;
 }

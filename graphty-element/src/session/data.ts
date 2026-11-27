@@ -129,7 +129,7 @@ import {
     scoreExpression,
     type ValuesWhere,
 } from "./commands/derive";
-import type { DataStepsSetCommand } from "./commands/source-steps";
+import { type DataStepsSetCommand, stepsSetFact } from "./commands/source-steps";
 import {
     byTableId,
     Draft,
@@ -4358,7 +4358,7 @@ export class SessionData implements SessionDataApi {
                     : {
                           op: "batch",
                           label: "Set the sources",
-                          fact: { code: "data.steps-set", params: { kind: "set", source: null, name: null } },
+                          fact: stepsSetFact(edit),
                           steps: [step, { op: "visibility.conditions", conditions: kept }],
                       },
             );

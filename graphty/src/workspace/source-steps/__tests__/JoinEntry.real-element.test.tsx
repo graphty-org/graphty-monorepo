@@ -150,6 +150,7 @@ describe("the doors into the join workspace (source-steps)", () => {
         });
         assert.deepStrictEqual(joinLines(modal), ["people + entries + doors"], "one card, several steps");
         await done(modal);
+        await screen.findByText("Joined");
         const place = await screen.findByRole("region", { name: "Data place" });
         const grid = await within(place).findByRole("grid", { name: "Joins" });
         assert.deepStrictEqual(joinLines(place), ["people + entries + doors"], "one line, in the order picked");
@@ -240,6 +241,8 @@ describe("the doors into the join workspace (source-steps)", () => {
         await done(modal);
         assert.lengthOf(session.data.edges(), 0);
         assert.strictEqual(session.history.steps.length, steps + 1, "one undo step");
+        await screen.findByText("Removed");
+        assert.isNull(screen.queryByText("Joined"), "the notice names the removal, not a join (issue #10217)");
         assert.isNull(within(place).queryByRole("grid", { name: "Joins" }), "and its line went with it");
         await within(place).findByRole("listitem", { name: "entries.csv" });
         assert.deepStrictEqual(

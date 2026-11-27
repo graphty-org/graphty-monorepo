@@ -231,6 +231,18 @@ It only moves a camera the element framed itself or `zoomToFit()` framed. Once t
 turns or pans, or `setCameraState` places the camera, a resize leaves it alone until the next
 load or layout change. With `autoFrame` off it does nothing.
 
+### No hover while the camera is dragged
+
+By default a drag that turns or pans the camera hovers every node the pointer crosses on the way,
+which on a fast drag shows as a flicker of hover styles. Turn `layoutBehavior.camera.hoverWhileDragging`
+off and a camera drag hovers nothing: the `hovered` value stays as it was, no tooltip opens and no
+`node-hover` event fires. When the button is released, the node under the pointer is hovered at once.
+Dragging a node is not affected.
+
+```javascript
+element.layoutBehavior = { camera: { hoverWhileDragging: false } };
+```
+
 ### A sharp picture on a high-resolution screen
 
 By default the canvas is drawn at one pixel per CSS pixel, which looks soft on a phone, a tablet

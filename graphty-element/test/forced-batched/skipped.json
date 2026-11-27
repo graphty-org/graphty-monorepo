@@ -49,5 +49,9 @@
     {
         "file": "test/interactions/batched-reads-build-no-objects.test.ts",
         "reason": "Sets each case's render path by hand"
+    },
+    {
+        "file": "test/browser/node-label-table-unfitted.test.ts",
+        "reason": "Its one node has a table label, which no batch draws (shape.labelTable is not a batchable key), so it is an object on either path"
     }
 ]

@@ -652,6 +652,11 @@ export class UpdateManager implements Manager {
     /** Whether this pass moved the camera towards the selection; see `followSelection`. */
     private followingSelection = false;
     /**
+     * The selection the camera is still gliding to: once the selection is cleared mid-glide, the
+     * glide carries on to it; see `followSelection`.
+     */
+    private glidingTo: readonly Node[] = [];
+    /**
      * Whether `camera.autoRotate` turned the camera on the last pass. It keeps a graph drawn on
      * demand drawing, and nothing else: the picture is finished when the layout and the styles
      * are, however the camera moves, so `graph-frame-stable` is not held back by it.
@@ -955,7 +960,16 @@ export class UpdateManager implements Manager {
         const pictureChanged = (): void => {
             this.pending.changed();
         };
-        this.meshAddedWatcher = scene.onNewMeshAddedObservable.add(pictureChanged);
+        // Babylon announces a new mesh a timer after it is built, so the finished frame may already
+        // have drawn it: its count still matches and nothing was removed since (a removal moves the
+        // counter), so the scene holds the meshes it drew. Moving the counter then made a wait for
+        // the final picture start over and wait out two more frames and their fences: about 40 ms
+        // of selecting a node at 10k nodes.
+        this.meshAddedWatcher = scene.onNewMeshAddedObservable.add(() => {
+            if (!this.drawnFrameIsFinished) {
+                this.pending.changed();
+            }
+        });
         this.meshRemovedWatcher = scene.onMeshRemovedObservable.add(pictureChanged);
         this.watchHandDrawnFrames(scene);
         this.lendShaderRepaint();
@@ -1393,9 +1407,10 @@ export class UpdateManager implements Manager {
                 apply(node);
             }
         } else {
-            const { nodesByIndex } = this.dataManager;
+            // Row by row, not through `nodesByIndex`: that table is rebuilt from every `Node` on its first read after
+            // a load, and the first selection on a 99,000-node graph read it for one row, 200 ms (issue #10124).
             for (const row of rows) {
-                apply(nodesByIndex[row]);
+                apply(dataManagerInternals.builtNodeAtRow(this.dataManager, row));
             }
         }
 
@@ -3179,6 +3194,9 @@ export class UpdateManager implements Manager {
     /** Callers of {@link UpdateManager.onceNothingIsOwed} still waiting. */
     private readonly owedWaiters = new Set<() => void>();
 
+    /** Whether {@link UpdateManager.pollGpuWhileOnlyItIsOwed} has a check queued. */
+    private gpuPollQueued = false;
+
     /**
      * Whether nothing is still owed to the picture: nothing in {@link UpdateManager.pending} is
      * pending, a queued operation included, and the frame drawn is the finished one. The one question `waitForStableFrame()` asks.
@@ -3237,7 +3255,12 @@ export class UpdateManager implements Manager {
 
     /** Calls back every {@link UpdateManager.onceNothingIsOwed} waiter when nothing is owed now. */
     private wakeOwedWaiters(): void {
-        if (this.owedWaiters.size === 0 || !this.nothingIsOwed()) {
+        if (this.owedWaiters.size === 0) {
+            return;
+        }
+
+        if (!this.nothingIsOwed()) {
+            this.pollGpuWhileOnlyItIsOwed();
             return;
         }
 
@@ -3245,6 +3268,25 @@ export class UpdateManager implements Manager {
             queueMicrotask(callback);
         }
         this.owedWaiters.clear();
+    }
+
+    /**
+     * Asks again from a task of its own while the GPU finishing the final frame is all a waiter
+     * waits for. Asked only at the next pass, the fence was seen two frames after the frame it
+     * marks: the browser updates a fence's status only once control has gone back to it, so the
+     * pass after the frame read the old status. That cost a selection at 10k nodes about 15 ms.
+     * It stops once the fence signals, a waiter is woken or something else is owed.
+     */
+    private pollGpuWhileOnlyItIsOwed(): void {
+        if (this.gpuPollQueued || !this.frameIsStable || this.pending.firstPending("wait") !== null) {
+            return;
+        }
+
+        this.gpuPollQueued = true;
+        setTimeout(() => {
+            this.gpuPollQueued = false;
+            this.wakeOwedWaiters();
+        }, 0);
     }
 
     /**
@@ -3341,6 +3383,10 @@ export class UpdateManager implements Manager {
             "an edge's end is drawn at its node's bounding radius until the move rests",
             () => this.byRadius.size > 0,
         );
+        // On the objects path a walk of every edge leaves the edge count and the node positions to the next two
+        // passes, each of which can walk every edge again: a wait that ended between them charged the next edit for
+        // a walk of every edge (issue #10163).
+        work.watch("edges", "an edge pass still owes a walk of the edges", () => this.edgeWalkOwed());
         work.watch("view", "a filter or a selection has not been drawn yet", () => this.viewMasksPending());
         work.watch("view", "the camera is still moving to the selection", () => this.followingSelection);
         work.watch(
@@ -3699,6 +3745,7 @@ export class UpdateManager implements Manager {
         const nodes = this.graphContext.getSelectionManager?.()?.getSelectedNodes() ?? [];
         this.heldSelection = nodes.length === 0 ? null : selectionKey(nodes);
         this.followingSelection = false;
+        this.glidingTo = [];
     }
 
     /**
@@ -3738,7 +3785,14 @@ export class UpdateManager implements Manager {
             return;
         }
 
-        const nodes = this.graphContext.getSelectionManager?.()?.getSelectedNodes() ?? [];
+        // A selection cleared while the camera was still gliding to it (Escape right after a click):
+        // the glide ends where it was going. Stopped where the clear found it, the camera's place,
+        // and so where every node is drawn, depended on how many frames ran before the clear, and a
+        // node the reader was about to click could be off the canvas one time and on it the next
+        // (issue #10165).
+        const selected = this.graphContext.getSelectionManager?.()?.getSelectedNodes() ?? [];
+        const nodes = selected.length > 0 ? selected : this.glidingTo;
+        this.glidingTo = [];
         if (nodes.length === 0 || nodes.some((node) => node.dragging)) {
             return;
         }
@@ -3765,6 +3819,9 @@ export class UpdateManager implements Manager {
         // the time it took. Capped, a page drawing a frame a second glided for seven (issue #9032).
         const frames = frameMs / NOMINAL_FRAME_MS;
         this.followingSelection = this.camera.followPoint(selectionCenter(nodes), frames);
+        if (this.followingSelection) {
+            this.glidingTo = nodes;
+        }
     }
 
     /**
@@ -4526,6 +4583,12 @@ export class UpdateManager implements Manager {
     /** The edge set (`DataManager.edgeVersion`) the last walk saw, for the same reason. */
     private lastWalkedEdgeVersion = -1;
 
+    /**
+     * Set by a walk of every edge on the objects path, which leaves the node positions unnoted, until a pass
+     * compares them ({@link nodesMoved}): that pass can walk every edge again.
+     */
+    private positionsUnnoted = false;
+
     /** Where each node's mesh sat at the last edge walk, as x, y, z per node index. */
     private lastNodePositions = new Float64Array(0);
 
@@ -4940,6 +5003,7 @@ export class UpdateManager implements Manager {
                 this.walkedEverything(edgeCount, edgeVersion);
             } else {
                 this.lastWalkedEdgeCount = -1;
+                this.positionsUnnoted = true;
             }
 
             return true;
@@ -4967,6 +5031,7 @@ export class UpdateManager implements Manager {
             } else {
                 this.lastWalkedEdgeCount = edgeCount;
                 this.lastWalkedEdgeVersion = edgeVersion;
+                this.positionsUnnoted = true;
             }
 
             this.sceneChanged = true;
@@ -4981,6 +5046,21 @@ export class UpdateManager implements Manager {
         }
 
         return moved;
+    }
+
+    /**
+     * Whether the next edge pass is owed a walk of every edge, or of the pairs an edit changed: a walk forced and
+     * not run, an edge set or count the last walk did not see, or node positions a walk of every edge left unnoted
+     * (issue #10163). Asked without walking anything, as one entry of {@link UpdateManager.pending}.
+     * @returns True until the passes that owe those walks have run.
+     */
+    private edgeWalkOwed(): boolean {
+        return (
+            this.edgeWalkForced ||
+            this.positionsUnnoted ||
+            (this.layoutManager.layoutEngine?.edgeCount ?? 0) !== this.lastWalkedEdgeCount ||
+            this.dataManager.edgeVersion !== this.lastWalkedEdgeVersion
+        );
     }
 
     /**
@@ -5089,6 +5169,7 @@ export class UpdateManager implements Manager {
      *     every edge is cheaper than finding theirs; false when none did.
      */
     private nodesMoved(): boolean | readonly Node[] {
+        this.positionsUnnoted = false;
         const moved: Node[] = [];
         let unseen = false;
         let nodeCount = 0;
@@ -6058,7 +6139,10 @@ export class UpdateManager implements Manager {
         if (sphere !== null && active instanceof OrbitCameraController) {
             this.frameGlobe(active, box, sphere, frame?.surface === "globe" && frame.world);
         } else {
-            framed = this.frameBox(box, frame);
+            // A layout still moving is framed again on a later frame, the element's own first fit of it included;
+            // only a consumer's zoomToFit(), or the fit it settles on, centers over every node (issue #10154).
+            const moving = this.layoutManager.running && !isSettled && this.needsZoomToFit && !this.explicitZoomToFit;
+            framed = this.frameBox(box, frame, moving);
         }
 
         this.hasZoomedToFit = true;
@@ -6127,9 +6211,10 @@ export class UpdateManager implements Manager {
      * on labels placed for the camera it framed, so its answer depends on the graph alone.
      * @param box - The box measured this frame.
      * @param frame - The map the layout draws on, or null.
+     * @param moving - Whether the layout is moving and will be framed again on a later frame.
      * @returns The box the camera was last framed on.
      */
-    private frameBox(box: FramingBox, frame: LocationMapFrame | null): FramingBox {
+    private frameBox(box: FramingBox, frame: LocationMapFrame | null, moving = false): FramingBox {
         const scene = this.graphContext.getScene();
         const fits = screenFitFrames.callbacksOf(scene);
         const declutter: unknown = (scene.metadata as GraphSceneMetadata | null)?.labelDeclutter;
@@ -6138,7 +6223,7 @@ export class UpdateManager implements Manager {
         // a lower cap for placement alone if a large graph ever oscillates.
         for (let round = 0; ; round++) {
             const { min, max } = frame === null ? current : this.frameMap(current, frame);
-            this.camera.zoomToBoundingBox(min, max, current.spots);
+            this.camera.zoomToBoundingBox(min, max, current.spots, moving);
             for (const fit of fits) {
                 fit();
             }

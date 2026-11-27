@@ -244,16 +244,15 @@ function Line(
     return (
         <fieldset
             className="ss-field jw-line"
+            data-removable={at === 0 ? undefined : ""}
             aria-label={`${WORKSPACE_WORDS.match} ${String(at + 1)}`}
             onFocusCapture={onFocus}
         >
             <SidePick {...props} end="a" />
             <span />
             <SidePick {...props} end="b" />
-            {/* The first match keeps the remove column empty, so every match's "=" lines up. */}
-            {at === 0 ? (
-                <span />
-            ) : (
+            {/* The first match has no remove column: its pickers fill the card's width, as a selection card's do. */}
+            {at === 0 ? null : (
                 <ActionIcon
                     size="xs"
                     variant="subtle"
@@ -279,7 +278,7 @@ function Line(
                     ) : (
                         <FieldPick {...props} end="b" />
                     )}
-                    <span />
+                    {at === 0 ? null : <span />}
                 </>
             ) : null}
             {counts === null ? null : (
@@ -399,16 +398,6 @@ export function JoinCardBody(props: JoinCardBodyProps): React.JSX.Element {
     const shared = whole.some(({ a, b }) => sameSide(a.side, b.side) && a.field === b.field);
     const worded = (outcome: SourceJoinOutcome): CardResult =>
         outcome === current ? result : { ...DEFAULT_RESULT, ...card.chosen };
-    const counted =
-        step === null ? null : (
-            <StepCounts
-                step={step}
-                reach={cardReach(draft, card.steps)}
-                onShow={(bucket) => {
-                    props.onShowRows(step.index, bucket);
-                }}
-            />
-        );
     return (
         <div data-join-editor={card.id}>
             <div className="sel-card-step">
@@ -444,6 +433,7 @@ export function JoinCardBody(props: JoinCardBodyProps): React.JSX.Element {
                                 <Button
                                     size="compact-xs"
                                     variant="subtle"
+                                    className="jw-add-match"
                                     disabled={lines.some((line) => matchOf(line) === null)}
                                     onClick={() => {
                                         onLines([...lines, BLANK_LINE], false);
@@ -456,7 +446,20 @@ export function JoinCardBody(props: JoinCardBodyProps): React.JSX.Element {
                     )}
                 </Stack>
             </div>
-            {outcomes.length === 0 ? null : (
+            {outcomes.length === 0 ? (
+                // The join type is named from the start, as the selection card names its Start with: its
+                // choices come once both fields of a match are picked.
+                <div className="sel-card-step">
+                    <Pick
+                        name={WORKSPACE_WORDS.joinAs}
+                        placeholder={WORKSPACE_WORDS.joinAs}
+                        data={[]}
+                        value={null}
+                        disabled
+                        onPick={() => undefined}
+                    />
+                </div>
+            ) : (
                 <div className="sel-card-step">
                     <Stack gap={8}>
                         <Radio.Group
@@ -501,10 +504,20 @@ export function JoinCardBody(props: JoinCardBodyProps): React.JSX.Element {
                                 onShowCells={props.onShowCells}
                             />
                         )}
+                        {/* What this join type makes, under it in the same step: never a footer of its own. */}
+                        {step === null ? null : (
+                            <StepCounts
+                                step={step}
+                                reach={cardReach(draft, card.steps)}
+                                onShow={(bucket) => {
+                                    props.onShowRows(step.index, bucket);
+                                }}
+                            />
+                        )}
                     </Stack>
                 </div>
             )}
-            {error === undefined && counted === null && props.tableActions === null ? null : (
+            {error === undefined && props.tableActions === null ? null : (
                 <div className="sel-card-step">
                     <Stack gap={8}>
                         {error === undefined ? null : (
@@ -512,7 +525,6 @@ export function JoinCardBody(props: JoinCardBodyProps): React.JSX.Element {
                                 {error}
                             </Text>
                         )}
-                        {counted}
                         {props.tableActions}
                     </Stack>
                 </div>

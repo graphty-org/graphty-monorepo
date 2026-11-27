@@ -554,7 +554,7 @@ describe("a join card's matches and table (source-steps)", () => {
             const box = within(modal).getByRole("button", { name: "Done" }).getBoundingClientRect();
             const frame = modal.getBoundingClientRect();
             assert.isAtMost(box.right, frame.right);
-            assert.isAbove(within(modal).getByText("Join", { selector: ".sel-ws-title" }).clientWidth, 0);
+            assert.isAbove(modal.querySelector(".sel-ws-title")?.clientWidth ?? 0, 0, "the title keeps its room");
         });
     });
 

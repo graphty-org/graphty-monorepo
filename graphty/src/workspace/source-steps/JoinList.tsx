@@ -46,7 +46,8 @@ export function JoinList({
             actions={
                 <Group gap={4} wrap="nowrap" data-join-plus="">
                     <KeyWords combo={JOIN_WORKSPACE_KEY} />
-                    <Tooltip label={WORKSPACE_WORDS.open}>
+                    {/* What joining does, for a reader who has loaded several sources and looks for how to connect them. */}
+                    <Tooltip label={WORKSPACE_WORDS.openTip} multiline w={240}>
                         <ActionIcon
                             variant="subtle"
                             aria-label={WORKSPACE_WORDS.open}

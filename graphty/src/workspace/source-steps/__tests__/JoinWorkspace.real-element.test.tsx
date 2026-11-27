@@ -16,6 +16,7 @@ import { page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
+import { cardPalette } from "../../selection/cardPalette";
 import type { WorkspaceStore } from "../../state/store";
 import {
     addMatch,
@@ -142,6 +143,33 @@ describe("the join workspace looks and works like the selection workspace (#1036
         }
         assert.isNotNull(modal.querySelector(".sel-ws-head .jw-key"), "the key sits in the header");
         assert.isNotNull(within(cards).queryByRole("button", { name: "Join" }), "+ Join under the cards");
+    });
+
+    it("shows the join type from the start, colors the first card as the selection workspace does, and names it in the header", async () => {
+        const { session, modal } = await opened();
+        const blank = within(modal).getByRole<HTMLInputElement>("combobox", { name: "Join type" });
+        assert.isTrue(blank.disabled, "the join type is named before a match is complete");
+        const card = modal.querySelector<HTMLElement>("section.sel-card[data-card-id]");
+        const first = (session.scope.options.branchPalette ?? cardPalette(session.catalog.palettes()))[0] ?? "";
+        assert.strictEqual(
+            card?.style.getPropertyValue("--cm-card-color").toLowerCase(),
+            first.toLowerCase(),
+            "the selection workspace's first card color",
+        );
+        assert.isNotNull(card?.querySelector("[data-card-grip]"), "a drag handle, as a selection card has");
+        await matchBadge(modal);
+        await within(modal).findByRole("radiogroup", { name: "Join type" });
+        const head = modal.querySelector<HTMLElement>(".sel-ws-head");
+        await waitFor(() => {
+            assert.include(
+                head?.querySelector(".sel-ws-title")?.textContent,
+                "people + entries",
+                "the open join named",
+            );
+        });
+        assert.isNull(within(modal).queryByRole("button", { name: "Frame" }), "no Frame under the tables");
+        await userEvent.click(within(head ?? modal).getByRole("button", { name: "More for Join" }));
+        await screen.findByRole("menuitem", { name: /Frame the matches/ });
     });
 
     it("joins three drawn files: a complete match changes the graph at once, and Done keeps it", async () => {

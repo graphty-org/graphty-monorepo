@@ -32,6 +32,7 @@ function isGroup(each: PickChoice | PickGroup): each is PickGroup {
  * @param props.data - its choices, in groups or not
  * @param props.value - the choice now, or null
  * @param props.title - what it shows in full on hover
+ * @param props.disabled - whether it can be picked from yet
  * @param props.onPick - takes a pick
  * @returns the select
  */
@@ -41,6 +42,7 @@ export function Pick({
     data,
     value,
     title,
+    disabled,
     onPick,
 }: Readonly<{
     name: string;
@@ -48,6 +50,7 @@ export function Pick({
     data: readonly (PickChoice | PickGroup)[];
     value: string | null;
     title?: string;
+    disabled?: boolean;
     onPick: (value: string) => void;
 }>): React.JSX.Element {
     const hints = new Map(
@@ -59,6 +62,7 @@ export function Pick({
             aria-label={name}
             placeholder={placeholder}
             title={title}
+            disabled={disabled}
             allowDeselect={false}
             // The facts beside a choice are never cut to the box's own width.
             comboboxProps={{ width: "max-content", position: "bottom-start" }}

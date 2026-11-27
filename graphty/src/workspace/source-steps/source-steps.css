@@ -29,6 +29,12 @@
     overflow-x: auto;
 }
 
+/* The title and the open join's name keep their room: the key gives way first. */
+.jw-modal .sel-ws-head > .sel-ws-title {
+    flex-shrink: 0;
+    max-width: 40%;
+}
+
 .jw-key {
     display: flex;
     flex: 0 1 auto;
@@ -200,13 +206,17 @@ dialog.jw-modal {
     min-width: 0;
 }
 
-/* A line of a card: its two sources with a field of each under them, and "=" between; a further line's
-   remove sits after them. */
+/* A line of a card: its two sources with a field of each under them, and "=" between, out to the card's
+   edge; a further line's remove sits after them. */
 .jw-line {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 12px minmax(0, 1fr) 20px;
+    grid-template-columns: minmax(0, 1fr) 12px minmax(0, 1fr);
     gap: 4px;
     align-items: center;
+}
+
+.jw-line[data-removable] {
+    grid-template-columns: minmax(0, 1fr) 12px minmax(0, 1fr) 20px;
 }
 
 .jw-line > .jw-line-count {
@@ -244,4 +254,14 @@ dialog.jw-modal {
 
 .jw-counts {
     font-size: var(--mantine-font-size-xs);
+}
+
+/* "+ Match" starts at the card's padding, where its other controls start. */
+.jw-add-match {
+    padding-inline: 0;
+}
+
+/* Advanced folds inside its card's step: the step's own border is the only line, as in a selection card. */
+.jw-modal .sel-card .cm-section {
+    border-bottom: 0;
 }

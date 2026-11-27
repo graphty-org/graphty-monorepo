@@ -36,7 +36,7 @@ import { KeyWords } from "./KeyWords";
 import { ReaderEdits } from "./ReaderEdits";
 import { StagedRows } from "./StagedFields";
 import { type FirstCards, type JoinCards, useJoinCards } from "./useJoinCards";
-import { refusedWords, WORKSPACE_WORDS } from "./words";
+import { refusedWords, STEP_WORDS, WORKSPACE_WORDS } from "./words";
 import {
     addCardId,
     changesOf,
@@ -59,9 +59,6 @@ const SELF_CLOSING =
 
 /** What can take focus over the workspace: lists, menus, popovers, and a dialog of its own. */
 const OVER_THE_WORKSPACE = `${SELF_CLOSING}, [role=dialog]:not(.jw-modal), [role=alertdialog]`;
-
-/** The key's colors, upper case, which no card takes. */
-const KEY_COLORS: ReadonlySet<string> = new Set([MERGED_COLOR, NEW_COLOR, REMOVED_COLOR].map((c) => c.toUpperCase()));
 
 /** No elements picked. */
 const NO_REFS: Picked["refs"] = [];
@@ -378,8 +375,34 @@ function AddEditor({
     );
 }
 
-/** One card of the left column, with its place in step order. */
-type PlacedCard = CardListItem & { readonly at: number };
+/** One card of the left column, with its place in step order and the steps it holds, in order. */
+type PlacedCard = CardListItem & { readonly at: number; readonly steps: readonly number[] };
+
+/**
+ * Moves a card's steps, as one block, to where the card it is dropped on stands: before that card's steps when it
+ * moves up, after them when it moves down. The element refuses a move that puts a join before what it reads.
+ * @param draft - the open draft
+ * @param moving - the moved card's steps, in order
+ * @param target - the steps of the card at its new place
+ * @param down - whether it moves down the list
+ */
+function moveCard(draft: SourceDraft, moving: readonly number[], target: readonly number[], down: boolean): void {
+    const last = moving.length - 1;
+    draft.batch(() => {
+        if (down) {
+            // The later steps go first, so the earlier ones keep their places until they move.
+            const to = Math.max(...target);
+            for (let k = last; k >= 0; k--) {
+                draft.moveStep(moving[k], to - (last - k));
+            }
+        } else {
+            const to = Math.min(...target);
+            moving.forEach((index, k) => {
+                draft.moveStep(index, to + k);
+            });
+        }
+    });
+}
 
 /**
  * "+ Join" under the cards, as "+ Card" is under the selection workspace's, with its key shown.
@@ -486,10 +509,8 @@ function WorkspaceBody({
     });
     const { openCard } = joins;
     const names = sourceNames(session);
-    // Cards never take the key's colors, so a color names either a card or what the commit does.
-    const palette = (session.scope.options.branchPalette ?? cardPalette(session.catalog.palettes())).filter(
-        (color) => !KEY_COLORS.has(color.toUpperCase()),
-    );
+    // The selection workspace's palette, in its order: the first card is the same color in both workspaces.
+    const palette = session.scope.options.branchPalette ?? cardPalette(session.catalog.palettes());
     const colorOf = (at: number): string => palette[at % Math.max(1, palette.length)] ?? MERGED_COLOR;
     // Rows picked in another list are not this one's.
     const list = JSON.stringify(shows);
@@ -546,12 +567,27 @@ function WorkspaceBody({
         openCard === undefined || firstMatch === undefined
             ? null
             : countsOf(draft, firstMatch, openCard, openCard.step?.index);
+    // The nodes a merge folds its matched rows into, so "222 of 308 rows" reads beside the 57 nodes they became.
+    const mergedNodes =
+        openCard === undefined
+            ? 0
+            : openCard.steps.reduce(
+                  (sum, step) => sum + draft.preview().ids({ step: step.index, bucket: "merged" }).nodes.length,
+                  0,
+              );
+    const headWords =
+        headCounts === null
+            ? ""
+            : `${formatNumber(headCounts.matchedRows)} of ${formatNumber(headCounts.rows)} ${WORKSPACE_WORDS.rowsWord}${
+                  mergedNodes > 0 ? `, ${formatNumber(mergedNodes)} ${WORKSPACE_WORDS.nodesWord}` : ""
+              }`;
     const items: readonly PlacedCard[] = [
         ...joins.addSteps.map((step): PlacedCard => {
             const id = addCardId(step.index);
             const title = `${nameOf(names, step.source)}, ${WORKSPACE_WORDS.added}`;
             return {
                 at: step.index,
+                steps: [step.index],
                 id,
                 title,
                 className: "sel-card",
@@ -567,6 +603,7 @@ function WorkspaceBody({
             const open = openCard?.id === card.id;
             return {
                 at: card.step?.index ?? Number.POSITIVE_INFINITY,
+                steps: card.steps.map((step) => step.index).sort((x, y) => x - y),
                 id: card.id,
                 title,
                 color: colorOf(at),
@@ -589,7 +626,9 @@ function WorkspaceBody({
                                 setShows(null);
                                 setView({ card: card.id, line: 0, only: "matched" });
                             }}
-                        >{`${formatNumber(headCounts.matchedRows)} of ${formatNumber(headCounts.rows)}`}</Button>
+                        >
+                            {headWords}
+                        </Button>
                     ) : undefined,
                 menu: menuOf(card.id, title),
                 children: open ? <CardEditor key={card.id} {...editorProps} card={openCard} /> : null,
@@ -701,6 +740,33 @@ function WorkspaceBody({
                     onRedo={redo}
                     onCancel={cancel}
                     onDone={done}
+                    name={
+                        openCard === undefined
+                            ? null
+                            : (named[joins.cards.findIndex((card) => card.id === openCard.id)] ?? null)
+                    }
+                    menu={
+                        <RowMore
+                            name={WORKSPACE_WORDS.title}
+                            items={[
+                                {
+                                    id: "fit",
+                                    label: WORKSPACE_WORDS.frameMatches,
+                                    icon: "maximize",
+                                    group: "view",
+                                    onRun: frameMarked,
+                                },
+                                {
+                                    id: "edits",
+                                    label: STEP_WORDS.readerEdits,
+                                    icon: "notes",
+                                    group: "view",
+                                    key: READER_EDITS_KEY,
+                                    onRun: toggleEdits,
+                                },
+                            ]}
+                        />
+                    }
                 >
                     <JoinKey marks={marks} rings={rings} colors={colors} />
                 </JoinHead>
@@ -732,6 +798,21 @@ function WorkspaceBody({
                                 }
                             }}
                             onRemove={removeCard}
+                            keyboardReorder
+                            onReorder={(id, to) => {
+                                // A card is dragged by its grip, as a selection card is: its join moves in step order.
+                                const from = items.findIndex((each) => each.id === id);
+                                const moving = items[from]?.steps ?? [];
+                                const target = items.at(to)?.steps ?? [];
+                                if (from === to || moving.length === 0 || target.length === 0) {
+                                    return;
+                                }
+                                try {
+                                    moveCard(draft, moving, target, to > from);
+                                } catch (error) {
+                                    joins.refuse("")(error);
+                                }
+                            }}
                             add={<AddJoin onAdd={joins.add} />}
                             footer={
                                 <>
@@ -772,7 +853,6 @@ function WorkspaceBody({
                                     setPickedRows({ ...next, list });
                                 }}
                                 onLines={joins.setLines}
-                                onFrame={frameMarked}
                             />
                         ) : null}
                     </div>

@@ -174,7 +174,14 @@ export const WORKSPACE_WORDS = {
     redo: "Redo",
     unfinished: "Unfinished",
     unanswered: "Question unanswered",
-    frame: "Frame",
+    frameMatches: "Frame the matches",
+    rowsWord: "rows",
+    nodesWord: "nodes",
+    /** What the preview's two looks and its two sides show, on hover. */
+    cardColorsTip: "Card colors: each join's nodes and edges in its card's color. Styled: the graph's own style.",
+    sideTip: "Before: the graph as it is. After: the graph with these joins applied.",
+    /** What Join does, on hover of the sidebar's Join +. */
+    openTip: "Join loaded sources: match a field of one to a field of another to connect or merge their rows",
     remove: "Remove",
     rows: "Rows",
     drawing: "Drawing",

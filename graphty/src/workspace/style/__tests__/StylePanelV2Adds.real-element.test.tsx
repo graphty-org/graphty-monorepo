@@ -2,7 +2,8 @@
  * Style panel v2's "+" on the REAL graphty-element, driven by real clicks: every thing whose main channel
  * graphty-element says needs other values to draw (`needs`), or starts on a value of its own (`start`), is
  * added from its section's "+", and the layer holds those values in the same step and the graph's picture
- * changes, in 3D and in 2D wherever graphty-element says the channel draws there. The table is built from
+ * changes, in 3D and in 2D wherever graphty-element says the channel draws there; a thing drawn only in 2D is
+ * offered only there, so it is added in 2D. The table is built from
  * graphty-element's descriptors, so a channel that gains a need is tested without a new row here.
  */
 
@@ -74,7 +75,11 @@ describe('Style panel v2\'s "+" writes what a style needs to draw', () => {
             const main = mainChannel(thing);
             const read = (channel: Channel): unknown => written(session, layer, channel);
             const drawnIn = (dimension: "2d" | "3d"): boolean => channelDrawn(main, read, dimension).drawn;
-            await session.layout.setDimension("3d");
+            // A thing graphty-element draws only in 2D (Raised edge, Plate) is offered only there, so it is added in 2D.
+            const only2d =
+                channelDescriptor(main)?.drawnWhen?.some((each) => "dimension" in each && each.dimension === "2d") ===
+                true;
+            await session.layout.setDimension(only2d ? "2d" : "3d");
             const before3d = await picture(element);
 
             const section = sectionOf(await screen.findByTestId("style-tab"), `${side}-${part}`);
@@ -104,6 +109,20 @@ describe('Style panel v2\'s "+" writes what a style needs to draw', () => {
             const in3d = shows && drawnIn("3d");
             const in2d = shows && drawnIn("2d");
             const after3d = await picture(element);
+            if (only2d) {
+                // Added in 2D: the pictures before and after are the 2D view's.
+                if (in2d) {
+                    assert.isAbove(pixelsApart(before3d, after3d), 0, `${thing.name} changes the 2D picture`);
+                }
+                await undo();
+                await waitFor(() => {
+                    assert.isUndefined(read(main), "one Undo takes it off");
+                });
+                for (const need of needsOf(main)) {
+                    assert.isUndefined(read(need.channel), `and ${need.channel} with it`);
+                }
+                return;
+            }
             if (in3d) {
                 assert.isAbove(pixelsApart(before3d, after3d), 0, `${thing.name} changes the 3D picture`);
             }

@@ -66,7 +66,7 @@ import { Workspace } from "../../Workspace";
 import { type LabelField, labelFieldDescriptor, TEXT_THINGS } from "../v2/labelRubric";
 import { SECTIONS, type ThingSpec } from "../v2/things";
 import { showKind } from "./kindTab";
-import { entryName, moreButton, openGraph, openGroup, openStyle, sectionOf } from "./v2Harness";
+import { entryName, moreButton, openGraph, openGroup, openStyle, sectionOf, switchView } from "./v2Harness";
 
 type Side = "node" | "edge";
 
@@ -1499,6 +1499,28 @@ async function walkGroups(
 }
 
 /**
+ * Whether graphty-element draws a channel only in the 2D view (its `drawnWhen` names 2D).
+ * @param channel - the channel.
+ * @returns true when it is drawn only in 2D.
+ */
+function drawnIn2dOnly(channel: Channel): boolean {
+    return (
+        channelDescriptor(channel)?.drawnWhen?.some((each) => "dimension" in each && each.dimension === "2d") === true
+    );
+}
+
+/**
+ * Shows the graph in 2D for a thing graphty-element draws only there (Raised edge, Plate), which the Style panel
+ * hides in 3D; every other thing is walked in the 3D view a graph opens in.
+ * @param thing - the walked thing.
+ */
+async function showItsView(thing: ThingSpec): Promise<void> {
+    if (thing.main.every((channel) => drawnIn2dOnly(channel))) {
+        await switchView("2D");
+    }
+}
+
+/**
  * Compares a rule's findings with its known list, exactly.
  * @param rule - the rule's name.
  * @param found - the things that break it, with details.
@@ -1522,6 +1544,7 @@ describe("Style panel v2's input rules (owner, 2026-11-23)", () => {
         it(`${walk.key}: its row and its pop-over with every sub-group shown`, async () => {
             const { session, nodes, edges } = await openGraph();
             const layer = walk.side === "node" ? nodes : edges;
+            await showItsView(walk.thing);
             const tab = await openStyle(walk.side === "node" ? "Key people" : "Links");
             await showKind(walk.side);
             const row = await addThing(session, layer, tab, walk);
@@ -2060,13 +2083,18 @@ function stripTab(name: string): HTMLInputElement | null {
 /**
  * A walked thing added to a fresh graph's layer, its row returned.
  * @param key - the walk's key.
+ * @param view - the view to show it in, when not the one its thing is drawn in.
  * @returns the session, the layer and the row.
  */
-async function rowOf(key: string): Promise<{ session: GraphSession; layer: string; row: HTMLElement }> {
+async function rowOf(
+    key: string,
+    view?: "2D" | "3D",
+): Promise<{ session: GraphSession; layer: string; row: HTMLElement }> {
     const walk = WALKED.find((each) => each.key === key);
     assert.isDefined(walk, key);
     const { session, nodes, edges } = await openGraph();
     const layer = walk.side === "node" ? nodes : edges;
+    await (view === undefined ? showItsView(walk.thing) : switchView(view));
     const tab = await openStyle(walk.side === "node" ? "Key people" : "Links");
     await showKind(walk.side);
     const row = await addThing(session, layer, tab, walk);
@@ -2094,12 +2122,13 @@ describe("Style panel v2's tab strips, as a reader uses them (owner, 2026-11-24)
         });
     }
 
-    for (const [key, from, to] of [
-        ["node.label", "Text", "Glyph"],
-        ["edge.outline", "Under line", "Over line"],
+    // Over line is drawn in 2D only, so its kind is offered there.
+    for (const [key, from, to, view] of [
+        ["node.label", "Text", "Glyph", undefined],
+        ["edge.outline", "Under line", "Over line", "2D"],
     ] as const) {
         it(`${key}: an arrow key picking ${to} keeps focus on its tab, and the arrows go on working`, async () => {
-            const { row } = await rowOf(key);
+            const { row } = await rowOf(key, view);
             await openRowSettings(row);
             const first = stripTab(from);
             assert.isNotNull(first, `the ${from} tab`);

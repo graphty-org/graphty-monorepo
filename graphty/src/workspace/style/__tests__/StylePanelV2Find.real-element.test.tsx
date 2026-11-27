@@ -13,7 +13,7 @@ import { userEvent } from "vitest/browser";
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import { showKind } from "./kindTab";
-import { openProject, openStyle } from "./v2Harness";
+import { openProject, openStyle, switchView } from "./v2Harness";
 
 /**
  * Types words in Find a setting and reads the result headings, after clearing what was typed before.
@@ -67,6 +67,8 @@ describe("Style panel v2's Find a setting", () => {
 
     it("heads node results by the section and item the panel holds them in", async () => {
         await openProject();
+        // In 2D, where a Plate is drawn: in 3D Find a setting leaves out what is drawn only in 2D.
+        await switchView("2D");
         const tab = await openStyle("Key people");
         const sections = await waitFor(() => {
             const ids = sectionIds(tab);

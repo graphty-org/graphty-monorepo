@@ -30,6 +30,7 @@ import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js"
 import { RawTexture2DArray } from "@babylonjs/core/Materials/Textures/rawTexture2DArray.js";
 import { Texture } from "@babylonjs/core/Materials/Textures/texture.js";
 import { Color3 } from "@babylonjs/core/Maths/math.color.js";
+import { VertexBuffer } from "@babylonjs/core/Meshes/buffer.js";
 import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder.js";
 import type { Observer } from "@babylonjs/core/Misc/observable.js";
@@ -90,6 +91,11 @@ interface Entry {
     width: number;
     height: number;
     slot: Slot;
+    /** The plane's position buffer its size was read from: a resized plane gets a new one (RichTextLabel's `spanTarget`). */
+    positions: VertexBuffer | null;
+    /** The plane's width and height, as its vertices hold them. */
+    sizeX: number;
+    sizeY: number;
 }
 
 /**
@@ -269,6 +275,14 @@ export class LabelAtlas {
     private readonly shown: Entry[] = [];
     private readonly distances: number[] = [];
     private readonly order: number[] = [];
+    /**
+     * Whether a label was put, moved or dropped since the last frame's instances were written. While the scene's list
+     * of active meshes is frozen nothing else can change them: whatever moves, hides, shows, adds or removes a mesh
+     * thaws it first (UpdateManager's `settleActiveMeshFreeze`).
+     */
+    private changed = true;
+    /** Instances written since the atlas was made, for tests: a still scene writes none. */
+    private written = 0;
     /** Reads the label's region of the array; see {@link LabelAtlasPlugin}. */
     private readonly plugin: LabelAtlasPlugin;
 
@@ -298,13 +312,16 @@ export class LabelAtlas {
     }
 
     /**
-     * How many labels are drawn from the array, and how many instances the last frame drew.
+     * How many labels are drawn from the array, how many instances the last frame drew, and how many instances have
+     * been written in all.
      * @param scene - The scene.
      * @returns The counts; zero where there is no array.
      */
-    static countsOf(scene: Scene): { labels: number; drawn: number } {
+    static countsOf(scene: Scene): { labels: number; drawn: number; written: number } {
         const atlas = LabelAtlas.perScene.get(scene);
-        return atlas ? { labels: atlas.entries.size, drawn: atlas.mesh.thinInstanceCount } : { labels: 0, drawn: 0 };
+        return atlas
+            ? { labels: atlas.entries.size, drawn: atlas.mesh.thinInstanceCount, written: atlas.written }
+            : { labels: 0, drawn: 0, written: 0 };
     }
 
     private constructor(
@@ -364,13 +381,14 @@ export class LabelAtlas {
             if (slot === null) {
                 return false;
             }
-            entry = { mesh, canvas, width, height, slot };
+            entry = { mesh, canvas, width, height, slot, positions: null, sizeX: 0, sizeY: 0 };
             this.entries.set(mesh, entry);
         }
         entry.canvas = canvas;
         entry.width = width;
         entry.height = height;
         this.upload(entry);
+        this.changed = true;
         return true;
     }
 
@@ -388,6 +406,7 @@ export class LabelAtlas {
         if (entry !== undefined) {
             this.packer.give(entry.slot);
             this.entries.delete(mesh);
+            this.changed = true;
         }
     }
 
@@ -423,6 +442,7 @@ export class LabelAtlas {
     }
 
     private uploadAll(): void {
+        this.changed = true;
         for (const entry of this.entries.values()) {
             this.upload(entry);
         }
@@ -472,6 +492,11 @@ export class LabelAtlas {
         // Babylon computed every enabled plane's world matrix while it chose this frame's meshes
         // (before it read their layer mask), and computes none while the list is frozen, when nothing moves.
         const frozen = activeMeshesFrozen(this.scene);
+        if (frozen && !this.changed) {
+            // A still scene: the instances written last frame are this frame's.
+            return;
+        }
+        this.changed = false;
         const eye = camera.globalPosition;
         const { shown, distances, order } = this;
         shown.length = 0;
@@ -511,6 +536,7 @@ export class LabelAtlas {
         for (let i = 0; i < count; i++) {
             this.write(i, shown[order[i]]);
         }
+        this.written += count;
         if (count === 0) {
             // One instance that covers nothing: a thin-instanced mesh with none draws its plane once, untransformed.
             this.matrices.fill(0, 0, 16);
@@ -527,11 +553,19 @@ export class LabelAtlas {
      * @param entry - The label.
      */
     private write(i: number, entry: Entry): void {
-        const { m } = entry.mesh.getWorldMatrix();
-        // The plane's half sizes, as its vertices hold them.
-        const half = entry.mesh.getBoundingInfo().boundingBox.extendSize;
-        const sx = 2 * half.x;
-        const sy = 2 * half.y;
+        const { mesh } = entry;
+        const { m } = mesh.getWorldMatrix();
+        // The plane's size, read again only when its vertices change: `getBoundingInfo` also rebuilds the plane's
+        // world box, which nothing reads on a plane drawn from the array, and at 10,000 labels cost more than the draw.
+        const positions = mesh.getVertexBuffer(VertexBuffer.PositionKind);
+        if (positions !== entry.positions) {
+            const half = mesh.getBoundingInfo().boundingBox.extendSize;
+            entry.positions = positions;
+            entry.sizeX = 2 * half.x;
+            entry.sizeY = 2 * half.y;
+        }
+        const sx = entry.sizeX;
+        const sy = entry.sizeY;
         const out = this.matrices;
         const at = i * 16;
         for (let c = 0; c < 4; c++) {

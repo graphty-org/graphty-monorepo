@@ -25,8 +25,10 @@ afterEach(() => {
 interface Drawn {
     /** Meshes drawn in the label group (rendering group 1) in the last frame. */
     labelDraws: number;
-    /** Labels the atlas holds, and the instances it drew. */
-    atlas: { labels: number; drawn: number };
+    /** Labels the atlas holds, the instances it drew, and the instances it wrote in all. */
+    atlas: { labels: number; drawn: number; written: number };
+    /** Instances the atlas wrote over ten frames of the still, frozen scene. */
+    writtenWhileStill: number;
     frame: CanvasFrame;
 }
 
@@ -46,6 +48,8 @@ async function labelGrid(count: number, spacing: number, atlas: boolean): Promis
     document.body.appendChild(container);
     const graph = new Graph(container);
     try {
+        // Drawn every frame, as the element draws by default: the still frames are what is counted.
+        await graph.setRenderSettings({ onDemand: false }, { skipQueue: true });
         await graph.init();
         await graph.addNodes(
             Array.from({ length: count }, (_, at) => ({
@@ -74,11 +78,44 @@ async function labelGrid(count: number, spacing: number, atlas: boolean): Promis
         });
         const frame = await readCanvas(graph);
         const labelDraws = graph.scene.getActiveMeshes().data.filter((mesh) => mesh.renderingGroupId === 1).length;
-        return { labelDraws, atlas: LabelAtlas.countsOf(graph.scene), frame };
+        const atlasCounts = LabelAtlas.countsOf(graph.scene);
+        const writtenWhileStill = await writtenOverStillFrames(graph);
+        return { labelDraws, atlas: atlasCounts, frame, writtenWhileStill };
     } finally {
         graph.dispose();
         container.remove();
     }
+}
+
+/**
+ * Wait for the still graph's list of active meshes to freeze, then count the instances the atlas writes over ten
+ * frames drawn frozen.
+ * @param graph - The graph, drawn and still.
+ * @returns Instances written.
+ */
+async function writtenOverStillFrames(graph: Graph): Promise<number> {
+    const { scene } = graph;
+    const frozen = (): boolean => (scene as unknown as { _activeMeshesFrozen: boolean })._activeMeshesFrozen;
+    let before = 0;
+    let frozenRenders = 0;
+    await new Promise<void>((resolve) => {
+        const observer = scene.onAfterRenderObservable.add(() => {
+            if (!frozen()) {
+                frozenRenders = 0;
+                return;
+            }
+            // The first frozen render is the one whose instances stand; count the ten after it.
+            if (frozenRenders === 0) {
+                before = LabelAtlas.countsOf(scene).written;
+            }
+            frozenRenders++;
+            if (frozenRenders > 10) {
+                scene.onAfterRenderObservable.remove(observer);
+                resolve();
+            }
+        });
+    });
+    return LabelAtlas.countsOf(scene).written - before;
 }
 
 describe("the label atlas", () => {
@@ -89,6 +126,8 @@ describe("the label atlas", () => {
         assert.strictEqual(large.atlas.labels, 400, "every label of 400 is in the atlas");
         assert.strictEqual(small.labelDraws, 1, "100 labels: one draw in the label group");
         assert.strictEqual(large.labelDraws, 1, "400 labels: one draw in the label group");
+        assert.strictEqual(small.writtenWhileStill, 0, "a still scene rewrites no instance");
+        assert.strictEqual(large.writtenWhileStill, 0, "a still scene rewrites no instance, however many labels");
 
         const off = await labelGrid(400, 3, false);
         assert.strictEqual(off.atlas.labels, 0);

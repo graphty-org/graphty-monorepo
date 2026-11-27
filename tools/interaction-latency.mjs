@@ -121,9 +121,15 @@ export function toHistory(rows, run) {
         }));
 }
 
+// How the suite measures, as a number that rises when what a cell's number means changes (1: to the frame after the
+// changed pixels, with a blocking GPU readback after every frame; 2: to the changed frame itself, no readback, bursts
+// after the last handler). A run measured another way starts a new series, never a slowdown or a speed-up.
+export const METHOD = 2;
+
 /**
  * The newest run of a history, the run before it, and the oldest of the CREEP_RUNS runs before it, all on the same
- * tier and machine (CPU, browser, GPU and driver: a new Chromium or driver starts a new series, never a slowdown).
+ * tier, machine and measuring method (CPU, browser, GPU and driver, and METHOD: a new Chromium, driver or way of
+ * measuring starts a new series, never a slowdown).
  * @param lines - the history
  * @param tier - only this tier, if given
  * @returns now, before and reference (the older lines; empty when there are none)
@@ -132,7 +138,9 @@ export function lastTwo(lines, tier) {
     const mine = lines.filter((l) => !tier || l.tier === tier);
     const newest = mine.at(-1);
     if (!newest) return { now: [], before: [], reference: [] };
-    const same = mine.filter((l) => l.tier === newest.tier && l.machine === newest.machine);
+    const same = mine.filter(
+        (l) => l.tier === newest.tier && l.machine === newest.machine && (l.method ?? 1) === (newest.method ?? 1),
+    );
     const runs = [...new Set(same.map((l) => l.run))];
     const pick = (id) => (id === undefined ? [] : same.filter((l) => l.run === id));
     const older = runs.slice(0, -1).slice(-CREEP_RUNS);
@@ -345,6 +353,7 @@ function record(results, tier, history, smoke) {
         commit: git("rev-parse", "HEAD").stdout.trim(),
         tier,
         machine: machineOf(rows),
+        method: METHOD,
         ...(isSmoke ? { smoke: true } : {}),
     };
     const lines = toHistory(rows, run);

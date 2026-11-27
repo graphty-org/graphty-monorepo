@@ -297,7 +297,10 @@ Each cell in the history records:
 | `notMeasured`       | the case could not run here (no edge clear of nodes, no timeline column), with the reason                         |
 
 Each run's lines also carry the commit, the tier, and the machine: CPU, Chromium version, GPU renderer and NVIDIA
-driver. A change of any of those starts a new series, so a new browser or driver is never read as a code change.
+driver. A change of any of those starts a new series, so a new browser or driver is never read as a code change. They also
+carry the suite's measuring method (`METHOD` in `tools/interaction-latency.mjs`), raised whenever what a cell's number
+means changes; a run measured another way starts a new series too. Runs before method 2 ended one frame later and
+timed with the bench page's per-frame GPU readback on.
 
 The bars: up to 150 ms is good, 150 to 300 ms is acceptable, over 300 ms fails. With 3 repetitions a cell's p95
 is its worst repetition, so one slow repetition shows; the history across runs tells a habit from a spike.

@@ -1120,11 +1120,15 @@ export function prepareData(
         }
 
         if (isRecord) {
-            const number = typeof value === "number" || (typeof value === "string" && Number.isFinite(numberOf(value)));
+            const listed = Array.isArray(value) ? recordList(entry.each, value as unknown[], write) : null;
+            const text = listed?.text ?? write(value);
+            const number =
+                listed?.number ??
+                (typeof value === "number" || (typeof value === "string" && Number.isFinite(numberOf(value))));
             return {
                 parts: [],
-                rows: [{ name, text: write(value), number, entry }],
-                fact: { value, text: write(value) },
+                rows: [{ name, text, number, entry }],
+                fact: { value, text },
                 missing: false,
             };
         }
@@ -1671,6 +1675,47 @@ interface ListMakers {
     readonly field: string;
     readonly make: (key: string, n: number, spread?: boolean) => Part;
     readonly absentPart: (key: string) => Part[];
+}
+
+/**
+ * What a list reads as in a record's value cell, by the entry's `each`: numbers every item (default) or one
+ * statistic; words each distinct word with how often it occurs, most first (default: "dog 2, cat 1"), each distinct
+ * word once (`"equal"`), or every item (`"items"`). A list of anything else is written whole.
+ * @param each - The entry's `each`.
+ * @param items - The list.
+ * @param write - The entry's formatter.
+ * @returns Its text and whether it reads as a number, or null to write it whole.
+ */
+function recordList(
+    each: DataEntry["each"],
+    items: readonly unknown[],
+    write: (value: unknown) => string,
+): { text: string; number: boolean } | null {
+    const present = items.filter((item) => !isMissing(item));
+    if (present.every((item) => typeof item === "number")) {
+        const stat = each === "sum" || each === "mean" || each === "min" || each === "max" ? each : null;
+        return { text: write(stat === null ? present : statOf(present, stat)), number: true };
+    }
+
+    if (!present.every((item) => typeof item === "string" || typeof item === "boolean")) {
+        return null;
+    }
+
+    if (each === "items") {
+        return { text: write(present), number: false };
+    }
+
+    const counts = new Map<string, number>();
+    for (const item of present) {
+        counts.set(String(item), (counts.get(String(item)) ?? 0) + 1);
+    }
+
+    const sorted = [...counts].sort(([a, m], [b, n]) => n - m || naturalCompare(a, b));
+    const text =
+        each === "equal"
+            ? write(sorted.map(([key]) => key))
+            : sorted.map(([key, n]) => `${write(key)} ${String(n)}`).join(", ");
+    return { text, number: false };
 }
 
 /**

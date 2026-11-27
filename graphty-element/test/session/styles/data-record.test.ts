@@ -121,6 +121,29 @@ describe("a record from data", () => {
         assert.deepStrictEqual(words(tableOf(session)), [["Cluster"], ["gone", "n/a"], ["note", "<lt>b>hi"]]);
     });
 
+    it("reads a list by its entry's each: words counted most first by default, numbers item by item", async () => {
+        const node = { id: "n", animals: ["dog", "cat", "dog", "horse"], scores: [3, 5, 8] };
+        const session = await recordOf(node, {
+            entries: [
+                { field: "data.animals" },
+                { field: "data.animals", each: "equal", label: "once" },
+                { field: "data.animals", each: "items", label: "all" },
+                { field: "data.scores" },
+                { field: "data.scores", each: "sum", label: "sum" },
+            ],
+        });
+        const table = tableOf(session);
+        assert.deepStrictEqual(words(table), [
+            ["animals", "dog 2, cat 1, horse 1"],
+            ["once", "dog, cat, horse"],
+            ["all", "dog, cat, dog, horse"],
+            ["scores", "3, 5, 8"],
+            ["sum", "16"],
+        ]);
+        assert.strictEqual(table.rows[0].cells[1].align, "left");
+        assert.strictEqual(table.rows[4].cells[1].align, "right");
+    });
+
     it("draws points as the value alone at each row's point, in its color", async () => {
         const session = await recordOf(GENE, {
             layout: "points",

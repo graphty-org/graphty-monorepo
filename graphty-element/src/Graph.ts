@@ -365,7 +365,7 @@ import { onRewriteMissed } from "./meshes/RowPullPlugin";
 import { loadChunk, loadModel, ModelLoadFailure } from "./models/loadModel";
 import { type ModelTemplate, optionsOf } from "./models/ModelCache";
 import { TextureCache } from "./models/TextureCache";
-import { Node, releaseNodeMesh } from "./Node";
+import { keepNodeMeshForDimension, Node, releaseNodeMesh } from "./Node";
 import { nodeActionManagerOf, nodePointerRosterOf, pointerEventTime } from "./NodeBehavior";
 import { EdgeIdTarget } from "./render/EdgeIdTarget";
 import { NodeIdTarget } from "./render/NodeIdTarget";
@@ -7617,18 +7617,33 @@ export class Graph implements GraphContext {
         // Every mesh goes in one bulk teardown, then every mesh is built again. Disposed one
         // element at a time, each mesh, action manager and drag handler left scene-wide lists by
         // a search, so the switch cost the size of the scene per element (issue #2895).
-        disposeReleased(nodes, edges, () => {
-            // Disposes every cached source mesh and line batch, and with them each instance and
-            // batched line drawn from them.
-            this.dataManager.meshCache.clear();
-            for (const node of nodes) {
-                releaseNodeMesh(node);
+        // Each node's own instance is kept and drawn from its new source below, rather than disposed
+        // and built again: what hangs from it is rebuilt as before.
+        const kept = new Set<AbstractMesh>();
+        for (const node of nodes) {
+            const mesh = keepNodeMeshForDimension(node);
+            if (mesh !== null) {
+                kept.add(mesh);
             }
+        }
 
-            for (const edge of edges) {
-                disposeEdgeMeshes(edge);
-            }
-        });
+        disposeReleased(
+            nodes,
+            edges,
+            () => {
+                // Disposes every cached source mesh and line batch, and with them each instance and
+                // batched line drawn from them.
+                this.dataManager.meshCache.clear();
+                for (const node of nodes) {
+                    releaseNodeMesh(node);
+                }
+
+                for (const edge of edges) {
+                    disposeEdgeMeshes(edge);
+                }
+            },
+            kept,
+        );
         this.writeSceneDimension(twoD);
 
         // Activate camera BEFORE mesh recreation so that is2DMode() checks

@@ -701,6 +701,13 @@ describe("csvImporter: ids, weights and direction", () => {
         expect(weightsOf(snapshot)).toEqual([Infinity]);
     });
 
+    it("keeps a cell with a leading plus sign, such as a phone number, as text", async () => {
+        const { snapshot } = await load("source,target,phone,score\na,b,+15551007,4\nb,c,+15551014,-5\n");
+        expect(snapshot.edges.get("phone")?.dtype).toBe("string");
+        expect(column(snapshot, "edges", "phone")).toEqual(["+15551007", "+15551014"]);
+        expect(snapshot.edges.get("score")?.dtype).toBe("i32");
+    });
+
     it("keeps 0.1 and 16777217 exact through the f64 default", async () => {
         const { snapshot } = await load("source,target,weight\na,b,0.1\nb,c,16777217\n");
         expect(weightsOf(snapshot)).toEqual([0.1, 16777217]);

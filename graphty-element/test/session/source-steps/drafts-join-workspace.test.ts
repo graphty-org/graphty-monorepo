@@ -63,6 +63,20 @@ describe("source-steps drafts: the join workspace's reads", () => {
         session.dispose();
     });
 
+    it("merge into a staged node 1 adds it first, so its rows' matches merge", async () => {
+        const { session, d, hr } = await opened();
+        const titles = await d.stage(csv("titles.csv", "badge,title\nb1,Lead\nB2,Tech\nB7,Temp"), { key: "badge" });
+        d.merge({ from: { source: titles, field: "badge" }, into: { source: hr }, ignoreCase: true });
+        assert.isTrue(
+            d.steps().some((row) => row.op === "join.add" && row.source === hr),
+            "the staged node 1 is added before the merge",
+        );
+        const merge = d.preview().steps.find((row) => row.op === "join.merge");
+        assert.strictEqual(merge?.buckets?.merged, 2, "b1 (ignoring case) and B2 meet HR's rows");
+        d.dispose();
+        session.dispose();
+    });
+
     it("suggestMatches proposes the column whose values meet a space's keys, best first", async () => {
         const { session, d, hr } = await opened();
         const [best] = d.suggestMatches(hr);
@@ -94,9 +108,69 @@ describe("source-steps drafts: the join workspace's reads", () => {
         const step = d.steps().length - 1;
         await d.display(true);
         const p = d.preview();
-        assert.deepStrictEqual(p.marks, { merged: 2, new: 1, untouched: 1 }, "B1, B2 merged; B9 new; B3 untouched");
+        assert.deepStrictEqual(
+            p.marks,
+            {
+                merged: 2,
+                new: 1,
+                untouched: 1,
+                nodes: { merged: 2, new: 1, untouched: 1, removed: 0 },
+                edges: { merged: 0, new: 0, removed: 0 },
+            },
+            "B1, B2 merged; B9 new; B3 untouched",
+        );
         assert.sameMembers([...p.ids({ step, bucket: "merged" }).nodes].map(String), ["B1", "B2"]);
         assert.sameMembers([...p.ids({ refs: [{ space: "person", key: "B3" }] }).nodes].map(String), ["B3"]);
+        d.dispose();
+        session.dispose();
+    });
+
+    it("preview.marks counts a Connect's new edges apart from its new nodes", async () => {
+        const { session, d, entries } = await opened();
+        d.connect({ from: { source: entries, field: "badge" }, into: { space: "person" } });
+        const { marks } = d.preview();
+        assert.strictEqual(marks.edges.new, 3, "E1, E2 and E3 meet a person");
+        assert.strictEqual(marks.nodes.new, 4, "each entry is a node");
+        assert.strictEqual(marks.new, marks.nodes.new + marks.edges.new, "new stays the sum");
+        d.dispose();
+        session.dispose();
+    });
+
+    it("setMapping changes a source still staged in the session, and the change commits with the draft", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import(csv("people.csv", "badge,name\nB1,Ann\nB2,Bo\nB3,Cy"), {
+            key: "badge",
+            type: "person",
+        });
+        const hr = await session.data.stage(csv("hr.csv", HR), { key: "badge" });
+        const d = session.data.draft();
+        d.setMapping(hr, { type: "person" });
+        assert.strictEqual(d.sourceTable(hr).summary().mapping.type, "person");
+        assert.notStrictEqual(session.data.sourceTable(hr).summary().mapping.type, "person", "not before the commit");
+        await d.commit();
+        assert.strictEqual(session.data.sourceTable(hr).summary().mapping.type, "person");
+        session.dispose();
+    });
+
+    it("spaces() lists the spaces the draft builds, naming the staged source a step adds", async () => {
+        const { session, d, hr, entries } = await opened();
+        assert.isTrue(
+            d.spaces().every((row) => row.staged === null),
+            "nothing added yet",
+        );
+        d.add(entries);
+        const row = d.spaces().find((each) => each.staged === entries);
+        assert.isDefined(row, "the entries' space names them");
+        assert.include(row?.sources ?? [], entries);
+        assert.strictEqual(
+            d.spaces().find((each) => each.space === "person")?.staged,
+            null,
+            "people were in the graph",
+        );
+        assert.isFalse(
+            d.spaces().some((each) => each.staged === hr),
+            "HR is staged but not added",
+        );
         d.dispose();
         session.dispose();
     });
@@ -111,7 +185,7 @@ describe("source-steps drafts: the join workspace's reads", () => {
         await session.styles.settled();
         const look = (id: string): Readonly<Record<string, unknown>> => session.styles.explain({ node: id }).merged;
         assert.strictEqual(
-            (look("B1")["node.haloColor"] as { hex?: string } | undefined)?.hex,
+            (look("B1")["node.outerBorderColor"] as { hex?: string } | undefined)?.hex,
             "#1971c2",
             "a merged node is ringed in its step's color",
         );
@@ -121,9 +195,88 @@ describe("source-steps drafts: the join workspace's reads", () => {
         await session.styles.settled();
         assert.strictEqual(look("B3")["node.opacity"], 1, "the marked node is at full strength");
         assert.strictEqual(look("B1")["node.opacity"], 0.2, "the rest is faint");
+        const { untouched: _none, ...plain } = view;
+        session.styles.showDraft(plain);
+        await session.styles.settled();
+        assert.notStrictEqual(look("B3")["node.borderStyle"], "dotted", "with no color for it, it keeps its look");
         shown.end();
         session.styles.showDraft(view).end();
         assert.isNull(session.styles.shownDraft, "ended, nothing is shown");
+        d.dispose();
+        session.dispose();
+    });
+
+    it("showDraft rings a node a later listed step merges again wider, in either step's color", async () => {
+        const { session, d, hr } = await opened();
+        const flags = await d.stage(csv("flags.csv", "badge,flag\nB1,yes"), { key: "badge", type: "flag" });
+        d.merge({ from: { source: hr, field: "badge" }, into: { space: "person" } });
+        const first = d.steps().length - 1;
+        d.merge({ from: { source: flags, field: "badge" }, into: { space: "person" } });
+        const second = d.steps().length - 1;
+        await d.display(true);
+        // the ring's reach, a multiple of the node's size, from the outer border that draws it
+        const scale = (id: string): number =>
+            1 + 2 * Number(session.styles.explain({ node: id }).merged["node.outerBorderWidth"]);
+        for (const colors of [
+            ["#999933", "#1192E8"],
+            ["#999933", "#999933"],
+        ]) {
+            const shown = session.styles.showDraft({
+                merged: "#009E73",
+                new: "#D55E00",
+                steps: [
+                    { step: first, color: colors[0] },
+                    { step: second, color: colors[1] },
+                ],
+            });
+            await session.styles.settled();
+            assert.isAbove(scale("B1"), scale("B2"), `B1, merged by both steps, stands out (${colors.join(" ")})`);
+            shown.end();
+        }
+        d.dispose();
+        session.dispose();
+    });
+
+    it("showDraft rings the focused steps' merged nodes at the focus ring, with or without step colors", async () => {
+        const { session, d, hr } = await opened();
+        const flags = await d.stage(csv("flags.csv", "badge,flag\nB1,yes"), { key: "badge", type: "flag" });
+        d.merge({ from: { source: hr, field: "badge" }, into: { space: "person" } });
+        const first = d.steps().length - 1;
+        d.merge({ from: { source: flags, field: "badge" }, into: { space: "person" } });
+        const second = d.steps().length - 1;
+        await d.display(true);
+        const look = (id: string): Readonly<Record<string, unknown>> => session.styles.explain({ node: id }).merged;
+        const color = (id: string): unknown => (look(id)["node.outerBorderColor"] as { hex?: string } | undefined)?.hex;
+        // Styled: no step colors, so every merged node has the merged ring; the open card's are wider.
+        const plain = session.styles.showDraft({
+            merged: "#009E73",
+            new: "#D55E00",
+            focus: { steps: [second], ring: 2.6 },
+        });
+        await session.styles.settled();
+        assert.strictEqual(look("B1")["node.outerBorderWidth"], 0.8, "B1, which the focused step merges, gets the focus ring");
+        assert.strictEqual(color("B1"), "#009e73", "in the merged color, with no step colors");
+        assert.notStrictEqual(look("B2")["node.outerBorderWidth"], 0.8, "B2, merged only by the earlier step, does not");
+        assert.strictEqual(look("B2")["node.outerBorderOpacity"], 1, "and keeps its ring");
+        plain.end();
+        const colored = session.styles.showDraft({
+            merged: "#009E73",
+            new: "#D55E00",
+            steps: [
+                { step: first, color: "#999933" },
+                { step: second, color: "#1192E8" },
+            ],
+            focus: { steps: [second], ring: 2.6 },
+        });
+        await session.styles.settled();
+        assert.strictEqual(look("B1")["node.outerBorderWidth"], 0.8, "with step colors too");
+        assert.strictEqual(color("B1"), "#1192e8", "in the focused step's color");
+        colored.end();
+        session.styles.showDraft({ merged: "#009E73", new: "#D55E00" }).end();
+        const none = session.styles.showDraft({ merged: "#009E73", new: "#D55E00" });
+        await session.styles.settled();
+        assert.notStrictEqual(look("B1")["node.outerBorderWidth"], 0.8, "with no focus, no focus ring");
+        none.end();
         d.dispose();
         session.dispose();
     });

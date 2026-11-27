@@ -167,6 +167,39 @@ describe("the schedule", () => {
         assert.strictEqual(saver.status.state, "saved");
     });
 
+    it("a style edit serializes nothing in its own task: the save is built when its timer fires", async () => {
+        // Issue #10314: the save after a restyle must stay out of the restyle's frame.
+        const { session, store, clock, saver } = await written();
+        let reads = 0;
+        dispatcherOf(session).services.camera = {
+            move: () => Promise.resolve(),
+            current: () => ({}),
+            state: () => {
+                reads += 1;
+                return {};
+            },
+            poser: () => {
+                reads += 1;
+                return () => ({});
+            },
+        };
+        await session.views.save([{ name: "Top", follows: "topView" }]);
+        clock.advance(500);
+        await saver.settled();
+        const before = store.commitCalls;
+        reads = 0;
+
+        await session.styles.add(STYLE);
+        await saver.settled();
+        assert.strictEqual(reads, 0, "the edit's task read no camera pose");
+        assert.strictEqual(store.commitCalls, before, "the edit's task wrote nothing");
+
+        clock.advance(500);
+        await saver.settled();
+        assert.strictEqual(store.commitCalls, before + 1);
+        assert.isAbove(reads, 0, "the save built at the timer read the poses");
+    });
+
     it("forces a write at the maximum wait while changes keep coming", async () => {
         const { session, store, clock, saver } = await written();
         const before = store.commitCalls;
@@ -296,6 +329,7 @@ describe("the parts a change writes", () => {
             "data",
             "drafts",
             "inputs",
+            "prepared",
             "rest",
             "run:links",
             "sourceDraft",

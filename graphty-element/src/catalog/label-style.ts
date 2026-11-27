@@ -245,9 +245,8 @@ export interface LabelStyle {
     /** Whether the letters are drawn italic. */
     italic?: boolean;
     /**
-     * Whether a line is drawn under the words, in the letters' color. A label drawn with it is painted
-     * on its texture, never as glyphs.
-     * @since 3.67.0
+     * Whether a line is drawn under the words, in their color, as long as each line of them.
+     * @since 3.40.0
      */
     underline?: boolean;
     /**
@@ -563,6 +562,8 @@ export interface LabelStyle {
      * Off by default: the label takes the click and answers no node, so a click on a name
      * selects nothing and `elementAt` there returns nothing. On, a click, a hover, a drag and
      * `elementAt` on the label all answer the node it labels. An edge's label is not affected.
+     * Unset on a node drawn only as text (shape "none" with no image and no glyph), it is on: the
+     * words are the node.
      */
     pickable?: boolean;
 
@@ -727,6 +728,7 @@ export const RICH_TEXT_KEYS = {
     sizeMode: "sizeMode",
     size: "size",
     letterSize: "letterSize",
+    underline: "underline",
     wrapWidth: "wrapWidth",
     wrapTrailingSpace: "wrapTrailingSpace",
     wrapSkipEndSpace: "wrapSkipEndSpace",
@@ -740,7 +742,6 @@ export const RICH_TEXT_KEYS = {
     runAlign: "runAlign",
     rotation: "rotation",
     color: "textColor",
-    underline: "textUnderline",
     strikethrough: "textStrikethrough",
     lineHeight: "lineHeight",
     lineBox: "lineBox",

@@ -1,4 +1,8 @@
 [
+    {
+        "file": "test/interactions/hover-leaves-graph-root-alone.test.ts",
+        "reason": "Counts the objects path's world-matrix recomputes, set by hand"
+    },
     { "file": "test/interactions/pick-parity.test.ts", "reason": "Sets each case's render path by hand" },
     { "file": "test/browser/drawn-invariants.test.ts", "reason": "Sets each case's render path by hand" },
     { "file": "test/browser/edges-follow-running-layout.test.ts", "reason": "Sets each case's render path by hand" },
@@ -25,7 +29,12 @@
         "reason": "Holds the row scan against a pick of each row's mesh, which a batched row no longer has"
     },
     { "file": "test/browser/row-table-shadow.test.ts", "reason": "Asserts a graph on objects opens no table" },
+    {
+        "file": "test/browser/still-graph-draws-node-changes.test.ts",
+        "reason": "Measures the objects path's frozen instance matrices, set by hand"
+    },
     { "file": "test/browser/view-switch-draws-every-node.test.ts", "reason": "Sets each case's render path by hand" },
+    { "file": "test/browser/view-switch-keeps-node-meshes.test.ts", "reason": "Sets its render path by hand" },
     { "file": "test/interactions/xr/xr-batched-rows.test.ts", "reason": "Sets each case's render path by hand" },
     { "file": "test/browser/framing-skips-plain-edges.test.ts", "reason": "Sets each case's render path by hand" },
     {

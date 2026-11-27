@@ -124,6 +124,7 @@ The codes this format's import report can hold. They are also exported as `XLSX_
 - `E_CSV_NO_ENDPOINT_COLUMNS` (error): The header names no source and target columns and no id column. Pass `sourceColumn` and `targetColumn` to name the columns. The import stops.
 - `E_CSV_NO_ID_COLUMN` (error): The node table has no id column. Pass `idColumn` to name it, or `rowNumberIds: true` to number the rows. The import stops.
 - `W_CSV_NO_UNIQUE_ID` (warning): Every id-like column of a node table's header (`id`, `person_id`, `node`, `key`, `name`) repeats a value or leaves one blank, so the nodes are numbered by row (0 for the first data row). Pass `idColumn` to key the table by one of them anyway.
+- `W_CSV_ROWS_AS_NODES` (warning): The header names neither an edge's ends nor an id, and under `unnamed: "nodes"` every row was read as a node, so the file holds no edge. Pass `sourceColumn` and `targetColumn` to read the rows as edges.
 - `E_CSV_FIELD_COUNT` (error): A row with a different number of fields than the header; the row is skipped. An adjacency list read without `table: "adjacency"` gives one per long row, and the first one's message suggests the option.
 - `E_MISSING_ENDPOINT` (error): An edge row with a blank source or target.
 - `E_MISSING_ID` (error): A node row with a blank id.
@@ -131,7 +132,7 @@ The codes this format's import report can hold. They are also exported as `XLSX_
 - `E_CSV_UNCLOSED_QUOTE` (error): A quoted field is never closed. The import stops.
 - `E_CSV_QUOTE` (error): There is text after a closing quote, such as `"a"b`. Inside a quoted field, write a quote as two quotes. The import stops.
 - `W_CSV_NO_DATA_ROWS` (warning): A header and no data rows.
-- `W_DUPLICATE_NODE` (warning): A node table row repeating an id.
+- `W_DUPLICATE_NODE` (warning): A node table row repeating an id. Its values overwrite the earlier row's; when the id column was guessed from the values (`unnamed: "nodes"`), the row is left out instead, the first row's values stand, and the issue's `params.record` holds the row left out, by column name.
 - `W_ID_MERGED` (warning): Two different id cells became the same number because `ids` is "number", so their nodes were merged.
 - `W_CSV_COLUMN_MISSING` (warning): An explicitly named weight column the file does not have.
 - `W_ROLE_TAKEN` (warning): You read into a graph builder that already has an id, label or position attribute, so this file's one is kept as a plain attribute.

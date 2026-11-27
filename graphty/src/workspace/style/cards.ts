@@ -27,6 +27,7 @@ import {
     nodeConditions,
     type RuleTree,
     type Scope,
+    type SourceKey,
     type ValueHistogram,
 } from "@graphty/graphty-element/session";
 
@@ -67,6 +68,8 @@ export interface CardField extends ConditionField {
     readonly spread?: ValueHistogram;
     /** The values and counts of a selection step's own computation, when no path names them. */
     readonly listed?: Extract<ValueHistogram, { kind: "categorical" }>;
+    /** It is a waiting source's, whose rows no graph holds yet, and how many of them a card counts over. */
+    readonly waiting?: { readonly of: number };
     /** A selection step's Links: the edge condition a structure value (degree) is counted over. */
     readonly links?: RuleTree;
     /** Plain words for what it is, as the picker's tooltip (selection spec 3.5). */
@@ -115,10 +118,13 @@ const sourceField = (side: Side): CardField => ({
  * (Results), and Data source with two or more loads.
  * @param session - the element's session.
  * @param side - nodes or edges.
+ * @param source - a source that waits: the fields its rows will carry, in place of the graph's.
  * @returns the fields, in the element's order.
  */
-export function cardFields(session: GraphSession, side: Side): CardField[] {
-    return conditionFields(session, side).map((field) => fieldOf(session, field));
+export function cardFields(session: GraphSession, side: Side, source?: SourceKey): CardField[] {
+    return conditionFields(session, side, source === undefined ? {} : { source }).map((field) =>
+        fieldOf(session, field),
+    );
 }
 
 /**

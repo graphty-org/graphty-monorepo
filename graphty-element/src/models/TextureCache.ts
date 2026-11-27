@@ -408,7 +408,14 @@ export class TextureCache {
 
         entry.fetching = true;
         this.publish(ref, "pending", []);
-        const record = await this.session.assets.ready(ref);
+        let record: Awaited<ReturnType<TextureSession["assets"]["ready"]>>;
+        try {
+            record = await this.session.assets.ready(ref);
+        } catch {
+            // Stopped: the session was disposed while the picture downloaded (#10329).
+            return null;
+        }
+
         if (record.state !== "accepted") {
             this.publish(ref, "rejected", record.problems);
             return null;

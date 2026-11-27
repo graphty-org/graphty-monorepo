@@ -715,11 +715,17 @@ export class OrbitCameraController {
      * keeps the box center's depth, and the graph turns about it as before.
      *
      * With `fitBounds` "turning" the pivot stays on the box's center, which the view turns about.
+     *
+     * While the graph moves (`moving`), every frame is framed again, so the drawing is centered on
+     * its box alone, work that does not grow with the node count: centering on every node cost a
+     * running 10,000-node layout several milliseconds a frame (issue #10154). The fit taken once it
+     * settles centers on the nodes, so the picture it ends on is the same.
      * @param min - The minimum corner of the bounding box
      * @param max - The maximum corner of the bounding box
      * @param spots - What the box holds; centered when they fill the box (a map around them does not).
+     * @param moving - Whether the graph is moving and will be framed again on a later frame.
      */
-    public zoomToBoundingBox(min: Vector3, max: Vector3, spots?: readonly FramingSpot[]): void {
+    public zoomToBoundingBox(min: Vector3, max: Vector3, spots?: readonly FramingSpot[], moving = false): void {
         const center = min.add(max).scale(0.5);
         const size = max.subtract(min);
         const turning = this.fitBounds === "turning" && spots !== undefined && spots.length > 0;
@@ -763,7 +769,7 @@ export class OrbitCameraController {
             // The camera stands `offset` sideways of the center and the pivot is drawn at the fit
             // area's center, `free.x * tanX * distance` sideways of the camera (updateCameraPosition).
             const d = this.cameraDistance;
-            const blocks = blocksIn(min, max, spots);
+            const blocks = blocksIn(min, max, moving ? undefined : spots);
             const depths = blockDepths(blocks, forward, d);
             const x = centeredOffset(blocks, depths, right, forward, across.lo, across.hi, d) + free.x * tanX * d;
             const y = centeredOffset(blocks, depths, up, forward, upward.lo, upward.hi, d) + free.y * tanY * d;

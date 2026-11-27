@@ -483,6 +483,8 @@ export interface DrawnLabel {
     outline: { color: string; opacity: number; width: number } | null;
     /** The outlines of the cells of the table the label is laid out as (`label.table`), on screen; empty for none. */
     cells?: { x0: number; y0: number; x1: number; y1: number }[];
+    /** The lines drawn under the words (`underline`), on screen; empty for none. */
+    underlines?: { x0: number; y0: number; x1: number; y1: number }[];
     /** The box drawn behind the words, or null when none shows. */
     background: {
         box: { x0: number; y0: number; x1: number; y1: number };
@@ -697,6 +699,7 @@ export function readLabel(label: RichTextLabel | null | undefined, p: Projector)
         tall: label.textRuns.map((line) => line.length > 0),
         align,
         cells: label.tableFrames.map((f) => onScreen(f.x, f.y, f.width, f.height)),
+        underlines: label.underlines.map((u) => onScreen(u.x, u.y, u.width, u.height)),
         outline:
             outlineCss === null || outlineCss.alpha <= 0 || !((opt.textOutlineWidth ?? 0) > 0)
                 ? null

@@ -272,6 +272,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "data.pick()": "writes",
     "data.ref()": "names its target",
     "data.nodeRef()": "names its target",
+    "data.typeOf()": "names its target",
     "data.removeEdit()": "writes",
     "data.removeStep()": "writes",
     "data.resolveStep()": "writes",
@@ -338,6 +339,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "data.overRepresented()": { view: (s) => s.data.overRepresented("data.type") },
     "data.pendingSourceLoads()": "not the graph",
     "data.prepare()": "writes",
+    "data.prepared()": "not the graph",
     "data.preparePage()": {
         view: async (s) => {
             await s.data.preparePage("node", { sort: { key: "id" } });

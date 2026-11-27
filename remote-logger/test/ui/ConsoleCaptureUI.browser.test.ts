@@ -3,9 +3,12 @@
  * Tests actual DOM manipulation, button clicks, and UI interactions
  */
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { type Locator, page, userEvent } from "vitest/browser";
 
 import { ConsoleCaptureUI, initConsoleCaptureUI } from "../../src/ui/index.js";
+
+/** The capture button, whose only name is its clipboard emoji (U+1F4CB). */
+const captureButton = (): Locator => page.getByRole("button", { name: "\u{1F4CB}", exact: true });
 
 describe("ConsoleCaptureUI Browser Tests", () => {
     let ui: ConsoleCaptureUI | null = null;
@@ -296,23 +299,26 @@ describe("ConsoleCaptureUI Browser Tests", () => {
             const btn = document.getElementById("console-capture-btn")!;
             expect(btn.style.opacity).toBe("0.6");
 
-            await userEvent.hover(btn);
+            await userEvent.hover(captureButton());
             expect(btn.style.opacity).toBe("1");
 
-            await userEvent.unhover(btn);
+            await userEvent.unhover(captureButton());
             expect(btn.style.opacity).toBe("0.6");
         });
 
         test("clicking the backdrop closes the modal, clicking inside the dialog does not", async () => {
             ui = new ConsoleCaptureUI();
-            await userEvent.click(document.getElementById("console-capture-btn")!);
-            await userEvent.click(document.getElementById("cc-show")!);
+            await userEvent.click(captureButton());
+            await userEvent.click(page.getByRole("button", { name: /Show Logs$/ }));
             const modal = document.getElementById("console-logs-modal")!;
             const backdrop = modal.firstElementChild as HTMLElement;
 
-            await userEvent.click(document.getElementById("logs-textarea")!);
+            await userEvent.click(page.getByRole("textbox"));
             expect(document.getElementById("console-logs-modal")).not.toBeNull();
 
+            // The backdrop has no role, name or text to find it by; its selector is a structural CSS path that
+            // no text change can make match a second element.
+            // eslint-disable-next-line local/no-element-to-user-event -- a text-less backdrop, see above
             await userEvent.click(backdrop, { position: { x: 5, y: 5 } });
             expect(document.getElementById("console-logs-modal")).toBeNull();
         });
@@ -320,8 +326,8 @@ describe("ConsoleCaptureUI Browser Tests", () => {
         test("the modal selects all log text when it opens and again on Select All", async () => {
             ui = new ConsoleCaptureUI();
             console.log("select me");
-            await userEvent.click(document.getElementById("console-capture-btn")!);
-            await userEvent.click(document.getElementById("cc-show")!);
+            await userEvent.click(captureButton());
+            await userEvent.click(page.getByRole("button", { name: /Show Logs$/ }));
             const textarea = document.getElementById("logs-textarea") as HTMLTextAreaElement;
 
             await vi.waitFor(() => {
@@ -330,7 +336,7 @@ describe("ConsoleCaptureUI Browser Tests", () => {
             });
 
             textarea.setSelectionRange(0, 0);
-            await userEvent.click(document.getElementById("select-all-logs")!);
+            await userEvent.click(page.getByRole("button", { name: "Select All", exact: true }));
             expect(textarea.selectionStart).toBe(0);
             expect(textarea.selectionEnd).toBe(textarea.value.length);
             expect(textarea.value).toContain("select me");

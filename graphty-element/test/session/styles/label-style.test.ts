@@ -351,7 +351,7 @@ const EVERY_KEY: Readonly<Record<string, unknown>> = {
     fontWeight: "bold",
     textColor: "#111111",
     fontStyle: "italic",
-    textUnderline: true,
+    underline: true,
     textStrikethrough: true,
     wrapWidth: 4.5,
     wrapTrailingSpace: true,

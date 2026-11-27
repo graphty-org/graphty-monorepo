@@ -173,7 +173,7 @@ const PARAMS: Readonly<Record<HistoryCode, readonly string[]>> = {
     "data.merge-nodes": ["count"],
     "data.import": ["name", "type"],
     "data.import-source": ["name", "source"],
-    "data.steps-set": ["kind", "name", "source"],
+    "data.steps-set": ["joinsAdded", "joinsRemoved", "kind", "name", "source", "sourcesAdded", "sourcesRemoved"],
     "data.expand": ["node"],
     "data.source-expand": ["edges", "nodes", "seeds"],
     "data.collapse": ["node", "nodes"],

@@ -1290,3 +1290,89 @@ describe("what a layer was applied to, across a dataset boundary", () => {
         assert.strictEqual(paintedNodes(harness), 0, "nothing in the new dataset was painted by this layer");
     });
 });
+
+describe("an edit that moves no element to another mesh (issue #10302)", () => {
+    /**
+     * Paint the nodes in two shapes and a color, then edit one layer and count the interner's comparisons.
+     * @param set - What the color layer is changed to.
+     * @returns The comparisons the edit cost, and each node's mesh key before and after it.
+     */
+    async function edit(set: LayerSpec["set"]): Promise<{ compared: number; before: number[]; after: number[] }> {
+        const h = makeHarness(NODES);
+        await h.styles.add({
+            name: "Hosts",
+            selector: { match: "expression", where: 'data.kind == `"host"`' },
+            set: { "node.shape": "box" },
+        });
+        const layer = await h.styles.add({
+            name: "Paint",
+            selector: { match: "everything" },
+            set: { "node.color": "#ff0000" },
+        });
+        await h.paintAll();
+        const keys = (): number[] => NODES.map((_, index) => h.engine.meshKeyOf("node", index));
+        const before = keys();
+        const counted = internCounters.comparisons;
+        await h.styles.update(layer.id, { set });
+
+        return { compared: internCounters.comparisons - counted, before, after: keys() };
+    }
+
+    it("re-keys no node for a color change", async () => {
+        const { compared, before, after } = await edit({ "node.color": "#00ff00" });
+
+        assert.strictEqual(compared, 0);
+        assert.deepStrictEqual(after, before);
+    });
+
+    it("re-keys every node after a pass that was canceled before it interned", async () => {
+        let clock = 0;
+        // every slice has run out, so the pass yields after each chunk and a cancel lands between them
+        const h = makeHarness(NODES, { now: () => (clock += 1e6) });
+        const sized = async (size: number, color: string): Promise<CompiledLayer[]> => {
+            const other = makeHarness(NODES);
+            await other.styles.add({
+                name: "Paint",
+                selector: { match: "everything" },
+                set: { "node.size": size, "node.color": color },
+            });
+            return [...other.stack()];
+        };
+        const [small, large, recolored] = [
+            await sized(1, "#ff0000"),
+            await sized(3, "#ff0000"),
+            await sized(3, "#00ff00"),
+        ];
+        await h.engine.repaintAll(small, quietContext());
+        const controller = new AbortController();
+        // after the base layer's slice and the edited layer's: the edited values are in the columns, not interned
+        setTimeout(() => {
+            setTimeout(() => {
+                controller.abort();
+            }, 0);
+        }, 0);
+        const canceled = await h.engine.repaintAll(large, { signal: controller.signal, report: () => undefined }).then(
+            () => false,
+            () => true,
+        );
+        // a pass over one node (a hover) must not settle the others the canceled pass left
+        await h.engine.repaintElements(large, { node: [0], edge: [] }, quietContext());
+        await h.engine.repaintAll(recolored, quietContext());
+
+        assert.isTrue(canceled);
+        const sizes = NODES.map(
+            (_, index) => h.engine.meshStyleOf("node", h.engine.meshKeyOf("node", index))?.["node.size"],
+        );
+        assert.deepStrictEqual(
+            sizes,
+            NODES.map(() => 3),
+        );
+    });
+
+    it("still re-keys every node a size change moves", async () => {
+        const { compared, before, after } = await edit({ "node.color": "#00ff00", "node.size": 3 });
+
+        assert.isAtLeast(compared, 1);
+        assert.isTrue(after.every((key, index) => key !== before[index]));
+    });
+});

@@ -1471,6 +1471,23 @@ function inUndrawnBranch(el: Element): boolean {
 }
 
 /**
+ * The elements of a `<g>`, and of the `<g>` beside it when that one is its twin (the same attributes): ySVG writes a
+ * label's underline in the label's own `<g>`, or in a twin `<g>` of its own right after it (`graphml-synthetic-nodes`'s
+ * rectangle).
+ * @param g - the group
+ * @param side - which neighbor may be its twin
+ * @returns the elements
+ */
+function besideInTwinGroup(g: Element, side: "previous" | "next"): Element[] {
+    const other = side === "previous" ? g.previousElementSibling : g.nextElementSibling;
+    const same = (a: Element, b: Element): boolean =>
+        a.localName === b.localName &&
+        a.attributes.length === b.attributes.length &&
+        [...a.attributes].every((x) => b.getAttribute(x.name) === x.value);
+    return [...g.children, ...(other !== null && same(g, other) ? [...other.children] : [])];
+}
+
+/**
  * Whether a line is a text's underline: yEd (ySVG) writes a label of `underlinedText="true"` as each line's `<text>`
  * followed by a level `<line>` a few units under its baseline, in the label's own `<g>` (`graphml-stm32-func`'s `CS`
  * labels: baseline 193.333, line at 196.635). Read as a line of the drawing, each underline beside a node's border read
@@ -1485,13 +1502,41 @@ function underlineOfText(el: SVGLineElement): boolean {
         return false;
     }
     const size = Number.parseFloat(getComputedStyle(el).fontSize);
-    return [...el.parentElement.children].some((t) => {
+    return besideInTwinGroup(el.parentElement, "previous").some((t) => {
         if (t.localName !== "text") {
             return false;
         }
         const below = y - Number.parseFloat(t.getAttribute("y") ?? "NaN");
         return below > 0 && below <= size * 0.5;
     });
+}
+
+/**
+ * Whether a text is drawn underlined: its `text-decoration` says so (yEd Live), or ySVG drew a level line a few units
+ * under its baseline in its own `<g>` (yEd's `underlinedText`, `underlineOfText`).
+ * @param el - a `<text>`
+ * @param cs - its computed style
+ * @param ySvg - whether yEd's ySVG wrote the drawing
+ * @returns whether it is underlined
+ */
+function underlined(el: SVGTextElement, cs: CSSStyleDeclaration, ySvg: boolean): boolean {
+    if (cs.textDecorationLine.includes("underline")) {
+        return true;
+    }
+    const y = Number.parseFloat(el.getAttribute("y") ?? "NaN");
+    const size = Number.parseFloat(cs.fontSize);
+    return (
+        ySvg &&
+        el.parentElement !== null &&
+        besideInTwinGroup(el.parentElement, "next").some((l) => {
+            if (l.localName !== "line") {
+                return false;
+            }
+            const line = l as unknown as SVGLineElement;
+            const below = line.y1.baseVal.value - y;
+            return line.y1.baseVal.value === line.y2.baseVal.value && below > 0 && below <= size * 0.5;
+        })
+    );
 }
 
 /** What is defined for later use or not drawn at all, not drawn where it stands. */
@@ -1789,6 +1834,9 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
                     continue;
                 }
                 const text = textOf(el as SVGTextElement, m, cs, opacity, scale);
+                if (text !== null && underlined(el as SVGTextElement, cs, ySvg)) {
+                    text.underline = true;
+                }
                 const outline = pendingOutlines.get(key);
                 if (text !== null && outline !== undefined) {
                     text.outline ??= outline;

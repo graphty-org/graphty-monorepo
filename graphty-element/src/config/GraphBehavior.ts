@@ -224,6 +224,17 @@ const CameraBehaviorOpts = z
          * next load or layout hands framing back. Nothing happens with `autoFrame` off.
          */
         refitOnResize: z.boolean().default(false),
+        /**
+         * Whether nodes are hovered while the reader drags the camera (an orbit or a pan started on
+         * the canvas, by a mouse button or a touch).
+         *
+         * ON BY DEFAULT, so a drag hovers every node the pointer crosses, as it always has. Off, a
+         * camera drag hovers nothing: the hovered node stays as it was, no tooltip opens and no
+         * `node-hover` fires until the drag ends, and then the node under the pointer is hovered at
+         * once, without another move. Dragging a node is not a camera drag and is not affected. An
+         * edge is never hovered during any drag.
+         */
+        hoverWhileDragging: z.boolean().default(true),
     })
     .prefault({});
 

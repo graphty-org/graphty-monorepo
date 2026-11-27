@@ -42,6 +42,7 @@ const DECLARED = [
     "node.labelFont",
     "node.labelWeight",
     "node.labelItalic",
+    "node.labelUnderline",
     "node.labelWrapWidth",
     "node.labelWrapTrailingSpace",
     "node.labelWrapSkipEndSpace",
@@ -103,6 +104,7 @@ const DECLARED = [
     "node.planar",
     "node.zIndex",
     "node.drawOrder",
+    "node.onTop",
     "node.borderColor",
     "node.borderWidth",
     "node.borderScreenWidth",
@@ -384,6 +386,7 @@ const DECLARED = [
     "edge.labelFont",
     "edge.labelWeight",
     "edge.labelItalic",
+    "edge.labelUnderline",
     "edge.labelWrapWidth",
     "edge.labelWrapTrailingSpace",
     "edge.labelWrapSkipEndSpace",
@@ -473,9 +476,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into two hundred and twenty-seven node channels and one hundred and ninety-one edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 227);
-        assert.strictEqual(channelsFor("edge").length, 191);
+    it("splits into two hundred and twenty-nine node channels and one hundred and ninety-two edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 229);
+        assert.strictEqual(channelsFor("edge").length, 192);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -871,8 +874,10 @@ describe("what a style editor needs to draw a row", () => {
         // black), so a style editor's line starts there; font and italic do not (weight is "normal").
         "node.labelFont",
         "node.labelItalic",
+        "node.labelUnderline",
         "edge.labelFont",
         "edge.labelItalic",
+        "edge.labelUnderline",
         // Unset, no shader parameter is set and no effect is drawn.
         "node.shaders",
         "edge.shaders",
@@ -1418,6 +1423,7 @@ describe("ChannelDescriptor.drawnWhen", () => {
         "node.borderOpacity": "turns to face the camera in 3D; drawn in both views",
         "node.borderStyle": "turns to face the camera in 3D; drawn in both views",
         "node.texture": "replaces a model's base color texture; drawn on every node",
+        "node.onTop": "says it is drawn in 2D and 3D views alike",
         "edge.nodeGap": "a self-loop ignores it: a fact of the edge's ends, not a channel",
         "edge.sourceNodeGap": "a self-loop ignores it: a fact of the edge's ends, not a channel",
         "edge.targetNodeGap": "a self-loop ignores it: a fact of the edge's ends, not a channel",

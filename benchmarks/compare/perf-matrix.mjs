@@ -148,6 +148,11 @@ function styleScenarios() {
         style("node-color", 100000, 1000000),
         style("edge-curve", 100000, 1000000),
         style("node-color", 1000000, 1000000),
+        // The node-label restyle with every label drawn from the shared glyph atlas (layoutBehavior.labels.labelText
+        // "glyphs") instead of a canvas and texture per label, the default; issue #10018.
+        ...[SIZES.medium[0], [50000, 500000]].map(([n, m]) =>
+            scenario(`style-node-label-glyphs-${K(n)}`, { n, m, flags: ["style=node-label", "glyphs"] }),
+        ),
     ];
 }
 

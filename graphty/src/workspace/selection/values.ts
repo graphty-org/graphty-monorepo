@@ -15,6 +15,7 @@ import {
     type Scope,
     type Selector,
     selectorRule,
+    type SourceKey,
     type StepReading,
     type StepReference,
     type UnionBranch,
@@ -104,16 +105,29 @@ function untested(field: CardField): RuleTree {
 }
 
 /**
+ * The waiting source whose rows a selection reads (the source-steps experiment): a filter made for a
+ * source that is in no graph yet, which tests that source's own columns alone.
+ * @param session - the element's session.
+ * @param rule - the selection.
+ * @returns the source, or undefined for a selection of the graph.
+ */
+export function waitingSource(session: GraphSession, rule: Pick<UnionLeaf, "sources">): SourceKey | undefined {
+    const [source, ...more] = rule.sources ?? [];
+    return more.length === 0 && session.data.staged().some((each) => each.key === source) ? source : undefined;
+}
+
+/**
  * Every field a step on one side can read: the readable values, and on the node side the
  * structure values (Degree, and In and Out degree on a directed graph), read with no run.
  * @param session - the element's session.
  * @param side - nodes or edges.
  * @param within - the selection's base, which a structure value's range is read over.
+ * @param source - the waiting source whose rows it reads, which have no links yet.
  * @returns the fields.
  */
-function stepFields(session: GraphSession, side: Side, within?: UnionLeaf["within"]): CardField[] {
-    const fields = cardFields(session, side);
-    if (side !== "node") {
+function stepFields(session: GraphSession, side: Side, within?: UnionLeaf["within"], source?: SourceKey): CardField[] {
+    const fields = cardFields(session, side, source);
+    if (side !== "node" || source !== undefined) {
         return fields;
     }
     const structure = session.data.structureValues().map((value): CardField => {
@@ -145,6 +159,7 @@ function stepFields(session: GraphSession, side: Side, within?: UnionLeaf["withi
  * @param side - nodes or edges.
  * @param within - the selection's base, which a structure value's range is read over.
  * @param perAlgorithm - an algorithm's default run is its entry, not a Results field.
+ * @param source - the waiting source whose rows the selection reads, if one.
  * @returns the fields, regrouped.
  */
 export function pickerFields(
@@ -152,11 +167,12 @@ export function pickerFields(
     side: Side,
     within?: UnionLeaf["within"],
     perAlgorithm = false,
+    source?: SourceKey,
 ): CardField[] {
     // A run's rank and percentile companions are left out; a data column of that name is kept.
     // Listed one entry per algorithm (the workspace's cards), a run of an algorithm's default
     // settings over the base is that entry, so it is not listed again under Results.
-    const fields = stepFields(session, side, within).filter(
+    const fields = stepFields(session, side, within, source).filter(
         (field) =>
             field.group !== "Results" ||
             (!field.path.endsWith(".rank") &&
@@ -312,6 +328,10 @@ export function pickSections(
     host: Host,
     perAlgorithm = false,
 ): PickSection[] {
+    // A source that waits has no links, runs or place in the graph: only its own columns.
+    if (waitingSource(session, rule) !== undefined) {
+        return [];
+    }
     const side = sideOf(rule);
     const ran = new Set(
         session.runs
@@ -518,6 +538,7 @@ interface StepCardRead {
  * @param reading - its reading.
  * @param side - the selection's side.
  * @param within - the selection's base; absent, the whole graph.
+ * @param source - the waiting source whose rows the selection reads, if one.
  * @returns the card.
  */
 export function stepCard(
@@ -526,8 +547,9 @@ export function stepCard(
     reading: StepReading | undefined,
     side: Side,
     within?: UnionLeaf["within"],
+    source?: SourceKey,
 ): StepCardRead {
-    const read = testCard(session, step, reading, side, within);
+    const read = testCard(session, step, reading, side, within, source);
     return read.card === null ? read : { ...read, card: withMode(read.card, step.mode) };
 }
 
@@ -611,6 +633,7 @@ export function modeOf(card: Card): string | undefined {
  * @param reading - its reading.
  * @param side - the selection's side.
  * @param within - the selection's base.
+ * @param source - the waiting source whose rows the selection reads, if one.
  * @returns the card and its field.
  */
 function testCard(
@@ -619,11 +642,20 @@ function testCard(
     reading: StepReading | undefined,
     side: Side,
     within?: UnionLeaf["within"],
+    source?: SourceKey,
 ): StepCardRead {
+    const spread = source === undefined ? null : (reading?.values ?? null);
     const fields = [
-        ...stepFields(session, side, within),
-        ...stepFields(session, side === "node" ? "edge" : "node", within),
-    ].map((field) => (within === undefined ? field : { ...field, within }));
+        ...stepFields(session, side, within, source),
+        ...stepFields(session, side === "node" ? "edge" : "node", within, source),
+    ].map((field) => ({
+        ...field,
+        ...(within === undefined ? {} : { within }),
+        // No path of the graph names a waiting source's values: the step's own reading holds them.
+        ...(source === undefined ? {} : { waiting: { of: spread?.of ?? 0 }, missing: spread?.missing ?? 0 }),
+        ...(spread?.kind === "numeric" ? { spread } : {}),
+        ...(spread?.kind === "categorical" ? { listed: spread } : {}),
+    }));
     const { rule, links } = step;
     // A degree step scoped by its Links counts only the links that pass: its range and bars too.
     const scoped =

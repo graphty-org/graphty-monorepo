@@ -58,11 +58,6 @@
       "count": 1
     }
   },
-  "src/NodeBehavior.ts": {
-    "unicorn/prefer-modern-math-apis": {
-      "count": 1
-    }
-  },
   "src/ai/AiController.ts": {
     "unicorn/no-array-callback-reference": {
       "count": 2

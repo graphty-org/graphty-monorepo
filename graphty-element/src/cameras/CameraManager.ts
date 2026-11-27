@@ -43,7 +43,7 @@ export function glideTowards(from: Vector3, to: Vector3, frames = 1): boolean {
 
 export interface CameraController {
     camera: Camera;
-    zoomToBoundingBox(min: Vector3, max: Vector3, spots?: readonly FramingSpot[]): void;
+    zoomToBoundingBox(min: Vector3, max: Vector3, spots?: readonly FramingSpot[], moving?: boolean): void;
     /** Margins of the canvas something else covers, in CSS pixels, that every fit keeps clear. */
     viewInsets?: ViewInsets;
     /**
@@ -75,13 +75,16 @@ export interface CameraController {
 interface InputHandler extends GestureEndHooks {
     enable(): void;
     disable(): void;
-    update(): void;
+    /** One frame's input; `frameMs` is the frame's time, 0 when unknown. */
+    update(frameMs?: number): void;
     /** Whether the wheel zooms toward the point under the pointer; absent, the input has no wheel. */
     zoomToPointer?: boolean;
     /** Where the camera keys are also heard; absent, the input has no keys. */
     keysRoot?: CameraKeysRoot | null;
     /** Whether the reader is moving the camera, or the input is switched off for a node drag. */
     readonly busy?: boolean;
+    /** Told at each press of the reader's, the moment it happens, however soon it is let go. */
+    onPress?: (() => void) | null;
 }
 
 export type CameraKey = "orbit" | "2d" | "xr";
@@ -117,7 +120,7 @@ export class CameraManager {
     /** Told once when a reader's camera gesture ends, on whichever camera; see `camera:gesture-end`. */
     public onGestureEnd: ((kind: CameraGestureKind) => void) | null = null;
 
-    /** Asks the render loop for one more frame, for an input waiting on the frame that ends its gesture. */
+    /** Asks the render loop for one more frame, for an input that arrived off the canvas. */
     public requestFrame: (() => void) | null = null;
 
     /** Frame time since the reader last moved the camera, for `camera.autoRotateResume`; null, not since it turned. */
@@ -145,6 +148,11 @@ export class CameraManager {
         };
         inputHandler.requestFrame = () => {
             this.requestFrame?.();
+        };
+        // A press stops autoRotate as a held one does, even pressed and let go between two frames,
+        // which `busy`, read once a frame, never sees.
+        inputHandler.onPress = () => {
+            this.#idleMs = 0;
         };
         controller.onReaderMove = () => {
             this.#idleMs = 0;
@@ -184,10 +192,11 @@ export class CameraManager {
      * @param min - The minimum corner of the bounding box
      * @param max - The maximum corner of the bounding box
      * @param spots - What the box holds, for a fit that frames the nodes rather than the box.
+     * @param moving - Whether the graph is still moving and will be framed again next frame.
      */
-    public zoomToBoundingBox(min: Vector3, max: Vector3, spots?: readonly FramingSpot[]): void {
+    public zoomToBoundingBox(min: Vector3, max: Vector3, spots?: readonly FramingSpot[], moving?: boolean): void {
         if (this.activeCameraController) {
-            this.activeCameraController.zoomToBoundingBox(min, max, spots);
+            this.activeCameraController.zoomToBoundingBox(min, max, spots, moving);
         }
     }
 
@@ -346,9 +355,10 @@ export class CameraManager {
     /**
      * Updates the active input handler.
      * Should be called each frame in the render loop.
+     * @param frameMs - The frame's time, 0 when unknown.
      */
-    public update(): void {
-        this.activeInputHandler?.update();
+    public update(frameMs = 0): void {
+        this.activeInputHandler?.update(frameMs);
     }
 
     /**

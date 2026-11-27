@@ -62,6 +62,10 @@ describe("a join's name", () => {
         draft.renameJoin("join-1", "Watched");
         draft.undo();
         assert.deepStrictEqual(names(draft.steps()), ["Risky accounts", "Risky accounts"], "one undo step");
+        draft.renameJoin("join-1", "Again");
+        draft.renameJoin("join-1", "  ");
+        assert.deepStrictEqual(names(draft.steps()), [undefined, undefined], "a blank name clears it");
+        draft.renameJoin("join-1", "Again");
         draft.renameJoin("join-1", null);
         assert.deepStrictEqual(names(draft.steps()), [undefined, undefined], "null clears it");
         assert.isFalse(

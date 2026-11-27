@@ -515,7 +515,7 @@ export class SourceDraftHandle implements SourceDraft {
                     return step;
                 }
                 const { name: _old, ...rest } = step.join;
-                return { ...step, join: name === null ? rest : { ...rest, name } };
+                return { ...step, join: name === null || name.trim() === "" ? rest : { ...rest, name } };
             });
             return draftApply(state, { kind: "set", value: { ...state.value, steps: named } });
         });

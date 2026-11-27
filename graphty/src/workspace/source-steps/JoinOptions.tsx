@@ -81,9 +81,6 @@ function Choice<T extends string>({
     );
 }
 
-/** The names a type's box offers: none, so it is one plain box whatever the graph holds. */
-const NO_NAMES: readonly { readonly value: string }[] = [];
-
 /**
  * A name typed or picked, as a row: a type, or a separator. Enter, Tab or leaving it takes it.
  * @param props - Component props
@@ -551,15 +548,16 @@ function edgeOptions(props: OptionProps, edgeType: AdvancedRow, newType: Advance
  * @returns the rows
  */
 export function Options(props: OptionProps): React.JSX.Element {
-    const { outcome, result, several, onSet } = props;
+    const { session, outcome, result, several, onSet } = props;
+    const typesOf = (kind: "node" | "edge"): { value: string }[] =>
+        session.data.types().flatMap((type) => (type.kind === kind ? [{ value: type.name }] : []));
     const edgeType: AdvancedRow = {
         set: result.edgeType !== "",
         row: (
             <NameRow
                 key="edgeType"
                 label={JOIN_WORDS.edgeType}
-                // A typed name, the same box on every visit: a list would appear only once the graph has types.
-                options={NO_NAMES}
+                options={typesOf("edge")}
                 value={result.edgeType}
                 onChange={(next) => {
                     onSet({ edgeType: next });
@@ -573,7 +571,7 @@ export function Options(props: OptionProps): React.JSX.Element {
             <NameRow
                 key="type"
                 label={WORKSPACE_WORDS.newType}
-                options={NO_NAMES}
+                options={typesOf("node")}
                 value={result.type}
                 onChange={(type) => {
                     onSet({ type });

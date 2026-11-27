@@ -1247,6 +1247,15 @@ export class PendingRows {
     }
 
     /**
+     * The rows {@link PendingRows.take} would take next, left in the queue.
+     * @param limit - The most to look at.
+     * @returns Up to `limit` rows, oldest first.
+     */
+    peek(limit: number): readonly number[] {
+        return Array.from(this.order.subarray(this.head, this.head + Math.min(limit, this.size)));
+    }
+
+    /**
      * Take up to `limit` rows, oldest first.
      * @param limit - The most to take.
      * @returns The rows taken, which leave the queue.
@@ -1777,6 +1786,15 @@ export class StylePainter {
      */
     takeNodes(limit = Number.POSITIVE_INFINITY): readonly number[] {
         return this.pendingNodes.take(limit);
+    }
+
+    /**
+     * The nodes {@link StylePainter.takeNodes} would take next, left waiting.
+     * @param limit - The most to look at.
+     * @returns Their dense indices, oldest first.
+     */
+    peekNodes(limit: number): readonly number[] {
+        return this.pendingNodes.peek(limit);
     }
 
     /**

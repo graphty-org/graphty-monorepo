@@ -65,6 +65,7 @@ import {
     surfaceReach,
     type Xyz,
 } from "./meshes/edgeRoute";
+import { pulledLineSortsWith } from "./meshes/EdgeRowLines";
 import { EDGE_NEVER, EdgeShaderDrawing, type EdgeStaticLook, edgeStaticValues } from "./meshes/EdgeShaderDrawing";
 import { type EdgeTrimInput, TRIM_CLOSED, TRIM_NO_HIT, type TrimEnd, trimEnds } from "./meshes/edgeTrim";
 import { TEE_DEPTH } from "./meshes/FilledArrowRenderer";
@@ -3384,7 +3385,7 @@ export class Edge {
      * Whether this edge's line is pulled from the row table (`PulledLineBatch`): on the `"batched"`
      * render path (or behind the internal switch `pulledEdgesDefault`), a plain solid straight line
      * between two node centers -- no cap, gap, group, bend, label, band or any other line
-     * key -- in 3D, or in 2D when it is not a curve, while lines do not fade by age (a pulled piece carries no age). A curve is pulled
+     * key -- in 3D or 2D, while lines do not fade by age (a pulled piece carries no age). A curve is pulled
      * too, through its support point when it has one (`line.supportModel`), and only a curve may stop short of its nodes by a gap (`line.nodeGap`): its shape is its two centers' and, for one that fans out of a
      * bundle, how far it bows (spread by `fanSpacing` when set), or for one that does not, its circle's
      * radius (`arcRadius`), or for one raised off the map or a globe (`line.route` "arc" or "great-circle", which wins
@@ -3408,8 +3409,6 @@ export class Edge {
             // a node drawn at opacity 0 ends the line at its outline too (`Edge.bareEnd`)
             !this.endInvisible("source") &&
             !this.endInvisible("target") &&
-            // in 2D only a straight line, with its width in world units (`EdgeMesh.pulledBatch`)
-            !(EdgeMesh.drawsFlat(this.context.getScene()) && this.pullsCurve(style)) &&
             (this.pullsCurve(style) || !(line.nodeGap || line.sourceNodeGap || line.targetNodeGap)) &&
             (!line.animationSpeed || this.pullsAnimated(style)) &&
             // a pattern is drawn by a straight line's shader only, never an animated one's
@@ -3702,7 +3701,17 @@ export class Edge {
             this.headBatchOf(head);
         }
 
+        // in 2D, the line batch of its width is made first and the pulled batch draws where it does, as a row line's
+        // (`EdgeRowLines`): the objects path draws a width's lines in the order their batches were made (#10083)
+        const scene = this.context.getScene();
+        const objectLine = EdgeMesh.drawsFlat(scene)
+            ? EdgeMesh.lineBatch(this.context.getMeshCache(), options, style, scene, false, true)
+            : null;
         const batch = this.pulledBatchOf(options, style, rows);
+        if (objectLine !== null) {
+            pulledLineSortsWith.set(batch.mesh, objectLine.mesh);
+        }
+
         const look = this.pulledLook(options, style);
         const { opacity } = look;
         const animationSpeed = style.line?.animationSpeed ?? 0;

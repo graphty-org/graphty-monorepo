@@ -238,8 +238,7 @@ async function workspace(): Promise<HTMLElement> {
  */
 async function openPicker(canvasElement: HTMLElement): Promise<void> {
     const place = within(within(canvasElement).getByRole("region", { name: "Data place" }));
-    // With two loads, each load's section on the Sources tab has its own "+" too: the first is the
-    // one under Data sources, for the filters of every load.
+    // With two loads, each load's entry on the Sources tab has its own "+": this takes the first's.
     const [plus] = await place.findAllByRole("button", { name: "Add filter" });
     await userEvent.click(plus);
     // The new card opens in the selection workspace on the Card list: Value turns its picker to the

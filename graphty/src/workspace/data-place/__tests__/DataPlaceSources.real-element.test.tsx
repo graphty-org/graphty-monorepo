@@ -210,5 +210,51 @@ describe("the Sources tab with two loads", () => {
         });
         const other = await sectionOf(cf);
         assert.isNull(within(other).queryByRole("list", { name: "Filters" }));
+        assertNoGraphWideFilters();
+    });
+
+    it("has no graph-wide Filters row under Data sources, only each load's own", async () => {
+        const { football: cf, miserables: lm } = await openTwo();
+        for (const load of [cf, lm]) {
+            const section = await sectionOf(load);
+            await opened(section);
+            await waitFor(() => {
+                within(section).getByRole("button", { name: "Add filter" });
+            });
+        }
+        assertNoGraphWideFilters();
+        const place = await screen.findByRole("region", { name: "Data place" });
+        assert.lengthOf(within(place).getAllByRole("button", { name: "Add filter" }), 2, "one Filter + per load");
+    });
+
+    it("lists a filter of no load, made before the second load came, in the picked load's entry", async () => {
+        const session = await openFootball();
+        await session.visibility.addCondition({ effect: "keep", rule: { kind: "degree", min: 3 } });
+        await session.data.import(
+            { type: "gml", name: "les-miserables.gml", config: { data: lesMiserables } },
+            { mode: "merge" },
+        );
+        const [cf, lm] = await waitFor(() => {
+            const loads = session.data.sources();
+            assert.lengthOf(loads, 2);
+            return loads;
+        });
+        // The newest load is the picked one until the reader picks another.
+        const section = await sectionOf(lm);
+        await opened(section);
+        await waitFor(() => {
+            const list = within(section).getByRole("list", { name: "Filters" });
+            assert.lengthOf(within(list).getAllByRole("listitem"), 1);
+        });
+        assert.isNull(within(await sectionOf(cf)).queryByRole("list", { name: "Filters" }));
+        assertNoGraphWideFilters();
     });
 });
+
+/** Every Filters section in the Data place sits inside a load's own entry. */
+function assertNoGraphWideFilters(): void {
+    const place = screen.getByRole("region", { name: "Data place" });
+    for (const filters of within(place).getAllByRole("group", { name: "Filters" })) {
+        assert.isNotNull(filters.closest("[data-source]"), "a Filters section outside every load's entry");
+    }
+}

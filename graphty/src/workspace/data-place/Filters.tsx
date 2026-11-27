@@ -144,21 +144,17 @@ const hides = (condition: FilterCondition): boolean => condition.effect !== "sel
  * an attribute's Filter to..., and holds the time window's row.
  * @param props - Component props
  * @param props.source - the load whose filters it lists: those made for it, and, when it is the
- * only load (`primary`), those of no load too
- * @param props.unscoped - with no `source`, list only the filters of no load (beside each load's
- * own section); otherwise every filter
+ * picked load (`primary`), those of no load too; with no `source` (no load yet), every filter
  * @param props.primary - whether it is the section the Filters command and Filter to... open (default true)
  * @param props.headingLevel - its heading's level, under a load's own section
  * @returns the section.
  */
 export function FiltersSection({
     source,
-    unscoped = false,
     primary = true,
     headingLevel,
 }: Readonly<{
     source?: SourceKey;
-    unscoped?: boolean;
     primary?: boolean;
     headingLevel?: 2 | 3 | 4;
 }> = {}): React.JSX.Element {
@@ -185,12 +181,8 @@ export function FiltersSection({
     // A filter of a load that is gone is listed with the filters of no load, so it can be removed.
     const ownless = (condition: FilterCondition): boolean =>
         condition.source === undefined || !keys.has(condition.source);
-    const listed = (condition: FilterCondition): boolean => {
-        if (source !== undefined) {
-            return condition.source === source || (primary && ownless(condition));
-        }
-        return !unscoped || ownless(condition);
-    };
+    const listed = (condition: FilterCondition): boolean =>
+        source === undefined || condition.source === source || (primary && ownless(condition));
     const conditions = (session?.visibility.conditions ?? []).filter(listed);
     // Once written, a draft is one of the element's conditions, drawn by the same card, and is let
     // go: removed later, it must not come back as a draft.

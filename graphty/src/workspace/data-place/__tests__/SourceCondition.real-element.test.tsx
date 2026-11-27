@@ -8,7 +8,7 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import type { GraphSession } from "@graphty/graphty-element/session";
+import type { GraphSession, LoadedSource } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
@@ -18,6 +18,7 @@ import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { GRAPH_FILE_GML, PLAIN_JSON } from "../fixtures";
+import { sourceName } from "../words";
 
 // Every experiment stays off here.
 withFeatures([]);
@@ -59,12 +60,21 @@ async function openWithGraph(): Promise<GraphSession> {
 
 /**
  * Opens a new filter card from the Filters "+" and its Value list in the selection workspace. With
- * two loads each load's section has its own "+": the first is the one for the filters of every load.
+ * two loads each load's entry has its own "+", and a card made there judges only that load.
+ * @param load - the load whose entry's "+" makes it, opening that entry first; by default the last
+ * "+" shown
  */
-async function newCard(): Promise<void> {
-    // With several loads, the last "Add filter" is the one under Data sources, for every load;
-    // with one, it is that load's own.
-    const plus = screen.getAllByRole("button", { name: "Add filter" }).at(-1);
+async function newCard(load?: LoadedSource): Promise<void> {
+    let scope: Pick<typeof screen, "getAllByRole"> = screen;
+    if (load !== undefined) {
+        const entry = await screen.findByRole("group", { name: sourceName(load) });
+        const toggle = within(entry).queryByRole("button", { name: /^Expand / });
+        if (toggle !== null) {
+            await userEvent.click(toggle);
+        }
+        scope = within(entry);
+    }
+    const plus = scope.getAllByRole("button", { name: "Add filter" }).at(-1);
     assert.isDefined(plus);
     if (plus !== undefined) {
         await userEvent.click(plus);
@@ -75,9 +85,10 @@ async function newCard(): Promise<void> {
 /**
  * Opens a new filter card on a field.
  * @param name - the field's name, as the list shows it.
+ * @param load - the load whose entry's "+" makes it, as `newCard` takes it.
  */
-async function newCardOn(name: string): Promise<void> {
-    await newCard();
+async function newCardOn(name: string, load?: LoadedSource): Promise<void> {
+    await newCard(load);
     await userEvent.click(await screen.findByRole("option", { name: new RegExp(`^${name}(,|$)`) }));
 }
 
@@ -169,7 +180,9 @@ describe("picking nodes by a condition card from the Data place", () => {
         });
         const people = session.data.sources()[1];
 
-        await newCardOn("Data source");
+        // Made in Les Miserables' own entry, it judges only that load's nodes: ticking people.json
+        // keeps none of them.
+        await newCardOn("Data source", session.data.sources()[0]);
         const loads = await screen.findByRole("group", { name: "Data source values" });
         await userEvent.click(within(loads).getByRole("checkbox", { name: /^people\.json, 4 nodes$/ }));
         await done();

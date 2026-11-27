@@ -1,5 +1,5 @@
 /**
- * Every one of graphty-element's 98 label style fields is reachable from a node Label's row and changes the
+ * Every one of graphty-element's 99 label style fields is reachable from a node Label's row and changes the
  * picture (owner, 2026-11-20: "it seems like we are missing 90 label styles"; E673), on the REAL graphty-element
  * and real input. For each field the layer holds what the field needs beside it to draw (its `drawnWhen` partners,
  * as graphty-element's own label-fields render test sets them), except the partners graphty-element names as its
@@ -306,7 +306,7 @@ function same(got: unknown, want: unknown): boolean {
 describe("every label field is reachable from the Label row and draws (E673)", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
 
-    it("walks all 98 label fields by real clicks, each changing the picture", async () => {
+    it("walks all 99 label fields by real clicks, each changing the picture", async () => {
         const { session, element, nodes } = await openGraph();
         let tab = await openStyle("Key people");
         // The drawing itself, where a reader clicks.
@@ -438,18 +438,24 @@ describe("every label field is reachable from the Label row and draws (E673)", (
             }
             await hold(words, base);
             let big: string | undefined;
+            /** Which of the three labels graphty-element draws. */
+            const drawnLabels = (): string[] => ["a", "b", "c"].filter((id) => element.labelOf(id)?.drawn === true);
             if (field === "declutter") {
-                // Overlaps hidden, and the node of least degree the largest, so keeping by size and by degree differ.
+                // Overlaps hidden, and the label of the node of least degree the largest, so keeping by size and by
+                // degree differ. The size order compares the words' height on screen first: the three labels sit at
+                // different depths, so a larger node alone keeps nothing if its label is the farthest (issue 10236).
                 big = (
                     await session.styles.add({
                         name: "Big a",
                         target: "node",
                         selector: { match: "ids", nodes: ["a"] },
-                        set: { "node.size": 3 },
+                        set: { "node.labelStyle": { size: 120 } },
                     })
                 ).id;
                 await session.styles.settled();
                 await hideOverlaps(true);
+                await element.waitForStableFrame();
+                assert.notInclude(drawnLabels(), "a", "by degree, b's label is kept and a's, which it covers, hidden");
             }
             const before = await picture(element);
             // pickable draws nothing: where the words are drawn, a click selects nothing until it is set.
@@ -489,6 +495,9 @@ describe("every label field is reachable from the Label row and draws (E673)", (
             }
             const after = await picture(element);
             if (big !== undefined) {
+                const kept = drawnLabels();
+                assert.include(kept, "a", "by size, the largest label is kept");
+                assert.notInclude(kept, "b", "by size, the label it covers is hidden");
                 await hideOverlaps(false);
                 await session.styles.remove(big);
                 await session.styles.settled();
@@ -684,6 +693,6 @@ describe("every label field is reachable from the Label row and draws (E673)", (
         }
         assert.deepEqual(failed, [], "every field is reached, written and drawn from the panel");
         assert.sameMembers(reached, [...LABEL_STYLE_FIELDS], "every field is reached");
-        assert.lengthOf(LABEL_STYLE_FIELDS, 98);
+        assert.lengthOf(LABEL_STYLE_FIELDS, 99);
     });
 });

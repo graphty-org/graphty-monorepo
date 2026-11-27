@@ -898,8 +898,7 @@ export function insetOutline(outline: readonly Point2[], distance: number): Poin
         const [ca, cb] = [p.c - t, q.c - t];
         return [(ca * q.n[1] - cb * p.n[1]) / det, (p.n[0] * cb - q.n[0] * ca) / det];
     };
-    let alive = sides.map((_, k) => k).filter((k) => Math.hypot(...sides[k].d) > 1e-12);
-    // the corners of the sides left, drawn in by t: corner j starts side alive[j]
+    // the corners of the sides left, drawn in by t: corner j starts side live[j]
     const corners = (live: number[], t: number): Point2[] | null => {
         const out: Point2[] = [];
         for (let j = 0; j < live.length; j++) {
@@ -911,43 +910,55 @@ export function insetOutline(outline: readonly Point2[], distance: number): Poin
         }
         return out;
     };
-    let reach = distance;
-    // how far in the last side dropped closed up
-    let since = 0;
-    for (;;) {
-        // a straight run of sides is one line: keep its first
-        const straight = alive.findIndex((k, j) => meet(alive[(j + alive.length - 1) % alive.length], k, 0) === null);
-        if (straight >= 0 && alive.length > 3) {
-            alive = alive.filter((_, j) => j !== straight);
-            continue;
-        }
-        const [now, later] = [corners(alive, 0), corners(alive, 1)];
-        if (now === null || later === null || alive.length < 3) {
-            return outline.map((p): Point2 => [p[0], p[1]]);
-        }
-        // side j shrinks along its own direction at a steady rate as t grows; it is gone where its length is 0
-        let first = -1;
-        let when = Infinity;
-        alive.forEach((k, j) => {
-            const next = (j + 1) % alive.length;
-            const { d } = sides[k];
-            const length = d[0] * (now[next][0] - now[j][0]) + d[1] * (now[next][1] - now[j][1]);
-            const rate = d[0] * (later[next][0] - later[j][0]) + d[1] * (later[next][1] - later[j][1]) - length;
-            if (rate < 0 && -length / rate >= since - 1e-9 && -length / rate < when) {
-                [first, when] = [j, -length / rate];
+    // the sides left drawn in by reach, or how far in the outline closes up when it does so first
+    const sidesLeft = (reach: number): { live: number[] } | { closes: number } => {
+        let live = sides.map((_, k) => k).filter((k) => Math.hypot(...sides[k].d) > 1e-12);
+        // how far in the last side dropped closed up
+        let since = 0;
+        for (;;) {
+            // a straight run of sides is one line: keep its first
+            const straight = live.findIndex((k, j) => meet(live[(j + live.length - 1) % live.length], k, 0) === null);
+            if (straight >= 0 && live.length > 3) {
+                live = live.filter((_, j) => j !== straight);
+                continue;
             }
-        });
-        if (first < 0 || when >= reach) {
-            break;
+            const [now, later] = [corners(live, 0), corners(live, 1)];
+            if (now === null || later === null) {
+                return { closes: since };
+            }
+            // side j shrinks along its own direction at a steady rate as t grows; it is gone where its length is 0
+            let first = -1;
+            let when = Infinity;
+            live.forEach((k, j) => {
+                const next = (j + 1) % live.length;
+                const { d } = sides[k];
+                const length = d[0] * (now[next][0] - now[j][0]) + d[1] * (now[next][1] - now[j][1]);
+                const rate = d[0] * (later[next][0] - later[j][0]) + d[1] * (later[next][1] - later[j][1]) - length;
+                if (rate < 0 && -length / rate >= since - 1e-9 && -length / rate < when) {
+                    [first, when] = [j, -length / rate];
+                }
+            });
+            if (first < 0 || when > reach) {
+                return { live };
+            }
+            if (live.length <= 3) {
+                return { closes: when };
+            }
+            live = live.filter((_, j) => j !== first);
+            since = when;
         }
-        if (alive.length <= 3) {
-            // it closes up here: drawn in all but a sliver of the way, so the fill keeps an area
-            reach = when * 0.999;
-            break;
-        }
-        alive = alive.filter((_, j) => j !== first);
-        since = when;
+    };
+    let reach = distance;
+    let left = sidesLeft(reach);
+    if ("closes" in left) {
+        // drawn in all but a sliver of the way, so the fill keeps an area
+        reach = left.closes * 0.999;
+        left = sidesLeft(reach);
     }
+    if ("closes" in left) {
+        return outline.map((p): Point2 => [p[0], p[1]]);
+    }
+    const alive = left.live;
 
     const drawn = corners(alive, reach) ?? [];
     // point i went where the first side left at or after side i starts

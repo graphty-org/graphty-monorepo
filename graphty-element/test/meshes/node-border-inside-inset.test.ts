@@ -50,6 +50,23 @@ function signedDistance(p: P, poly: readonly P[]): number {
     return inside ? -distance : distance;
 }
 
+/**
+ * @param mesh - A fill mesh.
+ * @returns The area its triangles cover seen along z: its walls cover none, so 0 when it has no face.
+ */
+function faceArea(mesh: AbstractMesh): number {
+    const source = mesh instanceof InstancedMesh ? mesh.sourceMesh : (mesh as Mesh);
+    const p = source.getVerticesData(VertexBuffer.PositionKind) ?? [];
+    const index = source.getIndices() ?? [];
+    let area = 0;
+    for (let t = 0; t < index.length; t += 3) {
+        const [a, b, c] = [index[t] * 3, index[t + 1] * 3, index[t + 2] * 3];
+        area += Math.abs((p[b] - p[a]) * (p[c + 1] - p[a + 1]) - (p[c] - p[a]) * (p[b + 1] - p[a + 1])) / 2;
+    }
+
+    return area;
+}
+
 function vertices(mesh: AbstractMesh): P[] {
     const source = mesh instanceof InstancedMesh ? mesh.sourceMesh : (mesh as Mesh);
     const positions = source.getVerticesData(VertexBuffer.PositionKind) ?? [];
@@ -97,6 +114,9 @@ for (const type of [
         if (type === "star" || type === "vee") {
             return;
         }
+
+        // the fill keeps its face: an outline with a closed-up corner's points repeated could not be cut into triangles
+        assert.isAbove(faceArea(fill), 0.1 * faceArea(bare), `${type} fill has lost its face`);
 
         const inset = Math.min(...vertices(fill).map((p) => -signedDistance(p, silhouette)));
         assert.isAtLeast(inset, world - tolerance, `${type} fill is only ${inset.toFixed(3)} in from its outline`);

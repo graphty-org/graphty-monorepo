@@ -917,7 +917,7 @@ export class NodeMesh {
                     ? borderRing(round, width, style, wave, options.dashUnit)
                     : [
                           {
-                              inner: round,
+                              inner: insetOutline(full, inset),
                               outer: width > inset ? offsetOutline(full, width - inset) : full,
                               closed: true,
                           },
@@ -1329,7 +1329,8 @@ export class NodeMesh {
      * @param shape - The node's shape block; its type is a flat shape.
      * @param sized - The node's extents at its size.
      * @param inset - How far the fill is drawn in ({@link borderFit}).
-     * @returns The outline, counter-clockwise.
+     * @returns The outline, counter-clockwise, with no point twice: the corners a rounded arc closed up into are one
+     *   point, so it can be cut into triangles.
      */
     private static fillOutline(
         shape: NonNullable<NodeStyleConfig["shape"]>,
@@ -1338,7 +1339,13 @@ export class NodeMesh {
     ): Point2[] {
         const outline = this.flatOutline(shape, sized);
 
-        return inset > 0 && outline.length >= 3 ? insetOutline(outline, inset) : outline;
+        if (inset <= 0 || outline.length < 3) {
+            return outline;
+        }
+
+        const drawn = insetOutline(outline, inset);
+        const same = (a: Point2, b: Point2): boolean => Math.hypot(a[0] - b[0], a[1] - b[1]) < 1e-9;
+        return drawn.filter((p, i) => !same(p, drawn[(i + 1) % drawn.length]));
     }
 
     private static flatOutline(shape: NonNullable<NodeStyleConfig["shape"]>, extents: NodeExtents): Point2[] {

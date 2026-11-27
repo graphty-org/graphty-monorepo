@@ -7012,7 +7012,7 @@ export interface SessionDataApi {
 // @public
 export type SessionDataConfig = Readonly<z.output<typeof DataConfig>>;
 
-// @public (undocumented)
+// @public
 export interface SessionEventMap {
     "camera:gesture-end": {
         readonly kind: CameraGestureKind;

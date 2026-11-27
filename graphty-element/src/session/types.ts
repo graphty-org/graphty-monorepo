@@ -7737,14 +7737,6 @@ export interface HoverDrawn {
 }
 
 /**
- * What a session publishes to whoever is watching it.
- *
- * A map rather than a bare handler, so that the events arriving with the layout, the camera and
- * the journal are added without changing a signature. An event that does not fire is not declared
- * here: a consumer discovers the gap by autocomplete finding nothing rather than by subscribing
- * to something silent.
- */
-/**
  * How a listener hears a session event; see {@link ElementSession.on}.
  * @since 3.62.0
  */
@@ -7762,6 +7754,14 @@ export interface SessionListenOptions {
     readonly afterFrame?: boolean;
 }
 
+/**
+ * What a session publishes to whoever is watching it.
+ *
+ * A map rather than a bare handler, so that the events arriving with the layout, the camera and
+ * the journal are added without changing a signature. An event that does not fire is not declared
+ * here: a consumer discovers the gap by autocomplete finding nothing rather than by subscribing
+ * to something silent.
+ */
 export interface SessionEventMap {
     /** A run reached one of the four watched moments. */
     "run:changed": RunChange;

@@ -19,7 +19,7 @@ import { batchUploadFrames } from "./FrameRoster";
 import { handOverTogether } from "./handOverTogether";
 import { blendsRows, viewDepth } from "./instanceRowOrder";
 import type { MeshCache } from "./MeshCache";
-import { NodeMesh, styleOpacity } from "./NodeMesh";
+import { NodeMesh, paintedBodyOpacity } from "./NodeMesh";
 import { attachRowPull, glowRowsInPlace } from "./RowPullPlugin";
 import type { Point2 } from "./shapeOutlines";
 
@@ -883,7 +883,7 @@ export class ColumnRow implements RowMeasure {
      * @returns The opacity.
      */
     get paintedOpacity(): number {
-        return styleOpacity(this.paint.style.texture);
+        return paintedBodyOpacity(this.paint.style);
     }
 
     /**

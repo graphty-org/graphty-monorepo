@@ -29,6 +29,7 @@ import {
     type Scope,
 } from "../catalog/types";
 import { GraphtyError } from "../errors/GraphtyError";
+import { detectionRows } from "../layout/locationMap/sample";
 import { columnFits, type ColumnValues, type LocationRole } from "../layout/locationMap/source";
 import { fieldMeasurement, type ResultsApi } from "./results/types";
 import type { Resolution } from "./sets/resolve";
@@ -50,6 +51,11 @@ export interface OptionsForSource {
     attributes?(): readonly AttributeDescriptor[];
     /** A node attribute's values by row, for the location options' choices; none when absent. */
     nodeValues?(path: string): readonly unknown[] | null;
+    /**
+     * Many node attributes' values at once, read only at `rows` when given; the location options
+     * read their choices through it, at the rows that decide a column, when present.
+     */
+    nodeColumns?(paths: readonly string[], rows?: readonly number[]): readonly (readonly unknown[] | null)[];
     /** The session's results, for a partition's choices; none when absent. */
     results?(): ResultsApi;
 }
@@ -192,6 +198,22 @@ function locationChoices(
 }
 
 /**
+ * The node columns the location options choose among, read only at the rows that decide what a
+ * column holds ({@link detectionRows}) when the source reads many columns at once.
+ * @param source - What the options read.
+ * @param nodeCount - The rows of a node column.
+ * @returns The columns.
+ */
+function locationValues(source: OptionsForSource, nodeCount: number): ColumnValues[] {
+    const names = (source.attributes?.() ?? []).flatMap((a) => (a.kind === "node" ? [a.name] : []));
+    const read = source.nodeColumns?.(names, detectionRows(nodeCount));
+    return names.map((name, at) => ({
+        name,
+        values: (read === undefined ? source.nodeValues?.(name) : read[at]) ?? [],
+    }));
+}
+
+/**
  * One algorithm's or layout's options, resolved for a scope.
  * @param source - The descriptor tables and the scope resolver.
  * @param key - An algorithm key or a layout id. An algorithm is looked for first.
@@ -251,9 +273,7 @@ export function optionsFor(
         }
 
         if (key === "location-map" && LOCATION_ROLES.has(option.name)) {
-            locationColumns ??= (source.attributes?.() ?? [])
-                .filter((a) => a.kind === "node")
-                .map((a) => ({ name: a.name, values: source.nodeValues?.(a.name) ?? [] }));
+            locationColumns ??= locationValues(source, graph.nodeCount);
             resolved.values = locationChoices(locationColumns, option.name as LocationRole, source);
         }
 

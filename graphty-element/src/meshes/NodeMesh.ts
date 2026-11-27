@@ -39,6 +39,7 @@ import {
 import { prepareOverlayShader } from "./overlayMaterial";
 import { ON_TOP_RENDERING_GROUP } from "./RichTextLabel";
 import {
+    bandRing,
     borderRing,
     convexHull,
     drawnAgainstBox,
@@ -903,25 +904,30 @@ export class NodeMesh {
         const flat = isFlatShape(shape.type);
         const instance = cache.get(`node-border-${options.styleId}-${options.is2D ? "2d" : "3d"}`, () => {
             const extents = this.fillExtents(sized, inset);
-            const outline = flat ? this.fillOutline(shape, sized, inset) : this.solidOutline(fill);
             const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
             const wave = NodeMesh.waveOf(border, this.extentPerSize(shape));
             const style = border?.style ?? "solid";
-            // a solid ring round a drawn-in fill is the band out to the shape's own outline (or half the width past
-            // it, centered), point for point: grown back out from the fill, a corner the fill closed up came back
-            // sharp, past a rounded shape's outline
-            const full =
-                flat && inset > 0 && style === "solid" && wave === undefined ? this.flatOutline(shape, sized) : null;
+            // a ring round a drawn-in fill is the band out to the shape's own outline (or half the width past it,
+            // centered), point for point ({@link bandRing})
+            const full = flat && inset > 0 ? this.flatOutline(shape, sized) : null;
+            const band =
+                full === null || wave !== undefined
+                    ? null
+                    : bandRing(
+                          insetOutline(full, inset),
+                          width > inset ? offsetOutline(full, width - inset) : full,
+                          style,
+                          width,
+                          options.dashUnit,
+                      );
+            // ponytail: a stroke or a wave inside the size is still drawn round the shape scaled to the fill's box,
+            // off the outline on a pointed shape; along the band's middle if one shows
+            let outline = flat ? this.flatOutline(shape, extents) : this.solidOutline(fill);
+            if (band !== null) {
+                outline = this.fillOutline(shape, sized, inset);
+            }
             const piecesOf = (round: Point2[]): RingPiece[] =>
-                full === null
-                    ? borderRing(round, width, style, wave, options.dashUnit)
-                    : [
-                          {
-                              inner: insetOutline(full, inset),
-                              outer: width > inset ? offsetOutline(full, width - inset) : full,
-                              closed: true,
-                          },
-                      ];
+                band ?? borderRing(round, width, style, wave, options.dashUnit);
             const color = border?.color ?? "#000000";
 
             const ring = { outline, depth, piecesOf, flat, color, opacity };
@@ -1291,7 +1297,8 @@ export class NodeMesh {
             isFlatShape(type) &&
             !BOX_OR_ELLIPSE.has(type) &&
             !(type === "polygon" && drawnAgainstBox(shape?.points));
-        return outlined ? inUnitBox(this.faceOf(createOptions, size, fill).outline) : null;
+        // the shape's own outline, wherever its border puts the fill: an edge stops on the node, not on its fill
+        return outlined ? inUnitBox(this.faceOf({ shape }, size, fill).outline) : null;
     }
 
     /**

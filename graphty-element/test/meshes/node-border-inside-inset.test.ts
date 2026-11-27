@@ -141,3 +141,39 @@ for (const type of ["triangle", "pentagon", "diamond"] as const) {
         assert.isAtLeast(inset, world / 2 - tolerance, `${type} fill is only ${inset.toFixed(3)} in`);
     });
 }
+
+for (const style of ["dashed", "dotted", "double"] as const) {
+    for (const type of ["star", "round-triangle", "triangle"] as const) {
+        test(`a ${style} inside border on a ${type} is drawn out to its outline and no further`, () => {
+            const options = { styleId: `inside-${style}-${type}`, is2D: true, size };
+            const shape = { type, size };
+            const border = { width, position: "inside" as const, style };
+            const bare = NodeMesh.create(cache, { ...options, styleId: `bare-${style}-${type}` }, { shape }, scene);
+            const silhouette = NodeMesh.faceOf({ shape }, size, bare).outline as P[];
+            const fill = NodeMesh.create(cache, options, { shape, border }, scene);
+            const ring = NodeMesh.createBorder(cache, options, { shape, border }, fill, scene);
+            assert.exists(ring);
+
+            const points = vertices(ring);
+            const past = Math.max(...points.map((p) => signedDistance(p, silhouette)));
+            assert.isAtMost(past, tolerance, `${type} ring reaches ${past.toFixed(3)} past its outline`);
+            // it reaches the shape's far corners (a star's tips), not a blob round a closed-up fill
+            const far = (list: readonly P[]): number => Math.max(...list.map(([x, y]) => Math.hypot(x, y)));
+            assert.isAtLeast(far(points), 0.9 * far(silhouette), `${type} ring stops short of its corners`);
+        });
+    }
+}
+
+for (const type of ["star", "triangle", "round-pentagon"] as const) {
+    test(`an inside border on a ${type} leaves where its edges end unchanged`, () => {
+        const options = { styleId: `reach-${type}`, is2D: true, size };
+        const shape = { type, size };
+        const border = { width, position: "inside" as const };
+        const fill = NodeMesh.create(cache, options, { shape, border }, scene);
+
+        assert.deepEqual(
+            NodeMesh.reachOutlineOf({ shape, border }, size, fill),
+            NodeMesh.reachOutlineOf({ shape }, size, fill),
+        );
+    });
+}

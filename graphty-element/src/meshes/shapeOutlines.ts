@@ -1145,6 +1145,47 @@ export function borderRing(
 }
 
 /**
+ * The pieces of a border drawn as the band between two given edges, point for point (a border inside a flat shape:
+ * from its drawn-in fill out to its own outline), for the styles that are a band cut along its length: solid,
+ * double and the dashed patterns. Grown out from the fill instead, a corner the fill closed up came back sharp, past a
+ * rounded shape's outline, and a star's fill closed to a sliver grew back as a blob (issue #10408).
+ * @param inner - The band's inner edge, counter-clockwise.
+ * @param outer - Its outer edge, point for point.
+ * @param style - Its line style.
+ * @param width - How wide the border is, for its dashes' lengths.
+ * @param dashUnit - The shortest one width of a dashed pattern is drawn ({@link borderRing}).
+ * @returns The pieces, or null for a style drawn along a path rather than cut from a band (a stroke, a wave).
+ */
+export function bandRing(
+    inner: readonly Point2[],
+    outer: readonly Point2[],
+    style: string,
+    width: number,
+    dashUnit = 0,
+): RingPiece[] | null {
+    const between = (f: number): Point2[] =>
+        inner.map(([x, y], i): Point2 => [x + (outer[i][0] - x) * f, y + (outer[i][1] - y) * f]);
+    if (style === "solid") {
+        return [{ inner: [...inner], outer: [...outer], closed: true }];
+    }
+    if (style === "double") {
+        return [
+            { inner: [...inner], outer: between(1 / 3), closed: true },
+            { inner: between(2 / 3), outer: [...outer], closed: true },
+        ];
+    }
+    const pattern = PATTERNS[style];
+
+    return pattern === undefined
+        ? null
+        : cutIntoDashes(
+              inner,
+              outer,
+              pattern.map((length) => length * Math.max(width, dashUnit)),
+          );
+}
+
+/**
  * Cut a closed ring into dashes along the middle of its band, fitting a whole number of pattern
  * periods so the pattern meets itself where it closes. Measured along the middle, as a stroked
  * outline's dashes are, a dot on a tight bend is as long as one elsewhere; measured along the inner

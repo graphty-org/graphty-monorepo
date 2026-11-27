@@ -139,6 +139,12 @@ export class InputController implements GestureEndHooks {
                     break;
 
                 case PointerEventTypes.POINTERMOVE:
+                    // The button came up where the canvas never heard it (outside the window): the
+                    // drag is over, as its release would have ended it.
+                    if (isPanning && e.pointerType === "mouse" && e.buttons === 0) {
+                        isPanning = false;
+                        this.endDrag();
+                    }
                     if (isPanning && e.buttons === 1) {
                         const orthoRight = this.cam.camera.orthoRight ?? 1;
                         const orthoLeft = this.cam.camera.orthoLeft ?? 1;

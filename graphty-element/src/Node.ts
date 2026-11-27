@@ -47,7 +47,7 @@ import {
 } from "./managers/StylePainter";
 import { convexRayHit } from "./meshes/convexHit";
 import { surfaceReach, type Xyz } from "./meshes/edgeRoute";
-import { applyFlatHalo, flatHaloLift } from "./meshes/flatHalo";
+import { applyFlatHalo, flatHaloLift, haloAxisScale } from "./meshes/flatHalo";
 import { disposeLater } from "./meshes/handOverTogether";
 import { drawInRowOrder } from "./meshes/instanceRowOrder";
 import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
@@ -1159,6 +1159,8 @@ export class Node implements ModelUser {
             graphNode: this,
             styleId: paint.meshKey,
             nodeId: this.id,
+            // A mesh channel, so a new order builds a new mesh: a pick in 3D honors it among flat nodes (PickService)
+            drawOrder: o.shape?.drawOrder,
         };
 
         this.syncBorder(fit.meshKey, fit.style);
@@ -1304,11 +1306,16 @@ export class Node implements ModelUser {
      * second time by the render. On a 20,000-node graph that was the root 20,000 times and every node twice a frame
      * (issue #9420). Here the root is computed only when it is itself stale, and a node only when it moved, scaled or
      * its root did.
+     * @returns The anchor's world matrix.
      */
-    private syncWorldMatrix(): void {
+    private syncWorldMatrix(): Matrix {
         const anchor = this.#anchor;
         const { parent } = anchor;
-        if (parent !== null && !anchor.isSynchronizedWithParent()) {
+        // The root only when it is itself out of date: an anchor merely computed before the root's last compute is
+        // brought up to date by its own compute below, while forcing a root that was current bumped its child counter
+        // and left every other node's matrix to compute again, about 45 ms on the next pick at 99,000 nodes once
+        // hovering a node had asked where it is drawn (issue #10116).
+        if (parent !== null && !parent.isSynchronized()) {
             parent.computeWorldMatrix(true);
         }
 
@@ -1317,7 +1324,7 @@ export class Node implements ModelUser {
             anchor.markAsDirty();
         }
 
-        anchor.computeWorldMatrix();
+        return anchor.computeWorldMatrix();
     }
 
     /**
@@ -2276,7 +2283,10 @@ export class Node implements ModelUser {
      */
     drawnWorldMatrix(force?: boolean): Matrix {
         this.followRow();
-        return this.#anchor.computeWorldMatrix(force);
+        // Forced through `syncWorldMatrix`, which forces the graph root only when it is out of date.
+        return force === true && !this.#anchor.isDisposed()
+            ? this.syncWorldMatrix()
+            : this.#anchor.computeWorldMatrix();
     }
 
     /**
@@ -3712,6 +3722,7 @@ export class Node implements ModelUser {
             graphNode: this,
             styleId: meshKey,
             nodeId: this.id,
+            drawOrder: o.shape?.drawOrder,
         };
 
         // Restore position from layout engine after mesh recreation
@@ -4194,10 +4205,16 @@ export class Node implements ModelUser {
             // passed through.
             Node.paintHalo(overlay, look);
             this.ringLabel(look.scale);
-            // The node's own geometry, scaled about its center: every point of the node's surface
-            // moves out by the configured multiplier, so a box gets a box, a cylinder a
-            // cylinder, and a node drawn wider than tall a halo wider than tall.
-            overlay.scaling.copyFrom(this.#anchor.scaling).scaleInPlace(selection.scale);
+            // The node's own geometry, stretched about its center so its band is one width all
+            // round (haloAxisScale): a box gets a box, a cylinder a cylinder, and a node drawn
+            // wider than tall a halo as thick at its top as at its sides.
+            const own = this.#anchor.scaling;
+            const grow = haloAxisScale(
+                overlay.getBoundingInfo().boundingBox.extendSize,
+                selection.scale,
+                own.x === 0 ? 0 : this.borderReach / Math.abs(own.x),
+            );
+            overlay.scaling.copyFromFloats(own.x * grow.x, own.y * grow.y, own.z * grow.z);
             this.haloLift = flatHaloLift(overlay, this.#anchor.scaling.z);
         } else {
             this.contextPoint = overlay;
@@ -4899,9 +4916,8 @@ export class Node implements ModelUser {
             ...(place ? { offsetX: place[0], offsetY: place[1] } : {}),
             ...wanted,
         };
-        this.xlabelLabel = new RichTextLabel(
-            this.#anchor.getScene(),
-            this.createLabelOptions(String(wanted.text), style),
+        this.xlabelLabel = Node.passThrough(
+            new RichTextLabel(this.#anchor.getScene(), this.createLabelOptions(String(wanted.text), style)),
         );
     }
 
@@ -4977,12 +4993,14 @@ export class Node implements ModelUser {
                 ...(look.font === undefined ? {} : { font: look.font }),
                 ...(look.rotation === undefined ? {} : { rotation: look.rotation }),
             });
-            return new RichTextLabel(scene, {
-                ...(at < own.length || k === 1 ? options : shrunkLetters(options, k)),
-                // right and down on screen
-                offsetX: x * half.x,
-                offsetY: -y * half.y,
-            });
+            return Node.passThrough(
+                new RichTextLabel(scene, {
+                    ...(at < own.length || k === 1 ? options : shrunkLetters(options, k)),
+                    // right and down on screen
+                    offsetX: x * half.x,
+                    offsetY: -y * half.y,
+                }),
+            );
         });
     }
 
@@ -5030,10 +5048,19 @@ export class Node implements ModelUser {
         }
 
         const text = this.extractLabelText(this.wantedTooltip);
-        this.tooltip = new RichTextLabel(this.#anchor.getScene(), {
-            ...this.createLabelOptions(text, this.wantedTooltip),
-            onTop: true,
-        });
+        // Empty words draw nothing, as an edge's tooltip and an external label already rule: a file that writes an
+        // empty tooltip on every node (Cytoscape's NODE_TOOLTIP="") would otherwise get a blank box on each hover.
+        // Only white space is as empty: it draws the same box around no visible words.
+        if (text.trim() === "") {
+            return;
+        }
+
+        this.tooltip = Node.passThrough(
+            new RichTextLabel(this.#anchor.getScene(), {
+                ...this.createLabelOptions(text, this.wantedTooltip),
+                onTop: true,
+            }),
+        );
         this.context.getNodeBatches?.()?.rewalk(this);
     }
 
@@ -5093,6 +5120,23 @@ export class Node implements ModelUser {
         return this.wantedTooltip === undefined ? undefined : this.extractLabelText(this.wantedTooltip);
     }
 
+    /**
+     * Let the pointer through one of this node's text planes to whatever is drawn under it.
+     *
+     * Babylon makes a plane pickable, and a node's label, tooltip or shape text carries no node
+     * id, so it took the pick from the node it is drawn over and answered nothing: a click on the
+     * middle of a node with its name inside fell through to an edge ending there, and hovering
+     * there hovered nothing (issue #10116). The edge tooltip already does this (Graph).
+     * @param label - The text.
+     * @returns The same text.
+     */
+    private static passThrough(label: RichTextLabel): RichTextLabel {
+        if (label.labelMesh) {
+            label.labelMesh.isPickable = false;
+        }
+        return label;
+    }
+
     private createLabel(styleConfig: NodeStyleConfig): RichTextLabel {
         const labelText = this.extractLabelText(styleConfig.label);
         const labelOptions = this.createLabelOptions(labelText, styleConfig.label);
@@ -5103,10 +5147,15 @@ export class Node implements ModelUser {
         // Its animation starts on the first frame at rest with no style paint left to draw.
         oweLabelAnimations(scene);
         labelOptions.glyphs = this.context.getStyles().config.behavior.labels.labelText === "glyphs";
-        const label = new RichTextLabel(scene, labelOptions);
-        // The plane is pickable either way (Babylon's default), so unset it takes a click and
-        // answers no node; `pickable` makes `pickNodeId` read this node's id off it.
+        const created = new RichTextLabel(scene, labelOptions);
+        // The plane lets the pointer through, so a click on a name drawn over its node reaches the
+        // node; `pickable` makes the plane itself answer this node's id. A card -- a label with a
+        // close button, or one drawn over the whole graph -- still takes the click, as the reader
+        // sees it on top: a click on it reaches no node behind it (`Graph.handledOnCloseLabel`).
+        const card = styleConfig.label?.closeButton === true || styleConfig.label?.onTop === true;
+        const label = card ? created : Node.passThrough(created);
         if (styleConfig.label?.pickable === true && label.labelMesh) {
+            label.labelMesh.isPickable = true;
             label.labelMesh.metadata = { nodeId: this.id };
         }
 

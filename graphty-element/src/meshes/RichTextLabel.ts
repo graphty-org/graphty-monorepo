@@ -2417,7 +2417,8 @@ export class RichTextLabel {
         this.mesh.material = this.material;
         // A label with a close button is told apart from other labels by a click; see labelClose.
         // Every label plane is pickable, as Babylon makes it, so one without a button still
-        // stops a click as it always has: a click on it reaches no node behind it.
+        // stops a click as it always has: a click on it reaches no node behind it. A node's own
+        // texts let the pointer through instead (Node.passThrough).
         if (this.options.closeButton) {
             this.unmarkClose = markCloseLabel(this.mesh, () => this.closeBounds);
         }

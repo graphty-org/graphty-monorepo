@@ -23,24 +23,27 @@
     text-decoration: underline dotted;
 }
 
-/* The join workspace (issue #9796): the selection workspace's frame, sized for iPad and phones, with a
-   row of its own for the key, so the counts never push Cancel and Done off the header. */
-.sel-ws.sel-modal.jw-modal {
-    grid-template-rows: 40px auto minmax(0, 1fr);
-}
-
+/* The join workspace (issue #9796): the selection workspace's frame, sized for iPad and phones. Its key
+   sits in the header after the title and gives way before Cancel and Done do. */
 .jw-modal .sel-ws-head {
     overflow-x: auto;
 }
 
+/* The title and the open join's name keep their room: the key gives way first. */
+.jw-modal .sel-ws-head > .sel-ws-title {
+    flex-shrink: 0;
+    max-width: 40%;
+}
+
 .jw-key {
     display: flex;
-    flex-wrap: wrap;
-    gap: 2px 12px;
+    flex: 0 1 auto;
+    flex-wrap: nowrap;
+    gap: 12px;
     align-items: center;
-    min-height: 24px;
-    padding-inline: 12px;
-    border-bottom: 1px solid var(--cm-border);
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
 }
 
 .jw-lower {
@@ -170,13 +173,13 @@ dialog.jw-modal {
     transform: translateY(-50%) rotate(-45deg);
 }
 
-.jw-card .mantine-Radio-label,
-.jw-card .mantine-Switch-label {
+.jw-modal .sel-card .mantine-Radio-label,
+.jw-modal .sel-card .mantine-Switch-label {
     padding-inline-start: 6px;
 }
 
-.jw-card .mantine-Radio-body,
-.jw-card .mantine-Switch-body {
+.jw-modal .sel-card .mantine-Radio-body,
+.jw-modal .sel-card .mantine-Switch-body {
     align-items: center;
 }
 
@@ -203,38 +206,21 @@ dialog.jw-modal {
     min-width: 0;
 }
 
-/* A line of a card: its two sources with a field of each under them, and "=" between; a further line's
-   remove sits after them. */
+/* A line of a card: its two sources with a field of each under them, and "=" between, out to the card's
+   edge; a further line's remove sits after them. */
 .jw-line {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 12px minmax(0, 1fr) 20px;
+    grid-template-columns: minmax(0, 1fr) 12px minmax(0, 1fr);
     gap: 4px;
     align-items: center;
 }
 
+.jw-line[data-removable] {
+    grid-template-columns: minmax(0, 1fr) 12px minmax(0, 1fr) 20px;
+}
+
 .jw-line > .jw-line-count {
     grid-column: 1 / -1;
-}
-
-/* The list of joins takes at most 40% of the left column; the selected one's editor scrolls under it. */
-.jw-modal .jw-left {
-    display: flex;
-    flex-direction: column;
-    padding: 0;
-    overflow: hidden;
-}
-
-.jw-list {
-    flex: 0 1 auto;
-    max-height: 40%;
-    overflow-y: auto;
-}
-
-.jw-editor {
-    flex: 1 1 0;
-    min-height: 0;
-    padding: 12px;
-    overflow-y: auto;
 }
 
 /* The two sources' rows, one window of lines: their scroll areas are as tall as each other whether or
@@ -268,4 +254,14 @@ dialog.jw-modal {
 
 .jw-counts {
     font-size: var(--mantine-font-size-xs);
+}
+
+/* "+ Match" starts at the card's padding, where its other controls start. */
+.jw-add-match {
+    padding-inline: 0;
+}
+
+/* Advanced folds inside its card's step: the step's own border is the only line, as in a selection card. */
+.jw-modal .sel-card .cm-section {
+    border-bottom: 0;
 }

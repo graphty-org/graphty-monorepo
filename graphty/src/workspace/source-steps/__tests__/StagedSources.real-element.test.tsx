@@ -1,7 +1,7 @@
 /**
- * A second source arrives staged, on the REAL graphty-element with the source-steps experiment on
- * (design/data/multiple-data-sources-design.md, sections 5.1 and 5.5), driven by drops, clicks and
- * keys: it waits in its own entry in the Data sources list drawing nothing, holding only how its
+ * Sources on the REAL graphty-element with the source-steps experiment on: a dropped second or third
+ * file is drawn at once as its own nodes (issue #10364). A waiting source (one a project saved, seeded
+ * here by session.data.stage) is driven by clicks and keys: Add to graph draws it; it waits in its own entry in the Data sources list drawing nothing, holding only how its
  * rows are read; the join workspace (Join +) adds it as it is, and a source whose keys meet people
  * already there asks "Same person?" where it was added there and holds Done until it is answered;
  * Remove takes it away and Undo brings it back; a save and reopen keeps it staged.
@@ -17,7 +17,7 @@ import { userEvent } from "vitest/browser";
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import type { WorkspaceStore } from "../../state/store";
-import { choose, drop, emptyProject, joinAs, joinLines, pickFields, pickSources } from "./sourceSteps";
+import { choose, drop, emptyProject, joinAs, joinLines, pickFields, pickSources, stageFile } from "./sourceSteps";
 
 withFeatures(["source-steps"]);
 
@@ -47,7 +47,7 @@ async function withPeopleDropped(): Promise<{ store: WorkspaceStore; session: Gr
  * @returns the entry.
  */
 async function stage(name: string, text: string): Promise<HTMLElement> {
-    drop(name, text);
+    await stageFile(name, text);
     return openEntry(name);
 }
 
@@ -89,7 +89,42 @@ async function readAs(modal: HTMLElement, name: string): Promise<HTMLElement> {
     return settings;
 }
 
-describe("a second source arrives staged (source-steps)", () => {
+describe("every loaded source is drawn (source-steps, #10364)", () => {
+    it("draws a second and a third dropped file at once as their own nodes, none left waiting", async () => {
+        const { session } = await withPeopleDropped();
+        drop("buildings.csv", BUILDINGS);
+        await waitFor(() => {
+            assert.strictEqual(session.data.nodes().length, 5, "people and the two buildings");
+        });
+        drop("visitors.csv", VISITORS);
+        await waitFor(() => {
+            assert.strictEqual(session.data.nodes().length, 7, "and both visitors, kept apart from people");
+        });
+        assert.isEmpty(session.data.staged(), "nothing waits");
+        assert.sameMembers(
+            session.data.sources().map((each) => each.name),
+            ["people.csv", "buildings.csv", "visitors.csv"],
+        );
+    });
+
+    it("Add to graph in a waiting source's menu draws it as its own nodes; Undo leaves it waiting", async () => {
+        const { session } = await withPeopleDropped();
+        const entry = await stage("buildings.csv", BUILDINGS);
+        await userEvent.click(within(entry).getByRole("button", { name: "buildings.csv menu" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Add to graph" }));
+        await waitFor(() => {
+            assert.strictEqual(session.data.nodes().length, 5);
+        });
+        assert.isEmpty(session.data.staged());
+        await userEvent.keyboard("{Control>}z{/Control}");
+        await waitFor(() => {
+            assert.strictEqual(session.data.nodes().length, 3);
+        });
+        assert.strictEqual(session.data.staged()[0]?.name, "buildings.csv", "waiting again");
+    });
+});
+
+describe("a waiting source (source-steps)", () => {
     it("stages buildings.csv drawing nothing, then the workspace adds it as it is and Done adds it as one more source", async () => {
         const { session } = await withPeopleDropped();
         const entry = await stage("buildings.csv", BUILDINGS);
@@ -149,7 +184,7 @@ describe("a second source arrives staged (source-steps)", () => {
             { type: "csv", config: { data: PEOPLE }, name: "people.csv" },
             { key: "badge", type: "person" },
         );
-        drop("visitors.csv", VISITORS);
+        await stageFile("visitors.csv", VISITORS);
         await screen.findByRole("listitem", { name: "visitors.csv" });
         const modal = await workspace();
         const settings = await readAs(modal, "visitors");
@@ -410,7 +445,7 @@ describe("a second source arrives staged (source-steps)", () => {
 
     it("names a source's own space by the source, never by its id, on the workspace card", async () => {
         await withPeopleDropped();
-        drop("buildings.csv", BUILDINGS);
+        await stageFile("buildings.csv", BUILDINGS);
         await screen.findByRole("listitem", { name: "buildings.csv" });
         const settings = await readAs(await workspace(), "buildings");
         const space = within(settings).getByRole("combobox", { name: "Same nodes as" });
@@ -426,7 +461,7 @@ describe("a second source arrives staged (source-steps)", () => {
 
     it("labels a waiting source's rows in plain words on the workspace card: no Key, Space or unset", async () => {
         await withPeopleDropped();
-        drop("buildings.csv", BUILDINGS);
+        await stageFile("buildings.csv", BUILDINGS);
         await screen.findByRole("listitem", { name: "buildings.csv" });
         const settings = await readAs(await workspace(), "buildings");
         const boxes = within(settings).getAllByRole<HTMLInputElement>("combobox");

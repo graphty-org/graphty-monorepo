@@ -18,6 +18,7 @@ import { screen, waitFor, within } from "../../../test/test-utils";
 import {
     addMatch,
     advanced,
+    checkedWay,
     choose,
     done,
     draftOf,
@@ -30,6 +31,7 @@ import {
     pickableWays,
     pickFields,
     pickSources,
+    removeOpen,
     selectJoin,
     waysToJoin,
 } from "./sourceSteps";
@@ -521,7 +523,9 @@ describe("a join card's ways to join (source-steps)", () => {
             await addMatch(modal, at + 2, a, b);
         }
         assert.deepStrictEqual(waysToJoin(modal), ways);
-        assert.lengthOf(joinsOf(session), 0, "nothing is applied before one is picked");
+        // A complete match joins at once by a default type, which the reader's pick then replaces.
+        const first = checkedWay(modal);
+        assert.strictEqual(joinsOf(session).length > 0, first !== null, "a default type is applied as it is picked");
         await joinAs(modal, pick);
         await waitFor(() => {
             assert.lengthOf(joinsOf(session), steps);
@@ -529,15 +533,15 @@ describe("a join card's ways to join (source-steps)", () => {
         assert.deepStrictEqual(after(session), makes);
         await countsAgree(modal);
         assert.deepStrictEqual(joinLines(modal), lines);
-        // One undo takes the whole card's join back and leaves its lines.
+        // Undo takes the card's last write back as one step, and Redo makes the picked join again.
+        const made = JSON.stringify(draftOf(session).steps());
         await userEvent.click(within(modal).getByRole("button", { name: /^Undo/ }));
         await waitFor(() => {
-            assert.lengthOf(joinsOf(session), 0);
+            assert.notStrictEqual(JSON.stringify(draftOf(session).steps()), made, "the last write is taken back");
         });
-        assert.deepStrictEqual(waysToJoin(modal), ways, "its lines are there, how to join asked again");
-        assert.isNull(within(modal).queryByRole("radio", { checked: true, name: pick }));
-        await joinAs(modal, pick);
+        await userEvent.click(within(modal).getByRole("button", { name: /^Redo/ }));
         await waitFor(() => {
+            assert.strictEqual(checkedWay(modal), pick);
             assert.lengthOf(joinsOf(session), steps);
         });
         await done(modal);
@@ -656,7 +660,7 @@ describe("a join card's ways to join (source-steps)", () => {
         await newest(session, (step) => step.act?.into.field === "phone", "on the phones the first card brought");
         assert.strictEqual(after(session)[0], 3);
         await selectJoin(modal, "accounts + identifiers");
-        await userEvent.click(within(modal).getByRole("button", { name: /^Remove/ }));
+        await removeOpen(modal);
         await selectJoin(modal, "accounts + watch");
         await within(modal).findByRole("radio", { checked: true, name: "Fields of watch on accounts" });
         await within(modal).findByRole("radiogroup", { name: "No match" });

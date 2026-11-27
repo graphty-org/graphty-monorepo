@@ -311,7 +311,7 @@ function madeWords(outcome: SourceJoinOutcome, w: Wording): string {
 }
 
 /**
- * An outcome as a card's "Join as" lists it: one that uses only some of the card's lines names the field
+ * An outcome as a card's "Join type" lists it: one that uses only some of the card's lines names the field
  * it matches.
  * @param outcome - the outcome
  * @param w - what it is worded by

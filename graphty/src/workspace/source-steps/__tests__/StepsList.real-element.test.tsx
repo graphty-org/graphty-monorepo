@@ -1,8 +1,8 @@
 /**
  * The committed steps and the reader's edits in the join workspace, on the REAL graphty-element with
  * the source-steps experiment on (design/data/multiple-data-sources-design.md, sections 7.13 and
- * 7.17), driven by clicks and keys, in the owner's founding example. The workspace lists every join, one
- * line each, and the selected one's editor; removing the edge step's card takes its edges away and Done commits
+ * 7.17), driven by clicks and keys, in the owner's founding example. The workspace shows every join as a card,
+ * the open one holding its controls; removing the edge step's card takes its edges away and Done commits
  * that as one undo step. HR's merge card lists the column whose values differ, with its rule and
  * how its rows reduce. A pick on HR's list is a reader edit, listed under Reader edits (R) and
  * taken back by its Delete. Remove in people.csv's menu opens the workspace on the removal, naming
@@ -18,7 +18,7 @@ import { page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
-import { choose, done, emptyProject, joinLines, openJoins as workspace, selectJoin } from "./sourceSteps";
+import { choose, done, emptyProject, joinLines, openJoins as workspace, removeOpen, selectJoin } from "./sourceSteps";
 
 withFeatures(["source-steps"]);
 
@@ -98,7 +98,7 @@ describe("steps and reader edits in the join workspace (source-steps)", () => {
 
         const steps = session.history.steps.length;
         await selectJoin(modal, "people + entries");
-        await userEvent.click(await within(modal).findByRole("button", { name: /^Remove/ }));
+        await removeOpen(modal);
         await waitFor(() => {
             assert.deepStrictEqual(joinLines(modal), ["people + hr", "New join"]);
         });
@@ -116,7 +116,7 @@ describe("steps and reader edits in the join workspace (source-steps)", () => {
 
         const again = await workspace();
         await selectJoin(again, "people + entries");
-        await userEvent.click(await within(again).findByRole("button", { name: /^Remove/ }));
+        await removeOpen(again);
         await done(again);
         await screen.findAllByText("Removed");
         assert.isNotEmpty(screen.getAllByRole("button", { name: "Undo" }), "the notice offers Undo");
@@ -174,7 +174,7 @@ describe("steps and reader edits in the join workspace (source-steps)", () => {
             "people + entries, name",
             "New join",
         ]);
-        for (const row of modal.querySelectorAll(".cm-page-name")) {
+        for (const row of modal.querySelectorAll(".cm-card-title")) {
             assert.isAtMost(row.scrollWidth, row.clientWidth, "never cut");
         }
         await selectJoin(modal, "entries + doors");

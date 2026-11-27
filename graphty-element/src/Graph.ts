@@ -1824,12 +1824,15 @@ export class Graph implements GraphContext {
 
         // `view.camera` moves this renderer's camera; a session with no renderer refuses it.
         dispatcherOf(this.session).services.camera = {
-            pose: (follows) => {
-                try {
-                    return this.#savedPose({ follows });
-                } catch {
-                    return undefined;
-                }
+            poser: () => {
+                const context = this.#sharedViewContext();
+                return (follows) => {
+                    try {
+                        return this.#savedPose({ follows }, context);
+                    } catch {
+                        return undefined;
+                    }
+                };
             },
             current: () => {
                 const immersive = this.#immersiveProblem();
@@ -11211,18 +11214,33 @@ export class Graph implements GraphContext {
      * The pose a saved view gives now: its fixed camera, or the camera view it follows computed
      * with its default scope for whatever is drawn.
      * @param saved - The saved view.
+     * @param context - The whole graph's camera-view context; measured anew by default.
      * @returns The camera state.
      * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA` `{ name }` when the followed camera view is
      *     no longer registered, or as `resolveCameraView` refuses.
      */
-    #savedPose(saved: SavedView): import("./screenshot/types.js").CameraState {
+    #savedPose(
+        saved: SavedView,
+        context: () => CameraViewContext = () => this.cameraViewContext(this.boundsToFrame()),
+    ): import("./screenshot/types.js").CameraState {
         if (saved.follows === undefined) {
             return saved.camera ?? {};
         }
         if (!isCameraViewName(saved.follows)) {
             throw unknownFollowed(saved.follows);
         }
-        return resolveCameraView(saved.follows, this.cameraViewContext(this.boundsToFrame()));
+        return resolveCameraView(saved.follows, context());
+    }
+
+    /**
+     * The whole graph's camera-view context, measured on the first call and shared by every call
+     * after: a save that writes many following views measures every node once, not once a view
+     * (issue #10314).
+     * @returns The getter.
+     */
+    #sharedViewContext(): () => CameraViewContext {
+        let context: CameraViewContext | undefined;
+        return () => (context ??= this.cameraViewContext(this.boundsToFrame()));
     }
 
     /**
@@ -11231,9 +11249,12 @@ export class Graph implements GraphContext {
      * @returns Each name with its pose, in project order.
      */
     #savedPoses(): [string, import("./screenshot/types.js").CameraState][] {
+        const context = this.#sharedViewContext();
         return [...this.session.views].flatMap(([name, saved]) => {
             try {
-                return [[name, this.#savedPose(saved)] as [string, import("./screenshot/types.js").CameraState]];
+                return [
+                    [name, this.#savedPose(saved, context)] as [string, import("./screenshot/types.js").CameraState],
+                ];
             } catch {
                 return [];
             }

@@ -2000,6 +2000,21 @@ describe("pipeline jobs", () => {
         assert.deepEqual(offered(NOW + 3 * HOUR), [2, 3]);
     });
 
+    it("holds a blocked issue past its due time while the pull request it names is open (#10254)", () => {
+        const l = withPrs([pr(9010)]);
+        const due = new Date(NOW - HOUR).toISOString();
+        l.blocked = [
+            { issue: 1, prs: [9010], reason: "file collision with open #9010", due },
+            { issue: 2, prs: [9011], reason: "file collision with merged #9011", due },
+        ];
+        const r = ledgerJobs(l, q([1, "high"], [2, "high"]), NOW);
+        assert.deepEqual(
+            r.jobs.filter((j) => !j.kind).map((j) => j.issues),
+            [[2]],
+        );
+        assert.deepEqual(r.rescan, [2]);
+    });
+
     it("fetches the open pull requests in one paged query with their markers", () => {
         const agent = { __typename: "User", login: "graphty-agent" };
         const c = (body, createdAt) => ({ body, createdAt, author: agent, editor: null, lastEditedAt: null });

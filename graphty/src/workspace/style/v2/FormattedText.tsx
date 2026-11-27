@@ -2,15 +2,15 @@
  * A label's Formatted string (owner, 2026-11-24: "The formatted string editor opens in a popout, allows adding text
  * and values (data, calculated, etc) in a string, and has a live preview"): text with values in it, written as
  * graphty-element's `{ template }` binding, one line per line of the label. Its pop-out holds the Preview (what
- * graphty-element draws for one node or edge, stepped with "<" and ">", following the selection), the Text line
- * (the template with each value by its name, never `{path}`, opening its parts beside) and Insert value. The parts
- * list (tmp/formatted-string/design-parts-list.md 4.2) holds each line (its Bold), its words and its values; a
+ * graphty-element draws for one node or edge, stepped with "<" and ">", following the selection), then each line of
+ * the label as one text field with its Bold (words typed straight in, each value shown as its name in braces,
+ * "{Degree}", never its path), Insert value (puts a value where the caret was) and New line, and Value formats: each
  * value's Format pop-over sets its own number, percent, money or date format and what a missing value shows.
  * graphty-element reads and writes the template (`parseLabelTemplate`, `writeLabelTemplate`) and draws it; the
  * panel only shows its parts.
  */
 
-import { Popout, ToggleIconButton } from "@graphty/compact-mantine";
+import { PanelField, Popout, ToggleIconButton } from "@graphty/compact-mantine";
 import type { Channel, DataEntry } from "@graphty/graphty-element/catalog";
 import {
     type LabelTemplatePart,
@@ -28,7 +28,7 @@ import type { RowContext } from "../PropertyRow";
 import { propose, sourceName, type TemplateWrite } from "../row";
 import { useStyleVersion } from "../useStyleVersion";
 import { ValuePicker } from "../ValuePicker";
-import { BesidePopover, CommitText, PopLine } from "./dataLines";
+import { BesidePopover, PopLine } from "./dataLines";
 import { FormatLines } from "./FormatPopover";
 import { LineFrame } from "./RubricLine";
 import { ValueButton } from "./ValueButton";
@@ -41,9 +41,6 @@ const SAMPLES = 200;
 
 /** What the preview shows when no node or edge draws words from the text. */
 const NO_WORDS = "No words";
-
-/** What separates two lines where a template is shown on one line. */
-const LINE_BREAK = " / ";
 
 /** One value part of a line. */
 type ValuePart = Extract<LabelTemplatePart, { path: string }>;
@@ -125,18 +122,6 @@ function samplesOf(
 function valueName(session: GraphSession, part: ValuePart): string {
     const name = sourceName(session, { by: part.path }) ?? part.path.split(".").at(-1) ?? part.path;
     return part.op === undefined ? name : `${name} ${part.op}`;
-}
-
-/**
- * A template's lines as one line of words, each value by its name: "Name (Degree) / Gene".
- * @param session - the session.
- * @param lines - the lines.
- * @returns the words.
- */
-function shownLines(session: GraphSession, lines: readonly LabelTemplateParts[]): string {
-    return lines
-        .map((line) => line.parts.map((part) => ("text" in part ? part.text : valueName(session, part))).join(""))
-        .join(LINE_BREAK);
 }
 
 /**
@@ -238,8 +223,68 @@ interface EditorArgs {
     readonly onWrite: (binding: TemplateWrite) => void;
 }
 
+/** A value in a line's text: its name in braces, "{Degree}". */
+const TOKEN = /\{([^{}]+)\}/g;
+
 /**
- * The pop-out's lines: Preview, Text and Insert value.
+ * A line as the text its field shows: its words, and each value as its name in braces.
+ * @param session - the session.
+ * @param line - the line.
+ * @returns the text.
+ */
+function textOf(session: GraphSession, line: LabelTemplateParts): string {
+    return line.parts.map((part) => ("text" in part ? part.text : `{${valueName(session, part)}}`)).join("");
+}
+
+/**
+ * A line's text read back as parts: each `{name}` that names a value is that value, everything else is words. A
+ * value keeps its own format: the first `{Degree}` takes the first Degree the line held, the second the second.
+ * @param session - the session.
+ * @param text - the text typed.
+ * @param held - the values the template holds now, this line's first.
+ * @returns the parts.
+ */
+function partsOf(session: GraphSession, text: string, held: readonly ValuePart[]): LabelTemplatePart[] {
+    const left = [...held];
+    const valueFor = (name: string): ValuePart | undefined => {
+        const at = left.findIndex((part) => valueName(session, part) === name);
+        if (at >= 0) {
+            return left.splice(at, 1)[0];
+        }
+        // A value named again, or a column typed by its name.
+        // ponytail: a column whose name is also typed as words in braces reads as the column.
+        const again = held.find((part) => valueName(session, part) === name);
+        const column = session.data.attributes().find((attribute) => attribute.name === name);
+        return again ?? (column === undefined ? undefined : { path: column.path });
+    };
+    const parts: LabelTemplatePart[] = [];
+    const words = (words: string): void => {
+        const last = parts.at(-1);
+        if (words === "") {
+            return;
+        }
+        if (last !== undefined && "text" in last) {
+            parts[parts.length - 1] = { text: last.text + words };
+        } else {
+            parts.push({ text: words });
+        }
+    };
+    let from = 0;
+    for (const match of text.matchAll(TOKEN)) {
+        const value = valueFor(match[1]);
+        if (value !== undefined) {
+            words(text.slice(from, match.index));
+            parts.push(value);
+            from = match.index + match[0].length;
+        }
+    }
+    words(text.slice(from));
+    return parts;
+}
+
+/**
+ * The pop-out's lines: Preview; each line of the label as one text field with its Bold; Insert value and New line;
+ * and each value's Format.
  * @param props - see EditorArgs
  * @returns The lines
  */
@@ -250,13 +295,18 @@ function Editor(props: EditorArgs): React.JSX.Element {
     useStyleVersion(session, element);
     // on reload: fresh: pointer: the sample the preview was stepped to for a look
     const [stepped, setStepped] = useState<string | null>(null);
-    // on reload: fresh: pointer: a list opened for a look
-    const [listOpen, setListOpen] = useState(false);
     // on reload: fresh: pointer: a picker held open by the pointer
     const [picking, setPicking] = useState(false);
-    // Parts not yet written (a new empty line or words not typed yet), until the element hands back a new binding.
+    // on reload: fresh: pointer: the value whose Format pop-over is open, by its line and place
+    const [formatting, setFormatting] = useState<string | null>(null);
+    // on reload: fresh: in flight: words typed in a line and not yet written, by line
+    const [typed, setTyped] = useState<Readonly<Partial<Record<number, string>>>>({});
+    // Where Insert value puts a value: the line and caret the reader left; the end of the last line until then.
+    // on reload: fresh: pointer: the caret
+    const [caret, setCaret] = useState<{ readonly line: number; readonly at: number } | null>(null);
+    // Lines not yet written (a new empty line), until the element hands back a new binding.
     const key = JSON.stringify(binding ?? null);
-    // on reload: fresh: in flight: parts not yet written
+    // on reload: fresh: in flight: lines not yet written
     const [held, setHeld] = useState<{ readonly key: string; readonly lines: LabelTemplateParts[] } | null>(null);
     const lines = held?.key === key ? held.lines : linesOf(binding);
     // A click on the Graph that selects a node moves the preview to it.
@@ -271,8 +321,10 @@ function Editor(props: EditorArgs): React.JSX.Element {
     if (session === null) {
         return <Stack gap={8} data-formatted-text="" />;
     }
+    const shownLines = lines.length === 0 ? [{ bold: false, parts: [] }] : lines;
     const put = (next: LabelTemplateParts[]): void => {
         setHeld({ key, lines: next });
+        setTyped({});
         // A line with no parts yet waits: it is written once it holds one.
         const kept = next.filter((line) => line.parts.length > 0);
         const written: TemplateWrite = {
@@ -283,6 +335,17 @@ function Editor(props: EditorArgs): React.JSX.Element {
             onWrite(written);
         }
     };
+    const values = (first: number): ValuePart[] =>
+        [shownLines[first], ...shownLines.filter((_, i) => i !== first)].flatMap((line) =>
+            line.parts.filter((part): part is ValuePart => "path" in part),
+        );
+    const textAt = (at: number): string => typed[at] ?? textOf(session, shownLines[at]);
+    // Every line as typed, read back as parts.
+    const read = (): LabelTemplateParts[] =>
+        shownLines.map((line, at) => {
+            const text = typed[at];
+            return text === undefined ? line : { ...line, parts: partsOf(session, text, values(at)) };
+        });
     const draws = (id: string): boolean => wordsOf(session, ctx.side, channel, entry, id) !== undefined;
     const { shown, step } = samplesOf(session, ctx.side, draws, stepped);
     const preview = shown === undefined ? undefined : wordsOf(session, ctx.side, channel, entry, shown);
@@ -299,6 +362,24 @@ function Editor(props: EditorArgs): React.JSX.Element {
         >
             {by === 1 ? <GLYPHS.next size={14} aria-hidden /> : <GLYPHS.back size={14} aria-hidden />}
         </ActionIcon>
+    );
+    const insertValue = (part: ValuePart): void => {
+        const line = caret !== null && caret.line < shownLines.length ? caret.line : shownLines.length - 1;
+        const text = textAt(line);
+        const at = Math.min(caret?.line === line ? caret.at : text.length, text.length);
+        const parts = [
+            ...partsOf(session, text.slice(0, at), values(line)),
+            part,
+            ...partsOf(session, text.slice(at), values(line)),
+        ];
+        const next = read();
+        next[line] = { ...next[line], parts };
+        put(next);
+        setCaret(null);
+    };
+    // Each value the label shows, in order, each opening its Format pop-over.
+    const formats = shownLines.flatMap((line, at) =>
+        line.parts.flatMap((part, k) => ("path" in part ? [{ at, k, part }] : [])),
     );
     return (
         <Stack gap={8} data-formatted-text="">
@@ -322,248 +403,176 @@ function Editor(props: EditorArgs): React.JSX.Element {
                     data-formatted-preview=""
                 />
             </PopLine>
-            <PopLine line="template.text" name="Text">
-                <ValueButton
-                    label={`${title} parts`}
-                    words={shownLines(session, lines) || "None"}
-                    opens="dialog"
-                    expanded={listOpen}
-                    onClick={() => {
-                        setListOpen(!listOpen);
-                    }}
-                />
-                <BesidePopover title="Text" opened={listOpen} onOpenChange={setListOpen}>
-                    <PartsList session={session} lines={lines} put={put} />
-                </BesidePopover>
-            </PopLine>
-            <PopLine line="template.insert" name={null}>
-                <Popout opened={picking} onOpenChange={setPicking}>
-                    <Popout.Trigger>
-                        <ValueButton
-                            label={`${title} insert value`}
-                            words="Insert value"
-                            opens="dialog"
-                            expanded={picking}
-                            left={<GLYPHS.add size={12} aria-hidden />}
-                            right={<GLYPHS.expand size={12} aria-hidden />}
-                        />
-                    </Popout.Trigger>
-                    <Popout.Panel
-                        width={260}
-                        placement="beside"
-                        header={{ variant: "title", title: "Insert value" }}
-                        closeLabel="Close Insert value"
-                    >
-                        <ValuePicker
-                            title="Insert value"
-                            target={ctx.side}
-                            channel={channel}
-                            onPick={(choice) => {
-                                setPicking(false);
-                                const proposal = propose(session, choice, channel);
-                                if (!proposal.ok || !("by" in proposal.binding)) {
-                                    return;
-                                }
-                                // The value goes at the end of the last line.
-                                const last = lines.at(-1) ?? { bold: false, parts: [] };
-                                put([
-                                    ...lines.slice(0, -1),
-                                    { ...last, parts: [...last.parts, { path: proposal.binding.by }] },
-                                ]);
-                            }}
-                            onClose={() => {
-                                setPicking(false);
-                            }}
-                        />
-                    </Popout.Panel>
-                </Popout>
-            </PopLine>
-        </Stack>
-    );
-}
-
-/**
- * The parts list, beside the editor: each line with its Bold, then its words and values, each with its minus; Add
- * text and New line at the foot. A value opens its Format pop-over beside.
- * @param props - Component props
- * @param props.session - the session
- * @param props.lines - the lines
- * @param props.put - writes the lines
- * @returns The list
- */
-function PartsList({
-    session,
-    lines,
-    put,
-}: Readonly<{
-    session: GraphSession;
-    lines: readonly LabelTemplateParts[];
-    put: (next: LabelTemplateParts[]) => void;
-}>): React.JSX.Element {
-    // The value whose Format pop-over is open, by its line and place.
-    // on reload: fresh: pointer: a format pop-over held open by its control
-    const [formatting, setFormatting] = useState<string | null>(null);
-    const withLine = (at: number, line: LabelTemplateParts): LabelTemplateParts[] =>
-        lines.map((each, i) => (i === at ? line : each));
-    const withPart = (at: number, k: number, part: LabelTemplatePart | null): LabelTemplateParts[] => {
-        const line = lines[at];
-        const parts =
-            part === null ? line.parts.filter((_, i) => i !== k) : line.parts.map((p, i) => (i === k ? part : p));
-        return withLine(at, { ...line, parts });
-    };
-    const shown = lines.length === 0 ? [{ bold: false, parts: [] }] : lines;
-    return (
-        <div data-template-parts="">
-            {shown.map((line, at) => (
-                // eslint-disable-next-line react/no-array-index-key -- a line is its place in the template
-                <React.Fragment key={at}>
+            {shownLines.map((line, at) => {
+                const n = String(at + 1);
+                return (
                     <LineFrame
+                        // eslint-disable-next-line react/no-array-index-key -- a line is its place in the template
+                        key={at}
                         line={`template.line.${String(at)}`}
-                        name={`Line ${String(at + 1)}`}
+                        name={`Line ${n}`}
                         set
                         rule="R12"
                         control={
+                            // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- catches Enter and the blur bubbling from the text field inside, to write once and keep the caret; the field is the keyboard's door
+                            <div
+                                onBlur={(event) => {
+                                    const field = event.target as HTMLInputElement;
+                                    setCaret({ line: at, at: field.selectionStart ?? field.value.length });
+                                    if (typed[at] !== undefined) {
+                                        put(read());
+                                    }
+                                }}
+                                onKeyDown={(event) => {
+                                    if (event.key === "Enter" && typed[at] !== undefined) {
+                                        put(read());
+                                    }
+                                }}
+                            >
+                                <PanelField
+                                    label={`Line ${n}`}
+                                    kind="text"
+                                    width="fill"
+                                    value={textAt(at)}
+                                    onChange={(next) => {
+                                        setTyped({ ...typed, [at]: String(next) });
+                                    }}
+                                />
+                            </div>
+                        }
+                        modifier={
                             <ToggleIconButton
-                                label={`Bold line ${String(at + 1)}`}
+                                label={`Bold line ${n}`}
                                 icon={<GLYPHS.fontBold size={14} aria-hidden />}
                                 checked={line.bold}
                                 onChange={(on) => {
-                                    put(withLine(at, { ...line, bold: on }));
+                                    const next = read();
+                                    next[at] = { ...next[at], bold: on };
+                                    put(next);
                                 }}
                             />
                         }
-                        modifier={null}
-                        // The first line is never removed; a later one joins the line before it.
-                        removeName={at === 0 ? undefined : `Remove line ${String(at + 1)}`}
+                        // The only line is never removed.
+                        removeName={shownLines.length === 1 ? undefined : `Remove line ${n}`}
                         onRemove={() => {
-                            const before = lines[at - 1];
-                            put([
-                                ...lines.slice(0, at - 1),
-                                { ...before, parts: [...before.parts, ...line.parts] },
-                                ...lines.slice(at + 1),
-                            ]);
+                            put(read().filter((_, i) => i !== at));
                         }}
                     />
-                    {line.parts.map((part, k) => {
-                        const id = `${String(at)}.${String(k)}`;
-                        if ("text" in part) {
-                            return (
-                                <LineFrame
-                                    key={id}
-                                    line={`template.part.${id}`}
-                                    name="Words"
-                                    set
-                                    rule="R12"
-                                    control={
-                                        <CommitText
-                                            label="Words"
-                                            value={part.text === "" ? undefined : part.text}
-                                            unset="None"
-                                            onCommit={(words) => {
-                                                put(withPart(at, k, { text: words }));
-                                            }}
-                                        />
+                );
+            })}
+            <PopLine line="template.insert" name={null}>
+                <Group gap={8} wrap="nowrap">
+                    <Popout opened={picking} onOpenChange={setPicking}>
+                        <Popout.Trigger>
+                            <ValueButton
+                                label={`${title} insert value`}
+                                words="Insert value"
+                                opens="dialog"
+                                expanded={picking}
+                                left={<GLYPHS.add size={12} aria-hidden />}
+                                right={<GLYPHS.expand size={12} aria-hidden />}
+                            />
+                        </Popout.Trigger>
+                        <Popout.Panel
+                            width={260}
+                            placement="beside"
+                            header={{ variant: "title", title: "Insert value" }}
+                            closeLabel="Close Insert value"
+                        >
+                            <ValuePicker
+                                title="Insert value"
+                                target={ctx.side}
+                                channel={channel}
+                                onPick={(choice) => {
+                                    setPicking(false);
+                                    const proposal = propose(session, choice, channel);
+                                    if (proposal.ok && "by" in proposal.binding) {
+                                        insertValue({ path: proposal.binding.by });
                                     }
-                                    modifier={null}
-                                    removeName="Remove words"
-                                    onRemove={() => {
-                                        put(withPart(at, k, null));
-                                    }}
-                                />
-                            );
-                        }
-                        const name = valueName(session, part);
-                        // The Format pop-over edits the value as a data entry: its format and what a missing value does.
-                        const asEntry: DataEntry = {
-                            field: part.path,
-                            ...(part.format === undefined ? {} : { format: part.format }),
-                            ...(part.missing === undefined ? {} : { missing: part.missing }),
-                        };
-                        return (
-                            <LineFrame
-                                key={id}
-                                line={`template.part.${id}`}
-                                name="Value"
-                                set
-                                rule="R12"
-                                control={
-                                    <>
-                                        <ValueButton
-                                            label={`${name} format`}
-                                            words={name}
-                                            opens="dialog"
-                                            expanded={formatting === id}
-                                            onClick={() => {
-                                                setFormatting(formatting === id ? null : id);
-                                            }}
-                                        />
-                                        <BesidePopover
-                                            title="Format"
-                                            opened={formatting === id}
-                                            onOpenChange={(open) => {
-                                                setFormatting(open ? id : null);
-                                            }}
-                                        >
-                                            <FormatLines
-                                                channel="template"
-                                                entry={asEntry}
-                                                numeric={numericValue(session, part)}
-                                                put={(next) => {
-                                                    const { format, missing } = next;
-                                                    put(
-                                                        withPart(at, k, {
-                                                            path: part.path,
-                                                            ...(part.op === undefined ? {} : { op: part.op }),
-                                                            ...(format === undefined ? {} : { format }),
-                                                            ...(missing === "drop" ||
-                                                            missing === "skip" ||
-                                                            typeof missing === "object"
-                                                                ? { missing }
-                                                                : {}),
-                                                        }),
-                                                    );
-                                                }}
-                                            />
-                                        </BesidePopover>
-                                    </>
-                                }
-                                modifier={null}
-                                removeName={`Remove ${name}`}
-                                onRemove={() => {
-                                    put(withPart(at, k, null));
+                                }}
+                                onClose={() => {
+                                    setPicking(false);
                                 }}
                             />
-                        );
-                    })}
-                </React.Fragment>
-            ))}
-            <Group gap={8} mt={4}>
-                <Button
-                    size="compact-xs"
-                    variant="default"
-                    leftSection={<GLYPHS.add size={12} aria-hidden />}
-                    onClick={() => {
-                        const at = shown.length - 1;
-                        put(
-                            shown.map((line, i) =>
-                                i === at ? { ...line, parts: [...line.parts, { text: "" }] } : line,
-                            ),
-                        );
-                    }}
-                >
-                    Add words
-                </Button>
-                <Button
-                    size="compact-xs"
-                    variant="default"
-                    leftSection={<GLYPHS.add size={12} aria-hidden />}
-                    onClick={() => {
-                        put([...shown, { bold: false, parts: [] }]);
-                    }}
-                >
-                    New line
-                </Button>
-            </Group>
-        </div>
+                        </Popout.Panel>
+                    </Popout>
+                    <Button
+                        size="compact-xs"
+                        variant="default"
+                        leftSection={<GLYPHS.add size={12} aria-hidden />}
+                        onClick={() => {
+                            put([...read(), { bold: false, parts: [] }]);
+                        }}
+                    >
+                        New line
+                    </Button>
+                </Group>
+            </PopLine>
+            {formats.length === 0 ? null : (
+                <PopLine line="template.formats" name="Value formats">
+                    <Group gap={4}>
+                        {formats.map(({ at, k, part }) => {
+                            const id = `${String(at)}.${String(k)}`;
+                            const name = valueName(session, part);
+                            // The Format pop-over edits the value as a data entry: its format and what a missing
+                            // value does.
+                            const asEntry: DataEntry = {
+                                field: part.path,
+                                ...(part.format === undefined ? {} : { format: part.format }),
+                                ...(part.missing === undefined ? {} : { missing: part.missing }),
+                            };
+                            return (
+                                <React.Fragment key={id}>
+                                    <ValueButton
+                                        label={`${name} format`}
+                                        words={name}
+                                        opens="dialog"
+                                        expanded={formatting === id}
+                                        onClick={() => {
+                                            setFormatting(formatting === id ? null : id);
+                                        }}
+                                    />
+                                    <BesidePopover
+                                        title="Format"
+                                        opened={formatting === id}
+                                        onOpenChange={(open) => {
+                                            setFormatting(open ? id : null);
+                                        }}
+                                    >
+                                        <FormatLines
+                                            channel="template"
+                                            entry={asEntry}
+                                            numeric={numericValue(session, part)}
+                                            put={(next) => {
+                                                const { format, missing } = next;
+                                                const lines = read();
+                                                lines[at] = {
+                                                    ...lines[at],
+                                                    parts: lines[at].parts.map((each, i) =>
+                                                        i === k
+                                                            ? {
+                                                                  path: part.path,
+                                                                  ...(part.op === undefined ? {} : { op: part.op }),
+                                                                  ...(format === undefined ? {} : { format }),
+                                                                  ...(missing === "drop" ||
+                                                                  missing === "skip" ||
+                                                                  typeof missing === "object"
+                                                                      ? { missing }
+                                                                      : {}),
+                                                              }
+                                                            : each,
+                                                    ),
+                                                };
+                                                put(lines);
+                                            }}
+                                        />
+                                    </BesidePopover>
+                                </React.Fragment>
+                            );
+                        })}
+                    </Group>
+                </PopLine>
+            )}
+        </Stack>
     );
 }

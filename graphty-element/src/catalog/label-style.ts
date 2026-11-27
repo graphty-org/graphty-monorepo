@@ -144,6 +144,11 @@ export interface LabelStyle {
     /** Whether the letters are drawn italic. */
     italic?: boolean;
     /**
+     * Whether a line is drawn under the words, in their color, as long as each line of them.
+     * @since 3.40.0
+     */
+    underline?: boolean;
+    /**
      * How wide one line may be drawn before its words wrap onto the next, in the units of `size`
      * (the scene's). Unset, a line is as long as its words.
      */
@@ -498,6 +503,7 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     weight: 0,
     color: 0,
     italic: 0,
+    underline: 0,
     wrapWidth: 0,
     wrapTrailingSpace: 0,
     wrapSkipEndSpace: 0,
@@ -605,6 +611,7 @@ export const RICH_TEXT_KEYS = {
     sizeMode: "sizeMode",
     size: "size",
     letterSize: "letterSize",
+    underline: "underline",
     wrapWidth: "wrapWidth",
     wrapTrailingSpace: "wrapTrailingSpace",
     wrapSkipEndSpace: "wrapSkipEndSpace",
@@ -780,6 +787,7 @@ const FIELD_ROWS = {
     weight: choice("Weight", ["normal", "bold"]),
     color: color("Color"),
     italic: flag("Italic"),
+    underline: flag("Underline"),
     wrapWidth: num("Wrap Width", { min: 0 }),
     wrapTrailingSpace: flag("Wrap Trailing Space"),
     wrapSkipEndSpace: flag("Wrap Skip End Space"),

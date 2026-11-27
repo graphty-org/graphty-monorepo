@@ -14,7 +14,7 @@ import type { SourceMatchCounts as MatchCounts } from "../../types";
 import { type JoinInto, type NodeOne, nodeOne, sourceOf } from "./acts";
 import { cellValues, isEmpty, isStaged, type MatchOptions, normalize, resolveNode, tableRows } from "./build";
 import { numberedKey } from "./profile";
-import { buildOf, type Copies, copyMap, type SourceSteps } from "./project";
+import { buildOf, type Copies, copyMap, sameAsBefore, type SourceSteps } from "./project";
 import type { BuildResult, CellValue, Row, Value } from "./types";
 
 /** Side 2: the incoming source and the field it names node 1 by. */
@@ -56,7 +56,7 @@ const truncated = new WeakMap<SourceSteps, Map<number, SourceSteps>>();
  */
 export function upTo(value: SourceSteps, before: number | undefined): SourceSteps {
     if (before === undefined || before >= value.steps.length) {
-        return value;
+        return sameAsBefore(value);
     }
     let held = truncated.get(value);
     if (held === undefined) {
@@ -65,7 +65,7 @@ export function upTo(value: SourceSteps, before: number | undefined): SourceStep
     }
     let out = held.get(before);
     if (out === undefined) {
-        out = { ...value, steps: value.steps.slice(0, Math.max(0, before)) };
+        out = sameAsBefore({ ...value, steps: value.steps.slice(0, Math.max(0, before)) });
         held.set(before, out);
     }
     return out;
@@ -378,8 +378,35 @@ function numbersOnly(a: Hashed, b: Hashed): number {
  *   `into` names no one end of an edge source.
  */
 export function matchCounts(value: SourceSteps, copies: Copies, pair: MatchPair, o: CountOptions = {}): MatchCounts {
+    const base = upTo(value, o.before);
+    let held = countsHeld.get(base);
+    if (held?.copies !== copies) {
+        held = { copies, counts: new Map() };
+        countsHeld.set(base, held);
+    }
+    const at = JSON.stringify([pair, o.ignoreCase === true, o.ignoreSpaces === true]);
+    let out = held.counts.get(at);
+    if (out === undefined) {
+        out = Object.freeze(countsOver(base, copies, pair, o));
+        held.counts.set(at, out);
+    }
+    return out;
+}
+
+/** The counts of each pair read over a value, so a screen drawn again reads them once. */
+const countsHeld = new WeakMap<SourceSteps, { readonly copies: Copies; readonly counts: Map<string, MatchCounts> }>();
+
+/**
+ * The counts of a pair over a value, read afresh.
+ * @param base - The value, cut back to the place side 1 is built before.
+ * @param copies - The rows as read.
+ * @param pair - The two sides.
+ * @param o - Whether case and spaces count.
+ * @returns The counts.
+ */
+function countsOver(base: SourceSteps, copies: Copies, pair: MatchPair, o: MatchOptions): MatchCounts {
     const ways = waysOf(o);
-    const { one, two } = sides(upTo(value, o.before), copies, pair);
+    const { one, two } = sides(base, copies, pair);
     const [a, aCase, aSpaces, aBoth] = hash(one, ways);
     const [b, bCase, bSpaces, bBoth] = hash(two, ways);
     const matched = both(a, b);

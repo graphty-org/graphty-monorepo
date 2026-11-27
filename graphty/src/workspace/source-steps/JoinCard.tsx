@@ -463,6 +463,7 @@ export function JoinCardBody(props: JoinCardBodyProps): React.JSX.Element {
                                 key={outcomeKey(each)}
                                 size="xs"
                                 value={outcomeKey(each)}
+                                disabled={each.current !== true && each.matched.includes(0)}
                                 label={outcomeWords(each, { name, lines, result: worded(each) })}
                             />
                         ))}

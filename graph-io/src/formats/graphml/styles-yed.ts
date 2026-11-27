@@ -1246,6 +1246,9 @@ function readLabelLook(label: unknown, node: boolean, put: PutValue, at: SiteOf,
             put("labelItalic", known[1]);
         }
     }
+    if (treeAttr(label, "underlinedText") === "true") {
+        put("labelUnderline", true);
+    }
     readRotation(label, put, at);
     if (node) {
         const position = sizedLabelPosition(label, nodeLabelPosition(label, geometry, at));
@@ -3504,6 +3507,7 @@ export const GRAPHML_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze(
         "labelFont",
         "labelWeight",
         "labelItalic",
+        "labelUnderline",
         "labelPosition",
     ] as const),
     edge: Object.freeze([
@@ -3523,6 +3527,7 @@ export const GRAPHML_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze(
         "labelFont",
         "labelWeight",
         "labelItalic",
+        "labelUnderline",
     ] as const),
     block: "attributes",
 });
@@ -3700,6 +3705,9 @@ function labelFontTree(get: GetValue): Tree {
     if (weight !== null || italic !== null) {
         const style = (isBoldWeight(weight) ? "bold" : "") + (italic === true ? "italic" : "");
         label["@_fontStyle"] = style.length === 0 ? "plain" : style;
+    }
+    if (get("labelUnderline") === true) {
+        label["@_underlinedText"] = "true";
     }
     return label;
 }

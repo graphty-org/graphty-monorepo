@@ -1432,7 +1432,8 @@ export class Node implements ModelUser {
      * current zoom, under a key of its own per zoom step; any other border as it is, under the node's key.
      * @param meshKey - The source mesh key the node is drawn under.
      * @param border - The resolved style's border.
-     * @param scale - Scene units per screen pixel, or null when the node is not sized on the screen.
+     * @param scale - Screen pixels per unit of the node's mesh ({@link Node.screenScale}), or null when the border is
+     *     not in screen pixels.
      * @param perSize - The shape's extent per unit of size.
      * @returns The border and its mesh key.
      */
@@ -1445,9 +1446,13 @@ export class Node implements ModelUser {
         if (scale === null || border?.screenWidth === undefined) {
             return { border, key: meshKey };
         }
-        // Never wider than the node, as vis-network caps it (NodeBase.initContextForDraw).
+        // Never wider than the node, as vis-network caps it (NodeBase.initContextForDraw). The ring is built in the
+        // node's mesh, which the view then scales by its size space (#wholeScale): both widths are in the mesh's units,
+        // not the scene's (#10407).
         const box = this.bounds().boundingBox.extendSize;
-        const across = 2 * Math.min(box.x * Math.abs(this.#anchor.scaling.x), box.y * Math.abs(this.#anchor.scaling.y));
+        const view = Math.abs(this.#wholeScale) || 1;
+        const across =
+            (2 * Math.min(box.x * Math.abs(this.#anchor.scaling.x), box.y * Math.abs(this.#anchor.scaling.y))) / view;
         // ponytail: a ring per style and zoom step stays in the mesh cache until the scene
         // goes; a reader zooms over a few dozen steps, so it is a few dozen small rings.
         return {
@@ -1645,25 +1650,29 @@ export class Node implements ModelUser {
     }
 
     /**
-     * The screen pixels one scene unit is drawn as where this node is, rounded to 1/16 of a
-     * doubling, for a style whose border is in screen pixels; null for any other.
+     * The screen pixels one unit of the node's own mesh is drawn as where this node is (a scene unit times the view
+     * scale its size space draws it at), rounded to 1/16 of a doubling, for a style whose border is in screen pixels;
+     * null for any other.
      * @param style - The style the border is built from.
      * @returns The rounded scale, or null.
      */
     private screenScale(style: NodeStyleConfig): number | null {
-        return style.border?.screenWidth === undefined ? null : this.roundedPixelsPerUnit();
+        return style.border?.screenWidth === undefined ? null : this.roundedPixelsPerUnit(this.#wholeScale);
     }
 
     /**
      * The screen pixels one scene unit is drawn as where this node is, rounded to 1/16 of a doubling.
+     * @param factor - A scale to multiply it by before it is rounded.
      * @returns The rounded scale; 1 with no camera.
      */
-    private roundedPixelsPerUnit(): number {
+    private roundedPixelsPerUnit(factor = 1): number {
         const camera = this.context.getScene().activeCamera;
         // In CSS pixels, as a program drawing on a page counts them: a render pixel is a fraction
         // of one on a high-density screen.
         const ppu = camera
-            ? pixelsPerUnit(camera, this.#anchor.getAbsolutePosition()) * camera.getEngine().getHardwareScalingLevel()
+            ? pixelsPerUnit(camera, this.#anchor.getAbsolutePosition()) *
+              camera.getEngine().getHardwareScalingLevel() *
+              Math.abs(factor)
             : 0;
 
         // ponytail: the scale of the scene's root (an XR gesture's) is not divided out; a border

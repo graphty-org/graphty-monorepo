@@ -82,7 +82,7 @@ async function addAs(
  * @returns The space.
  */
 function spaceOf(session: GraphSession, id: string): string {
-    return session.data.ref(id)?.space ?? id.slice(0, id.lastIndexOf(":"));
+    return session.data.nodeRef(id)?.space ?? id.slice(0, id.lastIndexOf(":"));
 }
 
 /**

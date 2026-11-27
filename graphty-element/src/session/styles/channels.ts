@@ -453,6 +453,7 @@ export interface ChannelValues {
     "node.planar": boolean;
     "node.zIndex": number;
     "node.drawOrder": number;
+    "node.onTop": boolean;
     "node.borderColor": ColorValue;
     "node.borderWidth": number;
     "node.borderScreenWidth": number;
@@ -2918,6 +2919,21 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "node with none; a node with none is drawn as it always was. Only nodes at z-index 0 " +
             "are ordered, and 3D views draw by real depth and ignore it. Each distinct value is its " +
             "own source mesh, so a few levels keep instancing cheap.",
+    },
+    "node.onTop": {
+        channel: "node.onTop",
+        target: "node",
+        plainName: "Node On Top",
+        shortName: "On top",
+        group: "shape",
+        default: false,
+        accepts: "boolean",
+        stylePath: "shape.onTop",
+        renderable: true,
+        caveat:
+            "Draws the node after the rest of the graph, in front of every edge and every node " +
+            "without it, in 2D and 3D views alike, so edges meeting at it never cover it. Nodes " +
+            "with it are drawn among themselves by depth. Each value is its own source mesh.",
     },
     "node.borderColor": {
         channel: "node.borderColor",

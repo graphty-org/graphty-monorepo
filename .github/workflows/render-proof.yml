@@ -81,7 +81,7 @@ jobs:
             # forced-batched runs oracle-scorecard.test.ts, which decodes these Git LFS pictures.
             - name: Fetch the style fidelity oracle pictures from Git LFS
               if: matrix.run.project == 'forced-batched'
-              run: git lfs pull --include "$(node -p "require('./graphty-element/test/browser/oracle-scorecard-samples.json').map((id) => 'graph-io/test/fidelity/oracles/' + id + '.png').join(',')")"
+              run: tools/lfs-pull-retry.sh --include "$(node -p "require('./graphty-element/test/browser/oracle-scorecard-samples.json').map((id) => 'graph-io/test/fidelity/oracles/' + id + '.png').join(',')")"
             - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
             - uses: actions/setup-node@v7
               with: { node-version: 22.x, cache: pnpm }

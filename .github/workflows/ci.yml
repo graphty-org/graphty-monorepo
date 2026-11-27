@@ -1897,7 +1897,7 @@ jobs:
 
             - name: Fetch the style fidelity oracle pictures from Git LFS
               if: startsWith(matrix.shard, 'graphty-element-browser')
-              run: git lfs pull --include "$(node -p "require('./graphty-element/test/browser/oracle-scorecard-samples.json').map((id) => 'graph-io/test/fidelity/oracles/' + id + '.png').join(',')")"
+              run: tools/lfs-pull-retry.sh --include "$(node -p "require('./graphty-element/test/browser/oracle-scorecard-samples.json').map((id) => 'graph-io/test/fidelity/oracles/' + id + '.png').join(',')")"
 
             - name: Save the style fidelity oracle pictures
               if: startsWith(matrix.shard, 'graphty-element-browser') && steps.oracle-pictures.outputs.cache-hit != 'true' && env.SAVE_CACHES == 'true'
@@ -1920,7 +1920,7 @@ jobs:
 
             - name: Fetch the Git LFS files the shard reads
               if: matrix.lfs
-              run: git lfs pull --include "${{ matrix.lfs }}"
+              run: tools/lfs-pull-retry.sh --include "${{ matrix.lfs }}"
 
             - name: Save the Git LFS files the shard reads
               if: matrix.lfs && steps.shard-lfs.outputs.cache-hit != 'true' && env.SAVE_CACHES == 'true'

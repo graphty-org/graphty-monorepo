@@ -2574,7 +2574,15 @@ export class SimulationLayoutEngine extends LayoutEngine {
 
         const { nodeCount } = snapshot;
         // The lane is in the element's rows, the mask in the simulation's.
-        const pins = this.#dataManager[WRITABLE_LANE].pinnedView(this.#elementGraph?.nodeCount ?? nodeCount);
+        const lane = this.#dataManager[WRITABLE_LANE];
+        const laneRows = this.#elementGraph?.nodeCount ?? nodeCount;
+        // A freeze that removed nodes shrank the lane, and hands over its hold before it reloads this
+        // simulation, which packs the mask again for the rows there are now.
+        if (lane.count < laneRows) {
+            return;
+        }
+
+        const pins = lane.pinnedView(laneRows);
         const mask = makeMask(nodeCount);
         const rows = new Set<number>();
         for (let i = 0; i < nodeCount; i += 1) {

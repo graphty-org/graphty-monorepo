@@ -16,6 +16,13 @@
  * and a network source's `_source.loads` cells from its id. A source's key-overlap reports are
  * session-only. The file keeps no part counter: parts are minted from the parts present (3.3).
  *
+ * A step's `join` (the join it was written as, `SourceJoinTag`), an edge step's `rowNode`, `existing`,
+ * `addEnd`, `link` and `extract`, an add's `joined`, and a
+ * `join.merge` reading edge rows, are written as the session keeps them: version 2 spells none of
+ * them yet (4.1.8 rule 10). So is a
+ * source's `numbered`, the column its keyless rows were numbered under, and the member's
+ * `nodeIds`, the NodeIds that are not their nodes' keys.
+ *
  * Every source is saved as a copy; a reference (3.11) is not written yet. Pure and free of
  * Babylon.js, Lit and the DOM.
  */
@@ -38,7 +45,7 @@ import {
 } from "./types";
 
 /** The member names the sources and steps add to the `graphty-sources` member. */
-export const STEPS_MEMBER_FIELDS: readonly string[] = ["sources", "types", "joins", "build"];
+export const STEPS_MEMBER_FIELDS: readonly string[] = ["sources", "types", "joins", "build", "nodeIds"];
 
 /** The step ops a saved `joins` list may hold. */
 const OPS: ReadonlySet<string> = new Set([
@@ -180,14 +187,16 @@ function sourceOut(src: StepsSource, copy: CopyTables): Record<string, unknown> 
             format: src.type,
             options: src.config,
         }),
-        origin: { copy: src.origin.copy },
+        origin: { copy: src.origin.copy, ...defined({ size: src.read?.size }) },
         mapping: mappingOut(src),
         ...defined({
+            numbered: src.numbered,
             settings: src.settings,
             metadata: src.declared === undefined ? undefined : { ...src.declared },
         }),
         copy: Object.fromEntries(tables.map(([table, saved]) => [table, saved.cells])),
         columns: Object.fromEntries(tables.map(([table, saved]) => [table, saved.decls])),
+        ...defined({ loaded: src.read?.at }),
     };
 }
 
@@ -197,7 +206,20 @@ function sourceOut(src: StepsSource, copy: CopyTables): Record<string, unknown> 
  * @returns The filter, or undefined for none.
  */
 const filterOut = (f: RowFilter | undefined): RowFilter | undefined =>
-    f === undefined ? undefined : { column: f.column, values: f.values.map((v) => textOf(v)) };
+    f === undefined
+        ? undefined
+        : {
+              column: f.column,
+              values: f.values.map((v) => textOf(v)),
+              ...(f.cells === undefined
+                  ? {}
+                  : {
+                        cells: {
+                            column: f.cells.column,
+                            pairs: f.cells.pairs.map((p) => ({ value: textOf(p.value), with: textOf(p.with) })),
+                        },
+                    }),
+          };
 
 /**
  * A step as saved: `rows` and `except` values as text.
@@ -332,6 +354,7 @@ export function stepsMemberFields(value: SourceSteps, copies: Copies): Record<st
             stepOut(step),
         ),
         ...(value.build === undefined ? {} : { build: value.build }),
+        ...(value.nodeIds === undefined ? {} : { nodeIds: value.nodeIds }),
     };
 }
 
@@ -467,6 +490,20 @@ function copyIn(copy: Record<string, unknown>, columns: unknown, network: string
 }
 
 /**
+ * What reading a saved source recorded.
+ * @param origin - Its origin.
+ * @param loaded - When it was read.
+ * @returns Its size and when, or undefined for neither.
+ */
+function readIn(origin: Record<string, unknown>, loaded: unknown): StepsSource["read"] {
+    const read = defined({
+        size: typeof origin.size === "number" ? origin.size : undefined,
+        at: typeof loaded === "string" ? loaded : undefined,
+    });
+    return Object.keys(read).length === 0 ? undefined : read;
+}
+
+/**
  * One saved source back, with its copy.
  * @param raw - The source as saved.
  * @param facts - What its `loads` entry records.
@@ -480,7 +517,7 @@ function sourceIn(
     types: readonly TypeEntry[],
     staged: boolean,
 ): { source: StepsSource; copy: CopyTables } | null {
-    const { id, label, kind, format, options, origin, mapping, settings, metadata, copy, columns } = raw;
+    const { id, label, kind, format, options, origin, mapping, settings, metadata, copy, columns, numbered } = raw;
     if (
         typeof id !== "string" ||
         typeof kind !== "string" ||
@@ -517,11 +554,13 @@ function sourceIn(
         ...defined({
             type: format,
             config: options,
+            numbered: typeof numbered === "string" ? numbered : undefined,
             settings: isObject(settings) ? settings : undefined,
             tableRows: facts?.tableRows,
             join: facts?.join,
             stagedType,
             endTypes: endTypesIn(types, id),
+            read: readIn(origin, raw.loaded),
             spacePicked:
                 !staged &&
                 nodes?.key !== undefined &&
@@ -547,6 +586,55 @@ const listOf = (list: unknown, name: string, ok: (item: Record<string, unknown>)
     Array.isArray(list) && list.every((item) => isObject(item) && typeof item[name] === "string" && ok(item));
 
 /**
+ * Whether a value is a list of text.
+ * @param v - The value.
+ * @returns True for one.
+ */
+const isTexts = (v: unknown): boolean => Array.isArray(v) && v.every((each) => typeof each === "string");
+
+/**
+ * Whether a value is absent or passes a test.
+ * @param v - The value.
+ * @param test - The test.
+ * @returns True when it may be read.
+ */
+const optional = (v: unknown, test: (v: unknown) => boolean): boolean => v === undefined || test(v);
+
+/**
+ * Whether a saved step holds its members in the shapes the build reads.
+ * @param step - The step.
+ * @returns True when it does.
+ */
+function stepShaped(step: Record<string, unknown>): boolean {
+    const { op, read, link, extract } = step;
+    const cells = (v: unknown): boolean =>
+        isObject(v) && typeof v.column === "string" && Array.isArray(v.pairs) && v.pairs.every(isObject);
+    const filter = (v: unknown): boolean =>
+        isObject(v) && typeof v.column === "string" && Array.isArray(v.values) && optional(v.cells, cells);
+    const reads = op === "join.add" ? read === undefined : isObject(read);
+    return (
+        reads &&
+        optional(step.columns, isTexts) &&
+        optional(step.rows, filter) &&
+        optional(step.except, filter) &&
+        optional(step.clash, (v) => typeof v === "string" || isObject(v)) &&
+        optional(step.aggregate, isObject) &&
+        optional(step.join, (v) => isObject(v) && typeof v.id === "string" && Array.isArray(v.matches)) &&
+        optional(
+            link,
+            (v) => isObject(v) && isTexts(v.columns) && Number.isInteger(v.maxShared) && Number.isInteger(v.minShared),
+        ) &&
+        optional(
+            extract,
+            (v) =>
+                isObject(v) &&
+                optional(v.columns, isTexts) &&
+                optional(v.split, (split) => typeof split === "string" && split !== ""),
+        )
+    );
+}
+
+/**
  * Where a member's sources and steps are not shaped as saved, beyond each source.
  * @param member - The `graphty-sources` member.
  * @returns A pointer relative to the member, or null when the lists are shaped as saved.
@@ -557,6 +645,10 @@ function shapeProblem(member: Readonly<Record<string, unknown>>): string | null 
     }
     if (!listOf(member.joins, "op", (step) => OPS.has(step.op as string) && typeof step.source === "string")) {
         return "/joins";
+    }
+    const misshaped = (member.joins as Record<string, unknown>[]).findIndex((step) => !stepShaped(step));
+    if (misshaped !== -1) {
+        return `/joins/${String(misshaped)}`;
     }
     if (
         !listOf(
@@ -570,6 +662,13 @@ function shapeProblem(member: Readonly<Record<string, unknown>>): string | null 
     const { build } = member;
     if (build !== undefined && !(typeof build === "string" && ULID.test(build))) {
         return "/build";
+    }
+    const { nodeIds } = member;
+    if (
+        nodeIds !== undefined &&
+        !(isObject(nodeIds) && Object.values(nodeIds).every((each) => typeof each === "string"))
+    ) {
+        return "/nodeIds";
     }
     return null;
 }
@@ -677,7 +776,7 @@ export function readStepsMember(member: Readonly<Record<string, unknown>>): Step
         sources[read.source.id] = read.source;
         copies[copyKey(read.source)] = read.copy;
     }
-    const { build } = member;
+    const { build, nodeIds } = member;
     return {
         value: {
             sources,
@@ -685,6 +784,7 @@ export function readStepsMember(member: Readonly<Record<string, unknown>>): Step
             types,
             reader,
             ...(build === undefined ? {} : { build: build as string }),
+            ...(isObject(nodeIds) ? { nodeIds: nodeIds as Record<string, string> } : {}),
         },
         copies,
     };

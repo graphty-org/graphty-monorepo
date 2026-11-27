@@ -62,8 +62,13 @@ async function openWithGraph(): Promise<GraphSession> {
  * two loads each load's section has its own "+": the first is the one for the filters of every load.
  */
 async function newCard(): Promise<void> {
-    const [plus] = screen.getAllByRole("button", { name: "Add filter" });
-    await userEvent.click(plus);
+    // With several loads, the last "Add filter" is the one under Data sources, for every load;
+    // with one, it is that load's own.
+    const plus = screen.getAllByRole("button", { name: "Add filter" }).at(-1);
+    assert.isDefined(plus);
+    if (plus !== undefined) {
+        await userEvent.click(plus);
+    }
     await userEvent.click(await screen.findByRole("button", { name: "Value" }));
 }
 

@@ -824,6 +824,9 @@ export class Node implements ModelUser {
      */
     private drawnLabelText?: string;
 
+    /** Whether the label drawn now is this node's only drawn part, so it picks the node: {@link Node.textIsNode}. */
+    private drawnTextIsNode = false;
+
     /**
      * The label a node that grows to hold it (`shape.labelFit`) was last fitted to, and the width
      * and height that gave; null when the node is drawn at the size it states. A new label means a
@@ -4852,13 +4855,20 @@ export class Node implements ModelUser {
         // Label sampling may hold the label back until its screen cell picks this node.
         const withheld = LabelDeclutter.withholds(this.#anchor.getScene(), this.context, this, wanted !== undefined);
 
-        if (!rebuild && text === this.drawnLabelText && isEqual(wanted, this.drawnLabelStyle)) {
+        const textIsNode = Node.textIsNode(o);
+        if (
+            !rebuild &&
+            text === this.drawnLabelText &&
+            textIsNode === this.drawnTextIsNode &&
+            isEqual(wanted, this.drawnLabelStyle)
+        ) {
             return;
         }
 
         this.label?.dispose();
         this.label = wanted === undefined || withheld ? undefined : this.createLabel(o);
         this.drawnLabelText = text;
+        this.drawnTextIsNode = textIsNode;
 
         // CLONED rather than held. The block belongs to a `NodePaint` that
         // `StylePainter.nodePaint` builds fresh on every call, and a comparison against a
@@ -5129,6 +5139,17 @@ export class Node implements ModelUser {
         return label;
     }
 
+    /**
+     * Whether a node draws nothing but its label: shape "none" with no image and no glyph (Graphviz's `plaintext` and
+     * `plain`). Its words are the node as a reader sees it, so a point on them picks the node (issue #10127); a label
+     * otherwise lets the pointer through. A label style that writes `pickable` decides for itself.
+     * @param o - The resolved style.
+     * @returns True when the label is all that is drawn.
+     */
+    private static textIsNode(o: NodeStyleConfig): boolean {
+        return o.shape?.type === "none" && o.image === undefined && o.glyph === undefined;
+    }
+
     private createLabel(styleConfig: NodeStyleConfig): RichTextLabel {
         const labelText = this.extractLabelText(styleConfig.label);
         const labelOptions = this.createLabelOptions(labelText, styleConfig.label);
@@ -5146,7 +5167,8 @@ export class Node implements ModelUser {
         // sees it on top: a click on it reaches no node behind it (`Graph.handledOnCloseLabel`).
         const card = styleConfig.label?.closeButton === true || styleConfig.label?.onTop === true;
         const label = card ? created : Node.passThrough(created);
-        if (styleConfig.label?.pickable === true && label.labelMesh) {
+        // A node drawn only as its words picks by them (issue #10127): unset `pickable` follows Node.textIsNode.
+        if ((styleConfig.label?.pickable ?? Node.textIsNode(styleConfig)) && label.labelMesh) {
             label.labelMesh.isPickable = true;
             label.labelMesh.metadata = { nodeId: this.id };
         }

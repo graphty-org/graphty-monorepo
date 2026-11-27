@@ -11,6 +11,8 @@
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../src/session";
+import { applyAct } from "../../../src/session/sources/steps/acts";
+import { EMPTY_STEPS } from "../../../src/session/sources/steps/project";
 import {
     ACCOUNT,
     ACCOUNTS,
@@ -285,7 +287,7 @@ describe("source-steps: the acts", () => {
         session.dispose();
     });
 
-    it("Make an edge refuses a staged source in node 1's space and a source with no node rows", async () => {
+    it("Make an edge refuses a staged source in node 1's space and reads edge rows as it reads node rows", async () => {
         const { session, t } = await phase6();
         const k = await session.data.stage(
             { type: "csv", config: { data: KYC }, name: "kyc.csv" },
@@ -296,15 +298,35 @@ describe("source-steps: the acts", () => {
             "E_JOIN_SPACE_SAME",
         );
         assert.deepStrictEqual(details, { source: k, space: "account" });
-        await refused(
-            () => session.data.connect({ from: { source: t, field: "account_id" }, into: { space: "merchant" } }),
-            "E_STEP_NEEDS_NODES",
-        );
-        await refused(
-            () => session.data.merge({ from: { source: t, field: "account_id" }, into: { space: "account" } }),
-            "E_STEP_NEEDS_NODES",
-        );
+        // The transactions' rows are edges: each folds into the account it names, or becomes a node
+        // linked to it.
+        const before = spaces(session);
+        await session.data.merge({ from: { source: t, field: "account_id" }, into: { space: "account" } });
+        assert.deepStrictEqual(spaces(session), before, "every row names an account the graph holds");
+        assert.strictEqual(session.data.steps().at(-1)?.buckets?.merged, 4);
+        await session.data.connect({ from: { source: t, field: "account_id" }, into: { space: "account" } });
+        assert.strictEqual(session.data.steps().at(-1)?.buckets?.newEdges, 4);
         session.dispose();
+    });
+
+    it("a source holding no rows is refused with E_STEP_NEEDS_NODES", async () => {
+        const source = {
+            id: "src_none",
+            origin: { copy: "none" },
+            mapping: { nodes: { key: "id" } },
+            kind: "file" as const,
+            label: null,
+            tables: [],
+        };
+        const value = { ...EMPTY_STEPS, sources: { [source.id]: source } };
+        for (const act of ["merge", "connect"] as const) {
+            const options = { from: { source: source.id, field: "id" }, into: { space: "account" } };
+            const details = await refused(
+                () => Promise.resolve().then(() => applyAct(value, { act, options }, { none: { nodes: [] } })),
+                "E_STEP_NEEDS_NODES",
+            );
+            assert.deepStrictEqual(details, { source: source.id });
+        }
     });
 
     it("a field of an edge source as node 1 is refused with E_AMBIGUOUS_ID (late findings, settled 5.2, 9.1)", async () => {

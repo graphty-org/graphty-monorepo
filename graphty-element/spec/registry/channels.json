@@ -629,6 +629,11 @@
             "experimental": "file-styles"
         },
         {
+            "channel": "node.onTop",
+            "target": "node",
+            "accepts": "boolean"
+        },
+        {
             "channel": "node.borderColor",
             "target": "node",
             "accepts": "color",

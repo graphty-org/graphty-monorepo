@@ -283,7 +283,8 @@ export const RichTextStyle = z.strictObject({
      * label lets the pointer through to whatever is drawn under it, so a label drawn over its own
      * node picks that node and one drawn beside it picks the edge or background beneath. On, every
      * pointer handler and `elementAt` resolve the label to the node it labels. No effect on an
-     * edge's label.
+     * edge's label. Unset on a node drawn only as text (shape "none" with no image and no glyph), it
+     * is on: the words are the node.
      */
     pickable: z.boolean().optional(),
 

@@ -446,6 +446,8 @@ export interface LabelStyle {
      * Off by default: the label takes the click and answers no node, so a click on a name
      * selects nothing and `elementAt` there returns nothing. On, a click, a hover, a drag and
      * `elementAt` on the label all answer the node it labels. An edge's label is not affected.
+     * Unset on a node drawn only as text (shape "none" with no image and no glyph), it is on: the
+     * words are the node.
      */
     pickable?: boolean;
 

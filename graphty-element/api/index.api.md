@@ -6750,6 +6750,7 @@ export const NodeStyle: z.ZodObject<{
         planar: z.ZodOptional<z.ZodBoolean>;
         zIndex: z.ZodOptional<z.ZodNumber>;
         drawOrder: z.ZodOptional<z.ZodNumber>;
+        onTop: z.ZodOptional<z.ZodBoolean>;
         cornerRadius: z.ZodOptional<z.ZodNumber>;
         exactCornerRadius: z.ZodOptional<z.ZodBoolean>;
         cornerFraction: z.ZodOptional<z.ZodNumber>;
@@ -9717,6 +9718,8 @@ export class UpdateManager implements Manager {
     // @internal
     rowsRenumbered(): void;
     saveFraming(): () => void;
+    // @internal
+    spreadDraft: (() => void) | null;
     stepFrames(count: number): void;
     stopAutoZoomToFit(): void;
     syncStyles(budgetMs?: number): void;

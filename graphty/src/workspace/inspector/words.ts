@@ -140,6 +140,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.planar": "Planar",
     "node.zIndex": "Z-index",
     "node.drawOrder": "Draw order",
+    "node.onTop": "On top",
     "node.borderColor": "Border",
     "node.borderWidth": "Border",
     "node.borderScreenWidth": "Border on screen",

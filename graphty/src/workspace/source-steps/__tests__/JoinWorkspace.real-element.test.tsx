@@ -153,9 +153,12 @@ describe("the join workspace looks and works like the selection workspace (#1036
         });
         store.set({ dockOpen: false, dockMaximized: false });
         drop("doors.csv", "door,name\nD1,North\nD2,South");
+        await waitFor(() => {
+            assert.strictEqual(session.data.nodes().length, 5, "the doors are drawn at once");
+        });
         drop("entries.csv", ENTRIES);
         await waitFor(() => {
-            assert.strictEqual(session.data.nodes().length, 10, "every file is drawn: 3 people, 2 doors, 5 entries");
+            assert.strictEqual(session.data.nodes().length, 10, "and the entries: 3 people, 2 doors, 5 entries");
         });
         assert.strictEqual(session.data.edges().length, 0);
         const modal = await openJoins();

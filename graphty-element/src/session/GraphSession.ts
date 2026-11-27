@@ -3718,6 +3718,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     let stateRevisionBesidesPointer = 0;
     // Set once the selection and the filter exist: what a `state` leaf and a state layer read.
     let elementInState: NonNullable<FilterSources["inState"]> = () => false;
+    // Set with it: one read of the stack with each element state resolved once (`SelectorSource.reading`).
+    let readingStates = <T>(read: () => T): T => read();
     // The query engine, late-bound for the same reason: it reads the style layers' selector
     // source, which reads the runs, and the scope and visibility APIs are built before both.
     let query: QueryEngine | null = null;
@@ -4778,7 +4780,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         createLayerRepaint({
             nodeCount: () => snapshot().nodeCount,
             edgeCount: () => snapshot().edgeCount,
-            elements,
+            elements: { ...elements, reading: (read) => readingStates(read) },
             // `session.hidden`: drawn as not visible over whatever the layers paint.
             // So are the nodes the active layout keeps off the canvas.
             hidden: hiddenRowsOf(
@@ -5387,7 +5389,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         nodes?: ReturnType<SelectionOwner["nodeMembers"]>;
         edges?: ReturnType<SelectionOwner["edgeMembers"]>;
     } | null = null;
-    const readingStates = <T>(read: () => T): T => {
+    readingStates = <T>(read: () => T): T => {
         if (resolved !== null) {
             return read();
         }

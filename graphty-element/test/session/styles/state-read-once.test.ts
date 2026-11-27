@@ -1,5 +1,5 @@
 /**
- * A count or a legend tests every element against a layer's selector. A `state` selector read the
+ * A count, a legend or a repaint tests every element against a layer's selector. A `state` selector read the
  * time window's masks, the selection and the snapshot afresh on every one of those tests, so one
  * count of a timeline-hidden layer compared the window's inputs once per element, and the graphty
  * app recounts every layer on each timeline step. Inside one read nothing an element's state reads
@@ -67,6 +67,22 @@ async function countEvery(count: number): Promise<{ checks: number; matched: num
     return { checks, matched };
 }
 
+/**
+ * Step the window once and let the styles settle: the repaint tests every element against each
+ * state layer.
+ * @param count - How many nodes.
+ * @returns The window comparisons made.
+ */
+async function stepOnce(count: number): Promise<number> {
+    const { session } = await windowed(count);
+    const before = slideCounters.windowChecks;
+    await session.time.stepBy(1);
+    await session.styles.settled();
+    const checks = slideCounters.windowChecks - before;
+    session.dispose();
+    return checks;
+}
+
 describe("a count of a state layer", () => {
     it("compares the time window's inputs once per read, however many elements it tests", async () => {
         const small = await countEvery(200);
@@ -79,5 +95,12 @@ describe("a count of a state layer", () => {
             `200 nodes: ${String(small.checks)}, 4,000: ${String(large.checks)}`,
         );
         assert.isBelow(large.checks, 50);
+    });
+
+    it("costs a timeline step's repaint the same comparisons on a small and a large graph", async () => {
+        const small = await stepOnce(200);
+        const large = await stepOnce(4000);
+        assert.isAtMost(large, small + 20, `200 nodes: ${String(small)}, 4,000: ${String(large)}`);
+        assert.isBelow(large, 200);
     });
 });

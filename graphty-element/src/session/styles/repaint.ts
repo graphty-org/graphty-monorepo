@@ -1752,6 +1752,20 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
      * @param entry - The compiled layer.
      */
     const markLayer = (entry: CompiledLayer): void => {
+        const { reading } = sources.elements;
+        if (reading === undefined) {
+            markLayerNow(entry);
+        } else {
+            reading(() => {
+                markLayerNow(entry);
+            });
+        }
+    };
+    /**
+     * {@link markLayer}'s walk, the element states its test asks about resolved once for it.
+     * @param entry - The compiled layer.
+     */
+    const markLayerNow = (entry: CompiledLayer): void => {
         const store = stores[entry.layer.target];
         const { test } = entry.selector;
         const indices = iterationFor(entry);
@@ -1962,8 +1976,18 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             }
         };
 
+        // Each run is one synchronous read: the element states its tests ask about resolved once for it.
+        const { reading } = sources.elements;
         for (let from = 0; from < total; from += CHUNK) {
-            paintSlice(from, Math.min(from + CHUNK, total));
+            const to = Math.min(from + CHUNK, total);
+            if (reading === undefined) {
+                paintSlice(from, to);
+            } else {
+                reading(() => {
+                    paintSlice(from, to);
+                });
+            }
+
             slice = await breathe(context, slice);
         }
 

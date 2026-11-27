@@ -13,6 +13,15 @@ import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
 const FLAT_HALO_LIFT = 0.003;
 
 /**
+ * How far in front of the plane the edges lie on a 2D arrowhead is drawn, in scene units (issue
+ * #10126): past a flat halo's lift ({@link FLAT_HALO_LIFT}) by about two and a half times the
+ * depth buffer's resolution, so the arrowhead of an edge ending at a selected node is drawn over
+ * its halo's band, and still behind the front of a node of the default size (`NodeMesh`'s
+ * `drawOrder` step, 0.00625), so a node lying over an arrowhead still covers it.
+ */
+export const FLAT_CAP_LIFT = 1.5 * FLAT_HALO_LIFT;
+
+/**
  * Build a 2D halo's geometry from its node's shape: the shape's camera-facing triangles,
  * flattened onto one sheet.
  *

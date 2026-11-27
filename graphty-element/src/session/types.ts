@@ -6989,10 +6989,13 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
      *     draft adds keeps its place through `show` and later acts, and the commit draws it from
      *     there. The hold ends with After; the reader's own layout scope is untouched. Default false:
      *     the layout runs over the whole of After, as over any graph.
+     * @param options.keepCamera - True leaves the camera where it is while the draft is drawn, so what
+     *     the draft adds appears in the view the reader already has. Default false: the element frames
+     *     the graph again when After adds nodes, as it does for any add.
      * @returns Settles once the graph draws it.
      * @throws A `GraphtyError` with `E_BAD_COMMAND` (reason `draft-closed`) once the draft is closed.
      */
-    display(on: boolean, options?: { readonly hold?: boolean }): Promise<void>;
+    display(on: boolean, options?: { readonly hold?: boolean; readonly keepCamera?: boolean }): Promise<void>;
     /**
      * Choose which side of the commit a displayed draft draws. `"before"` draws the graph as it is,
      * where `graphty.draft` reads `"removed"` on what the commit would remove. `"after"` draws the
@@ -8377,7 +8380,7 @@ export type PendingId = string & {
  * | `groups.collapse`, `groups.expand` | `groupBy`: the path grouped by; `group`: the group's value; `size`: how many members (experimental) |
  * | `data.import` | `name`: the source's name (given, file or URL), or null; `type`: the data source, or null |
  * | `data.import-source` | `source`: the network source's id; `name`: what the reader called the data, or null |
- * | `data.steps-set` | `kind`: the edit (`set`, `add`, `reader`, `remove-edit`, `remove-source`, `declare-type`) or the act (`merge`, `connect`, `extract`, `move-columns`, `rename`, `pick`, `remove-step`, `add-staged`); `source`: the source it names, else null; `name`: the name of the source an `add` adds, else null (experimental) |
+ * | `data.steps-set` | `kind`: the edit (`set`, `add`, `reader`, `remove-edit`, `remove-source`, `declare-type`) or the act (`merge`, `connect`, `extract`, `move-columns`, `rename`, `pick`, `remove-step`, `add-staged`); `source`: the source it names, else null; `name`: the name of the source an `add` adds, else null; `joinsAdded`, `joinsRemoved`, `sourcesAdded`, `sourcesRemoved`: for a draft's commit (`set`), how many joins (steps other than `join.add`) and sources it adds and takes out, a changed join counting as one of each, else null (experimental) |
  * | `data.expand` | `node`: the id expanded |
  * | `data.source-expand` | `seeds`: the ids expanded; `nodes`, `edges`: how many rows came (experimental) |
  * | `data.collapse` | `node`: the id collapsed; `nodes`: how many nodes went (experimental) |

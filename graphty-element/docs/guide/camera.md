@@ -468,6 +468,14 @@ Full 3D navigation with orbit controls:
 - Scroll: Zoom in/out
 - Right-drag: Pan
 
+A right-drag that pans raises no `contextmenu` event, so a menu you open from the element's
+`contextmenu` event (see [What Is Under a Point](./element-at.md)) opens on a right-click and never
+under a pan. On macOS and Linux, where the browser asks for the menu as the right button goes
+down, the element holds that request back and raises one `contextmenu` event at the release
+point, only when the pointer stayed put. A drag keeps panning wherever the pointer goes until the
+button comes up, even over the rest of your page. Touch-and-hold and Shift+F10 raise `contextmenu`
+as the browser does.
+
 ### 2D Mode
 
 Simplified camera for 2D layouts:

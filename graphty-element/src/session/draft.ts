@@ -315,15 +315,15 @@ function withIdText(
     graph?: ReadonlySet<unknown>,
 ): readonly Record<string, unknown>[] {
     const named = new Set(columns.filter((column): column is string => typeof column === "string"));
-    return rows.map((row) => {
-        const entries = Object.entries(row);
-        return Object.fromEntries([
-            ...entries.filter(([column]) => !named.has(column)),
-            ...entries
-                .filter(([column]) => named.has(column))
-                .map(([column, value]): [string, unknown] => [column, idText(value, graph)]),
-        ]);
-    });
+    // Each column where it was, so a row keeps the file's column order.
+    return rows.map((row) =>
+        Object.fromEntries(
+            Object.entries(row).map(([column, value]): [string, unknown] => [
+                column,
+                named.has(column) ? idText(value, graph) : value,
+            ]),
+        ),
+    );
 }
 
 /**

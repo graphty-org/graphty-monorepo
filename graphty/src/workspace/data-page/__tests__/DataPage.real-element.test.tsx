@@ -989,7 +989,7 @@ describe("the Data page's other controls on the real element", () => {
         await openFromEmptyApp();
         await chooseFiles(new File(["from,to,km\na,b,3\nb,c,6\n"], "trails.csv"));
         await screen.findByText("Weight: none (each edge counts 1)", {});
-        const strip = screen.getByTestId("model-strip");
+        const strip = await screen.findByTestId("model-strip", {});
         assert.equal(strip.textContent, "trails: 3 nodes, 2 edges");
 
         await userEvent.click(screen.getByText("a node"));

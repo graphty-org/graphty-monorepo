@@ -20,6 +20,7 @@ import { GENERATOR_CATALOG } from "@graphty/graph-samples";
 import { withStateMode } from "../camera/mode";
 import { isCameraViewName } from "../camera/names";
 import type { Tour } from "../camera/tour";
+import type { CameraState } from "../camera/types";
 import { sourceDescriptors } from "../catalog/sources";
 import {
     type EdgeId,
@@ -1238,7 +1239,7 @@ export function sessionMember(sources: ProjectSources): Record<string, unknown> 
         // writes them again; outside `config`, like `timelineHiddenAdded`.
         startingCamerasWritten: session.config.startingCamerasWritten,
         sets: session.sets.list().map((set) => ({ id: set.id, name: set.name, definition: set.definition })),
-        views: [...session.views].map(([name, view]) => viewEntryOf(name, view, dispatcher.services.camera)),
+        views: viewEntriesOf(session.views, dispatcher.services.camera),
         // Additive and versioned, written only when a tour is saved: an older reader ignores it.
         ...(session.tours.size === 0
             ? {}
@@ -2476,16 +2477,35 @@ async function addTimelineRowAfterTree(opening: Opening, doc: ReadDocument): Pro
 }
 
 /**
+ * The saved views as the file keeps them, in project order.
+ * @param views - The session's saved views.
+ * @param camera - The renderer's camera, which computes a followed view's pose; absent headless.
+ * @returns The entries.
+ */
+function viewEntriesOf(
+    views: Iterable<[string, SavedView]>,
+    camera: CameraService | undefined,
+): Record<string, unknown>[] {
+    // One reader for every view: the drawing is measured once, not once a following view (#10314).
+    const poseOf = camera?.poser?.();
+    return [...views].map(([name, view]) => viewEntryOf(name, view, poseOf));
+}
+
+/**
  * One saved view as the file keeps it: `{ name, camera?, follows?, key? }`. A following view also
  * carries the pose it gives now as `camera`, so a reader that does not know `follows` gets a usable
  * fixed camera; one that knows it ignores that camera.
  * @param name - The view's name.
  * @param view - The view.
- * @param camera - The renderer's camera, which computes a followed view's pose; absent headless.
+ * @param poseOf - Gives a followed view's pose now; absent headless.
  * @returns The entry.
  */
-function viewEntryOf(name: string, view: SavedView, camera: CameraService | undefined): Record<string, unknown> {
-    const pose = view.follows === undefined ? view.camera : camera?.pose?.(view.follows);
+function viewEntryOf(
+    name: string,
+    view: SavedView,
+    poseOf: ((follows: string) => CameraState | undefined) | undefined,
+): Record<string, unknown> {
+    const pose = view.follows === undefined ? view.camera : poseOf?.(view.follows);
     return {
         name,
         ...(pose === undefined ? {} : { camera: pose }),

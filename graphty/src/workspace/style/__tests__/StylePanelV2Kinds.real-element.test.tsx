@@ -50,6 +50,8 @@ interface Collapse {
     readonly head: string;
     /** A further value of the first kind a switch carries, and what the free kind then holds there. */
     readonly carries: { readonly to: string; readonly value: unknown };
+    /** The view its kinds are drawn in, when one is drawn only in 2D (hidden in 3D). */
+    readonly view?: "2D";
 }
 
 const COLLAPSES: readonly Collapse[] = [
@@ -105,6 +107,7 @@ const COLLAPSES: readonly Collapse[] = [
         head: "node.underlayColor",
         // The shape is carried; the opacity and padding start as graphty-element starts a plate over the node.
         carries: { to: "node.overlayShape", value: "hexagon" },
+        view: "2D",
     },
     {
         name: "Outline (C7)",
@@ -123,6 +126,7 @@ const COLLAPSES: readonly Collapse[] = [
         head: "edge.outlineColor",
         // The color moves; the wash over the line starts translucent (ia-design 2).
         carries: { to: "edge.overlayOpacity", value: 0.3 },
+        view: "2D",
     },
 ];
 
@@ -167,6 +171,9 @@ describe("Style panel v2's collapsed kinds", () => {
             const set = collapse.kinds.reduce<Record<string, unknown>>((all, kind) => ({ ...all, ...kind.set }), {});
             await session.styles.update(layer, { set });
             await session.styles.settled();
+            if (collapse.view !== undefined) {
+                await switchView(collapse.view);
+            }
             const tab = await openStyle(collapse.side === "node" ? "Key people" : "Links");
             await showKind(collapse.side);
             const section = sectionOf(tab, collapse.section);
@@ -280,6 +287,7 @@ describe("Style panel v2's collapsed kinds", () => {
 
     it("Plate: Kind Over starts at Opacity 30% and a padding of a tenth of the node (ia-design 2)", async () => {
         const { session, nodes } = await openGraph();
+        await switchView("2D");
         const tab = await openStyle("Key people");
         await showKind("node");
         const section = sectionOf(tab, "node-effects");
@@ -309,6 +317,7 @@ describe("Style panel v2's collapsed kinds", () => {
                 },
             });
             await session.styles.settled();
+            await switchView("2D");
             const tab = await openStyle("Key people");
             await showKind("node");
             const section = sectionOf(tab, "node-effects");

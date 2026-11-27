@@ -43,6 +43,7 @@ const SECTION_ORDER = {
  * every shader is the one Shader item (E668).
  */
 const EFFECTS_ITEMS = {
+    // In 2D; in 3D Raised edge and Plate, drawn only in 2D, are not offered (EFFECTS_2D_ONLY).
     node: [
         "Border",
         "Visibility",
@@ -58,6 +59,9 @@ const EFFECTS_ITEMS = {
     ],
     edge: ["Visibility", "|", "Shader", "Animation"],
 } as const;
+
+/** The Effects "+" items graphty-element draws only in 2D, hidden in 3D (design "Input rules", 2026-11-27). */
+const EFFECTS_2D_ONLY: readonly string[] = ["Raised edge", "Plate"];
 
 /**
  * The edge Line section's "+" items on a layer that sets the line's color, "|" where a divider sits: every band
@@ -111,7 +115,7 @@ describe("Style panel v2 on", () => {
                 );
                 assert.deepEqual(
                     menuOrder(await screen.findByRole("menu")),
-                    [...EFFECTS_ITEMS[side]],
+                    EFFECTS_ITEMS[side].filter((item) => view === "2D" || !EFFECTS_2D_ONLY.includes(item)),
                     `${view} ${side}`,
                 );
                 await userEvent.keyboard("{Escape}");
@@ -214,12 +218,13 @@ describe("Style panel v2 on", () => {
         assert.isNotNull(plus, 'the section\'s "+"');
         await userEvent.click(plus);
         const menu = await screen.findByRole("menu");
-        // Border and Visibility, then every look around the node (owner, 2026-11-22; ia-design 2, E675).
+        // Border and Visibility, then every look around the node (owner, 2026-11-22; ia-design 2, E675); in the 3D
+        // view a project opens in, without Raised edge and Plate, which are drawn only in 2D.
         assert.deepEqual(
             within(menu)
                 .getAllByRole("menuitem")
                 .map((item) => item.textContent),
-            ["Border", "Visibility", "Ring", "Shader", "Glow", "Wireframe", "Drop shadow", "Raised edge", "Plate"],
+            ["Border", "Visibility", "Ring", "Shader", "Glow", "Wireframe", "Drop shadow"],
         );
         assert.lengthOf(menu.querySelectorAll(".mantine-Menu-divider"), 2, "a divider between each two groups");
         await userEvent.click(within(menu).getByRole("menuitem", { name: "Ring" }));

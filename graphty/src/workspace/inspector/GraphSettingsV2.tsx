@@ -373,22 +373,25 @@ export function GraphSettingsV2(): React.JSX.Element | null {
                                     />,
                                     false,
                                 )}
-                            {line(
-                                "viewRotation",
-                                "Rotation",
-                                "R18",
-                                <AngleLine
-                                    label="Rotation"
-                                    value={viewRotation ?? 0}
-                                    onWrite={(value) => {
-                                        session.config.set({ viewRotation: value }).catch(fail("Rotation"));
-                                    }}
-                                />,
-                                viewRotation !== undefined,
-                                () => {
-                                    session.config.set({ viewRotation: undefined }).catch(fail("Rotation"));
-                                },
-                            )}
+                            {/* Only the 2D view is turned: the 3D view hides Rotation, keeping its value (design
+                            "Input rules", 2026-11-27). */}
+                            {session.config.inEffect("viewRotation").inEffect &&
+                                line(
+                                    "viewRotation",
+                                    "Rotation",
+                                    "R18",
+                                    <AngleLine
+                                        label="Rotation"
+                                        value={viewRotation ?? 0}
+                                        onWrite={(value) => {
+                                            session.config.set({ viewRotation: value }).catch(fail("Rotation"));
+                                        }}
+                                    />,
+                                    viewRotation !== undefined,
+                                    () => {
+                                        session.config.set({ viewRotation: undefined }).catch(fail("Rotation"));
+                                    },
+                                )}
                             {line(
                                 "highlightColor",
                                 "Highlight",

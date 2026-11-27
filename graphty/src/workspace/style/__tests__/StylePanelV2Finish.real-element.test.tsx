@@ -2,7 +2,7 @@
  * Style panel v2's Finish (ia-design 2) on the REAL graphty-element, driven by real clicks: node Fill's "+"
  * lists Fill | Image | Stripes, Pie, Chart, Finish; "+ Finish" in 3D draws a row whose Shading value list picks
  * Smooth, Flat or Unlit over `node.flat` and `node.unlit`, and each pick changes the picture; in 2D the "+"
- * item and the row are dimmed "3D only". The Shape's Mesh keeps Detail and Wireframe.
+ * item and the row are hidden, the layer keeping its Finish. The Shape's Mesh keeps Detail and Wireframe.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -90,21 +90,22 @@ describe("Style panel v2's Finish", () => {
         assert.isNull(sectionOf(tab, "node-shape").querySelector('[data-line="node.flat"], [data-line="node.unlit"]'));
     });
 
-    it("in 2D the '+' item and the row are dimmed '3D only'", async () => {
+    it("in 2D the '+' item and the row are hidden, and the layer keeps its Finish", async () => {
         const { session, nodes } = await openGraph();
-        await session.styles.update(nodes, { set: { "node.color": "#E8590C" } });
+        await session.styles.update(nodes, { set: { "node.color": "#E8590C", "node.flat": true } });
         await session.styles.settled();
         await switchView("2D");
         const tab = await openStyle("Key people");
         const fill = sectionOf(tab, "node-fill");
         await userEvent.click(within(fill).getByRole("button", { name: /^Add to node fill/ }));
-        const item = await screen.findByRole("menuitem", { name: "Finish" });
-        assert.equal(dimmed(item), "3D only", "the '+' item is dimmed in 2D");
-        await userEvent.click(item);
+        const items = (await screen.findAllByRole("menuitem")).map((item) => item.textContent.trim());
+        assert.notInclude(items, "Finish", "no '+' item in 2D");
+        await userEvent.keyboard("{Escape}");
+        assert.isNull(fill.querySelector('[data-thing="finish"]'), "no row in 2D");
+        assert.strictEqual(written(session, nodes, "node.flat"), true, "the layer keeps it");
+        await switchView("3D");
         await waitFor(() => {
-            const line = fill.querySelector('[data-thing="finish"] .ws-row[data-line="node.flat"]');
-            assert.isNotNull(line, "the row is drawn");
-            assert.equal(dimmed(line), "3D only", "dimmed, its tooltip saying why");
+            assert.isNotNull(fill.querySelector('[data-thing="finish"]'), "shown again in 3D");
         });
     });
 });

@@ -20,7 +20,7 @@ import { FieldLine, type RowContext } from "../PropertyRow";
 import { writeIn } from "../row";
 import { ShaderGallery } from "../ShaderGallery";
 import { failureWords } from "../words";
-import { rowReader } from "./drawn";
+import { channelHidden, rowReader } from "./drawn";
 import { currentMember, membersOf, switchMember } from "./families";
 import { type KindGroup, type KindMember, kindsShown, lookOf, PLAIN_LOOK, switchKind, writeLook } from "./kindGroups";
 import { entryLook, entryOf, writeEntry } from "./labelEntries";
@@ -267,8 +267,10 @@ export function KindMenu({
         name: member.plainName,
         disabled: member.id !== now.id && taken.has(member.id),
     });
-    const looks = group.members.filter((member) => member.look !== undefined);
-    const others = group.members.filter((member) => member.look === undefined);
+    // A kind drawn only in the other view is not offered in this one, unless it is the row's (design "Input rules").
+    const offered = group.members.filter((member) => member.id === now.id || !channelHidden(ctx.session, member.head));
+    const looks = offered.filter((member) => member.look !== undefined);
+    const others = offered.filter((member) => member.look === undefined);
     // A text's looks share every setting: a Look line, never tabs.
     const lookLine =
         now.look === undefined || looks.length < 2 ? null : (
@@ -326,10 +328,10 @@ export function KindMenu({
                 attribute={{ "data-kind-menu": group.id }}
                 name={form.name}
                 form={form.form}
-                members={group.members.map((member) => choice(member))}
+                members={offered.map((member) => choice(member))}
                 now={now.id}
                 onChoose={(picked) => {
-                    switchTo(group.members.find((member) => member.id === picked.key));
+                    switchTo(offered.find((member) => member.id === picked.key));
                 }}
             />
             {style === undefined || look === undefined ? null : (

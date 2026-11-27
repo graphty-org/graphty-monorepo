@@ -302,7 +302,7 @@ interface MainLineProps {
  * @returns The line
  */
 function MainLine(props: Readonly<MainLineProps>): React.JSX.Element {
-    // A row graphty-element draws nothing for now (Order in 3D) is dimmed, its tooltip saying why.
+    // A row graphty-element draws nothing for now (a raised edge on a round shape) is dimmed, its tooltip saying why.
     // A rubric line drawing the row dims itself.
     const dimmed =
         props.replacing === undefined && props.row === undefined ? dimOf(props.ctx, props.main.channel) : undefined;

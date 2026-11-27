@@ -6901,8 +6901,9 @@ export interface SessionConfig extends ProjectConfig {
     };
     /**
      * Whether a graph setting changes the drawing in the view as it is now: lighting and same size
-     * at any depth do nothing in the 2D view, which is drawn flat and without depth. A settings
-     * panel shows only the settings in effect, without knowing which view ignores what.
+     * at any depth do nothing in the 2D view, which is drawn flat and without depth, and the view's
+     * rotation does nothing in the 3D view. A settings panel shows only the settings in effect,
+     * without knowing which view ignores what.
      *
      * ```ts
      * session.config.inEffect("lighting"); // { inEffect: false, code: "setting.notIn2d", params: { setting: "lighting" } }
@@ -6916,23 +6917,25 @@ export interface SessionConfig extends ProjectConfig {
 }
 
 /**
- * A graph setting {@link SessionConfig.inEffect} answers for: the project's background, and the
- * element's `lighting` and `layoutBehavior` settings by their path.
+ * A graph setting {@link SessionConfig.inEffect} answers for: the project's background, the
+ * element's `lighting` and `layoutBehavior` settings by their path, and the project's
+ * `viewRotation` (since 3.72.0).
  * @since 3.26.0
  */
 export type GraphSettingKey =
-    "background" | "lighting" | "node.sizeSpace" | "labels.declutter" | "labels.avoidNodesAndEdges";
+    "background" | "lighting" | "node.sizeSpace" | "labels.declutter" | "labels.avoidNodesAndEdges" | "viewRotation";
 
 /**
  * Why a graph setting is or is not in effect. `params.setting` names the setting.
  *
  * - `"setting.inEffect"`: it changes the drawing in this view.
  * - `"setting.notIn2d"`: the 2D view ignores it.
+ * - `"setting.notIn3d"`: the 3D view ignores it (since 3.72.0).
  *
  * More codes may be added in a minor release.
  * @since 3.26.0
  */
-export type SettingEffectCode = "setting.inEffect" | "setting.notIn2d";
+export type SettingEffectCode = "setting.inEffect" | "setting.notIn2d" | "setting.notIn3d";
 
 /** What {@link SessionConfig.inEffect} answers. @since 3.26.0 */
 export interface SettingEffect extends CodedFact<SettingEffectCode> {

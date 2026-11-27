@@ -6,7 +6,7 @@ import React, { useId, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { roveTiles } from "./tileRoving";
-import { shaderViewDim } from "./v2/drawn";
+import { shaderHidden } from "./v2/drawn";
 import {
     GALLERY_WORDS,
     layersWord,
@@ -217,15 +217,15 @@ export function ShaderGallery({
     const root = useRef<HTMLDivElement>(null);
     // The tile that is the gallery's one Tab stop: the last one focused, else the first.
     const [stop, setStop] = useState<string | null>(null);
-    const shaders = session.catalog
-        .shaders()
-        .filter(
-            (descriptor) =>
-                onTab(descriptor, tab) &&
-                (exclude === undefined || descriptor.place !== exclude) &&
-                (places === undefined || (descriptor.place !== undefined && places.includes(descriptor.place))) &&
-                shaderMatches(descriptor, query),
-        );
+    const shaders = session.catalog.shaders().filter(
+        (descriptor) =>
+            onTab(descriptor, tab) &&
+            (exclude === undefined || descriptor.place !== exclude) &&
+            (places === undefined || (descriptor.place !== undefined && places.includes(descriptor.place))) &&
+            // Style panel v2 lists no shader drawn only in the other view (design "Input rules", 2026-11-27).
+            !(bare && shaderHidden(session, descriptor.views)) &&
+            shaderMatches(descriptor, query),
+    );
     const found = query.trim() === "" ? [] : options.filter((option) => matchesWordStart(option.label, query));
     const reasons = new Map(
         shaders.map((descriptor) => {
@@ -286,7 +286,6 @@ export function ShaderGallery({
                 facts={bare ? undefined : <ShaderFacts descriptor={descriptor} />}
                 second={bare ? undefined : reason}
                 quiet={bare}
-                dimmed={bare ? shaderViewDim(session, descriptor.views) : undefined}
                 description={description}
                 disabled={reason !== undefined}
                 marked={used}
@@ -399,7 +398,6 @@ export function ShaderGallery({
  * @param props.stop - whether it is the gallery's one Tab stop
  * @param props.onPick - picks it
  * @param props.quiet - its second line only in its tooltip
- * @param props.dimmed - why it draws nothing in this view: dimmed, still pickable, these words its tooltip
  * @returns The tile
  */
 function GalleryTile({
@@ -414,7 +412,6 @@ function GalleryTile({
     stop,
     onPick,
     quiet = false,
-    dimmed,
     ...handlers
 }: Readonly<
     // A context menu's handlers, on the tile.
@@ -431,8 +428,6 @@ function GalleryTile({
         onPick: (id: string) => void;
         /** Its second line only in its tooltip, never under its name (#8739). */
         quiet?: boolean;
-        /** Why it draws nothing in this view ("3D only"), Style panel v2: dimmed, still pickable. */
-        dimmed?: string;
     }
 >): React.JSX.Element {
     const describedBy = useId();
@@ -444,7 +439,6 @@ function GalleryTile({
             aria-describedby={description === undefined || description === "" ? undefined : describedBy}
             data-shader={id}
             data-marked={marked ? "" : undefined}
-            data-dimmed={dimmed === undefined ? undefined : ""}
             aria-disabled={disabled ? true : undefined}
             tabIndex={stop && !disabled ? 0 : -1}
             onClick={() => {
@@ -485,8 +479,5 @@ function GalleryTile({
             )}
         </UnstyledButton>
     );
-    if (dimmed !== undefined) {
-        return <Tooltip label={dimmed}>{button}</Tooltip>;
-    }
     return disabled && second !== undefined ? <Tooltip label={second}>{button}</Tooltip> : button;
 }

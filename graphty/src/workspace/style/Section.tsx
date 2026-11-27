@@ -628,8 +628,6 @@ export interface AddOption {
     readonly detail?: string;
     /** Shown but not pickable: its name only. */
     readonly disabled?: boolean;
-    /** Pickable, but drawing nothing in this view (Style panel v2): dimmed, with these words as its tooltip. */
-    readonly dimmed?: string;
     /** What it does, as its tooltip, where its name alone does not say. */
     readonly hint?: string;
     /** Drawn before its name, such as a pencil on an item that edits something already there. */
@@ -848,9 +846,8 @@ function menuItem(option: AddOption, onAdd: (key: string) => void): React.JSX.El
             rightSection={each.detail}
             aria-label={each.name}
             disabled={each.disabled}
-            data-dimmed={each.dimmed === undefined ? undefined : ""}
             data-named={each.name === undefined ? undefined : ""}
-            title={each.dimmed ?? each.hint}
+            title={each.hint}
             onClick={() => {
                 onAdd(each.key);
             }}

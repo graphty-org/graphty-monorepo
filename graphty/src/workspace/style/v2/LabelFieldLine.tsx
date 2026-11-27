@@ -30,7 +30,7 @@ import { BoundValue, Field, type RowContext, StopVarying, type VaryTarget } from
 import { lineIn, propose, removeLine, startingValue, writeIn } from "../row";
 import { ValueField } from "../ValueField";
 import { enumWords, failureWords, positionWord } from "../words";
-import { labelDimOf } from "./drawn";
+import { labelDimOf, labelFieldHidden } from "./drawn";
 import {
     flatOf,
     LABEL_OPTION_NAMES,
@@ -752,6 +752,11 @@ export function LabelFieldLine({
     // R6 sides: split by its Separate sides line, or because the sides already differ.
     // on reload: fresh: request: a one-time split request
     const [splitAsked, setSplit] = React.useState(false);
+    // A field graphty-element draws only in the other view is hidden; what the style holds for it stays (design
+    // "Input rules", 2026-11-27).
+    if (labelFieldHidden(label.ctx.session, line.field)) {
+        return null;
+    }
     // A pair one of whose values is the field's own channel's (varying by data) is two lines, each value's own.
     const { pair } = line;
     const held = (field: LabelField): boolean =>

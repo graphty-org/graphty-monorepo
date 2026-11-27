@@ -121,6 +121,7 @@ const ELEMENT_GRAPH_SETTINGS: Readonly<Record<GraphSettingKey, true>> = {
     "node.sizeSpace": true,
     "labels.declutter": true,
     "labels.avoidNodesAndEdges": true,
+    viewRotation: true,
 };
 
 /**

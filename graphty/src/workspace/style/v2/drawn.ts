@@ -1,10 +1,10 @@
 /**
- * Style panel v2's dimmed lines and "+" items (design/ui/style-panel-v2/design.md, "a style that only does
- * anything in one view stays visible in the other view but is dimmed there"): whether graphty-element draws
- * a channel or a label field with what the row holds now and in the view shown now, read from the element's
- * own facts (`channelDrawn`, `labelFieldDrawn`), and the tooltip words saying why not. A pop-over line ruled out
- * by another setting of the row (`ruledOut`) is not drawn until it applies (design "Input rules", "Tabs"); one ruled
- * out only by the view is dimmed.
+ * Style panel v2's hidden and dimmed lines and "+" items (design/ui/style-panel-v2/design.md, "Input rules"): a
+ * setting graphty-element draws only in the other view is hidden (`inOtherView` and its callers), and one that
+ * draws nothing for any other reason with what the row holds now is dimmed, with the tooltip words saying why, all
+ * read from the element's own facts (`drawnWhen`, `channelDrawn`, `valueDrawn`, `labelFieldDrawn`, a shader's
+ * `views`). A pop-over line ruled out by another setting of the row (`ruledOut`) is not drawn until it applies
+ * (design "Input rules", "Tabs").
  */
 
 import {
@@ -271,28 +271,60 @@ export function labelDimOf(
 }
 
 /**
- * Why a channel draws nothing in the view shown now, from graphty-element's view fact alone (a "+" item for a
- * thing not added yet: Lift in 2D), or undefined.
- * @param ctx - the row.
- * @param channel - the channel.
- * @returns "2D only", "3D only", or undefined.
+ * Whether graphty-element draws a setting only in the other view: one of its conditions names a view, and it is not
+ * the view shown now. Such a setting is hidden, not dimmed (owner, 2026-11-27); a value the layer holds for it stays.
+ * @param session - the element's session.
+ * @param conditions - the setting's conditions (a channel's `drawnWhen`, a value's, a label field's).
+ * @returns true when it is drawn only in the other view.
  */
-export function viewDim(ctx: Pick<RowContext, "session">, channel: Channel): string | undefined {
-    const other = channelDescriptor(channel)?.drawnWhen?.find(
-        (condition) => "dimension" in condition && condition.dimension !== viewOf(ctx.session),
-    );
-    return other === undefined ? undefined : unmetWords(other, "");
+function inOtherView(
+    session: GraphSession,
+    conditions: readonly (ChannelCondition | LabelFieldCondition)[] | undefined,
+): boolean {
+    const view = viewOf(session);
+    return conditions?.some((condition) => "dimension" in condition && condition.dimension !== view) === true;
 }
 
 /**
- * Why a shader draws nothing in the view shown now, from the views its catalog entry declares, or undefined.
+ * Whether a channel is hidden in the view shown now: graphty-element draws it only in the other view (Lift in 2D,
+ * a raised edge or a plate in 3D).
+ * @param session - the element's session.
+ * @param channel - the channel.
+ * @returns true when it is hidden.
+ */
+export function channelHidden(session: GraphSession, channel: Channel): boolean {
+    return inOtherView(session, channelDescriptor(channel)?.drawnWhen);
+}
+
+/**
+ * Whether one value of a channel is hidden in the view shown now (`valueViews`: a node size's Pivot in 2D).
+ * @param session - the element's session.
+ * @param descriptor - the channel's descriptor.
+ * @param value - the value.
+ * @returns true when it is hidden.
+ */
+export function valueHidden(session: GraphSession, descriptor: ChannelDescriptor, value: string): boolean {
+    const views = descriptor.valueViews?.[value];
+    const view: ChannelCondition[] = views?.length === 1 ? [{ dimension: views[0] }] : [];
+    return inOtherView(session, [...view, ...(descriptor.valueDrawnWhen?.[value] ?? [])]);
+}
+
+/**
+ * Whether a label style field is hidden in the view shown now: graphty-element draws it only in the other view.
+ * @param session - the element's session.
+ * @param field - the field.
+ * @returns true when it is hidden.
+ */
+export function labelFieldHidden(session: GraphSession, field: keyof LabelStyle): boolean {
+    return inOtherView(session, labelFieldDescriptor(field)?.drawnWhen);
+}
+
+/**
+ * Whether a shader is hidden in the view shown now, from the views its catalog entry declares.
  * @param session - the element's session.
  * @param views - the shader's declared views; unset is both.
- * @returns "2D only", "3D only", or undefined.
+ * @returns true when it is hidden.
  */
-export function shaderViewDim(session: GraphSession, views: readonly ("2d" | "3d")[] | undefined): string | undefined {
-    if (views === undefined || views.includes(viewOf(session))) {
-        return undefined;
-    }
-    return views.includes("2d") ? "2D only" : "3D only";
+export function shaderHidden(session: GraphSession, views: readonly ("2d" | "3d")[] | undefined): boolean {
+    return views !== undefined && !views.includes(viewOf(session));
 }

@@ -18,6 +18,7 @@ import type { Encoding, Layer, StaticStyle } from "@graphty/graphty-element/sess
 import { itemChannels, partsFor } from "../parts/parts";
 import type { RowContext } from "../PropertyRow";
 import { lineIn } from "../row";
+import { channelHidden } from "./drawn";
 import { heldFor, holdsAny } from "./families";
 import { setOn } from "./things";
 
@@ -501,9 +502,12 @@ export function ownsOf(group: KindGroup, member: KindMember): readonly Channel[]
  * @returns the kinds, in the group's order.
  */
 export function kindsShown(ctx: RowContext, group: KindGroup): readonly KindMember[] {
-    // Looks of one text share its channels: only the look its style names is drawn (E196).
+    // Looks of one text share its channels: only the look its style names is drawn (E196). A kind drawn only in the
+    // other view is hidden in this one (an Over line in 3D), what the layer holds for it kept.
     const fits = group.members.filter(
-        (member) => member.look === undefined || lookOf(ctx, member.look.style) === member.look.id,
+        (member) =>
+            (member.look === undefined || lookOf(ctx, member.look.style) === member.look.id) &&
+            !channelHidden(ctx.session, member.head),
     );
     const headed = fits.filter((member) => setOn(ctx, member.head));
     if (group.rowsByHead === true && headed.length > 0) {

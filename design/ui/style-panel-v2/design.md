@@ -220,7 +220,8 @@ image", so Fit to label stays within six lines with its padding's sides apart. I
 - **Image** absorbs the old Fill kind Picture as its **Wrap around shape** setting: off (the default) places the
   picture on the node (`node.image`), on wraps it over the 3D surface (`node.texture`). A Solid color it hides
   dims (`x-picture-hides-fill`).
-- **Stripes, Pie, Chart** as today. **Finish** (3D only): a Shading row, Smooth (the default), Flat or Unlit.
+- **Stripes, Pie, Chart** as today. **Finish** (3D only, hidden in 2D): a Shading row, Smooth (the default), Flat
+  or Unlit.
 - **Label** (many; kinds Text, Card, Dark, Pill, Callout and Glyph, 2.3). Each look is a "+" item that adds a
   Label row of that kind ("Label" adds Text). Glyph is a kind of Label, never a separate style and never a "+"
   item: a Label row's Switch to reaches it (E275, E276); the looks are kinds, never a select (E196).
@@ -245,8 +246,9 @@ image", so Fit to label stays within six lines with its padding's sides apart. I
   is a Shape kind instead, so no shader shows in two lists. A place is chosen only in the code dialog, when a
   shader is created (E368); choosing or using a shader never asks for a place.
 - **Glow**: a soft light fading out from the node (color, strength).
-- **Drop shadow** as today. **Raised edge** (2D only, E441): a bevel. **Plate** (2D only, E669; kinds Behind
-  and Over): a filled plate behind the node (`node.underlay*`) or a translucent one over it (`node.overlay*`).
+- **Drop shadow** as today. **Raised edge** (2D only, hidden in 3D, E441): a bevel. **Plate** (2D only, hidden in
+  3D, E669; kinds Behind and Over): a filled plate behind the node (`node.underlay*`) or a translucent one over it
+  (`node.overlay*`).
 - No table lists a built-in shader by name. Membership in any list is decided by a shader's declared place,
   never by its id.
 - **Multiples are named by what tells them apart**: Label rows by their text (7.4), shader uses by preset,
@@ -267,8 +269,8 @@ image", so Fit to label stays within six lines with its padding's sides apart. I
   **Pattern** (dashed, dotted, wavy and the rest) is its own item, so "dashed" is in "+".
 - **Outline** (kinds Under line and Over line): every band drawn along the line is this one item. Under line is
   an opaque casing beside the line (`edge.outline*`); graphty-element folds its two other casing families,
-  `edge.band*` and `edge.underlay*`, into it (10.2, fix 1). Over line (`edge.overlay*`, 2D only) is a
-  translucent wash over the line.
+  `edge.band*` and `edge.underlay*`, into it (10.2, fix 1). Over line (`edge.overlay*`, 2D only, hidden in 3D) is
+  a translucent wash over the line.
 - **Arrows** holds one item, **Arrow**, one row per arrow; kinds Target, Source, Middle to target and Middle
   to source. The section is called Arrows.
 - **Route**: one value list of every route graphty-element draws -- Straight, Curve, Bundling (edges gathered
@@ -292,7 +294,7 @@ Opened from the tree footer button "Graph settings"; v2 switches in both `case "
 | Thing (the style model's Graph things) | Home and change                                                                                                                                                                                                                                                                                             | Writes                                                                   |
 | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
 | Background                             | One row, family Color / Sky (5); Sky opens compact-mantine's `ImagePicker`. No `drawnIn` caption or sentence. Keep on import (R7)                                                                                                                                                                           | today's keys                                                             |
-| View (Canvas section)                  | `ControlGroup`s: **View** lighting, rotation (R5, degrees; 2D, dims in 3D), highlight color (R1). **Framing** extent (R8 Drawn / Centers, unnamed line), padding (R5). **Marks** same size at any depth (R7), smallest mark node \| edge                                                                    | `styles.setHighlightColor`, `viewRotation`, `framing.*`, `minMarkSize.*` |
+| View (Canvas section)                  | `ControlGroup`s: **View** lighting, rotation (R5, degrees; 2D, hidden in 3D), highlight color (R1). **Framing** extent (R8 Drawn / Centers, unnamed line), padding (R5). **Marks** same size at any depth (R7), smallest mark node \| edge                                                                  | `styles.setHighlightColor`, `viewRotation`, `framing.*`, `minMarkSize.*` |
 | Labels                                 | Hide overlaps (R7, off by default), Avoid nodes and edges (R7, off by default): the reader's label preferences, so labels draw statically at their set place unless the reader turns these on (E270); sample cell (R5); label text (R9 Canvas / Atlas, never "Glyphs", which reads as the Glyph kind, E275) | app preferences; `behavior.labels.*`                                     |
 | Shader gallery                         | as today                                                                                                                                                                                                                                                                                                    | -                                                                        |
 | Annotations (new)                      | "+" adds one (many). Row: kind (R9); popover lines by kind: text R14, font R13, fill and border R1, arrow ends R10, picture R16, position X \| Y                                                                                                                                                            | `session.annotations`                                                    |
@@ -357,11 +359,12 @@ Collapses considered (owner, E495: "review all other controls that can be collap
 
 **Switch to** has one look and one place for every family and kind group: the glyph before the row's name
 (`MemberMenu`), opening a menu of every member or kind, the current one checked. There is no Switch to strip in
-the popover. A member gated by a flag or the view (Model in 2D) is disabled, never hidden, and the current
-member is always enabled. Only a family whose element member list holds an off value adds an **Off** member
-(today Shape: none), its one control for being off, and it has no Show line. Kind groups never have an Off
-member; a switchable kind group or thing is switched off by its Show line (2.6). A Label row's Switch to lists
-Text, Card, Dark, Pill, Callout and Glyph; it is the only way to Glyph, which no "+" menu offers (E275, E276).
+the popover. A member gated by a flag is disabled, never hidden; a kind drawn only in the other view is hidden
+(Input rules, "Settings of one view"); the current member is always enabled and shown. Only a family whose
+element member list holds an off value adds an **Off** member (today Shape: none), its one control for being
+off, and it has no Show line. Kind groups never have an Off member; a switchable kind group or thing is switched
+off by its Show line (2.6). A Label row's Switch to lists Text, Card, Dark, Pill, Callout and Glyph; it is the only
+way to Glyph, which no "+" menu offers (E275, E276).
 
 1. **Same row, same settings.** The row keeps its place and height, and its name column shows the new kind
    (2.4); thing-wide lines stay in every member.
@@ -405,19 +408,19 @@ value (E305). A list starts with two visible items. An inherited list is edited 
 Within one layer only, the overruled or dependent line dims, its tooltip naming the winner; other layers never
 dim anything. Dimming means only this.
 
-| Exclusion                                                                                                                                                                                                                                                                                                              | Treatment                                                                                                                                                       |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `x-picture-hides-fill`, `x-model-gradient`, `x-size-labelfit`, `x-table-cell-picture`, `x-edge-fade-gradient`, Record vs labels, a paint shader vs a replace shader, drawn patterns vs outline / gradient / fade / taper, edge blending vs opacity and fade, arrow `position` / `gap`, caption `distance` / `location` | dim the overruled line                                                                                                                                          |
-| `x-size-extents`: width, height or depth replace size on their axis unless Relative to size is on                                                                                                                                                                                                                      | dim Size when all three axes are overruled; dim nothing per axis (one field)                                                                                    |
-| `x-edge-path-kind`: lift > bends > route > force curves > fanned > bow > curved                                                                                                                                                                                                                                        | dim every line it overrules, across Route and Force curves                                                                                                      |
-| `r-forcecurve-curved`, Fit to label needs a Label, border needs a shape other than none, pattern needs width > 0, flow needs the solid pattern and the straight route                                                                                                                                                  | dim the dependent line                                                                                                                                          |
-| `x-view-2d-3d`: a style or field drawn in one view only, from graphty-element's `channelDrawn` / `labelFieldDrawn` facts and a shader's `views` -- among them Raised edge, Plate and the Over line outline (2D only), Model, Finish, Mesh, lift and flow (3D only), graph rotation (2D)                                | dim in the other view with the tooltip "2D only" or "3D only"; never hidden, never reordered; a "+" item dims the same way                                      |
-| `x-chart-kind`                                                                                                                                                                                                                                                                                                         | the lines follow the kind (`appliesWhen`)                                                                                                                       |
-| `x-bend-arc`                                                                                                                                                                                                                                                                                                           | bendCurve's "arc" option disabled with 2 or more bends                                                                                                          |
-| `x-edge-paint-shader`                                                                                                                                                                                                                                                                                                  | a second paint shader is disabled in the edge's Shader gallery once one paint use exists                                                                        |
-| `x-value-binding-combine`                                                                                                                                                                                                                                                                                              | a value, a binding, a combine or off: writing one replaces the others in one transaction                                                                        |
-| Competing settings of one quantity (below)                                                                                                                                                                                                                                                                             | the number field plus a **Unit** line (R8 / R8f) in the popover; changing the unit moves the value: writes the new channel, removes the others, one transaction |
-| `x-binding-stops`                                                                                                                                                                                                                                                                                                      | stops editor replaces palette and range (7.5)                                                                                                                   |
+| Exclusion                                                                                                                                                                                                                                                                                                              | Treatment                                                                                                                                                                        |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `x-picture-hides-fill`, `x-model-gradient`, `x-size-labelfit`, `x-table-cell-picture`, `x-edge-fade-gradient`, Record vs labels, a paint shader vs a replace shader, drawn patterns vs outline / gradient / fade / taper, edge blending vs opacity and fade, arrow `position` / `gap`, caption `distance` / `location` | dim the overruled line                                                                                                                                                           |
+| `x-size-extents`: width, height or depth replace size on their axis unless Relative to size is on                                                                                                                                                                                                                      | dim Size when all three axes are overruled; dim nothing per axis (one field)                                                                                                     |
+| `x-edge-path-kind`: lift > bends > route > force curves > fanned > bow > curved                                                                                                                                                                                                                                        | dim every line it overrules, across Route and Force curves                                                                                                                       |
+| `r-forcecurve-curved`, Fit to label needs a Label, border needs a shape other than none, pattern needs width > 0, flow needs the solid pattern and the straight route                                                                                                                                                  | dim the dependent line                                                                                                                                                           |
+| `x-view-2d-3d`: a style or field drawn in one view only, from graphty-element's `drawnWhen` / `valueViews` facts, a shader's `views` and `config.inEffect` -- among them Raised edge, Plate and the Over line outline (2D only), Finish, lift and flow (3D only), graph rotation (2D)                                  | hidden in the other view, with its "+" item, its Find a setting result and its option or kind; never reordered; what the layer holds stays (Input rules, "Settings of one view") |
+| `x-chart-kind`                                                                                                                                                                                                                                                                                                         | the lines follow the kind (`appliesWhen`)                                                                                                                                        |
+| `x-bend-arc`                                                                                                                                                                                                                                                                                                           | bendCurve's "arc" option disabled with 2 or more bends                                                                                                                           |
+| `x-edge-paint-shader`                                                                                                                                                                                                                                                                                                  | a second paint shader is disabled in the edge's Shader gallery once one paint use exists                                                                                         |
+| `x-value-binding-combine`                                                                                                                                                                                                                                                                                              | a value, a binding, a combine or off: writing one replaces the others in one transaction                                                                                         |
+| Competing settings of one quantity (below)                                                                                                                                                                                                                                                                             | the number field plus a **Unit** line (R8 / R8f) in the popover; changing the unit moves the value: writes the new channel, removes the others, one transaction                  |
+| `x-binding-stops`                                                                                                                                                                                                                                                                                                      | stops editor replaces palette and range (7.5)                                                                                                                                    |
 
 Unit writes: border Graph `width` / Screen `screenWidth`; label size Graph `size` / Screen `sizePx` with
 `sizeMode: "screen"` / Letter `letterSize` (each removes the other two and `sizeMode`); label padding Text
@@ -507,11 +510,31 @@ Added 2026-11-24 (one-of choices are tabs; any-of groups are a menu):
 - A list of copies of the same thing (pie slices, gradient stops, strands) is neither tabs nor a menu: it stays
   a list with "+". "+" adds copies to a list; it is never used to reveal a group of settings.
 
+Added 2026-11-27:
+
+- "options that are only available in 3D should be hidden while in 2D; options that are only available in 2D should
+  be hidden while in 3D."
+
 This replaces the earlier wording that the Advanced "..." opens a new pop-over: "..." opens a menu of the
 thing's groups when it has more than one, and each opens a new pop-over.
 
 ### How they are applied (decisions)
 
+- **Settings of one view.** A setting graphty-element draws only in the other view (its `drawnWhen` names a view, a
+  value's `valueViews`, a label field's `drawnWhen`, a shader's `views`, a graph setting `config.inEffect` answers
+  `setting.notIn2d` or `setting.notIn3d` for) is not drawn at all in this one: a thing row, a line under a row, a
+  line in a pop-over, a group in the "..." menu whose lines are all such, an option of a grouped-buttons line or a
+  drop-down, a kind in a kind menu (Plate's Behind and Over, an Outline's Over line), an item of a "+" menu, a shader
+  in the Shader gallery, the Shape list or a section's shader rows, a label field, and a Graph settings line (the
+  graph's Rotation in 3D). Find a setting does not find it. Only the view hides: a setting that draws nothing for any
+  other reason (a layer above draws over it, a setting it needs is unset, the wrong shape, a curved edge, a layout
+  arranged in 2D) stays drawn and dimmed, its tooltip naming the reason. A setting that needs its view and something
+  else (a raised edge needs 2D and a flat shape) is hidden in the other view and dimmed in its own when the other
+  condition fails. What the layer holds for a hidden setting stays saved and untouched, and it shows again when the
+  graph switches back to the view that draws it; switching the view redraws the panel at once. A section left empty
+  only because its settings are hidden keeps its header and "+", as any empty section does. An option of a
+  grouped-buttons line that is the value the row holds now stays shown in the other view, so the line still shows
+  that value, rather than the panel changing the data.
 - **Nesting: pop-overs beside, never in place.** The panel is level 0. The two-level limit counts the panel's own
   pop-overs: a row's settings pop-over is level 1, and a group pop-over its header's "..." opens is level 2.
   A dedicated component (a color picker, a drop-down's list, the Picture picker, a shape, pattern or arrow list
@@ -599,7 +622,8 @@ thing's groups when it has more than one, and each opens a new pop-over.
   `SegmentedControl` (all words, or all icons with tooltips), at most 5 choices; picking one is picking the value
   (a family member, a kind, a route). A one-of whose choices show the same settings is a grouped-buttons line
   (or a drop-down at 6 or more). A line that depends on a one-of in the same pop-over is drawn only when it
-  applies or when the layer sets it; a line that depends on the view (2D or 3D) stays dimmed.
+  applies or when the layer sets it; a line drawn only in the other view (2D or 3D) is hidden even when set
+  ("Settings of one view").
 - **Link dialog.** At most 6 components tall, with no Advanced of its own, so one opened from the Advanced
   pop-over never needs a fourth level. Two choices that go together share a line, in every state. A number:
   source, Operation | Scale (and Steps for a stepped scale), the histogram with its value range, the from / to
@@ -940,10 +964,10 @@ Proposed at the start, each its own pull request:
 
 Made since, on the style panel branch:
 
-- `drawnWhen` with `channelDrawn` / `labelFieldDrawn`, and a shader's `views`: the facts behind every "2D only"
-  and "3D only" dimming. The raised edge (`node.raisedBorder*`), the node underlay and overlay (Plate) and the
-  edge overlay (Outline, Over line) are drawn in the 2D view only; the Under line (`edge.outline*`) draws in
-  both views.
+- `drawnWhen` with `channelDrawn` / `labelFieldDrawn`, and a shader's `views`: the facts behind every setting
+  hidden in one view and every dimmed line. `config.inEffect("viewRotation")` answers `setting.notIn3d`. The
+  raised edge (`node.raisedBorder*`), the node underlay and overlay (Plate) and the edge overlay (Outline, Over
+  line) are drawn in the 2D view only; the Under line (`edge.outline*`) draws in both views.
 - `needs` and `start` (the values "+" writes), `modifies`, declared defaults and `suggestedMax`, the
   `catalog.shaders` filter by place, `labelFieldOf` for every text kind, shader parameter and list item
   addresses, a base look without off values, record field placement (a field with no point sits one line below
@@ -1028,6 +1052,7 @@ bar.
 15. Hovering a row changes nothing on the canvas; a fresh workspace draws labels at their set place.
 16. Each tab has one Shader gallery, holding built-in and custom shaders alike, with no place choice; replace
     shaders are only in the Shape list.
-17. A style drawn in one view only is dimmed in the other with "2D only" or "3D only", never hidden.
+17. A style drawn in one view only is hidden in the other (its row, line, option, kind, "+" item, shader and Find a
+    setting result), and what the layer holds for it shows again after a switch back to its view.
 18. The sidebar never scrolls sideways under a wheel with a horizontal delta; every style and label field
     changes the picture in each view its `drawnWhen` allows.

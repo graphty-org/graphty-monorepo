@@ -81,7 +81,7 @@ function lineDim(pop: HTMLElement, line: string): string | undefined {
 describe("Style panel v2: options that would change nothing", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
 
-    it("the Size pop-over shows the drawn choice, names its unit, and dims Pivot and Depth where they draw nothing", async () => {
+    it("the Size pop-over shows the drawn choice, names its unit, and hides Pivot and Depth in 2D", async () => {
         const { session, id } = await openProject();
         await session.styles.update(id, { set: { "node.color": "#E8590C", "node.size": 2 } });
         await session.styles.settled();
@@ -103,8 +103,13 @@ describe("Style panel v2: options that would change nothing", () => {
             "Graph | Pivot | Screen is named",
         );
 
-        // Pivot draws only in 3D (valueViews); the size beneath is 1, so x1 over it is Set.
-        assert.equal(optionDim(pop, "Node size space", "Focus"), "3D only");
+        // Pivot draws only in 3D (valueViews): hidden in 2D.
+        assert.isNull(
+            within(within(pop).getByRole("radiogroup", { name: "Node size space" })).queryByRole("radio", {
+                name: "Focus",
+            }),
+            "Focus is hidden in 2D",
+        );
         assert.isUndefined(optionDim(pop, "Node size space", "Screen"));
         // What a number does with the value underneath is chosen in the link dialog only (owner, 2026-11-23).
         assert.isNull(within(pop).queryByRole("radiogroup", { name: "Combine" }), "no Combine on a plain size");
@@ -119,7 +124,7 @@ describe("Style panel v2: options that would change nothing", () => {
         // Uniform draws the default icosphere at the extent Scale draws it at already (valueDrawn).
         assert.match(optionDim(advanced, "Node size mode", "Uniform") ?? "", /^Only when /);
         assert.isUndefined(optionDim(advanced, "Node size mode", "Diameter"));
-        assert.equal(lineDim(advanced, "node.depth"), "3D only");
+        assert.isNull(advanced.querySelector('[data-line="node.depth"]'), "depth is hidden in 2D");
         await userEvent.keyboard("{Escape}");
         await userEvent.keyboard("{Escape}");
 
@@ -162,7 +167,7 @@ describe("Style panel v2: options that would change nothing", () => {
         });
     });
 
-    it("a raised edge's Combine is dimmed in 3D with the raised edge itself", async () => {
+    it("a raised edge's Combine is hidden in 3D with the raised edge itself", async () => {
         const { session, id } = await openProject();
         // A raised edge is a flat bevel: on a flat shape, drawn in 2D only.
         // Combined with what lies beneath: only a combine already written shows its Combine line.
@@ -173,9 +178,7 @@ describe("Style panel v2: options that would change nothing", () => {
         await session.styles.settled();
         await switchView("3D");
         const tab = await openStyle("Key people");
-        const pop = await openSettings(sectionOf(tab, "node-effects"), "raised", "Node raised edge settings");
-        assert.equal(lineDim(pop, "combine:node.raisedBorderWidth"), "2D only");
-        await userEvent.keyboard("{Escape}");
+        assert.isNull(sectionOf(tab, "node-effects").querySelector('[data-thing="raised"]'), "hidden in 3D");
         await switchView("2D");
         const again = await openSettings(sectionOf(tab, "node-effects"), "raised", "Node raised edge settings");
         assert.isUndefined(lineDim(again, "combine:node.raisedBorderWidth"), "drawn in 2D");

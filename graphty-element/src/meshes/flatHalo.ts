@@ -4,6 +4,9 @@ import { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
 import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
 
+import type { GraphSelectionStyleConfig } from "../config/GraphStyle";
+import type { NodeStyleConfig } from "../config/NodeStyle";
+
 /**
  * How far in front of the plane the edges lie on a 2D halo is drawn, in scene units, at most
  * (issue #7453): half a `drawOrder` step (`NodeMesh`), about five times the depth buffer's
@@ -65,8 +68,48 @@ export function applyFlatHalo(source: Mesh, shape: Mesh): number {
  * @returns The lift, in scene units.
  */
 export function flatHaloLift(halo: AbstractMesh, depthScale: number): number {
-    const front = halo instanceof InstancedMesh ? haloFrontOf(halo.sourceMesh) : undefined;
+    return halo instanceof InstancedMesh ? sourceHaloLift(halo.sourceMesh, depthScale) : 0;
+}
+
+/**
+ * {@link flatHaloLift} for a halo drawn from its source mesh by a batch.
+ * @param source - The halo's source mesh.
+ * @param depthScale - The node's scaling along the view.
+ * @returns The lift, in scene units.
+ */
+export function sourceHaloLift(source: Mesh, depthScale: number): number {
+    const front = haloFrontOf(source);
     return front !== undefined && front < 0 ? Math.min(FLAT_HALO_LIFT, (-front * Math.abs(depthScale)) / 2) : 0;
+}
+
+/**
+ * The look a node's halo is drawn in, or null when it draws none.
+ *
+ * ONE HALO, TWO SOURCES. The selection draws one on a selected node, in the configured selection style; a layer
+ * draws one on any node through the `node.halo*` channels. A node with both shows one halo: each value the layer
+ * set wins and the selection style gives the rest, and a layer's `node.halo: false` takes the halo off even a
+ * selected node.
+ * @param layer - The halo the layers painted, if any.
+ * @param base - The selection style.
+ * @param selectionDraws - Whether the selection itself draws a halo on the node.
+ * @returns The color, scale and opacity, or null.
+ */
+export function haloLookOf(
+    layer: NonNullable<NodeStyleConfig["effect"]>["halo"] | undefined,
+    base: GraphSelectionStyleConfig,
+    selectionDraws: boolean,
+): GraphSelectionStyleConfig | null {
+    const color = layer?.color;
+    const scale = layer?.scale !== undefined && layer.scale > 0 ? layer.scale : undefined;
+    const opacity = layer?.opacity;
+    const lookSet = color !== undefined || scale !== undefined || opacity !== undefined;
+    if (!(layer?.enabled ?? (lookSet || selectionDraws))) {
+        return null;
+    }
+
+    return lookSet
+        ? { ...base, color: color ?? base.color, scale: scale ?? base.scale, opacity: opacity ?? base.opacity }
+        : base;
 }
 
 /**

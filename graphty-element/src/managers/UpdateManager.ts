@@ -1545,13 +1545,25 @@ export class UpdateManager implements Manager {
 
         // A selected row stored with no `Node` gets one, as the selection's own pass gives it (`applyNodeSelection`):
         // its halo is the `Node`'s. Built, it takes the masks (`adoptBuiltNode`).
-        for (const id of nodeSelection?.ids() ?? []) {
+        for (const id of this.selectionBuildsNodes() ? (nodeSelection?.ids() ?? []) : []) {
             if (dataManagerInternals.builtNode(this.dataManager, id) === undefined) {
                 this.dataManager.nodes.get(id);
             }
         }
 
         this.applyColumnRows(null, nodeVisibility, showContext);
+    }
+
+    /**
+     * Whether a selected row stored with no `Node` needs one built: only while the selection draws its own halo
+     * (`Node.haloLook`), which only a `Node` does. With the starting rows on, the Selected row paints the selection's
+     * look as a style, which a row's batch draws, halo and all (`NodeBatches.syncHalo`); building a `Node` for each
+     * of 5,000 selected rows was one 240 ms frame of a select-all at 10,000 nodes. A `Node` built later for another
+     * reason takes the selection then (`adoptBuiltNode`).
+     * @returns True when it does.
+     */
+    private selectionBuildsNodes(): boolean {
+        return this.graphContext.getStyles().config.graph.startingRows !== true;
     }
 
     /**
@@ -1564,8 +1576,9 @@ export class UpdateManager implements Manager {
 
         // `ids()` reads the bytes with an indexed loop, the same reach as the write that moved
         // the mask; the per-element work below is one lookup per member.
+        const build = this.selectionBuildsNodes();
         for (const id of nodeSelection?.ids() ?? []) {
-            const node = this.dataManager.nodes.get(id);
+            const node = build ? this.dataManager.nodes.get(id) : dataManagerInternals.builtNode(this.dataManager, id);
             if (node && node.index !== INVALID_INDEX && nodeSelection?.has(node.index) === true) {
                 next.add(node);
             }

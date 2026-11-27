@@ -238,6 +238,7 @@ import type {
 import {
     AdHocData,
     type ColorScheme,
+    DEFAULT_SELECTION_STYLE,
     defaultXRConfig,
     FetchEdgesFn,
     FetchNeighborEdgesFn,
@@ -1798,6 +1799,15 @@ export class Graph implements GraphContext {
                 for (const node of dataManagerInternals.builtNodes(this.dataManager)) {
                     node.refreshSelectionOverlay();
                 }
+
+                // a row with no `Node` takes its halo's look from the selection style (`NodeBatches.syncHalo`)
+                this.#nodeBatches?.refreshHalos();
+            }
+
+            // Without the starting rows the selection draws its own halo, which only a `Node` does: the selected rows
+            // with none are given one (`UpdateManager.selectionBuildsNodes`).
+            if (changed("startingRows")) {
+                this.updateManager.invalidateViewMasks();
             }
 
             // A selected edge's halo is drawn from the selection style: redraw it.
@@ -5880,6 +5890,14 @@ export class Graph implements GraphContext {
                     edgeEndsChanged: (row) => {
                         this.updateManager.placeEdgesOfRow(row);
                     },
+                    haloOf: (row) =>
+                        Node.rowHalo(
+                            this.dataManager.meshCache,
+                            row.paintedSourceMesh,
+                            row.paint.style.effect?.halo,
+                            this.styles.config.graph.selection ?? DEFAULT_SELECTION_STYLE,
+                            this.getViewMode() === "2d",
+                        ),
                 },
                 this.scene,
             );

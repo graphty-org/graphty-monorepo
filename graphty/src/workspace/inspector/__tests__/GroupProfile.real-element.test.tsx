@@ -8,6 +8,7 @@ import "@graphty/graphty-element";
 
 import { type GraphSession, RESULT_SHAPE_CONTRACTS } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
+import { page, userEvent } from "vitest/browser";
 
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
@@ -67,5 +68,32 @@ describe("a group's over-represented values", () => {
         const text = section.textContent;
         assert.include(text, "Adjusted p (Benjamini-Hochberg)");
         assert.include(text, `: ${String(side.value)}`);
+
+        // A member selects that node alone; Size, with the row open again, selects every member.
+        // Either selection closes the group's row, as any new selection does.
+        const members = await inspector.findByRole("group", { name: "Members" });
+        const [first] = within(members).getAllByRole("button");
+        const name = first.textContent ?? "";
+        await userEvent.click(first);
+        await waitFor(() => {
+            assert.strictEqual(live.selection.nodes.length, 1);
+        });
+        assert.include(name, String(live.selection.nodes[0]), "the node clicked is the one selected");
+
+        act(() => {
+            store.set({ inspected: { kind: "group-row", id: JSON.stringify([run.id, top.group]) } });
+        });
+        await inspector.findByRole("group", { name: "Summary" });
+        // A locator, not the element: every row button shares one test id, so the element alone is
+        // not a unique locator.
+        await userEvent.click(
+            page
+                .getByRole("complementary", { name: "Inspector" })
+                .getByRole("group", { name: "Summary" })
+                .getByRole("button", { name: /^Size/ }),
+        );
+        await waitFor(() => {
+            assert.strictEqual(live.selection.nodes.length, top.size);
+        });
     });
 });

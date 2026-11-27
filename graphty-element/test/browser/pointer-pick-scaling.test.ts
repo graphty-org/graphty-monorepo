@@ -15,7 +15,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 import { pickWork } from "../../src/render/PickService";
-import { click, drag, hover, type Point } from "../helpers/real-input";
+import { click, drag, hover, moveHeld, nextFrame, type Point, press, release } from "../helpers/real-input";
 
 /** The two graph sizes: big enough that a pick per node is 4x. */
 const SIZES = [100, 400] as const;
@@ -217,5 +217,49 @@ describe("one click on a node", () => {
                 ? "Babylon picks the move, the press and the release"
                 : "Babylon walks the meshes for the move only",
         );
+    });
+});
+
+/**
+ * Turn the camera by dragging from the empty spot through real input, in `moves` held moves, counting the picks
+ * Babylon makes of its own of the pointer (for the cursor and the meshes' actions) meanwhile.
+ * @param element - The element.
+ * @param moves - The held moves.
+ * @returns Babylon's pointer picks.
+ */
+async function babylonPicksInCameraDrag(element: Graphty, moves: number): Promise<number> {
+    const before = pickWork.pointerPicks;
+    const start = JSON.stringify(element.getCameraState());
+    await press(element, EMPTY);
+    for (let step = 1; step <= moves; step++) {
+        await moveHeld(element, { x: EMPTY.x + 8 * step, y: EMPTY.y - 4 * step });
+    }
+
+    await release(element, { x: EMPTY.x + 8 * moves, y: EMPTY.y - 4 * moves });
+    await nextFrame();
+    assert.notStrictEqual(JSON.stringify(element.getCameraState()), start, "the drag turned the camera");
+    return pickWork.pointerPicks - before;
+}
+
+describe("a camera drag", () => {
+    it("makes no pick of Babylon's own on its moves, at any drag length", async () => {
+        const element = await mounted(SIZES[1]);
+        await hover(element, EMPTY);
+        const [short, long] = [await babylonPicksInCameraDrag(element, 2), await babylonPicksInCameraDrag(element, 10)];
+        // Only the press and the release are picked, however long the drag: each move of a camera drag walked every
+        // mesh again, about 19 ms a move at 100,000 nodes, for a cursor and pointer-over actions no node mesh has.
+        const message = `Babylon's pointer picks: ${String(short)} in a drag of 2 moves, ${String(long)} in 10`;
+        assert.isAbove(short, 0, message);
+        assert.strictEqual(long, short, message);
+    });
+
+    it("leaves Babylon picking the moves once the button is up", async () => {
+        const element = await mounted(SIZES[0]);
+        await hover(element, EMPTY);
+        await babylonPicksInCameraDrag(element, 3);
+        const before = pickWork.pointerPicks;
+        await hover(element, target(element));
+        assert.strictEqual(pickWork.pointerPicks - before, 1, "the move after the drag is picked by Babylon");
+        assert.isFalse(element.graph.scene.skipPointerMovePicking, "nothing is left skipping");
     });
 });

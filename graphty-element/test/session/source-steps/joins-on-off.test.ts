@@ -46,8 +46,10 @@ async function joined(on: boolean, base: string, table: string, load: LoadArgume
  * @returns Its nodes and edges, sorted.
  */
 function picture(session: GraphSession): { nodes: string[]; edges: string[] } {
-    const nodes = session.data.nodes().map((n) => JSON.stringify(n));
-    const edges = session.data.edges().map(({ id: _id, ...rest }) => JSON.stringify(rest));
+    // By value: the order of a record's columns is no part of the graph.
+    const text = (record: object): string => JSON.stringify(Object.fromEntries(Object.entries(record).sort()));
+    const nodes = session.data.nodes().map((n) => text(n));
+    const edges = session.data.edges().map(({ id: _id, ...rest }) => text(rest));
     return { nodes: nodes.sort(), edges: edges.sort() };
 }
 

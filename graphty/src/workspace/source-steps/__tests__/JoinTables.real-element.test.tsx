@@ -25,6 +25,7 @@ import {
     joinsOf,
     newest,
     openJoins,
+    pickableWays,
     pickFields,
     pickSources,
     waysToJoin,
@@ -159,7 +160,8 @@ describe("the join workspace's two tables (source-steps)", () => {
         await waitFor(() => {
             assert.strictEqual(valueOf(modal, "Field 2"), "door");
         });
-        assert.deepStrictEqual(waysToJoin(modal), [], "no door is a badge");
+        assert.isNotEmpty(waysToJoin(modal), "no door is a badge: the ways still show");
+        assert.deepStrictEqual(pickableWays(modal), [], "and none can be picked");
         await press(modal, "entries", "door");
         await waitFor(() => {
             assert.strictEqual(valueOf(modal, "Field 2"), "");
@@ -359,7 +361,7 @@ describe("the join workspace's preview (source-steps)", () => {
         assert.strictEqual(session.styles.explain({ edge: edge.id }).merged["edge.style"], "dash", "a new edge");
     });
 
-    it("keeps the reader's camera while a join is made, and frames again only for new nodes out of view", async () => {
+    it("keeps the reader's camera while a join is made, even one that adds nodes out of view", async () => {
         const { session, modal } = await opened();
         await atRest();
         const element = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
@@ -385,8 +387,9 @@ describe("the join workspace's preview (source-steps)", () => {
         await element.waitForStableFrame();
         assert.strictEqual(camera(), close, "two tables and a join that adds no node leave it");
         await joinAs(modal, "Node per entries row, linked to people");
-        await waitFor(() => {
-            assert.notStrictEqual(camera(), close, "61 new nodes all round are out of a close view");
-        });
+        await newest(session, (step) => step.op === "join.edges", "a node per entry");
+        await element.waitForSettled();
+        await element.waitForStableFrame();
+        assert.strictEqual(camera(), close, "61 new nodes are laid out round the view the reader has (#10204)");
     });
 });

@@ -72,6 +72,8 @@ export const slideCounters = {
     spans: 0,
     /** Times the held condition's ghosts had their inputs compared: once a turn, never once per element. */
     ghostChecks: 0,
+    /** Times the time window's masks had their inputs compared: once a read, never once per element. */
+    windowChecks: 0,
 };
 
 /** What one kind's index holds for a slide: the instants per row, and their sorted order. */

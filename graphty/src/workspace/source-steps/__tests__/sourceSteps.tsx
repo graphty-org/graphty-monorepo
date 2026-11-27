@@ -186,6 +186,21 @@ export function waysToJoin(modal: HTMLElement): string[] {
 }
 
 /**
+ * The ways to join the open card offers that can be picked: those whose rows match.
+ * @param modal - the workspace.
+ * @returns their labels.
+ */
+export function pickableWays(modal: HTMLElement): string[] {
+    const group = within(modal).queryByRole("radiogroup", { name: "Join as" });
+    return group === null
+        ? []
+        : within(group)
+              .getAllByRole<HTMLInputElement>("radio")
+              .filter((radio) => !radio.disabled)
+              .map((radio) => radio.labels?.[0]?.textContent ?? "");
+}
+
+/**
  * Unfolds the open card's rarer options.
  * @param modal - the workspace.
  */

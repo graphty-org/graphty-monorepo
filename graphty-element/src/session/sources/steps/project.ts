@@ -303,9 +303,83 @@ export function buildOf(value: SourceSteps, copies: Copies): BuildResult {
     if (held?.copies === copies) {
         return held.result;
     }
+    // The same data built before under another object (a draft's value as its commit lands): built once.
+    const twin = builds.get(sameAsBefore(value));
+    if (twin?.copies === copies) {
+        builds.set(value, twin);
+        return twin.result;
+    }
     const result = build(value, copyMap(copies));
     builds.set(value, { copies, result });
     return result;
+}
+
+/**
+ * The values {@link sameAsBefore} handed out lately, held weakly: a draft's history holds the live ones.
+ */
+const recent: WeakRef<SourceSteps>[] = [];
+
+/** How many values {@link sameAsBefore} looks back over. */
+const RECENT = 32;
+
+/**
+ * Whether two members of a value hold the same data: the same object, or arrays and records holding the
+ * same data in the same order, a member left undefined as one left out.
+ * @param x - One.
+ * @param y - The other.
+ * @returns True when they do.
+ */
+function sameData(x: unknown, y: unknown): boolean {
+    if (x === y) {
+        return true;
+    }
+    if (Array.isArray(x) || Array.isArray(y)) {
+        return (
+            Array.isArray(x) &&
+            Array.isArray(y) &&
+            x.length === y.length &&
+            x.every((each, at) => sameData(each, y[at]))
+        );
+    }
+    if (!isRecord(x) || !isRecord(y)) {
+        return false;
+    }
+    // In the same order too: a record of sources is in the order they were added.
+    const keys = Object.keys(x).filter((key) => x[key] !== undefined);
+    const theirs = Object.keys(y).filter((key) => y[key] !== undefined);
+    return keys.length === theirs.length && keys.every((key, at) => theirs[at] === key && sameData(x[key], y[key]));
+}
+
+/**
+ * Whether a value is a plain record.
+ * @param x - The value.
+ * @returns True when it is.
+ */
+function isRecord(x: unknown): x is Record<string, unknown> {
+    return typeof x === "object" && x !== null && Object.getPrototypeOf(x) === Object.prototype;
+}
+
+/**
+ * A value read before, when one holds the same sources, steps and the rest: a value cut back to an
+ * earlier step, or without a step, is the same after every later change of a draft, so what was read
+ * of it (its build, its sides, its counts) is read once, not again after each change.
+ * @param value - A value made to be read.
+ * @returns The value read before, else it.
+ */
+export function sameAsBefore(value: SourceSteps): SourceSteps {
+    for (let at = recent.length - 1; at >= 0; at--) {
+        const was = recent[at].deref();
+        if (was === undefined) {
+            recent.splice(at, 1);
+        } else if (sameData(value, was)) {
+            return was;
+        }
+    }
+    recent.push(new WeakRef(value));
+    if (recent.length > RECENT) {
+        recent.shift();
+    }
+    return value;
 }
 
 /**
@@ -402,12 +476,12 @@ export function addSource(
 ): SourceSteps {
     const met = proposedOverlap(base, src, copies);
     const added = met !== null && overlap !== "merge" ? keptSeparate(src, met.params.space) : src;
-    const next: SourceSteps = {
+    const next = sameAsBefore({
         ...base,
         sources: { ...base.sources, [src.id]: added },
         types: withSourceRules(base.types, added),
         steps: [...base.steps, { op: "join.add", source: src.id }],
-    };
+    });
     const issues = [met, ownSpaceOverlap(next, src.id, copies)].filter((each) => each !== null);
     if (issues.length === 0) {
         return next;
@@ -1685,6 +1759,29 @@ export function stepSpaces(step: Step, src: StepsSource | undefined): ReadonlySe
  * @returns One row per step, in order.
  */
 export function stepRows(value: SourceSteps, result: BuildResult, copies: Copies): readonly StepRow[] {
+    const held = rowsOf.get(value);
+    if (held?.result === result && held.copies === copies) {
+        return held.rows;
+    }
+    const rows = Object.freeze(readStepRows(value, result, copies));
+    rowsOf.set(value, { result, copies, rows });
+    return rows;
+}
+
+/** The step rows of a value, read once per value, build and copies: a screen reads them on every draw. */
+const rowsOf = new WeakMap<
+    SourceSteps,
+    { readonly result: BuildResult; readonly copies: Copies; readonly rows: readonly StepRow[] }
+>();
+
+/**
+ * Every step with its buckets, read afresh.
+ * @param value - The value.
+ * @param result - Its build.
+ * @param copies - The rows as read.
+ * @returns One row per step, in order.
+ */
+function readStepRows(value: SourceSteps, result: BuildResult, copies: Copies): StepRow[] {
     const report = conflictReport(result).filter((each) => each.code === "W_VALUES_DIFFER");
     return value.steps.map((step, index) => {
         const src = value.sources[step.source] as StepsSource | undefined;

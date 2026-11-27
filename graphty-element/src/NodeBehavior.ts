@@ -13,6 +13,7 @@ import { Scene } from "@babylonjs/core/scene.js";
 import type { CameraManager } from "./cameras/CameraManager";
 import { expansionOf } from "./data/expand";
 import type { Graph } from "./Graph";
+import { hearPenHover } from "./input/penHover";
 import { layoutEngineInternals } from "./layout/LayoutEngine";
 import { NGraphEngine } from "./layout/NGraphLayoutEngine";
 import { SimulationLayoutEngine } from "./layout/SimulationLayoutEngine";
@@ -123,6 +124,8 @@ export interface NodePointerRoster {
      * click picks the scene once, not again on release (issue #10116).
      */
     pressed: { readonly id: NodeIdType | undefined; readonly x: number; readonly y: number } | null;
+    /** A press on no node is held: a camera drag, during which Babylon makes no pick of its own on a move. */
+    cameraDrag: boolean;
 }
 
 /**
@@ -199,6 +202,7 @@ function deliverPress(scene: Scene, roster: NodePointerRoster, pointerInfo: Poin
     // nodeId from mesh metadata works with both regular and instanced meshes
     const pickedId = pickPressedNodeId(scene);
     roster.pressed = { id: pickedId, x: scene.pointerX, y: scene.pointerY };
+    roster.cameraDrag = pickedId === undefined;
     if (pickedId !== undefined) {
         roster.byId.get(pickedId)?.dragHandler?.onPointerDown(pointerInfo);
     }
@@ -226,6 +230,8 @@ function deliverPointerEvent(scene: Scene, roster: NodePointerRoster, pointerInf
             deliverPress(scene, roster, pointerInfo);
             break;
         case PointerEventTypes.POINTERMOVE: {
+            // A release the element never heard (outside the page) ends the camera drag at the next move.
+            roster.cameraDrag &&= pointerInfo.event.buttons !== 0;
             for (const handler of roster.engaged) {
                 handler.onPointerMove();
             }
@@ -251,6 +257,7 @@ function deliverPointerEvent(scene: Scene, roster: NodePointerRoster, pointerInf
             break;
         }
         case PointerEventTypes.POINTERUP:
+            roster.cameraDrag = false;
             for (const handler of roster.engaged) {
                 handler.onPointerUp(pointerInfo);
             }
@@ -342,6 +349,7 @@ export function nodePointerRosterOf(scene: Scene): NodePointerRoster {
             moves: 0,
             heard: 0,
             dragHoldsHover: false,
+            cameraDrag: false,
         };
         scene.onPrePointerObservable.add((pointerInfo) => {
             deliverPointerEvent(scene, created, pointerInfo);
@@ -366,11 +374,36 @@ export function nodePointerRosterOf(scene: Scene): NodePointerRoster {
             }
         }, PointerEventTypes.POINTERMOVE);
         filterPointerPicks(scene);
+        skipMovePicksInCameraDrags(scene, created);
+        hearPenHover(scene);
         nodePointerRosters.set(scene, created);
         roster = created;
     }
 
     return roster;
+}
+
+/**
+ * Let Babylon skip its own pick of a pointer move while a camera drag is held (`scene.skipPointerMovePicking`).
+ *
+ * That pick walks every mesh -- about 19 ms a move at 100,000 nodes -- for the cursor and the meshes' pointer-over
+ * actions, and the node meshes carry only pick actions. Under a camera drag the cursor is the drag's and the batched
+ * path never showed the hover cursor there either. The element's own hover pick is untouched, so
+ * `camera.hoverWhileDragging` still hovers what the drag crosses. A value the consumer sets is kept: the scene skips
+ * while either asks.
+ * @param scene - The scene.
+ * @param roster - The scene's nodes.
+ */
+function skipMovePicksInCameraDrags(scene: Scene, roster: NodePointerRoster): void {
+    let held = scene.skipPointerMovePicking;
+    Object.defineProperty(scene, "skipPointerMovePicking", {
+        configurable: true,
+        enumerable: true,
+        get: () => held || roster.cameraDrag,
+        set: (skip: boolean) => {
+            held = skip;
+        },
+    });
 }
 
 /**

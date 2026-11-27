@@ -1,5 +1,5 @@
 import { SegmentedControl } from "@graphty/compact-mantine";
-import type { SourceDraft, SourceDraftMarkCounts } from "@graphty/graphty-element/session";
+import type { DraftRing, SourceDraft, SourceDraftMarkCounts } from "@graphty/graphty-element/session";
 import { Button, Group, Loader, Text } from "@mantine/core";
 import React from "react";
 
@@ -22,14 +22,22 @@ interface KeyItem {
  * The header's key: each effect by the mark the preview draws for it (a ring, a dashed border, a dashed
  * line), then the counts of what is not marked.
  * @param marks - the preview's marks
+ * @param rings - the rings the preview draws wider than the merged ring
  * @param colors - whether each card has a color
  * @returns the items
  */
-function keyOf(marks: SourceDraftMarkCounts, colors: boolean): readonly KeyItem[] {
+function keyOf(marks: SourceDraftMarkCounts, rings: readonly DraftRing[], colors: boolean): readonly KeyItem[] {
     // While each card has a color, an element is drawn in its card's: the key names the marks alone.
     const markColor = (color: string): string => (colors ? "inherit" : color);
     return [
         { id: "merged", color: markColor(MERGED_COLOR), label: WORKSPACE_WORDS.nodesMerged, count: marks.nodes.merged },
+        // Each wider ring the preview draws, by its own row.
+        ...rings.map((ring) => ({
+            id: `ring-${ring.kind}`,
+            color: markColor(MERGED_COLOR),
+            label: WORKSPACE_WORDS.rings[ring.kind],
+            count: ring.nodes,
+        })),
         { id: "new", color: markColor(NEW_COLOR), label: WORKSPACE_WORDS.nodesNew, count: marks.nodes.new },
         { id: "edges", color: markColor(NEW_COLOR), label: WORKSPACE_WORDS.edgesNew, count: marks.edges.new },
         ...(
@@ -173,16 +181,18 @@ export function JoinHead({
  * The key: what the commit would do, counted, each effect by the mark the preview draws for it.
  * @param props - Component props
  * @param props.marks - the preview's marks
+ * @param props.rings - the rings the preview draws wider than the merged ring
  * @param props.colors - whether each card has a color
  * @returns the line
  */
 export function JoinKey({
     marks,
+    rings,
     colors,
-}: Readonly<{ marks: SourceDraftMarkCounts; colors: boolean }>): React.JSX.Element {
+}: Readonly<{ marks: SourceDraftMarkCounts; rings: readonly DraftRing[]; colors: boolean }>): React.JSX.Element {
     return (
         <div className="jw-key">
-            {keyOf(marks, colors).map((each) => (
+            {keyOf(marks, rings, colors).map((each) => (
                 <Group key={each.id} gap={4} wrap="nowrap" aria-label={`${each.label} ${String(each.count)}`}>
                     <span className="jw-key-mark" data-mark={each.id} style={{ color: each.color }} aria-hidden />
                     <Text size="xs">{`${each.label} ${formatNumber(each.count)}`}</Text>

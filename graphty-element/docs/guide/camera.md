@@ -468,6 +468,14 @@ Full 3D navigation with orbit controls:
 - Scroll: Zoom in/out
 - Right-drag: Pan
 
+A right-drag that pans raises no `contextmenu` event, so a menu you open from the element's
+`contextmenu` event (see [What Is Under a Point](./element-at.md)) opens on a right-click and never
+under a pan. On macOS and Linux, where the browser asks for the menu as the right button goes
+down, the element holds that request back and raises one `contextmenu` event at the release
+point, only when the pointer stayed put. A drag keeps panning wherever the pointer goes until the
+button comes up, even over the rest of your page. Touch-and-hold and Shift+F10 raise `contextmenu`
+as the browser does.
+
 ### 2D Mode
 
 Simplified camera for 2D layouts:
@@ -542,12 +550,11 @@ element.session.on("camera:gesture-end", ({ kind }) => {
 });
 ```
 
-It fires once per gesture, never per frame, and the input decides when a gesture ends, never a
-timer:
+It fires once per gesture, never per frame, and the input decides when a gesture ends:
 
 - A drag or a pinch ends at the pointer up that ends it. A click that moved nothing is no gesture.
-- A run of wheel events ends at the first frame with no new wheel event since the frame before.
-  Wheel events that arrive together, before a frame runs, are always one gesture.
+- A run of wheel events ends once the wheel has rested for half a second. A quick turn of the
+  wheel is one gesture, however the browser spreads its events over frames.
 - A camera key ends when the last camera key held is released and the camera has come to rest
   (in 2D, once its inertia has damped away). A key pressed before then continues the gesture.
 

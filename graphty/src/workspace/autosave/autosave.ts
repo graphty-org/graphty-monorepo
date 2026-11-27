@@ -91,10 +91,33 @@ function reopen(
                 store.set((now) => ({ project: now.project && { ...now.project, name: opened } }));
                 after(opened, place);
                 store.set((now) => lostReferences(now, session));
+                await reopenJoin(store, session);
             },
             ...(focus === undefined ? {} : { focus }),
         }),
     }));
+}
+
+/**
+ * Reopens the join screen on the table graphty-element's autosave kept for it: a second file read
+ * onto the graph and neither joined nor dropped before the reload (issue #9846).
+ * @param store - the workspace store.
+ * @param session - the restored session.
+ */
+async function reopenJoin(store: WorkspaceStore, session: GraphSession): Promise<void> {
+    const held = session.data.prepared();
+    if (held?.onto !== "graph" || store.get().joining !== null) {
+        return;
+    }
+    const matches = await session.data.matchesSource(held.source);
+    store.set({
+        joining: {
+            name: held.source.name ?? "",
+            draft: held.draft,
+            source: held.source,
+            ...(matches === null ? {} : { matches }),
+        },
+    });
 }
 
 /**

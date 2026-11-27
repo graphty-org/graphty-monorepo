@@ -198,7 +198,7 @@ jobs:
                   printf '%s\n' 'Acquire::http::Timeout "20";' 'Acquire::https::Timeout "20";' 'Acquire::Retries "5";' \
                       > /etc/apt/apt.conf.d/99-ci-timeouts
                   if [ "$HIT" = true ]; then
-                      dpkg -i "$dir"/*.deb
+                      dpkg -i --auto-deconfigure "$dir"/*.deb
                   else
                       # apt downloads into $dir and keeps the files there for the save step below
                       mkdir -p "$dir/partial"

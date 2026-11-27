@@ -262,12 +262,11 @@ import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshes/labelClose";
 import { labelFontsLoading, watchFontLoads } from "./meshes/labelFonts";
 import { MeshCache } from "./meshes/MeshCache";
-import {
-    LiveModelPreview,
-    type ModelCheck,
-    type ModelCheckOptions,
-    type ModelPreview,
-    type ModelPreviewOptions,
+import type {
+    ModelCheck,
+    ModelCheckOptions,
+    ModelPreview,
+    ModelPreviewOptions,
     PreviewEngines,
 } from "./meshes/ModelPreview";
 import { type ColumnRow, NodeBatches, type RenderPath, renderPathDefault, type RowCounts } from "./meshes/NodeBatch";
@@ -1015,7 +1014,7 @@ export class Graph implements GraphContext {
     /** The node thumbnails drawn so far, by what they draw. */
     readonly #thumbnails = new Map<string, Promise<string>>();
     /** Engines closed model previews left, for the next ones. */
-    readonly #previewEngines = new PreviewEngines();
+    #previewEngines: PreviewEngines | undefined;
     /** The last thumbnail drawing in line. */
     #thumbnailQueue: Promise<unknown> = Promise.resolve();
     /** Whether each model's template could be built, by digest and stand-ins (`checkModel`). */
@@ -2374,7 +2373,7 @@ export class Graph implements GraphContext {
      * nothing.
      */
     shutdown(): void {
-        this.#previewEngines.dispose();
+        this.#previewEngines?.dispose();
         if (this.#teardown.signal.aborted) {
             return;
         }
@@ -8191,7 +8190,8 @@ export class Graph implements GraphContext {
      * for nothing else. When it resolves, everything asked for has been carried out; the layout
      * may still be running, the camera may still be moving, and a picture -- a background image,
      * a node's image or 3D model -- may still be loading, because none of those is a queued
-     * operation.
+     * operation. One exception: a layout a WebGPU device loss interrupted is waited for until it
+     * has settled again, on the accelerator brought back or on the CPU.
      *
      * For a picture that will not change again -- a screenshot, a video frame, a visual
      * regression snapshot -- wait for {@link Graph.waitForStableFrame} instead, which waits for
@@ -8664,6 +8664,15 @@ export class Graph implements GraphContext {
     async modelPreview(ref: string, host: HTMLElement, options: ModelPreviewOptions = {}): Promise<ModelPreview> {
         const { record, standIn } = await this.#drawableModel(ref, options.standInMissing === true);
         const hidden = options.hiddenTextures ?? record.defaults?.hiddenTextures ?? [];
+        // Loaded on first use: most pages never show a model preview.
+        const { LiveModelPreview, PreviewEngines } = await import("./meshes/ModelPreview");
+        if (this.#previewEngines === undefined) {
+            this.#previewEngines = new PreviewEngines();
+            if (this.#teardown.signal.aborted) {
+                // The graph went while the module loaded: engines given back are freed, not kept.
+                this.#previewEngines.dispose();
+            }
+        }
         const preview = new LiveModelPreview(
             host,
             async (scene, style) => this.#modelTemplate(scene, ref, record, standIn, style, hidden),

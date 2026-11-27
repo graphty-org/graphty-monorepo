@@ -232,13 +232,15 @@ export default defineConfig(({ mode }) => {
                             // that tree-shaking drops, and one such group put graph-io's importers
                             // back in the first load. `entriesAware` keeps the bundler's own split
                             // by which entries use a module, and the threshold (source bytes) merges
-                            // the small pieces. Above about 300 KB it merges a lazy-only piece into
+                            // the small pieces. At 200 KB, graphty-element's on-demand figure export
+                            // and model preview split the start page into two more pieces (#10135).
+                            // Above about 300 KB it merges a lazy-only piece into
                             // the start page (+450 KiB gzip); check-size.mjs's budgets catch that.
                             {
                                 name: "start",
                                 tags: ["$initial"],
                                 entriesAware: true,
-                                entriesAwareMergeThreshold: 200_000,
+                                entriesAwareMergeThreshold: 250_000,
                             },
                         ],
                     },

@@ -414,7 +414,13 @@ describe("a join card's matches and table (source-steps)", () => {
         assert.deepStrictEqual(joinLines(modal), ["people + watch, phone", "people + watch, name"]);
         await selectJoin(modal, "people + watch, phone");
         await userEvent.click(within(within(modal).getByRole("radiogroup", { name: "No match" })).getByText("Add"));
-        await newest(session, (row) => row.act?.unmatchedFrom === "keep", "its leftover row is a node");
+        // The second card joined at once too, so the first card's step is no longer the newest.
+        await waitFor(() => {
+            assert.isTrue(
+                joinsOf(session).some((row) => row.act?.unmatchedFrom === "keep"),
+                "its leftover row is a node",
+            );
+        });
         await selectJoin(modal, "people + watch, name");
         await within(modal).findByRole("radio", { name: "Merge watch nodes into people" });
     });

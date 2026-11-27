@@ -142,6 +142,32 @@ function typeCells(imported: ImportedRecords): ImportedRecords {
 }
 
 /**
+ * A row with its columns in the file's order: the reader hands them over grouped by type.
+ * @param data - the row as read
+ * @param header - the file's header
+ * @returns the row, its header's columns first in order, then any the header did not name
+ */
+function inHeaderOrder(data: Record<string, unknown>, header: readonly string[]): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    for (const name of header) {
+        if (Object.hasOwn(data, name)) {
+            out[name] = data[name];
+        }
+    }
+    return Object.assign(out, data);
+}
+
+/**
+ * A CSV text's header, read from its first line alone.
+ * @param content - the text
+ * @param delimiter - the column separator given, if any
+ * @returns the header's names
+ */
+function headerOf(content: string, delimiter: string | undefined): string[] {
+    return csvRecordLines(content.split(/\r\n|\n|\r/, 1)[0] ?? "", delimiter).header;
+}
+
+/**
  * The columns holding a code led by a zero.
  * @param table - the records of one table
  * @returns their names
@@ -422,7 +448,8 @@ export class CSVDataSource extends DataSource {
             return;
         }
 
-        yield* this.emit(imported.nodes, imported.edges);
+        const header = headerOf(content, this.config.delimiter);
+        yield* this.emit(imported.nodes, imported.edges, header, header);
     }
 
     /**
@@ -728,7 +755,7 @@ export class CSVDataSource extends DataSource {
         const { header, lines, delimiter } = csvRecordLines(content, given);
         return {
             columns: header,
-            rows: read.nodes.map(({ data }) => data),
+            rows: read.nodes.map(({ data }) => inHeaderOrder(data, header)),
             lines,
             delimiter: { value: delimiter, detected: given === undefined },
         };
@@ -808,7 +835,13 @@ export class CSVDataSource extends DataSource {
         }
 
         aggregateErrors(imported.report, this.errorAggregator, CSVDataSource.type);
-        yield* this.emit(imported.nodes, imported.edges);
+        const { delimiter } = this.config;
+        yield* this.emit(
+            imported.nodes,
+            imported.edges,
+            headerOf(nodeContent, delimiter),
+            headerOf(edgeContent, delimiter),
+        );
     }
 
     /**
@@ -820,19 +853,29 @@ export class CSVDataSource extends DataSource {
      * chunk is yielded, and therefore before the first edge reaches the builder.
      * The id and endpoints are written last, so an attribute column that happens to be named
      * `id`, `source` or `target` cannot take their place.
+     * Each record's columns then follow its file's header.
      * @param nodes - the nodes
      * @param edges - the edges
+     * @param nodeHeader - the node file's header
+     * @param edgeHeader - the edge file's header
      * @yields the chunks
      */
-    private *emit(nodes: ImportedNode[], edges: ImportedEdge[]): Generator<DataSourceChunk, void, unknown> {
-        const edgeRecords: ImportedRecord[] = edges.map(({ source, target, data }) => ({ ...data, source, target }));
+    private *emit(
+        nodes: ImportedNode[],
+        edges: ImportedEdge[],
+        nodeHeader: readonly string[] = [],
+        edgeHeader: readonly string[] = [],
+    ): Generator<DataSourceChunk, void, unknown> {
+        const edgeRecords: ImportedRecord[] = edges.map(({ source, target, data }) =>
+            inHeaderOrder({ ...data, source, target }, edgeHeader),
+        );
         const declared = readGephiTypeColumn(edgeRecords);
         if (declared !== null) {
             this.declareDirection(declared.directed, declared.statedBy, declared.conflictingEdges);
         }
 
         yield* this.chunkData(
-            nodes.map(({ id, data }) => ({ ...data, id })),
+            nodes.map(({ id, data }) => inHeaderOrder({ ...data, id }, nodeHeader)),
             edgeRecords as AdHocData[],
         );
     }

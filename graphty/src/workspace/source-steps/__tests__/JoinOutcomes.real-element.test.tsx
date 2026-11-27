@@ -27,6 +27,7 @@ import {
     joinsOf,
     newest,
     openJoins,
+    pickableWays,
     pickFields,
     pickSources,
     selectJoin,
@@ -414,8 +415,8 @@ const CASES: readonly Case[] = [
                 ["staff", "boss"],
             ],
         ],
-        ways: ["Edge from staff to staff, boss -> sid"],
-        pick: "Edge from staff to staff, boss -> sid",
+        ways: ["Edge from staff to staff, sid -> boss"],
+        pick: "Edge from staff to staff, sid -> boss",
         lines: ["staff, boss"],
         makes: [3, 2],
     },
@@ -613,6 +614,29 @@ describe("a join card's ways to join (source-steps)", () => {
         assert.isNull(within(modal).queryByRole("combobox", { name: "Match 2 field 1" }));
     });
 
+    it("the key names the wider ring a three-source card draws on what its last source reaches (#10211)", async () => {
+        // The identifiers reach every account, the watchlist through them only A1 (phone p1).
+        const { session, modal } = await opened(["accounts"], ["identifiers", "watch"]);
+        await pickSources(modal, "accounts", "identifiers");
+        await pickFields(modal, "account", "account_id");
+        await addMatch(modal, 2, ["identifiers", "phone"], ["watch", "value"]);
+        await joinAs(modal, "Fields of identifiers and watch on accounts");
+        await waitFor(() => {
+            assert.lengthOf(joinsOf(session), 2);
+        });
+        assert.deepStrictEqual(joinLines(modal), ["accounts + identifiers + watch"], "one card");
+        const ring = (id: string): number => session.styles.explain({ node: id }).merged["node.haloScale"] ?? 0;
+        for (const look of ["Card colors", "Styled"]) {
+            await userEvent.click(within(modal).getByText(look));
+            await waitFor(() => {
+                assert.strictEqual(keyCount(modal, "nodes merged"), 3, look);
+                const wider = ["A1", "A2", "A3"].filter((id) => ring(id) > ring("A2"));
+                assert.deepStrictEqual(wider, ["A1"], `A1 alone rings wider (${look})`);
+                assert.strictEqual(keyCount(modal, "nodes every step merges"), wider.length, `its key row (${look})`);
+            });
+        }
+    });
+
     it("a match of no row offers nothing new, while a written card always shows its own way", async () => {
         const { session, modal } = await opened(["accounts"], ["identifiers", "watch"]);
         await pickSources(modal, "accounts", "identifiers");
@@ -625,7 +649,8 @@ describe("a join card's ways to join (source-steps)", () => {
         await userEvent.click(within(modal).getByRole("button", { name: "Join" }));
         await pickSources(modal, "accounts", "watch");
         await pickFields(modal, "account", "value");
-        assert.deepStrictEqual(waysToJoin(modal), [], "no account is a watched value");
+        assert.isNotEmpty(waysToJoin(modal), "no account is a watched value: its ways still show");
+        assert.deepStrictEqual(pickableWays(modal), [], "and none can be picked");
         await pickFields(modal, "phone", "value");
         await joinAs(modal, "Fields of watch on accounts");
         await newest(session, (step) => step.act?.into.field === "phone", "on the phones the first card brought");

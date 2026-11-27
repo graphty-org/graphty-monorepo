@@ -63,7 +63,7 @@ import {
     type TableDecoration,
 } from "./meshes/NodeDecorationMesh";
 import { NodeEffects } from "./meshes/NodeEffects";
-import { NodeMesh, styleOpacity } from "./meshes/NodeMesh";
+import { NodeMesh, paintedBodyOpacity } from "./meshes/NodeMesh";
 import {
     NodeShaderDrawing,
     type NodeShaderLook,
@@ -1338,6 +1338,31 @@ export class Node implements ModelUser {
     }
 
     /**
+     * The farthest {@link Node.framingBounds} reaches from this node's position on any axis, in the units its position
+     * is laid out in (inside the graph root): what a box around the layout's positions grows by to hold this node.
+     * Read from the mesh's own extent and scaling, so it computes no world matrix. A group's face is not measured here.
+     * @returns The reach.
+     * @internal
+     */
+    framingReach(): number {
+        if (this.#anchor.isDisposed()) {
+            return this.size / 2;
+        }
+
+        const { minimum, maximum } = (this.#mesh ?? this.#source).getBoundingInfo();
+        const scale = this.#anchor.scaling;
+        const border = this.sceneBorderReach;
+        let widest = 0;
+        for (const axis of ["x", "y", "z"] as const) {
+            const s = Math.abs(scale[axis]);
+            const half = Math.fround(((maximum[axis] - minimum[axis]) / 2) * s + border);
+            widest = Math.max(widest, (Math.abs(maximum[axis] + minimum[axis]) / 2) * s + half);
+        }
+
+        return widest;
+    }
+
+    /**
      * Bring the anchor's world matrix (and its world bounds) up to date with where the node is now, computing only what
      * changed. Babylon refreshes world matrices only while it renders, and between renders it answers an unforced
      * `computeWorldMatrix` from the last render even when the node has moved since, so framing has to make it
@@ -2449,13 +2474,13 @@ export class Node implements ModelUser {
     }
 
     /**
-     * The opacity its style draws its body at (`node.opacity`), whatever draws it: a line's end shows through a body
-     * drawn under 1, so it stops at the outline (`RowTable.measure`, `Edge.bareEnd`).
+     * The opacity its style draws its body at (`node.opacity`, 0 for a wireframe), whatever draws it: a line's end
+     * shows through a body drawn under 1, so it stops at the outline (`RowTable.measure`, `Edge.bareEnd`).
      * @returns The opacity.
      * @internal
      */
     get paintedOpacity(): number {
-        return styleOpacity(this.drawnStyle?.texture);
+        return paintedBodyOpacity(this.drawnStyle);
     }
 
     /**

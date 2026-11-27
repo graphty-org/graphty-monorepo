@@ -49,6 +49,19 @@ describe("E_TOO_LARGE on a load", () => {
         session.dispose();
     });
 
+    it("holds the draft's report to the session's own limits, as the load is (#10365)", async () => {
+        const session = createGraphSession({ limits: { renderCeiling: 2 } });
+        const source = { type: "csv", config: { data: "id,name\na,A\nb,B\nc,C\n" } };
+
+        const draft = await session.data.prepare(source);
+        const report = await draft.report();
+        assert.deepEqual(report.tooLarge, { limit: 2, count: 3, of: "nodes", graph: { nodes: 0, edges: 0 } });
+        const loaded = await refusal(draft.load());
+        assert.strictEqual(loaded?.code, "E_TOO_LARGE");
+        assert.deepEqual(loaded?.details, { ...report.tooLarge });
+        session.dispose();
+    });
+
     it("ends the load's progress with the refusal's code and details (#902)", async () => {
         const session = createGraphSession();
         const ends: unknown[] = [];

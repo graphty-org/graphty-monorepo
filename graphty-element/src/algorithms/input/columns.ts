@@ -182,12 +182,14 @@ export function sessionColumns(
  * @param session - The session: its records and its published results.
  * @param graph - The snapshot whose rows the values are laid out over.
  * @param paths - `data.<key>` (or the bare key), or `results.<run>.<field>`.
+ * @param rows - Only these rows of the data columns, the others left empty; every row when absent.
  * @returns Each path's values, or null where nothing carries it, in the order of `paths`.
  */
 export function readNodeColumns(
     session: GraphSession,
     graph: GraphSnapshot,
     paths: readonly string[],
+    rows?: readonly number[],
 ): (ColumnValues | null)[] {
     const carried = new Set(session.data.attributes().flatMap((a) => (a.kind === "node" ? [a.name] : [])));
     const keys = paths.map((path) => {
@@ -200,7 +202,7 @@ export function readNodeColumns(
     });
     const columns = keys.map((key) => (key === null ? null : new Array<unknown>(graph.nodeCount)));
     if (columns.some((column) => column !== null)) {
-        for (let row = 0; row < graph.nodeCount; row++) {
+        const read = (row: number): void => {
             const record = session.data.node(graph.ids.idOf(row));
             keys.forEach((key, at) => {
                 const column = columns[at];
@@ -208,6 +210,15 @@ export function readNodeColumns(
                     column[row] = record?.[key] ?? undefined;
                 }
             });
+        };
+        if (rows === undefined) {
+            for (let row = 0; row < graph.nodeCount; row++) {
+                read(row);
+            }
+        } else {
+            for (const row of rows) {
+                read(row);
+            }
         }
     }
 

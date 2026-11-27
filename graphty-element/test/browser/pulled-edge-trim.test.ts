@@ -35,6 +35,7 @@ type View = "2d" | "3d";
  * @param shape - The nodes' shape.
  * @param edged - Whether the edge is there.
  * @param edgeLook - More of the edge's style.
+ * @param nodeLook - How the nodes' bodies let a line show through.
  * @returns The element.
  */
 async function loaded(
@@ -44,6 +45,7 @@ async function loaded(
     shape: string,
     edged: boolean,
     edgeLook: Record<string, unknown> = {},
+    nodeLook: Record<string, unknown> = { "node.opacity": 0.35 },
 ): Promise<Graphty> {
     const element = document.createElement("graphty-element");
     element.renderer = renderer;
@@ -67,7 +69,7 @@ async function loaded(
         name: "translucent",
         target: "node",
         selector: { match: "everything" },
-        set: { "node.shape": shape, "node.opacity": 0.35, "node.size": 2 },
+        set: { "node.shape": shape, "node.size": 2, ...nodeLook },
     } as never);
     await element.session.styles.add({
         name: "plain",
@@ -173,5 +175,23 @@ describe.each(RENDERERS)("pulled plain lines stop at the node outline on %s", (r
             0,
             "line pixels inside a body",
         );
+    });
+
+    // An opaque wireframe body hides nothing behind its lines, so a line stops at its outline too (issue #10374).
+    describe.each(["objects", "batched"] as const)("on the %s path", (path) => {
+        it.each(["sphere", "box"])("show no line inside an opaque wireframe %s", async (shape) => {
+            const wireframe = { "node.wireframe": true };
+            const bare = await loaded(renderer, path, "3d", shape, false, {}, wireframe);
+            const bareFrame = await readCanvas(bare.graph);
+            bare.remove();
+
+            const edged = await loaded(renderer, path, "3d", shape, true, {}, wireframe);
+            const edgedFrame = await readCanvas(edged.graph);
+            assert.equal(
+                overBarInBodies(edged, bareFrame, edgedFrame, bodyRadius(edged)),
+                0,
+                "line pixels inside a wireframe body",
+            );
+        });
     });
 });

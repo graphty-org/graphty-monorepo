@@ -491,13 +491,13 @@ export const BASE_LABEL_FIELDS: readonly (keyof LabelStyle)[] = [
 
 /**
  * graphty-element's own styles added on master after the merge base and merged into this branch: an edge's
- * color from an end node (68ad68cd59), a label box's double stroke (109ff9a970) and a picture in a label
- * (994d193e8d). They are graphty-element's, as the merge base's are.
+ * color from an end node (68ad68cd59), a label box's double stroke (109ff9a970), a picture in a label
+ * (994d193e8d) and unkerned label wrapping (8c2c8003b8). They are graphty-element's, as the merge base's are.
  */
 export const MASTER_CHANNELS: readonly string[] = [
     "edge.colorFrom",
     ...(["node", "edge"] as const).flatMap((side) =>
-        ["BorderStyle", "Image", "ImageWidth", "ImageHeight", "ImageOffsetX", "ImageOffsetY"].map(
+        ["BorderStyle", "Image", "ImageWidth", "ImageHeight", "ImageOffsetX", "ImageOffsetY", "WrapUnkerned"].map(
             (field) => `${side}.label${field}`,
         ),
     ),
@@ -511,6 +511,7 @@ export const MASTER_LABEL_FIELDS: readonly (keyof LabelStyle)[] = [
     "imageHeight",
     "imageOffsetX",
     "imageOffsetY",
+    "wrapUnkerned",
 ];
 
 /**

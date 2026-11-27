@@ -106,7 +106,11 @@ const OWNER_REMOVED_FILE_STYLES: Readonly<Record<string, string>> = {
 };
 
 /** Check 1: renderable channels the owner ordered out of the panel, with the ones a file's styles reach. */
-const OWNER_REMOVED_CHANNELS: Readonly<Record<string, string>> = OWNER_REMOVED_FILE_STYLES;
+const OWNER_REMOVED_CHANNELS: Readonly<Record<string, string>> = {
+    ...OWNER_REMOVED_FILE_STYLES,
+    // On top is the third of the Order thing's channels (parts.ts), with z-index and draw order.
+    "node.onTop": "E420",
+};
 
 /** Check 6: channels a file's styles reach with no normal visible control. */
 const KNOWN_FILE_STYLE_GAPS: readonly string[] = [];

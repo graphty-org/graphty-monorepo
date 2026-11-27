@@ -188,6 +188,7 @@ export const OPTION_NAMES: Partial<Readonly<Record<Channel, Readonly<Record<stri
     "edge.bendCurve": {
         corners: { name: "Corners", glyph: "bendCorners" },
         midpoints: { name: "Midpoints", glyph: "bendMidpoints" },
+        "midpoints-headroom": { name: "Midpoints, head room", glyph: "bendMidpointsHeadroom" },
         bezier: { name: "Bezier", glyph: "bendBezier" },
         arc: { name: "Arc", glyph: "routeArc" },
     },
@@ -813,7 +814,7 @@ export const EDGE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
                 name: "Bends",
                 lines: [
                     { channel: "edge.bends", name: "Bends", rule: "R15" },
-                    { channel: "edge.bendCurve", name: "Curve", rule: "R8" },
+                    { channel: "edge.bendCurve", name: "Curve", rule: "R8f" },
                 ],
             },
             {

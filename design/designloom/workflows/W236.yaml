@@ -1,0 +1,144 @@
+id: W236
+name: Statistical Network Analysis in R (statnet and igraph)
+category: analysis
+validated: false
+personas:
+    - r-statistical-network-student
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - basic-statistics
+    - centrality-degree
+    - pattern-search
+    - computed-attributes
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - comparison-view
+    - export-image
+    - data-export
+    - bipartite-projection
+    - weight-semantics
+    - notebook-widget
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - attribute-table-join-dialog
+    - data-table-panel
+    - statistics-panel
+    - computed-attributes-panel
+    - visual-encoding-panel
+    - gradient-editor
+    - legend-panel
+    - graph-canvas
+    - comparison-view
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: edge list plus node attribute table from a survey or replication dataset, or Pajek .net / packaged R data
+    node_count: 15-2000
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Explore and draw a network whose analysis lives in R, so that a research paper's statistical model
+    (QAP or network regression, ERGM with goodness of fit, or a stochastic actor-oriented model) is grounded in a
+    visual understanding of the data and its fitted effect is shown in a figure. Graduate seminars at Ohio State,
+    Minnesota, Duke, UW and GESIS teach this sequence.
+
+
+    **Mental Model**: "R is the engine, the picture is the sanity check." The graph tool must take R's objects in and
+    give them back unchanged, and show a fitted value as just another column.
+
+
+    **Task Phases**:
+
+    1. **Install** - R, RStudio and packages, often walked through in class
+
+    2. **Load data** - Edge list plus attributes into a network object, or read.paj; attributes via %v%; igraph via
+    graph_from_data_frame
+
+    3. **Set a seed** - set.seed() before any simulation
+
+    4. **Describe** - Density, centralities, triad census, mixing by attribute; some by hand first
+
+    5. **Explore visually** - Export GraphML, Pajek or edge list plus attributes to a graph tool; color by attribute,
+    check homophily and isolates
+
+    6. **Model** - QAP, ERGM terms via ?ergmTerm, SIENA for change over time
+
+    7. **Diagnose** - Convergence, degeneracy, goodness of fit
+
+    8. **Show the effect** - Bring fitted tie probabilities or residuals back as node or edge columns and style them
+
+    9. **Interpret and write** - Coefficients as change in the log-odds of a tie; paper in R Markdown or .Rnw on GitHub
+
+
+    **Decision Points**:
+
+    - Which model family answers the research question
+
+    - Which ERGM terms to include, and what to do when the model degenerates
+
+    - Which attribute mixing to show in the figure
+
+
+    **Information Needs**:
+
+    - Attribute types preserved on round trip (numeric, categorical, logical)
+
+    - Mixing matrix by attribute and triad census
+
+    - Fitted values per tie or node as a styleable column
+
+    - Two views side by side (observed versus simulated or time 1 versus time 2)
+
+
+    **Pain Points**:
+
+    - Base R plots need many lines of code for a readable figure
+
+    - Types lost moving between R and a visual tool
+
+    - Degeneracy and log-odds interpretation need explanation in words
+
+    - No direct student self-report found; pain points come from course materials
+
+
+    **Data Flow**:
+
+    - Input: Edge list and attribute table, Pajek file, GraphML from R
+
+    - Transformations: Descriptives, model fitting in R, fitted values joined back as columns
+
+    - Output: Figures colored by attribute or fitted value, model tables, paper on GitHub
+success_criteria:
+    - metric: Typed round trip
+      target: GraphML or edge list plus attributes exported from R and re-imported keep every column type
+    - metric: Fitted effect visible
+      target: User can color edges or nodes by a fitted value column and export the figure with a legend
+sources:
+    - title: statnet ERGM tutorial
+      url: https://statnet.org/workshop-ergm/ergm_tutorial.html
+      summary: network objects, read.paj, %v%, set.seed, ?ergmTerm, plot.network, conditional log-odds interpretation
+    - title: Minnesota Sociology 8412 syllabus
+      url: https://depts.washington.edu/zalmquist/syllabi/soc_8412_syl.pdf
+      summary: QAP and network regression, ERGM, degeneracy week, GitHub and .Rnw homework
+    - title: UW STAT 567 syllabus
+      url: https://sites.stat.washington.edu/people/handcock/567/syllabus.html
+      summary: Descriptives by hand, triad census, mixing, ERGM goodness of fit, latent space models
+    - title: Duke social networks seminar syllabus
+      url: https://people.duke.edu/~jmoody77/s884/syllabus_11.pdf
+      summary: Pajek and R; ERGM on an example graph; SIENA
+    - title: Ohio State COMM 7710 syllabus
+      url: https://comm.osu.edu/sites/default/files/2025-01/SP25%20Comm%207710%20Syllabus%20Bond.pdf
+      summary: R and packages installed in class; research paper
+    - title: Social Network Analysis with R workshop at GESIS
+      url: https://www.r-bloggers.com/2023/06/social-network-analysis-with-r-workshop-at-gesis/
+      summary: Week-long course ending in ERGM and SAOM
+    - title: Ognyanova - Network visualization with R
+      url: https://kateto.net/network-visualization
+      summary: Data input and formats for one-mode and bipartite networks
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,24 @@
+id: flow-arithmetic
+name: Flow arithmetic
+category: analysis
+description: Computed per-pair net, gross, net ratio and two-way merge, and per-place in, out, internal (self-flow), net
+    and net rate; signed net tables deduplicated to one row per pair and oriented by sign with absolute weight;
+    self-flows kept as data with include or exclude options.
+status: planned
+notes: "Research trace: geographic-flow-and-mobility-networks.md section 10, requirement R5 (Must)."
+algorithms: []
+used_by_workflows:
+    - W380
+    - W383
+    - W386
+    - W387
+implemented_by_components: []
+requirements:
+    - "Must: Flow arithmetic as computed attributes: per pair net, gross, net ratio, two-way merge; per place in, out,
+      internal, net, net rate"
+sources:
+    - title: "Geographic Flow and Mobility Networks: Migration, Commuting, Mobility and Trade Flows on a Map (section
+          10, requirement R5)"
+      url: design/user-research/geographic-flow-and-mobility-networks.md
+      summary: "Must in the research. Covered by Designloom when researched: Partly (computed-attributes exists; no
+          flow-specific measures)"

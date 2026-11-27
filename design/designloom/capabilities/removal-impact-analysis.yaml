@@ -1,40 +1,90 @@
 id: removal-impact-analysis
 name: Removal Impact Analysis
 category: analysis
-description: Simulate the effect of removing selected nodes or edges from the graph to assess network resilience,
-    identify critical dependencies, and model disruption scenarios.
-status: implemented
-notes: "Ships: graphty-element/src/algorithms/RemovalImpactAlgorithm.ts."
+description: Simulate removing chosen nodes or edges, one at a time or as a set, on a copy of the graph and report what
+    changes -- components, the largest component, who is cut off, which paths break, and (following edge direction)
+    what depends on the removed elements. Used for disruption planning against criminal networks, key-player sets in
+    organizations, single points of failure in dependency graphs and species or habitat-patch loss in ecology. Curves
+    over a whole removal sequence (giant-component share against fraction removed) belong to
+    attack-robustness-curves.
+status: in-progress
+notes: "Partly ships: graphty-element/src/algorithms/RemovalImpactAlgorithm.ts removes given nodes and edges as a block on a simulated copy and reports components and the largest component's size before and after, nodes cut off and their share. Planned: one-at-a-time removal sequences with recomputed rankings, fragmentation, path statistics, broken pair paths, directed blast radius, secondary extinction in two-mode graphs, scenario comparison and export. Any requirement below that this note does not name as shipping counts as planned."
 algorithms: []
 used_by_workflows:
     - W09
     - W11
     - W23
+    - W104
+    - W106
+    - W109
+    - W114
+    - W166
+    - W169
+    - W173
+    - W178
+    - W181
+    - W192
+    - W206
+    - W215
+    - W218
+    - W219
+    - W220
+    - W221
+    - W223
+    - W227
+    - W275
+    - W316
+    - W320
+    - W360
+    - W389
+    - W408
+    - W426
+    - W429
+    - W434
+    - W45
+    - W77
+    - W79
+    - W83
+    - W84
+    - W3049
 implemented_by_components:
     - impact-analysis-dialog
 requirements:
-    - Select one or more nodes for simulated removal via multi-select or list input
-    - Select one or more edges for simulated removal via multi-select or list input
-    - Calculate component count before and after removal
-    - Calculate diameter before and after removal (for connected graphs)
-    - Calculate average path length before and after removal
-    - Calculate size of giant component before and after removal
-    - Identify nodes that become disconnected (unreachable from giant component) after removal
-    - Report count and list of newly disconnected nodes
-    - Identify paths between specific node pairs that become broken after removal
-    - "Calculate cascading impact: nodes reachable only through removed node(s)"
-    - Display before/after comparison table with metric changes and delta percentages
-    - "Display impact severity rating: 'Low' (<5% change), 'Medium' (5-20%), 'High' (>20%)"
-    - Do not modify actual graph data; operate on simulated copy
-    - Provide 'Reset simulation' button to clear removal selection
-    - Support batch simulation comparing multiple removal scenarios side-by-side
-    - Complete single removal impact analysis within 3 seconds for graphs under 10,000 nodes
-    - Export impact report as JSON or CSV with all metrics
-    - Highlight affected nodes (disconnected, cascade) in graph visualization
+    - "Should: Select one or more nodes for simulated removal via multi-select or list input"
+    - "Should: Select one or more edges for simulated removal via multi-select or list input"
+    - "Library parity: Remove as a block (all at once, a raid) or one at a time (a sequence of arrests), and record which was used"
+    - "Should: Order a sequence by hand or by a chosen ranking (degree, betweenness, a supplied order); state whether the ranking is recomputed after each removal and record the choice with the result, because recomputation changes the outcome"
+    - "Should: Report component count and the largest component's size and share of nodes before and after removal"
+    - "Library parity: Report the nodes cut off from the largest component, as a count and a list"
+    - "Must: Report fragmentation (the share of node pairs that can no longer reach each other) for key-player set removal"
+    - "Must: Compute path statistics (average path length, diameter) on the largest component, or as harmonic or efficiency variants, so a disconnected result never returns an error"
+    - "Should: Identify paths between chosen node pairs that break after removal"
+    - "Must: On directed graphs, follow edge direction and chosen edge types: report the elements that depend only on the removed ones (blast radius) and say which edge types were followed"
+    - "Library parity: In a two-mode graph, report nodes of the other level left with no links (secondary extinction)"
+    - "Must: When a path measure reads an edge weight, read it as declared in weight-semantics and record the convention used"
+    - "Must: Return each metric before and after with its absolute and relative change as values; no built-in severity bands (how to grade or word the change is the application's choice)"
+    - "Library parity: Do not modify actual graph data; operate on simulated copy"
+    - "Library parity: Provide 'Reset simulation' to clear the removal selection"
+    - "Must: Compare several removal scenarios side by side"
+    - "Must: Export the impact result as JSON or CSV with every metric, the removal order, the block or sequence setting and the ranking used"
+    - "Library parity: Highlight affected nodes (cut off, dependent) through a style layer on the result"
 sources:
-    - title: Network Resilience Analysis
-      url: https://www.nature.com/articles/nphys3318
-      summary: Resilience analysis identifies critical nodes whose removal fragments the network
-    - title: Cambridge Intelligence Supply Chain Analysis
-      url: https://cambridge-intelligence.com/supply-chain-management-with-graph-analytics/
-      summary: What-if analysis for supply chain disruption modeling
+    - title: Cavallaro et al. 2020, disrupting resilient criminal networks through data analysis (Montagna network)
+      url: https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0236476
+      summary: Sequential and block removal ranked by centrality, scored by largest-component size (cited in
+          design/user-research/law-enforcement-and-intelligence-analysts.md)
+    - title: Borgatti 2006, Identifying sets of key players in a social network
+      url: https://doi.org/10.1007/s10588-006-7084-x
+      summary: Key-player removal measured by fragmentation; ONA research marks non-destructive set removal a must-have
+    - title: Holme, Kim, Yoon and Han 2002, attack vulnerability of complex networks
+      url: https://arxiv.org/abs/cond-mat/0202410
+      summary: Recalculated attacks are often more harmful than rankings computed once
+    - title: Wandelt et al. 2018, comparative analysis of approaches to network dismantling
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6131543
+      summary: Static betweenness attacks do much worse than recomputed ones; the recompute choice is part of the result
+    - title: bipartite R package, second.extinct
+      url: https://search.r-project.org/CRAN/refmans/bipartite/html/second.extinct.html
+      summary: Removal order options and secondary extinctions in two-mode ecological networks
+    - title: Edge Delta, blast radius is a graph query
+      url: https://edgedelta.com/company/blog/blast-radius-is-a-graph-query
+      summary: Blast radius follows dependency edges in the right direction; other edge types pull in everything

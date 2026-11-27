@@ -3,6 +3,7 @@ import { Camera } from "@babylonjs/core/Cameras/camera.js";
 import { Frustum } from "@babylonjs/core/Maths/math.frustum.js";
 import { Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import type { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
 import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import type { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
 import type { Scene } from "@babylonjs/core/scene.js";
@@ -161,6 +162,8 @@ export interface ColumnFraming {
     readonly root: TransformNode | null;
     /** Where a row's box is centered about its place, unscaled; the place itself when not given. */
     readonly boxCenterOf?: (row: number) => Readonly<{ x: number; y: number; z: number }> | undefined;
+    /** The curves drawn with no `Edge`, whose points can reach outside their nodes' box (`EdgeRowLines.forEachShownCurve`). */
+    readonly curves?: (visit: (row: number, points: Float32Array) => void) => void;
 }
 
 /**
@@ -405,6 +408,17 @@ export function framingBox(
         growForCurve(box, curve ?? []);
     }
 
+    const world = columns?.root?.getWorldMatrix() ?? null;
+    columns?.curves?.((_, points) => {
+        const curve: Vector3[] = [];
+        for (let at = 0; at < points.length; at += 4) {
+            const point = new Vector3(points[at], points[at + 1], points[at + 2]);
+            curve.push(world === null ? point : Vector3.TransformCoordinates(point, world));
+        }
+
+        growForCurve(box, curve);
+    });
+
     return box;
 }
 
@@ -637,6 +651,11 @@ export class UpdateManager implements Manager {
     private needsZoomToFit = false;
     /** Whether this pass moved the camera towards the selection; see `followSelection`. */
     private followingSelection = false;
+    /**
+     * The selection the camera is still gliding to: once the selection is cleared mid-glide, the
+     * glide carries on to it; see `followSelection`.
+     */
+    private glidingTo: readonly Node[] = [];
     /**
      * Whether `camera.autoRotate` turned the camera on the last pass. It keeps a graph drawn on
      * demand drawing, and nothing else: the picture is finished when the layout and the styles
@@ -943,6 +962,7 @@ export class UpdateManager implements Manager {
         };
         this.meshAddedWatcher = scene.onNewMeshAddedObservable.add(pictureChanged);
         this.meshRemovedWatcher = scene.onMeshRemovedObservable.add(pictureChanged);
+        this.watchHandDrawnFrames(scene);
         this.lendShaderRepaint();
     }
 
@@ -965,6 +985,7 @@ export class UpdateManager implements Manager {
         scene.getEngine().onResizeObservable.remove(this.resizeWatcher);
         scene.onNewMeshAddedObservable.remove(this.meshAddedWatcher);
         scene.onMeshRemovedObservable.remove(this.meshRemovedWatcher);
+        scene.onBeforeRenderObservable.remove(this.watchingHeld);
     }
 
     /**
@@ -1377,9 +1398,10 @@ export class UpdateManager implements Manager {
                 apply(node);
             }
         } else {
-            const { nodesByIndex } = this.dataManager;
+            // Row by row, not through `nodesByIndex`: that table is rebuilt from every `Node` on its first read after
+            // a load, and the first selection on a 99,000-node graph read it for one row, 200 ms (issue #10124).
             for (const row of rows) {
-                apply(nodesByIndex[row]);
+                apply(dataManagerInternals.builtNodeAtRow(this.dataManager, row));
             }
         }
 
@@ -2012,12 +2034,7 @@ export class UpdateManager implements Manager {
     private repaintPulledOffEnds(painter: StylePainter | undefined): void {
         const table = this.graphContext.getRowTable?.() ?? null;
         const lines = this.graphContext.getEdgeRowLines?.() ?? null;
-        if (
-            painter === undefined ||
-            table === null ||
-            lines === null ||
-            (table.roundWrites === this.roundWritesSeen && this.endRows.size === 0)
-        ) {
+        if (painter === undefined || table === null || lines === null || !this.pulledEndsUnchecked()) {
             return;
         }
 
@@ -2047,6 +2064,23 @@ export class UpdateManager implements Manager {
             this.forceEdgeWalk();
             this.meshesAdded();
         }
+    }
+
+    /**
+     * Whether a row's outline turned, or a style hid or showed a node, since {@link UpdateManager.repaintPulledOffEnds}
+     * last checked the pulled edges' ends. A node's paint turns its row (seen through, round) in the middle of a pass,
+     * after that pass checked, so the edges on it are queued only by the next pass: until then the picture is not
+     * final, or a wait that ends between the two passes reads a line still drawn to a translucent node's center.
+     * @returns True while a check is owed; never when there are no pulled edges or no painter to queue them.
+     */
+    private pulledEndsUnchecked(): boolean {
+        const table = this.graphContext.getRowTable?.() ?? null;
+        return (
+            table !== null &&
+            this.graphContext.getStylePainter?.() !== undefined &&
+            (this.graphContext.getEdgeRowLines?.() ?? null) !== null &&
+            (table.roundWrites !== this.roundWritesSeen || this.endRows.size > 0)
+        );
     }
 
     /** Whether the layout's map arced edges when the row lines were last checked ({@link repaintRowLinesForMap}). */
@@ -2752,6 +2786,9 @@ export class UpdateManager implements Manager {
                 edge.invalidatePositionCache();
                 this.edgesToPlace.push(edge);
             }
+
+            // ...and its curves drawn with no `Edge`, cut again at its new outline
+            this.graphContext.getEdgeRowLines?.()?.endChanged(row);
         }
 
         this.sceneChanged = true;
@@ -2776,8 +2813,13 @@ export class UpdateManager implements Manager {
      * @param place - False to leave placing them to a walk of every edge already owed.
      */
     private remeasureEdgesOf(resized: ReadonlySet<Node>, place = true): void {
+        const lines = this.graphContext.getEdgeRowLines?.() ?? null;
         for (const node of resized) {
             this.remeasureEdgesAt(node.id, place);
+            // the curves drawn with no `Edge` on it are cut again at its new outline (`EdgeRowLines.endChanged`)
+            if (node.index !== INVALID_INDEX) {
+                lines?.endChanged(node.index);
+            }
         }
     }
 
@@ -2832,6 +2874,7 @@ export class UpdateManager implements Manager {
         for (const edge of this.builtEdges()) {
             edge.invalidatePositionCache();
         }
+        this.graphContext.getEdgeRowLines?.()?.placeEveryCurve();
         this.forceEdgeWalk();
         this.updateEdges();
     }
@@ -3294,11 +3337,20 @@ export class UpdateManager implements Manager {
             "an edge has not been trimmed to its nodes at the new scale yet",
             () => this.retrimPending,
         );
+        // A node's outline turned (seen through, round) or its style hid it, and the edges drawn to it are not checked
+        // yet: the next pass paints them again (`repaintPulledOffEnds`).
+        work.watch("style", "an edge drawn to a node whose outline changed has not been checked yet", () =>
+            this.pulledEndsUnchecked(),
+        );
         work.watch(
             "sizing",
             "an edge's end is drawn at its node's bounding radius until the move rests",
             () => this.byRadius.size > 0,
         );
+        // On the objects path a walk of every edge leaves the edge count and the node positions to the next two
+        // passes, each of which can walk every edge again: a wait that ended between them charged the next edit for
+        // a walk of every edge (issue #10163).
+        work.watch("edges", "an edge pass still owes a walk of the edges", () => this.edgeWalkOwed());
         work.watch("view", "a filter or a selection has not been drawn yet", () => this.viewMasksPending());
         work.watch("view", "the camera is still moving to the selection", () => this.followingSelection);
         work.watch(
@@ -3657,6 +3709,7 @@ export class UpdateManager implements Manager {
         const nodes = this.graphContext.getSelectionManager?.()?.getSelectedNodes() ?? [];
         this.heldSelection = nodes.length === 0 ? null : selectionKey(nodes);
         this.followingSelection = false;
+        this.glidingTo = [];
     }
 
     /**
@@ -3696,7 +3749,14 @@ export class UpdateManager implements Manager {
             return;
         }
 
-        const nodes = this.graphContext.getSelectionManager?.()?.getSelectedNodes() ?? [];
+        // A selection cleared while the camera was still gliding to it (Escape right after a click):
+        // the glide ends where it was going. Stopped where the clear found it, the camera's place,
+        // and so where every node is drawn, depended on how many frames ran before the clear, and a
+        // node the reader was about to click could be off the canvas one time and on it the next
+        // (issue #10165).
+        const selected = this.graphContext.getSelectionManager?.()?.getSelectedNodes() ?? [];
+        const nodes = selected.length > 0 ? selected : this.glidingTo;
+        this.glidingTo = [];
         if (nodes.length === 0 || nodes.some((node) => node.dragging)) {
             return;
         }
@@ -3723,6 +3783,9 @@ export class UpdateManager implements Manager {
         // the time it took. Capped, a page drawing a frame a second glided for seven (issue #9032).
         const frames = frameMs / NOMINAL_FRAME_MS;
         this.followingSelection = this.camera.followPoint(selectionCenter(nodes), frames);
+        if (this.followingSelection) {
+            this.glidingTo = nodes;
+        }
     }
 
     /**
@@ -4410,6 +4473,9 @@ export class UpdateManager implements Manager {
             table,
             root: this.graphContext.getScene().getTransformNodeByName("graph-root"),
             boxCenterOf: (row) => batches.columnRowOf(row)?.drawnBoxCenter,
+            curves: (visit) => {
+                this.graphContext.getEdgeRowLines?.()?.forEachShownCurve(visit);
+            },
         };
     }
 
@@ -4481,6 +4547,12 @@ export class UpdateManager implements Manager {
     /** The edge set (`DataManager.edgeVersion`) the last walk saw, for the same reason. */
     private lastWalkedEdgeVersion = -1;
 
+    /**
+     * Set by a walk of every edge on the objects path, which leaves the node positions unnoted, until a pass
+     * compares them ({@link nodesMoved}): that pass can walk every edge again.
+     */
+    private positionsUnnoted = false;
+
     /** Where each node's mesh sat at the last edge walk, as x, y, z per node index. */
     private lastNodePositions = new Float64Array(0);
 
@@ -4503,6 +4575,9 @@ export class UpdateManager implements Manager {
 
     /** Counts freeze requests and changes, so a freeze Babylon runs late knows it was withdrawn. */
     private freezeRequest = 0;
+
+    /** The source meshes whose instances' matrices a landed freeze froze; see `freezeInstanceSources`. */
+    private readonly frozenSources = new Set<Mesh>();
 
     /** The camera's view and projection stamps at the last frame, or null before the first. */
     private lastCameraState: readonly number[] | null = null;
@@ -4595,6 +4670,12 @@ export class UpdateManager implements Manager {
             this.edgesToPlace = [];
         } else {
             this.placeTouchedEdges(walk);
+        }
+
+        // the curves drawn with no `Edge` are placed after the edges, as a walk places them (`EdgeRowLines.placeCurves`);
+        // while a load holds the draw they wait with the edges, so their pieces' order does not follow the paint batches
+        if (!this.dataManager.drawHeld) {
+            this.graphContext.getEdgeRowLines?.()?.placeCurves();
         }
 
         this.settleEnds();
@@ -4886,6 +4967,7 @@ export class UpdateManager implements Manager {
                 this.walkedEverything(edgeCount, edgeVersion);
             } else {
                 this.lastWalkedEdgeCount = -1;
+                this.positionsUnnoted = true;
             }
 
             return true;
@@ -4913,6 +4995,7 @@ export class UpdateManager implements Manager {
             } else {
                 this.lastWalkedEdgeCount = edgeCount;
                 this.lastWalkedEdgeVersion = edgeVersion;
+                this.positionsUnnoted = true;
             }
 
             this.sceneChanged = true;
@@ -4927,6 +5010,21 @@ export class UpdateManager implements Manager {
         }
 
         return moved;
+    }
+
+    /**
+     * Whether the next edge pass is owed a walk of every edge, or of the pairs an edit changed: a walk forced and
+     * not run, an edge set or count the last walk did not see, or node positions a walk of every edge left unnoted
+     * (issue #10163). Asked without walking anything, as one entry of {@link UpdateManager.pending}.
+     * @returns True until the passes that owe those walks have run.
+     */
+    private edgeWalkOwed(): boolean {
+        return (
+            this.edgeWalkForced ||
+            this.positionsUnnoted ||
+            (this.layoutManager.layoutEngine?.edgeCount ?? 0) !== this.lastWalkedEdgeCount ||
+            this.dataManager.edgeVersion !== this.lastWalkedEdgeVersion
+        );
     }
 
     /**
@@ -4945,8 +5043,19 @@ export class UpdateManager implements Manager {
             return false;
         }
 
-        for (const { edges } of joined) {
+        const lines = this.graphContext.getEdgeRowLines?.() ?? null;
+        const painter = this.graphContext.getStylePainter?.();
+        for (const { edges, rows } of joined) {
             this.edgesToPlace.push(...edges);
+            // a curve drawn with no `Edge` is a lone curve: one whose pair now holds more fans out of it, so it is
+            // painted again, and its `Edge` draws it (`EdgeRowLines.curveRow`)
+            if (edges.length + rows.length > 1) {
+                for (const row of rows) {
+                    if (lines?.isCurve(row) === true) {
+                        painter?.queue("edge", row);
+                    }
+                }
+            }
         }
 
         return true;
@@ -4988,6 +5097,16 @@ export class UpdateManager implements Manager {
      * @param edgeVersion - The store's edge set.
      */
     private walkedEverything(edgeCount: number, edgeVersion: number): void {
+        // A walk of every edge places each fan; a curve drawn with no `Edge` is a lone curve, so one whose pair the
+        // edges that came or went made a bundle is painted again, and its `Edge` draws it in its fan slot. Only the
+        // edge set changing can do that; an edit whose pairs are known is handled by `placeChangedPairs`.
+        if (edgeVersion !== this.lastWalkedEdgeVersion) {
+            const painter = this.graphContext.getStylePainter?.();
+            for (const row of this.graphContext.getEdgeRowLines?.()?.bundledCurveRows() ?? []) {
+                painter?.queue("edge", row);
+            }
+        }
+
         this.lastWalkedEdgeCount = edgeCount;
         this.lastWalkedEdgeVersion = edgeVersion;
         // The table's moves too: left behind, the next frame took every row as moved and compared each batched row
@@ -5014,6 +5133,7 @@ export class UpdateManager implements Manager {
      *     every edge is cheaper than finding theirs; false when none did.
      */
     private nodesMoved(): boolean | readonly Node[] {
+        this.positionsUnnoted = false;
         const moved: Node[] = [];
         let unseen = false;
         let nodeCount = 0;
@@ -5501,25 +5621,43 @@ export class UpdateManager implements Manager {
     holdsMesh(node: Node): void {
         this.heldMeshes.set(node, true);
         this.sceneChanged = true;
-        // Before every render, a frame of the loop's or one drawn by hand: the loop's own pass does
-        // not run for a frame drawn by hand, and a consumer's change asks for no frame.
-        this.watchingHeld ??= this.graphContext.getScene().onBeforeRenderObservable.add(() => {
-            if (this.heldMeshesToggled()) {
+    }
+
+    /**
+     * Before every render, a frame of the loop's or one drawn by hand: the loop's own pass does not
+     * run for a frame drawn by hand, and a consumer's change asks for no frame. So a read mesh shown,
+     * hidden or moved, or a camera moved while the list is frozen, thaws it here. A frozen list
+     * recomputes no world matrix (`skipEvaluateActiveMeshes`), so a camera turned and drawn by hand
+     * drew every billboard, an outline's ring among them, at the old camera's angle.
+     *
+     * ADDED ONCE, WITH THE SCENE, never on the way. The render loop reads a new newest before-render
+     * observer as somebody waiting for a frame (`RenderManager.newestFrameObservers`), so one added
+     * at the first freeze drew a frame on a graph that had come to rest, and changed the count of
+     * frame callbacks a graph holds once it settles.
+     * @param scene - The scene to watch.
+     */
+    private watchHandDrawnFrames(scene: Scene): void {
+        this.watchingHeld = scene.onBeforeRenderObservable.add(() => {
+            if (this.heldMeshesChanged() || (this.activeMeshesFrozen && this.cameraMoved())) {
                 this.sceneChanged = true;
                 this.thawActiveMeshes();
             }
         });
     }
 
-    /** What watches the read meshes, once a mesh has been read ({@link UpdateManager.holdsMesh}). */
+    /** What watches frames drawn by hand ({@link UpdateManager.watchHandDrawnFrames}). */
     private watchingHeld: Nullable<Observer<Scene>> = null;
 
     /**
-     * Whether a read mesh was shown or hidden since the last frame, and forget the nodes gone.
+     * Whether a read mesh was shown, hidden, moved, scaled or turned since the last frame, and
+     * forget the nodes gone. A frozen scene neither recomputes a listed mesh's world matrix nor
+     * uploads its instance's matrix (`settleActiveMeshFreeze`), so a consumer scaling the mesh it
+     * read would not be drawn until something else thawed the scene. Whether its position,
+     * scaling or rotation changed is Babylon's own dirty flags, a few reads per read mesh.
      * @returns True when one was.
      */
-    private heldMeshesToggled(): boolean {
-        let toggled = false;
+    private heldMeshesChanged(): boolean {
+        let changed = false;
         for (const [node, shown] of this.heldMeshes) {
             if (node.isDisposed()) {
                 this.heldMeshes.delete(node);
@@ -5530,11 +5668,13 @@ export class UpdateManager implements Manager {
             const now = mesh !== null && mesh.isVisible && mesh.isEnabled();
             if (now !== shown) {
                 this.heldMeshes.set(node, now);
-                toggled = true;
+                changed = true;
+            } else if (mesh !== null && !mesh._isSynchronized()) {
+                changed = true;
             }
         }
 
-        return toggled;
+        return changed;
     }
 
     /**
@@ -5552,6 +5692,34 @@ export class UpdateManager implements Manager {
             this.graphContext.getScene().unfreezeActiveMeshes();
             this.activeMeshesFrozen = false;
         }
+
+        for (const source of this.frozenSources) {
+            source._unFreeze();
+        }
+
+        this.frozenSources.clear();
+    }
+
+    /**
+     * Freeze the matrices of every drawn instance along with the list, once a freeze has landed.
+     *
+     * Babylon's freeze freezes only the meshes in the list, and the list holds a node's INSTANCE, not
+     * the source mesh it is drawn from; the source keeps the matrices of its instances, so unfrozen, it
+     * read and uploaded every instance's world matrix on every frame of a still graph: at 99,000 nodes
+     * about 20 ms of a 48 ms frame (issue #10116). Everything that would change one of those matrices
+     * thaws the list (`settleActiveMeshFreeze`), and the thaw unfreezes these sources with it.
+     * @param scene - The scene.
+     */
+    private freezeInstanceSources(scene: Scene): void {
+        const active = scene.getActiveMeshes();
+        for (let i = 0; i < active.length; i++) {
+            const mesh = active.data[i];
+            const source = mesh.isAnInstance ? (mesh as InstancedMesh).sourceMesh : undefined;
+            if (source !== undefined && !this.frozenSources.has(source)) {
+                this.frozenSources.add(source);
+                source._freeze();
+            }
+        }
     }
 
     /**
@@ -5562,6 +5730,10 @@ export class UpdateManager implements Manager {
      * @internal
      */
     placeEdgesOfNode(node: Node): void {
+        if (node.index !== INVALID_INDEX) {
+            this.graphContext.getEdgeRowLines?.()?.endChanged(node.index);
+        }
+
         // Placed by the frame that next places edges (`placeTouchedEdges` keeps them while a load holds the draw).
         for (const edge of this.edgesAt(node.id)) {
             edge.invalidatePositionCache();
@@ -5666,11 +5838,17 @@ export class UpdateManager implements Manager {
             // id -- into the list the withdrawn walk just filled -- so the frozen frames after it
             // drew instances twice (test/browser/frozen-frame-draws-each-instance-once.test.ts).
             // A new render id gives the next walk a list of its own.
+            //
+            // AND NO WORLD MATRIX IS RECOMPUTED WHILE FROZEN (`skipEvaluateActiveMeshes`). Babylon otherwise still
+            // recomputes every listed mesh's world matrix each frame, about 15 ms a frame at 99,000 nodes, for a list
+            // that is only frozen while nothing moves: whatever moves thaws it first (issue #10116).
             const request = ++this.freezeRequest;
-            scene.freezeActiveMeshes(false, () => {
+            scene.freezeActiveMeshes(true, () => {
                 if (request !== this.freezeRequest) {
                     scene.unfreezeActiveMeshes();
                     scene.incrementRenderId();
+                } else {
+                    this.freezeInstanceSources(scene);
                 }
             });
         }
@@ -5717,6 +5895,14 @@ export class UpdateManager implements Manager {
         for (const edge of this.builtEdges()) {
             if (ids.has(edge.srcId) || ids.has(edge.dstId)) {
                 edge.invalidatePositionCache();
+            }
+        }
+
+        // ...and the curves drawn with no `Edge` on them are cut again at the new ring (`EdgeRowLines.endChanged`)
+        const lines = this.graphContext.getEdgeRowLines?.() ?? null;
+        for (const node of resized) {
+            if (node.index !== INVALID_INDEX) {
+                lines?.endChanged(node.index);
             }
         }
 
@@ -5917,7 +6103,10 @@ export class UpdateManager implements Manager {
         if (sphere !== null && active instanceof OrbitCameraController) {
             this.frameGlobe(active, box, sphere, frame?.surface === "globe" && frame.world);
         } else {
-            framed = this.frameBox(box, frame);
+            // A layout still moving is framed again on a later frame, the element's own first fit of it included;
+            // only a consumer's zoomToFit(), or the fit it settles on, centers over every node (issue #10154).
+            const moving = this.layoutManager.running && !isSettled && this.needsZoomToFit && !this.explicitZoomToFit;
+            framed = this.frameBox(box, frame, moving);
         }
 
         this.hasZoomedToFit = true;
@@ -5986,9 +6175,10 @@ export class UpdateManager implements Manager {
      * on labels placed for the camera it framed, so its answer depends on the graph alone.
      * @param box - The box measured this frame.
      * @param frame - The map the layout draws on, or null.
+     * @param moving - Whether the layout is moving and will be framed again on a later frame.
      * @returns The box the camera was last framed on.
      */
-    private frameBox(box: FramingBox, frame: LocationMapFrame | null): FramingBox {
+    private frameBox(box: FramingBox, frame: LocationMapFrame | null, moving = false): FramingBox {
         const scene = this.graphContext.getScene();
         const fits = screenFitFrames.callbacksOf(scene);
         const declutter: unknown = (scene.metadata as GraphSceneMetadata | null)?.labelDeclutter;
@@ -5997,7 +6187,7 @@ export class UpdateManager implements Manager {
         // a lower cap for placement alone if a large graph ever oscillates.
         for (let round = 0; ; round++) {
             const { min, max } = frame === null ? current : this.frameMap(current, frame);
-            this.camera.zoomToBoundingBox(min, max, current.spots);
+            this.camera.zoomToBoundingBox(min, max, current.spots, moving);
             for (const fit of fits) {
                 fit();
             }

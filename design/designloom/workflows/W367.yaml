@@ -1,0 +1,129 @@
+id: W367
+name: "Receiving Party: From Load File to People Graph"
+category: analysis
+validated: false
+personas:
+    - receiving-party-production-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - node-merging
+    - component-analysis
+    - filtering
+    - temporal-analysis
+    - comparison-view
+    - visual-encoding-edges
+    - data-export
+    - group-collapse
+    - entity-resolution-review
+    - provenance-tracking
+    - record-derived-edges
+    - delimited-recipient-import
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - node-merge-dialog
+    - graph-canvas
+    - filter-panel
+    - temporal-controls
+    - comparison-view
+    - data-export-dialog
+starting_state:
+    data_type: production load file (.dat metadata with delimited From, To, CC, Date Sent, Custodian, MD5; .opt image cross-reference), images and text
+    node_count: hundreds to thousands of people after parsing recipient strings
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Validate a production received from the other side, then build a people view from its metadata
+    fields -- without the producer's processing or native headers -- to see whom their custodians talked to and where
+    gaps suggest withheld or missing data.
+
+
+    **Mental Model**: "What did they give us, and what is missing?" The graph is evidence of absence as much as
+    presence: expected pairs and periods that are empty feed deficiency letters.
+
+
+    **Task Phases**:
+
+    1. **Check the package** - DATA, IMAGES, NATIVES and TEXT folders against the production specification or ESI
+    agreement
+
+    2. **Validate the .dat** - Row count matches the expected document count; spot-check Bates, custodian, file
+    extension and email-from fields; check fields are populated (empty fields in re-produced records can overwrite
+    values)
+
+    3. **Validate the .opt and Bates ranges** - Every document has an image; no unexplained Bates gaps (family
+    attachments, multi-page documents, privilege withholdings, agreed exclusions); range follows the last production
+
+    4. **Map fields** - Into the platform; request missing fields; extract header values that appear only on images
+
+    5. **Group duplicates** - By MD5 hash and family values; compare with records already coded
+
+    6. **Thread and normalize** - Threading once text exists; name normalization on the From, To and CC strings
+
+    7. **Build and read the people graph** - Whom the producing custodians talked to, which outside domains appear,
+    which expected pairs or date ranges are empty
+
+
+    **Decision Points**:
+
+    - Is a Bates gap explained (family, privilege, agreed exclusion) or a deficiency?
+
+    - Which missing fields are worth requesting?
+
+    - Is an empty pair or period a real silence or withheld data?
+
+
+    **Information Needs**:
+
+    - Row counts, field population rates and Bates gaps
+
+    - People and domains per production and per custodian
+
+    - Pairs and date ranges with zero documents where documents were expected
+
+    - Comparison with earlier productions
+
+
+    **Pain Points**:
+
+    - Empty fields, Bates gaps, values only on the face of PDFs
+
+    - No way to re-run the producer's processing
+
+    - Graph tools that need native headers or a ready-made edge list rather than recipient strings
+
+    - No way to show absence on a graph
+
+
+    **Data Flow**:
+
+    - Input: .dat and .opt load files, text, images
+
+    - Transformations: Load-file validation, recipient-string parsing into a people graph, normalization, duplicate
+    grouping, time and pair gap analysis
+
+    - Output: Validation report, people graph, list of missing pairs and periods for deficiency letters
+success_criteria:
+    - metric: Validation
+      target: Row count, field population and Bates gaps reported before any analysis
+    - metric: Graph from strings
+      target: A people graph built directly from delimited recipient fields with unparsed values counted
+    - metric: Gap evidence
+      target: User can list expected pairs or periods with no documents
+sources:
+    - title: GoldFynch - How to validate and QC what is received from a load file production
+      url: https://support.goldfynch.com/support/solutions/articles/21000004211-how-to-validate-and-qc-what-is-received-and-uploaded-from-a-load-file-production
+      summary: Row counts, field spot checks, Bates gaps and their causes, empty fields overwriting values
+    - title: Consilio - eDiscovery deep dive, 6 key questions for opposing party productions
+      url: https://consilio.com/resource/ediscovery-deep-dive-6-key-questions-for-opposing-party-productions
+      summary: Values only on the face of PDFs, requesting missing data from opposing counsel
+    - title: Relativity - Name normalization
+      url: https://help.relativity.com/RelativityOne/Content/Relativity/Analytics/Name_normalization.htm
+      summary: Normalization splits recipient strings on semicolons into entities and aliases
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

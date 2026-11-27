@@ -1,0 +1,158 @@
+id: W144
+name: Debugging a Graph Data Model and Query in a Database Console
+category: analysis
+validated: false
+personas:
+    - graph-database-developer
+requires_capabilities:
+    - data-import
+    - graph-rendering
+    - node-selection
+    - details-on-demand
+    - neighborhood-expansion
+    - basic-statistics
+    - large-graph-rendering
+    - data-export
+    - schema-meta-graph
+    - query-editor
+suggested_components:
+    - graph-canvas
+    - data-table-panel
+    - node-details-panel
+    - status-bar
+    - toolbar
+    - statistics-panel
+starting_state:
+    data_type: freshly imported graph database (Neo4j, Neptune, Memgraph) plus a drawn model of what it should contain
+    node_count: "stored: thousands to millions; on screen: tens to a few hundred (Neo4j Browser caps at 1,000)"
+    edge_density: any
+    user_expertise: expert
+goal: >-
+    **Intent**: Check that the database holds the shape the developer designed, and work out why a query returns too
+    much, too little, or runs slowly, before handing it to colleagues. Neo4j calls Browser "a developer-focused tool";
+    this is its everyday use.
+
+
+    **Mental Model**: "The drawing is a debugger, not a report." The graph view is one of three renderings of a query
+    result (Graph, Table, RAW), and it can lie: it flattens overlapping paths and drops what it cannot draw.
+
+
+    **Task Phases**:
+
+    0. **Draw the model first** - In Arrows.app (exports an image or Cypher) or on the Data Importer canvas: Add Node,
+    type a label, drag a handle to another node for a relationship, map each element to a source file, id column and
+    property columns; this is authoring, not exploring
+
+    1. **Look at the schema and compare** - CALL db.schema.visualization() draws imported labels and relationship types
+    as a small meta-graph; the Database Information drawer lists labels, relationship types and property keys; the
+    developer compares with the drawn model by eye (no tool found shows the difference)
+
+    2. **Pull a sample, then targeted patterns** - Always with LIMIT
+
+    3. **Read the result** - Toggle Graph, Table and RAW; current Browser caps at maxVizNodes 1,000, maxNewNeighbours 100
+    and recordLimit 1,000; legacy Browser drew 300 first and had "Connect result nodes" on, fetching relationships among
+    returned nodes
+
+    4. **Notice the mismatch** - Overlapping paths flatten: 47 nodes and 70 relationships on screen can stand for 5,673
+    unique paths; returning only relationships, or nodes without relationships, gives empty-looking graphs; return paths
+    or n, r, m
+
+    5. **Separate execution from rendering** - RETURN count(path) to size the result; PROFILE (a plan view replaces the
+    graph) and EXPLAIN; cypher-shell --format plain to bypass rendering; if PROFILE is fast and the view is slow, "the
+    problem is rendering"
+
+    6. **Narrow** - Add LIMIT, bound variable-length patterns (*1..3), return only needed properties or ids
+
+    7. **Hand off** - Copy the query into a search phrase, a Linkurious template or a NeoDash report, or choose "Explore
+    graph" on an Aura Query result to continue in Explore
+
+
+    No source gives per-step timings. Developers repeat phases 2 to 6 many times a day while building.
+
+
+    **Decision Points**:
+
+    - Does the imported schema match the drawn model, label for label and relationship for relationship?
+
+    - Is the result wrong, or only drawn wrong?
+
+    - Is slowness in the query plan or in the rendering?
+
+    - How tightly to bound a variable-length pattern?
+
+
+    **Information Needs**:
+
+    - Rows and paths returned versus nodes and relationships drawn
+
+    - The schema as a meta-graph, readable for more than a handful of labels
+
+    - Whether relationships among returned nodes were added automatically
+
+    - Query time versus render time
+
+
+    **Pain Points**:
+
+    - "What it draws and what the query results are can be different"
+
+    - The UI "crashes or goes page unresponsive" after raising the limit to 1,000; 100 to 500 nodes may already be slow
+
+    - The schema view "does not work very well for non-trivial schemata"
+
+    - No diff between the intended model and the imported schema
+
+    - The query tab and the explore tab have separate node limits
+
+
+    **Data Flow**:
+
+    - Input: Drawn model (Arrows JSON or Cypher), imported database, Cypher, Gremlin or SPARQL queries
+
+    - Transformations: Schema meta-graph, query execution, result rendering as graph, table or raw JSON, profiling
+
+    - Output: A verified model and a bounded query, handed to a search phrase, template or dashboard
+success_criteria:
+    - metric: Result fidelity
+      target: Developer can state returned rows and paths and drawn nodes and edges for the same query
+    - metric: Schema check
+      target: Developer finds a label or relationship type that is in the model but missing from the database without reading lists by eye
+    - metric: Responsiveness
+      target: Drawing 1,000 nodes does not freeze the page
+sources:
+    - title: Neo4j Browser legacy visual tour
+      url: https://neo4j.com/docs/browser/legacy/visual-tour/
+      summary: Developer-focused tool; Graph, Table and RAW views; schema visualization
+    - title: Neo4j Browser settings (current)
+      url: https://neo4j.com/docs/browser-manual/current/operations/browser-settings/
+      summary: maxVizNodes 1,000, maxNewNeighbours 100, recordLimit 1,000
+    - title: Neo4j Browser settings (legacy)
+      url: https://neo4j.com/docs/browser/legacy/operations/browser-settings/
+      summary: initialNodeDisplay 300, Connect result nodes
+    - title: Neo4j Browser visual tour (current)
+      url: https://neo4j.com/docs/browser/visual-tour/
+      summary: Database Information drawer, visualization node limit
+    - title: Where's my Neo4j Cypher query results?
+      url: https://neo4j.com/blog/developer/wheres-my-neo4j-cypher-query-results/
+      summary: 47 nodes for 5,673 paths; count, PROFILE, cypher-shell; rendering versus execution
+    - title: Neo4j community - Browser node relationship limit
+      url: https://community.neo4j.com/t/browser-node-relationship-limit/69507
+      summary: UI unresponsive at 1,000 nodes
+    - title: Neo4j community - Browser graph render very slow
+      url: https://community.neo4j.com/t/neo4j-browser-graph-render-very-slow/18550
+      summary: 100-500 nodes may be slow; use LIMIT
+    - title: Visualizing Neo4j schemas with yFiles
+      url: https://neo4j.com/blog/graph-visualization-neo4j-schemas-yfiles/
+      summary: Built-in schema viewer poor for non-trivial schemata
+    - title: Neo4j Data Importer modeling
+      url: https://neo4j.com/docs/data-importer/current/modeling/
+      summary: Model canvas mapping nodes and relationships to files and key columns
+    - title: Arrows.app
+      url: https://neo4j.com/labs/arrows/
+      summary: Drawing graph models, export to image or Cypher
+    - title: Neo4j community - Query limit does not affect Explore
+      url: https://community.neo4j.com/t/visualization-node-limit/65515
+      summary: Aura Query limit separate from Explore's 1,000
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

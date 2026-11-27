@@ -1,0 +1,20 @@
+id: process-detail-sliders
+name: Process Detail Sliders
+category: analysis
+description: Activities and paths sliders that keep every shown node on a start-to-end path, flag whether the shown
+    numbers add up, and distinguish a view simplification from a log filter.
+status: planned
+notes: "Research trace: process-mining-and-process-maps.md section 10, requirement R7 (Must)."
+algorithms: []
+used_by_workflows:
+    - W340
+    - W342
+    - W343
+implemented_by_components: []
+requirements:
+    - "Must: Activities and paths sliders that keep every shown node on a start-to-end path; stated as a view
+      simplification"
+sources:
+    - title: "Process Mining Analysts: Process Maps, Models and Deviations from Event Logs (section 10, requirement R7)"
+      url: design/user-research/process-mining-and-process-maps.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

@@ -14,11 +14,12 @@ import type { CameraManager } from "./cameras/CameraManager";
 import { expansionOf } from "./data/expand";
 import type { Graph } from "./Graph";
 import { layoutEngineInternals } from "./layout/LayoutEngine";
+import { NGraphEngine } from "./layout/NGraphLayoutEngine";
 import { SimulationLayoutEngine } from "./layout/SimulationLayoutEngine";
 import type { GraphContext } from "./managers/GraphContext";
 import type { Node as GraphNode, NodeIdType } from "./Node";
 import { HOVER_RADIUS_PX } from "./render/NodeIdTarget";
-import { filterPointerPicks, hoverNodeId, type HoverPick, pickNodeId } from "./render/PickService";
+import { filterPointerPicks, hoverNodeId, type HoverPick, pickNodeId, pickPressedNodeId } from "./render/PickService";
 import { dispatcherOf } from "./session/GraphSession";
 import {
     cancelReasonOf,
@@ -113,6 +114,25 @@ export interface NodePointerRoster {
     heard: number;
     /** The node the last move found under the pointer. */
     overId: NodeIdType | undefined;
+    /** Whether a camera drag hovers nodes (`camera.hoverWhileDragging`); the graph sets it, true when unset. */
+    hoverWhileDragging?: () => boolean;
+    /** A camera drag is holding the hover back until the release. */
+    dragHoldsHover: boolean;
+    /**
+     * What the last press found and where: a click released at the same point reuses it, so one
+     * click picks the scene once, not again on release (issue #10116).
+     */
+    pressed: { readonly id: NodeIdType | undefined; readonly x: number; readonly y: number } | null;
+}
+
+/**
+ * Whether a layout holds a dragged node still in its own simulation for the drag: a simulation left to integrate it
+ * keeps moving it between pointer moves.
+ * @param engine - The layout, if any.
+ * @returns True for one that does.
+ */
+function holdsDrags(engine: unknown): engine is SimulationLayoutEngine | NGraphEngine {
+    return engine instanceof SimulationLayoutEngine || engine instanceof NGraphEngine;
 }
 
 /** How many drag handlers were built; see {@link dragHandlersBuilt}. */
@@ -176,7 +196,8 @@ function deliverPointerEvent(scene: Scene, roster: NodePointerRoster, pointerInf
     switch (pointerInfo.type) {
         case PointerEventTypes.POINTERDOWN: {
             // nodeId from mesh metadata works with both regular and instanced meshes
-            const pickedId = pickNodeId(scene, scene.pointerX, scene.pointerY);
+            const pickedId = pickPressedNodeId(scene);
+            roster.pressed = { id: pickedId, x: scene.pointerX, y: scene.pointerY };
             if (pickedId !== undefined) {
                 roster.byId.get(pickedId)?.dragHandler?.onPointerDown(pointerInfo);
             }
@@ -197,26 +218,25 @@ function deliverPointerEvent(scene: Scene, roster: NodePointerRoster, pointerInf
                 break;
             }
 
-            // Picked AFTER the drags above have moved their nodes, so the hover reads where things
-            // are now. On the batched path the answer is read from the node ID target and comes
-            // later. An answer is dropped only when a newer move's answer was already heard: a
-            // pointer that moves every frame while each read takes several frames still hears
-            // each answer one read late, instead of never (#8016).
-            const move = ++roster.moves;
-            const picked = hoverNodeId(scene, scene.pointerX, scene.pointerY);
-            if (picked instanceof Promise) {
-                void picked.then((pick) => {
-                    hearHover(roster, move, pick);
-                });
-            } else {
-                hearHover(roster, move, picked);
+            // A camera drag (a button or a touch down, no node held) hovers nothing when
+            // `camera.hoverWhileDragging` is off: the release picks the hover up again (#10221).
+            // The option is read first, so a move with the option on never reads the event.
+            if (roster.hoverWhileDragging?.() === false && pointerInfo.event.buttons !== 0) {
+                roster.dragHoldsHover = true;
+                break;
             }
 
+            pickHover(scene, roster);
             break;
         }
         case PointerEventTypes.POINTERUP:
             for (const handler of roster.engaged) {
                 handler.onPointerUp(pointerInfo);
+            }
+
+            if (roster.dragHoldsHover) {
+                roster.dragHoldsHover = false;
+                pickHover(scene, roster);
             }
 
             break;
@@ -227,14 +247,38 @@ function deliverPointerEvent(scene: Scene, roster: NodePointerRoster, pointerInf
 }
 
 /**
+ * Hover whatever is under the pointer now.
+ *
+ * Picked AFTER a move's drags have moved their nodes, so the hover reads where things are now. On
+ * the batched path the answer is read from the node ID target and comes later. An answer is
+ * dropped only when a newer move's answer was already heard: a pointer that moves every frame
+ * while each read takes several frames still hears each answer one read late, instead of never
+ * (#8016).
+ * @param scene - The scene.
+ * @param roster - The scene's nodes.
+ */
+function pickHover(scene: Scene, roster: NodePointerRoster): void {
+    const move = ++roster.moves;
+    const picked = hoverNodeId(scene, scene.pointerX, scene.pointerY);
+    if (picked instanceof Promise) {
+        void picked.then((pick) => {
+            hearHover(roster, move, pick);
+        });
+    } else {
+        hearHover(roster, move, picked);
+    }
+}
+
+/**
  * Deliver a move's hover answer unless a newer move's answer was already delivered.
  * @param roster - The scene's nodes.
  * @param move - The move's number.
  * @param pick - The node under the pointer at that move, if any, and where the pick found it drawn.
  */
 function hearHover(roster: NodePointerRoster, move: number, pick: HoverPick): void {
-    // An answer to a move made before a press lands while the press holds a node: dropped, as above.
-    if (move > roster.heard && roster.engaged.size === 0) {
+    // An answer to a move made before a press lands while the press holds a node, or while a camera
+    // drag holds the hover: dropped, as above.
+    if (move > roster.heard && roster.engaged.size === 0 && !roster.dragHoldsHover) {
         roster.heard = move;
         deliverHover(roster, pick);
     }
@@ -273,8 +317,10 @@ export function nodePointerRosterOf(scene: Scene): NodePointerRoster {
             engaged: new Set(),
             hovered: new Set(),
             overId: undefined,
+            pressed: null,
             moves: 0,
             heard: 0,
+            dragHoldsHover: false,
         };
         scene.onPrePointerObservable.add((pointerInfo) => {
             deliverPointerEvent(scene, created, pointerInfo);
@@ -510,6 +556,8 @@ export class NodeDragHandler {
     private readonly node: GraphNode;
     private readonly dragState: DragState;
     private clickState: ClickState | null = null;
+    /** Whether a press is held that is still a click: the drag starts once it moves. */
+    private pressed = false;
     private gesture: DragGesture | null = null;
     private readonly scene: Scene;
     private readonly roster: NodePointerRoster;
@@ -604,7 +652,7 @@ export class NodeDragHandler {
         // row and publishing where it put it, so without a fixed bit the forces would fight the
         // pointer. The bit is temporary: `onDragEnd` gives it back unless the drop pins the node.
         const { layoutEngine } = context.getLayoutManager();
-        if (layoutEngine instanceof SimulationLayoutEngine) {
+        if (holdsDrags(layoutEngine)) {
             layoutEngine.beginDrag(this.node);
         }
 
@@ -714,7 +762,7 @@ export class NodeDragHandler {
             // drop that pins keeps the bit it has been holding, and a drop that does not gives the
             // row back to the simulation.
             const { layoutEngine } = context.getLayoutManager();
-            if (layoutEngine instanceof SimulationLayoutEngine) {
+            if (holdsDrags(layoutEngine)) {
                 layoutEngine.endDrag(this.node, pins);
             }
 
@@ -895,7 +943,7 @@ export class NodeDragHandler {
 
         this.node.dragging = false;
         const { layoutEngine } = this.getContext().getLayoutManager();
-        if (layoutEngine instanceof SimulationLayoutEngine) {
+        if (holdsDrags(layoutEngine)) {
             layoutEngine.endDrag(this.node, false);
         }
 
@@ -936,20 +984,41 @@ export class NodeDragHandler {
             pointerEvent: pointerInfo.event as PointerEvent,
         };
 
-        this.onDragStart(this.pointerWorldPosition());
+        // A PRESS IS A CLICK UNTIL THE POINTER TRAVELS. Starting the drag here reheated the layout,
+        // opened an undo gesture and thawed every frozen mesh on each plain click, which on 99,000
+        // nodes cost a click several hundred milliseconds (issue #10116). The drag starts from the
+        // press once the pointer passes CLICK_MAX_MOVEMENT_PX; the camera stops turning at once.
+        this.pressed = true;
+        this.roster.engaged.add(this);
+        (this.scene.metadata as { cameraManager?: CameraManager } | null)?.cameraManager?.temporarilyDisableInput();
     }
 
     /** A move: carry this node along while it is being dragged. Called for engaged handlers. */
     public onPointerMove(): void {
         if (!this.dragState.dragging) {
-            return;
+            if (!this.pressed || this.clickState === null) {
+                return;
+            }
+            const dx = this.scene.pointerX - this.clickState.pointerDownPosition.x;
+            const dy = this.scene.pointerY - this.clickState.pointerDownPosition.y;
+            if (Math.hypot(dx, dy) <= CLICK_MAX_MOVEMENT_PX) {
+                return;
+            }
+            this.clickState.hasMoved = true;
+            this.pressed = false;
+            // The press's point measured now, at the depth the node has now, as every move is: a
+            // layout still running moved the node since the press, and a start point taken at the
+            // press's depth added that move again on every pointer move, throwing the node away
+            // along the line of sight.
+            const { x, y } = this.clickState.pointerDownPosition;
+            this.onDragStart(this.pointerWorldPosition(x, y));
         }
 
         // Track movement for click detection
         if (this.clickState && !this.clickState.hasMoved) {
             const dx = this.scene.pointerX - this.clickState.pointerDownPosition.x;
             const dy = this.scene.pointerY - this.clickState.pointerDownPosition.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
+            const distance = Math.hypot(dx, dy);
             if (distance > CLICK_MAX_MOVEMENT_PX) {
                 this.clickState.hasMoved = true;
             }
@@ -974,6 +1043,13 @@ export class NodeDragHandler {
             if (wasClick) {
                 this.handleClick();
             }
+        } else if (this.pressed) {
+            // A press that never traveled: no drag was started, so there is nothing to drop.
+            this.pressed = false;
+            this.releaseCamera();
+            if (this.isClick(pointerEventTime(pointerInfo.event))) {
+                this.handleClick();
+            }
         }
 
         // Reset click state
@@ -983,15 +1059,12 @@ export class NodeDragHandler {
 
     /**
      * Where the pointer is in the world, on this node's drag plane.
+     * @param x - The canvas x, the pointer's by default.
+     * @param y - The canvas y, the pointer's by default.
      * @returns The point.
      */
-    private pointerWorldPosition(): Vector3 {
-        const ray = this.scene.createPickingRay(
-            this.scene.pointerX,
-            this.scene.pointerY,
-            Matrix.Identity(),
-            this.scene.activeCamera,
-        );
+    private pointerWorldPosition(x = this.scene.pointerX, y = this.scene.pointerY): Vector3 {
+        const ray = this.scene.createPickingRay(x, y, Matrix.Identity(), this.scene.activeCamera);
         return this.getWorldPositionFromRay(ray);
     }
 
@@ -1224,6 +1297,10 @@ export class NodeDragHandler {
         // A node removed mid-drag: its drag records nothing more, and leaves nothing pending.
         this.gesture?.finish();
         this.gesture = null;
+        if (this.pressed) {
+            this.pressed = false;
+            this.releaseCamera();
+        }
         // Leaving the roster, not searching the scene's observers: see nodePointerRosterOf.
         this.roster.engaged.delete(this);
 

@@ -1,0 +1,23 @@
+id: small-count-suppression
+name: Small-Count Suppression
+category: analysis
+description: A configurable rule that hides or masks any label, cell or exported value below a minimum count, applied
+    consistently to the drawing, the tables and the export, including derivable values and complementary cells. Required
+    for anything drawn from CMS research identifiable files or limited data sets.
+status: planned
+notes: "Research trace: public-health-and-molecular-epidemiology.md section 10, table row 15 (Should)."
+algorithms: []
+used_by_workflows:
+    - W260
+    - W75
+    - W323
+implemented_by_components: []
+requirements:
+    - "Should: Suppression-aware output: a rule that hides or masks any label or exported cell below a configurable
+      count, applied to the picture, the tables and the export together"
+    - "Could: Refuse or flag export of a patient-derived graph when any node or edge falls below a minimum patient count."
+sources:
+    - title: Public Health Outbreak Investigators and Molecular Epidemiologists (section 10, table row 15)
+      url: design/user-research/public-health-and-molecular-epidemiology.md
+      summary: "Should in the research. Covered by Designloom when researched: NOT
+          covered"

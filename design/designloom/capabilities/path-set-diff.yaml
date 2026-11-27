@@ -1,0 +1,18 @@
+id: path-set-diff
+name: "Path Set Comparison for One Node"
+category: analysis
+description: "For one target node (a package), enumerate every root-to-target path in two versions of a graph (before and after a dependency override) and show them side by side or merged, marking paths whose target version changed, paths that disappeared or appeared, and paths that still reach an unwanted version. graph-diff compares whole graphs; this compares the path sets that explain one node."
+status: planned
+notes: "Research trace: dependency-and-impact-analysis-engineers.md section 10, requirement R34 (Should)."
+algorithms: []
+used_by_workflows:
+    - W81
+implemented_by_components: []
+requirements:
+    - "Should: Compare two resolutions of one package: its root-to-copy path sets before and after an override, marking
+      paths whose version changed and paths still reaching an unwanted version"
+sources:
+    - title: "Engineers Who Analyze Dependencies: IT Services, Networks, Software and Data Lineage (section 10,
+          requirement R34)"
+      url: design/user-research/dependency-and-impact-analysis-engineers.md
+      summary: "Should in the research. Covered by Designloom when researched: Partly"

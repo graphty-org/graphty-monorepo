@@ -1,0 +1,129 @@
+id: W267
+name: Spot-Check One User's Recommendations
+category: analysis
+validated: false
+personas:
+    - ml-engineer-recsys
+requires_capabilities:
+    - data-import
+    - ego-network
+    - neighborhood-expansion
+    - shortest-path
+    - path-highlighting
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - details-on-demand
+    - data-preview
+    - annotation
+    - data-export
+    - notebook-widget
+    - model-output-overlay
+    - typed-heterogeneous-graphs
+suggested_components:
+    - data-import-dialog
+    - ego-network-dialog
+    - graph-canvas
+    - node-details-panel
+    - data-table-panel
+    - path-finder-dialog
+    - visual-encoding-panel
+    - legend-panel
+    - annotation-toolbar
+    - data-export-dialog
+starting_state:
+    data_type: user-item interaction graph plus externally scored recommendations (user, item, probability, rank, optional explanation edges)
+    node_count: 20-500 (one seed user's neighborhood)
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: For one seed user, look at what the trained recommender suggested next to what the user actually did,
+    and judge whether each recommendation is sensible, an artifact or a bug.
+
+
+    **Mental Model**: "Read one case file." The model was trained and scored in code; the viewer shows one user's
+    history, the top-N items and the connection between them, so an engineer can apply judgment that offline metrics
+    cannot.
+
+
+    **Task Phases**:
+
+    1. **Bring in the scored output** - Load the interaction graph and the model's scores produced elsewhere
+    (PyG LightGCN `logits.topk(k)`, or Neo4j GDS FastRP plus kNN written as SIMILAR relationships with a score)
+
+    2. **Open the seed** - Extract the seed user's neighborhood: the user, items in their history, top-N
+    recommended items with predicted probability, and item attributes (category, popularity, centrality, community)
+
+    3. **Connect history to recommendation** - For each recommended item show the shortest path, the shared
+    neighbors or the explainer edges linking it to the user's history; encode probability as size or color and item
+    type as shape or color
+
+    4. **Judge** - Is this a popularity artifact? Does it come from a distant but feature-similar node? Is the
+    item already consumed (a leakage or filtering bug)?
+
+    5. **Rate and export** - Star-rate questionable recommendations, export ratings as CSV with user and item
+    ids intact, take them back into training or filtering code
+
+
+    **Decision Points**:
+
+    - Is the recommendation explained by graph proximity, by features, or by popularity alone?
+
+    - Is an already-consumed item a leakage bug or an intended re-recommendation?
+
+    - Does this case justify changing filtering rules or retraining?
+
+
+    **Information Needs**:
+
+    - The seed user's history and the top-N items in one view, with probabilities and ranks
+
+    - Item attributes (category, popularity, community, centrality) on hover or in a table
+
+    - Path or shared neighbors behind each recommended item
+
+    - Whether a recommended item is already in the user's history
+
+
+    **Pain Points**:
+
+    - Whole-graph views are useless at production scale; the input graph is too big to examine
+
+    - Hop distance alone misleads because the model also uses features
+
+    - Notebook viewers sample above about 10,000 nodes, so the seed's neighborhood must be extracted first
+
+    - Heterogeneous explanations cannot be drawn by PyG's built-in helper
+
+    - Integer tensor indices must be mapped back to user and item ids
+
+
+    **Data Flow**:
+
+    - Input: Interaction edges, item catalog, scored recommendations (user, item, probability, rank), optional
+    explanation edges
+
+    - Transformations: Seed neighborhood extraction, path or shared-neighbor lookup, probability and type encoding
+
+    - Output: Ratings CSV keyed by user and item id; a picture for stakeholders
+success_criteria:
+    - metric: Time from opening a seed user to a recorded judgment (hypothesis)
+      target: Under 5 minutes per user (design goal; no source measures it)
+    - metric: Ratings export
+      target: Exported ratings carry the original user and item ids
+sources:
+    - title: RekomGNN
+      url: https://arxiv.org/html/2310.11562
+      summary: Seed-user inspection, derived attributes instead of a 211K-node drawing, star ratings exported as CSV
+    - title: Neo4j GDS client - FastRP and kNN tutorial
+      url: https://neo4j.com/docs/graph-data-science-client/current/tutorials/fastrp-and-knn/
+      summary: fast_rp.mutate and knn.write with seeds, all in Python
+    - title: neo4j-viz GDS integration
+      url: https://neo4j.com/docs/python-graph-visualization/current/integration/gds/
+      summary: from_gds samples by random walk with restarts above max_node_count of 10,000
+    - title: PyG LightGCN example
+      url: https://github.com/pyg-team/pytorch_geometric/blob/master/examples/lightgcn.py
+      summary: Recommendations by logits.topk(k) in code
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

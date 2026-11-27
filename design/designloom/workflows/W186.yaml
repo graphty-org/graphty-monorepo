@@ -1,0 +1,149 @@
+id: W186
+name: DNA Shared Matches to Clusters (Leeds Method, AutoClusters, Gephi)
+category: analysis
+validated: false
+personas:
+    - family-historian-dna
+requires_capabilities:
+    - data-import
+    - data-preview
+    - filtering
+    - community-detection
+    - community-profiling
+    - layout-force-directed
+    - visual-encoding-nodes
+    - annotation
+    - legend-display
+    - selection-statistics
+    - export-image
+    - de-identified-display
+    - matrix-view
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - range-slider
+    - community-panel
+    - cluster-table
+    - heatmap-panel
+    - visual-encoding-panel
+    - annotation-toolbar
+    - legend-panel
+    - graph-canvas
+    - image-export-dialog
+starting_state:
+    data_type: match CSV (match, shared cM, segments, predicted relationship) and in-common-with CSV (pairs of matches)
+    node_count: 100-2,700
+    edge_density: moderate
+    user_expertise: novice
+goal: >-
+    **Intent**: Sort a DNA tester's matches into groups that each point to one ancestral couple, ideally the four
+    grandparent lines, to identify an unknown parent or break a brick wall. Three views of one shared-match graph are
+    in use: the hand-colored Leeds spreadsheet, the AutoCluster matrix, and a Gephi node-link graph.
+
+
+    **Mental Model**: "Matches who match each other share an ancestor." Each cluster is a family line, and the tester
+    labels it from the trees of its members.
+
+
+    **Task Phases**:
+
+    1. **Download matches** - DNAGedcom Client (paid) writes a match file and an in-common-with file; choose
+    a cM range (50-400 cM for a first graph, 219 matches in Family Locket's example; 90-400 cM for Leeds)
+
+    2. **Group them** - Leeds: one hand-filled color column per cluster, often four groups but matches land
+    in two colors; AutoClusters: a matrix reordered so clusters form colored squares on the diagonal (HTML plus CSV,
+    not node-link); Gephi: in-common-with pairs as undirected edges, matches as nodes, OpenOrd then ForceAtlas 2,
+    color by modularity, size by cM, tune resolution until clusters split maternal and paternal and then by
+    grandparent line
+
+    3. **Label clusters** - The ancestral couple most frequent in members' trees; mark it on a pedigree chart
+    (two of six clusters stayed unknown in Family Locket's example)
+
+    4. **Read between clusters** - Count edges between two clusters per member (419 for one pair, 12 for
+    another read as random)
+
+    5. **Test placements** - DNA Painter's What Are the Odds with a candidate tree and shared cM per match
+
+    6. **Know the limits** - Close cousins and matches under 30-50 cM add spurious links; network analysis is not
+    helpful with moderate to severe endogamy
+
+
+    **Decision Points**:
+
+    - Which cM range to include?
+
+    - Which modularity resolution splits the lines without fragmenting them?
+
+    - Which ancestral couple does each cluster represent?
+
+
+    **Information Needs**:
+
+    - Cluster membership and sizes, with members' shared cM
+
+    - The same graph as node-link and as a reordered matrix
+
+    - Number of edges between clusters per member
+
+    - Surnames or ancestors common to a cluster's members
+
+
+    **Pain Points**:
+
+    - Thresholds are hidden (AutoClusters) or manual (Leeds)
+
+    - Gephi setup is hard for non-technical users and the center of the graph is a tangle
+
+    - Endogamy breaks clustering
+
+
+    **Data Flow**:
+
+    - Input: Match CSV and in-common-with CSV
+
+    - Transformations: cM threshold filter, shared-match graph, community detection, cluster labeling, between-cluster
+    counts
+
+    - Output: Labeled cluster graph and matrix, notes on a pedigree chart, exported image
+success_criteria:
+    - metric: Time from two CSVs to colored clusters
+      target: Under 20 minutes for a non-technical user (design goal; no source measures it)
+    - metric: Threshold control
+      target: cM range and resolution adjustable with immediate feedback
+    - metric: Cluster labeling
+      target: Each cluster can carry a user label and note that is saved and shown in the legend
+sources:
+    - title: Dana Leeds - The Leeds Method
+      url: https://www.danaleeds.com/the-leeds-method
+      summary: Spreadsheet clustering into grandparent lines
+    - title: DNA Explained - The Leeds Method
+      url: https://dna-explained.com/2018/09/26/the-leeds-method/
+      summary: Steps and the 90-400 cM range
+    - title: DNA Explained - AutoClustering by Genetic Affairs
+      url: https://dna-explained.com/2018/12/04/autoclustering-by-genetic-affairs/
+      summary: AutoCluster grid, files, thresholds and match counts
+    - title: MyHeritage - Introducing AutoClusters
+      url: https://magazine.myheritage.com/myheritage-news/introducing-autoclusters-for-dna-matches/
+      summary: Matrix with colored clusters on the diagonal
+    - title: Family Locket - Gephi part 1
+      url: https://familylocket.com/creating-gephi-network-graphs-part-1-gather-matches-and-prepare-spreadsheets
+      summary: DNAGedcom match and icw files and cM range
+    - title: Family Locket - Gephi part 2
+      url: https://familylocket.com/creating-network-graphs-with-gephi-part-2-importing-spreadsheets-and-layouts
+      summary: Import as nodes and edges, OpenOrd and ForceAtlas 2 settings
+    - title: Family Locket - Gephi part 5
+      url: https://familylocket.com/creating-network-graphs-with-gephi-part-5-analyze-the-network-graph
+      summary: Labeling clusters and counting edges between clusters
+    - title: Family Locket - 10 ways to group DNA matches
+      url: https://familylocket.com/10-ways-to-group-your-dna-matches-into-genetic-networks
+      summary: Grouping methods and the endogamy limit
+    - title: DNA Painter - What Are the Odds FAQ
+      url: https://dnapainter.com/help/wato-faq
+      summary: Testing hypothesized placements with shared cM
+    - title: GEDmatch partners with Genetic Affairs (2021)
+      url: https://verogen.com/gedmatch-partners-with-genetic-affairs-to-offer-new-tools-for-users/
+      summary: Autocluster, Autopedigree and Autotree for Tier 1 subscribers; 1.1 million users
+version: 1.1.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,22 @@
+id: spatial-aggregation
+name: Spatial aggregation and clustering of places
+category: analysis
+description: Zoom-dependent clustering of places with flows summed, administrative roll-up (block to tract to county,
+    airports to city markets), and flow-aware clustering that respects flow connections.
+status: planned
+notes: "Research trace: geographic-flow-and-mobility-networks.md section 10, requirement R7 (Must)."
+algorithms: []
+used_by_workflows:
+    - W381
+    - W382
+    - W386
+    - W389
+implemented_by_components: []
+requirements:
+    - "Must: Zoom-dependent aggregation of places into clusters with flows summed, and administrative roll-up (block to
+      tract to county)"
+sources:
+    - title: "Geographic Flow and Mobility Networks: Migration, Commuting, Mobility and Trade Flows on a Map (section
+          10, requirement R7)"
+      url: design/user-research/geographic-flow-and-mobility-networks.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

@@ -1,0 +1,135 @@
+id: W36
+name: Digital-Trace Networks in Communication and Political Science (Summary)
+category: analysis
+validated: false
+personas:
+    - archival-affiliation-researcher
+requires_capabilities:
+    - data-import
+    - large-graph-rendering
+    - filtering
+    - layout-force-directed
+    - community-detection
+    - community-profiling
+    - centrality-degree
+    - visual-encoding-nodes
+    - legend-display
+    - temporal-analysis
+    - component-analysis
+    - export-image
+    - bipartite-projection
+    - event-table-to-graph
+suggested_components:
+    - data-import-dialog
+    - filter-panel
+    - layout-panel
+    - community-panel
+    - ranked-node-table
+    - visual-encoding-panel
+    - legend-panel
+    - temporal-controls
+    - graph-canvas
+    - image-export-dialog
+starting_state:
+    data_type: timestamped retweet, mention or co-hashtag edges, or account-by-object two-mode data, from a platform collection
+    node_count: 1000-20000 (millions before filtering)
+    edge_density: sparse
+    user_expertise: intermediate+
+goal: >-
+    **Intent**: Summary of the platform-data network work that shares departments with academic social network
+    researchers but not their data, scale or tools. The full personas and workflows are owned by the social media
+    research document (communication-network-scholar and coordination-detection-scientist); this record exists so the
+    academic population's map is complete.
+
+
+    **Mental Model**: "The map is a sample." Clusters of accounts are read as communities of discourse, but the
+    collection query decides who is on the map.
+
+
+    **Task Phases**:
+
+    **Polarization map:**
+
+    1. **Collect** - Posts for a keyword via an API, NodeXL, 4CAT or Communalytic (since Twitter's 2023 paywall, Bluesky,
+    Reddit and Telegram).
+
+    2. **Build** - A timestamped retweet, mention or co-hashtag network; in co-hashtag networks delete the query
+    hashtags and rare nodes.
+
+    3. **Lay out and cluster** - ForceAtlas2 and modularity.
+
+    4. **Label clusters** - By hubs and top hashtags and URLs (Himelboim, Smith and Shneiderman).
+
+    5. **Caveat** - State that the map is a sample, not a population.
+
+    **Coordinated behavior:**
+
+    1. **Pair accounts** - Keep account pairs that share an object within 30 to 60 seconds a minimum number of times.
+
+    2. **Project** - To an account network.
+
+    3. **Inspect** - Components (CooRTweet).
+
+
+    **Decision Points**:
+
+    - Which relation (retweet, mention, co-hashtag) answers the question?
+
+    - Which query nodes and rare nodes to delete?
+
+    - Coordination time window and minimum repetitions?
+
+
+    **Information Needs**:
+
+    - Cluster labels from hubs, hashtags and URLs
+
+    - Component sizes of the coordination network
+
+    - The collection query shown with the map
+
+
+    **Pain Points**:
+
+    - Platform access changes (Twitter paywall in 2023)
+
+    - Maps misread as populations rather than samples
+
+    - Scale far beyond survey networks
+
+
+    **Data Flow**:
+
+    - Input: Platform posts collected by API or tool, as edge tables or two-mode tables
+
+    - Transformations: Network construction, query-node removal, time-window projection, layout and clustering
+
+    - Output: Polarization map with labeled clusters, coordination component list
+success_criteria:
+    - metric: Ownership pointer
+      target: Detailed requirements are tracked in the social media research document's workflows
+sources:
+    - title: Pew Research - How we analyzed Twitter social media networks with NodeXL
+      url: https://legacy.pewresearch.org/wp-content/uploads/sites/9/2014/02/How-we-analyzed-Twitter-social-media-networks.pdf
+      summary: NodeXL method for mapping conversation networks
+    - title: Himelboim, Smith and Shneiderman (2013) Tweeting apart
+      url: https://www.cs.umd.edu/~ben/Himelboim2013Tweeting.pdf
+      summary: Selective exposure clusters labeled by hubs and content
+    - title: Public Data Lab co-hashtag network recipe
+      url: https://recipes.publicdatalab.org/co-hashtag_network.html
+      summary: Build a co-hashtag network and delete query nodes
+    - title: CooRTweet vignette
+      url: https://search.r-project.org/CRAN/packages/CooRTweet/vignettes/vignette.html
+      summary: Coordinated behavior detection by time window and repetition
+    - title: Nieman Lab (2023) on Twitter API pricing
+      url: https://www.niemanlab.org/2023/04/among-all-of-his-mistakes-dont-forget-elon-musk-is-singlehandedly-crushing-a-big-chunk-of-internet-research-for-no-good-reason/
+      summary: Twitter Enterprise pricing ended most academic access
+    - title: Communalytic Bluesky collection
+      url: https://socialmedialab.ca/2024/05/01/bluesky-data-is-now-available-via-communalytic-a-no-code-computational-social-science-research-tool-for-studying-online-discourse-2/
+      summary: No-code Bluesky data collection
+    - title: van Geenen et al. (2023) on sample maps
+      url: https://www.frontiersin.org/articles/10.3389/fdata.2022.510310/full
+      summary: Sample maps misread as populations
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

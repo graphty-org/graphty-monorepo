@@ -1,0 +1,98 @@
+id: signaling-network-modeler
+name: Signaling Network Modeler
+roster_persona: genomics-cytoscape-user
+tier: A
+scope: in-scope
+role: Systems Biologist / Computational Pharmacologist (Signaling and Causal Networks)
+quote: An edge in my network is not "these work together". It is "A phosphorylates B and that activates it". Lose the sign and you lose the biology.
+bio: >-
+    Dr. Tobias Weber is a systems biologist in a pharmacology or cancer signaling group. He builds directed, signed
+    networks -- every edge is an activation or an inhibition -- and fits them to perturbation or phosphoproteomics data
+    to explain which kinases and transcription factors changed and why. His prior knowledge comes from OmnipathR and
+    decoupler data frames with is_directed, is_stimulation and is_inhibition columns, from SIGNOR (about 33,000 causal
+    relations among 8,900 entities) and CollecTRI for transcription factor targets. He runs CARNIVAL and COSMOS to find
+    the smallest sign-consistent subnetwork, CausalPath on phosphoproteomics, PathLinker for receptor to transcription
+    factor paths, and sometimes Boolean logic models exchanged as SIF or SBML-qual. Prior networks have 10,000 or more
+    signed edges; the results he shows have 20 to 300 nodes with activity scores. He is fluent in R and Python and
+    treats visualization as the last, most annoying step. He is a genomics-cytoscape-user variant: CARNIVAL's own
+    figures were made by exporting its networks to Cytoscape, activating edges in blue and inhibitory edges in red.
+    Building, styling and reading signed causal networks is in scope; running Boolean or ODE logic-model simulations is
+    not, and stays in the simulators.
+characteristics:
+    expertise: advanced
+    time_pressure: medium
+    graph_literacy: advanced
+    domain_knowledge: expert
+motivations:
+    - Explain an observed change as a chain of signed causal steps from a perturbation to a readout
+    - Find upstream kinases and transcription factors whose activity explains the data, starting with kinase
+      activity enrichment (KSEA, PTM-SEA) before any causal model
+    - Show a result network where arrows and T-bars, not colors alone, carry activation and inhibition
+    - Overlay results on the curated pathway diagrams his collaborators already know
+    - Keep sign and direction intact from the prior network through analysis to the figure
+behaviors:
+    - Pulls signed, directed priors from OmniPath, SIGNOR and CollecTRI as data frames
+    - Runs CARNIVAL, COSMOS, CausalPath or PathLinker and gets SIF or JSON edge lists back
+    - Maps sign to arrow shape and color by hand in Cytoscape after every import
+    - "Asks path questions: what connects this receptor to that transcription factor, and is every step sign-consistent"
+    - Uses hierarchical or fixed layouts, top to bottom from receptor to nucleus
+    - Checks that any analyzer he runs treated the graph as directed
+frustrations:
+    - Arrow versus T-bar has to be mapped by hand after every import
+    - Cytoscape's Network Analyzer treats a network as undirected unless told otherwise
+    - CausalPath's web viewer has no image export
+    - KGML imports can drop relations, and KEGG needs a license for non-academic use
+    - Converting BioPAX to SIF loses information, and Pathway Commons says so
+    - Force-directed layouts scramble the receptor-to-nucleus reading order
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W243
+    - W244
+    - W245
+    - W246
+    - W3066
+sources:
+    - title: OmnipathR Bioconductor workshop vignette
+      url: https://www.bioconductor.org/packages/release/bioc/vignettes/OmnipathR/inst/doc/bioc_workshop.html
+      summary: Interaction data frames with is_directed, is_stimulation and is_inhibition columns
+    - title: SIGNOR 3.0 (Nucleic Acids Research 2023)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC9825604/
+      summary: About 33,000 manually curated causal relations among 8,900 entities
+    - title: CollecTRI
+      url: https://github.com/saezlab/CollecTRI
+      summary: Signed transcription factor to target collection used by decoupler
+    - title: CARNIVAL (npj Systems Biology and Applications 2019)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6848167
+      summary: >-
+          Integer linear programming finds the sign-consistent subnetwork of a prior network that explains the data (no
+          simulation); networks were exported to Cytoscape for publication figures; cited by 173 works (OpenAlex,
+          2026-11-25)
+    - title: OpenAlex citation counts for the signaling modeler's resources (2026-11-25)
+      url: https://api.openalex.org/works/doi:10.15252/msb.20209923
+      summary: >-
+          OmniPath 2021 cited by 441 works and OmniPath 2016 (doi:10.1038/nmeth.4077) by 795; decoupleR
+          (doi:10.1093/bioadv/vbac016) by 1,398; SIGNOR 3.0 (doi:10.1093/nar/gkac883) by 168; CausalPath
+          (doi:10.1016/j.patter.2021.100257) by 89
+    - title: CausalPath STAR Protocol
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8633371
+      summary: Step timings, parameters file, SIF and JSON output, web viewer without image export
+    - title: Cytoscape manual - Network Analyzer
+      url: https://manual.cytoscape.org/en/latest/Network_Analyzer.html
+      summary: Analyzer defaults to treating the network as undirected
+    - title: Pathway Commons formats
+      url: https://www.pathwaycommons.org/pc2/formats
+      summary: BioPAX to SIF conversion is lossy in general
+    - title: KEGG download and licensing
+      url: https://www.kegg.jp/kegg/download/
+      summary: Non-academic use of KEGG data requires a license
+    - title: Wirbel, Cutillas and Saez-Rodriguez - KSEA protocol in kinact
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6126574
+      summary: Kinase activity inference from known kinase-substrate links, the step before causal network modeling
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

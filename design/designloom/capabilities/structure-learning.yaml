@@ -1,0 +1,26 @@
+id: structure-learning
+name: Causal structure learning
+category: analysis
+description: Learn a directed graph from tabular data with PC, GES or hill-climbing under tier and forbidden or required
+    arc constraints. Bootstrap the search, report how often each arc and each direction appeared, and average the
+    results above a threshold.
+status: planned
+notes: "Research trace: causal-diagrams-and-bayesian-networks.md section 10, requirements 10 (edge uncertainty and an arc table, must for discovery) and 13 (tiers, forbidden and required arcs, should), and Workflow 3."
+algorithms: []
+used_by_workflows:
+    - W425
+implemented_by_components: []
+requirements:
+    - "Should: Learn a directed graph from tabular data with PC, GES or hill-climbing, under tiers and forbidden or required arcs"
+    - "Must: Bootstrap the search and report how often each arc and each direction appeared, as an arc table"
+    - "Should: Average the bootstrapped graphs above a threshold, and record the threshold and the seed"
+sources:
+    - title: "bnlearn, arc strength and averaged networks"
+      url: "https://www.bnlearn.com/examples/strength-plot/"
+      summary: "boot.strength estimates the probability of each arc and its direction; averaged.network keeps arcs above a significance threshold"
+    - title: "Tetrad manual"
+      url: "https://tetrad-manual.readthedocs.io/"
+      summary: "PC, GES and other search algorithms with background knowledge tiers"
+    - title: "Causal diagrams research, section 10, requirements 10 and 13, and Workflow 3"
+      url: "design/user-research/causal-diagrams-and-bayesian-networks.md"
+      summary: "Edge uncertainty with an arc table, must for discovery; background knowledge tiers, should"

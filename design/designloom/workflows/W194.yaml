@@ -1,0 +1,122 @@
+id: W194
+name: Personal Network Assessment in a Leadership Cohort
+category: analysis
+validated: false
+personas:
+    - leadership-network-coach
+requires_capabilities:
+    - data-import
+    - data-validation
+    - ego-network
+    - component-analysis
+    - visual-encoding-nodes
+    - legend-display
+    - layout-radial
+    - basic-statistics
+    - comparison-view
+    - export-image
+    - report-generation
+    - ego-measures
+    - privacy-aggregation
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - network-list-panel
+    - ego-network-dialog
+    - layout-panel
+    - visual-encoding-panel
+    - legend-panel
+    - graph-canvas
+    - metric-card
+    - comparison-view
+    - image-export-dialog
+    - report-generator-dialog
+starting_state:
+    data_type: one small egocentric network per participant (ego, named contacts with ratings, optional contact-to-contact ties)
+    node_count: 5-40 per participant, 20-40 participants
+    edge_density: dense
+    user_expertise: novice
+goal: >-
+    **Intent**: Give each manager in a leadership cohort a readable map and profile of their own network, compare it
+    with patterns from research, and agree on development actions.
+
+
+    **Mental Model**: "My network, seen from me." Each map is centered on one person and belongs to that person; the
+    interesting thing is the mix and the separate clusters of contacts, not the count.
+
+
+    **Task Phases**:
+
+    1. **Name generator** - Each participant recalls contacts ("who do you go to for ...") in expanding slots
+
+    2. **Name interpreters** - Rate each contact: level, function, frequency, closeness, what the tie provides
+
+    3. **Alter-alter ties (optional)** - For each pair of contacts, whether they know each other (one undirected
+    question per pair)
+
+    4. **Ego maps and profiles** - One map per participant colored by function or level, with the share of contacts in
+    each category and the number of separate contact clusters, compared with research patterns (diversity and
+    bridging rather than size); optionally peer and team raters
+
+    5. **Debrief and act** - Coach and participant agree on actions (delegation, rotation across divisions) and may
+    re-measure; no source found for a standard re-measurement interval
+
+
+    **Decision Points**:
+
+    - Ask alter-alter questions, given the burden grows with the square of contacts?
+
+    - Which attribute (function, level, location) best shows this participant's imbalance?
+
+    - Which actions follow from the profile?
+
+
+    **Information Needs**:
+
+    - Per participant: contact count by category, number of contact clusters after removing the ego, share of contacts
+    outside the participant's own unit
+
+    - Cohort-level patterns without exposing individual maps
+
+
+    **Pain Points**:
+
+    - General survey tools treat contacts as text fields, not nodes
+
+    - Producing one map per participant by hand for 20 to 40 people
+
+    - Keeping each map private to its owner and the coach
+
+
+    **Data Flow**:
+
+    - Input: Ego table, alter table with ratings, optional alter-alter table, per participant
+
+    - Transformations: Many small graphs built in a batch, ego-centered layout, category shares, structural diversity
+
+    - Output: One private map and profile per participant, cohort summary
+success_criteria:
+    - metric: Batch production
+      target: Maps for a 30-person cohort are produced with one shared style in one pass
+    - metric: Privacy
+      target: Each participant's map is exported or shared separately from every other participant's
+sources:
+    - title: egor vignette - ego-network survey data from Qualtrics
+      url: https://cran.csail.mit.edu/web/packages/egor/vignettes/qualtrics.html
+      summary: Name generator, name interpreters, alter-alter questions; ego, alter and alter-alter tables
+    - title: Network Canvas and egocentric surveys (Social Networks)
+      url: https://nosh.northwestern.edu/wp-content/uploads/2021/02/1-s2.0-S0378873321000186-main.pdf
+      summary: Egocentric data collection where contacts are nodes
+    - title: Training magazine - Personal Network Assessment in executive coaching
+      url: https://trainingmag.com/?p=12055
+      summary: Profiles compared with research patterns; high performers bridge subgroups; delegation and rotation actions
+    - title: Cross and Parker, The Hidden Power of Social Networks, Appendix B
+      url: https://www.oreilly.com/library/view/the-hidden-power/9781633691537/19_appendixB.html
+      summary: Personal network diagnostic
+    - title: i4cp - Organizational network insights without conducting an ONA
+      url: https://www.i4cp.com/productivity-blog/how-to-leverage-organizational-network-insights-without-conducting-an-ona
+      summary: Connected Commons multi-rater assessment with peer and team raters
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

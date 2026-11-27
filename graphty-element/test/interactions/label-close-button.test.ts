@@ -197,16 +197,16 @@ describe("a label's close button", () => {
         assert.notStrictEqual(canvas.style.cursor, "pointer", "over the panel body");
     });
 
-    it("a label without one behaves as it did before close buttons: a click on it reaches no node", async () => {
+    it("a label without one, and not drawn on top, lets the click through to the node behind it", async () => {
         const element = await mounted(false);
         await selectA(element);
         assert.isUndefined(element.labelOf("a")?.closeRect, "no x, no rect");
 
-        // A label plane stops a click whether or not it has a button: the click is a click on
-        // no node, which clears the selection, and b behind it is not selected.
+        // An ordinary label lets the pointer through, so a name drawn over a node never takes
+        // that node's click (issue #10116); only a card, with a button or drawn on top, stops it.
         await click(element, at(element, "b"));
         await applied(element);
 
-        assert.deepStrictEqual(selected(element), [], "the click on the label selected nothing");
+        assert.deepStrictEqual(selected(element), ["b"], "the click reached b behind the label");
     });
 });

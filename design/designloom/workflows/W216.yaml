@@ -1,0 +1,123 @@
+id: W216
+name: Event-at-Location Supply Exposure Response
+category: analysis
+validated: false
+personas:
+    - supply-chain-analyst
+requires_capabilities:
+    - data-import
+    - search
+    - filtering
+    - node-selection
+    - neighborhood-expansion
+    - path-highlighting
+    - visual-encoding-nodes
+    - legend-display
+    - details-on-demand
+    - selection-statistics
+    - annotation
+    - data-export
+    - export-image
+    - geographic-layout
+    - spatial-selection
+    - dependency-propagation
+    - geospatial-file-io
+suggested_components:
+    - graph-canvas
+    - search-panel
+    - filter-panel
+    - ranked-node-table
+    - impact-analysis-dialog
+    - node-details-panel
+    - visual-encoding-panel
+    - legend-panel
+    - annotation-toolbar
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: multi-tier supplier site and part graph with coordinates, recovery times, alternates and part-to-product-to-revenue links
+    node_count: 1000-100000
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: An event alert (earthquake, flood, fire, strike) names a location. Find the supplier sites inside its
+    footprint, follow them to parts, products, customers and revenue at risk, and secure alternates before competitors
+    do. Cisco knew of the 2011 tsunami within 40 minutes and assessed 300+ suppliers within 12 hours.
+
+
+    **Mental Model**: "Drop a circle on the map and see what lights up downstream." Potential exposure turns into
+    confirmed exposure as suppliers report status.
+
+
+    **Task Phases**:
+
+    1. **Prepare (before any event)** - Map tier-1 and sub-tier sites at site and part level with recovery times and
+    alternates; link parts to products to revenue
+
+    2. **Detect** - Receive the alert with its location and footprint
+
+    3. **Select exposed sites** - Every supplier site within a 50 or 100 mile radius of the event, or inside the hazard
+    polygon
+
+    4. **Propagate** - Impacted parts, products, sub-tier suppliers, customers and revenue at risk, honoring alternates
+    and inventory
+
+    5. **Confirm and act** - Record supplier status as each responds; secure alternates in order of revenue at risk and
+    time to survive
+
+
+    **Decision Points**:
+
+    - How large a radius or which hazard footprint to use?
+
+    - Which exposed sites are confirmed hit versus only potentially hit?
+
+    - Which parts to chase first: highest revenue at risk or shortest time to survive?
+
+
+    **Information Needs**:
+
+    - Sites inside the footprint, by tier, with their parts
+
+    - Downstream products and revenue at risk per site, ranked
+
+    - Status per supplier (unknown, unaffected, impacted, recovering)
+
+    - Alternates per affected part and their capacity
+
+
+    **Pain Points**:
+
+    - Network tools have no spatial selection by radius or polygon
+
+    - Geographic and network views do not share selection
+
+    - Practitioner views are a footprint map, a ranked table and a drill-down; no source found showing a node-link war-room view
+
+    - Sub-tier sites are often missing, so exposure is understated
+
+
+    **Data Flow**:
+
+    - Input: Event location and footprint, site coordinates, site-part-product-revenue graph, alternates, supplier status updates
+
+    - Transformations: Spatial selection, downstream propagation with alternates, revenue roll-up, status overlay
+
+    - Output: Ranked exposure table, footprint map, list of alternates to secure, status-tracked action list
+success_criteria:
+    - metric: Time from alert to first exposure list
+      target: Within hours, not days (design goal; no source measures it)
+    - metric: Exposure completeness
+      target: Every site in the footprint traced to products and revenue at risk
+    - metric: Status tracking
+      target: Each exposed supplier marked potential or confirmed
+sources:
+    - title: Resilinc cyber SCRM case study (NIST)
+      url: https://www.nist.gov/document/nistusrp-resilinc-cyber-scrm-case-studypdf
+      summary: Site and part level mapping; suppliers within a 50 or 100 mile radius; impacted parts, products, customers and revenue at risk
+    - title: Creating More Resilient Supply Chains (MIT Sloan Management Review)
+      url: https://sloanreview.mit.edu/article/creating-more-resilient-supply-chains
+      summary: Cisco learned of the 2011 tsunami within 40 minutes and assessed 300+ suppliers within 12 hours
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,170 @@
+id: W335
+name: Citation Census of a Work's Citing Literature by Field and Period
+category: analysis
+validated: false
+personas:
+    - bibliometric-analyst
+    - expert-emma
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - filtering
+    - temporal-navigation
+    - community-detection
+    - community-profiling
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-force-directed
+    - comparison-view
+    - statistics-panel
+    - metric-histograms
+    - details-on-demand
+    - analysis-history
+    - export-image
+    - data-export
+    - bibliographic-record-import
+    - fixed-base-map-layout
+suggested_components:
+    - data-import-dialog
+    - data-preview-table
+    - data-table-panel
+    - filter-panel
+    - range-slider
+    - temporal-controls
+    - graph-canvas
+    - community-panel
+    - cluster-table
+    - visual-encoding-panel
+    - legend-panel
+    - comparison-view
+    - histogram
+    - node-details-panel
+    - analysis-history-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: citing-works records for one or more cited works (OpenAlex query or Web of Science or Scopus export) with year, field or subfield, keywords and cited references
+    node_count: 50-1000 (fields, journals or keywords after thresholds; 470-15,770 citing works per period behind them)
+    edge_density: medium
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Answer "which fields use this work, method or tool, and how has that changed?" for a single cited work or
+    a small set (a software paper, a landmark article, a lab's output). Librarians answer it for impact reports, review
+    authors for the "intellectual base" section of a bibliometric review, and scientometricians for field studies. The
+    deliverable is a table of citing works by field and period plus a map of the citing literature in which clusters
+    are fields or topics and color shows period.
+
+
+    **Mental Model**: "Who stands on these shoulders?" The cited work is fixed; its citing literature is a population to
+    be counted, classified and mapped. A citation is not a user, and an automatic field label is not a fact, so every
+    count needs a sample read by hand.
+
+
+    **Task Phases**:
+
+    1. **Identify the cited work** - Find the work's identifier in OpenAlex (or Web of Science) and check that
+    the record is the one people cite; software is often cited through several papers or editions, which must be
+    listed together
+
+    2. **Retrieve citing works** - Query citing works (OpenAlex `filter=cites:<id>`, or Web of Science "Times
+    Cited" export in 500-record batches); record the query and retrieval date; VOSviewer reads an OpenAlex query
+    directly up to 50,000 records
+
+    3. **Count by field and period** - Group the citing works by the subfield of their primary topic and by year
+    (OpenAlex `group_by=primary_topic.subfield.id`, at most 200 groups per page, unknown values hidden unless asked for);
+    build a field-by-period table with shares, and list the largest changes between two periods
+
+    4. **Map the citing literature** - Build a keyword co-occurrence or bibliographic coupling map of the
+    citing works with a minimum-occurrence threshold and fractional counting; cluster; color by average publication
+    year (overlay); or overlay counts on a fixed base map of fields so periods can be compared without the layout moving
+
+    5. **Check the labels** - Sample citing works from each large field and read titles and abstracts; run keyword
+    counts on titles and abstracts to find populations the classification hides (for example microbiome studies inside
+    Plant Science and Soil Science)
+
+    6. **Report** - Export the field-by-period table, the map with legend and the method record (identifier,
+    query, retrieval date, grouping field, thresholds, resolution, sample size)
+
+
+    **Decision Points**:
+
+    - Which papers or editions stand for the work, and should citations to them be merged or kept separate?
+
+    - Primary topic only, or every topic assigned to a work (double counting)?
+
+    - Which periods to compare, given that citation counts for recent years are still incomplete?
+
+    - Keyword map or fixed base-map overlay?
+
+    - How large a hand-read sample is enough before reporting a field share?
+
+
+    **Information Needs**:
+
+    - Total citing works and the count with no field assigned
+
+    - Field-by-period counts and shares, with change between periods
+
+    - Items meeting each threshold before the map is built, as VOSviewer's wizard shows
+
+    - The citing works behind a field node or cluster, with titles to read
+
+    - A record of every parameter for the methods paragraph
+
+
+    **Pain Points**:
+
+    - Grouped API results are paged and sorted by key, not count, and the unknown bucket is hidden by default
+
+    - Automatic topic and concept labels are wrong for a visible share of papers
+
+    - Tools cited through a book or software record with no database entry (UCINET) cannot be counted at all
+
+    - Overlay maps on a layout that moves between periods cannot be compared
+
+    - Merging a second database's export breaks the mapping tool
+
+
+    **Data Flow**:
+
+    - Input: Cited work identifier(s); citing-works records with year, primary topic or subject category, keywords,
+    abstract and cited references
+
+    - Transformations: Citing-works retrieval, grouping by field and period, keyword or coupling network with
+    thresholds and fractional counting, clustering, overlay by year or on a fixed base map, keyword counts on text
+
+    - Output: Field-by-period table, citing-literature map with legend, sample reading notes, method record
+success_criteria:
+    - metric: Field census completeness
+      target: Counts add up to the total citing works, with the unclassified count stated
+    - metric: Label check
+      target: Every field reported above 5 percent has a hand-read sample with its agreement rate
+    - metric: Reproducibility
+      target: Identifier, query, retrieval date, thresholds and resolution exported with the figure
+sources:
+    - title: OpenAlex help - Group works
+      url: https://help.openalex.org/api-entities/works/group-works
+      summary: group_by counts works per key; at most 200 groups per page; cursor paging sorted by key; unknown bucket hidden unless include_unknown
+    - title: OpenAlex help - How do I import OpenAlex data into VOSviewer
+      url: https://help.openalex.org/hc/en-us/articles/27218772811543-How-do-I-import-OpenAlex-data-into-VOSviewer
+      summary: VOSviewer downloads an OpenAlex query through the API; up to 50,000 records per analysis
+    - title: OpenAlex Topics
+      url: https://help.openalex.org/hc/en-us/articles/24736129405719-Topics
+      summary: 4 domains, 26 fields, 252 subfields and about 4,500 topics assigned automatically
+    - title: Haunschild and Bornmann 2024 - OpenAlex global overlay maps of science (PLOS ONE)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11620457/
+      summary: Fixed base maps clustered in VOSviewer with overlays of a unit's counts; frequent concept-assignment errors; minimum count thresholds advised
+    - title: Rafols, Porter and Leydesdorff - Science overlay maps
+      url: https://arxiv.org/abs/0912.3882
+      summary: Keep base-map positions fixed and size or color nodes by a unit's counts so units and years are comparable
+    - title: VOSviewer Manual 1.6.20
+      url: https://www.vosviewer.com/documentation/Manual_VOSviewer_1.6.20.pdf
+      summary: Thresholds, fractional counting, clustering resolution, overlay view colored by average publication year
+    - title: Gephi - publications citing Gephi
+      url: https://gephi.org/users/publications
+      summary: Points to Google Scholar for citing papers; no breakdown by field
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

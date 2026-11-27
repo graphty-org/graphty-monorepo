@@ -1,0 +1,88 @@
+id: network-biology-core-bioinformatician
+name: Network Biology Core Bioinformatician
+roster_persona: genomics-cytoscape-user
+tier: A
+scope: in-scope
+role: Staff Bioinformatician, Genomics or Proteomics Core Facility
+quote: I run the same STRING, cluster, enrich, figure pipeline for thirty labs a year. It has to be one script, and the PI has to open the result without installing anything.
+bio: >-
+    Chinedu Okafor is a staff bioinformatician in a core facility. Every week a different lab hands over a gene list, a
+    proteomics table or a sample series, and he runs the same pipeline: build an interaction network, cluster it, run
+    enrichment, rank hubs and produce figures and tables. For sample series of 15 or more he runs WGCNA co-expression
+    analysis. He scripts Cytoscape from R with RCy3 or from Python with py4cytoscape, uses STRINGdb and igraph headless
+    when he can, and publishes results to NDEx with ndex2 so reviewers get a link. His deliverable is a folder a
+    principal investigator can open without installing anything, plus a methods paragraph listing every database
+    version, cutoff and parameter. He knows graph theory well enough to distrust a single hub ranking.
+characteristics:
+    expertise: expert
+    time_pressure: high
+    graph_literacy: advanced
+    domain_knowledge: advanced
+motivations:
+    - Rebuild any network, style and figure from one script, months later, with the same result
+    - Hand labs a deliverable they can open, read and pass on without installing software
+    - Spend his time on interpretation rather than re-clicking the same styling steps
+    - Defend cutoffs and hub lists to reviewers with a robustness check
+    - Write the methods paragraph from recorded parameters instead of from memory
+behaviors:
+    - Drives desktop Cytoscape from R or Python scripts (RCy3, py4cytoscape) with cytoscapePing first
+    - Runs STRINGdb and igraph headless on a server when no figure is needed
+    - Runs WGCNA for sample series and exports module networks thresholded on topological overlap
+    - Keeps one style file per lab and reapplies it with a command
+    - Uploads finished networks to NDEx with a private reviewer link, then requests a DOI at publication
+    - Re-runs hub ranking at a second cutoff when a result looks fragile
+frustrations:
+    - Scripted Cytoscape still needs a desktop Cytoscape running, which breaks headless servers
+    - Thresholding a WGCNA export to make it readable can remove the hub genes
+    - Java heap tuning for large networks
+    - cytoHubba rankings reported to change between runs, and the plugin was last released in 2017
+    - stringApp drops older STRING versions, so an old network cannot be rebuilt exactly
+    - NDEx uploads of large networks show no progress
+context:
+    frequency: daily
+    devices:
+        - desktop
+        - laptop
+    voluntary: false
+workflows:
+    - W20
+    - W21
+    - W22
+    - W23
+    - W24
+    - W25
+    - W241
+    - W242
+    - W246
+    - W247
+    - W252
+    - W313
+    - W3066
+sources:
+    - title: RCy3 - Overview vignette
+      url: https://bioconductor.org/packages/release/bioc/vignettes/RCy3/inst/doc/Overview-of-RCy3.html
+      summary: Scripted Cytoscape from R; requires a running desktop Cytoscape
+    - title: py4cytoscape concepts
+      url: https://py4cytoscape.readthedocs.io/en/latest/concepts.html
+      summary: Scripted Cytoscape from Python with the same model
+    - title: Cytoscape Automation (Genome Biology 2019)
+      url: https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1758-4
+      summary: Commands and REST interface that RCy3 and py4cytoscape drive
+    - title: NDEx protocols (Current Protocols 2021)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8544027
+      summary: Private reviewer links, DOIs and ndex2 scripted upload
+    - title: Biostars - WGCNA export threshold removes hub genes
+      url: https://www.biostars.org/p/9514423/
+      summary: Raising the topological overlap threshold to make an export readable dropped the hubs
+    - title: Cytoscape wiki - increasing memory
+      url: https://wikiold.cytoscape.org/How_to_increase_memory_for_Cytoscape
+      summary: Java heap configuration for large networks
+    - title: Research engineer posting - MS-based proteomics, Stockholm
+      url: https://www.academicjobs.com/university-jobs/research-engineer-in-bioinformatics-ms-based-proteomics-stockholms-l-n/405981
+      summary: Core-facility posting listing Cytoscape next to R and Bioconductor
+    - title: Reimand et al. 2019 - Pathway enrichment analysis protocol (Nature Protocols)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6607905/
+      summary: About 4.5 hours end to end for the EnrichmentMap pipeline; parameters to report
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

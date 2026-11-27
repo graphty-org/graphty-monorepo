@@ -1,0 +1,199 @@
+id: W254
+name: Single-Cell kNN Graph, Leiden Clusters and PAGA
+category: exploration
+validated: false
+personas:
+    - single-cell-computational-biologist
+requires_capabilities:
+    - data-import
+    - large-graph-rendering
+    - community-detection
+    - community-profiling
+    - layout-force-directed
+    - visual-encoding-nodes
+    - legend-display
+    - comparison-view
+    - filtering
+    - export-image
+    - measurement-robustness
+    - matrix-import
+    - similarity-graph-construction
+    - multilevel-cluster-view
+    - homophily-mixing
+    - node-selection
+    - linked-views-selection
+    - provenance-tracking
+    - neighborhood-label-mixing
+    - cluster-marker-panel
+suggested_components:
+    - data-import-dialog
+    - progressive-loader
+    - community-panel
+    - cluster-table
+    - cluster-collapse-control
+    - visual-encoding-panel
+    - legend-panel
+    - comparison-view
+    - heatmap-panel
+    - node-details-panel
+    - graph-canvas
+    - image-export-dialog
+starting_state:
+    data_type: >-
+        sparse cells x cells connectivity matrix built on an integrated representation (scVI, scANVI, Seurat CCA) or by
+        BBKNN, with a cell observation table (sample, batch, condition, clusters, cell-type labels) and marker expression
+        (.h5ad or Seurat)
+    node_count: 10^4-10^6 cells; PAGA graph of tens of nodes
+    edge_density: near-uniform degree, about 15 per cell
+    user_expertise: advanced
+goal: >-
+    **Intent**: Find the cell populations in a multi-sample single-cell dataset by integrating batches, clustering the
+    nearest-neighbor graph built on the integrated data, judging how well batches mix and how stable the clusters are,
+    naming the clusters as cell types, and seeing how populations connect.
+
+
+    **Mental Model**: "Cells are towns, neighbors are roads." Clusters are towns; PAGA is the highway map between towns;
+    the UMAP is a picture of the towns whose distances should not be trusted.
+
+
+    **Task Phases**:
+
+    1. **Matrix** - Cells x genes; QC, normalize, 2,000 variable genes with the sample as batch_key, PCA
+
+    2. **Integrate batches** (multi-sample data) - Check the unintegrated UMAP colored by sample; integrate with scVI or
+    scANVI (a latent space), Seurat CCA (integrated.cca) or Harmony, or BBKNN, which writes the integrated kNN graph
+    itself by connecting each cell to cells from every batch
+
+    3. **Neighbors** - sc.pp.neighbors with n_neighbors 15 on the integrated representation (use_rep X_scVI) or in PCA
+    space for one sample; Seurat FindNeighbors(reduction = integrated.cca, dims 1:30) with shared-neighbor weights
+
+    4. **Judge the integration on the graph** - UMAPs colored by batch and by cell type; scIB metrics computed on the
+    kNN graph (graph connectivity per label, graph iLISI for batch mixing, graph cLISI for label separation, kBET);
+    marker gene distributions as a check, because UMAPs alone do not show integration quality
+
+    5. **Cluster** - Leiden or Louvain at several resolutions compared on the UMAP by eye; clustering tree for
+    stability
+
+    6. **Annotate cell types** - Dot plot of known marker genes per cluster, UMAPs colored by one marker each,
+    rank_genes_groups (Wilcoxon) for markers per cluster; or CellTypist or reference label transfer (scArches)
+    with a confidence score, checked by hand; coarse labels from a low resolution, finer ones from a higher one
+
+    7. **Embed** - UMAP or ForceAtlas2; edges not drawn
+
+    8. **Abstract** - PAGA: one node per cluster, edges by observed over expected connectivity; seeds UMAP
+
+    9. **Interactive look** (varies) - SPRING live force layout up to about 10,000 cells; CELLxGENE plots a million
+    cells without edges
+
+
+    **Decision Points**:
+
+    - Integrate or not, and with which method (which decides the representation, or the graph itself)?
+
+    - Is a cluster made of one sample a batch artifact or a real sample-specific state?
+
+    - Number of neighbors and PCA or latent dimensions
+
+    - Which resolution, and is it stable?
+
+    - Annotate clusters as which cell types: from markers by hand, or by label transfer, and which low-confidence
+    labels to overrule?
+
+
+    **Information Needs**:
+
+    - Cluster sizes per resolution
+
+    - Cells moving between clusters across resolutions
+
+    - PAGA edge weights
+
+    - Recorded neighbor parameters, including the representation the graph was built on
+
+    - Batch and sample make-up of each cluster, and each cell's neighborhood batch diversity
+
+    - Marker gene expression per cluster beside the cluster map, and one marker painted on the cells
+
+    - Transferred label and its confidence for a clicked cell
+
+
+    **Pain Points**:
+
+    - Resolution chosen by eye
+
+    - UMAP distances misread
+
+    - Graph edges never shown
+
+    - SPRING slow above 10,000 cells
+
+    - Integration chosen from UMAPs although they do not show its quality
+
+    - Batch mixing and graph connectivity are scores in a table, never seen on the graph
+
+    - Marker dot plots and the cluster map are separate figures
+
+
+    **Data Flow**:
+
+    - Input: .h5ad obsp connectivities and obs table (sample, batch, labels) with marker expression; or sparse matrix
+    plus node table
+
+    - Transformations: batch integration, kNN construction on the integrated representation, mixing scores per cell
+    and per cluster, Leiden at several resolutions, PAGA abstraction, coarse-to-fine layout
+
+    - Output: Cell-type annotated cluster map, batch mixing view, PAGA graph, stability view
+success_criteria:
+    - metric: Scale
+      target: 10^5 cells with edges interactive
+    - metric: Two-level view
+      target: PAGA graph linked to member cells
+    - metric: Stability
+      target: Cluster flows across resolutions visible
+    - metric: Batch mixing
+      target: User can see which clusters are dominated by one batch without leaving the graph view
+    - metric: Annotation
+      target: Marker expression per cluster is shown beside and linked to the cluster map
+sources:
+    - title: Scanpy clustering tutorial
+      url: https://scanpy.readthedocs.io/en/stable/tutorials/basics/clustering.html
+      summary: Neighbors, Leiden resolutions
+    - title: scanpy.pp.neighbors
+      url: https://scanpy.readthedocs.io/en/stable/api/generated/scanpy.pp.neighbors.html
+      summary: n_neighbors 15, obsp connectivities
+    - title: Single-cell best practices - clustering
+      url: https://www.sc-best-practices.org/cellular-structure/clustering/
+      summary: Do not interpret UMAP distances
+    - title: Seurat PBMC 3k tutorial
+      url: https://satijalab.org/seurat/articles/pbmc3k_tutorial
+      summary: FindNeighbors and resolution 0.4-1.2
+    - title: PAGA
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6425583
+      summary: Coarse graph, 1,654 to 1.3 million cells
+    - title: SPRING
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6030950
+      summary: Interactive force layout up to 10,000 cells
+    - title: Clustering trees
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6057528
+      summary: Resolution stability
+    - title: CELLxGENE Explorer
+      url: https://github.com/chanzuckerberg/single-cell-explorer
+      summary: Million-cell embeddings without an edge view
+    - title: Single-cell best practices - integration
+      url: https://www.sc-best-practices.org/cellular-structure/integration/
+      summary: Neighbors on X_scVI or X_scANVI, BBKNN writes the integrated graph, scIB graph connectivity, UMAPs do not show integration quality
+    - title: Single-cell best practices - annotation
+      url: https://www.sc-best-practices.org/cellular-structure/annotation/
+      summary: Marker dot plots per cluster, rank_genes_groups, CellTypist, scArches label transfer
+    - title: Seurat integration introduction
+      url: https://satijalab.org/seurat/articles/integration_introduction
+      summary: IntegrateLayers then FindNeighbors on integrated.cca; DimPlot by condition and cell type
+    - title: Luecken et al. 2022 - scIB benchmark
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8748196
+      summary: kBET, kNN graph connectivity, graph iLISI and cLISI computed on graph outputs
+    - title: Sikkema et al. 2023 - Human Lung Cell Atlas
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10287567/
+      summary: 584,444 core cells integrated with scANVI; 2.4 million cells extended
+version: 1.1.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

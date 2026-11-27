@@ -4,6 +4,7 @@ category: analysis
 validated: false
 personas:
     - intelligence-analyst
+    - crime-intelligence-analyst
 requires_capabilities:
     - data-import
     - centrality-degree
@@ -23,6 +24,18 @@ requires_capabilities:
     - overview-minimap
     - pattern-search
     - saved-filters
+    - filtering
+    - component-analysis
+    - visual-encoding-edges
+    - legend-display
+    - time-respecting-paths
+    - multilayer-networks
+    - provenance-tracking
+    - parallel-edge-aggregation
+    - source-grading
+    - common-neighbor-finder
+    - incremental-append
+    - offline-audit-log
 suggested_components:
     - graph-canvas
     - ego-network-dialog
@@ -35,104 +48,131 @@ suggested_components:
     - visual-encoding-panel
     - minimap
     - progress-bar
+    - ranked-node-table
+    - legend-panel
 starting_state:
-    data_type: multi-source intelligence data
-    node_count: 100-10000
-    edge_density: varies
+    data_type: multi-source records about people, phones, accounts, vehicles, places and events (CDRs, extractions, RMS, intelligence logs, financial returns)
+    node_count: working charts of 100-1,000 nodes filtered from 100,000 or more records; court and briefing charts of tens of nodes
+    edge_density: sparse multigraph (many typed, timestamped, directed links per pair)
     user_expertise: intermediate
 goal: >-
-    **Intent**: Map and analyze a criminal organization's structure to support investigation and intervention planning.
-    User needs to identify key players, understand hierarchy, and find vulnerabilities for disruption.
+    **Intent**: Map a criminal organization's structure to support investigation and intervention planning: identify
+    key players, bridges between groups and subgroups, and where intervention would be most effective. This is the
+    umbrella workflow; the concrete steps analysts follow are split into their own workflows: importing call records
+    (W97), telephone analysis and live appends (W98), timelines (W99), cell-site analysis (W100), convoy analysis
+    (W101), multi-device extractions (W102), court and briefing charts (W103), group analysis and disruption from
+    intelligence records (W104), cryptocurrency tracing (W105), military targeting (W106), and social media and ads
+    (W107).
 
 
-    **Mental Model**: "Organizational chart reconstruction" - building the hidden org chart of a criminal enterprise. Also
-    "finding the weak links" - identifying where intervention would be most effective.
+    **Mental Model**: "Organizational chart reconstruction" and "finding the weak links". Analysts treat the chart as a
+    tool, not a product: every item has a source and a grade, a central figure is not necessarily the leader, and a
+    disrupted network tends to rewire rather than collapse.
 
 
     **Task Phases**:
 
-    1. **Case Initialization** - Define scope, identify seed entities, establish time frame
+    1. **Case Initialization** - Define the question, seed entities and time window; deconflict seeds through agency
+    systems
 
-    2. **Data Integration** - Collect and merge records (communications, financial, travel, surveillance)
+    2. **Data Integration** - Import records through saved mappings per source; normalize phone numbers and time zones
 
-    3. **Network Building** - Extract entities and relationships, resolve duplicates, build graph
+    3. **Network Building** - Merge the same entity across sources (one person, many phones and accounts), keep parallel
+    typed links with counts and sums, grade every item; Harris County funnels 10M+ records to about 100,000, then about
+    1,000, then about 100 nodes
 
-    4. **Structural Analysis** - Identify leadership (centrality), subgroups (communities), communication flows
+    4. **Structural Analysis** - Common neighbors across seeds, centrality (degree, betweenness, eigenvector), components
+    per link type, communities, paths including time order
 
-    5. **Vulnerability Assessment** - Find single points of failure, critical brokers, weak links
+    5. **Vulnerability Assessment** - Degree-by-betweenness profiles; sequential or block removal with re-ranking,
+    tracking the largest connected component; expected replacement
 
-    6. **Intelligence Production** - Create visualizations and briefings for operational planning
+    6. **Intelligence Production** - Timelines paired with charts, graded line styles, hand layout, dated and
+    sequence-numbered exports, redacted copies per audience
 
 
     **Decision Points**:
 
-    - Who are the initial seed entities?
+    - Who are the initial seed entities, and how many sweeps outward?
 
-    - How to handle uncertain or conflicting information?
+    - Which grades are reliable enough to keep, and how are suspected links drawn?
 
     - What time window is relevant?
 
-    - Who are the likely leaders vs. lieutenants vs. foot soldiers?
+    - Who are likely leaders vs. brokers vs. highly visible members vs. peripheral people?
 
-    - Where would intervention be most effective?
-
-    - What's the anticipated network response to intervention?
+    - Where would intervention be most effective, and how will the network respond?
 
 
     **Information Needs**:
 
-    - Entity relationships with evidence documentation
+    - Entity relationships with source records and grades
 
-    - Centrality scores (degree, betweenness, eigenvector) to identify leaders/brokers
+    - Per-pair counts and sums by direction and type
 
-    - Community structure (cells, subgroups)
+    - Centrality scores and profiles, per link type and combined
 
-    - Communication patterns (who talks to whom, when)
+    - Community structure (cells, crews, sets)
 
-    - Financial flows (follow the money)
+    - Temporal evolution and pattern of life
 
-    - Temporal evolution (how has network changed?)
+    - Largest-component size after simulated removals
 
 
     **Pain Points**:
 
-    - Incomplete data - criminal networks hide connections
+    - Incomplete data -- criminal networks hide connections, and wiretaps cover short windows
 
-    - Data from multiple sources with different formats/quality
+    - Data from multiple sources with different formats, time zones and quality
 
-    - Entity resolution challenges (same person, multiple identities)
+    - Entity resolution (same person, multiple identities; one phone, many users)
 
-    - Maintaining chain of custody for legal proceedings
+    - Operational systems weight all links equally and cannot group by crime type, region or gang
 
-    - Balancing investigation depth with operational timeline
+    - Maintaining traceability to records for disclosure and testimony
+
+    - Data keeps arriving during a case and must be appended without losing layout
 
 
     **Data Flow**:
 
-    - Input: Multi-source intelligence data (COMMS, financial, surveillance)
+    - Input: CDRs, extractions, RMS, intelligence logs, ALPR, financial and provider returns
 
-    - Transformations: Entity extraction, relationship mapping, centrality analysis, community detection
+    - Transformations: Import mapping, normalization, entity resolution, parallel-link aggregation, grading, centrality,
+    community detection, removal simulation
 
-    - Output: Network map + key player profiles + vulnerability assessment + operational recommendations
+    - Output: Network map, key player profiles, vulnerability assessment, timelines, court or briefing charts
 success_criteria:
     - metric: Network mapped
-      target: Complete structure with key players identified
-    - metric: Hierarchy understood
-      target: Leadership and roles documented
+      target: Structure with key players identified, filtered from 100,000+ records to a working chart of 100-1,000 nodes
+    - metric: Roles understood
+      target: Members profiled (central, gatekeeper, highly visible, peripheral) with values and sources behind each
     - metric: Vulnerabilities identified
-      target: Intervention points prioritized
+      target: Intervention points prioritized with removal curves and expected replacement noted
     - metric: Evidence documented
-      target: Chain of custody maintained
+      target: Every element on an exported chart traces to its source record and grade
 sources:
-    - title: Practical Graph Analysis Guide - Chapter 8
-      url: https://graphty.app/docs/
-      summary: Intelligence Analysis and Link Analysis Workflows
+    - title: Sparrow 1991 - The application of network analysis to criminal intelligence (Social Networks 13(3), 251-274)
+      url: https://doi.org/10.1016/0378-8733(91)90008-H
+      summary: Founding assessment of network analysis for criminal intelligence, focused on finding the vulnerabilities of criminal organizations from terrorist groups to narcotics supply networks
     - title: CACM Graph-Based Technologies for Intelligence Analysis
       url: https://cacm.acm.org/research/graph-based-technologies-for-intelligence-analysis/
       summary: Graph algorithms for security analysis with SNA metrics
     - title: Cambridge Intelligence Big Graph Visualization
       url: https://cambridge-intelligence.com/big-graph-data-visualization/
       summary: Visualizing large networks for intelligence analysis
-version: 1.0.0
+    - title: IACA 2024 Virtual Conference - Social Network Analysis (Harris County)
+      url: https://iaca.net/assets/Training-Files/Webinars/VirtualConferences/2024VirtualConference/2024%20IACA%20SNA%20Bush.pdf
+      summary: Funnel from 10M+ records to about 100 nodes; links weighted equally in operational systems
+    - title: UNODC Criminal Intelligence Manual for Analysts
+      url: https://www.azdps.gov/sites/default/files/2023-07/Criminal_Intelligence_Manual_for_Analysts.pdf
+      summary: Association, telephone and event charting; grading systems; who is central and who bridges organizations
+    - title: Home Office Research Report 89
+      url: https://assets.publishing.service.gov.uk/media/5a80e27ae5274a2e87dbc5d0/horr89.pdf
+      summary: 137-person gang network, grade filtering, degree-by-betweenness profiles, disruption by profile
+    - title: Army ATP 2-33.4 Intelligence Analysis
+      url: https://irp.fas.org/doddir/army/atp2-33-4.pdf
+      summary: Central figure is not necessarily the leader; link charts are a freeze-frame unless paired with a timeline
+version: 1.1.0
 created_at: 2026-01-16T16:42:37.868Z
-updated_at: 2026-01-16T16:42:37.868Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,248 @@
+id: W75
+name: Provider Patient-Sharing Networks from Insurance Claims
+category: analysis
+validated: false
+personas:
+    - patient-sharing-network-researcher
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - computed-attributes
+    - node-merging
+    - filtering
+    - saved-filters
+    - component-analysis
+    - degree-analysis
+    - centrality-degree
+    - centrality-betweenness
+    - clustering-coefficient
+    - community-detection
+    - community-profiling
+    - basic-statistics
+    - statistics-panel
+    - metric-histograms
+    - selection-statistics
+    - comparison-view
+    - node-selection
+    - details-on-demand
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-force-directed
+    - large-graph-rendering
+    - progressive-loading
+    - analysis-history
+    - data-export
+    - export-image
+    - report-generation
+    - bipartite-projection
+    - backbone-extraction
+    - local-only-processing
+    - entity-resolution-review
+    - small-count-suppression
+    - session-round-trip
+    - expensive-run-cost-warning
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - computed-attributes-panel
+    - attribute-table-join-dialog
+    - filter-panel
+    - range-slider
+    - histogram
+    - algorithm-panel
+    - algorithm-card
+    - community-panel
+    - cluster-table
+    - ranked-node-table
+    - statistics-panel
+    - metric-card
+    - graph-canvas
+    - node-details-panel
+    - visual-encoding-panel
+    - legend-panel
+    - comparison-view
+    - progressive-loader
+    - analysis-history-panel
+    - data-table-panel
+    - report-generator-dialog
+    - image-export-dialog
+starting_state:
+    data_type: insurance claim lines, or a pre-projected provider dyad file with shared-patient counts
+    node_count: 135-940492
+    edge_density: dense
+    user_expertise: expert
+goal: >-
+    **Intent**: Build the network of physicians or facilities who share patients, from insurance claims, in order to
+    identify the groups who actually work together and relate that structure to spending, utilization and quality.
+    The analysis is a chain of construction decisions, each of which changes the answer and each of which has to be
+    defended, because the field has no standard method: one scoping review of 49 studies counted 180 distinct
+    network measures in 13 categories.
+
+
+    **Mental Model**: "Patients are the glue, and then they are thrown away." Patients and providers form a two-mode
+    graph; collapsing it onto providers makes every patient a clique among that patient's providers. The collapse is
+    not invertible: a triangle may come from one patient who saw three doctors or from three separate pairs. What
+    remains is far too dense to read, so the first analytic act is deciding which ties to discard.
+
+
+    **Task Phases**:
+
+    1. **Get the claims and the agreement** - Identifiable claims under a data use agreement, a
+    state all-payer or Medicaid or private extract, or the public pre-projected provider dyad files, which already
+    hold pairs of providers who treated the same patient, by year, in 30, 60, 90 and 180-day windows, as directed
+    dyads, excluding any pair sharing fewer than 11 patients. Know who is missing: enrollees in private managed-care
+    plans have no encounter data in the public claims, so they are excluded
+
+    2. **Define an encounter** - The canonical definition: paid physician claims, keeping evaluation and
+    management services plus procedures above a relative value unit threshold, dropping laboratory and other
+    non-visit services, and dropping specialties the patient does not choose, such as anesthesia and radiology, as
+    nodes
+
+    3. **Decide who is a node** - Providers by individual identifier, or facilities by organizational
+    identifier; drop low-volume providers, for example fewer than 30 patients in the year, and anyone outside the
+    study regions; attribute each patient to the primary care physician who provided the plurality of their visits,
+    which matters when outcomes are linked later
+
+    4. **Project onto providers** - Multiply the two-mode adjacency matrix by its
+    transpose; the tie weight is the number of shared patients
+
+    5. **Discard the weak ties, and record the rule** (with sensitivity analyses) - The raw projection has a
+    mean density around 0.23. Three families are in use: a relative rule keeping each provider's strongest 20% of
+    ties and only where mutual, which brought mean density to 0.09 with 0.05 at 10% and 0.12 at 30%; a fixed cutoff
+    of at least 1, 2, 5 or 9 shared patients, where a validation study found the chance that two physicians
+    reported a professional relationship rose with shared patients and peaked at nine; or a null-model backbone
+    filter that sets a significance level instead of a weight cutoff. An alternative avoids the choice altogether by
+    tying two providers only when they treated the same patient within the same episode of care, which produced more
+    persistent ties year to year (72.4% versus 67.4%) and more stable communities
+
+    6. **Measure** - Degree; degree adjusted for panel size (one study reported a mean of 27.3 ties per 100
+    shared patients, range 11.7 to 54.4); betweenness reported relative to the other specialty group (primary care
+    mean 0.38, specialists about 3.1 to 3.5); density; and clustering coefficient (mean 0.55, range 0.40 to 0.67)
+
+    7. **Find and characterize the groups** - Modularity maximization with one non-overlapping community per
+    provider; in the canonical study communities held a median of roughly 150 to 165 physicians and about 77% of
+    their patients' visits stayed inside the community, against 56% when physicians were assigned to the hospital
+    where they admitted most patients; episode-based networks produced more communities per region (median 14 versus
+    9)
+
+    8. **Check what the data cannot see** - Sampling patients distorts the projection unevenly: counts,
+    degree and centrality survive small samples while transitivity, clustering and community counts need the full
+    cohort, and density and transitivity come out too low. One payer is one sample: one state comparison found
+    Medicare claims missed 14.6% of shared-patient relationships while showing more relationships per provider than
+    private claims
+
+    9. **Link to outcomes and compare places** - Attach spending, utilization and quality to providers or to
+    their attributed patients, and compare regions; the unit of comparison is usually a regional market, so the
+    output is as often a map or a set of per-region summaries as a drawing of one network
+
+    10. **Publish under the cell rule** - No displayed cell may hold a value of 1 to 10, the rule covers
+    percentages and anything derivable from the other reported numbers, and a second cell must be suppressed when
+    totals would reveal the first. In practice a labeled edge or node below 11 cannot be shown, which is why
+    published figures are unlabeled force-directed layouts and the inspectable detail lives in aggregate tables
+
+
+    **Decision Points**:
+
+    - Which data route, which fixes the population, the windows and whether a threshold is already baked in
+
+    - What counts as an encounter, and which specialties are not nodes
+
+    - Which thresholding family, and what the sensitivity analyses show
+
+    - Whether to switch to episode-of-care ties and avoid thresholding altogether
+
+    - Which measures to report, knowing 180 have been used and reviewers will ask why these
+
+    - What can be shown at all under the suppression rule, and what has to become a table
+
+
+    **Information Needs**:
+
+    - Live density, tie count and component structure as the threshold moves, because the threshold is the analysis
+
+    - The provenance of an edge: which patients produced it, kept reachable from the projected graph
+
+    - Degree, centrality, density and clustering with the threshold rule attached to every number
+
+    - Community size distribution and the share of visits staying inside each community
+
+    - What the payer and the sampling cannot see, stated with the result
+
+    - A suppression check applied to the picture, the tables and the export together, before anything is shared
+
+
+    **Pain Points**:
+
+    - The projection is unreadably dense before thresholding, so the first act is throwing information away
+
+    - The projection cannot be inverted, so no reader of the finished figure can ask which patients made an edge
+
+    - No standard method, 180 measures in use, and every published study reporting at least one significant finding
+
+    - Sampling destroys exactly the measures that describe structure: transitivity, clustering and community counts
+
+    - One payer sees part of the structure, and the missing part is not random
+
+    - The suppression rule turns a network figure into a shape with no labels, no counts and no inspectable nodes
+
+    - The public pre-projected files omit pairs below 11 shared patients, fix the windows, and stop at 2015
+
+    - A region can hold 8,197 providers and tens of thousands of ties, so the picture is at the edge of readable
+    before any of this starts
+
+
+    **Data Flow**:
+
+    - Input: Claim lines (patient identifier, provider identifier, service date, procedure code, relative value
+    unit), or a pre-projected provider dyad file with shared-patient counts and a window; provider attributes
+    (specialty, location); outcome measures
+
+    - Transformations: Encounter filtering, node inclusion rules, bipartite projection with shared-patient weights,
+    threshold or episode-based tie definition, degree and betweenness and density and clustering, modularity
+    communities, community characterization, sampling-sensitivity checks, outcome joins, suppression of small cells
+
+    - Output: A thresholded provider network with its rule recorded, measure tables, community assignments and
+    profiles, per-region comparisons, and suppression-compliant figures and tables
+success_criteria:
+    - metric: Threshold transparency
+      target: Every reported measure carries the thresholding rule that produced it, and alternatives can be compared
+    - metric: Projection provenance
+      target: An edge in the projected network can be traced back to the patients that created it
+    - metric: Suppression safety
+      target: No label, cell or exported value below the configured minimum count can be displayed or exported
+    - metric: Scale
+      target: A region of several thousand providers and tens of thousands of ties stays interactive
+sources:
+    - title: Landon et al., variation in patient-sharing networks of physicians across the United States (JAMA 2012)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC3528342
+      summary: 4,586,044 beneficiaries and 68,288 physicians in 51 hospital referral regions, the encounter definition, the mutual top-20% threshold with 10% and 30% sensitivity analyses, densities of 0.23 raw and 0.09 thresholded, and the reported degree, betweenness and clustering values
+    - title: Landon et al., using administrative data to identify naturally occurring networks of physicians (Medical Care 2013)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC3723338
+      summary: The SAS plus igraph and NetworkX stack, modularity communities of a median 150 to 165 physicians, 77% of visits inside the community against 56% for hospital assignment, and Fruchterman-Reingold figures
+    - title: DuGoff et al., a scoping review of patient-sharing network studies (Translational Behavioral Medicine 2018)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6086089
+      summary: 49 studies, 180 measures in 13 categories, the threshold families in use, and the validation finding that reported professional relationships peak at nine shared patients
+    - title: O'Malley et al., the effect of patient sampling on patient-sharing networks (Health Services Research 2021)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC7968944
+      summary: Counts, degree and centrality recovered from small samples while transitivity, clustering and community counts need the full cohort, with density and transitivity biased low
+    - title: Onnela et al., episode-of-care tie definitions for provider networks (Applied Network Science 2018)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6214299
+      summary: Episode-based ties avoid thresholding, persist year to year more often (72.4% versus 67.4%) and produce more communities per region (median 14 versus 9)
+    - title: Comparison of shared-patient relationships across payers, North Carolina
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6816773
+      summary: Medicare claims missed 14.6% of shared-patient relationships found when private and Medicaid claims were added
+    - title: CMS Physician Shared Patient Patterns data
+      url: https://www.nber.org/data/physician-shared-patient-patterns-data.html
+      summary: Pre-projected directed provider dyads by year in 30, 60, 90 and 180-day windows, excluding pairs sharing fewer than 11 patients, 2009 to 2015
+    - title: CMS cell size suppression policy (ResDAC)
+      url: https://resdac.org/node/1506
+      summary: No cell of 1 to 10 may be displayed, the rule covers percentages and derivable values, and a second cell must be suppressed when totals would reveal the first
+    - title: The backbone package for extracting network backbones
+      url: https://arxiv.org/pdf/2203.11055
+      summary: Null-model backbone filters such as the disparity filter, which set a significance level instead of a weight cutoff
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

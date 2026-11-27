@@ -1,0 +1,27 @@
+id: event-log-import
+name: Event Log Import
+category: data
+description: Import event tables (CSV, Excel, XES, XES.gz, MXML, OCEL 2.0) with column roles (case from one or several
+    columns, activity, one or two timestamps, resource, other), role and timestamp-pattern guessing with override,
+    joining a case table to an event table, turning timestamp columns of a case row into activities, and a parse report
+    with tie, date-only and incomplete-case warnings.
+status: planned
+notes: "Research trace: process-mining-and-process-maps.md section 10, requirement R1 (Must)."
+algorithms: []
+used_by_workflows:
+    - W339
+    - W340
+    - W344
+    - W346
+    - W347
+    - W348
+    - W1162
+implemented_by_components: []
+requirements:
+    - "Must: Event table import (CSV, Excel, XES and XES.gz, MXML) with column roles: case (several columns
+      concatenated), activity, one or two timestamps, resource, other, remove; role and timestamp-pattern guessing with
+      override; preview; parse report"
+sources:
+    - title: "Process Mining Analysts: Process Maps, Models and Deviations from Event Logs (section 10, requirement R1)"
+      url: design/user-research/process-mining-and-process-maps.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

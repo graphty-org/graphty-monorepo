@@ -1,7 +1,8 @@
 /**
  * @file Under `renderPath: "batched"` an edge row with no `Edge` is drawn from its paint as a straight line
- * pulled from its two nodes' rows (`EdgeRowLines`), the picture the `Edge`'s own pulled line draws; a paint only
- * an `Edge` draws (a tail, a zigzag, a curve) is refused. The `"objects"` path has none. Stage 27 (lazy `Edge`) of
+ * pulled from its two nodes' rows (`EdgeRowLines`), the picture the `Edge`'s own pulled line draws, and a lone curve
+ * with no head as the `Edge`'s pulled curve draws it (issue #10046); a paint only an `Edge` draws (a tail, a zigzag, a
+ * raised route) is refused. The `"objects"` path has none. Stage 27 (lazy `Edge`) of
  * design/rendering/row-renderer.md.
  */
 
@@ -98,6 +99,38 @@ describe("an edge row with no Edge", () => {
         assert.equal(lines.count, 0);
     });
 
+    it("draws a lone curve as the Edge's pulled curve draws it", async () => {
+        const drawn = await loaded("batched", [{ src: 0, dst: 1 }]);
+        await drawn.session.styles.add({
+            name: "curves",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.curvature": true },
+        } as never);
+        await operationQueueOf(drawn.graph).waitForCompletion();
+        await drawn.waitForStableFrame();
+        const edge = edgeBetween(drawn.graph, 0, 1);
+        assert.isDefined(edge);
+        assert.isTrue(edge.isPulled, "the Edge's own curve is pulled");
+        const paint = drawn.graph.getStylePainter().edgePaint(edge.index);
+        assert.isNotNull(paint);
+        assert.isTrue(paint.style.line?.bezier, "the paint is a curve");
+        const want = await readCanvas(drawn.graph);
+        document.body.replaceChildren();
+
+        const bare = await loaded("batched", []);
+        const lines = bare.graph.getEdgeRowLines();
+        assert.isNotNull(lines);
+        assert.isTrue(lines.paintRow(0, rowOf(bare, 0), rowOf(bare, 1), paint), "a lone curve is drawn");
+        await bare.waitForStableFrame();
+        assert.deepEqual(lines.shownCurveRows(), [0], "drawn as a curve");
+        assert.equal(overBar(want, await readCanvas(bare.graph)), 0, "the same picture");
+
+        lines.unpaintRow(0);
+        assert.equal(lines.count, 0);
+        assert.deepEqual(lines.shownCurveRows(), [], "its curve is handed back");
+    });
+
     it("is refused for a paint only an Edge draws", async () => {
         const element = await loaded("batched", []);
         const lines = element.graph.getEdgeRowLines();
@@ -106,7 +139,8 @@ describe("an edge row with no Edge", () => {
             { line: { color: "#ff0000" }, arrowTail: { type: "normal" } },
             { line: { color: "#ff0000" }, arrowHead: { type: "normal", stack: "normal" } },
             { line: { type: "zigzag" } },
-            { line: { bezier: true } },
+            { line: { bezier: true, route: "arc" } },
+            { line: { bezier: true, arcRadius: 1 } },
             { line: { width: 0 } },
             { line: { nodeGap: 1 } },
             { line: { animationSpeed: 1 } },

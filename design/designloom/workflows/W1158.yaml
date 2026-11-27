@@ -1,0 +1,133 @@
+id: W1158
+name: Inspect a Structural Variant Bubble in a Pangenome Subgraph with Haplotype Paths
+category: exploration
+validated: false
+personas:
+    - pangenome-graph-researcher
+requires_capabilities:
+    - data-import
+    - data-validation
+    - graph-rendering
+    - layout-force-directed
+    - path-highlighting
+    - path-focus-dimming
+    - node-selection
+    - details-on-demand
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - external-label-overlays
+    - legend-display
+    - filtering
+    - linked-views-selection
+    - export-image
+    - gfa-sequence-graph-import
+    - bidirected-edge-model
+    - sequence-length-node-geometry
+    - path-track-overlay
+    - linearized-path-matrix-view
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - attribute-table-join-dialog
+    - graph-canvas
+    - filter-panel
+    - layout-panel
+    - visual-encoding-panel
+    - legend-panel
+    - node-details-panel
+    - image-export-dialog
+starting_state:
+    data_type: GFA subgraph extracted from a chromosome pangenome graph (odgi extract or vg chunk), with W or P lines for tens to hundreds of haplotype paths and a node annotation CSV
+    node_count: 10^2-10^5 segments
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: See how each haplotype traverses a structural variant bubble at one locus, count copies of a
+    duplicated region per haplotype, and make a figure that shows topology and paths together.
+
+
+    **Mental Model**: "A transit map of genomes." Segments are stations with a length, haplotypes are colored lines
+    through them; where lines split and rejoin is a variant, a line looping back is a duplication, and a line running
+    backward through a segment is an inversion.
+
+
+    **Task Phases**:
+
+    1. **Load the subgraph** - Load the extracted GFA with its paths; check segment, link and path counts against
+    the extraction
+
+    2. **Choose haplotypes** - Show the reference path and a chosen set of sample paths; hide the rest
+
+    3. **Lay out along the reference** - Arrange segments so the reference path runs in one direction, segment
+    length proportional to sequence length
+
+    4. **Draw paths as tracks** - Draw each chosen haplotype as a colored track through the segments it visits, in
+    visit order and orientation
+
+    5. **Read the bubble** - Select a bubble and read, per haplotype, which branch it takes, how many times it
+    visits a segment and in which orientation
+
+    6. **Annotate and save** - Join gene names from the annotation CSV onto segments and export the figure
+
+
+    **Decision Points**:
+
+    - Which haplotypes to show without cluttering the view?
+
+    - Is a looped path a real duplication or a collapsed repeat?
+
+    - Is a reversed traversal an inversion or an assembly orientation error?
+
+
+    **Information Needs**:
+
+    - Per-segment count of paths visiting it, and visits per path (copy number)
+
+    - Per-path ordered list of oriented segment visits through the selected region
+
+    - Segment length in bp and the gene annotation on it
+
+
+    **Pain Points**:
+
+    - Bandage shows topology but not paths; odgi viz shows paths but not topology
+
+    - Tube map views clutter with many rearrangements and the online version takes only small files
+
+    - 2D layouts of complex regions are hard to read and change between runs
+
+
+    **Data Flow**:
+
+    - Input: subgraph GFA with P or W lines, node annotation CSV
+
+    - Transformations: path parsing, per-segment path counts, reference-anchored layout, path track drawing
+
+    - Output: locus figure, table of copies per haplotype
+success_criteria:
+    - metric: Copy number answer
+      target: User can state how many copies of the region each shown haplotype carries
+    - metric: Path fidelity
+      target: Every drawn track follows its path's segments in order and orientation, including repeat visits
+sources:
+    - title: GTPB CPANG22 pangenome subgraph exercise
+      url: https://gtpb.github.io/CPANG22/pages/Day3a_Pangenome_subgraphs
+      summary: Extract and sort the C4 subgraph, select paths, odgi viz by depth; copy number and HERV questions
+    - title: odgi navigating and annotating graphs
+      url: https://odgi.readthedocs.io/en/latest/rst/tutorials/navigating_and_annotating_graphs.html
+      summary: Extract a region, annotate nodes from a GTF, export GFA and CSV for Bandage
+    - title: odgi viz
+      url: https://odgi.readthedocs.io/en/latest/rst/commands/odgi_viz.html
+      summary: Paths as rows over nodes in sort order; color by depth or orientation
+    - title: Sequence tube maps (Beyer et al. 2019)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6954646
+      summary: Paths as colored lines; repeat visits and reversed traversals represent duplications and inversions
+    - title: sequenceTubeMap repository
+      url: https://github.com/vgteam/sequenceTubeMap
+      summary: Online version limited to small files
+    - title: GFA 1 specification
+      url: https://github.com/GFA-spec/GFA-spec/blob/master/GFA1.md
+      summary: P and W lines; walks of > and < steps
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

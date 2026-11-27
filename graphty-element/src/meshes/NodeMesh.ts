@@ -34,6 +34,7 @@ import {
     ringVertexData,
     setLabelBox,
 } from "./NodeShapeGeometry";
+import { prepareOverlayShader } from "./overlayMaterial";
 import {
     borderRing,
     convexHull,
@@ -503,6 +504,10 @@ export class NodeMesh {
     private static createSource(options: NodeMeshOptions, createOptions: NodeMeshCreateOptions, scene?: Scene): Mesh {
         const mesh = this.createMeshWithoutCache(options, createOptions, scene);
         placeByZIndex(mesh, createOptions.shape, options.is2D);
+        // The file's draw order, which the row scan reads off a row's source to honor it in 3D (PickService).
+        if (createOptions.shape?.drawOrder !== undefined) {
+            mesh.metadata = { drawOrder: createOptions.shape.drawOrder };
+        }
 
         // `node.flat`: one normal per triangle, so every face is lit as one plane and a sphere
         // reads as a faceted ball. Done on the SOURCE mesh before the cache instances it, so
@@ -515,6 +520,8 @@ export class NodeMesh {
 
         const material = this.createMaterial(createOptions, options.is2D, scene);
         mesh.material = material;
+        // A node drawn now may be selected next: have its halo's shader ready before it is.
+        prepareOverlayShader(mesh.getScene());
         if (isNodeMaterial(material)) {
             outlineNodeMesh(mesh, sceneLighting(scene));
         }

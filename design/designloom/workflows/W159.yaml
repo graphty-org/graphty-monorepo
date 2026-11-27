@@ -1,0 +1,120 @@
+id: W159
+name: Nodal Metric Map on the Cortex
+category: reporting
+validated: false
+personas:
+    - clinical-connectome-researcher
+    - computational-network-neuroscientist
+    - eeg-meg-connectivity-researcher
+    - tract-tracing-connectomics-researcher
+requires_capabilities:
+    - data-import
+    - computed-attributes
+    - visual-encoding-nodes
+    - legend-display
+    - style-presets
+    - comparison-view
+    - export-image
+    - fixed-node-positions
+    - anatomical-context-mesh
+    - parcel-node-rendering
+suggested_components:
+    - attribute-table-join-dialog
+    - column-mapper
+    - visual-encoding-panel
+    - gradient-editor
+    - legend-panel
+    - comparison-view
+    - graph-canvas
+    - image-export-dialog
+starting_state:
+    data_type: one value per atlas region (degree, participation, hub score, nodal t-value or module label) plus the atlas label image or label file
+    node_count: 34-1000 regions
+    edge_density: not used (node values only)
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Paint a per-region result onto the atlas regions themselves, in lateral and medial views of both
+    hemispheres with one shared color bar, usually next to the ball-and-stick view of the same nodes. Most papers
+    with nodal results include this figure.
+
+
+    **Mental Model**: "Color the map by the number." A node is a piece of cortex, not a dot; the figure is a choropleth
+    of the brain.
+
+
+    **Task Phases**:
+
+    1. **Compute a per-node value** (varies) - Degree, participation coefficient, hub score, involvement in a
+    significant component, nodal t-value or module label
+
+    2. **Join to atlas labels** - By row order or by region name matching the atlas label column
+
+    3. **Render parcels colored by the value** - Surfaces per parcel from a NIfTI label image, 2D atlas
+    outlines, 3D meshes, or label files on fsaverage or fs_LR surfaces
+
+    4. **Lay out views** - Grid of lateral and medial views per hemisphere, one color bar (diverging for
+    t-values, categorical for modules), often beside the ball-and-stick view with the same colors
+
+    5. **Export** - Publication size and resolution
+
+
+    **Decision Points**:
+
+    - Join by row order or by region name?
+
+    - Diverging scale centered on zero, or sequential?
+
+    - Which views and surfaces (inflated, pial, 2D outline)?
+
+
+    **Information Needs**:
+
+    - Which regions matched the atlas and which did not
+
+    - Value range and center for the color scale
+
+    - Same color scale applied in sphere and parcel views
+
+
+    **Pain Points**:
+
+    - The metric is computed in one tool and painted in another
+
+    - Some figure libraries cannot take GIfTI or CIFTI surfaces
+
+    - CIFTI parcel matrices do not keep parcel names, so the label file must travel with them
+
+
+    **Data Flow**:
+
+    - Input: Node table with a value column; NIfTI label atlas, GIfTI/CIFTI label file or named 2D atlas
+
+    - Transformations: Join by label or row order, color mapping, parcel mesh generation, multi-view arrangement
+
+    - Output: Multi-view parcel map figure with color bar, optionally paired with the sphere view
+success_criteria:
+    - metric: Join transparency
+      target: Count of matched and unmatched regions shown after the join
+    - metric: Shared scale
+      target: Switching between parcel and sphere views keeps the same color mapping
+    - metric: Figure grid
+      target: Lateral and medial views of both hemispheres exported in one step
+sources:
+    - title: NetPlotBrain paper
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10312269/
+      summary: Parcels node style generates a surface per integer label; no GIfTI or CIFTI support yet
+    - title: ggseg README
+      url: https://cran.r-project.org/web/packages/ggseg/readme/README.html
+      summary: Data frame with a region column joined to the atlas by geom_brain; dk, aseg and tracula atlases
+    - title: ggseg repository
+      url: https://github.com/LCBC-UiO/ggseg
+      summary: 2D atlas plots and add-on atlas packages
+    - title: Xia et al. 2013, BrainNet Viewer
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC3701683
+      summary: Volume-to-surface mapping and combined surface, node, edge and volume figures
+    - title: HCP Users list - NaN in pconn
+      url: https://groups.google.com/a/humanconnectome.org/g/hcp-users/c/TvoBnxo7ZKg
+      summary: Parcel matrices and label files on HCP surfaces
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,19 @@
+id: plugin-file-reader-contract
+name: File Reader Plugin Contract
+category: analysis
+description: Register a reader for a custom file format with an import preview and row-level error codes naming the file
+    row and the expected value.
+status: planned
+notes: "Research trace: developers-embedding-and-extending-graph-visualization.md section 10, table row 20 (Must)."
+algorithms: []
+used_by_workflows:
+    - W289
+    - W1162
+implemented_by_components: []
+requirements:
+    - "Must: Plugin contract for file readers with row-level error codes; registration that fails at once, naming the
+      plugin and the bad field"
+sources:
+    - title: Developers Who Embed Graph Visualization in Products or Extend It With Plugins (section 10, table row 20)
+      url: design/user-research/developers-embedding-and-extending-graph-visualization.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

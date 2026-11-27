@@ -1,0 +1,82 @@
+id: software-supply-chain-security-engineer
+name: Software Supply Chain Security Engineer
+roster_persona: dependency-impact-engineer
+tier: A
+scope: in-scope
+role: Application Security Engineer
+quote: A critical CVE just dropped. Which of our 600 repositories ship it, through what chain, and which direct dependency do the teams have to bump?
+bio: >-
+    Shira is on a five-person application security team covering 600 repositories. She lives in package dependency
+    graphs: lockfiles, `npm ls --all`, `npm explain`, `mvn dependency:tree` and `gradle dependencyInsight`, plus a
+    portfolio of CycloneDX and SPDX software bills of materials (SBOMs) in OWASP Dependency-Track, with Dependabot,
+    Snyk or Endor Labs alerts and advisories carrying CVSS, EPSS and CISA KEV flags. When an advisory lands she
+    searches every SBOM for the exact component and version range, explains the chain from each application root to
+    the vulnerable package, picks the direct dependency to bump, and files tickets in priority order. She also answers
+    developers' "why is this installed and which version won" questions and audits licenses and bloat before releases.
+    Most of her answers come from text trees; she reaches for a visualization (sunburst, force graph) only when the
+    text fails, which at portfolio scale is often.
+characteristics:
+    expertise: expert
+    time_pressure: high
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Answer which applications ship a vulnerable component, through which path, within hours of an advisory
+    - Name the direct dependency each team must bump, and the order in which upstream fixes must land
+    - Prioritize by exploitability (CVSS, EPSS, KEV) and reachability, not raw alert count
+    - Reduce attack surface by removing unused dependencies and forbidden licenses
+behaviors:
+    - Notes exact coordinates and version range from the advisory before searching
+    - Queries the SBOM store for every project containing the component, then explains each path with npm explain or Gradle dependency insight
+    - Treats a component with no dependency edges in an SBOM as "unknown", not "has no dependencies"
+    - Colors nodes by severity and hop distance and distinguishes direct from transitive dependencies
+    - Distinguishes the same package at several versions and checks which version the resolver selected
+    - Files tickets containing the path and the fix point, and lets policy violations fail CI
+    - Joins design-phase threat modeling sessions with the development team and triages the threats generated per element of a data flow diagram
+frustrations:
+    - Dependabot shows only direct dependencies; npm audit reports transitive ones only as a textual table
+    - About half of real SBOMs carry no dependency edges at all
+    - Nested JARs hide vulnerable code from dependency trees
+    - SBOM graph renderers become unreadable at scale
+    - An SBOM does not prove what is deployed
+context:
+    frequency: daily
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W78
+    - W81
+    - W117
+sources:
+    - title: Google Security Blog - Understanding the impact of Apache Log4j
+      url: https://security.googleblog.com/2021/12/understanding-impact-of-apache-log4j.html?m=1
+      summary: 35,863 Maven artifacts affected, over 80% indirectly, most five levels deep; fixes propagate from the deepest dependencies first
+    - title: V-Achilles - visualizing vulnerable transitive dependencies (arXiv)
+      url: https://arxiv.org/html/2405.09074v1
+      summary: npm audit reports transitive dependencies only as text; colored graph changed fix priority for 7 of 10 participants
+    - title: SBOM dependency completeness study (arXiv)
+      url: https://arxiv.org/abs/2607.22140
+      summary: 52.9% of real SBOMs carry no dependency edges
+    - title: CycloneDX Sunshine
+      url: https://cyclonedx.github.io/Sunshine
+      summary: Sunburst SBOM visualization colored by severity; graph renderers become unreadable at scale
+    - title: npm explain documentation
+      url: https://docs.npmjs.com/cli/v10/commands/npm-explain
+      summary: Prints each installed copy of a package with its dependency chain to the root
+    - title: Gradle - Viewing and debugging dependencies
+      url: https://docs.gradle.org/current/userguide/viewing_debugging_dependencies.html
+      summary: dependencyInsight shows selection reasons; repeated subtrees marked (*)
+    - title: AWS Security Blog - Java nested dependencies with Amazon Inspector SBOM generator
+      url: https://aws.amazon.com/blogs/security/identify-java-nested-dependencies-with-amazon-inspector-sbom-generator
+      summary: Nested JARs hide log4j from mvn dependency:tree
+    - title: Dependency-Track - Triaging policy violations
+      url: https://dependencytrack.github.io/docs/next/guides/user/triaging-policy-violations/
+      summary: Portfolio-wide component search and policy violations that can fail CI
+    - title: OWASP - Threat modeling cheat sheet
+      url: https://cheatsheetseries.owasp.org/cheatsheets/Threat_Modeling_Cheat_Sheet.html
+      summary: Threat modeling is "typically a team effort" done early in design; security teams are invited to the sessions
+version: 1.1.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

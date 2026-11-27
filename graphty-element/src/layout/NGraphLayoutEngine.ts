@@ -1251,6 +1251,34 @@ export class NGraphEngine extends LayoutEngine {
     }
 
     /**
+     * Holds a node still for the duration of a drag, as a pinned body with no velocity left, without pinning it.
+     *
+     * Unheld, ngraph kept integrating the body between pointer moves: its velocity (up to one unit a step) carried the
+     * node on along the line of sight while the pointer moved it across, so a node dragged while the layout ran slid
+     * away from the reader.
+     * @param n - The node the pointer has taken.
+     */
+    beginDrag(n: Node): void {
+        const ngraphNode = this._getMappedNode(n);
+        this.ngraphLayout.pinNode(ngraphNode, true);
+        const body = this.ngraphLayout.getBody(ngraphNode.id);
+        if (body !== undefined) {
+            body.velocity.x = 0;
+            body.velocity.y = 0;
+            body.velocity.z = 0;
+        }
+    }
+
+    /**
+     * Gives the node back to the simulation, unless the drop pins it or it was pinned or held already.
+     * @param n - The node the pointer has let go of.
+     * @param pin - True when the drag ends in a pin.
+     */
+    endDrag(n: Node, pin: boolean): void {
+        this.ngraphLayout.pinNode(this._getMappedNode(n), pin || n.isPinned() || this.isHeld(n.index));
+    }
+
+    /**
      * Unpin a node to allow it to move freely
      * @param n - The node to unpin
      */

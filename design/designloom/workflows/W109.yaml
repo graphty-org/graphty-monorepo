@@ -1,0 +1,165 @@
+id: W109
+name: Enterprise Attack Path Management and Choke Point Remediation
+category: analysis
+validated: false
+personas:
+    - marcus-lindqvist
+    - cybersecurity-analyst
+requires_capabilities:
+    - shortest-path
+    - all-paths-finding
+    - path-highlighting
+    - removal-impact-analysis
+    - filtering
+    - saved-filters
+    - layout-hierarchical
+    - details-on-demand
+    - statistics-panel
+    - temporal-analysis
+    - comparison-view
+    - report-generation
+    - data-export
+    - graph-diff
+    - typed-edge-filtering
+    - set-to-set-paths
+    - user-node-flags
+    - exposure-choke-points
+suggested_components:
+    - graph-canvas
+    - filter-panel
+    - ranked-node-table
+    - impact-analysis-dialog
+    - path-finder-dialog
+    - node-details-panel
+    - statistics-panel
+    - metric-card
+    - comparison-view
+    - report-generator-dialog
+    - data-export-dialog
+starting_state:
+    data_type: Continuously collected AD and Entra ID graph with Tier Zero and other Privilege Zone definitions, plus history of analysis runs
+    node_count: 10,000-500,000
+    edge_density: sparse, typed and directed
+    user_expertise: advanced
+goal: >-
+    **Intent**: Run attack path reduction as a continuous program instead of a one-off audit: measure how many
+    principals can reach Tier Zero, remove the choke points that sever the most paths, prove each fix worked, and show
+    the trend to leadership. This is the defensive counterpart of the penetration tester's BloodHound work, done in
+    BloodHound Enterprise or the Microsoft Defender XDR hunting graph.
+
+
+    **Mental Model**: "Close the funnel." Thousands of principals flow into a few chokes before reaching the crown
+    jewels; cut the choke and every path through it disappears at once. Success is a falling exposure number, not a
+    shorter findings list.
+
+
+    **Task Phases**:
+
+    1. **Define the zone** (one-off, revisited) - Decide which assets are Tier Zero or another Privilege Zone; widening
+    it (for example adding a help desk group) makes new findings appear
+
+    2. **Let collection and analysis run** (continuous) - Collection runs on a schedule; attack paths are recomputed
+    after each run
+
+    3. **Read the queue** (daily) - Filter the Attack Paths page by environment, zone and risk; each finding
+    shows severity, exposure (share of principals with a path through it), impact and remediation; a choke point graph
+    aggregates the exposed principals behind each finding
+
+    4. **Prioritize** - Pick findings with high exposure and high impact; one published example had a single
+    choke point reachable by 93 percent of users, others by 41 and 10 percent
+
+    5. **Run a campaign** - Define a Privilege Zone around in-scope assets, review findings, assign owners, track
+    reduction
+
+    6. **Check safety and remediate** - Before removing a privilege, determine whether it breaks a business process;
+    file the change
+
+    7. **Verify** - After the next collection, the path must be gone; the Posture page compares counts and changes per
+    attack path type across runs
+
+    8. **Ad hoc scenarios** - In the Defender XDR hunting graph, run predefined scenarios (paths to domain admins,
+    Kerberoast paths to critical assets, choke points to SQL data stores, critical Kubernetes clusters), filter source
+    and target node properties, pick among 19 edge types and direction, and show only shortest paths
+
+    9. **Report** (monthly) - Exposure trend and campaign progress for the CISO and auditors
+
+
+    **Decision Points**:
+
+    - What belongs in Tier Zero, knowing that a wider definition raises the finding count?
+
+    - Which choke point first: highest exposure, highest impact, or easiest safe fix?
+
+    - Is this privilege used by a business process, and who must approve its removal?
+
+    - Did the fix work, or did a new path appear around it?
+
+
+    **Information Needs**:
+
+    - Exposure per finding as a share of all principals, and the list of principals behind it
+
+    - The choke point nodes and edges that appear on the most paths into the zone
+
+    - A what-if count: how many paths and principals remain if this edge or node is removed
+
+    - Counts and changes per attack path type across analysis runs
+
+    - Why a node is on a path (which edges put it there)
+
+
+    **Pain Points**:
+
+    - Finding counts rise as visibility improves, which reads as failure in a leadership report
+
+    - No view of which business process depends on a privilege before it is removed
+
+    - Vendor claims of paths severed per choke point come without published methodology
+
+    - Collection is detected as reconnaissance by the company's own security tools
+
+    - Verification waits for the next collection run
+
+
+    **Data Flow**:
+
+    - Input: Scheduled SharpHound and AzureHound collections; zone definitions; prior analysis runs
+
+    - Transformations: Set-to-zone reachability, exposure counts, choke point ranking, what-if removal, run-to-run diff
+
+    - Output: Ranked remediation queue, change tickets, verified-removed paths, exposure trend report
+success_criteria:
+    - metric: Choke point ranking
+      target: User can list the top choke points into a chosen zone with the share of principals each one exposes
+    - metric: What-if removal
+      target: User can see the change in exposure before making a change
+    - metric: Trend
+      target: Exposure per zone shown across at least two analysis runs with new and resolved paths separated
+sources:
+    - title: BloodHound docs - Attack Paths graph view
+      url: https://bloodhound.specterops.io/analyze-data/findings/graph-view
+      summary: Environment, zone and risk filters, choke point graph, severity, exposure, impact and remediation per finding
+    - title: BloodHound docs - Posture
+      url: https://bloodhound.specterops.io/analyze-data/findings/posture
+      summary: Counts and changes per attack path type across analysis runs
+    - title: BloodHound docs - Run remediation campaigns
+      url: https://bloodhound.specterops.io/analyze-data/privilege-zones/use-cases/run-remediation-campaigns
+      summary: Campaigns around a Privilege Zone with owners and tracked reduction
+    - title: SpecterOps - Attack path management pillar 2
+      url: https://specterops.io/blog/2022/01/27/3-foundational-pillars-for-attack-path-management-pillar-2-empirical-impact-assessment/
+      summary: Exposure as share of principals; 93, 41 and 10 percent example
+    - title: SpecterOps - Attack path management pillar 3
+      url: https://specterops.io/blog/2022/03/03/attack-path-management-pillars-part-3-safe-ad-security-remediation-guidance/
+      summary: Safe remediation and verification
+    - title: SpecterOps - Getting started with BloodHound Enterprise part 2
+      url: https://specterops.io/blog/2025/03/19/getting-started-with-bhe-part-2/
+      summary: Adding Tier Zero assets creates new findings
+    - title: SpecterOps - BloodHound Enterprise
+      url: https://specterops.io/bloodhound-enterprise/
+      summary: Vendor claim that one choke point severs more than 17,000 paths on average (methodology not published)
+    - title: Microsoft Learn - Defender XDR advanced hunting graph
+      url: https://learn.microsoft.com/defender-xdr/advanced-hunting-graph
+      summary: Predefined scenarios, property filters, 19 edge types, direction, shortest-paths-only, choke points
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -153,6 +153,30 @@ is drawn once its layout settles, which is most of a row's CPU on a software GPU
 keep every transition. It prints a table of results, exits 1 when a scenario failed, and keeps a
 failed scenario's screenshot under `--out` (default `tmp/selection-workspace-uat`).
 
+## Every route ends with a reload
+
+Once a route's checks pass, the runner reloads the page the way Safari brings back a background tab it
+ended: it waits for graphty-element's autosave to keep the work, empties session storage and
+`window.name`, reloads, and waits for the same screen. The screen is `screen-fingerprint.mjs`: open
+dialogs, lists and named regions, pressed buttons, selected tabs, tree items and options, the current
+item, expanded sections, and the values of the fields inside what is open. A menu or a picker's list held
+open over the page is left out: a reload closes it as a click elsewhere does. Anything gone or changed fails
+the route. The real-element tests' `reload()` (`src/test/reload.tsx`) reads the same fingerprint.
+
+A route with a loss that cannot be fixed yet names it, with the open issue that tracks it:
+
+```js
+reloadLoses: [{ what: "expanded: Fill", issue: 1234 }],
+```
+
+The run refuses to start when such an issue is closed, so an excuse cannot outlive its bug.
+
+The `reload-sweep` route (`reload-sweep.mjs`) needs no list at all: it opens a sample, adds a layer named
+"test", then clicks every enabled control it finds by role (button, tab, tree item, menu item, option,
+switch), and every control that click brought up, reloading after each. It fails once, listing every
+control whose reload changed the screen. It never clicks a control whose name says it opens, closes,
+deletes, saves, exports or undoes something.
+
 ## Adding a route
 
 Add an object to the `routes` list in `routes.mjs`. A feature added to the app adds a route, and a

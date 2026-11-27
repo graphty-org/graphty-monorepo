@@ -1,0 +1,19 @@
+id: batch-name-matching
+name: Batch Name Matching
+category: analysis
+description: Paste or upload a list of names and get hits per name against the loaded graph, with fuzzy and variant
+    matching, the matched variant shown, and names with zero hits listed.
+status: planned
+notes: "Research trace: investigative-journalism-and-osint.md section 10, requirement R4 (Must)."
+algorithms: []
+used_by_workflows:
+    - W89
+    - W90
+    - W1090
+implemented_by_components: []
+requirements:
+    - "Must: Batch match: paste or upload a list of names and get hits per name"
+sources:
+    - title: Investigative journalists, OSINT investigators and trust-and-safety teams (section 10, requirement R4)
+      url: design/user-research/investigative-journalism-and-osint.md
+      summary: "Must in the research. Covered by Designloom when researched: Not covered"

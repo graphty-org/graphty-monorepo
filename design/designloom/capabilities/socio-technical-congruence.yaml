@@ -1,0 +1,37 @@
+id: socio-technical-congruence
+name: Socio-Technical Congruence
+category: analysis
+description: "Compare who needs to coordinate with who actually does. Coordination needs come from the history: two
+    developers need to coordinate when they change the same or coupled files (assignment matrix times file dependency
+    matrix times its transpose). Actual coordination comes from a communication or collaboration network (review
+    comments, issue threads, mailing lists, or the co-editing network). Show the two as one developer graph with
+    edges marked needed-and-present, needed-but-missing and present-only, roll them up to teams, and report the
+    congruence score with the window and sources used."
+status: planned
+notes: "Research trace: dependency-and-impact-analysis-engineers.md section 10, requirement R40 (Should)."
+algorithms:
+    - Coordination requirements matrix (Cataldo and Herbsleb)
+    - Congruence as the share of required coordination edges that are present
+used_by_workflows:
+    - W3079
+    - W3080
+implemented_by_components: []
+requirements:
+    - "Should: Coordination needs derived from history compared with a communication network, edges marked needed,
+      missing and present-only, rolled up to teams, with a congruence score and its inputs stated"
+sources:
+    - title: TNM - CoordinationNeedsMatrixCalculation and MirrorCongruenceCalculation
+      url: https://github.com/JetBrains-Research/tnm
+      summary: Coordination needs from the file dependency and assignment matrices; congruence as one number in [0, 1]
+    - title: "TNM: a tool for mining socio-technical data from git repositories (Sviridov, Evtikhiev, Kovalenko, MSR 2021)"
+      url: https://arxiv.org/abs/2103.09766v1
+      summary: Open-source tool for mining socio-technical data from git repositories
+    - title: "In search of socio-technical congruence: a large-scale longitudinal study (Mauerer et al., IEEE TSE)"
+      url: https://arxiv.org/abs/2105.08198
+      summary:
+          Across 25 large open-source projects, socio-technical motif congruence was not related to bugs or churn in
+          any temporal scenario
+    - title: Coordination, congruence and productivity (Making Software, chapter 11)
+      url: https://www.oreilly.com/library/view/making-software/9780596808310/ch11s02.html
+      summary: Congruence as the match between coordination requirements from technical dependencies and actual
+          coordination

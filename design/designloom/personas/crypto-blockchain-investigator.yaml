@@ -1,0 +1,104 @@
+id: crypto-blockchain-investigator
+name: Crypto Blockchain Investigator
+roster_persona: aml-investigator
+tier: A
+scope: in-scope
+role: Blockchain Tracing Investigator, crypto exchange financial-crimes team or a law-enforcement tax or cyber unit
+quote: Where did these coins come from, which swaps and bridges did they cross, and which exchange cashed them out? And how sure am I that this cluster is really one owner?
+bio: >-
+    Javier Herrera traces funds on public blockchains for a crypto exchange's financial-crimes team, after several years in a
+    police cryptocurrency unit. The tracing tool's graph (Chainalysis Reactor or TRM Forensics; Elliptic Investigator or
+    Crystal elsewhere) is his main screen all day. He seeds it with an address or transaction hash from an alert, a victim
+    report or a law-enforcement order, reads Bitcoin-style transactions with many inputs and outputs as transaction nodes,
+    leans on the vendor's address clusters and attribution labels (exchange, mixer, darknet market, sanctioned entity),
+    expands hop by hop in the direction of the funds, collapses swaps and bridges into single steps, and stops at a cluster
+    attributed to a regulated exchange. He knows the clustering heuristics can be wrong: CoinJoin and PayJoin defeat the
+    common-input rule and one wrong change link can merge two exchanges into a supercluster. Where funds are mixed he must
+    choose an allocation rule (poison, haircut or first in first out), which gives very different answers. His outputs are
+    a decision on incoming funds, an exported graph with transaction list and report, a SAR, and records requests to other
+    exchanges; he also answers legal orders and shares charts with partners who use i2.
+characteristics:
+    expertise: expert
+    time_pressure: high
+    graph_literacy: advanced
+    domain_knowledge: advanced
+motivations:
+    - Decide whether incoming funds come from a hack, scam, sanctioned party or darknet market
+    - Trace funds to the service where they were cashed out so records can be requested
+    - Answer law-enforcement orders and file SARs with exports that hold up
+    - Keep watching addresses that still hold stolen funds
+behaviors:
+    - Seeds the graph with an address or transaction hash
+    - Reads transaction structure (inputs, outputs, change) and works with transaction-as-node graphs
+    - Applies co-spend and change heuristics and overlays vendor attribution labels on clusters
+    - Expands hop by hop in the direction of the funds, noting the amount carried at each hop
+    - Collapses swaps, bridges and mixers into one displayed step and expands them when challenged
+    - Allocates mixed funds under poison, haircut or first-in-first-out rules, often comparing two
+    - Puts addresses still holding funds on a watch list for movement alerts
+    - Exports graph, transaction list and report, with an audit trail of exports
+    - Joins the exchange's own customer and deposit records to the chain data
+frustrations:
+    - Address clusters are heuristic and can wrongly collapse many owners into one
+    - Cross-chain hops break simple path following
+    - The exchange's own deposit and sweep addresses add noise to every trace
+    - Allocation rules give very different answers and the vendor's rule is not documented publicly
+    - Proprietary heuristics are hard to explain in court
+context:
+    frequency: daily
+    devices:
+        - desktop
+    voluntary: false
+workflows:
+    - W120
+    - W121
+    - W103
+    - W105
+sources:
+    - title: Chainalysis Reactor product page
+      url: https://www.chainalysis.com/product/reactor/
+      summary: Vendor; 27+ blockchains, swap and bridge auto-interpretation, attribution labels, integrations with i2, Cellebrite and Siren
+    - title: Crypto.com blockchain investigator posting
+      url: https://jobs.lever.co/crypto/611acd9c-c98f-486b-8d13-984791d6a83d
+      summary: Asks for familiarity with movement of funds on UTXO and account-based networks
+    - title: Bisbee declaration, United States v. Sterlingov
+      url: https://storage.courtlistener.com/recap/gov.uscourts.dcd.232431/gov.uscourts.dcd.232431.149.1.pdf
+      summary: Chainalysis expert on co-spend and deposit-address clustering, and exchanges confirming attributions on subpoena
+    - title: Moser and Narayanan - Resurrecting address clustering in Bitcoin (FC 2022)
+      url: https://arxiv.org/abs/2107.05749
+      summary: Multi-input heuristic vulnerable to CoinJoin and PayJoin; naive change merging produced one large supercluster
+    - title: Anderson et al. - Bitcoin Redux (WEIS 2018)
+      url: https://www.cl.cam.ac.uk/~rja14/Papers/bitcoin-redux-weis2018.pdf
+      summary: Poison, haircut and FIFO taint rules; on one theft haircut tainted 93 percent of addresses and FIFO 1.3 percent
+    - title: TRM Labs - What's new, October 2026
+      url: https://www.trmlabs.com/forensics/whats-new-2026-10
+      summary: Real-time swap matching across 36 EVM chains and 21 bridges
+    - title: TRM Labs - January 2026 product highlights
+      url: https://www.trmlabs.com/resources/blog/january-product-highlights-accelerating-investigations-with-intuitive-workflows
+      summary: Add a graph address to a monitoring tool for near real-time movement alerts
+    - title: Chainalysis Reactor product page
+      url: https://www.chainalysis.com/chainalysis-reactor/
+      summary: Follow funds from first deposit to final cash-out; labeled service clusters; add financial entities and documents to the graph
+    - title: Chainalysis - Cross-chain investigations
+      url: https://www.chainalysis.com/blog/cross-chain-investigations/
+      summary: Every case-relevant token in a single graph with an asset selector that dims other clusters
+    - title: TRM Forensics
+      url: https://www.trmlabs.com/forensics
+      summary: Follow UTXO transactions forward or backward with a single click; shows which clustering heuristic is used (search excerpt)
+    - title: GraphSense
+      url: http://graphsense.org/
+      summary: Open-source analytics with transaction traversal, path search between two nodes, and TagPacks for attribution
+    - title: INTERPOL GraphSense Maltego transform
+      url: https://www.github.com/INTERPOL-Innovation-Centre/GraphSense-Maltego-transform
+      summary: To Cluster and To Tags transforms used by investigators inside Maltego
+    - title: Stout - Judicial scrutiny of Chainalysis (United States v. Sterlingov)
+      url: https://www.stout.com/en/insights/article/judicial-scrutiny-chainalysis
+      summary: Co-spend heuristic, over 900,000 addresses attributed to Bitcoin Fog, admissibility after Daubert hearings, defense "junk science" attack
+    - title: The Block - New tech streamlines investigations into illicit crypto use
+      url: https://www.theblock.co/news/business/2022-05-19-new-tech-streamlines-investigations-into-illicit-crypto-use-chainalysis-147856
+      summary: Reactor wash-trading graph described as a Christmas tree of multicolor transactions
+    - title: Haslhofer and Meiklejohn 2022 - Cryptocurrency forensics
+      url: https://arxiv.org/abs/2205.13882
+      summary: Change heuristic and peel chains, and their error modes
+version: 1.1.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

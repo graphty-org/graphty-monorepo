@@ -1,0 +1,19 @@
+id: coded-segment-co-occurrence
+name: Coded Segment Co-occurrence
+category: analysis
+description: Import a coded-segment table (one row per segment, 0/1 code columns, metadata) and build a code
+    co-occurrence network with a chosen unit (segment overlap, document, moving window within a conversation).
+status: planned
+notes: "Research trace: text-and-qualitative-data-networks.md section 10, requirement 1 (Must)."
+algorithms: []
+used_by_workflows:
+    - W405
+    - W407
+implemented_by_components: []
+requirements:
+    - "Must: Import a coded-segment table (one row per segment, 0/1 code columns, metadata) and build a code
+      co-occurrence network with a chosen unit (segment, document, moving window within a conversation)"
+sources:
+    - title: Text and Qualitative Data Networks (section 10, requirement 1)
+      url: design/user-research/text-and-qualitative-data-networks.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

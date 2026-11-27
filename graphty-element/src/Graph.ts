@@ -185,7 +185,7 @@ import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema"
 import { type ExportGraphOptions, type ExportResult, exportSession } from "./data/export";
 import { WRITABLE_LANE, writableLane } from "./data/lane";
 import { fetchBytes, sampleOf } from "./data/source-bytes";
-import type { Edge } from "./Edge";
+import { type Edge, edgeInternals } from "./Edge";
 import { GraphtyError, isGraphtyError } from "./errors";
 import type { GraphtyErrorCode } from "./errors/codes";
 import {
@@ -5784,6 +5784,18 @@ export class Graph implements GraphContext {
                     this.renderManager.requestFrame();
                 },
                 settled: () => !this.isRunning() || this.layoutManager.layoutEngine?.isSettled !== false,
+                outside: (row, centre) => {
+                    // a row a `Node` draws (one dragged, read or hovered) is measured by that `Node`, building none
+                    const measure =
+                        this.#nodeBatches?.columnRowOf(row) ??
+                        dataManagerInternals.builtNodeAtRow(this.dataManager, row);
+                    return measure === undefined ? null : edgeInternals.outside(measure, centre);
+                },
+                edgesJoining: (source, target) => dataManagerInternals.edgesJoining(this.dataManager, source, target),
+                refused: (row) => {
+                    this.getStylePainter()?.queue("edge", row);
+                    this.renderManager.requestFrame();
+                },
             });
             const batches = this.#nodeBatches;
             const target = new NodeIdTarget(this.scene, {
@@ -6164,6 +6176,7 @@ export class Graph implements GraphContext {
         // Under "batched" it waits for the first object row's mesh: until a mesh has an action,
         // Babylon runs no pick on a move (design/rendering/row-renderer.md 4.4).
         const nodeRoster = nodePointerRosterOf(this.scene);
+        nodeRoster.hoverWhileDragging = () => this.styles.config.behavior.camera.hoverWhileDragging;
         if (!this.#batchesDraw()) {
             nodeActionManagerOf(this.scene);
         }
@@ -6455,11 +6468,15 @@ export class Graph implements GraphContext {
      */
     private handleBackgroundClick(event: ClickModifiers): void {
         const { pointerX: x, pointerY: y } = this.scene;
-        if (this.handledOnCloseLabel(x, y)) {
+        // Each pick walks every mesh on the "objects" path: only a scene with a close button looks for one.
+        if (hasCloseLabels(this.scene) && this.handledOnCloseLabel(x, y)) {
             return;
         }
 
-        if (pickNodeId(this.scene, x, y) !== undefined) {
+        // The press already picked here; released at the same point, its answer stands.
+        const { pressed } = nodePointerRosterOf(this.scene);
+        const node = pressed !== null && pressed.x === x && pressed.y === y ? pressed.id : pickNodeId(this.scene, x, y);
+        if (node !== undefined) {
             return;
         }
 
@@ -8138,6 +8155,9 @@ export class Graph implements GraphContext {
         return {
             forEachShown: (visit, only) => {
                 lines.forEachShown(visit, only);
+            },
+            forEachShownCurve: (visit, only) => {
+                lines.forEachShownCurve(visit, only);
             },
             idOf: (row) => dataManagerInternals.unbuiltEdgeId(this.dataManager, row),
         };

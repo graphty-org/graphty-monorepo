@@ -5,8 +5,8 @@ validated: false
 personas:
     - analyst-alex
     - expert-emma
-    - fraud-analyst
     - marketing-analyst
+    - network-neuroscience-researcher
 requires_capabilities:
     - community-detection
     - community-profiling
@@ -18,10 +18,16 @@ requires_capabilities:
     - comparison-view
     - algorithm-progress
     - metric-histograms
+    - analysis-history
+    - seeded-runs
+    - partition-stability
+    - resolution-sweep
+    - hub-role-analysis
 suggested_components:
     - graph-canvas
     - algorithm-panel
     - community-panel
+    - cluster-table
     - filter-panel
     - visual-encoding-panel
     - statistics-panel
@@ -29,6 +35,7 @@ suggested_components:
     - legend-item
     - progress-bar
     - comparison-view
+    - range-slider
 starting_state:
     data_type: connected graph
     node_count: 10-100000
@@ -36,33 +43,43 @@ starting_state:
     user_expertise: intermediate+
 goal: >-
     **Intent**: Identify and characterize groups of densely connected nodes within a network. User wants to understand
-    what natural groupings exist, what defines each group, and how groups relate to each other.
+    what natural groupings exist, whether they are stable enough to name, what defines each group, and how groups
+    relate to each other. The full review-grade procedure (many seeded runs, consensus, null test) is W38; this is the
+    everyday version, with the same defaults.
 
 
     **Mental Model**: "Finding neighborhoods in a city" - areas where people interact more with each other than with
-    outsiders. Or "clustering" - grouping similar things together.
+    outsiders. A partition is an estimate: run it again and it may move.
 
 
     **Task Phases**:
 
-    1. **Detection** - Run community detection algorithm (Louvain is default choice)
+    1. **Prepare** - Work on the giant component or state how isolates are handled; weights are read as strengths;
+    negative weights need a signed method or are dropped first
 
-    2. **Validation** - Check if communities are meaningful (modularity > 0.3?)
+    2. **Detection** - Run Leiden (the default; it guarantees connected communities) with an explicit quality function
+    (modularity or Constant Potts Model) and resolution, and a recorded seed; Louvain only to reproduce older work;
+    a stochastic block model when the claim is that the groups exist in the generating process
 
-    3. **Characterization** - For each community: size, density, common attributes, internal hubs
+    3. **Stability** - Rerun with several seeds and nearby resolutions; compare partitions with normalized mutual
+    information or adjusted Rand; mark nodes that change community
 
-    4. **Boundary Analysis** - Identify bridge nodes connecting communities
+    4. **Characterization** - For each community: size, density, common attributes, internal hubs (within-module degree
+    z-score), and checks against outside evidence (metadata, bios, known labels)
 
-    5. **Inter-Community Structure** - Understand how communities relate to each other
+    5. **Boundary Analysis** - Identify connector nodes by participation coefficient and betweenness
+
+    6. **Inter-Community Structure** - Understand how communities relate to each other
 
 
     **Decision Points**:
 
-    - Which community detection algorithm to use? (Louvain for speed, Girvan-Newman for quality)
+    - Description (Leiden) or inference (stochastic block model)?
 
-    - Is modularity score high enough to trust the communities?
+    - Which quality function and resolution? Resolution 1 is not special, and CPM at resolution 1 on an unweighted
+    graph returns near-singletons
 
-    - Are communities stable across different algorithms/parameters?
+    - Are communities stable across seeds and nearby resolutions?
 
     - Which communities warrant deeper investigation?
 
@@ -71,24 +88,28 @@ goal: >-
 
     **Information Needs**:
 
-    - Number of communities detected
+    - Number of communities and their size distribution (one giant community is suspicious)
 
-    - Modularity score (quality metric)
+    - Method, quality function, resolution and seed
 
-    - Community size distribution (one giant community is suspicious)
+    - Run-to-run agreement (NMI or adjusted Rand) and per-node stability
 
-    - Top nodes per community (by degree or centrality)
+    - Modularity Q as a descriptive number only, compared with Q on degree-preserving randomizations if it is cited
 
-    - Community attribute profiles (what do members have in common?)
+    - Top nodes per community and community attribute profiles
 
-    - Bridge nodes (high betweenness, connect communities)
+    - Connector nodes (high participation coefficient or betweenness)
 
 
     **Pain Points**:
 
-    - Different algorithms give different results - which is "right"?
+    - Louvain, still the default in Gephi and many tutorials, can return internally disconnected communities
 
-    - Resolution parameter affects number of communities found
+    - Different runs and different input row orders give different results, with no stability tooling
+
+    - Resolution parameter changes the number of communities and tutorials give no rule for choosing it
+
+    - Modularity has a resolution limit, many near-equal optima, and reaches high values on random graphs
 
     - Communities may be artifacts of incomplete data
 
@@ -99,23 +120,46 @@ goal: >-
 
     - Input: Connected graph (typically giant component)
 
-    - Transformations: Community detection, modularity calculation, profile generation
+    - Transformations: Seeded Leiden or block-model detection, stability reruns, profile generation
 
-    - Output: Community assignments + characterization profiles + inter-community map
+    - Output: Community assignments with stability, characterization profiles, inter-community map, recorded parameters
 success_criteria:
-    - metric: Modularity score
-      target: "> 0.3 for meaningful communities"
+    - metric: Stability shown
+      target: Partition reported with run-to-run agreement over several seeds, and unstable nodes marked
+    - metric: Parameters recorded
+      target: Method, quality function, resolution and seed exported with the partition
     - metric: Communities characterized
-      target: Each major community has a profile
-    - metric: Bridge nodes identified
-      target: Inter-community connectors flagged
+      target: Each major community has a profile checked against outside evidence
+    - metric: Connectors identified
+      target: Inter-community connectors flagged by participation coefficient or betweenness
 sources:
-    - title: Practical Graph Analysis Guide - Chapter 4
-      url: https://graphty.app/docs/
-      summary: Community Structure Analysis Pipeline
+    - title: From Louvain to Leiden - guaranteeing well-connected communities (Traag, Waltman and van Eck 2019)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6435756/
+      summary: Louvain yields disconnected communities; Leiden guarantees connectivity and is faster
+    - title: Resolution limit in community detection (Fortunato and Barthelemy 2007)
+      url: https://arxiv.org/abs/physics/0607100
+      summary: Modularity merges small modules
+    - title: Performance of modularity maximization in practical contexts (Good, de Montjoye and Clauset 2010)
+      url: https://arxiv.org/abs/0910.0165
+      summary: Degenerate near-optimal partitions; the "Q > 0.3" rule has no basis
+    - title: Descriptive vs inferential community detection (Peixoto 2023)
+      url: https://arxiv.org/abs/2112.00183v7
+      summary: Modularity finds communities in random graphs; SBM by minimum description length is inferential
+    - title: Community detection in network neuroscience (Betzel 2020)
+      url: https://ar5iv.labs.arxiv.org/html/2011.06723
+      summary: Repeated runs, resolution sweeps and consensus
+    - title: Functional cartography of complex metabolic networks (Guimera and Amaral 2005)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC2175124
+      summary: Within-module degree z-score and participation coefficient
+    - title: Gephi bug 727701
+      url: https://bugs.launchpad.net/gephi/+bug/727701
+      summary: Different community counts per run and per input order
+    - title: Introduction to network visualization with Gephi (Grandjean)
+      url: https://www.martingrandjean.ch/introduction-to-network-visualization-gephi/
+      summary: Tutorial advice to pick a resolution between 0.1 and 2 with no rule
     - title: Gephi Modularity Tutorial
       url: https://medium.com/data-analytics-at-nesta/how-to-create-network-visualisations-with-gephi-a-step-by-step-tutorial-e0743c49ec72
       summary: Community detection and coloring workflow in Gephi
-version: 1.0.1
+version: 1.1.0
 created_at: 2026-01-16T16:22:52.146Z
-updated_at: 2026-01-16T16:42:47.510Z
+updated_at: 2026-11-25T00:00:00.000Z

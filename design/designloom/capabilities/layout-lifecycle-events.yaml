@@ -1,0 +1,30 @@
+id: layout-lifecycle-events
+name: Layout Lifecycle and Testable State
+category: visualization
+description: A layout-complete event or promise, deterministic layout given a seed, and positions, selection and styles
+    queryable through the public API, with screen-to-node hit testing for tests.
+status: planned
+notes: "Research trace: developers-embedding-and-extending-graph-visualization.md section 10, table row 13 (Must)."
+algorithms: []
+used_by_workflows:
+    - W283
+    - W278
+    - W288
+implemented_by_components: []
+requirements:
+    - "Must: Layout-done event or promise, deterministic layout given a seed, and graph state queryable through the API
+      for tests"
+    - "Should: An event when the layout has settled, documented for the common first-load sequence (settle, then frame
+      the graph), plus an option to lay out before the first frame so readers never see the build-up; 3D embedders
+      today chain onEngineStop to zoomToFit, or poll with setTimeout when it fires 10+ seconds late
+      (react-force-graph issues 231, 427 and 593; dep-tree's web view)"
+sources:
+    - title: Developers Who Embed Graph Visualization in Products or Extend It With Plugins (section 10, table row 13)
+      url: design/user-research/developers-embedding-and-extending-graph-visualization.md
+      summary: "Must in the research. Covered by Designloom when researched: Partly (seed option exists)"
+    - title: react-force-graph issue 593, ForceGraph3D zoomToFit example request
+      url: https://github.com/vasturiano/react-force-graph/issues/593
+      summary: zoomToFit from onEngineStop fires 10+ seconds after the graph appears; the reporter polls with setTimeout
+    - title: react-force-graph issue 427, onLoaded event
+      url: https://github.com/vasturiano/react-force-graph/issues/427
+      summary: 4k nodes and 80k links; maintainer answer is cooldownTicks 0, warmupTicks and onEngineStop

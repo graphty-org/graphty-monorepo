@@ -1,0 +1,20 @@
+id: perturbation-simulation
+name: Extinction and press-perturbation simulation
+category: analysis
+description: Interactively remove or push a node and see secondary extinctions or signed press responses across many
+    random simulations, with a results table and replay.
+status: planned
+notes: "Research trace: ecological-interaction-networks.md section 10, table row 15 (Should)."
+algorithms: []
+used_by_workflows:
+    - W166
+    - W169
+implemented_by_components: []
+requirements:
+    - 'Should: Press-perturbation and secondary-extinction simulation with interactive "remove or push this node" and
+      a results table'
+sources:
+    - title: "Ecologists Working with Networks: Species Interactions, Animal Social and Contact Networks, Ecosystem
+          Flows and Landscape Connectivity (section 10, table row 15)"
+      url: design/user-research/ecological-interaction-networks.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

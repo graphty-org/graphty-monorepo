@@ -1,0 +1,153 @@
+id: W201
+name: Coalition Network Evaluation Across Survey Waves
+category: reporting
+validated: false
+personas:
+    - nonprofit-operations-analyst
+    - mel-theory-of-change-officer
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - basic-statistics
+    - statistics-panel
+    - centrality-degree
+    - degree-analysis
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - filtering
+    - comparison-view
+    - temporal-analysis
+    - legend-display
+    - report-generation
+    - export-image
+    - data-export
+    - matrix-import
+    - network-typology-report
+    - wave-identity-matching
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - network-list-panel
+    - statistics-panel
+    - metric-card
+    - ranked-node-table
+    - visual-encoding-panel
+    - filter-panel
+    - comparison-view
+    - legend-panel
+    - report-generator-dialog
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: roster survey exports (respondent-by-member matrix or one worksheet per question) plus a member attribute sheet, for two or more waves
+    node_count: 20-200 member organizations
+    edge_density: medium
+    user_expertise: novice
+goal: >-
+    **Intent**: Evaluate how a coalition or collaborative's network changed between a baseline survey and follow-ups,
+    and report it to the funder. Members rate each other on frequency, type of relationship, trust and value; the
+    evaluator reports density, centralization, reciprocity and trust and value scores, side by side across waves.
+    PARTNER (Visible Network Labs) and Polinode are the common survey tools.
+
+
+    **Mental Model**: "Did the coalition knit together?" A before and after picture, plus a few network-level numbers
+    the funder can read as percentages.
+
+
+    **Task Phases**:
+
+    1. **Build the roster** - Member list with attributes (sector, role, joined date)
+
+    2. **Survey** (outside the tool) - Each respondent rates each roster member; track response status and
+    chase non-response; keep networks above about 70% response
+
+    3. **Import a wave** - One worksheet per relationship question or a respondent-by-member matrix; member
+    attributes; respondent status; ratings become edge weights
+
+    4. **Decide on direction** - Keep reported ties directed and report reciprocity, or symmetrize with a stated
+    rule for one-sided ties where the other side did not respond
+
+    5. **Compute** - Density, degree centralization, in- and out-degree, reciprocity, mean trust and value
+    ratings; identify central and peripheral members
+
+    6. **Import the follow-up wave** - Match members across waves by a stable identifier; members join and
+    leave
+
+    7. **Compare** - Side-by-side maps with stable positions; ties gained and lost; change in the network-level
+    figures
+
+    8. **Report** - Maps, a table of network-level figures per wave, and action steps for the coalition
+
+
+    **Decision Points**:
+
+    - Which relationship question defines the tie (any interaction, or a minimum frequency)?
+
+    - Directed or symmetrized, and what rule for non-respondents?
+
+    - How to treat members who joined or left between waves?
+
+    - Which rating threshold flags an area for growth?
+
+
+    **Information Needs**:
+
+    - Response rate and non-respondents per wave
+
+    - Network-level figures (density, centralization, reciprocity, mean rating) per wave in one table
+
+    - Member identity matches across waves, with unmatched members listed
+
+    - Ties gained and lost highlighted
+
+    - Members sized by degree with sector colors and a legend
+
+
+    **Pain Points**:
+
+    - Survey platforms duplicate the survey but not the respondent list, so rosters are re-uploaded and drift
+
+    - No documented way to match organizations across waves
+
+    - Reports often show only network-level figures because maps are hard to compare
+
+    - Subscription cost of specialized tools
+
+
+    **Data Flow**:
+
+    - Input: Survey exports per wave (XLSX worksheets per question, or matrices), member attribute sheet
+
+    - Transformations: Matrix-to-edge import, ratings as weights, direction rule, network-level metrics, identity
+    matching across waves, difference of edge sets
+
+    - Output: Wave comparison maps, figures table, ranked member lists, funder report
+success_criteria:
+    - metric: Wave comparison
+      target: User can show baseline and follow-up maps side by side with members in the same positions
+    - metric: Report figures
+      target: Density, centralization and reciprocity per wave available without a spreadsheet
+    - metric: Identity transparency
+      target: User can list members present in one wave and not the other
+sources:
+    - title: Visible Network Labs - PARTNER webinar 2017
+      url: https://visiblenetworklabs.com/wp-content/uploads/2019/05/Network-Evaluation-PARTNER-Too-Nov-2017-Webinar.pdf
+      summary: Survey dimensions, centralization over time, benchmark of 1,200 networks
+    - title: Visible Network Labs - PARTNER trust and value metrics brief
+      url: https://visiblenetworklabs.com/2021/03/30/partner-trust-and-value-metrics-a-brief/
+      summary: Trust and value dimensions and scores; below 3.0 flags an area for growth
+    - title: Varda et al. 2015 - AJPH
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4355706
+      summary: Reported ties treated as directed, reciprocity reported, response rate above 70% (162 of 177 networks)
+    - title: Polinode - Surveys documentation
+      url: https://docs.polinode.com/guide/surveys.html
+      summary: Respondent list columns become attributes, ratings as edge weights, response statuses, one worksheet per question, duplicated surveys without respondents
+    - title: Center for Evaluation Innovation - The State of Network Evaluation
+      url: https://evaluationinnovation.org/publication/the-state-of-network-evaluation-cei/
+      summary: Network evaluation practice in philanthropy
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

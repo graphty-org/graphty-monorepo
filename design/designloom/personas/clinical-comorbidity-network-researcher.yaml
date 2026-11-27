@@ -1,0 +1,62 @@
+id: clinical-comorbidity-network-researcher
+name: Clinical Comorbidity Network Researcher
+roster_persona: bioinformatics-researcher
+tier: B
+scope: in-scope
+role: Epidemiologist / Health Data Scientist (registries and claims)
+quote: Only aggregates leave the secure server, so the network I draw is the only thing anyone outside will ever see.
+bio: >-
+    Dr. Mikkel Sorensen is an epidemiologist who studies how diseases co-occur and follow each other in patient
+    populations. He works inside a secure environment on registry or claims extracts: ICD-coded diagnoses with dates for
+    millions of patients, accessible only after an application. In R or Python he computes pairwise statistics (relative
+    risk, phi), tests direction with Bonferroni-corrected binomial tests, chains directional pairs into three- and
+    four-step trajectories with at least 20 patients each, and clusters diagnoses with MCL. The published networks are
+    directed, time-ordered, weighted by relative risk, phi or patient count, and colored by ICD chapter; trajectory
+    clusters are drawn with time running left to right. Published papers do not name the drawing tool. Relative risk
+    favors rare diseases and phi favors common ones, so he keeps one network per measure.
+characteristics:
+    expertise: expert
+    time_pressure: low
+    graph_literacy: intermediate
+    domain_knowledge: advanced
+motivations:
+    - Find significant, directed disease pairs and common multi-step trajectories
+    - Show clusters of related diagnoses colored by ICD chapter
+    - Inform screening and prevention policy
+    - Publish an interactive explorer alongside the paper
+behaviors:
+    - Rounds ICD-10 codes to three characters and counts ordered diagnosis pairs within a time window (for example five years)
+    - Estimates relative risk against matched comparison groups and keeps pairs that pass Bonferroni correction
+    - Keeps separate networks for relative risk and phi, thresholded for display (for example RR > 20, phi > 0.06)
+    - Clusters diagnoses by Jaccard similarity with MCL
+    - Draws each trajectory cluster left to right with edge width proportional to patient count
+    - Checks every exported network against minimum patient counts before it leaves the secure environment
+goals:
+    - Directed comorbidity network with significance
+    - Trajectory diagrams per cluster
+    - Interactive explorer for readers
+frustrations:
+    - Only aggregate networks can leave the secure environment
+    - Each association measure biases toward rare or common diseases, so one network is never enough
+    - Thousands of codes are unreadable until grouped by ICD chapter
+    - No named tool supports left-to-right trajectory drawing; figures are custom
+context:
+    frequency: monthly
+    devices:
+        - desktop
+    voluntary: true
+workflows:
+    - W260
+sources:
+    - title: Jensen et al. 2014 - Temporal disease trajectories condensed from population-wide registry data
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4090719
+      summary: 6.2 million Danish patients; 4,014 directional pairs; 1,171 trajectories; MCL clusters drawn left to right
+    - title: Hidalgo et al. 2009 - A dynamic network approach for the study of human phenotypes
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC2661364
+      summary: Phenotypic disease network from 32.3 million Medicare claims; relative risk and phi networks; display thresholds
+    - title: Goh et al. 2007 - The human disease network
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC1885563/
+      summary: Bipartite OMIM disorder-gene graph projected onto disorders; colored by 22 disease classes
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

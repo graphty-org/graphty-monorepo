@@ -1,0 +1,65 @@
+id: conservation-geneticist
+name: Agency Conservation Geneticist
+roster_persona: phylogeographer-population-geneticist
+tier: A
+scope: in-scope
+role: Conservation Geneticist in a Wildlife or Fisheries Agency Lab
+quote: Managers need to know which rookeries are separate stocks. My job is a defensible map of management units that I can update every season.
+bio: >-
+    Freya Whitfield runs the genetics lab of a wildlife or fisheries agency and advises managers on stock and population
+    units. Her lab has accumulated thousands of samples over many years -- the loggerhead turtle study she models her
+    work on used 3,434 samples from 40 rookeries and found 59 haplotypes -- and haplotype names (such as CC-A2.1) are
+    shared across labs, so they must stay stable. She edits sequences in Sequencher or Geneious, builds TCS or PopART
+    networks, runs AMOVA and pairwise FST in Arlequin, gets maps from GIS staff or online tools, and publishes haplotype
+    frequency baselines that others use for mixed-stock analysis. Her work is moving to SNP panels, which bring
+    population-genomic graph methods into her lab. She reports to managers who are not geneticists, so figures must be
+    readable without the methods section.
+characteristics:
+    expertise: intermediate
+    time_pressure: high
+    graph_literacy: moderate
+    domain_knowledge: expert
+motivations:
+    - Defend management unit boundaries with statistics (for example FST = 0.349, p < 0.0001 among rookeries)
+    - Show managers which breeding sites or watersheds differ, on a map they recognize
+    - Update the same figures as new samples arrive without redrawing everything
+    - Keep haplotype names stable across years and labs
+    - Publish frequency baselines that other agencies can reuse
+behaviors:
+    - Maintains a growing sample database with site, year and haplotype name
+    - Builds a TCS or median-joining network with pies by rookery or watershed and a matching map
+    - Runs AMOVA and pairwise FST and groups sites into clusters before naming management units
+    - Re-runs the analysis when a longer fragment splits a common haplotype
+    - Generalizes locations of endangered species before sharing figures (general practice; no source read)
+    - Moves to SNP panels and population-structure graphs for finer resolution
+frustrations:
+    - Common haplotypes on short fragments hide structure until longer sequences split them
+    - Every update re-runs four programs and redraws the figure
+    - Map and network are drawn separately so colors drift
+    - DnaSP and PopART renumber haplotypes on each run, breaking shared names
+context:
+    frequency: monthly
+    devices:
+        - desktop
+        - laptop
+    voluntary: false
+workflows:
+    - W390
+    - W392
+    - W396
+sources:
+    - title: Shamblin et al. 2014 - loggerhead turtle stock structure
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC3900438
+      summary: 3,486 and 3,434 samples, 42 and 40 rookeries, 59 haplotypes, TCS network, AMOVA and FST, maps; at least 18 management units; a baseline for future mixed-stock analysis
+    - title: TCS (Clement et al. 2000)
+      url: https://bioresearch.byu.edu/tcs
+      summary: Statistical parsimony networks with a 95% connection limit
+    - title: PopART - Leigh and Bryant 2015
+      url: https://datadryad.org/resource/doi:10.5061/dryad.4n4j1/3
+      summary: Network methods, pies by population, map view
+    - title: NetStruct (Greenbaum, Templeton and Bar-David 2016)
+      url: https://www.biorxiv.org/content/10.1101/024042v4.full-text
+      summary: Network-based population structure developed with a conservation focus; edge pruning, modularity, strength of association
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

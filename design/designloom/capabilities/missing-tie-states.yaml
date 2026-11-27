@@ -1,0 +1,26 @@
+id: missing-tie-states
+name: Missing Tie States
+category: analysis
+description: Keep no tie, unknown tie and non-respondent as distinct states through every measure, style and export (NA
+    dyads), and apply non-respondent treatments (listwise, reconstruction, probabilistic imputation) for a sensitivity
+    comparison.
+status: planned
+notes: "Research trace: academic-social-network-research.md section 10, table row 4 (Must)."
+algorithms: []
+used_by_workflows:
+    - W153
+    - W155
+    - W187
+    - W190
+    - W26
+    - W27
+    - W30
+implemented_by_components: []
+requirements:
+    - "Must: Missing-data states: no tie, unknown tie, non-respondent, carried through measures and shown"
+    - "Should: Distinguish not-measured from measured-and-absent edges in partially observed matrices so drawing and metrics (density, reciprocity) use only the observed block."
+    - "Must: Flag respondents versus non-respondents on nodes, show response rate overall and per group, mark nodes whose outgoing ties are unknown, prefer in-degree measures for them, and optionally reconstruct their ties from what respondents reported."
+sources:
+    - title: Academic Social Network Researchers (section 10, table row 4)
+      url: design/user-research/academic-social-network-research.md
+      summary: "Must in the research. Covered by Designloom when researched: NOT covered"

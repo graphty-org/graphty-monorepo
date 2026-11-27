@@ -1,0 +1,110 @@
+id: W3114
+name: Cohesive Subgroups and Positions -- Cliques, k-cores, Equivalence and Blockmodels
+category: analysis
+validated: false
+personas:
+    - sociometric-network-researcher
+    - network-methods-grad-student
+requires_capabilities:
+    - positional-subgroup-analysis
+    - statistics-panel
+    - community-detection
+    - matrix-view
+    - analysis-history
+    - data-export
+suggested_components:
+    - statistics-panel
+    - ranked-node-table
+    - graph-canvas
+    - analysis-history-panel
+    - data-export-dialog
+starting_state:
+    data_type: cleaned whole network (directed, binary or valued) with actor attributes, usually from a roster survey
+    node_count: 15-500
+    edge_density: sparse to moderate
+    user_expertise: intermediate+
+goal: >-
+    **Intent**: Find the cohesive subgroups (cliques, n-clans, k-plexes, factions, k-cores) and the structural or
+    regular positions in a whole network, read the triad census, and report them with the definitions UCINET and
+    statnet use, so a methods-course lab or a paper's subgroup table can be reproduced.
+
+
+    **Mental Model**: "Subgroups are who is tied to whom; positions are who is tied the same way." Cohesion groups
+    actors by their direct ties; equivalence groups actors with similar tie profiles even when they are not tied to
+    each other. Every answer depends on stated choices: direction kept or symmetrized, valued ties dichotomized at a
+    value, minimum group size, number of groups.
+
+
+    **Task Phases**:
+
+    1. **Prepare the relation** - Decide direction (clique search symmetrizes; sna kcores defaults to directed
+    degree) and dichotomize valued ties at a stated cutoff, as triad.census advises.
+
+    2. **Cohesion** - k-cores (UCINET Network>Regions>K-Core) colored on the sociogram; maximal cliques of a minimum
+    size, then n-cliques, n-clans, k-plexes (Network>Subgroups); clique co-membership clustered to show overlap.
+
+    3. **Factions** - Choose the number of factions, run several starts, compare the error counts, keep the best.
+
+    4. **Triad census** - The 16 directed MAN types for the whole network (sna triad.census; Hanneman notes UCINET has
+    no full census and points to Pajek), compared with what reciprocity and transitivity alone suggest.
+
+    5. **Structural equivalence** - Profile distances (Hamming, Euclidean or correlation), hierarchical clustering,
+    cut the dendrogram at k positions; CONCOR or tabu search as alternatives (Network>Roles & Positions>Structural).
+
+    6. **Regular equivalence** - REGE or CATREGE when roles, not shared alters, matter; avoid on undirected data.
+
+    7. **Blockmodel** - Permute the matrix by position (Data>Permute, Transform>Block), compute block densities,
+    build the image matrix with the overall density as cutoff, report fit, draw the reduced graph of positions.
+
+    8. **Report** - Export memberships and positions as attributes for QAP or ERGM, the blocked matrix and image for
+    the paper, and the parameters for the methods section.
+
+
+    **Decision Points**:
+
+    - Keep direction or symmetrize, and at what value are valued ties cut?
+
+    - Which minimum clique size, n, k or number of factions?
+
+    - Structural or regular equivalence, and which distance?
+
+    - How many positions (where to cut the dendrogram), and which density cutoff for the image?
+
+
+    **Information Needs**:
+
+    - Per-node core number, clique count, faction and position as node values the canvas can color
+
+    - The permuted and blocked matrix beside the sociogram, with the same position colors
+
+    - Fit for factions and blockmodels, and a warning before clique enumeration on a large dense graph
+
+    - Every convention and parameter recorded for the methods paragraph
+success_criteria:
+    - metric: Reproducibility against UCINET or sna
+      target: Same core numbers, clique census, triad census and blockmodel image as sna or UCINET with the same stated
+          settings on a classic teaching dataset
+    - metric: Lab completion
+      target: A student completes the subgroup and positions lab without leaving the tool or writing code
+sources:
+    - title: Academic Social Network Researchers (section 5.14)
+      url: design/user-research/academic-social-network-research.md
+      summary: Subgroup and position analyses, their UCINET menu paths and statnet functions
+    - title: Hanneman and Riddle, chapter 11 (cliques and sub-groups)
+      url: https://faculty.ucr.edu/~hanneman/nettext/C11_Cliques.html
+      summary: Cliques, N-cliques, N-clans, K-plexes, K-cores and factions in UCINET
+    - title: Hanneman and Riddle, chapter 13 (structural equivalence)
+      url: https://faculty.ucr.edu/~hanneman/nettext/C13_%20Structural_Equivalence.html
+      summary: Profile similarity, CONCOR, tabu search, blocked and image matrices
+    - title: Hanneman and Riddle, chapter 15 (regular equivalence)
+      url: https://faculty.ucr.edu/~hanneman/nettext/C15_Regular_Equivalence.html
+      summary: REGE and CATREGE; caution on undirected data
+    - title: Hanneman and Riddle, chapter 8 (embedding)
+      url: https://faculty.ucr.edu/~hanneman/nettext/C8_Embedding.html
+      summary: UCINET has no full triad census routine; Pajek does
+    - title: sna triad.census, equiv.clust, blockmodel, kcores, clique.census
+      url: https://search.r-project.org/CRAN/refmans/sna/html/equiv.clust.html
+      summary: The statnet functions and defaults the R cohort uses for the same analyses
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

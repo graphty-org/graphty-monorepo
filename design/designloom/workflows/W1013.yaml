@@ -1,0 +1,134 @@
+id: W1013
+name: Investigating One Customer, Household or Corporate Family
+category: exploration
+validated: false
+personas:
+    - master-data-steward
+requires_capabilities:
+    - live-data-source
+    - search
+    - ego-network
+    - neighborhood-expansion
+    - supernode-safeguards
+    - truncation-reporting
+    - typed-edge-filtering
+    - layout-hierarchical
+    - hierarchy-scenario-editing
+    - temporal-validity
+    - graph-diff
+    - details-on-demand
+    - typed-graph-editing
+    - undo-redo
+    - export-image
+suggested_components:
+    - search-input
+    - graph-canvas
+    - node-details-panel
+    - context-menu
+    - filter-panel
+    - layout-panel
+    - temporal-controls
+    - comparison-view
+    - badge
+    - image-export-dialog
+starting_state:
+    data_type: one master data entity (person, household, organization, supplier) with typed relationships and parent-child hierarchies in an MDM hub
+    node_count: "stored: millions of entities; on screen: a household of 2-6 people or a corporate family of tens to over 7,500 members"
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: See everyone and everything connected to one customer, household or company, check that the household
+    and the corporate parent-child tree are right, and fix the relationships that are not.
+
+
+    **Mental Model**: "Family tree and address book." A person belongs to a household and works for a company; a
+    company sits under a parent and an ultimate parent. The tree changes over time, so it must be readable as of a date.
+
+
+    **Task Phases**:
+
+    1. **Find the entity** - Search and open the profile
+
+    2. **Open its relationship graph** - Start from the entity alone; expand one node at a time with a plus
+    control, filter by relationship and entity type, read details in a side pane
+
+    3. **Open its hierarchies** - Show each household or organization hierarchy the entity belongs to as a
+    tree; start with a few members and load more by count, by "browse children" or by search-and-center; see how many
+    members exist
+
+    4. **Read as of a date** - Show the hierarchy for an effective date and compare it with the current version
+
+    5. **Fix relationships** - Add, edit or delete relationships; assign an ultimate parent, give a member
+    several parents, move members to orphans; undo, redo or reset before saving
+
+    6. **Share** - Export an image of the household or family tree for a credit or marketing review
+
+
+    **Decision Points**:
+
+    - Is this person in the right household, and is the household still current?
+
+    - Which parent is the legal parent and which is only a reporting line?
+
+    - Is a large family tree complete, or was it cut by a cap?
+
+
+    **Information Needs**:
+
+    - Count of undrawn relationships per node before expanding
+
+    - Total members in a hierarchy versus members drawn
+
+    - Relationship type, direction, and start and end dates on every edge
+
+    - Differences between the hierarchy now and at an earlier date
+
+
+    **Pain Points**:
+
+    - The relationship graph refuses to load above 10,000 entities instead of drawing part of it
+
+    - A hierarchy graph shows 10 members with no sign of how many remain
+
+    - New relationships in a hierarchy view are not persisted at once
+
+    - Family trees of 7,500 or more members cannot be fetched reliably
+
+
+    **Data Flow**:
+
+    - Input: One entity's relationships and hierarchy memberships from the MDM hub, with effective dates
+
+    - Transformations: Incremental expansion, hierarchical layout, as-of-date filtering, version comparison, relationship
+    edits
+
+    - Output: Corrected relationships and hierarchies written back to the hub; an image of the tree
+success_criteria:
+    - metric: Visible caps
+      target: Every partial view states members drawn against members that exist
+    - metric: Time to check a household
+      target: Under 2 minutes from search to a drawn household with relationship dates (design goal; no source measures it)
+    - metric: Hierarchy history
+      target: The user can say what changed in a hierarchy since a chosen date
+sources:
+    - title: Reltio - view entity relationships in a graph
+      url: https://docs.reltio.com/en/objectives/manage-profiles/profile-management-at-a-glance/profile-management-operation/view-entity-relationships-in-a-graph
+      summary: Graph tab, plus control to expand a node, Relationships pane to add, edit or delete, Entities pane for details
+    - title: Reltio Graph perspective
+      url: https://docs.reltio.com/applications/hub/profiles-at-a-glance/profile-perspectives-tabs/profile-perspectives-navigation/graph-perspective
+      summary: Does not load above 10,000 entities
+    - title: Informatica Customer 360 - hierarchy view
+      url: https://docs.informatica.com/master-data-management/customer-360/10-4/user-guide/investigating-relationships/user-interfaces/hierarchy-view.html
+      summary: Tree of hierarchy relationships per hierarchy, effective date, compare versions
+    - title: Informatica Customer 360 - relationship graph user interface
+      url: https://docs.informatica.com/master-data-management/customer-360/10-3/user-guide/viewing-the-relationship-graph/relationship-graph-user-interface.html
+      summary: Graph, Fields, Filters and Visualization Options panels
+    - title: IBM MDM - exploring and working with hierarchies
+      url: https://www.ibm.com/docs/en/DSXDOC/wsj/mdm/explore-hierarchies.html
+      summary: 10 members by default, browse children, ultimate parent, multiple parents, orphans, undo, redo, reset
+    - title: Dun & Bradstreet linkage service
+      url: https://docs.dnb.com/direct/2.0/en-US/linkage/3.1/orderproduct/linkage-soap-API
+      summary: Family trees of 7,500 or more members not reliably delivered; Standard returns only the direct line to the global ultimate
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

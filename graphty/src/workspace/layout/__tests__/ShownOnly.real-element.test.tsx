@@ -74,6 +74,8 @@ describe("the layout form's Shown nodes only", () => {
 
     it("lays out only what the filter shows, and the whole graph once unticked", async () => {
         const { element, session } = await openRing();
+        // The app turns off hover under a camera drag (#10221).
+        assert.isFalse(element.layoutBehavior?.camera?.hoverWhileDragging);
 
         await userEvent.click(screen.getByRole("button", { name: "Layout" }));
         const popover = await screen.findByRole("dialog", { name: "Layout" });

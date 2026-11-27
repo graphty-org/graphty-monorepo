@@ -1,0 +1,171 @@
+id: W151
+name: From Warehouse Tables to a Drawn Graph
+category: analysis
+validated: false
+personas:
+    - warehouse-graph-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - graph-rendering
+    - layout-force-directed
+    - layout-hierarchical
+    - neighborhood-expansion
+    - details-on-demand
+    - node-selection
+    - shortest-path
+    - all-paths-finding
+    - data-preview
+    - data-export
+    - query-result-import
+    - schema-meta-graph
+    - live-data-source
+    - query-editor
+    - truncation-reporting
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - graph-canvas
+    - layout-panel
+    - context-menu
+    - node-details-panel
+    - data-table-panel
+    - statistics-panel
+    - status-bar
+    - data-export-dialog
+starting_state:
+    data_type: existing warehouse or database tables (BigQuery, Spanner, Fabric lakehouse, Oracle) declared as a property graph
+    node_count: "stored: up to about 2 billion elements (Fabric); on screen: capped by bytes (2 MB, 10 MB, 64 MB)"
+    edge_density: any
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Answer multi-hop questions (transfer chains of 2 to 5 hops, linked identities, attack paths) over data
+    that already sits in a warehouse, without copying it into a graph database, and see the answer drawn.
+
+
+    **Mental Model**: "A graph is a view over my tables." Nodes and edges are tables with keys; the graph is a
+    declaration, like a SQL view, and the warehouse's security still applies.
+
+
+    **Task Phases**:
+
+    1. **Declare the graph over existing tables** - In BigQuery and Spanner, CREATE PROPERTY GRAPH ... NODE TABLES
+    (customers AS Customer KEY (customer_id), ...) EDGE TABLES (purchases AS Bought KEY (purchase_id) SOURCE KEY
+    (customer_id) REFERENCES Customer (customer_id) DESTINATION KEY ...), even over federated catalogs; storage billed
+    once. In Fabric, a form: New item, Graph model, Get data from the OneLake catalog, Add node (label, source table, key
+    column, "Add all columns"), Add edge (label, source table, origin and target node and key columns), Save; Fabric
+    then ingests into a read-optimized graph and a schema change triggers a reload that "may take several hours". Oracle
+    needs the CREATE PROPERTY GRAPH privilege; PuppyGraph needs a schema mapping, which its AI can propose
+
+    2. **Look at the schema** - BigQuery Studio: Explorer, dataset, Graphs, Graph tab; Spanner: "Switch to schema view";
+    both draw node and edge types and how they connect
+
+    3. **Write a query that returns graph elements** - BigQuery and Spanner require TO_JSON (or SAFE_TO_JSON) and
+    recommend returning whole paths (RETURN TO_JSON(p) AS path); ids or properties give only a table; separate nodes and
+    edges can drop elements. Oracle GRAPH_TABLE must return VERTEX_ID, EDGE_ID or both, SELECT only. Fabric offers a
+    no-code builder (add a node, pick edges in the Components pane, add a filter such as fullName = Carla Adams; paths
+    stop at eight hops) or a GQL editor
+
+    4. **Run and read** - BigQuery Studio: Query results, Graph; a detail panel counts node and edge labels; click an
+    element for properties and neighbors. Spanner Studio: force (default), hierarchical or sequential layout;
+    right-click Expand by incoming, outgoing or edge type, Collapse, Hide, "Show only neighbors"; display choices last
+    only for the session. Fabric: Diagram, Card or Table view; hover shows connected nodes
+
+    5. **Hit the size cap** - BigQuery notebooks draw at most 2 MB and partially draw larger results; the console has no
+    hard limit; Spanner Studio draws at most 10 MB; Fabric truncates above 64 MB with a warning and no continuation;
+    the advice everywhere is to narrow the query
+
+    6. **Save, share or move out** - Fabric saves queries in a read-only queryset shared with the workspace; graph results
+    cannot be exported; Google points to partner tools (G.V(), Graphistry, Kineviz GraphXR, Linkurious) without
+    documenting the hand-off; notebooks are the documented route out
+
+
+    The same GQL runs on Spanner Graph for operational checks (block a suspicious transfer) and on BigQuery Graph for
+    historical analysis (long-running rings). No source gives per-step timings.
+
+
+    **Decision Points**:
+
+    - Which tables are nodes, which are edges, and which columns are the keys?
+
+    - Return whole paths or element ids so the result draws at all?
+
+    - Narrow the query, or move to a tool without the byte cap?
+
+
+    **Information Needs**:
+
+    - Schema view of node and edge types and their connections
+
+    - Counts of node and edge labels in the result
+
+    - Truncation by bytes as well as by count
+
+    - Properties and neighbors of a clicked element
+
+
+    **Pain Points**:
+
+    - Property-only results show only as a table
+
+    - Byte caps (2 MB, 10 MB, 64 MB) with partial drawing and no continuation
+
+    - No export of graph results and no Power BI connection in Fabric
+
+    - Display settings forgotten after the session
+
+    - Long reloads after a schema change
+
+
+    **Data Flow**:
+
+    - Input: Warehouse tables, a property graph declaration, a GQL or SQL/PGQ query
+
+    - Transformations: Query returns JSON graph elements, paths or element ids; front end draws and expands
+
+    - Output: Drawn subgraph, saved query, results moved to a notebook
+success_criteria:
+    - metric: No-copy answer
+      target: A multi-hop question over warehouse tables is drawn without exporting data to another database
+    - metric: Result acceptance
+      target: JSON paths, separate elements and vertex/edge id columns all draw with labels and properties kept
+    - metric: Truncation visibility
+      target: A byte-capped result says how much was cut
+sources:
+    - title: BigQuery Graph overview
+      url: https://docs.cloud.google.com/bigquery/docs/graph-overview
+      summary: Logical layer over existing tables, no replication, security preserved, billed once
+    - title: BigQuery Graph visualization
+      url: https://docs.cloud.google.com/bigquery/docs/graph-visualization
+      summary: TO_JSON paths, Graph tab, label counts, 2 MB notebook cap
+    - title: BigQuery Graph visualization integrations
+      url: https://docs.cloud.google.com/bigquery/docs/graph-visualization-integrations
+      summary: Partner tools G.V(), Graphistry, Kineviz; notebooks as the route out
+    - title: BigQuery Graph general availability
+      url: https://cloud.google.com/blog/products/data-analytics/bigquery-graph-connecting-data-and-ai-at-scale/
+      summary: CREATE PROPERTY GRAPH over federated tables; customer uses
+    - title: Spanner Graph and BigQuery Graph unified
+      url: https://cloud.google.com/blog/products/data-analytics/the-unified-graph-solution-with-spanner-graph-and-bigquery-graph
+      summary: Operational versus historical roles, shared GQL
+    - title: Spanner Studio graph visualizations
+      url: https://docs.cloud.google.com/spanner/docs/graph/work-with-visualizations
+      summary: SAFE_TO_JSON, 10 MB cap, layouts, expand by direction, session-only settings
+    - title: Microsoft Fabric graph quickstart
+      url: https://learn.microsoft.com/fabric/graph/quickstart
+      summary: Get data, Add node, Add edge, keys
+    - title: Microsoft Fabric graph limitations
+      url: https://learn.microsoft.com/en-us/fabric/graph/limitations
+      summary: 2 billion elements, 64 MB truncation, no export, reload on schema change
+    - title: Microsoft Fabric query builder tutorial
+      url: https://learn.microsoft.com/fabric/graph/tutorial-query-builder
+      summary: Components pane, filters, diagram, card and table views
+    - title: Oracle SQL property graphs - querying and visualizing
+      url: https://docs.oracle.com/en/database/oracle/property-graph/26.2/spgdg/querying-and-visualizing-sql-property-graphs.html
+      summary: GRAPH_TABLE must return vertex or edge ids; SELECT only
+    - title: PuppyGraph documentation
+      url: https://docs.puppygraph.com/
+      summary: Tables mapped to nodes and edges without ETL
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

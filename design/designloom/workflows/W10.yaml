@@ -5,101 +5,152 @@ validated: false
 personas:
     - marketing-analyst
 requires_capabilities:
+    - data-import
+    - data-validation
     - centrality-degree
     - centrality-betweenness
     - centrality-pagerank
-    - centrality-eigenvector
     - community-detection
+    - community-profiling
     - filtering
     - visual-encoding-nodes
+    - legend-display
     - statistics-panel
-    - data-export
-    - large-graph-rendering
     - computed-attributes
     - algorithm-progress
     - metric-histograms
-suggested_components: []
+    - details-on-demand
+    - data-export
+    - export-image
+    - multiplex-relations
+    - audience-overlap-matrix
+    - large-graph-rendering
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - attribute-table-join-dialog
+    - algorithm-panel
+    - ranked-node-table
+    - community-panel
+    - histogram
+    - filter-panel
+    - visual-encoding-panel
+    - legend-panel
+    - graph-canvas
+    - node-details-panel
+    - data-export-dialog
+    - image-export-dialog
 starting_state:
-    data_type: social network graph
-    node_count: 10000-1000000
+    data_type: typed engagement edges (reply, mention, repost, comment) from a listening-tool or NodeXL export, or a collected follow graph; creator metrics table
+    node_count: 500-20000
     edge_density: sparse
     user_expertise: intermediate
 goal: >-
-    **Intent**: Identify influential individuals in a social network for marketing, organizational change, or information
-    dissemination. User needs to find people who can amplify messages and understand different types of influence.
+    **Intent**: Identify accounts that matter in a conversation or audience - broadcasters with reach, bridges between
+    communities, and active participants - and turn them into a screened, ranked shortlist for a campaign. Marketers
+    rarely hold a raw follower graph (Instagram returns counts, not follower lists); the realistic input is an
+    engagement network exported from a listening tool or NodeXL, or a follow graph collected for a research project.
 
 
-    **Mental Model**: "Finding the megaphones" - people whose voice reaches many others. Different types of influencers:
-    Broadcasters (high reach), Bridges (connect groups), Experts (domain authority), Viral starters (spark cascades).
+    **Mental Model**: "Different kinds of influence." In-degree or engagement measures reach; betweenness finds bridges;
+    community membership says which audience an account reaches. Seeding well-connected people works mainly because
+    hubs participate more, not because they persuade their peers more (Hinz et al.), so centrality is a shortlist, not a
+    forecast.
 
 
     **Task Phases**:
 
-    1. **Define Influence** - What type of influence matters? Reach? Engagement? Brokerage? Expertise?
+    1. **Define influence** - Reach, engagement, brokerage between communities, or topical authority
 
-    2. **Compute Metrics** - Calculate relevant centrality measures (degree, betweenness, PageRank)
+    2. **Load the network** - Import the vendor or NodeXL export with typed edges; join the creator metrics
+    table (engagement rate, fake-follower score, rates, demographics)
 
-    3. **Segment** - Categorize influencers by type (broadcaster, bridge, expert, viral)
+    3. **Compute metrics** - In-degree or weighted engagement, betweenness, PageRank; community detection for
+    audience membership
 
-    4. **Validate** - Check content quality, audience alignment, historical performance
+    4. **Segment** - Classify accounts as broadcasters, bridges or community hubs; separate news outlets and
+    brands from creators
 
-    5. **Rank and Select** - Create prioritized list considering cost-effectiveness
+    5. **Screen** - Remove accounts with high fake-follower scores or suspicious dense interaction; review
+    content and brand fit by hand
+
+    6. **Check audience overlap** - Pairwise overlap among shortlisted creators; low overlap for reach, high for
+    repeated exposure
+
+    7. **Rank and export** - Ranked list with type, community and metrics; network image for the deck
 
 
     **Decision Points**:
 
-    - What type of influence is most relevant to my goal?
+    - Which type of influence matters for this goal?
 
-    - How to weight different centrality measures?
+    - How to weight centrality against engagement rate and cost?
 
-    - What's the minimum audience size threshold?
+    - Which accounts fail fake-follower or fit screening?
 
-    - Does influencer's audience align with target demographic?
-
-    - Cost/benefit of different influencer tiers?
+    - How much audience overlap to accept?
 
 
     **Information Needs**:
 
-    - Multiple centrality scores per person (degree, betweenness, PageRank, eigenvector)
+    - Several centrality scores per account beside engagement metrics
 
-    - Community membership (which audiences do they reach?)
+    - Community membership per account
 
-    - Content analysis (what topics do they cover?)
+    - Distribution of each metric to set cutoffs
 
-    - Engagement metrics (do people respond to them?)
+    - Posts behind an account
 
-    - Historical campaign performance (if available)
+    - Overlap between shortlisted creators
 
 
     **Pain Points**:
 
-    - Fake followers inflate metrics
+    - Fake followers inflate metrics; one vendor attributes 56.5 percent of reported influencer-fraud issues to them
 
-    - High-centrality doesn't mean high engagement
+    - High centrality does not mean persuasion or sales; follower count predicts sales poorly
 
-    - Influencer rates may exceed budget
+    - Vendor overlap and influence scores are undocumented
 
-    - Audience overlap between influencers (diminishing returns)
-
-    - Content mismatch with brand
+    - Audience overlap among creators gives diminishing returns
 
 
     **Data Flow**:
 
-    - Input: Social graph (followers, interactions)
+    - Input: Engagement network export (GEXF, GraphML, CSV, NodeXL workbook) and a creator metrics table
 
-    - Transformations: Centrality calculation, segmentation, scoring
+    - Transformations: Centralities, community detection, attribute join, screening filters
 
-    - Output: Ranked influencer list with type classification and audience profiles
+    - Output: Ranked, screened creator list with influence type, community and metrics; network image with legend
 success_criteria:
     - metric: Influencers identified
-      target: Ranked list by type
-    - metric: Audience alignment
-      target: Target demographic match validated
-    - metric: Campaign ROI
-      target: Higher engagement vs. non-graph-based selection
+      target: Ranked list by influence type with community membership
+    - metric: Screening
+      target: Fake-follower and fit screening recorded for every shortlisted account
+    - metric: Overlap awareness
+      target: Pairwise audience overlap known for the final roster
 sources:
-    - title: Practical Graph Analysis Guide - Chapter 6
-      url: https://graphty.app/docs/
-      summary: Social Network Analysis and Influencer Marketing Workflow
+    - title: Pulsar TRAC - influencer network analysis
+      url: https://intercom.help/pulsar/en/articles/7210694-trac-influencer-network-analysis
+      summary: Engagement-based influencer networks inside a listening tool
+    - title: Ahmed, Meier and Smith - NodeXL, a guide to network insights
+      url: https://dspace.stir.ac.uk/retrieve/f1292af1-5cdb-400b-820a-bccae8f82e1f/NodeXL%20-%20a%20guide%20to%20network%20insights%20-%20Author%20Version.pdf
+      summary: Betweenness ranking of key accounts and the question "to whom should I say what?"
+    - title: Instagram Business Discovery API
+      url: https://developers.facebook.com/docs/instagram-platform/instagram-api-with-facebook-login/business-discovery
+      summary: Returns follower counts, not follower lists
+    - title: HypeAuditor help - audience overlap
+      url: https://help.hypeauditor.com/en/articles/6281325-audience-overlap
+      summary: Pairwise overlap for up to 15 creators; method undisclosed
+    - title: impact.com - influencer fraud prevention
+      url: https://impact.com/influencer/influencer-fraud-prevention/
+      summary: Fake followers cited as 56.5 percent of reported influencer-fraud issues (vendor figure)
+    - title: impact.com - how to choose the right influencer
+      url: https://impact.com/influencer/how-to-choose-the-right-influencer-for-your-brand/
+      summary: Follower count predicts sales poorly
+    - title: American Marketing Association - Seeding strategies for viral marketing (Hinz et al.)
+      url: https://ama.org/2019/01/16/seeding-strategies-for-viral-marketing-an-empirical-comparison
+      summary: Hub seeding up to eight times more successful because hubs participate more, not because they influence more
+version: 1.1.0
+created_at: 2026-09-08T02:34:20.000Z
+updated_at: 2026-11-25T00:00:00.000Z

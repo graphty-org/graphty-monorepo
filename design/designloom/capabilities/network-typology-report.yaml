@@ -1,0 +1,19 @@
+id: network-typology-report
+name: Network-level typology report
+category: export
+description: Density, degree centralization, reciprocity and mean of an edge rating for a whole network, comparable across waves.
+status: planned
+notes: "Research trace: social-media-disinformation-and-marketing.md section 10, requirement 6 (Must)."
+algorithms: []
+used_by_workflows:
+    - W201
+    - W207
+implemented_by_components: []
+requirements:
+    - "Must: Density, modularity, isolate share, centralization, components and reciprocity for a network, with isolates counted even when hidden, compared across several networks."
+sources:
+    - title: Social Media Researchers, Disinformation Analysts and Marketing Network Analysts (section 10, requirement
+          6)
+      url: design/user-research/social-media-disinformation-and-marketing.md
+      summary: "Must in the research. Covered by Designloom when researched: Partly covered (statistics-panel,
+          comparison-view)."

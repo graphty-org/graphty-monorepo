@@ -19,6 +19,11 @@ requires_capabilities:
     - neighborhood-expansion
     - overview-minimap
     - tooltip-display
+    - filtering
+    - weight-semantics
+    - constrained-k-shortest-paths
+    - time-respecting-paths
+    - centrality-betweenness
 suggested_components:
     - graph-canvas
     - path-finder-dialog
@@ -38,7 +43,8 @@ starting_state:
     user_expertise: any
 goal: >-
     **Intent**: Understand how two specific entities are connected through the network. User has identified a source and
-    target and wants to know the path(s) between them and what those paths reveal.
+    target and wants to know the path(s) between them and what those paths reveal. The full catalog of path query types
+    is W40; the weight decision is W39.
 
 
     **Mental Model**: "Following a trail" or "connecting the dots" - tracing the chain of relationships from A to B. Like
@@ -49,73 +55,106 @@ goal: >-
 
     1. **Target Selection** - Identify source and target entities
 
-    2. **Path Finding** - Compute shortest path(s) between them
+    2. **Query Choice** - One shortest path, all tied shortest paths, k shortest loopless paths, or paths restricted by
+    edge type, direction, maximum hops or time order
 
-    3. **Path Comparison** - If multiple paths exist, compare lengths and intermediates
+    3. **Weight Choice** - Unweighted, or a weight column whose meaning is stated: strengths (counts, volumes) must be
+    converted to distances (1/w, -log w) before path finding; distances (km, time, cost) are used as is. Gephi's
+    Shortest Path tool does no conversion: it sums the raw column that its layout read as strength
 
-    4. **Context Visualization** - Show path in context of surrounding network
+    4. **Path Finding** - Compute the path(s); when there is no path, learn why (disconnected, or blocked by direction,
+    type or time order)
 
-    5. **Intermediate Interpretation** - Understand the role of nodes along the path
+    5. **Path Comparison** - Compare lengths and intermediates; note how ties were handled when k cuts through a tie
+
+    6. **Context Visualization** - Show path in context of surrounding network
+
+    7. **Intermediate Interpretation** - Understand the role of nodes along the path
 
 
     **Decision Points**:
 
-    - Should I find shortest path only, or all paths up to length N?
+    - One shortest path, all ties, k shortest, or constrained paths?
 
-    - Should edge weights be considered (weighted vs unweighted)?
+    - What does the weight mean (strength or distance), and which conversion is used?
+
+    - Must the path respect direction, edge type or time order?
 
     - Which intermediate nodes are significant vs. incidental?
-
-    - Are multiple paths meaningful (redundancy) or noise?
 
     - Should I expand the view to see what else connects to the path?
 
 
     **Information Needs**:
 
-    - Path length (number of hops)
+    - Path length (number of hops and weighted length with the convention used)
 
-    - Each step with edge type/label (how are consecutive nodes related?)
+    - Each step with edge type, direction and label
 
-    - Alternative paths count and their lengths
+    - Number of tied shortest paths and the alternative paths' lengths
 
     - Common intermediate nodes across paths (bottlenecks/brokers)
 
     - Attributes of intermediate nodes (who/what are they?)
 
+    - Reason for "no path"
+
 
     **Pain Points**:
 
-    - Source/target may not be connected at all
+    - Source/target may not be connected at all, and tools say "no path" without a reason
 
-    - Too many paths can be overwhelming
+    - Showing one tied shortest path hides the alternatives
 
-    - Path visualization can be cluttered without good layout
+    - Libraries silently read weights as distances; Gephi's Shortest Path tool does too, while its Modularity and
+    ForceAtlas2 read the same column as a strength, so the drawn path follows the weakest ties
 
-    - Hard to compare multiple paths visually
+    - Static paths over temporal data may be impossible in time order
+
+    - Too many paths can be overwhelming; path visualization can be cluttered
 
 
     **Data Flow**:
 
-    - Input: Graph + source node + target node
+    - Input: Graph + source node + target node + query type, constraints and weight convention
 
-    - Transformations: Shortest path algorithm, path enumeration
+    - Transformations: Constrained, all-shortest or k-shortest path search
 
-    - Output: Path(s) with annotations + understanding of how A connects to B
+    - Output: Path(s) with annotations, tie handling, weight convention and no-path reason
 success_criteria:
     - metric: Path found
-      target: Connection established or confirmed not connected
+      target: Connection established, or confirmed not connected with the reason
+    - metric: Alternatives visible
+      target: Tied and alternative paths shown, with tie handling stated
+    - metric: Weight convention stated
+      target: Weighted results name the column and conversion used
     - metric: Path understood
       target: User can explain what each step means
-    - metric: Intermediate significance assessed
-      target: Key intermediaries identified
 sources:
-    - title: Practical Graph Analysis Guide - Chapter 3
-      url: https://graphty.app/docs/
-      summary: Path Investigation workflow pattern
+    - title: igraph-help thread on weights (2019)
+      url: https://lists.gnu.org/archive/html/igraph-help/2019-10/msg00007.html
+      summary: Path functions read weights as distances; results depend on the conversion
+    - title: Node centrality in weighted networks (Opsahl, Agneessens and Skvoretz 2010)
+      url: https://toreopsahl.com/wp-content/uploads/2010/04/node_centrality_in_weighted_networks1.pdf
+      summary: 1/w conversion of strengths to distances
+    - title: NetworkX shortest_simple_paths
+      url: https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.simple_paths.shortest_simple_paths.html
+      summary: k shortest loopless paths; weight functions returning None hide edges
+    - title: Neo4j Cypher manual - shortest paths
+      url: https://neo4j.com/docs/cypher-manual/current/patterns/shortest-paths/
+      summary: ALL SHORTEST, SHORTEST k, typed and directed path patterns; ties cut by k are arbitrary
+    - title: Gephi ShortestPath.java (Shortest Path tool)
+      url: https://github.com/gephi/gephi/blob/master/modules/ToolsPlugin/src/main/java/org/gephi/tools/plugin/ShortestPath.java
+      summary: Runs Bellman-Ford on directed graphs and Dijkstra otherwise, summing edge weights as distances
+    - title: gephi/gephi issue 1816
+      url: https://github.com/gephi/gephi/issues/1816
+      summary: ForceAtlas2 reads weight as strength; a user reports the Shortest Path tool picks the lowest-weight route
+    - title: Temporal networks (Holme and Saramaki 2012)
+      url: https://arxiv.org/abs/1108.1780
+      summary: Time-respecting paths; static aggregation overstates reachability
     - title: Cambridge Intelligence Investigation Workflow
       url: https://cambridge-intelligence.com/investigation-workflow-annotations/
       summary: Annotations improve investigation workflow and reveal data narrative
-version: 1.0.1
+version: 1.1.0
 created_at: 2026-01-16T16:22:52.253Z
-updated_at: 2026-01-16T16:42:28.583Z
+updated_at: 2026-11-25T00:00:00.000Z

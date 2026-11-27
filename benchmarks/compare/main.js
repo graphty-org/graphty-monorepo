@@ -858,6 +858,34 @@ const MATRIX_STYLES = {
             encode: { "node.label": { by: "data.id", scale: "passthrough" } },
         }),
     "node-image": nodeSet({ "node.image": PICTURE }),
+    // the looks that give each node or edge its own texture, material or object
+    "edge-label": (el) =>
+        el.session.styles.add({
+            name: "matrix",
+            target: "edge",
+            selector: everything,
+            encode: { "edge.label": { by: "data.src", scale: "passthrough" } },
+        }),
+    "node-tooltip": (el) =>
+        el.session.styles.add({
+            name: "matrix",
+            target: "node",
+            selector: everything,
+            encode: { "node.tooltip": { by: "data.id", scale: "passthrough" } },
+        }),
+    "node-badge": (el) =>
+        el.session.styles.add({
+            name: "matrix",
+            target: "node",
+            selector: everything,
+            set: { "node.labelStyle": { badge: "label" } },
+            encode: { "node.label": { by: "data.id", scale: "passthrough" } },
+        }),
+    "node-glow": nodeSet({ "node.glow": "#ffcc00", "node.glowStrength": 1 }),
+    "node-halo": nodeSet({ "node.halo": true, "node.haloColor": "#ffcc00" }),
+    "node-outline": nodeSet({ "node.outline": "#202020", "node.outlineWidth": 0.1 }),
+    "node-underlay": nodeSet({ "node.underlayColor": "#76b7b2", "node.underlayOpacity": 0.5 }),
+    "node-overlay": nodeSet({ "node.overlayColor": "#76b7b2", "node.overlayOpacity": 0.5 }),
     "edge-color": edgeSet({ "edge.color": "#4e79a7" }),
     "edge-width": edgeSet({ "edge.width": 3 }),
     "edge-opacity": edgeSet({ "edge.opacity": 0.5 }),

@@ -1,0 +1,26 @@
+id: causal-model-formats
+name: Causal model import and export
+category: data
+description: Read and write DAGitty model code and BIF, and also Tetrad graph text, XML-BIF, NET, DSC, XDSL, lavaan
+    syntax, Tigramite result arrays, and NetworkX or GML for DoWhy.
+status: planned
+notes: "Research trace: causal-diagrams-and-bayesian-networks.md section 10, requirement 8 (Must)."
+algorithms: []
+used_by_workflows:
+    - W423
+    - W424
+    - W425
+    - W426
+    - W427
+    - W428
+    - W429
+implemented_by_components: []
+requirements:
+    - "Must: Import and export: DAGitty code and BIF (must); Tetrad text, XML-BIF, NET, DSC, XDSL, lavaan syntax,
+      Tigramite graph and value arrays, NetworkX/GML for DoWhy (should)"
+sources:
+    - title: "Causal Diagram Users: DAGs, Bayesian Networks, Causal Discovery, Time-Series Causal Graphs and SEM Path
+          Diagrams (section 10, requirement 8)"
+      url: design/user-research/causal-diagrams-and-bayesian-networks.md
+      summary: "Must in the research (the document says: must/should). Covered by Designloom when researched: No
+          (graph-io has DOT and GML only)"

@@ -7,7 +7,11 @@ personas:
     - expert-emma
     - fraud-analyst
     - intelligence-analyst
+    - publication-figure-author
+    - forensic-accountant
+    - graph-deliverable-recipient
 requires_capabilities:
+    - label-overlap-removal
     - export-image
     - annotation
     - style-presets
@@ -19,6 +23,11 @@ requires_capabilities:
     - report-generation
     - data-export
     - keyboard-shortcuts
+    - view-bookmarks
+    - analysis-history
+    - journal-figure-export
+    - analysis-provenance
+    - guided-presentation
 suggested_components:
     - graph-canvas
     - annotation-toolbar
@@ -31,98 +40,144 @@ suggested_components:
     - layout-option
     - report-generator-dialog
     - color-picker
+    - bookmark-panel
+    - share-dialog
 starting_state:
     data_type: analyzed graph with findings
     node_count: any
     edge_density: any
     user_expertise: intermediate+
 goal: >-
-    **Intent**: Communicate graph analysis findings to stakeholders who may not be graph experts. User has completed
-    analysis and needs to create compelling visualizations and narratives that drive action.
+    **Intent**: Hand graph analysis findings to someone else in the form their setting requires. The deliverable is
+    rarely "a picture of the graph": it is a picture plus a legend, the parameters that produced it, references back to
+    source records and a document around it - and in several high-stakes settings it is not a node-link picture at all
+    (a US suspicious activity report narrative plus one CSV, a public health cluster-level table, a hop table or STIX
+    bundle, an illustrative aid that stays out of the jury room). This is the umbrella workflow; the concrete
+    deliverables are W313 (journal figure and deposit), W314 (court exhibit), W315 (SAR output), W316 (organizational
+    network readout and dashboard), W317 (narrated map and map links), W318 (web exports and embeds), W319 (public
+    health aggregates), W320 (attack-path findings), W321 (temporal deliverables), W322 (3D to print) and W323
+    (recurring deliverables).
 
 
-    **Mental Model**: "Data storytelling" - combining data, visuals, and narrative to persuade. Like a documentary
-    filmmaker - you've done the research, now you need to tell the story.
+    **Mental Model**: "The recipient's rules define the deliverable." A journal's specifications, Federal Rules of
+    Evidence 1006 and 107, the FinCEN form, CDC partner guidance or a minimum group size decide what may appear, in what
+    format, before any styling choice. Within those rules: data, visuals and narrative combined to drive action.
 
 
     **Task Phases**:
 
-    1. **Audience Assessment** - Who needs to see this? What do they care about? What's their expertise?
+    1. **Identify the deliverable type and its rules** - Journal figure, court summary or aid, regulatory filing,
+    public health partner summary, client report, public embed, executive readout; note format, size, privacy and
+    provenance rules
 
-    2. **Message Crystallization** - What's the single key takeaway?
+    2. **Audience assessment** - Who receives it (often a non-operator on a phone or a grayscale printout, or an
+    expert reviewer looking for missing parameters)? What may they see?
 
-    3. **Visualization Design** - Filter to relevant subset, highlight key findings, add annotations
+    3. **Message crystallization** - Write the single takeaway or caption first
 
-    4. **Narrative Construction** - Build story arc: context → findings → implications → recommendations
+    4. **Cut to the message** - Filter to the evidenced or relevant subset, aggregate clusters, aggregate instead of
+    drawing when individuals must not be visible, pin a manual layout
 
-    5. **Production** - Create deliverable (image, presentation, dashboard, report)
+    5. **Visualization design** - Highlight the finding with neutral, grayscale-safe encodings; bake labels in because
+    tooltips vanish; add annotations
 
-    6. **Validation** - Test with representative audience, iterate
+    6. **Attach parameters and provenance** - Source and version, filters, algorithms, layout and seed, time window,
+    date; per-element source references where required
+
+    7. **Production** - Image, slides, narrative, table, structured export, web embed, video or dashboard; decide whether
+    it is a one-off frozen at hand-off or a recurring product regenerated from refreshed data
+
+    8. **Formal review** - Peer review, SAR quality control, opposing counsel, works councils, data sharing agreements;
+    iterate
 
 
     **Decision Points**:
 
-    - What level of detail is appropriate for this audience?
+    - Which deliverable type applies, and what do its rules forbid?
 
-    - Static image or interactive dashboard?
+    - Static image, narrative and table, structured export or interactive embed?
 
-    - What to emphasize vs. what to leave out?
+    - One-off or recurring?
 
-    - How much context to provide?
+    - What level of detail and identification is permitted for this audience?
+
+    - What to emphasize without making the picture argue?
 
     - What action do I want the audience to take?
 
 
     **Information Needs**:
 
-    - Audience background and expertise level
+    - The recipient's rules (format, size, privacy, provenance)
 
-    - Key findings to communicate
+    - Audience background and the device or medium they will use
 
-    - Supporting evidence for each finding
+    - Key findings and supporting evidence with source references
 
-    - Appropriate visualization formats
+    - The parameters that produced each view
 
-    - Accessibility requirements
+    - Accessibility requirements (grayscale, colorblind safety, text alternative, keyboard access)
 
 
     **Pain Points**:
 
-    - Graph visualizations are unfamiliar to many audiences
+    - The graph tool's job ends at a picture; legends, parameters, sources, aggregate tables and narratives are
+    finished by hand in Illustrator, PowerPoint, Word or Excel
 
-    - "Hairball" visualizations overwhelm rather than inform
+    - Every upstream change means redoing the assembly, and the next period means rebuilding it
 
-    - Technical jargon alienates business stakeholders
+    - Picture and data separate at export; exported data drops styling and filters
 
-    - Hard to simplify without losing accuracy
+    - Web exports ship hidden attributes; share links expose more than intended
+
+    - "Hairball" visualizations overwhelm rather than inform; graphs are unfamiliar to many audiences
 
     - Stakeholders want certainty but findings have caveats
 
 
     **Data Flow**:
 
-    - Input: Analysis results + audience profile
+    - Input: Analysis results, the recipient's rules, audience profile
 
-    - Transformations: Filtering, highlighting, annotation, narrative framing
+    - Transformations: Filtering, aggregation, highlighting, annotation, parameter and provenance capture, narrative
+    framing
 
-    - Output: Deliverable (image, slides, report, dashboard) that drives action
+    - Output: Deliverable (figure with legend and methods, exhibit, narrative and CSV, aggregate table, hop table or STIX,
+    slides, embed, video, dashboard), one-off or regenerated per period
 success_criteria:
+    - metric: Rule compliance
+      target: The deliverable meets its setting's rules (format, privacy, provenance) on first review
     - metric: Audience comprehension
-      target: Key message understood
-    - metric: Actionability
-      target: Stakeholders know what to do next
+      target: Key message understood in under a minute by a non-operator (design goal; no source measures it)
+    - metric: Provenance
+      target: Parameters and source references travel with the deliverable
     - metric: Accessibility
-      target: Colorblind-safe, labeled, clear hierarchy
+      target: Colorblind-safe, grayscale-readable, labeled, with a text alternative for web output
 sources:
-    - title: Practical Graph Analysis Guide - Chapter 15
-      url: https://graphty.app/docs/
-      summary: Visualization best practices and styling workflow
+    - title: W3C WCAG 2.2 - Understanding Success Criterion 1.4.1 Use of Color
+      url: https://www.w3.org/WAI/WCAG22/Understanding/use-of-color.html
+      summary: Color must not be the only visual means of conveying information or distinguishing a visual element, so legends and encodings need a second channel
     - title: Storytelling with Data
       url: https://www.storytellingwithdata.com/blog/2014/04/exploratory-vs-explanatory-analysis
       summary: Distinction between exploratory and explanatory visualization
     - title: Cambridge Intelligence Human-AI Decision Workflows
       url: https://cambridge-intelligence.com/how-graph-visualization-builds-trust-in-human-ai-decision-workflows/
       summary: How visualization makes findings defensible
-version: 1.0.1
+    - title: Ten simple rules to create biological network figures for communication (Marai et al.)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6762067
+      summary: Caption first, cut to the message, legible and colorblind-safe encodings
+    - title: FinCEN SAR form specification (SARX)
+      url: https://sdtmut.fincen.treas.gov/docs/SARX.pdf
+      summary: SARs carry a narrative and one CSV of at most 1 MB, no image
+    - title: CDC - Cluster Detection and Response Guidance for Health Departments
+      url: https://www.cdc.gov/hivpartners/php/cdr/health-department-guidance.html
+      summary: Avoid molecular network diagrams with partners; share cluster- or population-level data only
+    - title: Federal Rule of Evidence 107 and 2024 committee notes
+      url: https://www.courtrules.net/federal/evidence/rule-107
+      summary: Illustrative aids are not evidence and stay out of deliberations without consent or order
+    - title: Cambridge Intelligence - Intelligence dissemination with PDF exports
+      url: https://cambridge-intelligence.com/intelligence-dissemination-with-pdf-exports/
+      summary: Static exports lose interactivity; color must survive grayscale printing
+version: 1.1.0
 created_at: 2026-01-16T16:22:44.702Z
-updated_at: 2026-01-16T16:42:48.264Z
+updated_at: 2026-11-25T00:00:00.000Z

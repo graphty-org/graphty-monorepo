@@ -1,0 +1,85 @@
+id: people-analytics-ona-lead
+name: People Analytics ONA Lead
+roster_persona: ona-practitioner
+tier: B
+scope: in-scope
+role: In-house People Analytics Lead running survey-based organizational network analysis
+quote: The executive team wants to know where the silos are before the reorg, and I promised every respondent their name stays with my team.
+bio: >-
+    Ritu Natarajan leads a three-person people analytics team at a 6,000-person manufacturer. She has an I/O
+    psychology master's degree, writes SQL and some R, and runs two or three survey-based organizational network
+    analyses (ONA) a year. Each one starts from an HRIS roster of 300 to 2,000 employees in the target unit and four or
+    five relationship questions -- who you go to for information, for problem-solving advice, for decision approval,
+    who energizes you, and whose greater access would help your work. She collects responses in Polinode, joins HR
+    columns (business unit, function, level, location, tenure band, gender, manager) in Excel, makes one polished map in
+    Gephi and builds the readout in PowerPoint. Her deliverable is never the network itself: it is an executive readout
+    in which individuals are protected, groups are compared and a few decisions -- relieving overloaded people,
+    recruiting change agents, breaking silos -- are argued from the structure. She reads role labels (central connector,
+    broker, boundary spanner, peripheral person) more fluently than formulas.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Show the executive team where silos and bottlenecks sit between units before a reorganization decision
+    - Find the 3 to 5 percent of people carrying a disproportionate share of collaboration and relieve them before they burn out or leave
+    - Identify informal connectors and energizers to recruit as change agents
+    - Re-run the same analysis in 3 to 6 months and show whether the actions changed the network
+    - Keep the confidentiality promise made to every respondent while still giving leaders something they can act on
+behaviors:
+    - Builds the roster from an HRIS export with unique names (email appended) and attribute columns, and avoids asking in the survey for data the HRIS already holds
+    - Monitors response rate daily during a 2-3 week fieldwork window and chases units that fall below 60 to 70 percent
+    - Keeps one edge set per relationship question and switches between them, because advice, trust and energy networks answer different questions
+    - Keeps non-respondents as nominated nodes and leans on in-degree measures, which are computable for people who never answered
+    - Colors nodes by business unit and sizes by in-degree, then rolls nodes up into unit-level groups and reads a unit-by-unit collaboration matrix
+    - Computes E-I index and boundary-spanner counts to talk about insularity in plain terms
+    - Shows the formal org chart beside the informal network in the readout and gives consenting leaders only their percentile band (top 5 or top 15 percent)
+    - Rebuilds the cleanup steps by hand for every wave, because nothing records the rules she applied last time
+frustrations:
+    - Response rates that stall at 60 percent and leave holes in the map, with no visible marker of which nodes are missing out-ties
+    - Executives who ask for names after the consent letter promised confidentiality
+    - Force-directed hairballs that need hand styling before anyone outside the team can read them
+    - Redoing every cleanup and join step for the next wave because the rules were not saved with the project
+    - Tools that compute metrics on whatever is currently filtered without saying so
+    - No group roll-up in the graph tool, so unit-by-unit matrices get built in Excel
+context:
+    frequency: as-needed
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W187
+    - W189
+    - W190
+    - W192
+    - W316
+    - W291
+    - W26
+    - W29
+sources:
+    - title: Polinode documentation - Surveys
+      url: https://docs.polinode.com/guide/surveys.html
+      summary: Roster format with unique names, relationship questions, Search and Select above about 200 names, reminders, Generate Networks with Anonymize Nodes
+    - title: Polinode documentation - Networks
+      url: https://docs.polinode.com/guide/networks.html
+      summary: File formats, 35+ metrics computed on the visible network, Roll-up, Collaboration Matrix, Informal Alignment, saved views
+    - title: Q and A - How much workplace collaboration is too much (Rob Cross, UVA Today)
+      url: https://archive.news.virginia.edu/content/qa-how-much-workplace-collaboration-too-much/
+      summary: 3 to 5 percent of employees contribute 20 to 35 percent of value-added collaborations
+    - title: Michael Arena - how organizational network analysis works in the real world (i4cp)
+      url: https://www.i4cp.com/productivity-blog/awss-michael-arena-how-organizational-network-analysis-works-in-the-real-world
+      summary: Confidential is the norm; leaders told only whether they are in the top 15 or top 5 percent; HR follows up one-on-one
+    - title: Visible Network Labs - Raising your response rate
+      url: https://visiblenetworklabs.com/2022/04/06/raising-your-response-rate-a-brief/
+      summary: Network surveys need at least 60 to 70 percent response because a tie is seen only if one of the pair responds
+    - title: OrgMapper - Gephi tutorial for ONA
+      url: https://orgmapper.com/gephi-tutorial
+      summary: Edge list and node file import with Sum merge for repeated nominations, ForceAtlas2 above about 100 nodes
+    - title: Umbrex - Organizational Network Analysis framework
+      url: https://umbrex.com/resources/frameworks/organization-frameworks/organizational-network-analysis-ona/
+      summary: Team roles, 5 to 10 questions, 3 to 5 week pilot, re-measure in 3 to 6 months
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

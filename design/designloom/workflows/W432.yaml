@@ -1,0 +1,163 @@
+id: W432
+name: Measured Chemistry and Omics Overlay on a Herb Network
+category: analysis
+validated: false
+personas:
+    - herbal-formula-mechanism-lead
+    - network-pharmacology-graduate-student
+requires_capabilities:
+    - data-import
+    - data-validation
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - filtering
+    - saved-filters
+    - computed-attributes
+    - centrality-degree
+    - centrality-betweenness
+    - metric-histograms
+    - comparison-view
+    - details-on-demand
+    - analysis-history
+    - export-image
+    - data-export
+    - provenance-tracking
+    - input-rederivation
+    - data-preview
+    - layout-hierarchical
+    - layout-tiered-by-attribute
+suggested_components:
+    - attribute-table-join-dialog
+    - column-mapper
+    - data-table-panel
+    - visual-encoding-panel
+    - gradient-editor
+    - histogram
+    - filter-panel
+    - range-slider
+    - ranked-node-table
+    - comparison-view
+    - node-details-panel
+    - analysis-history-panel
+    - legend-panel
+    - graph-canvas
+    - image-export-dialog
+    - data-import-dialog
+    - computed-attributes-panel
+starting_state:
+    data_type: LC-MS peak tables (product and dosed serum), GEO differential expression tables, WGCNA module assignments, model or Mendelian randomization results, metabolomics tables
+    node_count: 100-400 compounds and targets
+    edge_density: medium
+    user_expertise: expert
+goal: >-
+    **Intent**: Replace the database compound list with compounds actually measured in the product and in dosed-animal
+    serum, and the keyword disease-gene list with measured differentially expressed genes, then show which parts of the
+    network are supported by measurement. Thousands of PubMed records combine network pharmacology with LC-MS,
+    transcriptomics or metabolomics, and the published census shows this is what breaks the quercetin-AKT1 sameness.
+
+
+    **Mental Model**: "Evidence on every node." Each compound has an evidence class (database-listed, measured in
+    product, absorbed prototype, metabolite) and each target carries numbers (fold change, adjusted p, model AUC, odds
+    ratio). The mechanism is the path that survives when only measured nodes are kept.
+
+
+    **Task Phases**:
+
+    1. **Profile the product** - UPLC-Q-TOF-MS of the decoction in both ion modes (for example 33 compounds identified,
+    9 selected)
+
+    2. **Serum pharmacochemistry** - Dose rats, pool serum, call a compound absorbed when present in dosed and absent in
+    blank serum; for example 178 extract compounds to 77 absorbed parents plus 9 metabolites
+
+    3. **Predict targets** for the measured compounds
+
+    4. **Measured disease genes** - DEGs from GEO or own RNA-seq with limma (for example |log2FC| > 1, adjusted p <
+    0.05), optional WGCNA modules
+
+    5. **Intersect, build PPI, screen hubs** - as the standard pipeline, then choose among hubs with LASSO or Mendelian
+    randomization; the hub list may come from a model, not degree
+
+    6. **Overlay** - Fold change on targets, detected-or-not on compounds, metabolomics hits joined to pathways; filter to
+    measured-supported paths
+
+    7. **Rebuild downstream** - Every count, network and figure re-derived after the input lists were replaced
+
+    8. **Validate** - RT-qPCR or western blot in the animal model
+
+
+    **Decision Points**:
+
+    - Is a compound "absorbed" at presence/absence or a fold threshold over blank?
+
+    - Which DEG cutoffs and which GEO series and platform?
+
+    - Hub by degree and betweenness cutoffs, or by a model (LASSO AUC) or causal test?
+
+    - Keep database-only compounds as a lower evidence tier or drop them?
+
+
+    **Information Needs**:
+
+    - Evidence class per compound and the count in each class
+
+    - Numeric measured columns per target with a histogram for setting gradient endpoints
+
+    - A side-by-side of the database-only network and the measured network
+
+    - Which hubs survive when predicted-only nodes are excluded
+
+
+    **Pain Points**:
+
+    - Measured results are joined to the network by hand in Excel
+
+    - Replacing the compound list means redoing every downstream network and figure
+
+    - Figures do not show which nodes were measured
+
+    - Hub lists from an external model cannot be brought in beside degree-based ones
+
+
+    **Data Flow**:
+
+    - Input: LC-MS peak tables, GEO expression series or DEG tables, WGCNA modules, model and Mendelian randomization
+    tables, metabolomics hits
+
+    - Transformations: Evidence-class tagging, numeric attribute joins, filter by measured support, re-derivation of
+    downstream networks, hub-list import
+
+    - Output: Measured-supported compound-target-pathway network, comparison with the database-only network, figures
+    with evidence encoding
+success_criteria:
+    - metric: Evidence visibility
+      target: A reader can tell from the figure and legend which compounds were measured and which were only listed
+    - metric: Re-derivation
+      target: Replacing the compound list rebuilds every downstream network and count without restyling
+    - metric: Measured overlay
+      target: Fold change and evidence class mapped and filterable within 15 minutes of import (design goal; no source measures it)
+sources:
+    - title: Zhai et al. 2025, precision network pharmacology (PMC11725223)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11725223
+      summary: Measured chemistry and exposure before prediction
+    - title: Guanyu Zhixie Granule (PMC11149358)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11149358/
+      summary: 33 compounds identified, 686 DEGs from GSE76588, 181 common targets, STRING >= 0.9, 47 key metabolites, RT-qPCR
+    - title: Gastric-lesion serum pharmacochemistry (PMC7768900)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC7768900
+      summary: 178 extract compounds to 77 absorbed parents plus 9 metabolites, STITCH > 0.4 for 105 targets
+    - title: Qinghuo Rougan Formula (Frontiers in Molecular Biosciences 2025)
+      url: https://www.frontiersin.org/journals/molecular-biosciences/articles/10.3389/fmolb.2025.1632027/full
+      summary: GSE7850 DEGs, WGCNA module, degree and betweenness cutoffs, LASSO AUC 0.900
+    - title: Dahuang-Huangqin acute lung injury study (Journal of Inflammation Research)
+      url: https://www.dovepress.com/multi-target-synergy-against-acute-lung-injury-systems-pharmacology-de-peer-reviewed-fulltext-article-JIR
+      summary: Mendelian randomization from eQTLs to FinnGen ARDS, CIBERSORT, single-cell and ROC checks
+    - title: Diao et al. 2026 (Frontiers in Pharmacology)
+      url: https://www.frontiersin.org/journals/pharmacology/articles/10.3389/fphar.2026.1748478/full
+      summary: Quercetin falls from 71.9% to 42.3% with experimental identification; AKT1 from 54.9% to 19.6% with omics
+    - title: Xijiao Dihuang Tang serum constituents (PMC8845118)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8845118/
+      summary: 60 serum constituents (23 prototypes, 37 metabolites) feeding a 398-node, 985-edge compound-target network
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

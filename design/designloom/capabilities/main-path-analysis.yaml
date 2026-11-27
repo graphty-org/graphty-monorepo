@@ -1,0 +1,17 @@
+id: main-path-analysis
+name: Main path analysis
+category: analysis
+description: "On a directed citation network: make it acyclic, compute SPC, SPLC and SPNP traversal weights, and find
+    local, global and key-route main paths."
+status: planned
+notes: "Research trace: bibliometrics-and-science-mapping.md section 10, requirement 14 (Should)."
+algorithms: []
+used_by_workflows:
+    - W56
+implemented_by_components: []
+requirements:
+    - "Should: Directed citation analysis: make acyclic, SPC/SPLC/SPNP weights, local, global and key-route main paths"
+sources:
+    - title: Bibliometrics and Science Mapping (section 10, requirement 14)
+      url: design/user-research/bibliometrics-and-science-mapping.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

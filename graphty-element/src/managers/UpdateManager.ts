@@ -1319,6 +1319,7 @@ export class UpdateManager implements Manager {
             },
             selection: () => {
                 this.applyNodeSelection(nodeSelection);
+                return true;
             },
             walk: () => {
                 this.applyNodeMasks(nodeVisibility, nodeSelection, showContext);
@@ -1330,6 +1331,7 @@ export class UpdateManager implements Manager {
             },
             selection: () => {
                 this.applyEdgeSelection(edgeSelection);
+                return false;
             },
             walk: () => {
                 this.applyEdgeMasks(edgeVisibility, edgeSelection);
@@ -1362,21 +1364,23 @@ export class UpdateManager implements Manager {
         moved: boolean,
         selectionOnly: boolean,
         selectionMoved: boolean,
-        apply: { rows(rows: Rows): void; selection(): void; walk(): void },
+        apply: { rows(rows: Rows): void; selection(): boolean; walk(): void },
     ): void {
         // A selection or a walk may enable, disable or rebuild meshes anywhere, so the cached list
         // of what is drawn is out of date (see `settleActiveMeshFreeze`). Rows say for themselves
         // whether they reached a mesh: a time window that only moves edges drawn from shared
         // batches writes slots, and leaves the list -- a hundred thousand node instances -- frozen.
+        // A node selection only shows, hides or builds halos, which report themselves (`haloTouched`), and the frame
+        // draws them into the list; a node whose selection reaches more says so (`Node.setSelected`).
         if (rows !== null) {
             apply.rows(rows);
-            if (selectionMoved) {
-                apply.selection();
+            if (selectionMoved && !apply.selection()) {
                 this.sceneChanged = true;
             }
         } else if (moved && selectionOnly) {
-            apply.selection();
-            this.sceneChanged = true;
+            if (!apply.selection()) {
+                this.sceneChanged = true;
+            }
         } else if (moved) {
             apply.walk();
             this.sceneChanged = true;
@@ -1589,6 +1593,20 @@ export class UpdateManager implements Manager {
         }
 
         this.drawnSelectedNodes = next;
+    }
+
+    /**
+     * A halo instance is about to be shown or hidden, or was just built: the frame draws it into the frozen list of
+     * what is drawn instead of thawing it, when the halos are all that came or were shown or hidden
+     * (`settleActiveMeshFreeze`).
+     * @param mesh - The halo.
+     * @param built - Whether it was just built, so it is new to the scene.
+     * @internal
+     */
+    haloTouched(mesh: AbstractMesh, built: boolean): void {
+        if (!this.touchedHalos.has(mesh)) {
+            this.touchedHalos.set(mesh, { shownBefore: !built && shownMesh(mesh), built });
+        }
     }
 
     /**
@@ -4624,6 +4642,12 @@ export class UpdateManager implements Manager {
     /** Whether a freeze of the list of what is visible was asked for and not withdrawn since. */
     private activeMeshesFrozen = false;
 
+    /** Whether that freeze has landed: Babylon draws the frozen list now. */
+    private freezeLanded = false;
+
+    /** The halos shown, hidden or built since the last frame, each with whether it was shown before or just built. */
+    private readonly touchedHalos = new Map<AbstractMesh, { readonly shownBefore: boolean; readonly built: boolean }>();
+
     /** Counts freeze requests and changes, so a freeze Babylon runs late knows it was withdrawn. */
     private freezeRequest = 0;
 
@@ -5734,6 +5758,16 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * A number that stays the same while Babylon draws the frozen list of what is drawn, and changes at every thaw:
+     * nothing moved while it stands, so a table of the nodes made under it still holds (`useFrozenRows`).
+     * @returns The number, or null while the list is not frozen.
+     * @internal
+     */
+    frozenListEpoch(): number | null {
+        return this.activeMeshesFrozen && this.freezeLanded && !this.sceneChanged ? this.freezeRequest : null;
+    }
+
+    /**
      * Unfreeze Babylon's list of what is drawn now, for a draw made outside the frame loop.
      *
      * A frozen scene draws the list it cached, so a mesh built for a draw of its own -- a node
@@ -5748,6 +5782,8 @@ export class UpdateManager implements Manager {
             this.graphContext.getScene().unfreezeActiveMeshes();
             this.activeMeshesFrozen = false;
         }
+
+        this.freezeLanded = false;
 
         for (const source of this.frozenSources) {
             source._unFreeze();
@@ -5815,6 +5851,32 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * Whether the touched halos explain the whole change in the scene's meshes since the last frame: as many were
+     * built as meshes came, and those shown and hidden moved {@link shownMeshesChecksum} by what it moved.
+     * @param added - How many more meshes the scene holds.
+     * @param moved - What the checksum moved by, 32 bits.
+     * @returns True when they do.
+     */
+    private onlyHalosChanged(added: number, moved: number): boolean {
+        let built = 0;
+        let sum = 0;
+        for (const [mesh, { shownBefore, built: isNew }] of this.touchedHalos) {
+            if (mesh.isDisposed()) {
+                return false;
+            }
+
+            built += isNew ? 1 : 0;
+            const shownAfter = shownMesh(mesh);
+            if (shownAfter !== shownBefore) {
+                const weight = meshWeight(mesh);
+                sum = (sum + (shownAfter ? weight : -weight)) >>> 0;
+            }
+        }
+
+        return built === added && sum === moved;
+    }
+
+    /**
      * Freeze or unfreeze Babylon's list of what is drawn, according to whether this frame changed
      * anything.
      *
@@ -5844,6 +5906,7 @@ export class UpdateManager implements Manager {
         // integer a frame and cannot miss one being made or disposed.
         const meshCount = scene.meshes.length;
         const structureChanged = meshCount !== this.lastMeshCount;
+        const countBefore = this.lastMeshCount;
 
         this.lastMeshCount = meshCount;
 
@@ -5853,6 +5916,7 @@ export class UpdateManager implements Manager {
         // which meshes are shown is read here, as one checksum: a read per mesh, no allocation.
         const shown = shownMeshesChecksum(scene);
         const shownChanged = shown !== this.lastShownMeshes;
+        const shownBefore = this.lastShownMeshes;
 
         this.lastShownMeshes = shown;
         if (shownChanged) {
@@ -5860,7 +5924,23 @@ export class UpdateManager implements Manager {
             this.pending.changed();
         }
 
-        const changed = this.sceneChanged || structureChanged || shownChanged || this.cameraMoved();
+        // A SELECTION ONLY SHOWS, HIDES OR BUILDS HALOS, and a thaw for that cost a click at 99,000 nodes about 200 ms:
+        // the next frame evaluated every mesh and uploaded every instance's matrix, and the next quiet frame walked
+        // them all again to freeze (issue #10128). When the halos are the only meshes that came or were shown or
+        // hidden -- the count and the checksum moved by exactly theirs -- and nothing else changed, they are drawn
+        // into the frozen list instead.
+        const patched =
+            this.touchedHalos.size > 0 &&
+            !this.sceneChanged &&
+            this.freezeLanded &&
+            this.onlyHalosChanged(meshCount - countBefore, (shown - shownBefore) >>> 0) &&
+            !this.cameraMoved() &&
+            drawHalosIntoFrozenList(scene, this.touchedHalos.keys(), this.frozenSources);
+        const halosTouched = this.touchedHalos.size > 0;
+        this.touchedHalos.clear();
+
+        const changed =
+            !patched && (this.sceneChanged || halosTouched || structureChanged || shownChanged || this.cameraMoved());
 
         this.sceneChanged = false;
 
@@ -5905,6 +5985,7 @@ export class UpdateManager implements Manager {
                     scene.incrementRenderId();
                 } else {
                     this.freezeInstanceSources(scene);
+                    this.freezeLanded = true;
                 }
             });
         }
@@ -6345,13 +6426,97 @@ function shownMeshesChecksum(scene: Scene): number {
     let sum = 0;
     for (let i = 0; i < meshes.length; i++) {
         const mesh = meshes[i];
-        if (mesh.isVisible && mesh.isEnabled()) {
+        if (shownMesh(mesh)) {
             // Wrapped to 32 bits, so the sum never loses precision however many meshes there are.
-            sum = (sum + Math.imul(mesh.uniqueId, 0x9e3779b1)) >>> 0;
+            sum = (sum + meshWeight(mesh)) >>> 0;
         }
     }
 
     return sum;
+}
+
+/**
+ * Whether a mesh is shown, as {@link shownMeshesChecksum} counts it.
+ * @param mesh - The mesh.
+ * @returns True when it is.
+ */
+function shownMesh(mesh: AbstractMesh): boolean {
+    return mesh.isVisible && mesh.isEnabled();
+}
+
+/**
+ * What a shown mesh adds to {@link shownMeshesChecksum}.
+ * @param mesh - The mesh.
+ * @returns Its weight, 32 bits.
+ */
+function meshWeight(mesh: AbstractMesh): number {
+    return Math.imul(mesh.uniqueId, 0x9e3779b1) >>> 0;
+}
+
+/** The parts of Babylon's evaluation of what is drawn that {@link drawHalosIntoFrozenList} repeats for a few meshes. */
+interface FrozenListInternals {
+    _activeMesh(sourceMesh: AbstractMesh, mesh: AbstractMesh): void;
+}
+
+/** A source mesh's guard against being pre-activated twice in one render (`Mesh._preActivate`). */
+interface PreActivated {
+    _internalMeshDataInfo: { _preActivateId: number };
+}
+
+/**
+ * Draw some halo instances into a frozen list of what is drawn as Babylon's own evaluation would have, without the
+ * walk of every mesh that a thaw costs: each halo's world matrix is computed, and each of their source meshes lists
+ * again the instances it draws, from its own few instances (one per node ever selected), and is dispatched to its
+ * rendering group if the frozen list had none of its instances. The source is left unfrozen, so the matrices of
+ * its instances are uploaded each frame, which a frozen one skipped when their count stayed the same: halos only.
+ *
+ * Mirrors `Scene._evaluateActiveMeshes` in Babylon 9: `_preActivate` clears a source's list of visible instances,
+ * `_registerInstanceForRenderId` adds one, and `_activeMesh` dispatches a source's sub-meshes. A frozen scene draws
+ * the rendering groups and each source's list as they stand.
+ * @param scene - The scene, frozen.
+ * @param meshes - The halos shown, hidden or built.
+ * @param frozenSources - The sources whose instance matrices the freeze froze; a halo source leaves it.
+ * @returns False, changing nothing, when one of them is not a halo instance this can draw: the caller thaws.
+ */
+function drawHalosIntoFrozenList(scene: Scene, meshes: Iterable<AbstractMesh>, frozenSources: Set<Mesh>): boolean {
+    const sources = new Set<Mesh>();
+    for (const mesh of meshes) {
+        if (!mesh.isAnInstance || mesh.isDisposed()) {
+            return false;
+        }
+
+        const source = (mesh as InstancedMesh).sourceMesh;
+        if (source.isDisposed() || source.subMeshes.length === 0 || source.hasLODLevels) {
+            return false;
+        }
+
+        sources.add(source);
+    }
+
+    const renderId = scene.getRenderId();
+    for (const source of sources) {
+        frozenSources.delete(source);
+        source._unFreeze();
+        (source as unknown as PreActivated)._internalMeshDataInfo._preActivateId = -1;
+        source._preActivate();
+        let drawn: InstancedMesh | null = null;
+        for (const instance of source.instances) {
+            if (shownMesh(instance)) {
+                instance.computeWorldMatrix(true);
+                source._registerInstanceForRenderId(instance, renderId);
+                drawn = instance;
+            }
+        }
+
+        const info = source._internalAbstractMeshDataInfo;
+        if (drawn !== null && !info._isActive) {
+            info._isActive = true;
+            info._onlyForInstances = true;
+            (scene as unknown as FrozenListInternals)._activeMesh(drawn, source);
+        }
+    }
+
+    return true;
 }
 
 function selectionCenter(nodes: readonly Node[]): Vector3 {

@@ -33,6 +33,8 @@ const ROUTE_STOPS = 4;
 const EASE = 0.3;
 /** How far the route turns in all once its middle airports glide onto their arc (arcRoute): 20 degrees at each. */
 const ROUTE_ARC = Math.PI / 3;
+/** The side of the route the flight rides (flightPoses' `side`: the angle round the way the route goes, 0 above). */
+export const FLIGHT_SIDE = 0.6;
 /** The airport the globe turns toward at the end, so Europe's network passes the camera. */
 export const EUROPE = "FRA";
 /** How wide the force layout's drawing is scaled to (scene units) before its communities are drawn apart. */
@@ -233,8 +235,16 @@ export async function plan(h, preload, flat) {
     );
     pullIn(byId, steps.route.slice(-3), EASE);
     // where the route's middle airports glide to at the hush (arcRoute), so the flight bends
-    // gently at each and passes them evenly spaced (the drawing before the hush keeps them in their lobes)
-    steps.arc = arcRoute(Object.fromEntries(steps.map((s) => [s.node.id, s.node.position])), steps.route, ROUTE_ARC);
+    // gently at each and passes them evenly spaced (the drawing before the hush keeps them in their lobes);
+    // bowed away from the side the flight rides, so the camera rides the arc's inside, in its
+    // plane, and sees each bend almost end on: the line runs on nearly straight on screen, each
+    // stop well apart along it (bowed toward the camera, a 20 degree bend looked like a V, take67)
+    steps.arc = arcRoute(
+        Object.fromEntries(steps.map((s) => [s.node.id, s.node.position])),
+        steps.route,
+        ROUTE_ARC,
+        FLIGHT_SIDE + Math.PI,
+    );
     // the airports that join the 3D drawing appear scattered through it, in its open spaces, and
     // glide to their lobes as the communities light (scatter)
     steps.scatter = scatter(
@@ -346,14 +356,16 @@ export function flightRoute(
 
 /**
  * The route's middle airports on a circular arc from its first airport to its last, at equal
- * steps along it, bowed toward the side they are on now: every leg the same length and every turn
- * `angle` / legs, so the path has no sharp corner.
+ * steps along it, bowed toward the side they are on now (or toward `side`): every leg the same
+ * length and every turn `angle` / legs, so the path has no sharp corner.
  * @param at - each airport's place, by id
  * @param ids - the route, in order
  * @param angle - how far the path turns in all, first leg to last (rad, under 2 pi)
+ * @param [side] - bow toward this side: the angle round the chord, first airport to last (0
+ *     above, PI/2 to the right, as flightPoses' `side`)
  * @returns the middle airports' new places, by id
  */
-export function arcRoute(at, ids, angle) {
+export function arcRoute(at, ids, angle, side) {
     const [a, b] = [at[ids[0]], at[ids.at(-1)]];
     const c = sub(b, a);
     const u = unit(c);
@@ -365,7 +377,7 @@ export function arcRoute(at, ids, angle) {
         ),
         mid,
     );
-    let n = sub(off, mul(u, dot(off, u)));
+    let n = side === undefined ? sub(off, mul(u, dot(off, u))) : sub(beside(mid, u, side, 1), mid);
     // in line with the chord: bowed to any side square to it
     if (len(n) < 1e-9) n = cross(u, Math.abs(u.y) < 0.9 ? { x: 0, y: 1, z: 0 } : { x: 1, y: 0, z: 0 });
     n = unit(n);
@@ -945,7 +957,7 @@ function levelAlong(ps, line, length, skip) {
  *     last airport toward the camera)
  */
 export function flightPoses(pts, o) {
-    const { from = null, fromV = { x: 0, y: 0, z: 0 }, look = null, lead = 30, clear = 8, side = 0.6 } = o;
+    const { from = null, fromV = { x: 0, y: 0, z: 0 }, look = null, lead = 30, clear = 8, side = FLIGHT_SIDE } = o;
     const { ahead = 60, over = 30, round = 20, lineRound = 30, hold = 0, v0 = 0.6, creep = 0.2, aim = 0, close } = o;
     const { near = 4 * close, lastOver = over, run = 6 * close } = o;
     const { bank = 0.5, maxRoll = 0.17, sigma = 1.5, hz = 60 } = o;
@@ -1155,6 +1167,10 @@ export function stretch(poses, hz, a, b, f) {
  * @param [o.from] - the side the close-up is seen from (default straight down)
  * @param [o.creepV] - the close-up's creep in (units a second of take)
  * @param [o.creepFade] - over what share of the pull the creep fades out
+ * @param [o.creepStop] - the creep eased down over this long from the start (take ms), so a long
+ *     `hold` creeps on no nearer than it must instead of on into the globe (default: it creeps at
+ *     `creepV` all the hold)
+ * @param [o.creepRest] - the share of `creepV` it eases down to (default 0: it stops)
  * @param [o.hold] - how long the close-up only creeps first (take ms)
  * @param [o.turn] - how long it turns on after (take ms)
  * @param [o.far] - how far out it ends, in globe radii
@@ -1169,7 +1185,8 @@ export function stretch(poses, hz, a, b, f) {
  * @returns `poses` and `hz`, as flightPoses
  */
 export function revealPoses(spot, toward, o) {
-    const { close, pull, creepV = 0, creepFade = 0.08, hold = 0, turn = 0, far = 4.6, spin = 0.02 } = o;
+    const { close, pull, creepV = 0, creepFade = 0.08, creepStop = 0, creepRest = 0, hold = 0, turn = 0 } = o;
+    const { far = 4.6, spin = 0.02 } = o;
     const { drop = 0, aim = 0, hz = 60 } = o;
     const r = len(spot);
     const u = unit(o.from ?? spot);
@@ -1195,7 +1212,11 @@ export function revealPoses(spot, toward, o) {
         // the pull eased in over the creep's fade, so the creep turns into the pull with no jolt
         const e = ease(k) * smooth(k / creepFade);
         const radius = (close - crept * (1 - e)) * (R / close) ** e;
-        crept += creepV * (1 - smooth(k / creepFade)) * dt;
+        crept +=
+            creepV *
+            (1 - smooth(k / creepFade)) *
+            (creepStop > 0 ? creepRest + (1 - creepRest) * (1 - smooth((t * 1000) / creepStop)) : 1) *
+            dt;
         // the target slides to the globe's middle with the distance, so the camera only ever recedes
         const target = mul(spot, 1 - Math.max(0, (radius - close) / (R - close)));
         const q = soft((k - 0.2) / 0.8);

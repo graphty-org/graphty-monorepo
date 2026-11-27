@@ -1,16 +1,16 @@
 {
     "name": "intro-growth-30",
     "title": "Growth (30 s)",
-    "note": "The same take as Growth (new), sped up in the edit to about 30 s with nothing removed: the 2D growth and the tail lose the most, the flight and the pull back the least, the opening still the slowest part. Music: the bright wind-led orchestral track (~/music28/wind-led-earth-orchestra, built on the same 130 BPM picture timing), its final D major chord on the logo.",
+    "note": "The same take as Growth (new), sped up in the edit to about 30 s with nothing removed: the 2D growth and the tail lose the most, the flight and the pull back the least, the opening still the slowest part. Music: the bright wind-led orchestral score (~/music28/wind-led-earth-orchestra, build.py), written to this cut's 130 BPM bars, its final D major chord on the logo; the score's own hit, so no impact effect.",
     "top": true,
     "crossfadeMs": 933,
     "music": {
         "file": "~/music28/wind-led-earth-orchestra/final.wav",
         "gain": 0,
-        "fadeOut": 1.5
+        "fadeOut": 1.0
     },
-    "bpm": 60.51,
-    "offset": 0.937,
+    "bpm": 130,
+    "offset": 0,
     "sections": [
         {
             "marker": "Intro",
@@ -23,20 +23,20 @@
                     "at": ["open", 7],
                     "to": ["seam", 0],
                     "ramp": [
-                        [["open", 0], 5.39],
-                        [["grow", 21], 6.29],
-                        [["grow", 36], 7.19],
-                        [["indigo", 0], 7.59],
-                        [["lift", 0], 6.31],
-                        [["grow3d", 4.5], 7.02],
-                        [["grow3d", 12], 7.54],
-                        [["communities", 0], 10.34],
-                        [["hush", 0], 15.74],
-                        [["route", 0], 16.02],
-                        [["flight", 0], 5.12],
-                        [["close", -11.4], 15.36],
-                        [["close", -3.3], 5.12],
-                        [["close", 0], 5.12]
+                        [["open", 0], 5.26],
+                        [["grow", 21], 6.14],
+                        [["grow", 36], 7.01],
+                        [["indigo", 0], 7.4],
+                        [["lift", 0], 6.27],
+                        [["grow3d", 4.5], 6.97],
+                        [["grow3d", 12], 7.49],
+                        [["communities", 0], 10.32],
+                        [["hush", 0], 15.97],
+                        [["route", 0], 16.25],
+                        [["flight", 0], 5.17],
+                        [["close", -11.4], 15.5],
+                        [["close", -3.3], 5.17],
+                        [["close", 0], 5.17]
                     ]
                 },
                 {
@@ -47,16 +47,16 @@
                     "at": ["onglobe", 0],
                     "to": ["turn", 3.1],
                     "ramp": [
-                        [["onglobe", 0], 5.12],
-                        [["pull", 3], 5.12],
-                        [["pull", 4.16], 10.25],
-                        [["pull", 7.84], 10.55],
-                        [["pull", 11.84], 12.09],
-                        [["pull", 27.84], 12.99],
-                        [["pull", 40.16], 7.17],
-                        [["pull", 42], 7.17],
-                        [["pull", 48], 6.49],
-                        [["pull", 52], 5.15],
+                        [["onglobe", 0], 5.17],
+                        [["pull", 0], 10.34],
+                        [["pull", 8.32], 10.31],
+                        [["pull", 12.0], 10.58],
+                        [["pull", 16.0], 14.67],
+                        [["pull", 32.0], 15.76],
+                        [["pull", 36.0], 8.29],
+                        [["pull", 42], 8.69],
+                        [["pull", 48], 7.88],
+                        [["pull", 52], 6.25],
                         [["turn", 0], 3.0],
                         [["turn", 0.8], 1.8],
                         [["turn", 1.6], 1.0]
@@ -73,16 +73,9 @@
                     "hold": 2.133,
                     "veil": 0.3,
                     "logoY": 460,
-                    "linesY": 610,
+                    "linesY": 575,
                     "scrim": 0.5,
-                    "strong": true,
-                    "sfx": [
-                        {
-                            "file": "~/audio/impact.wav",
-                            "at": 0,
-                            "gain": -6
-                        }
-                    ]
+                    "strong": true
                 }
             ]
         }

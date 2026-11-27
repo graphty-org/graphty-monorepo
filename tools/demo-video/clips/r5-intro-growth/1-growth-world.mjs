@@ -176,6 +176,13 @@ const SEAM = 1500 * END;
  * flight's plate fades out (nor the globe's in) while the camera pulls back.
  */
 const REST = SEAM;
+/**
+ * The close-up's creep through the dissolve: eased down over CREEP_STOP (take ms) to CREEP_REST of
+ * its speed, so it comes about as near as it did when the pull started early in the dissolve
+ * (REST 0.64 s), and still moves (stopped, cut68 held 4 still frames before the pull).
+ */
+const CREEP_STOP = S(300);
+const CREEP_REST = 0.12;
 /** The pull back from the close-up to the whole globe (take ms). */
 const PULL = S(12000);
 /**
@@ -198,6 +205,15 @@ const COMETS = { useEdgeColor: true, intensity: 2.6, bloom: 2, tail: 200, spacin
  */
 const GLOBE_EDGE = 3;
 const GLOBE_EDGE_OPACITY = 0.85;
+/**
+ * How high the routes' great-circle arcs rise over the globe, as a share of the distance between
+ * their ends (the element's default is 0.1, up to 5 units over its radius 25). At that height a
+ * long route from San Francisco over the Pacific rose past the globe's edge as the camera swung
+ * toward the equator and drew there as a thin folded needle (cut69, 24.4-25.2 s); at 0.03 a short
+ * hook of it still showed in the atmosphere's glow (cut71). This low, the arc all but lies on the
+ * map, and the globe hides whatever of it has gone over the edge.
+ */
+const GLOBE_ARC = 0.01;
 /** The route's line and its airports: a rich red that reads on the dark sky and on the map. */
 const ROUTE_RED = "#e0262f";
 /** The route's line: its width as the flight flies it, and on the globe. */
@@ -300,6 +316,10 @@ const reveal = (spot, europe, o = {}) =>
         close: CLOSE,
         ...o,
         hold: REST,
+        // the creep eased down early in the hold, so the camera all but rests through the dissolve
+        // (crept on at full speed through the whole of it, it went into the globe: cut67's 1.8 s of blank sea)
+        creepStop: CREEP_STOP,
+        creepRest: CREEP_REST,
         creepFade: 0.03,
         pull: PULL,
         turn: S(4000),
@@ -1059,6 +1079,7 @@ export default {
                     "edge.opacity": GLOBE_EDGE_OPACITY,
                     "edge.width": 0.1,
                     "edge.minScreenWidth": GLOBE_EDGE,
+                    "edge.arcHeight": GLOBE_ARC,
                 },
                 Object.fromEntries(Object.entries(colors).map(([id, c]) => [id, muted(c, COOL)])),
             ],

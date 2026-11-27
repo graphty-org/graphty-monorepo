@@ -278,6 +278,39 @@ test("arcRoute puts the middle airports on an arc: equal legs, the same gentle t
     assert.ok(out.b.y - (70 / 80) * out.b.x > 0 && out.c.y - (70 / 80) * out.c.x > 0);
 });
 
+test("arcRoute bows toward the side asked for, square to the chord", () => {
+    const at = {
+        a: { x: 0, y: 0, z: 0 },
+        b: { x: 10, y: 9, z: 0 },
+        c: { x: 20, y: 9, z: 0 },
+        d: { x: 30, y: 0, z: 0 },
+    };
+    const ids = ["a", "b", "c", "d"];
+    // the middle airports are above the chord; asked to bow below it (PI: under, as flightPoses' side)
+    const out = arcRoute(at, ids, Math.PI / 3, Math.PI);
+    for (const id of ["b", "c"])
+        assert.ok(out[id].y < -1 && Math.abs(out[id].z) < 1e-9, `${id} ${JSON.stringify(out[id])}`);
+    // to the right of the way the chord goes (+x), as beside turns it: +z
+    const right = arcRoute(at, ids, Math.PI / 3, Math.PI / 2);
+    for (const id of ["b", "c"]) assert.ok(right[id].z > 1 && Math.abs(right[id].y) < 1e-9);
+});
+
+test("revealPoses' creepStop eases the creep to a stop, so a long hold rests short of the globe", () => {
+    const spot = { x: 10, y: 15, z: -17 };
+    const o = { close: 2, creepV: 0.6, hold: 5000, pull: 12000, turn: 0 };
+    const d = (q) => dist(q.p, spot);
+    // creeping on all the hold, it would pass the point
+    assert.ok(Math.min(...revealPoses(spot, { x: -20, y: 10, z: 12 }, o).poses.map(d)) < 0.1);
+    const { poses } = revealPoses(spot, { x: -20, y: 10, z: 12 }, { ...o, creepStop: 2000 });
+    // about half of 2 s at 0.6 crept, then at rest until the pull
+    assert.ok(Math.abs(d(poses[120]) - (2 - 0.6)) < 0.01);
+    assert.ok(Math.abs(d(poses[290]) - d(poses[150])) < 1e-6);
+    assert.ok(d(poses.at(-1)) > 10);
+    // eased down to a share of its speed instead: still creeping when the pull starts
+    const slow = revealPoses(spot, { x: -20, y: 10, z: 12 }, { ...o, creepStop: 2000, creepRest: 0.1 }).poses;
+    assert.ok(Math.abs(d(slow[150]) - d(slow[290]) - 0.1 * 0.6 * (140 / 60)) < 0.01);
+});
+
 test("revealPoses ends over the latitude asked for", () => {
     const spot = { x: 10, y: 15, z: -17 };
     const o = { close: 4, pull: 12000, turn: 0, lat: 0.1 };

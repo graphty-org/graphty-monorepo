@@ -23,6 +23,7 @@ import {
     choose,
     done,
     draftOf,
+    drop,
     emptyProject,
     joinAs,
     joinLines,
@@ -116,6 +117,57 @@ async function matchDoors(modal: HTMLElement): Promise<void> {
     await addMatch(modal, 2, ["entries", "door"], ["doors", "door"]);
 }
 
+describe("the join workspace looks and works like the selection workspace (#10364)", () => {
+    it("draws each join as a selection card draws a group: colored, every control inside it", async () => {
+        const { modal } = await opened();
+        await matchBadge(modal);
+        const cards = within(modal).getByRole("group", { name: "Joins" });
+        const card = cards.querySelector<HTMLElement>("section.cm-list-card.sel-card[data-card-id]:not([data-folded])");
+        if (card === null) {
+            throw new Error("no open card");
+        }
+        assert.notStrictEqual(card.style.getPropertyValue("--cm-card-color"), "", "the card has its color");
+        for (const name of ["Source 1", "Source 2", "Field 1", "Field 2"]) {
+            assert.isNotNull(within(card).queryByRole("combobox", { name }), `${name} is inside the card`);
+        }
+        await within(card).findByRole("radiogroup", { name: "Join type" });
+        await within(card).findByRole("radiogroup", { name: "No match" });
+        assert.isNotNull(within(card).queryByRole("button", { name: /^Delete / }), "its x");
+        assert.isNotNull(within(card).queryByRole("button", { name: /^More for / }), "its menu");
+        for (const gone of [".jw-list", ".jw-editor", ".jw-card", ".jw-left"]) {
+            assert.isNull(modal.querySelector(gone), `no ${gone}`);
+        }
+        assert.isNotNull(modal.querySelector(".sel-ws-head .jw-key"), "the key sits in the header");
+        assert.isNotNull(within(cards).queryByRole("button", { name: "Join" }), "+ Join under the cards");
+    });
+
+    it("joins three drawn files: a complete match changes the graph at once, and Done keeps it", async () => {
+        await page.viewport(1280, 900);
+        const { store, session } = await emptyProject();
+        drop("people.csv", PEOPLE);
+        await waitFor(() => {
+            assert.strictEqual(session.data.nodes().length, 3);
+        });
+        store.set({ dockOpen: false, dockMaximized: false });
+        drop("doors.csv", "door,name\nD1,North\nD2,South");
+        drop("entries.csv", ENTRIES);
+        await waitFor(() => {
+            assert.strictEqual(session.data.nodes().length, 10, "every file is drawn: 3 people, 2 doors, 5 entries");
+        });
+        assert.strictEqual(session.data.edges().length, 0);
+        const modal = await openJoins();
+        await pickSources(modal, "entries", "people");
+        await pickFields(modal, "badge", "badge");
+        const ways = await within(modal).findByRole("radiogroup", { name: "Join type" });
+        await within(ways).findByRole("radio", { checked: true });
+        await waitFor(() => {
+            assert.isAbove(draftOf(session).preview().after.edges, 0, "the picked type adds edges at once");
+        });
+        await done(modal);
+        assert.isAbove(session.data.edges().length, 0, "Done keeps them");
+    });
+});
+
 describe("the join workspace (source-steps)", () => {
     it("opens on a blank card over the graph as it is, counts in the draft, and colors a card's step", async () => {
         const { session, entries, modal } = await opened();
@@ -139,10 +191,9 @@ describe("the join workspace (source-steps)", () => {
         await waitFor(() => {
             assert.isAbove(draft.steps().length, steps, "a step as soon as the match is complete");
         });
-        assert.isNotNull(
-            within(modal).queryByRole("radio", { checked: true }),
-            "a join type is picked for the reader, which they can switch",
-        );
+        await within(within(modal).getByRole("radiogroup", { name: "Join type" })).findByRole("radio", {
+            checked: true,
+        });
         await joinAs(modal, NODE);
         await waitFor(() => {
             assert.isTrue((session.styles.shownDraft?.steps?.length ?? 0) > 0, "the card's step is colored");
@@ -373,7 +424,7 @@ describe("the join workspace (source-steps)", () => {
         assert.include(waysToJoin(modal), EDGE);
     });
 
-    it("+ Match on a written card waits until its picks are made, then asks again how to join", async () => {
+    it("+ Match on a written card waits until its picks are made, then joins by an edge type at once", async () => {
         const { session, modal } = await opened(false, { name: "doors.csv", text: "door,name\nD1,North\nD2,South" });
         await connect(modal, session);
         await userEvent.click(within(modal).getByRole("button", { name: "+ Match" }));
@@ -391,13 +442,9 @@ describe("the join workspace (source-steps)", () => {
             "Node per entries row, linked to people and doors",
             "Fields of entries and doors on people",
         ]);
-        assert.isUndefined(
-            draftOf(session)
-                .steps()
-                .find((row) => row.act !== null),
-        );
-        await joinAs(modal, EDGE);
+        // The whole match joins at once by the first type that adds edges: each entry an edge.
         await newest(session, (row) => row.act?.to?.field === "door", "written");
+        await joinAs(modal, EDGE);
     });
 
     it("names a staged source by its name once its step is written, never by its id", async () => {
@@ -433,7 +480,13 @@ describe("the join workspace (source-steps)", () => {
         await userEvent.fill(within(modal).getByRole("combobox", { name: "Same nodes as" }), "person");
         await userEvent.keyboard("{Enter}");
         await pickFields(modal, "badge", "badge");
-        assert.notInclude(waysToJoin(modal), NODE);
+        // The type picked for the reader the moment the match is whole is one of those offered then.
+        const picked = await within(
+            within(modal).getByRole("radiogroup", { name: "Join type" }),
+        ).findByRole<HTMLInputElement>("radio", {
+            checked: true,
+        });
+        assert.strictEqual(picked.labels?.[0]?.textContent, FIELDS, "rows as nodes was not offered");
     });
 
     it("door entries read as edges connect a person to the door each names, one edge per entry", async () => {

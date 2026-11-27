@@ -133,6 +133,9 @@ const logger = GraphtyLogger.getLogger(["graphty", "node"]);
  */
 export const SELECTION_HALO_MESH = "graphty-selection-halo";
 
+/** Each scene's hidden halo instances no node draws, by their source's cache key; see `Node.takeSpareHalo`. */
+const spareHalos = new WeakMap<Scene, Map<string, AbstractMesh[]>>();
+
 /**
  * A style less its halo. A built `Node` draws its halo as an overlay of its own, hung from its anchor, whatever
  * draws its body -- as it does for a selection drawn without the starting rows -- so a halo keeps its body on
@@ -3918,6 +3921,18 @@ export class Node implements ModelUser {
     }
 
     /**
+     * Whether selecting or deselecting this node only shows, hides or builds its halo instance, which reports itself
+     * (`UpdateManager.haloTouched`): it has no label to ring, no shader drawing, no model and no batch.
+     * @returns True when it does.
+     * @internal
+     */
+    get selectionShowsOnlyHalo(): boolean {
+        return (
+            this.label === undefined && this.shaderDrawing === null && this.drawnModel === null && !this.drawnByBatch()
+        );
+    }
+
+    /**
      * Say whether this node is selected.
      * @param selected - What the selection mask says about this node.
      * @returns True when this changed the state.
@@ -3930,6 +3945,10 @@ export class Node implements ModelUser {
         this.selected = selected;
         this.applyRenderState();
         this.shaderStateChanged("selected", selected);
+        if (!this.selectionShowsOnlyHalo) {
+            // Its label rings the halo, or a shader or a model draws the selection: more than the halo it reports.
+            this.context.getUpdateManager?.().meshesShownOrHidden();
+        }
 
         return true;
     }
@@ -4190,14 +4209,7 @@ export class Node implements ModelUser {
         }
 
         const selection = look;
-        // A halo is the node's own shape, so a node redrawn in another shape needs another halo,
-        // and its own look's material, so a halo changing look needs another one too.
-        const stale = kind === "halo" && existing !== null && this.haloKey !== this.haloSourceKey(selection);
-        if (stale && !existing.isDisposed()) {
-            existing.dispose();
-        }
-
-        const overlay = existing && !stale && !existing.isDisposed() ? existing : this.createOverlay(kind, selection);
+        const { overlay, built } = this.overlayToShow(kind, existing, selection);
 
         if (kind === "halo") {
             this.halo = overlay;
@@ -4226,8 +4238,61 @@ export class Node implements ModelUser {
         }
 
         this.syncOverlayPositions();
+        if (kind === "halo") {
+            this.context.getUpdateManager?.().haloTouched(overlay, built);
+        }
+
         overlay.setEnabled(true);
         this.context.getNodeBatches?.()?.rewalk(this);
+    }
+
+    /**
+     * The overlay to draw: the one built already, a spare halo, or a new instance.
+     * @param kind - Which overlay.
+     * @param existing - The one this node holds, or null.
+     * @param selection - The halo's look.
+     * @returns The overlay, and whether it was just built.
+     */
+    private overlayToShow(
+        kind: "halo" | "context",
+        existing: AbstractMesh | null,
+        selection: GraphSelectionStyleConfig,
+    ): { overlay: AbstractMesh; built: boolean } {
+        // A halo is the node's own shape, so a node redrawn in another shape needs another halo,
+        // and its own look's material, so a halo changing look needs another one too.
+        const stale = kind === "halo" && existing !== null && this.haloKey !== this.haloSourceKey(selection);
+        if (stale && !existing.isDisposed()) {
+            existing.dispose();
+        }
+
+        if (existing && !stale && !existing.isDisposed()) {
+            return { overlay: existing, built: false };
+        }
+
+        const spare = kind === "halo" ? this.takeSpareHalo(selection) : null;
+        return spare === null
+            ? { overlay: this.createOverlay(kind, selection), built: true }
+            : { overlay: spare, built: false };
+    }
+
+    /**
+     * A halo another node gave back, in this look, to draw this node's with: a selection moved from one node to another
+     * then builds no mesh, which a frame would have to find and draw (issue #10128).
+     * @param look - The halo's look.
+     * @returns The halo, or null when none is spare.
+     */
+    private takeSpareHalo(look: GraphSelectionStyleConfig): AbstractMesh | null {
+        const key = this.haloSourceKey(look);
+        const spare = spareHalos.get(this.context.getScene())?.get(key);
+        while (spare !== undefined && spare.length > 0) {
+            const halo = spare.pop();
+            if (halo !== undefined && !halo.isDisposed()) {
+                this.haloKey = key;
+                return halo;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -4236,6 +4301,19 @@ export class Node implements ModelUser {
      * @param existing - The overlay, when one was built.
      */
     private hideOverlay(kind: "halo" | "context", existing: AbstractMesh | null): void {
+        if (kind === "halo" && existing && !existing.isDisposed() && this.haloKey !== null) {
+            // Given back, hidden, for the next node to draw a halo in this look (`takeSpareHalo`).
+            this.context.getUpdateManager?.().haloTouched(existing, false);
+            const scene = this.context.getScene();
+            const byKey = spareHalos.get(scene) ?? new Map<string, AbstractMesh[]>();
+            spareHalos.set(scene, byKey);
+            const spare = byKey.get(this.haloKey) ?? [];
+            byKey.set(this.haloKey, spare);
+            spare.push(existing);
+            this.halo = null;
+            this.haloKey = null;
+        }
+
         if (existing && !existing.isDisposed()) {
             existing.setEnabled(false);
         }

@@ -385,6 +385,7 @@ import {
     rowScanOf,
     screenProjector,
     useEdgeIdTarget,
+    useFrozenRows,
     useNodeIdTarget,
 } from "./render/PickService";
 import { type DrawnTarget, RowTable } from "./render/RowTable";
@@ -1687,7 +1688,8 @@ export class Graph implements GraphContext {
                 this.statsManager.startLayoutSession();
                 this.#placementOwed = true;
                 this.layoutManager.running = true;
-                if (dirty.has(NODES_ADDED)) {
+                // A drawn draft that keeps the camera adds its nodes into the view the reader already has.
+                if (dirty.has(NODES_ADDED) && !sessionDataOf(this.session).draftKeepsCamera()) {
                     this.autoFrame();
                 }
             }
@@ -1824,12 +1826,15 @@ export class Graph implements GraphContext {
 
         // `view.camera` moves this renderer's camera; a session with no renderer refuses it.
         dispatcherOf(this.session).services.camera = {
-            pose: (follows) => {
-                try {
-                    return this.#savedPose({ follows });
-                } catch {
-                    return undefined;
-                }
+            poser: () => {
+                const context = this.#sharedViewContext();
+                return (follows) => {
+                    try {
+                        return this.#savedPose({ follows }, context);
+                    } catch {
+                        return undefined;
+                    }
+                };
             },
             current: () => {
                 const immersive = this.#immersiveProblem();
@@ -2040,6 +2045,13 @@ export class Graph implements GraphContext {
                 autoZoomToFit: true,
             },
         );
+        // While the list of what is drawn is frozen nothing moves, so a pick on the "objects" path, which keeps no row
+        // table, reads the nodes from a table made once per freeze instead of every node's mesh (issue #10128).
+        useFrozenRows(this.scene, {
+            epoch: () => this.updateManager.frozenListEpoch(),
+            nodes: () => dataManagerInternals.builtNodes(this.dataManager),
+            root: () => this.renderManager.graphRoot,
+        });
         // A picture the frame on screen does not show yet: an image annotation still loading, or a
         // scene shader's (the background, a group outline) still loading, compiling or owed a draw.
         this.updateManager.fitAnnotations = () => {
@@ -2219,10 +2231,15 @@ export class Graph implements GraphContext {
         for (const type of ["pointerdown", "pointerup", "contextmenu"]) {
             this.element.addEventListener(type, pressMenu, { capture: true, signal: this.#teardown.signal });
         }
-        this.session.on("selection:changed", ({ cause, added, removed }) => {
+        this.session.on("selection:changed", ({ cause, added, removed, nodes }) => {
             const causes = this.styles.config.behavior.camera.pivotOnSelectionCauses;
             if (!menuPress && (causes === undefined || causes.includes(cause))) {
                 pivoted = true;
+                // The last node left: the glide ends on what was selected, even when no frame has
+                // run since it was selected to start the glide (Escape right after a click, #10256).
+                if (nodes === 0 && removed.length > 0) {
+                    this.updateManager.glideToCleared(removed.flatMap((id) => this.dataManager.getNode(id) ?? []));
+                }
                 return;
             }
 
@@ -8614,7 +8631,11 @@ export class Graph implements GraphContext {
             await this.untilNothingIsAhead();
             // Then the frame, and what only frames end: the picture, and the label counts it drew.
             await this.untilNothingIsOwed(wait);
-        } while (!wait.gaveUp && !this.updateManager.nothingIsOwed());
+            // A canvas whose box changed (a panel opened beside it) is drawn at its old size until the element's
+            // ResizeObserver runs, after the page's animation frames, and a frame loop at rest does not look: the
+            // picture is not final, and `nodeScreenPosition` and `elementAt` read a framing for the old size
+            // (issue #10320). Taken now, a refit it starts is waited for by the next round.
+        } while (!wait.gaveUp && (this.renderManager.resize() || !this.updateManager.nothingIsOwed()));
     }
 
     /**
@@ -11211,18 +11232,33 @@ export class Graph implements GraphContext {
      * The pose a saved view gives now: its fixed camera, or the camera view it follows computed
      * with its default scope for whatever is drawn.
      * @param saved - The saved view.
+     * @param context - The whole graph's camera-view context; measured anew by default.
      * @returns The camera state.
      * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA` `{ name }` when the followed camera view is
      *     no longer registered, or as `resolveCameraView` refuses.
      */
-    #savedPose(saved: SavedView): import("./screenshot/types.js").CameraState {
+    #savedPose(
+        saved: SavedView,
+        context: () => CameraViewContext = () => this.cameraViewContext(this.boundsToFrame()),
+    ): import("./screenshot/types.js").CameraState {
         if (saved.follows === undefined) {
             return saved.camera ?? {};
         }
         if (!isCameraViewName(saved.follows)) {
             throw unknownFollowed(saved.follows);
         }
-        return resolveCameraView(saved.follows, this.cameraViewContext(this.boundsToFrame()));
+        return resolveCameraView(saved.follows, context());
+    }
+
+    /**
+     * The whole graph's camera-view context, measured on the first call and shared by every call
+     * after: a save that writes many following views measures every node once, not once a view
+     * (issue #10314).
+     * @returns The getter.
+     */
+    #sharedViewContext(): () => CameraViewContext {
+        let context: CameraViewContext | undefined;
+        return () => (context ??= this.cameraViewContext(this.boundsToFrame()));
     }
 
     /**
@@ -11231,9 +11267,12 @@ export class Graph implements GraphContext {
      * @returns Each name with its pose, in project order.
      */
     #savedPoses(): [string, import("./screenshot/types.js").CameraState][] {
+        const context = this.#sharedViewContext();
         return [...this.session.views].flatMap(([name, saved]) => {
             try {
-                return [[name, this.#savedPose(saved)] as [string, import("./screenshot/types.js").CameraState]];
+                return [
+                    [name, this.#savedPose(saved, context)] as [string, import("./screenshot/types.js").CameraState],
+                ];
             } catch {
                 return [];
             }

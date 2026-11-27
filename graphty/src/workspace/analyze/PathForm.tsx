@@ -125,7 +125,9 @@ function NodeField({
     const label = END_WORDS[end];
     const listId = useId();
     // The option Enter picks: the first until the arrows move it, and marked as such.
+    // on reload: fresh: pointer: the option the arrows moved to in the list opened for a look
     const [active, setActive] = useState(0);
+    // on reload: fresh: pointer: focus in the field
     const [focused, setFocused] = useState(false);
     // The list shows while the text is typed in the field, not once a node is picked.
     const hits = value.node === null && focused ? nodeHits(session, value.text) : [];
@@ -300,16 +302,42 @@ const NOT_YET_SHOWN: ReadonlySet<string> = new Set(["invertStrength", "timeOrder
  * @returns The form
  */
 export function PathForm({ session, descriptor, onBack, onClose, onRun }: Readonly<PathFormProps>): React.JSX.Element {
+    const { store } = useWorkspace();
     const selected = session.selection.nodes;
-    const [ends, setEnds] = useState<Record<End, NodeChoice>>(() => ({
-        source: chosen(session, selected[0]),
-        target: chosen(session, selected[1]),
-    }));
-    const [values, setValues] = useState<Record<string, unknown>>({});
+    // What the reader typed and picked is kept in the workspace's pathDraft as it changes, and
+    // read back as the form opens, so a reload reopens the popover on it.
+    // on reload: fresh: derived: read from the kept pathDraft as the form opens
+    const [ends, setEnds] = useState<Record<End, NodeChoice>>(() => {
+        const kept = store.get().pathDraft;
+        return {
+            source: kept?.source ?? chosen(session, selected[0]),
+            target: kept?.target ?? chosen(session, selected[1]),
+        };
+    });
+    // on reload: fresh: derived: read from the kept pathDraft as the form opens
+    const [values, setValues] = useState<Record<string, unknown>>(() => ({ ...store.get().pathDraft?.values }));
+    // on reload: fresh: in flight: a canvas pick under way
     const [picking, setPicking] = useState<End | null>(null);
+    // on reload: fresh: notice: why an end names no node, said again on the next Find path
     const [errors, setErrors] = useState<Record<End, string | null>>({ source: null, target: null });
+    // Kept once the reader changes something: a form opened and left as it was keeps nothing.
+    const changed = useRef(false);
+    const keepEnd = (end: End, value: NodeChoice): void => {
+        changed.current = true;
+        setEnds((now) => ({ ...now, [end]: value }));
+    };
+    const keepValues = (next: Record<string, unknown>): void => {
+        changed.current = true;
+        setValues(next);
+    };
+    useEffect(() => {
+        if (changed.current) {
+            store.set({ pathDraft: { ...ends, values } });
+        }
+    }, [store, ends, values]);
+    // on reload: fresh: derived: a callback, made again as the form opens
     const [onPicked] = useState(() => (end: End, node: NodeId) => {
-        setEnds((now) => ({ ...now, [end]: chosen(session, node) }));
+        keepEnd(end, chosen(session, node));
         setErrors((now) => ({ ...now, [end]: null }));
         setPicking(null);
     });
@@ -335,7 +363,7 @@ export function PathForm({ session, descriptor, onBack, onClose, onRun }: Readon
     const focus = (["source", "target", "run"] as const)[Math.min(selected.length, 2)];
 
     const set = (end: End) => (value: NodeChoice) => {
-        setEnds((now) => ({ ...now, [end]: value }));
+        keepEnd(end, value);
         setErrors((now) => ({ ...now, [end]: null }));
     };
 
@@ -424,7 +452,7 @@ export function PathForm({ session, descriptor, onBack, onClose, onRun }: Readon
                                 label: optionWords(descriptor.key, followOption).choice(value),
                             }))}
                             onChange={(picked) => {
-                                setValues({ ...values, direction: picked });
+                                keepValues({ ...values, direction: picked });
                             }}
                         />
                     </Input.Wrapper>
@@ -437,7 +465,7 @@ export function PathForm({ session, descriptor, onBack, onClose, onRun }: Readon
                     weightReads={descriptor.weightMeaning ?? null}
                     algorithm={descriptor.key}
                     onChange={(name, value) => {
-                        setValues({ ...values, [name]: value });
+                        keepValues({ ...values, [name]: value });
                     }}
                 />
                 <Group justify="flex-end">

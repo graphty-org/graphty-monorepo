@@ -110,6 +110,12 @@ export function toHistory(rows, run) {
             endsOn: r.endsOn ?? null,
             ...(r.layoutStill ? { layoutStill: r.layoutStill } : {}),
             ...(r.clickWindowMissed ? { clickWindowMissed: r.clickWindowMissed } : {}),
+            // Never drawn in a case that must draw, presses that missed a moving node, a burst's queued backlog.
+            ...(r.notDrawn ? { notDrawn: r.notDrawn } : {}),
+            ...(r.missed ? { missed: r.missed } : {}),
+            ...(r.queued_median_ms ? { queuedMs: r.queued_median_ms } : {}),
+            ...(r.frameReadback !== undefined ? { frameReadback: r.frameReadback } : {}),
+            ...(r.pageState ? { pageState: r.pageState } : {}),
             ...(r.notMeasured ? { notMeasured: r.notMeasured } : {}),
             ...(r.errors ? { errors: r.errors.length } : {}),
         }));

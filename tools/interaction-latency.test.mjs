@@ -65,6 +65,27 @@ describe("interaction-latency", () => {
         assert.equal(lines[0].commit, "abc");
     });
 
+    it("keeps the visibility failures, missed presses, queued backlog and page state a cell recorded", () => {
+        const rows = [
+            {
+                ...elementRow("burst-wheel-120hz", 300, 600),
+                notDrawn: 2,
+                missed: 1,
+                queued_median_ms: 440,
+                frameReadback: false,
+                pageState: { styleLayers: 4 },
+            },
+            elementRow("hover-node", 20, 30),
+        ];
+        const [burst, plain] = toHistory(rows, { run: "r1", commit: "abc", tier: "quick" });
+        assert.equal(burst.notDrawn, 2);
+        assert.equal(burst.missed, 1);
+        assert.equal(burst.queuedMs, 440);
+        assert.equal(burst.frameReadback, false);
+        assert.deepEqual(burst.pageState, { styleLayers: 4 });
+        assert.equal("notDrawn" in plain || "missed" in plain || "queuedMs" in plain, false);
+    });
+
     it("bands at 150 and 300 ms", () => {
         assert.equal(band(150), "good");
         assert.equal(band(151), "acceptable");

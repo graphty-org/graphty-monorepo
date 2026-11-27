@@ -144,6 +144,12 @@ const B = {
             SYNC = true;
         }
     },
+    // The per-frame blocking readback on or off for what follows: the input latency runner turns it off, as a
+    // reader's page has none (it added 6 to 47 ms to every frame it timed). Returns the setting now.
+    frameReadback(on) {
+        SYNC = !!on;
+        return SYNC;
+    },
     async still(frames = 200) {
         await lib.settle();
         SYNC = false;

@@ -1386,10 +1386,14 @@ const cardKeys = async (page) => {
     // Playwright's WebKit does on Linux too; Playwright's ControlOrMeta follows the host instead.
     const mac = await inPage(v.page, () => /Mac|iPhone|iPad/.test(navigator.userAgent));
     const [said, mod] = mac ? ["Cmd", "Meta"] : ["Ctrl", "Control"];
+    // A menu draws no key (owner, #10394); each item names its key on hover and to a screen reader.
     for (const key of ["F2", `${said}+D`, `${said}+]`, `${said}+[`, "Del"]) {
-        const shown = await v.page.getByRole("menu").innerText();
-        if (!shown.includes(key)) {
-            fail(`the card's menu shows no ${key}: ${shown.replaceAll("\n", " ")}`);
+        const titles = await v.page
+            .getByRole("menu")
+            .getByRole("menuitem")
+            .evaluateAll((items) => items.map((item) => item.getAttribute("title")));
+        if (!titles.includes(key)) {
+            fail(`no item of the card's menu names ${key} on hover: ${titles.join(", ")}`);
         }
     }
     await v.page.keyboard.press("Escape");

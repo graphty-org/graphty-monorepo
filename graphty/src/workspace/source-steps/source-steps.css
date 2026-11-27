@@ -29,27 +29,30 @@
 }
 
 /* The key sits in a strip right under the drawing, at its left: the canvas is drawn above the modal, so
-   nothing of the modal can lie over it. */
+   nothing of the modal can lie over it. The strip is one line high whatever it counts, so the drawing keeps
+   its size (and the reader's camera its view) as counts come and go. */
+.jw-modal {
+    --jw-key-height: 28px;
+}
+
 .jw-modal .sel-ws-center {
-    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-rows: minmax(0, 1fr) var(--jw-key-height);
 }
 
 .jw-modal .sel-ws-center[data-strip] {
-    grid-template-rows: minmax(0, 1fr) auto 40%;
+    grid-template-rows: minmax(0, 1fr) var(--jw-key-height) 40%;
 }
 
 .jw-key {
     display: flex;
-    flex-wrap: wrap;
-    gap: 4px 12px;
+    flex-wrap: nowrap;
+    gap: 12px;
     align-items: center;
     min-width: 0;
-    padding: 4px 8px;
+    height: var(--jw-key-height);
+    padding: 0 8px;
+    overflow: auto hidden;
     white-space: nowrap;
-}
-
-.jw-key:empty {
-    padding: 0;
 }
 
 .jw-lower {
@@ -76,7 +79,7 @@
     }
 
     .jw-modal .sel-ws-center[data-strip] {
-        grid-template-rows: minmax(0, 1fr) 35%;
+        grid-template-rows: minmax(0, 1fr) var(--jw-key-height) 35%;
     }
 }
 
@@ -272,7 +275,14 @@ dialog.jw-modal {
     border-bottom: 0;
 }
 
-/* A row left under Advanced starts where the rows above it start. */
-.jw-modal .sel-card .cm-section-content {
-    padding-inline: 0;
+/* A row left under Advanced starts and ends where the rows above it do: the section draws the panel's own
+   padding (16px before, 8px after), so it reaches out by as much, its chevron in the gutter before the rows. */
+.jw-modal .sel-card .cm-section {
+    margin-inline: -16px -8px;
+}
+
+/* A choice fills its row, as a field does. */
+.jw-row-controls > .mantine-SegmentedControl-root {
+    flex: 1 1 0;
+    min-width: 0;
 }

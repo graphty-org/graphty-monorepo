@@ -486,14 +486,14 @@ const CASES: readonly Case[] = [
 /**
  * The number the key above the graph gives one of its items.
  * @param modal - the workspace.
- * @param label - the item's label, such as "nodes new".
+ * @param label - the item's label, such as "new nodes".
  * @returns the number.
  */
 function keyCount(modal: HTMLElement, label: string): number {
     const item = [...modal.querySelectorAll("[aria-label]")].find((each) =>
-        new RegExp(`^${label} \\d+$`).test(each.getAttribute("aria-label") ?? ""),
+        new RegExp(`^\\d+ ${label}$`).test(each.getAttribute("aria-label") ?? ""),
     );
-    return Number(item?.getAttribute("aria-label")?.split(" ").at(-1) ?? 0);
+    return Number(item?.getAttribute("aria-label")?.split(" ").at(0) ?? 0);
 }
 
 /**
@@ -504,8 +504,8 @@ async function countsAgree(modal: HTMLElement): Promise<void> {
     await waitFor(() => {
         const counts = modal.querySelector(".jw-counts")?.textContent ?? "";
         for (const [label, one, many] of [
-            ["nodes new", "new node", "new nodes"],
-            ["edges new", "new edge", "new edges"],
+            ["new nodes", "new node", "new nodes"],
+            ["new edges", "new edge", "new edges"],
         ] as const) {
             const n = keyCount(modal, label);
             const said = counts.match(new RegExp(`(\\d+) (${many}|${one})(?![a-z])`))?.[1];
@@ -603,7 +603,7 @@ describe("a join card's ways to join (source-steps)", () => {
         });
         assert.include(counts, "nodes matched", "both wait: the entries are new nodes, which the rows matched");
         assert.notInclude(counts, "merged");
-        assert.isNotNull(within(modal).getByLabelText("nodes merged 0"), "none of the graph's nodes is merged");
+        assert.isNull(within(modal).queryByLabelText(/^\d+ nodes merged$/u), "none of the graph's nodes is merged");
     });
 
     it("a set of matches no one join reads lists what each makes by itself, and picking one leaves the others out", async () => {

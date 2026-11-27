@@ -558,7 +558,7 @@ describe("the Data place's sidebar on the real element", () => {
         const items = await screen.findAllByRole("menuitem");
         assert.deepEqual(
             items.map((item) => item.textContent),
-            ["File...Ctrl+O", "Samples...", "Generator...", "Network data...", "PasteCtrl+V"],
+            ["File...", "Samples...", "Generator...", "Network data...", "Paste"],
         );
         for (const item of items) {
             assert.isNotNull(item.querySelector("svg"), `${item.textContent ?? ""} has a glyph`);

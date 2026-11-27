@@ -1,6 +1,6 @@
 import "./toolbar.css";
 
-import { MenuCheckItem, MenuItemDescription, MenuShortcut, Toolbar, ToolButton } from "@graphty/compact-mantine";
+import { MenuCheckItem, MenuItemDescription, Toolbar, ToolButton } from "@graphty/compact-mantine";
 import type { TourProgressEvent } from "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Menu, Popover, Text } from "@mantine/core";
@@ -108,7 +108,7 @@ function CheckItem({
             aria-disabled={reason !== null}
             data-disabled={reason === null ? undefined : true}
             aria-keyshortcuts={shortcut === undefined ? undefined : ariaKey(shortcut)}
-            rightSection={shortcut === undefined ? undefined : <MenuShortcut>{formatKey(shortcut)}</MenuShortcut>}
+            title={shortcut === undefined ? undefined : formatKey(shortcut)}
         >
             {label}
             {reason === null ? null : <MenuItemDescription>{reason}</MenuItemDescription>}

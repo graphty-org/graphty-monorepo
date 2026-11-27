@@ -22,6 +22,7 @@ import {
     addMatch,
     advanced,
     choose,
+    clickCardBlank,
     done,
     draftOf,
     drop,
@@ -825,15 +826,17 @@ describe("the join workspace's cards work as the selection workspace's cards do 
         await waitFor(() => {
             assert.deepStrictEqual(joinLines(place), ["Badge entries"]);
         });
-        const again = await openJoins();
-        await selectJoin(again, "Badge entries");
+        // Reopened from its row, as a reader opens a join (Shift+J starts a new one beside it).
+        await userEvent.click(
+            within(within(place).getByRole("grid", { name: "Joins" })).getByRole("gridcell", { name: "Badge entries" }),
+        );
+        const again = await screen.findByRole("dialog", { name: "Join" });
         assert.deepStrictEqual(joinLines(again), ["Badge entries"], "reopened, it keeps the name");
     });
 
     it("F2 on a card opens its name's box, and a name given before the match is complete is kept", async () => {
         const { session, modal } = await opened();
-        const card = openCard(modal);
-        card.focus();
+        await clickCardBlank(openCard(modal));
         await userEvent.keyboard("{F2}");
         const box = await within(modal).findByRole("textbox", { name: "Rename New join" });
         await userEvent.fill(box, "Badges");
@@ -914,10 +917,55 @@ describe("the join workspace's cards work as the selection workspace's cards do 
         const items = within(menu)
             .getAllByRole("menuitem")
             .map((item) => item.textContent ?? "");
-        const labels = ["Undo", "Redo", "Frame the matches", "Reader edits"];
+        const labels = ["Undo", "Redo", "Frame the matches", "Hide table", "Reader edits", "Delete", "Clear"];
         assert.lengthOf(items, labels.length);
         labels.forEach((label, at) => {
             assert.isTrue(items[at].startsWith(label), `${label} is item ${String(at + 1)}`);
+        });
+    });
+
+    it("counts the open join in the header, duplicates a card, hides its table, and clears every card", async () => {
+        const { session, modal } = await opened();
+        await connect(modal, session);
+        const head = modal.querySelector<HTMLElement>(".sel-ws-head");
+        await waitFor(() => {
+            assert.match(head?.querySelector(".sel-count")?.textContent ?? "", /^\d+ of \d+ rows/u, "a live count");
+        });
+        await fromCardMenu(modal, "Duplicate");
+        await waitFor(() => {
+            assert.deepStrictEqual(joinLines(modal), ["people + entries", "people + entries"]);
+        });
+        assert.include(
+            openCard(modal).textContent ?? "",
+            "Not joined",
+            "the copy is not joined until a type is picked",
+        );
+        assert.lengthOf(
+            draftOf(session)
+                .steps()
+                .filter((row) => row.join !== undefined),
+            1,
+            "the copy writes nothing",
+        );
+        await selectJoin(modal, "people + entries");
+        await waitFor(() => {
+            assert.isNotNull(modal.querySelector(".jw-lower"), "the card's table is shown");
+        });
+        await fromHeadMenu(modal, "Hide table");
+        await waitFor(() => {
+            assert.isNull(modal.querySelector(".jw-lower"), "Hide table hides it");
+        });
+        await fromHeadMenu(modal, "Show table");
+        await waitFor(() => {
+            assert.isNotNull(modal.querySelector(".jw-lower"), "Show table brings it back");
+        });
+        await fromHeadMenu(modal, "Clear");
+        await waitFor(() => {
+            assert.deepStrictEqual(joinLines(modal), [], "Clear takes every card");
+        });
+        await fromHeadMenu(modal, "Undo");
+        await waitFor(() => {
+            assert.deepStrictEqual(joinLines(modal), ["people + entries"], "one Undo brings the join back");
         });
     });
 

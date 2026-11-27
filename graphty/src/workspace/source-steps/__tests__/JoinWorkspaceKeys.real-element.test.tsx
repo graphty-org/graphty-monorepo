@@ -517,7 +517,7 @@ describe("a join card's matches and table (source-steps)", () => {
             within(within(again).getByRole("radiogroup", { name: /^Unmatched /u })).getByText("Skip"),
         );
         await newest(session, (row) => row.act?.unlinked === "drop", "its options are changed in place");
-        assert.include(again.textContent ?? "", "nodes removed 1", "E3 badges no one");
+        assert.include(again.textContent ?? "", "1 nodes removed", "E3 badges no one");
         assert.deepStrictEqual(joinLines(again), ["entries + people", "New join"], "still one card");
         await done(again);
         assert.isUndefined(session.data.node("E3"));
@@ -643,5 +643,24 @@ describe("a join card's matches and table (source-steps)", () => {
         }
         await userEvent.hover(within(head).getByRole("button", { name: "Cancel" }));
         await screen.findByRole("tooltip", { name: /Esc/u });
+        // An open "..." menu draws no key either: each item names its key on hover instead.
+        for (const more of [/^More for Join/u, /^More for /u]) {
+            await userEvent.click(within(modal).getAllByRole("button", { name: more })[0]);
+            const menu = await screen.findByRole("menu");
+            const drawn = words(menu);
+            for (const mark of ["Ctrl", "Cmd", "F2", "Del", "R"]) {
+                assert.notInclude(drawn, mark, `${mark} is not drawn in the menu`);
+            }
+            assert.isTrue(
+                within(menu)
+                    .getAllByRole("menuitem")
+                    .some((item) => (item.getAttribute("title") ?? "") !== ""),
+                "an item names its key on hover",
+            );
+            await userEvent.keyboard("{Escape}");
+            await waitFor(() => {
+                assert.isNull(screen.queryByRole("menu"));
+            });
+        }
     });
 });

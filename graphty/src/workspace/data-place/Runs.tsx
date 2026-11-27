@@ -9,7 +9,7 @@
  * something uses asks first, naming them, and the selections then wait for Run (design: algo-options cardruns.md, rules 3 to 5).
  */
 
-import { ContextMenu, MenuShortcut, ModalFooter } from "@graphty/compact-mantine";
+import { ContextMenu, ModalFooter } from "@graphty/compact-mantine";
 import type { GraphSession, Run, RunReader } from "@graphty/graphty-element/session";
 import { ActionIcon, Badge, Button, Group, Menu, Modal, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useState } from "react";
@@ -325,7 +325,7 @@ export function ResultsList(): React.JSX.Element | null {
                     size="compact-sm"
                     variant="default"
                     leftSection={<GLYPHS.analyze size={14} aria-hidden />}
-                    rightSection={key === undefined ? undefined : <MenuShortcut>{formatKey(key)}</MenuShortcut>}
+                    title={key === undefined ? undefined : formatKey(key)}
                     aria-keyshortcuts={key === undefined ? undefined : ariaKey(key)}
                     disabled={analyze?.disabledReason !== null}
                     onClick={() => analyze?.run()}

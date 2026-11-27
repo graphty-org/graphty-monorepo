@@ -12,7 +12,6 @@ import { Group, MultiSelect, Text, UnstyledButton } from "@mantine/core";
 import React from "react";
 
 import { directions, NO_MATCH_WORDS, sameEnds } from "./cardWords";
-import { edgeTypeChoices } from "./join";
 import { type CardLine, type CardResult, DEFAULT_RESULT, directionOf, noMatchOf, noMatchWays } from "./joinCards";
 import { Pick } from "./Pick";
 import {
@@ -67,7 +66,6 @@ function Choice<T extends string>({
     return (
         <Row label={label}>
             <SegmentedControl
-                size="xs"
                 fullWidth
                 aria-label={label}
                 value={value}
@@ -82,6 +80,9 @@ function Choice<T extends string>({
         </Row>
     );
 }
+
+/** The names a type's box offers: none, so it is one plain box whatever the graph holds. */
+const NO_NAMES: readonly { readonly value: string }[] = [];
 
 /**
  * A name typed or picked, as a row: a type, or a separator. Enter, Tab or leaving it takes it.
@@ -243,14 +244,15 @@ const MISSING = [
 ] as const;
 
 /**
- * The one source an outcome's rows land on, which a value naming nothing would make a node of.
+ * The sources an outcome's rows land on, which a value naming nothing would make a node of: one, or the two an
+ * edge's ends come from ("people / doors").
  * @param outcome - the outcome
  * @param name - a side's name
- * @returns its name, or null when the ends are of two sources
+ * @returns their names, or null for none
  */
 function ontoName(outcome: SourceJoinOutcome, name: (side: SourceJoinSide) => string): string | null {
     const names = [...new Set(outcome.onto.map((side) => name(side)))];
-    return names.length === 1 ? names[0] : null;
+    return names.length === 0 ? null : names.join(" / ");
 }
 
 /** What a card's options take. */
@@ -549,14 +551,15 @@ function edgeOptions(props: OptionProps, edgeType: AdvancedRow, newType: Advance
  * @returns the rows
  */
 export function Options(props: OptionProps): React.JSX.Element {
-    const { session, outcome, result, several, onSet } = props;
+    const { outcome, result, several, onSet } = props;
     const edgeType: AdvancedRow = {
         set: result.edgeType !== "",
         row: (
             <NameRow
                 key="edgeType"
                 label={JOIN_WORDS.edgeType}
-                options={edgeTypeChoices(session)}
+                // A typed name, the same box on every visit: a list would appear only once the graph has types.
+                options={NO_NAMES}
                 value={result.edgeType}
                 onChange={(next) => {
                     onSet({ edgeType: next });
@@ -570,7 +573,7 @@ export function Options(props: OptionProps): React.JSX.Element {
             <NameRow
                 key="type"
                 label={WORKSPACE_WORDS.newType}
-                options={session.data.types().flatMap((type) => (type.kind === "node" ? [{ value: type.name }] : []))}
+                options={NO_NAMES}
                 value={result.type}
                 onChange={(type) => {
                     onSet({ type });

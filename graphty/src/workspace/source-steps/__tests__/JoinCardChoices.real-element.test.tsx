@@ -310,7 +310,7 @@ describe("a join card's choices (source-steps)", () => {
         await pickWay(modal, "Existing edge", "Merge");
         const merged = await newest(session, (step) => step.act?.existing === "merge", "Merge");
         assert.deepInclude(merged.buckets, { newEdges: 0, mergedEdges: 4 });
-        await within(modal).findByText("edges merged 4");
+        await within(modal.querySelector<HTMLElement>(".jw-key") ?? modal).findByLabelText("4 edges merged");
         await within(modal).findByRole("button", { name: "4 edges merged" });
         await done(modal);
         assert.lengthOf(session.data.edges(), 4, "no edge runs beside another");
@@ -577,8 +577,10 @@ describe("a join card's choices (source-steps)", () => {
         await match(modal, "entries");
         await addMatch(modal, 2, ["entries", "door"], ["doors", "door"]);
         await joinAs(modal, EDGE);
-        const missing = await within(modal).findByRole("radiogroup", { name: "Missing end" });
+        // Its ends come from two sources: the row names both.
+        const missing = await within(modal).findByRole("radiogroup", { name: /^Missing \S+ \/ \S+$/u });
         assert.isNotNull(within(missing).queryByRole("radio", { name: "New node" }));
+        assert.isNull(within(modal).queryByText("Missing end"));
         assert.isNull(within(modal).queryByRole("radiogroup", { name: /^Unmatched / }));
     });
 

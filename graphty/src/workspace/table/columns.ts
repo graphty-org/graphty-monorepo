@@ -18,6 +18,7 @@ import {
     type RecordSort,
     type ResultSort,
     type SummaryGroup,
+    TYPE_PATH,
     type ValueType,
 } from "@graphty/graphty-element/session";
 
@@ -201,9 +202,6 @@ export function columnChoices(session: GraphSession, kind: RecordKind, roles = h
     const attributes = loaded.filter((column) => !isKeyed(column) && !keys.some((key) => key.id === column.attribute));
     return [...keys, ...keyed, ...attributes, ...typeColumn(session, kind), ...results];
 }
-
-/** The path graphty-element reads the types joins and imports gave nodes and edges at. */
-const TYPE_PATH = "graphty.type";
 
 /**
  * The value of the types joins and imports gave a kind's elements, once some element has one: the Table's

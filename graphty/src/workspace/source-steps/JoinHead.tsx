@@ -72,6 +72,7 @@ function keyOf(marks: SourceDraftMarkCounts, rings: readonly DraftRing[], colors
  * @param props.renaming - whether the name's box is open
  * @param props.onRenaming - opens or closes it
  * @param props.onRename - takes the typed name, or undefined for none
+ * @param props.count - what the open card matches, as the selection workspace's title counts what it selects; "" for none
  * @param props.menu - the workspace's "..." menu
  * @returns the header
  */
@@ -88,6 +89,7 @@ export function JoinHead({
     renaming,
     onRenaming,
     onRename,
+    count,
     menu,
 }: Readonly<{
     titleId: string;
@@ -102,6 +104,7 @@ export function JoinHead({
     renaming: boolean;
     onRenaming: (on: boolean) => void;
     onRename: (name: string | undefined) => void;
+    count: string;
     menu: React.ReactNode;
 }>): React.JSX.Element {
     return (
@@ -127,6 +130,11 @@ export function JoinHead({
                     />
                 )}
             </Group>
+            {count === "" ? null : (
+                <Text size="sm" className="sel-count" style={{ whiteSpace: "nowrap" }}>
+                    {count}
+                </Text>
+            )}
             {drawing ? (
                 <Group gap={4} wrap="nowrap" data-drawing="">
                     <Loader size={12} aria-hidden />
@@ -197,9 +205,9 @@ export function JoinKey({
     return (
         <div className="jw-key sel-count">
             {keyOf(marks, rings, colors).map((each) => (
-                <Group key={each.id} gap={4} wrap="nowrap" aria-label={`${each.label} ${String(each.count)}`}>
+                <Group key={each.id} gap={4} wrap="nowrap" aria-label={`${String(each.count)} ${each.label}`}>
                     <span className="jw-key-mark" data-mark={each.id} style={{ color: each.color }} aria-hidden />
-                    <Text size="sm">{`${each.label} ${formatNumber(each.count)}`}</Text>
+                    <Text size="sm">{`${formatNumber(each.count)} ${each.label}`}</Text>
                 </Group>
             ))}
         </div>

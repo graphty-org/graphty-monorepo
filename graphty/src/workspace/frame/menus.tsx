@@ -4,7 +4,7 @@
  * line.
  */
 
-import { MenuItemDescription, MenuShortcut, TargetTooltip } from "@graphty/compact-mantine";
+import { MenuItemDescription, TargetTooltip } from "@graphty/compact-mantine";
 import { Menu, UnstyledButton, VisuallyHidden } from "@mantine/core";
 import React, { Fragment } from "react";
 
@@ -15,8 +15,9 @@ import { RecentMenu } from "../project/RecentMenu";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
 
 /**
- * One menu row for a command. A disabled row stays focusable with its reason (tier1-design.md
- * section 4, "Disabled"), so it is marked rather than given the `disabled` attribute.
+ * One menu row for a command. Its key is named on hover and to a screen reader, never drawn (#10394). A
+ * disabled row stays focusable with its reason (tier1-design.md section 4, "Disabled"), so it is marked
+ * rather than given the `disabled` attribute.
  * @param props - Component props
  * @param props.label - The command's label
  * @param props.shortcut - Its first key, or undefined
@@ -62,7 +63,7 @@ export function CommandMenuItem({
             data-disabled={reason === null ? undefined : true}
             data-ph-capture-attribute-control={control}
             aria-keyshortcuts={shortcut === undefined ? undefined : ariaKey(shortcut)}
-            rightSection={shortcut === undefined ? undefined : <MenuShortcut>{formatKey(shortcut)}</MenuShortcut>}
+            title={shortcut === undefined ? undefined : formatKey(shortcut)}
         >
             {label}
             {why}

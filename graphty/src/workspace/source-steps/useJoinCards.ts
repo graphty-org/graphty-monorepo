@@ -66,6 +66,10 @@ export interface JoinCards {
     readonly select: (id: string | null) => void;
     readonly add: () => void;
     readonly remove: (id: string) => void;
+    /** Adds a card with another's matches and options, not joined yet, and selects it. */
+    readonly duplicate: (id: string) => void;
+    /** Takes out every card, as one undo step. */
+    readonly clear: () => void;
     /** Names a card as typed, or takes its name off when nothing is: a written card's join carries it. */
     readonly rename: (id: string, typed: string) => void;
     /** Turns every step of a written card off or on, as one undo step. */
@@ -377,6 +381,34 @@ export function useJoinCards(
             select(card.id);
         },
         remove,
+        duplicate: (id) => {
+            const card = cards.find((each) => each.id === id);
+            if (card === undefined) {
+                return;
+            }
+            const lines = card.lines ?? (card.step === null ? undefined : linesOfStep(session, draft, card.step));
+            const copy = { ...newCard(freshId(), lines), ...ignoringOf(card), chosen: card.chosen };
+            setMine((now) => [...now, copy]);
+            select(copy.id);
+        },
+        clear: () => {
+            // Every card's steps, the last first, so each earlier place still holds.
+            const places = [...new Set([...cards.flatMap((card) => card.steps), ...addSteps].map((s) => s.index))];
+            try {
+                draft.batch(() => {
+                    for (const index of places.toSorted((x, y) => y - x)) {
+                        draft.removeStep(index);
+                    }
+                });
+            } catch (error) {
+                refuse("")(error);
+                return;
+            }
+            setMine((now) =>
+                now.flatMap((each) => (each.written.length > 0 ? [{ ...each, deleted: true as const }] : [])),
+            );
+            select(null);
+        },
         rename: (id, typed) => {
             const name = typed.trim() === "" ? undefined : typed.trim();
             const card = cards.find((each) => each.id === id);

@@ -434,9 +434,20 @@ function stateWords(card: JoinCardView): string | null {
     return card.step === null ? WORKSPACE_WORDS.notJoined : null;
 }
 
+/**
+ * What a screen reader hears once a card is renamed: its new name, or that its name was taken off.
+ * @param typed - the name as typed
+ * @returns the words
+ */
+function renamedWords(typed: string): string {
+    const name = typed.trim();
+    return name === "" ? WORKSPACE_WORDS.nameCleared : `${WORKSPACE_WORDS.renamed} ${name}`;
+}
+
 /** What a card's "..." items do. */
 interface CardActs {
     readonly rename: (id: string) => void;
+    readonly duplicate: (id: string) => void;
     readonly reorder: (id: string, to: number) => void;
     readonly remove: (id: string) => void;
     readonly say: (words: string) => void;
@@ -495,10 +506,28 @@ function joinCardItems(
               },
           ]
         : [];
+    // A copy starts not joined, with the same matches and options: two cards writing one join would clash.
+    const duplicate: readonly SelectionMenuItem[] =
+        card === undefined
+            ? []
+            : [
+                  {
+                      id: "duplicate",
+                      label: WORKSPACE_WORDS.duplicate,
+                      icon: "duplicate",
+                      group: "edit",
+                      key: CARD_KEYS.duplicate,
+                      onRun: () => {
+                          acts.duplicate(id);
+                          acts.say(`${WORKSPACE_WORDS.duplicated} ${item.title}`);
+                      },
+                  },
+              ];
     return [
         // A source added as it is goes by its source's name: a join alone is renamed.
         ...rename,
         ...turn,
+        ...duplicate,
         {
             id: "up",
             label: WORKSPACE_WORDS.moveUp,
@@ -563,18 +592,36 @@ function moveTo(
 }
 
 /**
- * The workspace's "..." items: Undo and Redo, then what the preview shows.
+ * The workspace's "..." items, as the selection workspace's are: Undo and Redo, then what the preview shows,
+ * then Delete (the open card) and Clear (every card).
  * @param draft - the open draft
+ * @param state - what the workspace shows
+ * @param state.table - whether the open card has a table to show
+ * @param state.shown - whether it is shown
+ * @param state.open - whether a card is open
+ * @param state.cards - whether there is a card
  * @param acts - what the items do
  * @param acts.undo - takes back the newest change
  * @param acts.redo - makes again what Undo took back
  * @param acts.frame - frames the matches
+ * @param acts.table - hides or shows the open card's table
  * @param acts.edits - opens or closes the Reader edits list
+ * @param acts.remove - deletes the open card
+ * @param acts.clear - deletes every card
  * @returns the items
  */
 function headItems(
     draft: SourceDraft,
-    acts: Readonly<{ undo: () => void; redo: () => void; frame: () => void; edits: () => void }>,
+    state: Readonly<{ table: boolean; shown: boolean; open: boolean; cards: boolean }>,
+    acts: Readonly<{
+        undo: () => void;
+        redo: () => void;
+        frame: () => void;
+        table: () => void;
+        edits: () => void;
+        remove: () => void;
+        clear: () => void;
+    }>,
 ): readonly SelectionMenuItem[] {
     return [
         {
@@ -598,6 +645,17 @@ function headItems(
             onRun: acts.redo,
         },
         { id: "fit", label: WORKSPACE_WORDS.frameMatches, icon: "maximize", group: "view", onRun: acts.frame },
+        ...(state.table
+            ? [
+                  {
+                      id: "table",
+                      label: state.shown ? WORKSPACE_WORDS.hideTable : WORKSPACE_WORDS.showTable,
+                      icon: "table" as const,
+                      group: "view" as const,
+                      onRun: acts.table,
+                  },
+              ]
+            : []),
         {
             id: "edits",
             label: STEP_WORDS.readerEdits,
@@ -605,6 +663,25 @@ function headItems(
             group: "view",
             key: READER_EDITS_KEY,
             onRun: acts.edits,
+        },
+        {
+            id: "delete",
+            label: WORKSPACE_WORDS.delete,
+            icon: "delete",
+            group: "remove",
+            key: DELETE_KEY,
+            reason: state.open ? null : WORKSPACE_WORDS.noCardOpen,
+            reasonDrawn: false,
+            onRun: acts.remove,
+        },
+        {
+            id: "clear",
+            label: WORKSPACE_WORDS.clear,
+            icon: "delete",
+            group: "remove",
+            reason: state.cards ? null : WORKSPACE_WORDS.noCards,
+            reasonDrawn: false,
+            onRun: acts.clear,
         },
     ];
 }
@@ -711,6 +788,8 @@ function WorkspaceBody({
     const [renaming, setRenaming] = useState<string | null>(null);
     // on reload: fresh: pointer: the header's box for the open card's name is open
     const [renamingHead, setRenamingHead] = useState(false);
+    // on reload: fresh: pointer: the reader hid the open card's table for a look
+    const [tableHidden, setTableHidden] = useState(false);
     const unfinishedEnds = useWorkspaceState((state) => state.stagedEnds)?.source;
     const joins = useJoinCards(session, draft, first, version, () => {
         // Another card's rows are not this one's.
@@ -730,7 +809,8 @@ function WorkspaceBody({
 
     const { marks, sources } = draft.preview();
     const listed = openCard !== undefined && shows?.step === openCard.step?.index ? shows : null;
-    const pane = openCard !== undefined && hasPane(openCard, listed);
+    const hasTable = openCard !== undefined && hasPane(openCard, listed);
+    const pane = hasTable && !tableHidden;
 
     const steps = draft.steps();
     const namings = joins.cards.map((card) => namingLines(session, steps, card));
@@ -742,6 +822,7 @@ function WorkspaceBody({
         // Read when a menu is drawn or a key pressed: the acts are defined further down.
         joinCardItems(id, placed, joins, {
             rename: setRenaming,
+            duplicate: joins.duplicate,
             reorder: (card, to) => {
                 reorder(card, to);
             },
@@ -862,7 +943,12 @@ function WorkspaceBody({
     };
     const rename = (id: string, typed: string): void => {
         joins.rename(id, typed);
-        say(`${WORKSPACE_WORDS.renamed} ${typed.trim()}`);
+        say(renamedWords(typed));
+    };
+    const clear = (): void => {
+        joins.clear();
+        say(WORKSPACE_WORDS.cleared);
+        box.current?.focus();
     };
     const toggleEdits = (): void => {
         setEditsOpen((now) => !now);
@@ -977,6 +1063,7 @@ function WorkspaceBody({
                             : (named[joins.cards.findIndex((card) => card.id === openCard.id)] ?? null)
                     }
                     renaming={renamingHead}
+                    count={headWords}
                     onRenaming={setRenamingHead}
                     onRename={(name) => {
                         rename(openCard?.id ?? "", name ?? "");
@@ -984,7 +1071,26 @@ function WorkspaceBody({
                     menu={
                         <RowMore
                             name={WORKSPACE_WORDS.title}
-                            items={headItems(draft, { undo, redo, frame: frameMarked, edits: toggleEdits })}
+                            items={headItems(
+                                draft,
+                                {
+                                    table: hasTable,
+                                    shown: pane,
+                                    open: joins.open !== null,
+                                    cards: items.length > 0,
+                                },
+                                {
+                                    undo,
+                                    redo,
+                                    frame: frameMarked,
+                                    table: () => {
+                                        setTableHidden((now) => !now);
+                                    },
+                                    edits: toggleEdits,
+                                    remove,
+                                    clear,
+                                },
+                            )}
                         />
                     }
                 />

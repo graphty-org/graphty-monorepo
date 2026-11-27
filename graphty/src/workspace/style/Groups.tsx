@@ -1,7 +1,6 @@
 import {
     DataTable,
     type DataTableColumn,
-    MenuShortcut,
     PanelField,
     PanelLabelsProvider,
     TargetTooltip,
@@ -870,7 +869,7 @@ function GroupActionsCell({
                             }}
                         >{`New layer for ${row.name}`}</Menu.Item>
                     )}
-                    <Menu.Item rightSection={<MenuShortcut>F2</MenuShortcut>} onClick={onRename}>
+                    <Menu.Item title="F2" onClick={onRename}>
                         Rename
                     </Menu.Item>
                     {row.group.entries[channel] === undefined ? null : (

@@ -2,7 +2,8 @@
  * A right-button drag on the 3D canvas pans the camera for as long as the button is held, however
  * fast the moves come and wherever the pointer goes (issue #10200). On Linux, Chrome fires
  * `contextmenu` at the right press, so the canvas's context menu opens, and takes focus, under a
- * drag that is just starting: the canvas must keep the pointer through that.
+ * drag that is just starting: the canvas must keep the pointer through that, and a drag that pans
+ * must leave no menu behind (a right-click still opens it, at the release).
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -13,7 +14,7 @@ import { cdp, page } from "vitest/browser";
 
 import { emptyPoint } from "../../../test/empty-point";
 import { openSampleFromStart } from "../../../test/open";
-import { cleanup } from "../../../test/test-utils";
+import { cleanup, screen } from "../../../test/test-utils";
 
 /** The project's element. */
 type Element = HTMLElementTagNameMap["graphty-element"];
@@ -92,6 +93,23 @@ describe("a right-button drag on the 3D canvas", () => {
         await frames();
         const after = cameraAt(element);
         await mouse({ type: "mouseReleased", ...at(29), button: "right", buttons: 0, clickCount: 1 });
+        await frames();
         assert.notStrictEqual(after, before, "the drag's last move panned the camera");
+        // A right-drag that panned is not a right-click: no menu is left open behind it.
+        assert.isNull(document.querySelector("[role=menu]"), "no context menu after a right-drag");
+
+        // The release outside the canvas ended the drag: hovering back over it pans nothing.
+        const released = cameraAt(element);
+        for (let i = 28; i >= 0; i -= 4) {
+            await mouse({ type: "mouseMoved", ...at(i), button: "none", buttons: 0 });
+            await frames();
+        }
+        assert.strictEqual(cameraAt(element), released, "hovering after the release pans nothing");
+
+        // A right-click where the drag began still opens the menu.
+        await mouse({ type: "mouseMoved", ...top(start.x, start.y), button: "none", buttons: 0 });
+        await mouse({ type: "mousePressed", ...top(start.x, start.y), button: "right", buttons: 2, clickCount: 1 });
+        await mouse({ type: "mouseReleased", ...top(start.x, start.y), button: "right", buttons: 0, clickCount: 1 });
+        assert.isNotNull(await screen.findByRole("menu"), "a right-click opens the canvas menu");
     });
 });

@@ -240,9 +240,6 @@ const CONTEXT_POINT_ALPHA = 0.18;
 /** The smallest size an overlay is drawn at, so a zero-sized style still leaves something to see. */
 const MIN_OVERLAY_SIZE = 0.2;
 
-/** The node source meshes a spare selection halo was built for (`Node.prepareHalo`). */
-const haloPrepared = new WeakSet<Mesh>();
-
 /** How deep a group following its members is drawn, as a fraction of its smaller side. */
 const GROUP_DEPTH_RATIO = 0.02;
 
@@ -2293,38 +2290,7 @@ export class Node implements ModelUser {
         drawInRowOrder(mesh, this);
         this.#anchor = this.#mesh = mesh;
         this.#source = mesh instanceof InstancedMesh ? mesh.sourceMesh : mesh;
-        this.prepareHalo();
         return mesh;
-    }
-
-    /**
-     * Build a spare selection halo for this node's source mesh, if no node of it has yet: the first selection then
-     * takes it (`takeSpareHalo`) as every later one does, instead of building the halo's source mesh.
-     *
-     * THE FIRST SELECTION AFTER A LOAD PAID FOR BUILDING IT (issue #10124). A new source mesh in the scene is more than
-     * the halos a selection reports (`UpdateManager.haloTouched`), so it thawed the frozen list of what is drawn, and
-     * its material was built with the whole graph in the scene: at 99,000 nodes the first click took about 340 ms and
-     * later ones 55 to 93 ms.
-     * Built with the first node of its source, before the list is first frozen, it costs about nothing. The spare
-     * instance also holds the source in the cache (`MeshCache.prune` disposes a source with none).
-     */
-    private prepareHalo(): void {
-        const shape = this.nodeSourceMesh();
-        if (shape === null || haloPrepared.has(shape)) {
-            return;
-        }
-
-        haloPrepared.add(shape);
-        const look = this.selectionStyle();
-        if (look.opacity === 0) {
-            return;
-        }
-
-        const own = this.haloKey;
-        const halo = this.createOverlay("halo", look);
-        halo.setEnabled(false);
-        this.spareHalo(this.haloSourceKey(look), halo);
-        this.haloKey = own;
     }
 
     /**
@@ -3577,7 +3543,6 @@ export class Node implements ModelUser {
         drawInRowOrder(mesh, this);
         this.#fit = { meshKey: fit.meshKey, style: fit.style };
         this.#source = source;
-        this.prepareHalo();
         this.meshKey = meshKey;
         this.drawnStyle = o;
         this.drawnColor = color;
@@ -4405,13 +4370,13 @@ export class Node implements ModelUser {
      * @param kind - Which overlay.
      * @param existing - The one this node holds, or null.
      * @param selection - The halo's look.
-     * @returns The overlay, and whether it was just built.
+     * @returns The overlay, and the meshes just built for it: none, its instance, or its instance and its source.
      */
     private overlayToShow(
         kind: "halo" | "context",
         existing: AbstractMesh | null,
         selection: GraphSelectionStyleConfig,
-    ): { overlay: AbstractMesh; built: boolean } {
+    ): { overlay: AbstractMesh; built: number } {
         // A halo is the node's own shape, so a node redrawn in another shape needs another halo,
         // and its own look's material, so a halo changing look needs another one too.
         const stale = kind === "halo" && existing !== null && this.haloKey !== this.haloSourceKey(selection);
@@ -4420,13 +4385,20 @@ export class Node implements ModelUser {
         }
 
         if (existing && !stale && !existing.isDisposed()) {
-            return { overlay: existing, built: false };
+            return { overlay: existing, built: 0 };
         }
 
         const spare = kind === "halo" ? this.takeSpareHalo(selection) : null;
-        return spare === null
-            ? { overlay: this.createOverlay(kind, selection), built: true }
-            : { overlay: spare, built: false };
+        if (spare !== null) {
+            return { overlay: spare, built: 0 };
+        }
+
+        // The first halo of a look also builds its source mesh (a cache miss), which the frame must be told of too, or
+        // the first selection on a page thaws the frozen list (issue #10124).
+        const cache = this.context.getMeshCache();
+        const { misses } = cache;
+        const overlay = this.createOverlay(kind, selection);
+        return { overlay, built: cache.misses > misses ? 2 : 1 };
     }
 
     /**
@@ -4457,7 +4429,7 @@ export class Node implements ModelUser {
     private hideOverlay(kind: "halo" | "context", existing: AbstractMesh | null): void {
         if (kind === "halo" && existing && !existing.isDisposed() && this.haloKey !== null) {
             // Given back, hidden, for the next node to draw a halo in this look (`takeSpareHalo`).
-            this.context.getUpdateManager?.().haloTouched(existing, false);
+            this.context.getUpdateManager?.().haloTouched(existing, 0);
             this.spareHalo(this.haloKey, existing);
             this.halo = null;
             this.haloKey = null;

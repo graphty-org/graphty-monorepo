@@ -4,8 +4,8 @@
  * with the graph. Before, the selection's new halo mesh thawed the list, so the next frame evaluated every mesh in
  * the scene and uploaded every instance's matrix again, and the next quiet frame walked them all once more to
  * freeze it: about 200 ms of a click at 99,000 nodes (issue #10128). The first click on a page also built the halo's
- * source mesh, which thawed the list once: it is now built with the nodes (issue #10124), so the first click costs
- * what a later one does. Counted with the real mouse, never timed.
+ * source mesh, which thawed the list once: it is now drawn into the frozen list with its first halo (issue #10124), so
+ * the first click thaws nothing either. Counted with the real mouse, never timed.
  */
 
 import "../../src/graphty-element";
@@ -168,10 +168,16 @@ describe("a click that selects a node on the objects path", () => {
         await assertScalesLinearly(
             async (size) => {
                 const { element, middle } = await grid(size);
-                // The first click shows the spare halo built with the nodes; then a click on a new node adds a halo
-                // instance and hides the old one, and a click back shows the old one again.
+                // The first click builds the halo's source mesh and its first instance, both drawn into the frozen
+                // list; then a click on a new node adds a halo instance and hides the old one, and a click back shows
+                // the old one again.
                 const first = await clickCounted(element, middle[11]);
-                assert.strictEqual(first.built, 0, `the first click builds no mesh: ${JSON.stringify(first)}`);
+                assert.strictEqual(
+                    first.built,
+                    2,
+                    `the first click builds a halo and its source: ${JSON.stringify(first)}`,
+                );
+                assert.isTrue(await haloDrawn(element, middle[11]), "the first halo is drawn on the frozen list");
                 const fresh = await clickCounted(element, middle[55]);
                 assert.isTrue(await haloDrawn(element, middle[55]), "the new halo is drawn on the frozen list");
                 assert.isFalse(await haloDrawn(element, middle[11]), "the old halo is taken off the frozen list");
@@ -190,7 +196,9 @@ describe("a click that selects a node on the objects path", () => {
                 }
 
                 element.remove();
-                return first.evaluated + fresh.evaluated + again.evaluated;
+                // Not the first click's: drawing on demand (as the tests do, test/setup.ts) asks every mesh whether it
+                // is ready once when a mesh is added, and the first click adds the halo's source.
+                return fresh.evaluated + again.evaluated;
             },
             { sizes: [500, 2000], growth: "constant", counter: () => `meshes evaluated ${JSON.stringify(seen)}` },
         );

@@ -23,7 +23,6 @@ import {
     choose,
     done,
     draftOf,
-    drop,
     emptyProject,
     joinAs,
     joinLines,
@@ -32,7 +31,9 @@ import {
     pickField,
     pickFields,
     pickSources,
+    removeOpen,
     selectJoin,
+    stageFile,
     waysToJoin,
 } from "./sourceSteps";
 
@@ -70,10 +71,10 @@ async function opened(
     );
     store.set({ dockOpen: false, dockMaximized: false });
     if (also !== undefined) {
-        drop(also.name, also.text);
+        await stageFile(also.name, also.text);
         await screen.findByRole("listitem", { name: also.name });
     }
-    drop("entries.csv", ENTRIES);
+    await stageFile("entries.csv", ENTRIES);
     await screen.findByRole("listitem", { name: "entries.csv" });
     const entries = session.data.staged().at(-1)?.key ?? "";
     return { store, session, entries, modal: await openJoins() };
@@ -134,7 +135,14 @@ describe("the join workspace (source-steps)", () => {
                 `${String(counts.matchedRows)} of ${String(counts.rows)} match`,
             );
         });
-        assert.strictEqual(draft.steps().length, steps, "no step before how to join is picked");
+        // A complete match joins at once, by the first join type that adds edges: the graph shows the change.
+        await waitFor(() => {
+            assert.isAbove(draft.steps().length, steps, "a step as soon as the match is complete");
+        });
+        assert.isNotNull(
+            within(modal).queryByRole("radio", { checked: true }),
+            "a join type is picked for the reader, which they can switch",
+        );
         await joinAs(modal, NODE);
         await waitFor(() => {
             assert.isTrue((session.styles.shownDraft?.steps?.length ?? 0) > 0, "the card's step is colored");
@@ -285,13 +293,13 @@ describe("the join workspace (source-steps)", () => {
         assert.lengthOf(joinLines(modal), 1, "the card it was written from is not drawn again");
     });
 
-    it("removing one unfinished card keeps the others, by its button and by Del", async () => {
+    it("removing one unfinished card keeps the others, by its x and by Del", async () => {
         const { modal } = await opened();
         const add = within(modal).getByRole("button", { name: "Join" });
         await userEvent.click(add);
         await userEvent.click(add);
         assert.lengthOf(joinLines(modal), 3);
-        await userEvent.click(within(modal).getByRole("button", { name: /^Remove/ }));
+        await removeOpen(modal);
         await waitFor(() => {
             assert.lengthOf(joinLines(modal), 2, "only the removed card is gone");
         });
@@ -299,9 +307,11 @@ describe("the join workspace (source-steps)", () => {
         await waitFor(() => {
             assert.lengthOf(joinLines(modal), 1);
         });
-        assert.isNull(within(modal).queryByRole("button", { name: /^Remove/ }), "the one blank card is not removed");
         await userEvent.keyboard("{Delete}");
-        assert.lengthOf(joinLines(modal), 1);
+        await waitFor(() => {
+            assert.lengthOf(joinLines(modal), 0, "the last card goes too: + Join adds another");
+        });
+        assert.isNotNull(within(modal).queryByRole("button", { name: "Join" }));
     });
 
     it("selecting a card in the list shows it and the rows of its sources", async () => {
@@ -495,7 +505,7 @@ describe("the join workspace (source-steps)", () => {
                 .currentDraft()
                 ?.steps()
                 .some((row) => row.op === "join.edges") === true;
-        await userEvent.click(within(modal).getByRole("button", { name: /^Remove/ }));
+        await removeOpen(modal);
         await waitFor(() => {
             assert.isFalse(edges(), "the card's step is gone");
         });
@@ -531,7 +541,7 @@ describe("the join workspace (source-steps)", () => {
             { key: "badge", type: "person" },
         );
         store.set({ dockOpen: false, dockMaximized: false });
-        drop("entries.csv", ENTRIES);
+        await stageFile("entries.csv", ENTRIES);
         await screen.findByRole("listitem", { name: "entries.csv" });
         const element = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
             "graphty-element:not([data-start-page])",

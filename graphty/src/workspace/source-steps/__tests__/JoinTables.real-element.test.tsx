@@ -19,7 +19,6 @@ import {
     choose,
     done,
     draftOf,
-    drop,
     emptyProject,
     joinAs,
     joinsOf,
@@ -28,6 +27,7 @@ import {
     pickableWays,
     pickFields,
     pickSources,
+    stageFile,
     waysToJoin,
 } from "./sourceSteps";
 
@@ -59,7 +59,7 @@ async function opened(width = 1366, height = 1024): Promise<{ session: GraphSess
         { key: "badge", type: "person" },
     );
     store.set({ dockOpen: false, dockMaximized: false });
-    drop("entries.csv", ENTRIES);
+    await stageFile("entries.csv", ENTRIES);
     await screen.findByRole("listitem", { name: "entries.csv" });
     return { session, modal: await openJoins() };
 }

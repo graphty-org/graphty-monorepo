@@ -33,6 +33,7 @@ import {
     pickFields,
     pickSources,
     selectJoin,
+    stageFile,
     waysToJoin,
 } from "./sourceSteps";
 
@@ -69,7 +70,7 @@ async function opened(
     );
     store.set({ dockOpen: false, dockMaximized: false });
     for (const [name, text] of files) {
-        drop(name, text);
+        await stageFile(name, text);
         await screen.findByRole("listitem", { name });
     }
     return { session, modal: await openJoins() };

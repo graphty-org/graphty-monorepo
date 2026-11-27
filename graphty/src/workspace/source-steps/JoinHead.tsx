@@ -67,6 +67,7 @@ function keyOf(marks: SourceDraftMarkCounts, rings: readonly DraftRing[], colors
  * @param props.onRedo - makes again what Undo took back
  * @param props.onCancel - throws the draft away
  * @param props.onDone - commits it
+ * @param props.children - the key, after the title
  * @returns the header
  */
 export function JoinHead({
@@ -80,6 +81,7 @@ export function JoinHead({
     onRedo,
     onCancel,
     onDone,
+    children,
 }: Readonly<{
     titleId: string;
     draft: SourceDraft;
@@ -91,6 +93,7 @@ export function JoinHead({
     onRedo: () => void;
     onCancel: () => void;
     onDone: () => void;
+    children?: React.ReactNode;
 }>): React.JSX.Element {
     return (
         <header className="sel-ws-head">
@@ -105,6 +108,7 @@ export function JoinHead({
                     </Text>
                 </Group>
             ) : null}
+            {children}
             <span className="sel-spacer" />
             <SegmentedControl
                 aria-label={WORKSPACE_WORDS.preview}

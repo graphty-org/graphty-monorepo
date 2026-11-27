@@ -19,8 +19,8 @@ export interface JoinListRow {
 }
 
 /**
- * "Join +" and every join under it, one line each: below the data sources, and at the top of the join
- * workspace.
+ * "Join +" and every join under it, one line each, below the data sources (the join workspace draws its
+ * joins as cards).
  * @param props - Component props
  * @param props.rows - the joins, in order
  * @param props.current - the selected one, or null

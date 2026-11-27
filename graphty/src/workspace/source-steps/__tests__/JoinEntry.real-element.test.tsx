@@ -19,13 +19,13 @@ import type { WorkspaceStore } from "../../state/store";
 import {
     addMatch,
     done,
-    drop,
     emptyProject,
     joinAs,
     joinLines,
     openJoins,
     pickFields,
     pickSources,
+    stageFile,
 } from "./sourceSteps";
 
 withFeatures(["source-steps"]);
@@ -46,7 +46,7 @@ async function foundingProject(): Promise<{ store: WorkspaceStore; session: Grap
         { key: "badge", type: "person" },
     );
     store.set({ dockOpen: false, dockMaximized: false });
-    drop("entries.csv", ENTRIES);
+    await stageFile("entries.csv", ENTRIES);
     await screen.findByRole("listitem", { name: "entries.csv" });
     return { store, session };
 }
@@ -99,7 +99,7 @@ describe("the doors into the join workspace (source-steps)", () => {
         assert.isNull(within(place).queryByText("Steps"));
         assert.isNull(within(place).queryByRole("button", { name: /Edit joins/ }));
         assert.lengthOf(within(place).getAllByRole("button", { name: "Join" }), 1, "only Join +");
-        drop("buildings.csv", BUILDINGS);
+        await stageFile("buildings.csv", BUILDINGS);
         const staged = await within(place).findByRole("listitem", { name: "buildings.csv" });
         assert.isNull(
             within(staged).queryByRole("button", { name: /^(Add( as is)?|Join)$/ }),
@@ -131,7 +131,7 @@ describe("the doors into the join workspace (source-steps)", () => {
 
     it("a card of three sources is one line naming all three, cut by an ellipsis only where it does not fit, never a count", async () => {
         const { session } = await foundingProject();
-        drop("doors.csv", "door,name\nD1,North\nD2,South");
+        await stageFile("doors.csv", "door,name\nD1,North\nD2,South");
         await screen.findByRole("listitem", { name: "doors.csv" });
         const modal = await openJoins();
         await pickSources(modal, "people", "entries");
@@ -165,7 +165,7 @@ describe("the doors into the join workspace (source-steps)", () => {
 
     it("a committed join reopened counts what Done would add to the graph, as the key does, left as it is or changed", async () => {
         const { session } = await foundingProject();
-        drop("doors.csv", BUILDINGS);
+        await stageFile("doors.csv", BUILDINGS);
         await screen.findByRole("listitem", { name: "doors.csv" });
         const modal = await openJoins();
         await pickSources(modal, "people", "entries");
@@ -192,7 +192,7 @@ describe("the doors into the join workspace (source-steps)", () => {
 
     it("a card of three sources stays one card in the order picked after a save and a reopen", async () => {
         const { session } = await foundingProject();
-        drop("doors.csv", "door,name\nD1,North\nD2,South");
+        await stageFile("doors.csv", "door,name\nD1,North\nD2,South");
         await screen.findByRole("listitem", { name: "doors.csv" });
         const modal = await openJoins();
         // Picked entries first: the name keeps that order, not the order loaded.
@@ -257,7 +257,7 @@ describe("the doors into the join workspace (source-steps)", () => {
 
     it("two sources and an open draft: Join + still opens the workspace, which adopts the draft", async () => {
         const { session } = await foundingProject();
-        drop("buildings.csv", BUILDINGS);
+        await stageFile("buildings.csv", BUILDINGS);
         await screen.findByRole("listitem", { name: "buildings.csv" });
         const draft = session.data.draft();
         const plus = await joinPlus();

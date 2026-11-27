@@ -18,7 +18,7 @@ import { page, userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
-import { choose, done, emptyProject, joinLines, openJoins as workspace, selectJoin } from "./sourceSteps";
+import { choose, done, emptyProject, joinLines, openJoins as workspace, removeOpen, selectJoin } from "./sourceSteps";
 
 withFeatures(["source-steps"]);
 
@@ -98,7 +98,7 @@ describe("steps and reader edits in the join workspace (source-steps)", () => {
 
         const steps = session.history.steps.length;
         await selectJoin(modal, "people + entries");
-        await userEvent.click(await within(modal).findByRole("button", { name: /^Remove/ }));
+        await removeOpen(modal);
         await waitFor(() => {
             assert.deepStrictEqual(joinLines(modal), ["people + hr", "New join"]);
         });
@@ -116,7 +116,7 @@ describe("steps and reader edits in the join workspace (source-steps)", () => {
 
         const again = await workspace();
         await selectJoin(again, "people + entries");
-        await userEvent.click(await within(again).findByRole("button", { name: /^Remove/ }));
+        await removeOpen(again);
         await done(again);
         await screen.findAllByText("Removed");
         assert.isNotEmpty(screen.getAllByRole("button", { name: "Undo" }), "the notice offers Undo");

@@ -38,6 +38,8 @@ export const STAGED_WORDS = {
     to: "To",
     meets: "meets",
     add: "Add",
+    /** A waiting source's menu item that draws it as its own nodes. */
+    addToGraph: "Add to graph",
     remove: "Remove",
     merge: "Merge",
     separate: "Keep separate",
@@ -126,7 +128,9 @@ export const WORKSPACE_WORDS = {
     repeats: "repeats",
     unique: "unique",
     empty: "empty",
-    joinAs: "Join as",
+    joinAs: "Join type",
+    /** A card whose join type is not picked yet. */
+    notJoined: "Not joined",
     advanced: "Advanced",
     all: "All",
     only: (name: string) => `Only ${name}`,

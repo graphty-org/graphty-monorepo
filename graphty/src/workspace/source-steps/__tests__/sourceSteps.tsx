@@ -27,6 +27,23 @@ export function drop(name: string, text: string): void {
 }
 
 /**
+ * Stages a file beside the graph, drawing nothing: a waiting source, as a project saved with one holds it
+ * (a dropped file is drawn at once). Its key is guessed as a dropped file's is.
+ * @param name - the file's name.
+ * @param text - its contents.
+ * @returns the staged source's key.
+ */
+export async function stageFile(name: string, text: string): Promise<string> {
+    const session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+        "graphty-element:not([data-start-page])",
+    )?.session;
+    if (session === undefined) {
+        throw new Error("the element never came up");
+    }
+    return session.data.stage({ type: "csv", config: { data: text }, name }, { guess: "values" });
+}
+
+/**
  * An empty project on the Data place, once the element is up.
  * @param strict - mount under StrictMode, as main.tsx does in development.
  * @returns the store and the session.
@@ -177,7 +194,7 @@ export async function joinAs(modal: HTMLElement, words: string): Promise<void> {
  * @returns them.
  */
 export function waysToJoin(modal: HTMLElement): string[] {
-    const group = within(modal).queryByRole("radiogroup", { name: "Join as" });
+    const group = within(modal).queryByRole("radiogroup", { name: "Join type" });
     return group === null
         ? []
         : within(group)
@@ -191,7 +208,7 @@ export function waysToJoin(modal: HTMLElement): string[] {
  * @returns their labels.
  */
 export function pickableWays(modal: HTMLElement): string[] {
-    const group = within(modal).queryByRole("radiogroup", { name: "Join as" });
+    const group = within(modal).queryByRole("radiogroup", { name: "Join type" });
     return group === null
         ? []
         : within(group)
@@ -209,12 +226,16 @@ export async function advanced(modal: HTMLElement): Promise<void> {
 }
 
 /**
- * The joins the workspace lists, one line each.
- * @param modal - the workspace.
- * @returns their lines.
+ * The joins listed: the workspace's cards by their titles, or the sidebar's lines under Join +.
+ * @param where - the workspace, or the Data place.
+ * @returns their titles or lines.
  */
-export function joinLines(modal: HTMLElement): string[] {
-    const list = within(modal).queryByRole("grid", { name: "Joins" });
+export function joinLines(where: HTMLElement): string[] {
+    const cards = within(where).queryByRole("group", { name: "Joins" });
+    if (cards !== null) {
+        return [...cards.querySelectorAll("[data-card-id] .cm-card-title")].map((title) => title.textContent ?? "");
+    }
+    const list = within(where).queryByRole("grid", { name: "Joins" });
     return list === null
         ? []
         : [...list.querySelectorAll("[data-id]")].map(
@@ -224,13 +245,31 @@ export function joinLines(modal: HTMLElement): string[] {
 }
 
 /**
- * Selects a join in the workspace's list.
+ * Opens a join's card in the workspace by unfolding it, as a reader does; an open one stays open.
  * @param modal - the workspace.
- * @param line - its line.
+ * @param line - its title.
  */
 export async function selectJoin(modal: HTMLElement, line: string): Promise<void> {
-    const list = within(modal).getByRole("grid", { name: "Joins" });
-    await userEvent.click(within(list).getByRole("gridcell", { name: line }));
+    const fold = within(modal).queryByRole("button", { name: `Expand ${line}` });
+    if (fold !== null) {
+        await userEvent.click(fold);
+    }
+}
+
+/**
+ * Removes the open card by its x, as a reader does.
+ * @param modal - the workspace.
+ */
+export async function removeOpen(modal: HTMLElement): Promise<void> {
+    const card = await waitFor(() => {
+        const open = modal.querySelector<HTMLElement>("[data-card-id]:not([data-folded])");
+        assert.isNotNull(open, "an open card");
+        return open;
+    });
+    if (card === null) {
+        throw new Error("no open card");
+    }
+    await userEvent.click(within(card).getByRole("button", { name: /^Delete / }));
 }
 
 /**

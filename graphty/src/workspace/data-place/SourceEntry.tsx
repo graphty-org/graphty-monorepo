@@ -10,7 +10,7 @@ import { RenameInput } from "../frame/RenameInput";
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
 import { TIME_FIELD_EVENTS, useSessionEvents } from "../sessionEvents";
-import { remap, removeStaged } from "../source-steps/actions";
+import { addStaged, remap, removeStaged } from "../source-steps/actions";
 import { StagedRows } from "../source-steps/StagedFields";
 import { STAGED_WORDS } from "../source-steps/words";
 import { useWorkspace } from "../state/WorkspaceContext";
@@ -356,7 +356,7 @@ export function SourceEntry({
  * it shows its name and the nodes and edges its rows are read as; open, how its rows are read (Rows are,
  * Key, an edge's ends) and its own Filters, which test its rows and count them, and judge what it builds
  * once it is joined; its details are in the inspector. Its "..." (also by right-click) holds Rename (F2)
- * and Remove. Adding and joining it happen in the join workspace (Join +).
+ * Add to graph, which draws it as its own nodes, and Remove. Joining it happens in the join workspace (Join +).
  * @param props - Component props
  * @param props.source - the staged source
  * @param props.selected - whether it is the picked source
@@ -388,6 +388,15 @@ export function StagedEntry({
                 shortcut={ITEM_KEYS["source.rename"]}
                 reason={null}
                 onRun={renamed.start}
+            />
+            <CommandMenuItem
+                icon={<GLYPHS.add size={14} aria-hidden />}
+                label={STAGED_WORDS.addToGraph}
+                shortcut={undefined}
+                reason={null}
+                onRun={() => {
+                    void addStaged(store, session, source.key);
+                }}
             />
             <CommandMenuItem
                 icon={ITEM_GLYPHS["source.remove"]}

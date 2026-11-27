@@ -30,6 +30,7 @@ import {
     pickableWays,
     pickFields,
     pickSources,
+    removeOpen,
     selectJoin,
     waysToJoin,
 } from "./sourceSteps";
@@ -656,7 +657,7 @@ describe("a join card's ways to join (source-steps)", () => {
         await newest(session, (step) => step.act?.into.field === "phone", "on the phones the first card brought");
         assert.strictEqual(after(session)[0], 3);
         await selectJoin(modal, "accounts + identifiers");
-        await userEvent.click(within(modal).getByRole("button", { name: /^Remove/ }));
+        await removeOpen(modal);
         await selectJoin(modal, "accounts + watch");
         await within(modal).findByRole("radio", { checked: true, name: "Fields of watch on accounts" });
         await within(modal).findByRole("radiogroup", { name: "No match" });

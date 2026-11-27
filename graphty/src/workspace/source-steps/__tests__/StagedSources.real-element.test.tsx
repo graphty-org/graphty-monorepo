@@ -17,7 +17,7 @@ import { userEvent } from "vitest/browser";
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import type { WorkspaceStore } from "../../state/store";
-import { choose, drop, emptyProject, joinAs, joinLines, pickFields, pickSources } from "./sourceSteps";
+import { choose, drop, emptyProject, joinAs, joinLines, pickFields, pickSources, stageFile } from "./sourceSteps";
 
 withFeatures(["source-steps"]);
 
@@ -47,7 +47,7 @@ async function withPeopleDropped(): Promise<{ store: WorkspaceStore; session: Gr
  * @returns the entry.
  */
 async function stage(name: string, text: string): Promise<HTMLElement> {
-    drop(name, text);
+    await stageFile(name, text);
     return openEntry(name);
 }
 
@@ -149,7 +149,7 @@ describe("a second source arrives staged (source-steps)", () => {
             { type: "csv", config: { data: PEOPLE }, name: "people.csv" },
             { key: "badge", type: "person" },
         );
-        drop("visitors.csv", VISITORS);
+        await stageFile("visitors.csv", VISITORS);
         await screen.findByRole("listitem", { name: "visitors.csv" });
         const modal = await workspace();
         const settings = await readAs(modal, "visitors");
@@ -410,7 +410,7 @@ describe("a second source arrives staged (source-steps)", () => {
 
     it("names a source's own space by the source, never by its id, on the workspace card", async () => {
         await withPeopleDropped();
-        drop("buildings.csv", BUILDINGS);
+        await stageFile("buildings.csv", BUILDINGS);
         await screen.findByRole("listitem", { name: "buildings.csv" });
         const settings = await readAs(await workspace(), "buildings");
         const space = within(settings).getByRole("combobox", { name: "Same nodes as" });
@@ -426,7 +426,7 @@ describe("a second source arrives staged (source-steps)", () => {
 
     it("labels a waiting source's rows in plain words on the workspace card: no Key, Space or unset", async () => {
         await withPeopleDropped();
-        drop("buildings.csv", BUILDINGS);
+        await stageFile("buildings.csv", BUILDINGS);
         await screen.findByRole("listitem", { name: "buildings.csv" });
         const settings = await readAs(await workspace(), "buildings");
         const boxes = within(settings).getAllByRole<HTMLInputElement>("combobox");

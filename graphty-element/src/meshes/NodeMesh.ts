@@ -51,6 +51,7 @@ import {
     type Point2,
     type RingPiece,
     sharpTwinOf,
+    silhouetteOutline,
     type WaveShape,
 } from "./shapeOutlines";
 
@@ -686,16 +687,53 @@ export class NodeMesh {
             part.instancedBuffers.color = new Color4(1, 1, 1, 1);
         }
 
-        const perSize = this.extentPerSize(shape);
-        const size = Math.max(shape?.size ?? 1, MIN_NODE_SIZE);
-        if (shape?.modelFit === "stretch") {
-            const axis = (value: number | undefined): number => Math.max(value ?? size, MIN_NODE_SIZE) * perSize;
-            root.scaling.set(axis(shape.width), axis(shape.height), axis(shape.depth));
-        } else {
-            root.scaling.setAll(size * perSize);
-        }
+        root.scaling.set(...this.modelScaling(shape));
 
         return root;
+    }
+
+    /**
+     * The scale a model node is built at ({@link NodeMesh.createModelInstance}): its largest extent the extent a
+     * built-in shape of the same `size` and `sizeMode` is drawn at, or under `modelFit: "stretch"` its width, height
+     * and depth.
+     * @param shape - The node's shape block.
+     * @returns The scale on x, y and z.
+     */
+    private static modelScaling(shape: NodeStyleConfig["shape"]): [number, number, number] {
+        const perSize = this.extentPerSize(shape);
+        const size = Math.max(shape?.size ?? 1, MIN_NODE_SIZE);
+        if (shape?.modelFit !== "stretch") {
+            return [size * perSize, size * perSize, size * perSize];
+        }
+
+        const axis = (value: number | undefined): number => Math.max(value ?? size, MIN_NODE_SIZE) * perSize;
+        return [axis(shape.width), axis(shape.height), axis(shape.depth)];
+    }
+
+    /**
+     * A model node's groups: the source meshes of its own instance and of every part instanced under it, which
+     * together draw the model (issue #10376: a ring round the first alone missed the model's other parts). Null
+     * for any other node.
+     * @param fill - The node's own mesh.
+     * @returns The groups, or null.
+     */
+    private static modelGroups(fill: AbstractMesh): Mesh[] | null {
+        const isGroup = (mesh: AbstractMesh): mesh is Mesh =>
+            mesh instanceof Mesh &&
+            (mesh.metadata as { graphtyModelGroup?: string } | null)?.graphtyModelGroup !== undefined;
+        const sourceOf = (mesh: AbstractMesh): AbstractMesh => (mesh as { sourceMesh?: Mesh }).sourceMesh ?? mesh;
+        const own = sourceOf(fill);
+        if (!isGroup(own)) {
+            return null;
+        }
+
+        return [
+            own,
+            ...fill
+                .getChildMeshes(true)
+                .map((child) => sourceOf(child))
+                .filter((mesh): mesh is Mesh => isGroup(mesh)),
+        ];
     }
 
     /**
@@ -1499,17 +1537,46 @@ export class NodeMesh {
         fill: AbstractMesh,
         scene?: Scene,
     ): Mesh {
-        const mesh = ringSlab(name, ring.piecesOf(ring.outline), ring.depth, scene);
+        // A model is drawn scaled from its own unit box (createModelInstance), and its ring with it, so the ring is
+        // built round the outline at the model's drawn size, in world units like its width, then scaled back.
+        const unit = this.modelGroups(fill) === null ? undefined : this.modelScaling(shape);
+        const outline =
+            unit === undefined ? ring.outline : ring.outline.map(([x, y]): Point2 => [x * unit[0], y * unit[1]]);
+        const mesh = ringSlab(name, ring.piecesOf(outline), ring.depth, scene);
+        if (unit !== undefined) {
+            mesh.bakeTransformIntoVertices(Matrix.Scaling(1 / unit[0], 1 / unit[1], 1 / unit[2]));
+        }
         placeByZIndex(mesh, shape, options.is2D);
         if (!ring.flat && !options.is2D) {
-            this.followView(mesh, fill, ring.depth, ring.piecesOf);
+            this.followView(mesh, fill, ring.depth, ring.piecesOf, unit);
         }
         mesh.material = this.createBorderMaterial(ring.color, ring.opacity, scene);
 
         return mesh;
     }
 
-    private static solidOutline(fill: AbstractMesh, view?: Matrix, at?: Vector3): Point2[] {
+    private static solidOutline(
+        fill: AbstractMesh,
+        view?: Matrix,
+        at?: Vector3,
+        groups = this.modelGroups(fill),
+    ): Point2[] {
+        if (groups !== null) {
+            // a model is seldom convex (a person's arms and legs): its outline is its triangles' own, every part's
+            const points: Point2[] = [];
+            const triangles: number[] = [];
+            for (const group of groups) {
+                const base = points.length;
+                points.push(...projectedVertices(group, view, at));
+                const indices = group.getIndices() ?? [];
+                for (const index of indices) {
+                    triangles.push(base + index);
+                }
+            }
+
+            return silhouetteOutline(points, triangles);
+        }
+
         const source = fill instanceof Mesh ? fill : (fill as InstancedMesh).sourceMesh;
 
         return convexHull(projectedVertices(source, view, at));
@@ -1529,15 +1596,19 @@ export class NodeMesh {
      * @param fill - The node's mesh, whose source's vertices the outline is the hull of.
      * @param depth - How deep the ring is along z.
      * @param piecesOf - The ring's pieces round an outline of the solid.
+     * @param unit - A model's scale (see borderSlab): the ring is built at it and scaled back.
      */
     private static followView(
         mesh: Mesh,
         fill: AbstractMesh,
         depth: number,
         piecesOf: (outline: Point2[]) => RingPiece[],
+        unit?: readonly [number, number, number],
     ): void {
         const scene = mesh.getScene();
         const source = fill instanceof Mesh ? fill : (fill as InstancedMesh).sourceMesh;
+        // a model's parts, found once: the node they were found under may go while others still draw the ring
+        const groups = this.modelGroups(fill);
         const [toView, turn, unturn, alongLine] = [new Matrix(), new Matrix(), new Matrix(), new Matrix()];
         const [scale, at] = [new Vector3(), new Vector3()];
         const [quaternion, facing] = [new Quaternion(), new Quaternion()];
@@ -1583,9 +1654,9 @@ export class NodeMesh {
                 // looking into the ring, its inner wall is seen down to the face away from the camera, drawn smaller
                 // than the node's middle by as much: that face's inner edge is put on the solid's outline
                 const back = (at.z + backZ) / at.z;
-                outline = this.solidOutline(source, alongLine, at).map(([x, y]): Point2 => [x * back, y * back]);
+                outline = this.solidOutline(fill, alongLine, at, groups).map(([x, y]): Point2 => [x * back, y * back]);
             } else {
-                outline = this.solidOutline(source, toView);
+                outline = this.solidOutline(fill, toView, undefined, groups);
             }
             const same =
                 outline.length === drawn.length &&
@@ -1596,11 +1667,14 @@ export class NodeMesh {
 
             drawn = outline;
             // kept at the depth it was placed at (behind the node, by z-index)
-            const shift = box.minimum.z + depth / 2;
-            const data = ringVertexData(piecesOf(outline), depth);
+            const [ux, uy, uz] = unit ?? [1, 1, 1];
+            const shift = box.minimum.z + depth / uz / 2;
+            const data = ringVertexData(piecesOf(outline.map(([x, y]): Point2 => [x * ux, y * uy])), depth);
             const positions = data.positions ?? [];
-            for (let z = 2; z < positions.length; z += 3) {
-                positions[z] += shift;
+            for (let i = 0; i + 2 < positions.length; i += 3) {
+                positions[i] /= ux;
+                positions[i + 1] /= uy;
+                positions[i + 2] = positions[i + 2] / uz + shift;
             }
             data.applyToMesh(mesh, true);
             mesh.refreshBoundingInfo();

@@ -3720,6 +3720,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     let stateRevisionBesidesPointer = 0;
     // Set once the selection and the filter exist: what a `state` leaf and a state layer read.
     let elementInState: NonNullable<FilterSources["inState"]> = () => false;
+    // Set with it: one read of the stack with each element state resolved once (`SelectorSource.reading`).
+    let readingStates = <T>(read: () => T): T => read();
     // The query engine, late-bound for the same reason: it reads the style layers' selector
     // source, which reads the runs, and the scope and visibility APIs are built before both.
     let query: QueryEngine | null = null;
@@ -4784,7 +4786,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         createLayerRepaint({
             nodeCount: () => snapshot().nodeCount,
             edgeCount: () => snapshot().edgeCount,
-            elements,
+            elements: { ...elements, reading: (read) => readingStates(read) },
             // `session.hidden`: drawn as not visible over whatever the layers paint.
             // So are the nodes the active layout keeps off the canvas.
             hidden: hiddenRowsOf(
@@ -5382,13 +5384,73 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         const id = focusedNode();
         return id === null ? undefined : nodeIndex(id);
     });
-    elementInState = (state, target, index) => {
-        if (state === "ghosted") {
-            return visibility.ghosted(target, index);
+    // Inside one read of the stack (a count, a legend), what each state reads, resolved once: a
+    // read tests every element, and resolving per element re-checked the time window's masks, the
+    // selection and the snapshot each time (layers x elements of it on every timeline step).
+    type Bytes = ReturnType<typeof visibility.ghosts>;
+    let resolved: {
+        ghosts?: Bytes;
+        outside?: Bytes;
+        hovered?: number | undefined | null;
+        nodes?: ReturnType<SelectionOwner["nodeMembers"]>;
+        edges?: ReturnType<SelectionOwner["edgeMembers"]>;
+    } | null = null;
+    readingStates = <T>(read: () => T): T => {
+        if (resolved !== null) {
+            return read();
         }
 
-        if (state === "outsideWindow") {
-            return visibility.outsideWindow(target, index);
+        resolved = {};
+        try {
+            return read();
+        } finally {
+            resolved = null;
+        }
+    };
+    const selectedNodes = (owner: SelectionOwner): ReturnType<SelectionOwner["nodeMembers"]> => {
+        if (resolved === null) {
+            return owner.nodeMembers();
+        }
+
+        resolved.nodes ??= owner.nodeMembers();
+        return resolved.nodes;
+    };
+    const hoveredRow = (owner: SelectionOwner): number | undefined | null => {
+        if (resolved === null) {
+            return owner.hovered === null ? null : nodeIndex(owner.hovered);
+        }
+
+        if (!("hovered" in resolved)) {
+            resolved.hovered = owner.hovered === null ? null : nodeIndex(owner.hovered);
+        }
+
+        return resolved.hovered;
+    };
+    const selectedEdges = (owner: SelectionOwner): ReturnType<SelectionOwner["edgeMembers"]> => {
+        if (resolved === null) {
+            return owner.edgeMembers();
+        }
+
+        resolved.edges ??= owner.edgeMembers();
+        return resolved.edges;
+    };
+    const resolvedBytes = (key: "ghosts" | "outside"): Bytes => {
+        const now = resolved as NonNullable<typeof resolved>;
+        if (now[key] === undefined) {
+            now[key] = key === "ghosts" ? visibility.ghosts() : visibility.outsideWindowBytes();
+        }
+
+        return now[key] ?? null;
+    };
+    elementInState = (state, target, index) => {
+        if (state === "ghosted" || state === "outsideWindow") {
+            if (resolved === null) {
+                return state === "ghosted"
+                    ? visibility.ghosted(target, index)
+                    : visibility.outsideWindow(target, index);
+            }
+
+            return resolvedBytes(state === "ghosted" ? "ghosts" : "outside")?.[target][index] === 1;
         }
 
         if (state === "pinned") {
@@ -5399,12 +5461,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         if (state === "hovered") {
             return (
                 target === "node" &&
-                ((owner.hovered !== null && nodeIndex(owner.hovered) === index) ||
-                    (owner.hoverPreview && owner.nodeMembers().has(index)))
+                (hoveredRow(owner) === index || (owner.hoverPreview && selectedNodes(owner).has(index)))
             );
         }
 
-        return (target === "node" ? owner.nodeMembers() : owner.edgeMembers()).has(index);
+        return (target === "node" ? selectedNodes(owner) : selectedEdges(owner)).has(index);
     };
     const styles = createStylesApi({
         dispatcher,
@@ -5416,6 +5477,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             edgeIndex,
             scope: (spec: Scope) => layerScopes.live(spec),
             inState: elementInState,
+            reading: readingStates,
             hover: hoverSource,
             focus: focusSource,
         },

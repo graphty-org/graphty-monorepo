@@ -7817,6 +7817,7 @@ export interface SourceDraft extends Pick<SessionDataApi, "matchCounts" | "match
     declareType(entry: SourceTypeEntry): void;
     display(on: boolean, options?: {
         readonly hold?: boolean;
+        readonly keepCamera?: boolean;
     }): Promise<void>;
     readonly displayed: boolean;
     dispose(): void;

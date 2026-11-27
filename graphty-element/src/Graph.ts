@@ -1687,7 +1687,8 @@ export class Graph implements GraphContext {
                 this.statsManager.startLayoutSession();
                 this.#placementOwed = true;
                 this.layoutManager.running = true;
-                if (dirty.has(NODES_ADDED)) {
+                // A drawn draft that keeps the camera adds its nodes into the view the reader already has.
+                if (dirty.has(NODES_ADDED) && !sessionDataOf(this.session).draftKeepsCamera()) {
                     this.autoFrame();
                 }
             }

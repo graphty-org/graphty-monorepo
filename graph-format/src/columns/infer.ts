@@ -24,8 +24,9 @@ export type InferredDtype = "bool" | "i32" | "f64" | "string" | "json";
 export const WIDENING_ORDER: readonly InferredDtype[] = ["bool", "i32", "f64", "string", "json"];
 
 const I32_TEXT = /^-?(0|[1-9]\d*)$/;
-// integer part without leading zeros ("01" is a string, design section 5.1), optional fraction, optional exponent
-const F64_TEXT = /^[+-]?((0|[1-9]\d*)(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/;
+// integer part without leading zeros ("01" is a string, design section 5.1), optional fraction, optional exponent;
+// no leading "+": "+15551007" is a phone number, kept as text like "01"
+const F64_TEXT = /^-?((0|[1-9]\d*)(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/;
 const I32_MIN = -2147483648;
 const I32_MAX = 2147483647;
 

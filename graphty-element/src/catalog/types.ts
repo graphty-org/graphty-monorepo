@@ -847,6 +847,7 @@ export type Channel =
     | "node.planar"
     | "node.zIndex"
     | "node.drawOrder"
+    | "node.onTop"
     | "node.borderColor"
     | "node.borderWidth"
     | "node.borderScreenWidth"
@@ -3057,7 +3058,8 @@ export interface UnionLeaf {
      * Narrows the base to the nodes and edges these loads supplied (`session.data.sources()`
      * keys, what `session.data.sourcesOf(id)` lists): a branch that starts with `"all"` starts
      * with theirs, a step adds only theirs, and a reading's totals count only theirs. Absent:
-     * every load's. A load that is gone supplies nothing.
+     * every load's. A load that is gone supplies nothing. Under the source-steps experiment, one
+     * staged source's rows are read as they will be once it is added, none of them shown yet.
      * @since 3.36.0
      */
     readonly sources?: readonly SourceKey[];

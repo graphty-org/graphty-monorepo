@@ -55,6 +55,14 @@ describe("url source", () => {
         expect(given.report.source?.params).toBe(undefined);
     });
 
+    it("loads a CSV whose header names nothing as nodes keyed by its values, and says the column", async () => {
+        const url = `${HOST}/expression.csv`;
+        const body = "symbol,log2FC\nTP53,3.26\nMDM2,-2.24\n";
+        const { snapshot, report } = await loadFromSource("url", { url }, { fetch: replayFetch([{ url, body }]) });
+        expect(snapshot.ids.toArray()).toEqual(["TP53", "MDM2"]);
+        expect(report.source?.params).toEqual({ url, idColumn: "symbol" });
+    });
+
     it("reads an address with no extension in the format it is given", async () => {
         const fetch = replayFetch([{ url: `${HOST}/export?id=7`, body: GRAPHML }]);
         const { format, snapshot, report } = await loadFromSource(

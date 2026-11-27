@@ -1,495 +1,530 @@
-import "./source-steps.css";
+import type {
+    GraphSession,
+    SourceDraft,
+    SourceJoinOutcome,
+    SourceJoinSide,
+    SourceMatchCounts,
+    SourceStepPatch,
+} from "@graphty/graphty-element/session";
+import { ActionIcon, Button, Group, Radio, Stack, Switch, Text } from "@mantine/core";
+import React, { useId } from "react";
 
-import { ComboInput, SegmentedControl } from "@graphty/compact-mantine";
-import { DEFAULT_BRANCH_PALETTE, type GraphSession, type SourceColumnProfile } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Group, Kbd, Radio, Select, Stack, Switch, Text, Tooltip } from "@mantine/core";
-import React, { useEffect, useRef } from "react";
-
-import { sourceName } from "../data-place/words";
 import { GLYPHS } from "../glyphs";
-import { formatNumber } from "../inspector/words";
-import { ariaKey, formatKey } from "../keys/keys";
-import { useSessionEvents } from "../sessionEvents";
-import type { JoinCardState, JoinField1 } from "../state/store";
-import { useWorkspace } from "../state/WorkspaceContext";
-import { cancelCard, commitCard } from "./actions";
-import { CancelButton } from "./CancelButton";
+import { ariaKey } from "../keys/keys";
+import { factWords, matchWords, outcomeWords, type SideChoices, sideName, type SourceNames } from "./cardWords";
 import {
-    edgeTypeChoices,
-    field1Profile,
-    field2Profile,
-    holdsNodes,
-    joinCardOf,
-    joinCounts,
-    sourceColumns,
-    spaceChoices,
-    swapped,
-    updateJoin,
-} from "./join";
-import { JoinPreview } from "./JoinPreview";
-import { COMMIT_KEY, PREVIEW_KEY } from "./keys";
-import { canPreview, openDraft, setChoice, startPreview } from "./preview";
-import { cellWords, COUNT_WORDS, distinctWords, editTitleWords, JOIN_WORDS, moreWords, PREVIEW_WORDS } from "./words";
+    BLANK_LINE,
+    type CardEnd,
+    type CardLine,
+    type CardResult,
+    countsOf,
+    DEFAULT_RESULT,
+    fieldsOf,
+    type Ignoring,
+    matchOf,
+    type MatchSwitches,
+    namesSeveral,
+    NO_END,
+    type OpenCard,
+    outcomeKey,
+    resultOf,
+    sameSide,
+    type Suggestion,
+    switchesOf,
+    wholeLines,
+} from "./joinCards";
+import { Options, Row, StepCounts } from "./JoinOptions";
+import { DELETE_KEY } from "./keys";
+import { KeyWords } from "./KeyWords";
+import { Pick, type PickChoice, type PickGroup } from "./Pick";
+import { JOIN_WORDS, moreWords, WORKSPACE_WORDS } from "./words";
+import { cardReach } from "./workspaceCards";
 
-/** The element's events after which the card reads its draft again. */
-const DRAFT_EVENTS = ["data:draft-changed"] as const;
-
-/** Field 1's Field value for the space's own key. */
-const KEY_VALUE = "key";
+/** New nodes, as a side list offers it. */
+const NEW_VALUE = "new";
 
 /**
- * A field's distinct count and first samples, and how many more values it holds.
- * @param props - Component props
- * @param props.profile - the field's profile, from the element
- * @param props.label - whose samples, for the accessible name
- * @returns the line
+ * A side as a list's value.
+ * @param side - the side
+ * @returns the value
  */
-function Samples({
-    profile,
-    label,
-}: Readonly<{ profile: SourceColumnProfile | null; label: string }>): React.JSX.Element | null {
-    if (profile === null) {
-        return null;
-    }
-    const more = profile.distinct - profile.samples.length;
-    return (
-        <Group gap={6} wrap="wrap" aria-label={`${label} ${JOIN_WORDS.samples.toLowerCase()}`}>
-            <Text size="xs">{distinctWords(profile.distinct)}</Text>
-            {profile.samples.map((sample) => (
-                <Text key={String(sample)} size="xs" c="dimmed">
-                    {cellWords(sample)}
-                </Text>
-            ))}
-            {more > 0 ? (
-                <Text size="xs" c="dimmed">
-                    {`+${formatNumber(more)}`}
-                </Text>
-            ) : null}
-        </Group>
-    );
+function sideValue(side: SourceJoinSide): string {
+    return JSON.stringify(side.source === undefined ? { space: side.space } : { source: side.source });
 }
 
 /**
- * A select whose picks the card writes.
- * @param props - Component props
- * @param props.name - its accessible name
- * @param props.data - its choices
- * @param props.value - the choice now, or null
- * @param props.onPick - takes a pick
- * @returns the select
+ * A line with one end picked anew: both its fields go when its side changes.
+ * @param line - the line
+ * @param at - the end
+ * @param end - its new side
+ * @returns the line
  */
-export function Pick({
-    name,
-    data,
-    value,
-    onPick,
-}: Readonly<{
-    name: string;
-    data: readonly { readonly value: string; readonly label: string }[];
-    value: string | null;
-    onPick: (value: string) => void;
-}>): React.JSX.Element {
+function withSide(line: CardLine, at: "a" | "b", end: CardEnd): CardLine {
+    const other = { ...(at === "a" ? line.b : line.a), field: null };
+    return at === "a" ? { a: end, b: other } : { a: other, b: end };
+}
+
+/**
+ * Lines whose two sources name no source of the ones before them, blank. A line with one source picked
+ * keeps it, whichever end: the other end then offers only the card's sources.
+ * @param lines - the lines
+ * @returns the lines
+ */
+function connected(lines: readonly CardLine[]): readonly CardLine[] {
+    const named: SourceJoinSide[] = [];
+    return lines.map((line, at) => {
+        const sides = [line.a.side, line.b.side].filter((side) => side !== null);
+        const linked = at === 0 || sides.some((side) => named.some((each) => sameSide(each, side)));
+        if (!linked && sides.length === 2) {
+            return BLANK_LINE;
+        }
+        if (linked) {
+            named.push(...sides);
+        }
+        return line;
+    });
+}
+
+/**
+ * The sources a card's other lines name, each once.
+ * @param card - the card
+ * @param at - the line left out
+ * @returns the sources
+ */
+function namedBy(card: OpenCard, at: number): SourceJoinSide[] {
+    const named: SourceJoinSide[] = [];
+    for (const side of card.lines.flatMap((line, i) => (i === at ? [] : [line.a.side, line.b.side]))) {
+        if (side !== null && !named.some((each) => sameSide(each, side))) {
+            named.push(side);
+        }
+    }
+    return named;
+}
+
+/** What every line of a card takes. */
+interface LineProps {
+    readonly session: GraphSession;
+    readonly draft: SourceDraft;
+    readonly names: SourceNames;
+    readonly card: OpenCard;
+    /** The line's place. */
+    readonly at: number;
+    readonly choices: SideChoices;
+    readonly suggestion: Suggestion | null;
+    /** Writes the card's lines; `resided` when a side changed. */
+    readonly onLines: (lines: readonly CardLine[], resided: boolean) => void;
+}
+
+/**
+ * The sides a picker offers, in their groups.
+ * @param props - the line
+ * @param end - which end
+ * @returns the choices
+ */
+function sideData(props: LineProps, end: "a" | "b"): readonly (PickChoice | PickGroup)[] {
+    const { session, names, choices, card, at } = props;
+    const choice = (side: SourceJoinSide): PickChoice => ({
+        value: sideValue(side),
+        label: sideName(session, names, side),
+    });
+    if (at > 0) {
+        // A further line holds a source the card already names, at either end: once the other end has
+        // one it does not name, this end offers only those.
+        const named = namedBy(card, at);
+        const other = card.lines[at][end === "a" ? "b" : "a"];
+        const free = other.side === null ? other.isNew !== true : named.some((each) => sameSide(each, other.side));
+        if (!free) {
+            return named.map((side) => choice(side));
+        }
+    }
+    const groups = [
+        { group: WORKSPACE_WORDS.waiting, items: choices.waiting.map((side) => choice(side)) },
+        { group: WORKSPACE_WORDS.inGraph, items: choices.inGraph.map((side) => choice(side)) },
+        { group: WORKSPACE_WORDS.nodeTypes, items: choices.types.map((side) => choice(side)) },
+    ].filter((each) => each.items.length > 0);
+    return end === "a" ? groups : [...groups, { value: NEW_VALUE, label: WORKSPACE_WORDS.newNodes }];
+}
+
+/**
+ * A line's side picker.
+ * @param props - the line
+ * @param props.end - which end
+ * @returns the picker
+ */
+function SidePick(props: LineProps & Readonly<{ end: "a" | "b" }>): React.JSX.Element {
+    const { session, card, at, end, onLines } = props;
+    const line = card.lines[at];
+    const picked = line[end];
+    const data = sideData(props, end);
+    const value = picked.side === null ? null : sideValue(picked.side);
+    const source = session.data.sources({ staged: true }).find((each) => each.key === picked.side?.source);
     return (
-        <Select
-            size="xs"
-            aria-label={name}
-            placeholder={name.replace(/^Field \d /, "")}
-            allowDeselect={false}
-            data={data.map((each) => ({ ...each }))}
-            value={value}
-            onChange={(next) => {
-                if (next !== null && next !== value) {
-                    onPick(next);
-                }
+        <Pick
+            name={pickerName(WORKSPACE_WORDS.source, at, end)}
+            placeholder={WORKSPACE_WORDS.source}
+            data={data}
+            value={picked.isNew === true ? NEW_VALUE : value}
+            title={source?.name}
+            onPick={(next) => {
+                const to: CardEnd =
+                    next === NEW_VALUE
+                        ? { ...NO_END, isNew: true }
+                        : { side: JSON.parse(next) as SourceJoinSide, field: null };
+                onLines(connected(card.lines.map((each, i) => (i === at ? withSide(each, end, to) : each))), true);
             }}
         />
     );
 }
 
 /**
- * Field 1's Field select value: Key, or the source and column it names.
- * @param field - Field 1.
- * @returns the value.
+ * A picker's name: which end of the first line, or of a further one.
+ * @param word - what it picks
+ * @param at - the line's place
+ * @param end - the end
+ * @returns such as "Field 1", or "Match 2 field 1"
  */
-function field1Value(field: JoinField1): string {
-    return field.field === undefined || field.source === undefined
-        ? KEY_VALUE
-        : JSON.stringify([field.source, field.field]);
+function pickerName(word: string, at: number, end: "a" | "b"): string {
+    const name = `${at === 0 ? word : word.toLowerCase()} ${end === "a" ? "1" : "2"}`;
+    return at === 0 ? name : `${WORKSPACE_WORDS.match} ${String(at + 1)} ${name}`;
 }
 
 /**
- * Field 1: the nodes already in the graph, by their space (named as the Type), matched on their
- * Key or on a column of a source that supplied them.
- * @param props - Component props
- * @param props.session - the element's session
- * @param props.card - the card's picks
- * @returns the rows
+ * A line's field picker: each field with its facts, the source an earlier join brought it from, and
+ * "suggested" on the likeliest one.
+ * @param props - the line
+ * @param props.end - which end
+ * @returns the picker
  */
-function Field1({ session, card }: Readonly<{ session: GraphSession; card: JoinCardState }>): React.JSX.Element {
-    const { store } = useWorkspace();
-    const { field1 } = card;
-    const built = session.data.sources();
-    const filled = new Set(
-        session.data
-            .spaces()
-            .filter((row) => row.nodes > 0)
-            .map((row) => row.space),
+function FieldPick(props: LineProps & Readonly<{ end: "a" | "b" }>): React.JSX.Element {
+    const { draft, names, card, at, end, suggestion, onLines } = props;
+    const line = card.lines[at];
+    const other = end === "a" ? line.b : line.a;
+    const before = card.step?.index;
+    // A field an earlier join brought is in no row: at most one end of a match can be one.
+    const joined = fieldsOf(draft, other.side, before).some(
+        (field) => field.name === other.field && field.from !== null,
     );
-    const spaces = spaceChoices(session).filter((choice) => filled.has(choice.value));
-    const row = session.data.spaces().find((each) => each.space === field1?.space);
-    const suppliers = built.filter((source) => row?.sources.includes(source.key) === true);
-    const columns = suppliers.flatMap((source) =>
-        sourceColumns(session, source.key, "nodes").map((column) => ({
-            value: JSON.stringify([source.key, column]),
-            label: suppliers.length > 1 ? `${column} (${sourceName(source)})` : column,
-        })),
-    );
-    const fieldValue = field1 === null ? null : field1Value(field1);
+    const alike = sameSide(line.a.side, line.b.side);
+    const data = fieldsOf(draft, line[end].side, before).map((field): PickChoice => {
+        const from = field.from === null ? [] : [names.get(field.from) ?? WORKSPACE_WORDS.removedSource];
+        const likely = suggestion?.[end] === field.name ? [WORKSPACE_WORDS.suggested] : [];
+        return {
+            value: field.name,
+            label: field.name,
+            hint: [...from, factWords(field), ...likely].filter((each) => each !== "").join(", "),
+            disabled: joined && field.from !== null && !(alike && other.field === field.name),
+        };
+    });
     return (
-        <fieldset className="ss-field">
-            <Text component="legend" size="xs" fw={600}>
-                {JOIN_WORDS.field1}
-            </Text>
-            <Pick
-                name={`${JOIN_WORDS.field1} ${JOIN_WORDS.type.toLowerCase()}`}
-                data={spaces}
-                value={field1?.space ?? null}
-                onPick={(space) => {
-                    updateJoin(store, { field1: { space } }, session);
-                }}
-            />
-            {field1 === null ? null : (
-                <Pick
-                    name={`${JOIN_WORDS.field1} ${JOIN_WORDS.field.toLowerCase()}`}
-                    data={[{ value: KEY_VALUE, label: JOIN_WORDS.key }, ...columns]}
-                    value={fieldValue}
-                    onPick={(value) => {
-                        if (value === KEY_VALUE) {
-                            updateJoin(store, { field1: { space: field1.space } }, session);
-                            return;
-                        }
-                        const [source, field] = JSON.parse(value) as [string, string];
-                        updateJoin(store, { field1: { space: field1.space, source, field } }, session);
+        <Pick
+            name={pickerName(JOIN_WORDS.field, at, end)}
+            placeholder={JOIN_WORDS.field}
+            data={data}
+            value={line[end].field}
+            onPick={(field) => {
+                const to = { ...line, [end]: { ...line[end], field } };
+                onLines(
+                    card.lines.map((each, i) => (i === at ? to : each)),
+                    false,
+                );
+            }}
+        />
+    );
+}
+
+/**
+ * One line of a card: its two sources, a field of each under them, and its live count.
+ * @param props - Component props
+ * @param props.onFocus - the reader is on the line
+ * @returns the line
+ */
+function Line(
+    props: LineProps & Readonly<{ counts: SourceMatchCounts | null; onFocus: () => void }>,
+): React.JSX.Element {
+    const { card, at, counts, onLines, onFocus } = props;
+    const line = card.lines[at];
+    const two = line.a.side !== null && (line.b.side !== null || line.b.isNew === true);
+    return (
+        <fieldset
+            className="ss-field jw-line"
+            aria-label={`${WORKSPACE_WORDS.match} ${String(at + 1)}`}
+            onFocusCapture={onFocus}
+        >
+            <SidePick {...props} end="a" />
+            <span />
+            <SidePick {...props} end="b" />
+            {/* The first match keeps the remove column empty, so every match's "=" lines up. */}
+            {at === 0 ? (
+                <span />
+            ) : (
+                <ActionIcon
+                    size="xs"
+                    variant="subtle"
+                    aria-label={`${WORKSPACE_WORDS.remove} ${WORKSPACE_WORDS.match.toLowerCase()} ${String(at + 1)}`}
+                    onClick={() => {
+                        onLines(
+                            card.lines.filter((_each, i) => i !== at),
+                            false,
+                        );
                     }}
-                />
+                >
+                    <GLYPHS.close size={12} aria-hidden />
+                </ActionIcon>
             )}
-            <Samples profile={field1Profile(session, field1)} label={JOIN_WORDS.field1} />
+            {two ? (
+                <>
+                    <FieldPick {...props} end="a" />
+                    <Text size="xs" ta="center" aria-hidden>
+                        =
+                    </Text>
+                    {line.b.isNew === true ? (
+                        <Text size="xs">{WORKSPACE_WORDS.newNodes}</Text>
+                    ) : (
+                        <FieldPick {...props} end="b" />
+                    )}
+                    <span />
+                </>
+            ) : null}
+            {counts === null ? null : (
+                <Text
+                    size="xs"
+                    className="jw-line-count"
+                    aria-label={`${WORKSPACE_WORDS.matchCount} ${String(at + 1)}`}
+                >
+                    {matchWords(counts)}
+                </Text>
+            )}
         </fieldset>
     );
 }
 
-/**
- * Field 2: the incoming source and its field.
- * @param props - Component props
- * @param props.session - the element's session
- * @param props.card - the card's picks
- * @returns the rows
- */
-function Field2({ session, card }: Readonly<{ session: GraphSession; card: JoinCardState }>): React.JSX.Element {
-    const { store } = useWorkspace();
-    const { field2 } = card;
-    const sources = [...session.data.staged(), ...session.data.sources()].map((source) => ({
-        value: source.key,
-        label: sourceName(source),
-    }));
-    return (
-        <fieldset className="ss-field">
-            <Text component="legend" size="xs" fw={600}>
-                {JOIN_WORDS.field2}
-            </Text>
-            <Pick
-                name={`${JOIN_WORDS.field2} ${JOIN_WORDS.source.toLowerCase()}`}
-                data={sources}
-                value={field2?.source ?? null}
-                onPick={(source) => {
-                    updateJoin(store, { field2: { source } }, session);
-                }}
-            />
-            {field2 === null ? null : (
-                <Pick
-                    name={`${JOIN_WORDS.field2} ${JOIN_WORDS.field.toLowerCase()}`}
-                    data={sourceColumns(session, field2.source).map((column) => ({ value: column, label: column }))}
-                    value={field2.field ?? null}
-                    onPick={(field) => {
-                        updateJoin(store, { field2: { source: field2.source, field } }, session);
-                    }}
-                />
-            )}
-            <Samples profile={field2Profile(session, field2)} label={JOIN_WORDS.field2} />
-        </fieldset>
-    );
-}
+/** What each Ignore switch ignores, after the row's own word. */
+const IGNORE_WORDS = { ignoreCase: "Case", ignoreSpaces: "Spaces" } as const;
 
 /**
- * The six live counts and the Ignore case / Ignore spaces switches with how many more keys each
- * would match, all from `data.matchCounts`.
+ * The "Ignore" switches of a card, which set how all its matches compare: each drawn while it is on
+ * or would match more rows, alone or with the other.
  * @param props - Component props
- * @param props.session - the element's session
- * @param props.card - the card's picks
- * @returns the counts, or nothing while a field is unpicked
+ * @param props.more - what they would add
+ * @param props.on - how the card compares now
+ * @param props.always - both are drawn, as nothing counts what they would add
+ * @param props.onIgnore - changes one
+ * @returns the row, or nothing when neither would change anything
  */
-function Counts({ session, card }: Readonly<{ session: GraphSession; card: JoinCardState }>): React.JSX.Element | null {
-    const { store } = useWorkspace();
-    const counts = joinCounts(session, card);
-    if (counts === null) {
+function IgnoreSwitches({
+    more,
+    on,
+    always,
+    onIgnore,
+}: Readonly<{
+    more: MatchSwitches;
+    on: Ignoring;
+    always: boolean;
+    onIgnore: (patch: Partial<Ignoring>) => void;
+}>): React.JSX.Element | null {
+    const shown = (
+        [
+            { id: "ignoreCase", label: JOIN_WORDS.ignoreCase, on: on.ignoreCase, more: more.moreWithCase },
+            { id: "ignoreSpaces", label: JOIN_WORDS.ignoreSpaces, on: on.ignoreSpaces, more: more.moreWithSpaces },
+        ] as const
+    ).filter((toggle) => always || toggle.on || (toggle.more ?? 0) > 0 || more.together);
+    if (shown.length === 0) {
         return null;
     }
-    const toggles = [
-        { id: "ignoreCase", label: JOIN_WORDS.ignoreCase, on: card.ignoreCase, more: counts.moreWithIgnoreCase },
-        {
-            id: "ignoreSpaces",
-            label: JOIN_WORDS.ignoreSpaces,
-            on: card.ignoreSpaces,
-            more: counts.moreWithIgnoreSpaces,
-        },
-    ] as const;
     return (
-        <Stack gap={4}>
-            {/* A term and its number, so a screen reader says which count each number is; drawn
-                number first. */}
-            <dl className="ss-counts">
-                {COUNT_WORDS.map(({ id, label }) => (
-                    <div key={id} className="ss-count">
-                        <Text component="dt" size="xs" c="dimmed">
-                            {label}
-                        </Text>
-                        <Text component="dd" size="xs" fw={600}>
-                            {formatNumber(counts[id])}
-                        </Text>
-                    </div>
-                ))}
-            </dl>
-            {toggles.map((toggle) => {
-                const more = moreWords(toggle.more);
-                return (
-                    <Group key={toggle.id} gap={6} wrap="nowrap">
+        <Row label={WORKSPACE_WORDS.ignore}>
+            <Group gap={12} wrap="wrap">
+                {shown.map((toggle) => {
+                    const words = (toggle.more ?? 0) === 0 ? null : moreWords(toggle.more);
+                    const name = IGNORE_WORDS[toggle.id];
+                    return (
                         <Switch
+                            key={toggle.id}
                             size="xs"
-                            label={toggle.label}
+                            aria-label={toggle.label}
+                            label={words === null ? name : `${name} ${words}`}
                             checked={toggle.on}
                             onChange={(event) => {
-                                setChoice(store, session, { [toggle.id]: event.currentTarget.checked });
+                                onIgnore({ [toggle.id]: event.currentTarget.checked });
                             }}
                         />
-                        {more === null ? null : (
-                            <Text size="xs" c="dimmed" aria-label={`${toggle.label} more`}>
-                                {more}
-                            </Text>
-                        )}
-                    </Group>
-                );
-            })}
-        </Stack>
+                    );
+                })}
+            </Group>
+        </Row>
     );
 }
 
-/**
- * The act: Make an edge (with its edge type and direction) or Merge 2 into 1, neither picked until
- * the reader picks one. Both need node rows in source 2 (`E_STEP_NEEDS_NODES`).
- * @param props - Component props
- * @param props.session - the element's session
- * @param props.card - the card's picks
- * @returns the radio group
- */
-function Act({ session, card }: Readonly<{ session: GraphSession; card: JoinCardState }>): React.JSX.Element {
-    const { store } = useWorkspace();
-    const source = card.field2?.source;
-    const needsNodes = source !== undefined && !holdsNodes(session, source);
-    const edgeTypes = edgeTypeChoices(session);
-    return (
-        <Stack gap={4}>
-            <Radio.Group
-                size="xs"
-                label={
-                    <Group gap={6} component="span">
-                        <span>{JOIN_WORDS.act}</span>
-                        {needsNodes ? (
-                            <Text component="span" size="xs" c="dimmed">
-                                {JOIN_WORDS.needsNodes}
-                            </Text>
-                        ) : null}
-                    </Group>
-                }
-                value={card.act}
-                onChange={(value) => {
-                    updateJoin(store, { act: value === "merge" ? "merge" : "edge" }, session);
-                }}
-            >
-                <Stack gap={4} mt={4}>
-                    <Radio size="xs" value="edge" label={JOIN_WORDS.edge} disabled={needsNodes} />
-                    <Radio size="xs" value="merge" label={JOIN_WORDS.merge} disabled={needsNodes} />
-                </Stack>
-            </Radio.Group>
-            {card.act === "edge" && !needsNodes ? (
-                <Group gap={6} wrap="nowrap">
-                    <ComboInput
-                        label={JOIN_WORDS.edgeType}
-                        width="100%"
-                        variant="outlined"
-                        placeholder={JOIN_WORDS.edgeType}
-                        options={edgeTypes}
-                        value={card.edgeType}
-                        onChange={(next) => {
-                            updateJoin(store, { edgeType: String(next).trim() }, session);
-                        }}
-                    />
-                    <SegmentedControl
-                        size="xs"
-                        aria-label={JOIN_WORDS.direction}
-                        value={card.reversed ? "21" : "12"}
-                        data={[
-                            { value: "12", label: JOIN_WORDS.oneToTwo },
-                            { value: "21", label: JOIN_WORDS.twoToOne },
-                        ]}
-                        onChange={(value) => {
-                            updateJoin(store, { reversed: value === "21" }, session);
-                        }}
-                    />
-                </Group>
-            ) : null}
-        </Stack>
-    );
+/** The card editor's props. */
+interface JoinCardBodyProps {
+    readonly session: GraphSession;
+    readonly draft: SourceDraft;
+    readonly names: SourceNames;
+    readonly card: OpenCard;
+    readonly choices: SideChoices;
+    /** What its matches can make. */
+    readonly outcomes: readonly SourceJoinOutcome[];
+    /** Each line's likeliest fields. */
+    readonly suggestions: readonly (Suggestion | null)[];
+    /** Whether it can be removed: not the one blank card there is. */
+    readonly removable: boolean;
+    readonly error: string | undefined;
+    /** What can be done with the rows picked in the table, while it lists the card's. */
+    readonly tableActions: React.ReactNode;
+    /** Adding the one waiting source picked as it is. */
+    readonly addAsIs: React.ReactNode;
+    /** How the waiting sources' rows are read. */
+    readonly readSettings: React.ReactNode;
+    readonly onLines: (lines: readonly CardLine[], resided: boolean) => void;
+    readonly onIgnore: (patch: Partial<Ignoring>) => void;
+    readonly onOutcome: (outcome: SourceJoinOutcome) => void;
+    readonly onSet: (outcome: SourceJoinOutcome, patch: Partial<CardResult>) => void;
+    readonly onPatch: (step: number, patch: SourceStepPatch) => void;
+    readonly onLine: (at: number) => void;
+    readonly onShowCells: (step: number, column: string) => void;
+    readonly onShowRows: (step: number, bucket: string) => void;
+    readonly onRemove: () => void;
 }
 
 /**
- * The Join card (design 5.2, the source-steps experiment): Field 1 in the graph, a swap, Field 2
- * incoming, the live counts once both are picked, and the act. Nothing is written while it is
- * open; Cancel (Esc) closes it.
+ * The editor of a selected card: its sources, then a field of each, then how to join them, and, once one
+ * way is picked, that way's options and counts.
  * @param props - Component props
- * @param props.session - the element's session
- * @param props.card - the card's picks
- * @returns the card
+ * @returns the editor
  */
-export function JoinCard({
-    session,
-    card,
-}: Readonly<{ session: GraphSession; card: JoinCardState }>): React.JSX.Element {
-    const { store } = useWorkspace();
-    const form = useRef<HTMLFormElement>(null);
-    useEffect(() => {
-        form.current?.querySelector<HTMLElement>("input")?.focus();
-    }, []);
-    // The draft's acts and Before / After change what the preview reads.
-    useSessionEvents(session, DRAFT_EVENTS);
-    // A draft gone by any door (a project opened, the graph cleared) leaves nothing to commit: the
-    // card picks again.
-    useEffect(
-        () =>
-            session.on("data:draft-changed", () => {
-                const now = joinCardOf(store.get().sourceCard);
-                if (now !== null && now.preview !== null && openDraft(session) === null) {
-                    store.set({ sourceCard: { ...now, preview: null, drill: null } });
-                }
-            }),
-        [session, store],
-    );
-    const swap = swapped(session, card);
-    const previewing = card.preview !== null;
-    // The join preview, drawn by graphty-element while the draft is drawn: Commit, Esc and closing
-    // the card take it off. In the selection branches' first two colors: merged, then new.
-    const drawn = previewing && openDraft(session)?.displayed === true;
-    useEffect(() => {
-        if (!drawn) {
-            return undefined;
-        }
-        const [merged, added] = session.scope.options.branchPalette ?? DEFAULT_BRANCH_PALETTE;
-        const view = session.styles.showDraft({ merged, new: added });
-        return () => {
-            view.end();
-        };
-    }, [drawn, session]);
-    // Editing a committed step, the card names it, so the reader knows which step is open.
-    const edited = card.editing === null ? undefined : session.data.steps()[card.editing];
-    const editedSource =
-        edited === undefined
-            ? undefined
-            : session.data.sources({ staged: true }).find((each) => each.key === edited.source);
-    const title =
-        edited === undefined
-            ? JOIN_WORDS.join
-            : editTitleWords(edited, editedSource === undefined ? edited.source : sourceName(editedSource));
-    const cancel = (): void => {
-        cancelCard(store, session);
-    };
+export function JoinCardBody(props: JoinCardBodyProps): React.JSX.Element {
+    const { session, draft, names, card, choices, outcomes, suggestions, error, onLines } = props;
+    const group = useId();
+    const { lines, step } = card;
+    const name = (side: SourceJoinSide): string => sideName(session, names, side);
+    const counts = lines.map((line) => countsOf(draft, line, card, step?.index));
+    const current = outcomes.find((each) => each.current === true);
+    const result =
+        step === null || current === undefined ? { ...DEFAULT_RESULT, ...card.chosen } : resultOf(step, current);
+    const whole = wholeLines(lines);
+    const shared = whole.some(({ a, b }) => sameSide(a.side, b.side) && a.field === b.field);
+    const worded = (outcome: SourceJoinOutcome): CardResult =>
+        outcome === current ? result : { ...DEFAULT_RESULT, ...card.chosen };
     return (
-        <form // eslint-disable-line jsx-a11y/no-noninteractive-element-interactions -- catches Esc bubbling from the card's own controls to cancel it
-            ref={form}
-            className="ss-card ss-join"
-            aria-label={title}
-            onSubmit={(event) => {
-                // Enter in a field submits a form: only the Commit button and the window's Enter commit.
-                event.preventDefault();
-            }}
-            onKeyDown={(event) => {
-                // An open select's Esc closes its list, not the card.
-                const open = (event.target as HTMLElement).getAttribute("aria-expanded") === "true";
-                if (event.key === "Escape" && !event.defaultPrevented && !open) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    cancel();
-                }
-            }}
-        >
-            <Stack gap={6}>
-                {edited === undefined ? null : (
-                    <Text size="xs" fw={600}>
-                        {title}
-                    </Text>
-                )}
-                <Field1 session={session} card={card} />
-                <Group justify="center">
-                    <Tooltip label={JOIN_WORDS.swap}>
-                        <ActionIcon
+        <Stack gap={8} className="jw-card" data-join-editor={card.id}>
+            {lines.map((_line, at) => (
+                <Line
+                    // eslint-disable-next-line react/no-array-index-key -- a line is its place: two can be alike
+                    key={at}
+                    session={session}
+                    draft={draft}
+                    names={names}
+                    card={card}
+                    at={at}
+                    choices={choices}
+                    suggestion={suggestions.at(at) ?? null}
+                    counts={counts[at]}
+                    onLines={onLines}
+                    onFocus={() => {
+                        props.onLine(at);
+                    }}
+                />
+            ))}
+            {props.addAsIs}
+            {whole.length === 0 ? null : (
+                <>
+                    <IgnoreSwitches more={switchesOf(counts)} on={card} always={shared} onIgnore={props.onIgnore} />
+                    <Group>
+                        <Button
+                            size="compact-xs"
                             variant="subtle"
-                            size="sm"
-                            aria-label={JOIN_WORDS.swap}
-                            disabled={swap === null}
+                            disabled={lines.some((line) => matchOf(line) === null)}
                             onClick={() => {
-                                if (swap !== null) {
-                                    updateJoin(store, swap, session);
-                                }
+                                onLines([...lines, BLANK_LINE], false);
                             }}
                         >
-                            <GLYPHS.swap size={14} aria-hidden />
-                        </ActionIcon>
-                    </Tooltip>
-                </Group>
-                <Field2 session={session} card={card} />
-                <Counts session={session} card={card} />
-                <Act session={session} card={card} />
-                <JoinPreview session={session} card={card} />
-                <Group gap={6} justify="flex-end">
-                    <CancelButton onClick={cancel} />
-                    {/* Keyed apart: the click that starts the preview must not land on Commit, as it
-                        would if React reused this one button for both. */}
-                    {previewing ? (
-                        <Button
-                            key="commit"
-                            size="compact-xs"
-                            onClick={() => {
-                                void commitCard(store, session);
-                            }}
-                            rightSection={<Kbd size="xs">{formatKey(COMMIT_KEY)}</Kbd>}
-                            aria-keyshortcuts={ariaKey(COMMIT_KEY)}
-                        >
-                            {PREVIEW_WORDS.commit}
+                            {`+ ${WORKSPACE_WORDS.match}`}
                         </Button>
-                    ) : (
-                        <Button
-                            key="preview"
-                            size="compact-xs"
-                            disabled={!canPreview(card)}
-                            rightSection={<Kbd size="xs">{formatKey(PREVIEW_KEY)}</Kbd>}
-                            aria-keyshortcuts={ariaKey(PREVIEW_KEY)}
-                            onClick={() => {
-                                void startPreview(store, session);
-                            }}
-                        >
-                            {PREVIEW_WORDS.preview}
-                        </Button>
-                    )}
-                </Group>
-            </Stack>
-        </form>
+                    </Group>
+                </>
+            )}
+            {props.readSettings}
+            {outcomes.length === 0 ? null : (
+                <Radio.Group
+                    name={group}
+                    size="xs"
+                    label={WORKSPACE_WORDS.joinAs}
+                    value={current === undefined ? null : outcomeKey(current)}
+                    onChange={(value) => {
+                        const next = outcomes.find((each) => outcomeKey(each) === value);
+                        if (next !== undefined) {
+                            props.onOutcome(next);
+                        }
+                    }}
+                >
+                    <Stack gap={4} mt={4}>
+                        {outcomes.map((each) => (
+                            <Radio
+                                key={outcomeKey(each)}
+                                size="xs"
+                                value={outcomeKey(each)}
+                                label={outcomeWords(each, { name, lines, result: worded(each) })}
+                            />
+                        ))}
+                    </Stack>
+                </Radio.Group>
+            )}
+            {step === null || current === undefined ? null : (
+                <Options
+                    session={session}
+                    draft={draft}
+                    step={step}
+                    steps={card.steps}
+                    lines={lines}
+                    outcome={current}
+                    result={result}
+                    several={namesSeveral(draft, step)}
+                    name={name}
+                    onSet={(patch) => {
+                        props.onSet(current, patch);
+                    }}
+                    onPatch={props.onPatch}
+                    onShowCells={props.onShowCells}
+                />
+            )}
+            {error === undefined ? null : (
+                <Text size="xs" c="red" role="alert">
+                    {error}
+                </Text>
+            )}
+            {step === null ? null : (
+                <StepCounts
+                    step={step}
+                    reach={cardReach(draft, card.steps)}
+                    onShow={(bucket) => {
+                        props.onShowRows(step.index, bucket);
+                    }}
+                />
+            )}
+            {props.tableActions}
+            {props.removable ? <RemoveButton onRemove={props.onRemove} /> : null}
+        </Stack>
+    );
+}
+
+/**
+ * Removes the selected card.
+ * @param props - Component props
+ * @param props.onRemove - removes it
+ * @returns the button
+ */
+export function RemoveButton({ onRemove }: Readonly<{ onRemove: () => void }>): React.JSX.Element {
+    return (
+        <Group>
+            <Button
+                size="compact-xs"
+                variant="subtle"
+                aria-keyshortcuts={ariaKey(DELETE_KEY)}
+                rightSection={<KeyWords combo={DELETE_KEY} />}
+                onClick={onRemove}
+            >
+                {WORKSPACE_WORDS.remove}
+            </Button>
+        </Group>
     );
 }

@@ -378,7 +378,7 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
             id: "order",
             title: "Order and groups",
             items: [
-                { id: "order", name: "Order", tail: ["node.zIndex", "node.drawOrder"] },
+                { id: "order", name: "Order", tail: ["node.zIndex", "node.drawOrder", "node.onTop"] },
                 {
                     id: "group",
                     name: "Group",

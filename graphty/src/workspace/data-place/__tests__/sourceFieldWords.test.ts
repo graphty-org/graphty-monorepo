@@ -6,7 +6,6 @@ import {
     columnChoices,
     FIELD_ENTRIES,
     FIELD_ROWS,
-    joinMatch,
     kindChoices,
     loadValue,
     roleHolder,
@@ -51,12 +50,6 @@ describe("the Data place's words", () => {
     it("counts a server load against what the source holds, when it says", () => {
         assert.equal(serverCount(500, 40_000), "500 of 40,000");
         assert.equal(serverCount(12, undefined), "12");
-    });
-
-    it("words a joined table's match as matched of rows, and nothing for another load", () => {
-        const joined = { ...LOG, kind: "join", join: { matched: 52, rows: 70 } } as unknown as LoadedSource;
-        assert.equal(joinMatch(joined), "52/70");
-        assert.isNull(joinMatch(LOG));
     });
 
     it("names a load the reader's way, never by its internal key", () => {

@@ -3,17 +3,19 @@
  * design/data/multiple-data-sources-design.md, section 5.2), behind the `source-steps` experiment.
  *
  * Both hash the two columns a Merge or Make an edge would compare and never build: side 1 is the
- * nodes the step joins onto (the keys of a space as the last build holds them, or a column of
- * the source it translates through), side 2 the incoming source's field. Each row is read once,
+ * nodes the step joins onto (the keys of a space, or a column its nodes carry, as the last build
+ * holds them, or a column of the source it translates through), side 2 the incoming source's field.
+ * A list's values are compared apart. Each row is read once,
  * and that one pass hashes it three ways: as the step compares it, and with each toggle that is
  * off turned on. Pure, and free of Babylon.js, Lit and the DOM.
  */
 
 import type { SourceMatchCounts as MatchCounts } from "../../types";
 import { type JoinInto, type NodeOne, nodeOne, sourceOf } from "./acts";
-import { isEmpty, isStaged, type MatchOptions, normalize, resolveNode, tableRows } from "./build";
+import { cellValues, isEmpty, isStaged, type MatchOptions, normalize, resolveNode, tableRows } from "./build";
+import { numberedKey } from "./profile";
 import { buildOf, type Copies, copyMap, type SourceSteps } from "./project";
-import type { CellValue, Row } from "./types";
+import type { BuildResult, CellValue, Row, Value } from "./types";
 
 /** Side 2: the incoming source and the field it names node 1 by. */
 interface MatchFrom {
@@ -52,7 +54,7 @@ const truncated = new WeakMap<SourceSteps, Map<number, SourceSteps>>();
  * @param before - The place; absent keeps every step.
  * @returns The value.
  */
-function upTo(value: SourceSteps, before: number | undefined): SourceSteps {
+export function upTo(value: SourceSteps, before: number | undefined): SourceSteps {
     if (before === undefined || before >= value.steps.length) {
         return value;
     }
@@ -79,8 +81,8 @@ export interface MatchValuesOptions extends CountOptions {
 /** One side hashed: per key, how many rows hold it, the value first read and the nodes it reaches. */
 type Hashed = Map<string, { n: number; first: CellValue; nodes: Set<string> }>;
 
-/** A value as read, with the node 1 its row reaches (side 1 only). */
-type Entry = readonly [CellValue | undefined, string?];
+/** A value as read, or a list's, with the node 1 its row reaches (side 1 only). */
+type Entry = readonly [Value | undefined, string?];
 
 /** The values of both sides, as read once. */
 interface Sides {
@@ -131,13 +133,13 @@ function sides(value: SourceSteps, copies: Copies, pair: MatchPair): Sides {
         return { one: translated(value, copies, source, pair.into.field ?? n1.keyCol, n1), two };
     }
     if (n1.isKey || source === undefined) {
-        const { space } = n1;
+        const { space, nodeColumn } = n1;
         // ponytail: a merged node's former keys (aliases) are not counted; add them if a Merge
         // into an already merged space reads short.
         const keys = function* (): Generator<Entry> {
             for (const n of buildOf(value, copies).nodes.values()) {
                 if (n.space === space) {
-                    yield [n.key, n.id];
+                    yield [nodeColumn === undefined ? n.key : n.values[nodeColumn], n.id];
                 }
             }
         };
@@ -180,6 +182,8 @@ interface Ways {
     readonly asked: MatchOptions;
     readonly caseOff: MatchOptions | null;
     readonly spacesOff: MatchOptions | null;
+    /** Both toggles on, when neither is. */
+    readonly bothOff: MatchOptions | null;
 }
 
 /**
@@ -193,6 +197,7 @@ function waysOf(o: MatchOptions): Ways {
         asked,
         caseOff: asked.ignoreCase ? null : { ...asked, ignoreCase: true },
         spacesOff: asked.ignoreSpaces ? null : { ...asked, ignoreSpaces: true },
+        bothOff: asked.ignoreCase || asked.ignoreSpaces ? null : { ignoreCase: true, ignoreSpaces: true },
     };
 }
 
@@ -216,29 +221,44 @@ function add(table: Hashed, k: string, v: CellValue, node: string | undefined): 
 }
 
 /**
- * Hash one side's values every way in one pass.
+ * Hash one value every way.
+ * @param tables - One table per way, null for a way not hashed.
+ * @param opts - The ways.
+ * @param v - The value.
+ * @param node - The node 1 its row reaches, for side 1.
+ */
+function hashOne(
+    tables: readonly (Hashed | null)[],
+    opts: readonly (MatchOptions | null)[],
+    v: CellValue,
+    node: string | undefined,
+): void {
+    tables.forEach((table, i) => {
+        const o = opts[i];
+        if (table !== null && o !== null) {
+            add(table, normalize(v, o), v, node);
+        }
+    });
+}
+
+/**
+ * Hash one side's values every way in one pass, each value of a list apart.
  * @param values - The values.
  * @param ways - The ways.
- * @returns One table per way, in `asked`, `caseOff`, `spacesOff` order (null for a way not hashed).
+ * @returns One table per way, in `asked`, `caseOff`, `spacesOff`, `bothOff` order (null for a way not hashed).
  */
-function hash(values: Iterable<Entry>, ways: Ways): [Hashed, Hashed | null, Hashed | null] {
-    const out: [Hashed, Hashed | null, Hashed | null] = [
+function hash(values: Iterable<Entry>, ways: Ways): [Hashed, Hashed | null, Hashed | null, Hashed | null] {
+    const table = (way: MatchOptions | null): Hashed | null => (way === null ? null : (new Map() as Hashed));
+    const out: [Hashed, Hashed | null, Hashed | null, Hashed | null] = [
         new Map() as Hashed,
-        ways.caseOff ? (new Map() as Hashed) : null,
-        ways.spacesOff ? (new Map() as Hashed) : null,
+        table(ways.caseOff),
+        table(ways.spacesOff),
+        table(ways.bothOff),
     ];
-    const opts = [ways.asked, ways.caseOff, ways.spacesOff];
-    for (const [v, node] of values) {
-        if (isEmpty(v)) {
-            continue;
-        }
-        for (let i = 0; i < 3; i++) {
-            const table = out[i];
-            const o = opts[i];
-            if (table === null || o === null) {
-                continue;
-            }
-            add(table, normalize(v, o), v, node);
+    const opts = [ways.asked, ways.caseOff, ways.spacesOff, ways.bothOff];
+    for (const [cell, node] of values) {
+        for (const v of new Set(cellValues(cell).filter((each) => !isEmpty(each)))) {
+            hashOne(out, opts, v ?? null, node);
         }
     }
     return out;
@@ -258,6 +278,37 @@ function both(a: Hashed, b: Hashed): number {
         }
     }
     return n;
+}
+
+/**
+ * Rows of side 2 with a value side 1 holds, compared one way: a list's row counts once.
+ * @param a - Side 1, hashed that way.
+ * @param two - Side 2's cells.
+ * @param o - The way.
+ * @returns How many rows.
+ */
+function rowsMeeting(a: Hashed, two: readonly Entry[], o: MatchOptions): number {
+    let n = 0;
+    for (const [cell] of two) {
+        if (cellValues(cell).some((v) => !isEmpty(v) && a.has(normalize(v, o)))) {
+            n++;
+        }
+    }
+    return n;
+}
+
+/**
+ * The nodes of side 1 some value of side 2 names.
+ * @param a - Side 1, hashed one way.
+ * @param b - Side 2, hashed that way.
+ * @returns How many.
+ */
+function nodesMeeting(a: Hashed, b: Hashed): number {
+    const nodes = new Set<string>();
+    for (const k of b.keys()) {
+        a.get(k)?.nodes.forEach((id) => nodes.add(id));
+    }
+    return nodes.size;
 }
 
 /**
@@ -329,9 +380,15 @@ function numbersOnly(a: Hashed, b: Hashed): number {
 export function matchCounts(value: SourceSteps, copies: Copies, pair: MatchPair, o: CountOptions = {}): MatchCounts {
     const ways = waysOf(o);
     const { one, two } = sides(upTo(value, o.before), copies, pair);
-    const [a, aCase, aSpaces] = hash(one, ways);
-    const [b, bCase, bSpaces] = hash(two, ways);
+    const [a, aCase, aSpaces, aBoth] = hash(one, ways);
+    const [b, bCase, bSpaces, bBoth] = hash(two, ways);
     const matched = both(a, b);
+    const matchedNodes = nodesMeeting(a, b);
+    const moreNodes = (one: Hashed | null, other: Hashed | null): number | null =>
+        one === null || other === null ? null : nodesMeeting(one, other) - matchedNodes;
+    const matchedRows = rowsMeeting(a, two, ways.asked);
+    const more = (table: Hashed | null, o: MatchOptions | null): number | null =>
+        table === null || o === null ? null : rowsMeeting(table, two, o) - matchedRows;
     let fanOut = 0;
     for (const [k, { n }] of b) {
         if ((a.get(k)?.nodes.size ?? 0) > 1) {
@@ -348,6 +405,16 @@ export function matchCounts(value: SourceSteps, copies: Copies, pair: MatchPair,
         textVersusNumber: numbersOnly(a, b),
         moreWithIgnoreCase: aCase && bCase ? both(aCase, bCase) - matched : null,
         moreWithIgnoreSpaces: aSpaces && bSpaces ? both(aSpaces, bSpaces) - matched : null,
+        rows: two.length,
+        matchedRows,
+        emptyRows: two.filter(([cell]) => cellValues(cell).every((v) => isEmpty(v))).length,
+        moreRowsWithIgnoreCase: more(aCase, ways.caseOff),
+        moreRowsWithIgnoreSpaces: more(aSpaces, ways.spacesOff),
+        moreRowsWithBoth: more(aBoth, ways.bothOff),
+        matchedNodes,
+        moreNodesWithIgnoreCase: moreNodes(aCase, bCase),
+        moreNodesWithIgnoreSpaces: moreNodes(aSpaces, bSpaces),
+        moreNodesWithBoth: moreNodes(aBoth, bBoth),
     };
 }
 
@@ -368,7 +435,7 @@ export function matchValues(
     o: MatchValuesOptions = {},
 ): { readonly total: number; readonly values: readonly MatchValue[] } {
     const asked = { ignoreCase: o.ignoreCase === true, ignoreSpaces: o.ignoreSpaces === true };
-    const ways: Ways = { asked, caseOff: null, spacesOff: null };
+    const ways: Ways = { asked, caseOff: null, spacesOff: null, bothOff: null };
     const { one, two } = sides(upTo(value, o.before), copies, pair);
     const [a] = hash(one, ways);
     const [b] = hash(two, ways);
@@ -399,19 +466,122 @@ export function matchValues(
 }
 
 /** One join `suggestMatches` proposes. */
-export interface MatchSuggestion {
+interface MatchSuggestion {
     readonly result: "merge" | "connect";
     readonly matches: readonly MatchPair[];
     readonly confident: boolean;
 }
 
+/** A suggestion, how likely it is. */
+export interface RankedSuggestion {
+    readonly suggestion: MatchSuggestion;
+    /** The share of the rows' values that meet. */
+    readonly share: number;
+    /** What it names nodes by: lower is likelier. */
+    readonly rank: number;
+}
+
 /** The share of a field's values that must meet to call a suggestion confident. */
 const CONFIDENT_SHARE = 0.8;
 
+/** The share of a column's cells that must be different values for it to identify its rows. */
+const IDENTIFYING_SHARE = 0.8;
+
+/** The values of one column or of a space's keys, as they compare, and how many cells held one. */
+interface Values {
+    readonly keys: ReadonlySet<string>;
+    readonly cells: number;
+}
+
+/** A column's values per rows array, so every source's guess reads each column once. */
+const columnValues = new WeakMap<readonly Row[], Map<string, Values>>();
+
+/** A space's keys, and its nodes' columns, per build. */
+const spaceValues = new WeakMap<BuildResult, Map<string, Values>>();
+
+/**
+ * The different values of some cells, each of a list's apart.
+ * @param cells - The cells.
+ * @returns The values.
+ */
+function valuesOf(cells: Iterable<Value | undefined>): Values {
+    const keys = new Set<string>();
+    let filled = 0;
+    for (const cell of cells) {
+        for (const v of cellValues(cell)) {
+            if (!isEmpty(v)) {
+                filled++;
+                keys.add(normalize(v));
+            }
+        }
+    }
+    return { keys, cells: filled };
+}
+
+/**
+ * A member of a map, made when it is not there.
+ * @param map - The map.
+ * @param key - The member.
+ * @param make - Makes it.
+ * @returns The member.
+ */
+function kept<V>(map: Map<string, V>, key: string, make: () => V): V {
+    const held = map.get(key) ?? make();
+    map.set(key, held);
+    return held;
+}
+
+/**
+ * The values of one column of a source's rows.
+ * @param rows - The rows.
+ * @param field - The column.
+ * @returns The values.
+ */
+function ofColumn(rows: readonly Row[], field: string): Values {
+    const byField = columnValues.get(rows) ?? new Map<string, Values>();
+    columnValues.set(rows, byField);
+    return kept(byField, field, () => valuesOf(rows.map((row) => row[field])));
+}
+
+/**
+ * The keys of a space's nodes, or the values of a column of theirs.
+ * @param built - The build.
+ * @param space - The space.
+ * @param field - The column; absent for the keys.
+ * @returns The values.
+ */
+function ofSpace(built: BuildResult, space: string, field?: string): Values {
+    const bySpace = spaceValues.get(built) ?? new Map<string, Values>();
+    spaceValues.set(built, bySpace);
+    return kept(bySpace, field === undefined ? space : `${space}\u0001${field}`, () => {
+        const cells: (Value | undefined)[] = [];
+        for (const n of built.nodes.values()) {
+            if (n.space === space) {
+                cells.push(field === undefined ? n.key : n.values[field]);
+            }
+        }
+        return valuesOf(cells);
+    });
+}
+
+// Whether a column names its rows: nearly every cell holds another value.
+const identifies = (v: Values): boolean => v.keys.size > 1 && v.keys.size >= IDENTIFYING_SHARE * v.cells;
+
+/**
+ * The column a reader's file keys its rows by: rows numbered for want of one are named by nothing in it.
+ * @param src - The source.
+ * @returns The column, or undefined.
+ */
+function ownKey(src: SourceSteps["sources"][string]): string | undefined {
+    return numberedKey(src) === undefined ? src.mapping.nodes?.key : undefined;
+}
+
 /**
  * The joins a source most likely makes onto the graph, best first: each node column of the source
- * against the keys of each id space other than its own, ranked by the share of its values that
- * meet. A column whose values are the space's keys merges; any other connects.
+ * against the keys of each id space other than its own and of each other staged source, and against a
+ * column of the same name there when both name their rows; ranked by the share of its values that
+ * meet. A column whose values are the space's keys, or that names its rows on both sides, merges; any
+ * other connects.
  * @param value - The sources and steps.
  * @param copies - The rows as read.
  * @param source - The source.
@@ -419,45 +589,91 @@ const CONFIDENT_SHARE = 0.8;
  * @param spaces - The id spaces with nodes, and the source's own space.
  * @param spaces.all - Every space holding nodes.
  * @param spaces.own - The space the source's rows land in, which it never joins onto.
+ * @param spaces.staged - The other sources whose rows a join can name by their keys too: the staged ones.
+ * @param spaces.brought - Columns earlier steps brought the nodes of a space, each matched by a column
+ *   that names its rows.
  * @param key - The source's key column, if any.
- * @returns The suggestions; none when no value meets.
+ * @returns The suggestions, best first; none when no value meets.
  */
 export function suggestMatches(
     value: SourceSteps,
     copies: Copies,
     source: string,
     columns: readonly string[],
-    spaces: { readonly all: readonly string[]; readonly own: string | undefined },
+    spaces: {
+        readonly all: readonly string[];
+        readonly own: string | undefined;
+        readonly staged?: readonly string[];
+        readonly brought?: readonly { readonly space: string; readonly field: string }[];
+    },
     key: string | undefined,
-): MatchSuggestion[] {
-    const out: { share: number; suggestion: MatchSuggestion }[] = [];
-    for (const space of spaces.all) {
-        if (space === spaces.own) {
-            continue;
+): RankedSuggestion[] {
+    const built = buildOf(value, copies);
+    const rows = rowsOf(value, copies, source);
+    const found: RankedSuggestion[] = [];
+    const meet = (field: string, into: JoinInto, other: Values, merges: boolean): void => {
+        const { keys } = ofColumn(rows, field);
+        let matched = 0;
+        for (const k of keys) {
+            matched += other.keys.has(k) ? 1 : 0;
         }
+        if (matched === 0) {
+            return;
+        }
+        const share = matched / keys.size;
+        found.push({
+            share,
+            // a source that waits comes after what the graph holds, and a column after the keys
+            rank: (into.source === undefined ? 0 : 2) + (into.field === undefined ? 0 : 1),
+            suggestion: Object.freeze({
+                result: merges ? "merge" : "connect",
+                matches: Object.freeze([Object.freeze({ from: { source, field }, into })]),
+                confident: share >= CONFIDENT_SHARE,
+            }),
+        });
+    };
+    const named = (field: string, into: JoinInto, keys: Values, other: () => Values): void => {
+        if (!identifies(ofColumn(rows, field))) {
+            return;
+        }
+        const values = other();
+        // a column holding the keys is the keys
+        const isKey = values.keys.size === keys.keys.size && [...values.keys].every((k) => keys.keys.has(k));
+        if (identifies(values) && !isKey) {
+            meet(field, { ...into, field }, values, true);
+        }
+    };
+    for (const space of spaces.all.filter((each) => each !== spaces.own)) {
         for (const field of columns) {
-            const pair: MatchPair = { from: { source, field }, into: { space } };
-            let counts: MatchCounts;
-            try {
-                counts = matchCounts(value, copies, pair);
-            } catch {
-                continue;
-            }
-            const held = counts.matched + counts.only2;
-            if (counts.matched === 0 || held === 0) {
-                continue;
-            }
-            const share = counts.matched / held;
-            out.push({
-                share,
-                suggestion: Object.freeze({
-                    result: field === key ? "merge" : "connect",
-                    matches: Object.freeze([Object.freeze(pair)]),
-                    confident: share >= CONFIDENT_SHARE,
-                }),
-            });
+            meet(field, { space }, ofSpace(built, space), field === key);
+            named(field, { space }, ofSpace(built, space), () => ofSpace(built, space, field));
         }
     }
-    out.sort((a, b) => b.share - a.share);
-    return out.map((each) => each.suggestion);
+    for (const id of spaces.staged ?? []) {
+        const theirs = rowsOf(value, copies, id);
+        const theirKey = ownKey(sourceOf(value, id));
+        const columnsThere = new Set(theirs.length === 0 ? [] : Object.keys(theirs[0]));
+        for (const field of columns) {
+            const keys = ofColumn(theirs, theirKey ?? "");
+            meet(field, { source: id }, keys, field === key);
+            if (columnsThere.has(field)) {
+                named(field, { source: id }, keys, () => ofColumn(theirs, field));
+            }
+        }
+    }
+    for (const into of spaces.brought ?? []) {
+        for (const field of columns.filter((each) => identifies(ofColumn(rows, each)))) {
+            meet(field, into, ofSpace(built, into.space, into.field), true);
+        }
+    }
+    return bestFirst(found);
+}
+
+/**
+ * Suggestions in order, the likeliest first.
+ * @param found - The suggestions.
+ * @returns Them.
+ */
+export function bestFirst(found: readonly RankedSuggestion[]): RankedSuggestion[] {
+    return [...found].sort((a, b) => a.rank - b.rank || b.share - a.share);
 }

@@ -87,6 +87,34 @@ describe("the url source in a session", () => {
         });
     });
 
+    it("keeps the file's own id column, and under source-steps lists no id column the file never had", async () => {
+        const url = `${HOST}/data/people.csv`;
+        const people = "person_id,name\np1,Ann\np2,Bob\n";
+        const fetch = (): ReturnType<typeof replayFetch> => replayFetch([{ url, body: people }]);
+        await withSession(async (session) => {
+            await session.data.import({ source: "url", config: { url } }, { fetch: fetch() });
+            assert.strictEqual(session.data.node("p1")?.person_id, "p1");
+        });
+
+        const steps = createGraphSession({ features: ["source-steps"] });
+        await steps.data.import({ source: "url", config: { url } }, { fetch: fetch() });
+        const key = steps.data.sources()[0]?.key ?? "";
+        const facts = steps.data.sourceTable(key).summary();
+        assert.strictEqual(facts.mapping.key, "person_id");
+        assert.sameMembers([...(facts.tables[0]?.columns ?? [])], ["person_id", "name"]);
+        assert.strictEqual(steps.data.node("p1")?.person_id, "p1");
+        assert.strictEqual(steps.data.node("p1")?.name, "Ann");
+        await steps.data.refresh(key, { fetch: fetch() });
+        assert.strictEqual(steps.data.nodes().length, 2);
+        assert.strictEqual(steps.data.node("p2")?.person_id, "p2");
+        const { text } = await steps.project.save();
+        const other = createGraphSession({ features: ["source-steps"] });
+        await other.project.open(text);
+        assert.strictEqual(other.data.sourceTable(key).summary().mapping.key, "person_id");
+        other.dispose();
+        steps.dispose();
+    });
+
     it("reopens a CSV node table keyed by the id column it was loaded with, not the importer's default now", async () => {
         // person_id and name are both filled and distinct: graph-io's default picks person_id,
         // an older default picked name. A reopened load must key the rows as they were saved.
@@ -131,6 +159,74 @@ describe("the url source in a session", () => {
             }
             assert.strictEqual(error.code, "E_PARSE_FAILED");
             assert.strictEqual(error.details.format, "csv");
+        });
+    });
+});
+
+describe("a CSV column of codes", () => {
+    const ROWS = ["id,duns,rating", "V1,081676307,5", "V2,081 781 036,n/a", "V3,500000000,2", ""].join("\n");
+
+    it("stays text on every row of a file or a URL, so a join's column is one type; other columns type each cell", async () => {
+        const url = `${HOST}/data/vendors.csv`;
+        for (const source of [
+            { source: "url", config: { url } },
+            { type: "csv", config: { data: ROWS }, name: "vendors.csv" },
+        ]) {
+            for (const features of [[], ["source-steps" as const]]) {
+                const session = createGraphSession({ features });
+                await session.data.import(source, { fetch: replayFetch([{ url, body: ROWS }]) });
+                const nodes = session.data.nodes();
+                assert.deepStrictEqual(
+                    nodes.map((node) => node.duns),
+                    ["081676307", "081 781 036", "500000000"],
+                );
+                if (!("source" in source)) {
+                    assert.deepStrictEqual(
+                        nodes.map((node) => node.rating),
+                        [5, "n/a", 2],
+                    );
+                }
+                session.dispose();
+            }
+        }
+    });
+
+    it("is one type once merged with a file whose codes are all led by a zero", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import(
+            { type: "csv", config: { data: "id,duns\nS1,081676307\nS2,081571578\n" }, name: "a.csv" },
+            { key: "id" },
+        );
+        const b = await session.data.stage({ type: "csv", config: { data: ROWS }, name: "b.csv" }, { key: "id" });
+        const draft = session.data.draft();
+        draft.merge({
+            from: { source: b, field: "duns" },
+            into: { source: session.data.sources()[0].key, field: "duns" },
+            ignoreSpaces: true,
+        });
+        await draft.commit();
+        assert.deepStrictEqual([...new Set(session.data.nodes().map((node) => typeof node.duns))], ["string"]);
+        session.dispose();
+    });
+});
+
+describe("a URL's CSV whose header names neither ends nor an id", () => {
+    it("says its rows were read as nodes, so an edge list read so is not silent, and keeps saying it", async () => {
+        const url = `${HOST}/data/payments.csv`;
+        const body = "payer,payee,tx\n1,2,t1\n2,3,t2\n3,1,t3\n";
+        await withSession(async (session) => {
+            await session.data.import({ source: "url", config: { url } }, { fetch: replayFetch([{ url, body }]) });
+            const issue = session.data.issues().find((each) => each.code === "rows-as-nodes");
+            assert.deepInclude(issue, { count: 3, params: { columns: ["payer", "payee", "tx"] }, fixes: [] });
+            assert.strictEqual(issue?.source, session.data.sources()[0].key);
+            const { text } = await session.project.save();
+            await withSession(async (other) => {
+                await other.project.open(text);
+                assert.include(
+                    other.data.issues().map((each) => each.code),
+                    "rows-as-nodes",
+                );
+            });
         });
     });
 });

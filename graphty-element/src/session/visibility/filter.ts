@@ -365,6 +365,16 @@ export interface FilterSources {
      */
     readonly own?: (source: SourceKey) => FilterValueSource | undefined;
     /**
+     * Under the source-steps experiment, a staged source's rows as a graph of their own, which a
+     * condition made for it is counted over while it waits. Absent, or undefined for a source that is
+     * not staged, a condition is counted over the graph.
+     * @param source - The source.
+     * @returns Its graph and its elements' values, or undefined.
+     */
+    readonly waiting?: (
+        source: SourceKey,
+    ) => { readonly graph: GraphSnapshot; readonly values: FilterValueSource } | undefined;
+    /**
      * Whether the source-steps experiment is on. Under it, a `source` leaf with `side: "edges"`
      * also keeps the ends of the listed sources' edges, or for sources that supplied no edges,
      * their nodes and the edges between them (design 8.6). Absent reads off.
@@ -2241,7 +2251,8 @@ function compileSourceScoped(context: CompileContext, scoped: SourceScopedRule):
 }
 
 /**
- * The value paths a rule's leaves read, however deep (`range`, `categories` and `text` leaves).
+ * The value paths a rule's leaves read, however deep (`range`, `categories` and `text` leaves, a
+ * selection's steps among them).
  * @param rule - The rule.
  * @returns The paths.
  */
@@ -2257,6 +2268,8 @@ export function valuePaths(rule: RuleTree): Path[] {
             return rule.of.flatMap((each) => valuePaths(each));
         case "not":
             return valuePaths(rule.of);
+        case "union":
+            return rule.branches.flatMap((branch) => branch.steps.flatMap((step) => valuePaths(step.rule)));
         default:
             return [];
     }
@@ -2314,8 +2327,9 @@ function withoutHeld(graph: GraphSnapshot, filter: RuleTree, sources: FilterSour
 
 /**
  * A source-scoped rule over that source's own values (source-steps, design 3.8 and 8.4): it reads
- * the source's own value, judges only the elements that carry one for a column it reads, and
- * answers `outside` for every other element. A rule whose columns no element carries is held
+ * the source's own value, judges only the elements that carry one for a column it reads (a rule that
+ * reads no column, such as a selection by degree: the elements the source supplied), and answers
+ * `outside` for every other element. A rule whose columns no element carries is held
  * (`W_FILTER_HELD`): it judges nothing, so it never hides everything.
  * @param context - The compile context.
  * @param scoped - The scoped rule.
@@ -2333,18 +2347,13 @@ function compileOwnScoped(context: CompileContext, scoped: SourceScopedRule, own
                 const v = read(index, path);
                 return v !== undefined && v !== null && v !== "";
             });
+    const supplied = paths.length === 0 ? sourceTests(context, scoped.withinSources, undefined) : null;
     const half = (test: ElementTest | null, mine: ElementTest): ElementTest | null =>
         test === null ? null : (index) => (mine(index) ? test(index) : outside);
 
     return {
-        node: half(
-            inner.node,
-            carries((index, path) => own.nodeValue(index, path)),
-        ),
-        edge: half(
-            inner.edge,
-            carries((index, path) => own.edgeValue(index, path)),
-        ),
+        node: half(inner.node, supplied?.node ?? carries((index, path) => own.nodeValue(index, path))),
+        edge: half(inner.edge, supplied?.edge ?? carries((index, path) => own.edgeValue(index, path))),
     };
 }
 
@@ -2499,6 +2508,32 @@ const heldBranches = new WeakMap<UnionLeaf, Map<string, Bytes>>();
  */
 export function readUnionLeaf(graph: GraphSnapshot, leaf: UnionLeaf, sources: FilterSources): UnionRead {
     return readUnionIn({ graph, sources, marks: new Map<Path, PathMark>(), unresolvedQueries: new Set<Path>() }, leaf);
+}
+
+/** Some rows as a graph of their own: a staged source's, while it waits. */
+interface WaitingRows {
+    readonly graph: GraphSnapshot;
+    readonly values: FilterValueSource;
+}
+
+/**
+ * Where a filter over a staged source's rows reads them: their own values, every row its source's.
+ * @param base - What the graph's filters read.
+ * @param waiting - The rows.
+ * @param waiting.graph - Them as a graph.
+ * @param waiting.values - Their values.
+ * @returns The sources.
+ */
+export function waitingSources(base: FilterSources, { graph, values }: WaitingRows): FilterSources {
+    const space = edgeSpaceOf(graph);
+    const edges = new Set(Array.from({ length: graph.edgeCount }, (_, at) => space.idOf(at)));
+    return {
+        ...base,
+        values,
+        own: () => values,
+        supplied: () => ({ nodes: new Set(graph.ids), edges }),
+        sourceSteps: () => false,
+    };
 }
 
 /**

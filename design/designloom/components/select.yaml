@@ -6,7 +6,12 @@ description: Dropdown select component for choosing from a list of options. Supp
 status: implemented
 notes: "Ships: Mantine Select, Mantine through compact-mantine, used across graphty/src."
 implements_capabilities: []
-used_in_workflows: []
+used_in_workflows:
+    - W121
+    - W145
+    - W166
+    - W248
+    - W39
 dependencies: []
 props:
     value: string | string[] - Selected value(s)

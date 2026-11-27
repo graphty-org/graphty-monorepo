@@ -1,0 +1,115 @@
+id: W192
+name: Knowledge-Loss and Key-Person Risk
+category: analysis
+validated: false
+personas:
+    - people-analytics-ona-lead
+    - ona-consultant
+requires_capabilities:
+    - centrality-degree
+    - centrality-betweenness
+    - removal-impact-analysis
+    - component-analysis
+    - shortest-path
+    - filtering
+    - node-selection
+    - visual-encoding-nodes
+    - comparison-view
+    - details-on-demand
+    - data-export
+    - reach-set-selection
+suggested_components:
+    - algorithm-panel
+    - ranked-node-table
+    - impact-analysis-dialog
+    - filter-panel
+    - comparison-view
+    - visual-encoding-panel
+    - graph-canvas
+    - node-details-panel
+    - data-export-dialog
+starting_state:
+    data_type: survey or collaboration network with HR attributes including retirement eligibility or flight-risk flags
+    node_count: 150-5000
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Find the people whose departure would fragment the network or cut groups off from each other, and plan
+    redundancy before retirements, layoffs or resignations happen.
+
+
+    **Mental Model**: "What breaks if they leave?" The answer is about sets of people, not individuals: removing two
+    top-ranked people may change nothing while a different pair splits the network.
+
+
+    **Task Phases**:
+
+    1. **Rank candidates** - Central connectors (high in-degree on information or advice), brokers (high betweenness or
+    cross-unit brokerage) and people near retirement or at flight risk
+
+    2. **Simulate removal** - Remove each candidate, then sets of candidates, from a copy of the network; search the set
+    as a whole (key-player search) rather than taking the top-k
+
+    3. **Measure damage** - Fragmentation (share of pairs that can no longer reach each other), number of components,
+    change in distance between groups
+
+    4. **Plan redundancy** - Introductions and mentoring around central connectors, pre-authorized decision limits so
+    brokers are not bottlenecks, deputies and succession
+
+
+    **Decision Points**:
+
+    - Which people are realistically at risk (retirement, flight risk, role change)?
+
+    - How big a set to search for, and which damage measure matters most for this organization?
+
+    - Which redundancy action fits each critical person?
+
+
+    **Information Needs**:
+
+    - Before and after fragmentation, component count and between-group distance for a removal set
+
+    - Which groups lose their only bridge
+
+    - Ranking of sets, not just individuals
+
+
+    **Pain Points**:
+
+    - Graph tools remove one node at a time and do not search sets
+
+    - Removal must not destroy the working network; it has to be a non-destructive what-if
+
+    - No source found for step durations
+
+
+    **Data Flow**:
+
+    - Input: Network with HR attributes and risk flags
+
+    - Transformations: Centrality ranking, non-destructive set removal, fragmentation and component deltas, key-player set
+    search
+
+    - Output: Ranked list of critical people and sets, damage measures, redundancy plan
+success_criteria:
+    - metric: What-if speed
+      target: Removing a set of up to five people shows fragmentation and component change without altering the saved network
+    - metric: Set awareness
+      target: User can compare the damage of at least two different candidate sets side by side
+sources:
+    - title: Parise, Cross and Davenport - Strategies for preventing a knowledge-loss crisis (MIT SMR)
+      url: https://sloanreview.mit.edu/?p=3026
+      summary: ONAs at 80 organizations; losing a broker can split a network; redundancy actions per role
+    - title: Borgatti - Identifying sets of key players in a social network
+      url: https://doi.org/10.1007/s10588-006-7084-x
+      summary: Key player problem; the best set is not the top-k individuals; fragmentation measures
+    - title: keyplayer R package chapter
+      url: https://csqsiew.github.io/ch11.html
+      summary: KPP-Neg implementation for set search
+    - title: Livas, Renshaw and Butts - Calling the dead (simulated personnel loss)
+      url: https://arxiv.org/abs/2308.06917
+      summary: Simulations on 17 World Trade Center response networks; losing high-degree members or coordinators did the most damage
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,142 @@
+id: W362
+name: Email Thread Tree in the Document Viewer
+category: analysis
+validated: false
+personas:
+    - ediscovery-first-pass-reviewer
+    - litigation-support-analyst
+requires_capabilities:
+    - graph-rendering
+    - layout-hierarchical
+    - temporal-analysis
+    - visual-encoding-nodes
+    - legend-display
+    - hover-highlight
+    - tooltip-display
+    - details-on-demand
+    - node-selection
+    - path-highlighting
+    - selection-statistics
+    - message-tree-layout
+    - branch-selection
+suggested_components:
+    - graph-canvas
+    - node-tooltip
+    - legend-panel
+    - visual-encoding-panel
+    - node-details-panel
+    - badge
+    - status-bar
+starting_state:
+    data_type: one email thread group with per-message fields (sent date, action type, inclusive flag, duplicate spare flag, coding values, attachments)
+    node_count: 5-100 messages
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Show a reviewer, inside the document viewer, the whole thread a message belongs to so they read only
+    the emails with unique content, keep coding consistent across the thread, and code a whole branch in one action.
+    This is the graph the largest group of eDiscovery users sees every day.
+
+
+    **Mental Model**: "The family tree of this conversation." Time runs left to right; replies and forwards branch
+    off; a black node must be read, a white one is already contained in another; stacked nodes are copies.
+
+
+    **Task Phases**:
+
+    1. **Threading has run** (analyst, once) - Email threading writes a thread group, a sort id, an inclusive flag
+    and a duplicate spare flag on every email
+
+    2. **Open the pane** - From the open email in the viewer; the whole thread group draws with the open
+    email outlined and larger
+
+    3. **Read the layout** - Earliest on the left; Reply All before Forward and Reply branches, which go downward;
+    icons for reply, reply all, forward, draft, one or many attachments
+
+    4. **Read node states** - Inclusive (black), non-inclusive (white), stacked duplicate spares (caused by inserted
+    footers, body differences, different attachments), question mark for missing messages, which may be artifacts
+    of a changed earlier segment or a secured email
+
+    5. **Navigate** - Click a node to open the message; hover for sender, sent date, attachments and duplicate spares
+
+    6. **Highlight coding** - Color nodes by a Yes/No or single-choice coding field; a conflict badge marks a node
+    whose duplicates or attachments are coded differently
+
+    7. **Select a branch and act** - Click emails (attachments and duplicates come along, with a count) or
+    Shift-click the first and last email to take a branch; open the host's mass-edit form; the tree refreshes
+
+    8. **QC** - Mark skipped non-inclusive families "unreviewed"; code whole threads non-responsive in one pass
+
+
+    **Decision Points**:
+
+    - Which emails in the thread must be read, and which are covered by an inclusive one?
+
+    - Is a missing-message placeholder a real gap or an artifact?
+
+    - Does a variant with different recipients need its own privilege call?
+
+    - Can the whole branch take the same code?
+
+
+    **Information Needs**:
+
+    - Time order and reply/forward structure at a glance
+
+    - Per-node inclusive, duplicate, missing and coding state, with a legend
+
+    - Count of attachments and duplicates that a selection will carry along
+
+    - Recipients of each variant, not only the inclusive one
+
+
+    **Pain Points**:
+
+    - Inclusive logic that ignores recipients hides recipient variants that matter for privilege
+
+    - Placeholders that "may not represent truly missing emails"
+
+    - Smaller-than-promised reduction when irregular data makes unique emails look like duplicates
+
+    - Coding conflicts across duplicates and attachments found only at QC
+
+
+    **Data Flow**:
+
+    - Input: Thread group of messages with parent links, sent dates and per-message state fields from the host
+    platform
+
+    - Transformations: Time-ordered tree or DAG layout, placeholder nodes for inferred missing messages, style by
+    state and coding field, branch range selection
+
+    - Output: Selected message ids (with attachments and duplicates) handed to the host's mass-edit; consistent
+    coding across the thread
+success_criteria:
+    - metric: Time to identify messages that must be read
+      target: Under 10 seconds for a thread of 30 messages (design goal; no source measures it)
+    - metric: Branch coding
+      target: A whole branch, with its attachments and duplicates, selected in two clicks
+    - metric: Conflict visibility
+      target: Every node with mismatched coding among its duplicates or attachments is marked
+sources:
+    - title: Relativity - Email thread visualization
+      url: https://help.relativity.com/RelativityOne/Content/Relativity/Analytics/Email_thread_visualization.htm
+      summary: Layout, node states, missing placeholders, Highlight Field, conflict marker, Mass Edit Selection with Shift-click branch
+    - title: Relativity - Inclusive emails
+      url: https://help.relativity.com/RelativityOne/Content/Relativity/Analytics/Inclusive_emails.htm
+      summary: Inclusive, non-inclusive and duplicate spare definitions
+    - title: Email Threading - One of the Most Overlooked Gems in eDiscovery (Above the Law, 2018)
+      url: https://abovethelaw.com/2018/06/email-threading-one-of-the-most-overlooked-gems-in-ediscovery/
+      summary: Up to 50 percent fewer emails to review; unreviewed status for skipped families; whole threads coded non-responsive
+    - title: Delaware State Bar Journal on thread-centered review (via Morris James, 2023)
+      url: https://www.morrisjames.com/?p=5989
+      summary: Threading as the organizing touchstone; one attorney per thread for consistent coding
+    - title: Threading carefully (Cooley UK litigation blog, 2023)
+      url: https://uklitigation.cooley.com/threading-carefully/
+      summary: Inclusive identification ignoring recipients can hide recipient lists
+    - title: Kroll Ontrack - Advanced Thread View
+      url: https://www.ontrack.com/en-us/press/kroll-ontrack-streamlines-the-review-of-communication
+      summary: Older thread view sorting threads by inclusive count and flagging coding inconsistencies
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

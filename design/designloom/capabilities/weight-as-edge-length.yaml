@@ -1,0 +1,17 @@
+id: weight-as-edge-length
+name: Weight as Edge Length and Side Constraints
+category: analysis
+description: Layout where edge length is set by a weight and nodes are constrained left, right or middle by an
+    attribute, as in collocation graphs.
+status: planned
+notes: "Research trace: text-and-qualitative-data-networks.md section 10, requirement 11 (Should)."
+algorithms: []
+used_by_workflows:
+    - W409
+implemented_by_components: []
+requirements:
+    - "Should: Edge length set by a weight, and constrained placement (left, right, middle) from a node attribute"
+sources:
+    - title: Text and Qualitative Data Networks (section 10, requirement 11)
+      url: design/user-research/text-and-qualitative-data-networks.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

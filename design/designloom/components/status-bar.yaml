@@ -7,6 +7,26 @@ notes: "Ships: StatusBar in graphty/src/workspace/frame/Frame.tsx."
 implements_capabilities: []
 used_in_workflows:
     - W02
+    - W111
+    - W144
+    - W147
+    - W151
+    - W223
+    - W265
+    - W280
+    - W282
+    - W284
+    - W286
+    - W299
+    - W302
+    - W312
+    - W339
+    - W343
+    - W362
+    - W403
+    - W404
+    - W409
+    - W410
 dependencies:
     - badge
     - tooltip

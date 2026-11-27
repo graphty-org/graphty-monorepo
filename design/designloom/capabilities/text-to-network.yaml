@@ -1,0 +1,21 @@
+id: text-to-network
+name: Text to Word Network
+category: analysis
+description: "Build a word co-occurrence network from raw text in the browser: tokenize, stopwords, lemmatize,
+    multi-word terms, synonyms, top-N by frequency or tf-idf, counting unit by sentence, paragraph, document or N-word
+    window."
+status: planned
+notes: "Research trace: text-and-qualitative-data-networks.md section 10, requirement 13 (Should)."
+algorithms: []
+used_by_workflows:
+    - W403
+    - W404
+    - W408
+implemented_by_components: []
+requirements:
+    - "Should: Raw text to word network in the browser: tokenize, stopwords, lemmatize, multi-word terms, synonyms,
+      top-N by frequency or tf-idf, window by sentence, paragraph, document or N words"
+sources:
+    - title: Text and Qualitative Data Networks (section 10, requirement 13)
+      url: design/user-research/text-and-qualitative-data-networks.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

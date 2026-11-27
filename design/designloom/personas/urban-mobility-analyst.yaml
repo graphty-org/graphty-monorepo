@@ -1,0 +1,81 @@
+id: urban-mobility-analyst
+name: Urban Mobility Analyst
+roster_persona: migration-flow-demographer
+tier: B
+scope: in-scope
+role: Mobility Data Scientist / City Transport Department or Mobility Data Vendor
+quote: I have 135 million trip records for one week. Show me the morning peak corridors without drawing a hairball, and do not make me upload vendor data to someone else's server.
+bio: >-
+    Andre is a mobility data scientist in a city transport department, a metropolitan planning organization or a
+    mobility data vendor, with an MSc in transport or GIS. He works in Python (pandas, geopandas, DuckDB) or R and SQL,
+    and makes flow maps in kepler.gl or Foursquare Studio, flowmap.blue and its R wrapper, deck.gl with flowmap.gl, and
+    QGIS. His data is hourly or daily origin-destination counts between districts, H3 cells or bike-share stations --
+    Spain's open mobility data alone is 135.9 million records a week -- plus LEHD LODES commute pairs, and sometimes raw
+    phone or app trajectories that he first turns into stays, trips and an OD table with scikit-mobility or
+    MovingPandas. Job descriptions for this role ask for Python or R, SQL, QGIS, PostGIS, geopandas, kepler.gl and
+    transport formats such as GTFS and GBFS. His GIS literacy is high and his graph literacy is low to moderate: he
+    thinks in flows, peaks and corridors, not centrality.
+characteristics:
+    expertise: advanced
+    time_pressure: high
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Compare morning and evening peaks and weekday versus weekend patterns
+    - Find corridors where demand outstrips transit or cycling service
+    - Show what changed before and after a policy, a closure or an event
+    - Hand non-technical colleagues a clean interactive map they can explore by link
+    - Keep licensed or personal mobility data on the analyst's own machine
+behaviors:
+    - Queries large OD tables lazily in DuckDB and aggregates hourly rows to daily or to peak windows before mapping
+    - Builds a location table of zone centroids (id, lon, lat) and a flow table (origin, dest, count, optional time) because flow-map tools require exactly that shape
+    - Clips to a study area with a buffer, keeps intra-zonal pairs, and checks which flows name an id missing from the location table
+    - Starts with an arc layer, then switches to a clustered flow layer with top-N flows, fade and location totals when it becomes cluttered
+    - Scrubs a time slider to compare hours, then takes numbers back to Python or R for the actual analysis
+    - Joins zone boundary files (shapefile, GeoPackage or GeoJSON, often in a projected coordinate system) to the OD table by zone code, reprojects them to WGS84 and reduces each zone to a point, or uses H3 cell ids as zones
+    - Derives OD from raw pings with stay detection parameters (20 minutes within 200 m, or 60 to 120 seconds within 100 m) and peak windows when the team holds trajectories
+frustrations:
+    - Arc layers become many intersecting lines that hide patterns
+    - Long flows over-plot while short intra-urban flows are basically invisible
+    - kepler.gl offers a limited number of symbology and scaling choices, and its flow layer is labeled experimental
+    - Hourly data is 24 times larger than daily, and whole-dataset loads exceed browser memory without aggregation
+    - Vendor data cannot be uploaded to a third-party sheet or server
+    - Flow-map clustering groups nearby places while disregarding which flows connect them
+context:
+    frequency: weekly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W381
+    - W382
+    - W383
+    - W385
+    - W386
+    - W388
+sources:
+    - title: American Planning Association - Civic Data Analyst Transportation job description
+      url: https://planning.org/jobdescriptions/civicdataanalyst
+      summary: Python/R, SQL, QGIS, PostGIS, geopandas, kepler.gl, GTFS and GBFS skills
+    - title: Foursquare Studio - Origin-destination analysis use case
+      url: https://docs.foursquare.com/studio/docs/use-cases-origin-destination-analysis
+      summary: Arc layers become many intersecting lines; flow layer with clustering, top flows, fade, location totals
+    - title: spanishoddata README
+      url: https://ftp.fau.de/cran/web/packages/spanishoddata/readme/README.html
+      summary: Lazy DuckDB access to Spanish hourly OD data; one week is 135.9 million records
+    - title: flowmap.blue - How to make a flow map
+      url: https://www.flowmap.blue/how-to-make-a-flow-map
+      summary: Locations and flows tables; in-browser mode so data is not uploaded
+    - title: Boyandin, FOSDEM 2026 talk transcript on SQLRooms and flowmaps
+      url: https://ftp.fau.de/fosdem/2026/k3601/DC9M73-sqlrooms-flowmap.vtt
+      summary: Long flows over-plot while short intra-urban flows are basically invisible; zoom-adaptive top flows
+    - title: scikit-mobility preprocessing reference
+      url: https://scikit-mobility.github.io/scikit-mobility/reference/preprocessing.html
+      summary: Noise filtering and stay detection defaults used to derive trips from pings
+    - title: kepler.gl issue 2512
+      url: https://www.github.com/keplergl/kepler.gl/issues/2512
+      summary: Arcs that cannot cross over continents; limits of kepler.gl arc rendering
+version: 1.1.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,135 @@
+id: W39
+name: Weighted Path Measures - Deciding What a Weight Means
+category: analysis
+validated: false
+personas:
+    - expert-emma
+    - analyst-alex
+requires_capabilities:
+    - centrality-betweenness
+    - centrality-closeness
+    - shortest-path
+    - computed-attributes
+    - data-preview
+    - comparison-view
+    - analysis-history
+    - analysis-provenance
+    - weight-semantics
+suggested_components:
+    - algorithm-panel
+    - algorithm-card
+    - data-table-panel
+    - computed-attributes-panel
+    - ranked-node-table
+    - comparison-view
+    - analysis-history-panel
+    - select
+starting_state:
+    data_type: weighted graph (counts, volumes, correlations, distances or costs)
+    node_count: 100-1000000
+    edge_density: any
+    user_expertise: intermediate+
+goal: >-
+    **Intent**: Compute betweenness, closeness and shortest paths on a weighted graph so that the weight is read the
+    way the data means it. Interaction counts, co-authorships, trade volume and correlations are strengths (bigger =
+    closer); kilometers, travel time and cost are distances (bigger = farther). Libraries disagree on which they assume,
+    and some tools silently ignore weights for paths.
+
+
+    **Mental Model**: "Is a heavy edge a highway or a long road?" The same column must be a strength for community
+    detection and converted to a distance for path measures, and the conversion is a modeling choice.
+
+
+    **Task Phases**:
+
+    1. **Read what the weight is** - Strength or distance, from the data's documentation
+
+    2. **Know the tool's convention** - igraph and NetworkX path functions read weights as distances; tnet
+    treats higher values as stronger and inverts internally; Gephi's Modularity reads weights as strengths while its
+    Network Diameter (betweenness, closeness) runs unweighted and its Shortest Path tool reads the same column as a
+    distance (Dijkstra, or Bellman-Ford when directed)
+
+    3. **Convert explicitly** - d = 1/w (Newman's convention), -log(w) for probabilities, or max(w) - w;
+    optionally Opsahl's alpha blending hop count (alpha = 0) and weight (alpha = 1)
+
+    4. **Or model counts as multi-edges** - which gives a different betweenness
+
+    5. **Compare** - Rank correlation between unweighted and weighted (per conversion) results
+
+    6. **Report the convention** - For example "betweenness on distances 1/w"
+
+
+    **Decision Points**:
+
+    - Is this column a strength or a distance?
+
+    - Which monotonic conversion, given that results depend on it?
+
+    - Weighted, unweighted, or Opsahl's blend?
+
+    - Do the top-ranked nodes change enough between conventions to matter for the claim?
+
+
+    **Information Needs**:
+
+    - Which column each algorithm read and whether as strength or distance
+
+    - The conversion applied, recorded with the result
+
+    - Side-by-side rankings under different conventions with a rank correlation
+
+
+    **Pain Points**:
+
+    - Silent weight-as-distance interpretation inverts the meaning of strength data
+
+    - Gephi reads one weight column three ways: a strength for Modularity and ForceAtlas2, ignored by the Network
+    Diameter statistics, and a distance in the Shortest Path tool, so on strength data the drawn path follows the
+    weakest ties
+
+    - Results depend on the specific transformation, and nobody writes it down
+
+
+    **Data Flow**:
+
+    - Input: Weighted graph with a documented weight meaning
+
+    - Transformations: Weight-to-distance conversion, weighted path measures, comparison across conventions
+
+    - Output: Centrality columns labeled with their convention, a comparison table, provenance record
+success_criteria:
+    - metric: Weight semantics explicit
+      target: Every weighted path result states its column, its reading (strength or distance) and its conversion
+    - metric: Sensitivity known
+      target: User can state how much the top ranks change between conventions
+sources:
+    - title: igraph betweenness reference
+      url: https://r.igraph.org/reference/betweenness.html
+      summary: Weights used as distances in path-based measures
+    - title: igraph-help thread on weights (2019)
+      url: https://lists.gnu.org/archive/html/igraph-help/2019-10/msg00007.html
+      summary: All path-based functions interpret weights as distances; results depend on the monotonic transformation chosen; counts as multi-edges differ
+    - title: NetworkX betweenness_centrality (2.8 docs)
+      url: https://networkx.org/documentation/networkx-2.8/reference/algorithms/generated/networkx.algorithms.centrality.betweenness_centrality.html
+      summary: Weights are interpreted as distances
+    - title: networkx-discuss thread on weighted betweenness
+      url: https://groups.google.com/g/networkx-discuss/c/-xLBfmpPkRg
+      summary: User confusion about weights as distances
+    - title: Node centrality in weighted networks (Opsahl, Agneessens and Skvoretz 2010)
+      url: https://toreopsahl.com/wp-content/uploads/2010/04/node_centrality_in_weighted_networks1.pdf
+      summary: 1/w conversion and the alpha tuning parameter between hops and weights
+    - title: tnet - node centrality in weighted networks
+      url: https://toreopsahl.com/tnet/weighted-networks/node-centrality
+      summary: tnet treats higher tie values as stronger and inverts internally
+    - title: Gephi GraphDistance.java
+      url: https://github.com/gephi/gephi/blob/master/modules/StatisticsPlugin/src/main/java/org/gephi/statistics/plugin/GraphDistance.java
+      summary: Diameter, betweenness and closeness computed by unweighted BFS
+    - title: Gephi ShortestPath.java (Shortest Path tool)
+      url: https://github.com/gephi/gephi/blob/master/modules/ToolsPlugin/src/main/java/org/gephi/tools/plugin/ShortestPath.java
+      summary: Runs Bellman-Ford on directed graphs and Dijkstra otherwise, summing edge weights as distances
+    - title: gephi/gephi issue 1816
+      url: https://github.com/gephi/gephi/issues/1816
+      summary: ForceAtlas2 reads weight as strength; a user reports the Shortest Path tool picks the lowest-weight route
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

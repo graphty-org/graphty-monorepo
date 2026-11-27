@@ -1,36 +1,55 @@
 id: centrality-closeness
 name: Closeness Centrality
 category: analysis
-description: Calculate closeness centrality - how quickly a node can reach all others in the network. High-closeness
-    nodes can disseminate information efficiently and are structurally central.
-status: implemented
-notes: "Ships: graphty-element/src/algorithms/ClosenessCentralityAlgorithm.ts."
+description: "Calculate closeness centrality - how close a node is to all others by shortest-path distance. Closeness is defined only on connected graphs, so the record states its disconnected-graph rule and offers harmonic centrality, which is defined on any graph. Edge weights are read as distances, and directed graphs state in- or out-distance."
+status: in-progress
+notes: "Partly ships: graphty-element/src/algorithms/ClosenessCentralityAlgorithm.ts runs on the undirected view by BFS, or by Dijkstra when a weight option names a column (read as a distance), with an optional Sampled sources count and progress reports. Planned: the Wasserman-Faust rule for disconnected graphs, harmonic centrality, separate in- and out-closeness, average closeness and flags for nodes in other components. Any requirement below that this note does not name as shipping counts as planned."
 algorithms:
-    - Closeness centrality
-    - BFS-based shortest paths
+    - Closeness centrality (shipped)
+    - BFS-based shortest paths (shipped; Dijkstra when weighted)
 used_by_workflows:
-    - W03
-    - W08
     - W23
+    - W176
+    - W187
+    - W205
+    - W207
+    - W229
+    - W274
+    - W430
+    - W379
+    - W387
+    - W389
+    - W39
+    - W1054
+    - W3048
+    - W3049
 implemented_by_components:
     - algorithm-card
     - algorithm-panel
 requirements:
-    - Calculate closeness as (n-1) / sum(shortest_path_lengths) for each node
-    - Calculate normalized closeness scaled to 0-1 range
-    - "Handle disconnected graphs using Wasserman-Faust formula: (reachable_nodes-1)^2 / ((n-1) * sum_of_distances)"
-    - Store result with 6 decimal places precision
-    - Support weighted graphs using weighted shortest paths
-    - Handle directed graphs with separate in-closeness and out-closeness options
-    - Assign closeness of 0.0 to nodes with no reachable neighbors
-    - Complete calculation within 10 seconds for graphs under 10,000 nodes
-    - Display progress indicator for calculations exceeding 3 seconds
-    - Rank nodes by closeness in descending order
-    - Display top-10 nodes by closeness in results panel
-    - Store result as node attribute named 'closeness'
-    - Report average closeness for the graph with 4 decimal places
-    - Identify and flag nodes in disconnected components separately
+    - "Library parity: Calculate closeness as (n-1) / sum(shortest_path_lengths) for each node"
+    - "Library parity: Calculate normalized closeness scaled to 0-1 range"
+    - "Library parity: Handle disconnected graphs using Wasserman-Faust formula: (reachable_nodes-1)^2 / ((n-1) * sum_of_distances), and record the rule used in the result"
+    - "Must: Offer harmonic centrality (sum of 1/d, unreachable pairs add 0) as the variant defined on any graph"
+    - "Must: Read the edge weight as a distance (a larger value is a longer edge), as declared in weight-semantics; a column declared a strength is converted first by its recorded conversion (1/w, -log w or max-w), and the result records the column and the conversion used"
+    - "Library parity: Handle directed graphs with separate in-closeness and out-closeness options, and record which was used"
+    - "Library parity: Assign closeness of 0.0 to nodes with no reachable neighbors, and record that rule"
+    - "Library parity: Report progress on long calculations"
+    - "Library parity: Rank nodes by closeness in descending order"
+    - "Library parity: Return values at full precision; rounding and how many nodes to show belong to the application"
+    - "Library parity: Store result as node attribute named 'closeness'"
+    - "Library parity: Report average closeness for the graph"
+    - "Library parity: Identify and flag nodes in disconnected components separately"
 sources:
-    - title: Graph Analysis Textbook - Chapter 6
-      url: https://graphty.app/docs/
-      summary: Closeness centrality measures reach efficiency
+    - title: "NetworkX closeness_centrality"
+      url: https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.centrality.closeness_centrality.html
+      summary: "Scales by the reachable fraction (wf_improved=True), uses inward distance for directed graphs, and reads weights through a distance parameter"
+    - title: "igraph closeness"
+      url: https://r.igraph.org/reference/closeness.html
+      summary: "Weights are interpreted as distances; closeness is meaningful only for connected graphs; unreachable vertices are omitted"
+    - title: "Gephi GraphDistance.java"
+      url: https://github.com/gephi/gephi/blob/master/modules/StatisticsPlugin/src/main/java/org/gephi/statistics/plugin/GraphDistance.java
+      summary: "Gephi divides by the reachable count only, so a node in a two-node component scores the maximum"
+    - title: "Axioms for Centrality (Boldi and Vigna)"
+      url: https://arxiv.org/pdf/1308.2140
+      summary: "Harmonic centrality sums 1/d, handles unreachable pairs, and satisfies all their axioms"

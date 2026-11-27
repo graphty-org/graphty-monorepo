@@ -5,6 +5,7 @@ validated: false
 personas:
     - genomics-cytoscape-user
     - bioinformatics-researcher
+    - network-biology-core-bioinformatician
 requires_capabilities:
     - data-import
     - data-validation
@@ -21,6 +22,7 @@ requires_capabilities:
     - export-image
     - report-generation
     - analysis-history
+    - gene-set-enrichment
 suggested_components:
     - data-import-dialog
     - gene-set-import-dialog
@@ -47,21 +49,21 @@ goal: >-
 
     **Task Phases**:
 
-    1. **Build the map** (5 min) - Load an enrichment table (g:Profiler, GSEA, or generic) and its gene-set file; set
+    1. **Build the map** - Load an enrichment table (g:Profiler, GSEA, or generic) and its gene-set file; set
     the FDR q-value cutoff (0.01 to 0.05) and the similarity cutoff (Jaccard, overlap, or combined, typically 0.375);
     node size is gene-set size, node color is enrichment direction or FDR, edge width is overlap
 
-    2. **Explore** (10 min) - Search a gene and highlight every pathway containing it; click a node to see its genes;
+    2. **Explore** - Search a gene and highlight every pathway containing it; click a node to see its genes;
     sort the node table by FDR or NES; when an expression matrix is present, show a heat map of the genes in the
     selected pathways
 
-    3. **Tune** (5 min) - Slide the node q-value and edge similarity cutoffs to thin the map; re-run layout; separate
+    3. **Tune** - Slide the node q-value and edge similarity cutoffs to thin the map; re-run layout; separate
     up-regulated (positive NES) and down-regulated pathways into two halves of the canvas
 
-    4. **Name the themes** (10 min) - Cluster the map, auto-label each cluster from the most frequent words in its
+    4. **Name the themes** - Cluster the map, auto-label each cluster from the most frequent words in its
     pathway names, rename by hand, collapse clusters into single theme nodes for the summary figure
 
-    5. **Publish** (5 min) - Export the figure as PDF or SVG with a legend; record the creation parameters (q cutoff,
+    5. **Publish** - Export the figure as PDF or SVG with a legend; record the creation parameters (q cutoff,
     similarity metric and cutoff) for the methods section
 
 
@@ -77,6 +79,8 @@ goal: >-
 
     - Whether to build a sub-map for one theme of interest
 
+    - Gene-set size limits and significance: the Reimand protocol keeps sets of 5 to 350 genes at q < 0.05
+
 
     **Information Needs**:
 
@@ -90,6 +94,8 @@ goal: >-
 
     - The exact creation parameters, always retrievable
 
+    - Database versions of the gene-set files (GMT) used
+
 
     **Pain Points**:
 
@@ -102,6 +108,8 @@ goal: >-
     - Legend for node size, color, and edge width must be drawn by hand in most tools
 
     - Publication figures need labels hidden on nodes but visible on themes
+
+    - The whole pipeline takes about 4.5 hours end to end, much of it repeated per project
 
 
     **Data Flow**:
@@ -118,7 +126,7 @@ goal: >-
     by q-value and similarity uses the generic filter builder.
 success_criteria:
     - metric: Map built
-      target: Enrichment table and gene-set file load with correct node and edge encodings in under 10 minutes
+      target: Enrichment table and gene-set file load with correct node and edge encodings in under 10 minutes (design goal; no source measures it)
     - metric: Themes named
       target: Every cluster of >= 3 pathways carries a label
     - metric: Parameters recorded
@@ -136,6 +144,9 @@ sources:
     - title: Enrichment Map - a Cytoscape app to visualize and explore OMICs pathway enrichment results
       url: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4103489/
       summary: Node = gene set, edge = overlap, similarity metrics
-version: 1.0.0
+    - title: Reimand et al. 2019 - Pathway enrichment analysis protocol
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6607905/
+      summary: Gene sets of 5 to 350 genes, q < 0.05, about 4.5 hours
+version: 1.1.0
 created_at: 2026-09-08T02:34:20.000Z
-updated_at: 2026-11-18T07:06:16.000Z
+updated_at: 2026-11-25T00:00:00.000Z

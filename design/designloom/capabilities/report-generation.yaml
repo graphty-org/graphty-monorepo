@@ -1,43 +1,143 @@
 id: report-generation
 name: Report Generation
 category: export
-description: Export analysis findings as formatted reports combining visualizations, statistics, and narrative text for
-    stakeholder communication.
+description: Assemble a deliverable from the current analysis -- figures, a legend generated from the live style, a
+    parameters and provenance block, tables and the analyst's own narrative -- shaped by the rules of whoever receives
+    it (a journal, a court, a regulator, a public-health partner, a public embed). One-off deliverables are exported on
+    demand; recurring ones are saved as templates that re-render against refreshed data. Several key deliverables are
+    not graph images at all (narratives with a CSV, aggregate tables), so tables and structured exports are first-class
+    outputs.
 status: planned
 algorithms: []
 used_by_workflows:
     - W15
     - W22
     - W25
+    - W103
+    - W106
+    - W108
+    - W109
+    - W110
+    - W114
+    - W117
+    - W118
+    - W121
+    - W123
+    - W124
+    - W125
+    - W126
+    - W128
+    - W135
+    - W136
+    - W137
+    - W164
+    - W168
+    - W187
+    - W188
+    - W189
+    - W191
+    - W193
+    - W194
+    - W195
+    - W196
+    - W201
+    - W202
+    - W207
+    - W221
+    - W224
+    - W230
+    - W234
+    - W238
+    - W246
+    - W281
+    - W306
+    - W308
+    - W313
+    - W315
+    - W316
+    - W317
+    - W319
+    - W320
+    - W323
+    - W336
+    - W341
+    - W342
+    - W359
+    - W366
+    - W368
+    - W37
+    - W376
+    - W407
+    - W416
+    - W417
+    - W42
+    - W426
+    - W430
+    - W436
+    - W438
+    - W48
+    - W54
+    - W57
+    - W59
+    - W60
+    - W61
+    - W64
+    - W65
+    - W71
+    - W72
+    - W74
+    - W75
+    - W77
+    - W87
+    - W92
+    - W93
+    - W1054
+    - W105
+    - W3049
 implemented_by_components:
     - report-generator-dialog
 requirements:
-    - Generate report in PDF format with embedded fonts and images
-    - Generate report in HTML format viewable in any browser
-    - Generate report in Markdown format for version control and editing
-    - Include visualization as high-resolution embedded image (PNG for PDF/HTML, reference for Markdown)
-    - "Include graph statistics table: node count, edge count, density, diameter, components"
-    - Include degree distribution chart as embedded image
-    - Include top-10 nodes by each computed centrality metric as ranked tables
-    - "Include community summary: count, size distribution, modularity score"
-    - "Provide editable title field (default: graph filename)"
-    - Provide editable description/summary text area (up to 2000 characters)
-    - Provide editable methodology section describing analysis steps performed
-    - Provide editable findings section for analyst conclusions
-    - "Include auto-generated metadata: export date, data source, tool version"
-    - Include legend explaining all visual encodings used in embedded images
-    - "Provide section toggle: include/exclude each major section"
-    - "Provide template selector: 'Standard', 'Executive Summary', 'Technical Detail'"
-    - Support custom CSS styling for HTML output
-    - Support custom logo/header image for branding
-    - Generate PDF with proper heading hierarchy for accessibility
-    - Include alt text for all images in HTML/PDF output
-    - Generate report within 10 seconds for typical analysis
-    - Display 'Generating report...' progress indicator during generation
+    - "Should: Choose the deliverable type first (journal figure, court exhibit, regulatory filing, public-health partner summary, public embed) and apply its constraints to what the report may contain"
+    - "Must: Generate the report as PDF with embedded fonts and Unicode, as a standalone HTML file, and as Markdown"
+    - "Must: Include figures as vector graphics (SVG or PDF) of the whole graph or a chosen region, independent of the viewport, with raster images at print size (mm or inches, 300-600 dpi) where a raster is required"
+    - "Must: Include a legend generated from the live style for both node and edge encodings, with editable text"
+    - "Must: Include a parameters and provenance block: data source and version, filters, algorithms with their parameters and seeds, the edge-weight convention each one read (strength or distance), layout and its seed, time window, export date and tool version"
+    - "Must: Carry per-element source references (record id, exhibit or Bates number, URL) into the report as footnotes or a linked table"
+    - "Must: Include a graph statistics table: node count, edge count, density, components, and path statistics computed on the largest component (or a harmonic variant) so a disconnected graph never errors"
+    - 'Must: Show a degree distribution as a complementary cumulative distribution on log-log axes; describe a heavy tail as heavy-tailed, and include a power-law fit only as the plausible / not plausible / alternative favored result of the Clauset-Shalizi-Newman protocol, never as "power law detected"'
+    - "Library parity: Include ranked node tables for chosen measures, with the number of rows chosen by the author"
+    - "Must: Include a community summary (count, size distribution, modularity) together with the method, quality function, resolution and seed; modularity is a descriptive value, never a threshold for real communities"
+    - "Must: Include entity, edge and aggregate tables as tables, and export a filtered, column-chosen CSV with an optional size cap (a US SAR accepts one CSV of at most 1 MB)"
+    - "Must: Publish named, captioned, timestamped saved views in order, with their annotations"
+    - "Must: Offer label redaction (hide or replace node labels and chosen attributes, verified absent from the file) and an aggregate-only mode (group tables, no node-link diagram) with configurable small-cell suppression"
+    - "Must: Offer an evidence-only mode that hides unconfirmed links and non-evidence attributes, with neutral emphasis"
+    - "Library parity: Provide editable title, summary, methods and findings sections, and a toggle to include or exclude each section"
+    - "Must: Save a report as a template (view, filters, style, legend, parameters, tables, fixed positions) that re-renders against new data; before comparing periods, check coverage, match entities across periods and add a change table"
+    - "Must: Accessible output: heading hierarchy, alt text for every image, a text alternative (entity and relationship list), WCAG contrast, and a grayscale and colorblind check"
+    - "Library parity: Show progress while the report is generated"
 sources:
-    - title: Storytelling with Data
-      url: https://www.storytellingwithdata.com/
-      summary: Best practices for communicating data insights to stakeholders
-    - title: Gephi PDF Export
-      url: https://gephi.org/users/
-      summary: Report generation pattern for network analysis findings
+    - title: Cytoscape manual, Export Your Data
+      url: https://manual.cytoscape.org/en/3.10.3/_sources/Export_Your_Data.md.txt
+      summary: Export formats, web export limits and fonts; the requirements above come from
+          design/user-research/communicating-findings-and-deliverables.md section 10
+    - title: FinCEN SAR electronic filing requirements
+      url: https://bsaefiling.fincen.treas.gov/docs/FinCENSARElectronicFilingRequirements.pdf
+      summary: A SAR carries a narrative and at most one CSV attachment of 1 MB; no image
+    - title: Maltego, five ways to export a graph for reporting
+      url: https://www.maltego.com/blog/five-ways-to-export-maltego-graph-for-reporting/
+      summary: Graph images, entity tables and PDF reports for investigations
+    - title: United States v. Bray (6th Cir.)
+      url: https://caselaw.findlaw.com/court/us-6th-circuit/1097222.html
+      summary: Summary charts must be accurate and nonprejudicial
+    - title: CDC guidance for health departments on cluster communication
+      url: https://www.cdc.gov/hivpartners/php/cdr/health-department-guidance.html
+      summary: Partners receive aggregate summaries, not network diagrams
+    - title: NeoDash reports
+      url: https://neo4j.com/labs/neodash/2.2/user-guide/reports/
+      summary: Saved reports re-run their query and refresh, the pattern for recurring deliverables
+    - title: Understanding the new ADA web accessibility requirements (UNC School of Government)
+      url: https://www.sog.unc.edu/blogs/coates-canons/understanding-new-ada-web-accessibility-requirements-state-and-local-governments-2
+      summary: WCAG 2.1 AA applies to state and local government web content, including PDFs
+    - title: Clauset, Shalizi and Newman 2009, power-law distributions in empirical data
+      url: https://arxiv.org/abs/0706.1062
+      summary: The fitting protocol and why "power law detected" overstates a plausible fit

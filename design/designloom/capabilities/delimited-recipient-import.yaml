@@ -1,0 +1,20 @@
+id: delimited-recipient-import
+name: Graph from Delimited Recipient Fields
+category: data
+description: Build a people graph from load-file or CSV From/To/CC string fields, tolerating missing fields and
+    reporting unparsed values.
+status: planned
+notes: "Research trace: ediscovery-and-legal-communication-analysis.md section 10, requirement R24 (Must)."
+algorithms: []
+used_by_workflows:
+    - W361
+    - W367
+implemented_by_components: []
+requirements:
+    - "Must: Graph from delimited recipient strings: build a people graph from .dat or CSV From/To/CC fields, tolerate
+      missing fields, no native message needed"
+sources:
+    - title: eDiscovery, litigation review and internal-investigation teams who use communication graphs (section 10,
+          requirement R24)
+      url: design/user-research/ediscovery-and-legal-communication-analysis.md
+      summary: "Must in the research. Covered by Designloom when researched: Partly (CSV edge import only)"

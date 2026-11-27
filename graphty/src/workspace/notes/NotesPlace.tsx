@@ -17,6 +17,7 @@ import { aboutWords, type NoteSort, noteTimeWords, sortNotes, targetStateWords, 
  * @returns a number that changes with each change.
  */
 function useNotesVersion(session: GraphSession | null): number {
+    // on reload: fresh: derived: a redraw count, read again from the session's notes
     const [version, setVersion] = useState(0);
     useEffect(() => {
         if (session === null) {
@@ -145,6 +146,7 @@ function Editor({
     const { session, store } = useWorkspace();
     const draft = useWorkspaceState((state) => state.noteDraft);
     const warningClosed = useWorkspaceState((state) => state.authorWarningClosed);
+    // on reload: fresh: notice: why the last save was refused
     const [error, setError] = useState<string | null>(null);
     // Add note while a note is open (its text kept, or new targets) puts the cursor back in it:
     // notes.add writes a fresh `targets`, typing does not.
@@ -287,6 +289,7 @@ export function NoteList({
     onEmptied?: () => void;
 }>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
+    // on reload: fresh: pointer: the note the arrow keys are on
     const [active, setActive] = useState(0);
     const items = useRef<(HTMLLIElement | null)[]>([]);
     const own = useRef<string | null>(null);
@@ -533,6 +536,7 @@ export function NotesPlace(): React.JSX.Element {
     // Re-reads the notes on every change to them, or to what their targets point at.
     useNotesVersion(session);
     const editing = useWorkspaceState((state) => state.noteDraft !== null);
+    // on reload: gap #9702: the reader's Status, Tag, Author and Sort over the notes
     const [view, setView] = useState(ALL_NOTES);
     const any = (session?.notes.counts().notes ?? 0) > 0;
     const tags = session?.notes.tags() ?? [];

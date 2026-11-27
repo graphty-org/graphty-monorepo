@@ -1,0 +1,173 @@
+id: W33
+name: Temporal and Influence Models Beyond SAOM
+category: analysis
+validated: false
+personas:
+    - political-networks-scholar
+    - sociometric-network-researcher
+    - archival-affiliation-researcher
+requires_capabilities:
+    - data-import
+    - data-validation
+    - temporal-analysis
+    - temporal-navigation
+    - animated-transitions
+    - comparison-view
+    - visual-encoding-nodes
+    - legend-display
+    - basic-statistics
+    - statistics-panel
+    - data-export
+    - network-collection-small-multiples
+    - event-table-to-graph
+    - stats-package-handoff
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - temporal-controls
+    - comparison-view
+    - visual-encoding-panel
+    - legend-panel
+    - statistics-panel
+    - network-list-panel
+    - graph-canvas
+    - data-export-dialog
+starting_state:
+    data_type: timestamped event table (time, sender, receiver, increment) with a node table; or a chronological list of yearly networks; or many separate classroom networks
+    node_count: 20-200 per network, up to dozens of networks
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Prepare, explore and present data for the temporal and influence models that go beyond panel SAOMs:
+    relational event models over timestamped interactions, temporal ERGMs over yearly networks, peer influence models
+    on an outcome, and pooled models over many classrooms or schools. Fitting happens in R or Python; the visual need is
+    time-sliced views of event streams and small multiples of many networks.
+
+
+    **Mental Model**: "The network is a film, or a stack of photos." Events arrive one at a time; yearly networks are a
+    sequence; classrooms are a wall of separate snapshots analyzed together.
+
+
+    **Task Phases**:
+
+    **Relational events (goldfish: DyNAM and REM):**
+
+    1. **Prepare tables** - A node table (label, attributes) and an event table with time, sender,
+    receiver and increment (or replace for state changes). The teaching example has 84 students and 439 phone calls,
+    plus a friendship event table.
+
+    2. **Define** - defineNodes(), defineNetwork(nodes, directed = TRUE), linkEvents() for each event
+    table, defineDependentEvents().
+
+    3. **Estimate** - DyNAM rate (who acts next) then choice (whom they contact) with
+    inertia, recip and trans effects; or REM for the tie-oriented model.
+
+    4. **Visualize** - The call network at the start, middle and end of the period.
+
+    **Temporal ERGM (btergm):**
+
+    1. **Assemble** - A chronological list of networks (for example 20 yearly alliance networks among
+    164 countries) with time-varying covariates.
+
+    2. **Fit** - btergm(networks ~ edges + gwesp(...) + memory(...), R = 1000) with
+    bootstrapped intervals, or mtergm() for MCMC maximum likelihood.
+
+    3. **Check out-of-sample fit** - Fit on earlier years and gof(..., target = later networks).
+
+    4. **Figures** - Small multiples of yearly networks and GOF plots.
+
+    **Peer influence on an outcome:**
+
+    1. **Network autocorrelation** - y = rho W y + X b + e with lnam(y, x, W1, W2); W1 often row-normalized friendship;
+    choosing W is itself a modeling question.
+
+    2. **ALAAM** for a binary outcome that may spread through complex contagion - IPNet or MPNet (Windows) or the Python
+    package ALAAMEE; statnet does not implement ALAAM.
+
+    **Many networks at once:**
+
+    1. **Pool** - Multilevel ERGM with a block membership vector (classes or schools) in mlergm; MPNet multilevel models;
+    RSiena multi-group estimation (sienaGroupCreate) and meta-analysis (siena08).
+
+    2. **View** - Small multiples of many whole networks with shared styling, not one big graph.
+
+
+    **Decision Points**:
+
+    - Event model (DyNAM or REM) or aggregated snapshots?
+
+    - Window or snapshot boundaries for visualization?
+
+    - Which influence matrix W, and row-normalized or not?
+
+    - Pool networks in one multilevel model or meta-analyze separate fits?
+
+
+    **Information Needs**:
+
+    - Event counts over time and per actor
+
+    - The network at chosen moments (start, middle, end) in a stable layout
+
+    - Small multiples of yearly or per-classroom networks with shared color and size scales
+
+    - Per-network summary statistics side by side
+
+
+    **Pain Points**:
+
+    - No common import for event tables in visual tools
+
+    - Building and laying out dozens of separate networks by hand
+
+    - ALAAM tools are Windows-only GUIs or Python packages separate from the R workflow
+
+    - Keeping node positions stable across time slices
+
+
+    **Data Flow**:
+
+    - Input: Node table plus event table(s) (CSV); list of yearly networks with covariates; many classroom networks with
+    a group membership column
+
+    - Transformations: Time slicing and aggregation, per-network statistics, block membership; model fitting outside
+    the tool
+
+    - Output: Time-sliced figures or animation, small-multiples panels, per-network statistics table, event and
+    network files for R or Python
+success_criteria:
+    - metric: Event stream import
+      target: User can load a time, sender, receiver, increment table and step through it
+    - metric: Small multiples
+      target: Dozens of networks shown side by side with shared styling and a summary statistic per panel
+sources:
+    - title: goldfish README
+      url: https://cran.r-project.org/web/packages/goldfish/readme/README.html
+      summary: DyNAM and REM models, event data structure and functions
+    - title: goldfish teaching vignette 1
+      url: https://cran.r-project.org/web/packages/goldfish/vignettes/teaching1.html
+      summary: 84 actors, 439 calls, step-by-step DyNAM and visualizing the call network over time
+    - title: btergm reference manual
+      url: https://cran.r-project.org/web/packages/btergm/refman/btergm.html
+      summary: Bootstrap TERGM, out-of-sample GOF target, alliances data
+    - title: Leifeld, Cranmer and Desmarais (2018) JSS 83(6)
+      url: https://jstatsoft.org/v083/i06
+      summary: Temporal ERGM estimation and evaluation with btergm
+    - title: sna lnam reference
+      url: https://search.r-project.org/CRAN/refmans/sna/html/lnam.html
+      summary: Linear network autocorrelation model with W1 and W2
+    - title: Duke lnam peer-effects example
+      url: https://people.duke.edu/~jmoody77/SSRINets/lnam_example.r
+      summary: Fights on row-weighted friendship plus club co-membership
+    - title: ALAAMEE paper
+      url: https://arxiv.org/pdf/2404.03116
+      summary: ALAAM in IPNet, MPNet and ALAAMEE; statnet lacks ALAAM
+    - title: mlergm tutorial
+      url: https://cran.r-project.org/web/packages/mlergm/vignettes/mlergm_tutorial.html
+      summary: Multilevel ERGM with block membership
+    - title: RSiena reference manual
+      url: https://cran.case.edu/web/packages/RSiena/refman/RSiena.html
+      summary: sienaGroupCreate and siena08 for many networks
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,129 @@
+id: W181
+name: Compare Character Networks Across a Corpus of Plays (DraCor Style)
+category: analysis
+validated: false
+personas:
+    - literary-network-scholar
+requires_capabilities:
+    - data-import
+    - comparison-view
+    - basic-statistics
+    - clustering-coefficient
+    - centrality-degree
+    - centrality-betweenness
+    - metric-histograms
+    - removal-impact-analysis
+    - details-on-demand
+    - sample-datasets
+    - export-image
+    - bipartite-projection
+    - network-collection-small-multiples
+    - provenance-tracking
+suggested_components:
+    - sample-data-dialog
+    - network-list-panel
+    - comparison-view
+    - statistics-panel
+    - metric-card
+    - histogram
+    - ranked-node-table
+    - impact-analysis-dialog
+    - node-details-panel
+    - graph-canvas
+    - image-export-dialog
+starting_state:
+    data_type: dozens to hundreds of small play networks (GEXF or GraphML from DraCor) with play metadata (genre, year)
+    node_count: 5-80 per play
+    edge_density: dense
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Compare the structure of many play networks at once (are comedies denser than tragedies? how did casts
+    change by decade?), pick outliers, and go back to the scenes behind a strong tie.
+
+
+    **Mental Model**: "Distant reading, then close reading." The corpus view finds the play worth rereading; the text
+    explains the number.
+
+
+    **Task Phases**:
+
+    1. **Choose the corpus** - List a corpus's plays with metadata
+
+    2. **Choose the tie rule** (decision) - DraCor default is co-presence in a scene, weighted by shared scenes;
+    speaking to, co-reference or knowledge transfer reveal different aspects; novels need character extraction first
+
+    3. **Extract one network per text** - Co-occurrence (undirected, weighted) or stated relations such as
+    parent_of; GEXF or GraphML export
+
+    4. **Compute per play and per character** - Size, density, diameter, clustering; degree, betweenness,
+    words spoken
+
+    5. **Compare across the corpus** - Tabulate metrics by genre or decade, plot distributions, pick outliers
+
+    6. **Return to the text** - Speaker, scene and line for the scenes behind a strong tie; remove a character
+    (Moretti removed Hamlet's Horatio) and reread
+
+
+    **Decision Points**:
+
+    - Which tie rule fits the question?
+
+    - Which grouping (genre, decade, author) to compare by?
+
+    - Which outlier plays deserve a close reading?
+
+
+    **Information Needs**:
+
+    - One table of per-play metrics with metadata, sortable and groupable
+
+    - Distributions of each metric per group on shared scales
+
+    - Small multiples of many play networks drawn the same way
+
+    - Scene and line references for each edge
+
+
+    **Pain Points**:
+
+    - No side-by-side view of dozens of networks
+
+    - Metrics are easy to compute and hard to interpret
+
+    - Edges lose the scenes that produced them on export
+
+
+    **Data Flow**:
+
+    - Input: Corpus of play networks (GEXF/GraphML) plus metadata table
+
+    - Transformations: Per-network and per-node metrics, grouping by metadata, node removal
+
+    - Output: Comparison tables and distribution plots, figures of outlier plays, notes linking edges to scenes
+success_criteria:
+    - metric: Corpus view
+      target: User can open 30 or more play networks and compare a metric across genres in one view
+    - metric: Back to text
+      target: Any edge shows the scenes that produced its weight
+sources:
+    - title: rdracor README
+      url: https://archive.linux.duke.edu/cran/web/packages/rdracor/readme/README.html
+      summary: get_dracor, co-occurrence and relation networks, per-play metrics, text data frames
+    - title: rdracor get_net_cooccur_edges
+      url: https://rdrr.io/cran/rdracor/man/get_net_cooccur_edges.html
+      summary: Edge weight equals number of shared scenes
+    - title: Co-presence vs co-reference networks in Kleist (DH abstracts)
+      url: https://dh-abstracts.library.virginia.edu/works/11766
+      summary: Different tie rules reveal different aspects of a play
+    - title: Labatut and Bost - Extraction and analysis of fictional character networks
+      url: https://arxiv.org/abs/1907.02704v5
+      summary: Survey of character extraction and network definitions for novels and plays
+    - title: Moretti - Network Theory, Plot Analysis
+      url: https://newleftreview.org/issues/ii68/articles/franco-moretti-network-theory-plot-analysis
+      summary: Removing Horatio from Hamlet's network and rereading
+    - title: Trilcke - SNA as a method of literary studies
+      url: https://www.uni-potsdam.de/fileadmin01/projects/lit-19-jhd/Dokumente/Trilcke_-_Social_Network_Analysis_als_Methode_einer_textempirischen_Literaturwissenschaft.pdf
+      summary: Metrics are difficult to interpret for literary texts
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

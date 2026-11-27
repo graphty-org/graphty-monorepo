@@ -1,0 +1,149 @@
+id: W342
+name: Object-Centric Process Exploration in an Enterprise Platform
+category: analysis
+validated: false
+personas:
+    - process-mining-consultant
+    - process-mining-auditor
+    - process-mining-analyst
+requires_capabilities:
+    - data-import
+    - layout-hierarchical
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - filtering
+    - saved-filters
+    - statistics-panel
+    - details-on-demand
+    - comparison-view
+    - report-generation
+    - process-map-derivation
+    - process-detail-sliders
+    - object-centric-process-map
+    - computed-attributes
+    - large-graph-rendering
+suggested_components:
+    - graph-canvas
+    - slider
+    - filter-panel
+    - legend-panel
+    - metric-card
+    - statistics-panel
+    - node-details-panel
+    - comparison-view
+    - report-generator-dialog
+    - range-slider
+    - visual-encoding-panel
+    - legend-item
+    - computed-attributes-panel
+starting_state:
+    data_type: object-centric data model (object types, event types, relationships) over SAP or CRM data
+    node_count: 20-60 activities across 3-8 object types, millions of events
+    edge_density: moderate
+    user_expertise: advanced
+goal: >-
+    **Intent**: Explore a process that spans several business objects (orders, items, deliveries, invoices) in an
+    enterprise platform such as Celonis: build an event log around a lead object, explore the multi-object map with
+    per-object sliders, pick KPIs, check adherence, and deliver dashboards. A map alone has little business value
+    without the KPI views around it.
+
+
+    **Mental Model**: "Several processes meeting at shared steps." Each object type has its own path; shared
+    activities appear once and the paths meet there.
+
+
+    **Task Phases**:
+
+    1. **Enable a process** (data engineer) - Turn on object types, event types and relationships from a catalog;
+    the platform shows object types as nodes and relationships as lines
+
+    2. **Build an event log around a lead object** - Pick the lead object, select events with filters, set the
+    activity column, order attributes carefully (concatenated attributes can create unwanted variants), preview
+
+    3. **Explore the multi-object map** - Shared activities once; event counts per object type with colored
+    markers; one global slider and one slider per object type; adding an event may pull in others to keep it connected
+
+    4. **Pick KPIs** - Case frequency, activity frequency, throughput time, variants, or custom KPIs
+
+    5. **Check adherence** - Against a target model (W345)
+
+    6. **Deliver** - KPI views and dashboards for the business, monitoring and actions
+
+
+    **Decision Points**:
+
+    - Which object is the lead object for this question?
+
+    - Which attributes form the activity label without exploding variants?
+
+    - Per-object slider settings versus the global slider
+
+    - Whether an edge KPI should include hidden intermediate events (panel mode) or not (slider mode)
+
+
+    **Information Needs**:
+
+    - Event and object counts per object type
+
+    - Which object types each activity touches
+
+    - KPI values for the current filter
+
+    - Whether a shown number includes hidden events
+
+
+    **Pain Points**:
+
+    - Heavy data engineering and many setup steps before a basic map
+
+    - Slider and panel KPIs that disagree for the same edge (52 versus 32 percent of cases in one documented example)
+
+    - Object type encoded only by color
+
+    - Most documentation behind a sign-in
+
+
+    **Data Flow**:
+
+    - Input: Object-centric tables (objects, events, event-to-object and object-to-object links)
+
+    - Transformations: Lead-object event log, multi-object map aggregation, per-type sliders, KPI calculation
+
+    - Output: Multi-object map, KPI views, dashboards, adherence results
+success_criteria:
+    - metric: Object visibility
+      target: User can tell which object types pass through any activity without relying on color alone
+    - metric: KPI honesty
+      target: Every edge KPI states whether hidden intermediate events are included
+sources:
+    - title: Celonis - Modeling objects and events
+      url: https://docs.celonis.com/en/modeling-objects-and-events.html
+      summary: Enabling processes from a catalog with object types, event types and relationships
+    - title: Celonis - Process Intelligence Graph
+      url: https://docs.celonis.com/en/process-intelligence-graph.html
+      summary: Object types as nodes and relationships as lines
+    - title: Celonis - Event logs in Knowledge Models
+      url: https://docs.celonis.com/en/eventlogs-oc.html
+      summary: Lead object, event selection, activity column, attribute order can create unwanted variants
+    - title: Celonis - Multi-Object Process Explorer
+      url: https://docs.celonis.com/en/multi-object-process-explorer.html
+      summary: Shared activities once, per-object counts, global and per-object sliders
+    - title: Celonis community - multi-sliders in Process Explorer
+      url: https://community.celonis.com/product-updates/multi-sliders-in-process-explorer-2024-05-29-3571
+      summary: Per-object-type sliders added May 2024
+    - title: Celonis - Process Explorer KPIs
+      url: https://docs.celonis.com/en/process-explorer-kpis
+      summary: Built-in KPI views and custom KPI groups
+    - title: Celonis - KPI calculations
+      url: https://docs.celonis.com/en/kpi-calculations.html
+      summary: Panel mode includes hidden intermediate events, slider mode does not
+    - title: Celonis community - Is Celonis becoming too complicated
+      url: https://community.celonis.com/general-q-a-10/is-celonis-becoming-too-complicated-4854
+      summary: Many setup steps before a basic map; maps of little value without dashboards
+    - title: van den Elzen et al. 2025 - visualization in process mining case studies
+      url: https://eprints.whiterose.ac.uk/id/eprint/225747/9/1-s2.0-S0306437925000444-main.pdf
+      summary: Object-centric maps encode type only by hue
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

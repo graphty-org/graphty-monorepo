@@ -1,0 +1,71 @@
+id: immune-repertoire-analyst
+name: Immune Repertoire Analyst
+roster_persona: genomics-cytoscape-user
+tier: A
+scope: in-scope
+role: Computational Immunologist (T-Cell and B-Cell Receptor Repertoires)
+quote: I have nine hundred thousand clones from a hundred samples. The plots only ever show me a few clusters, and I need to know which ones are shared by the patients and not the controls.
+bio: >-
+    Dr. Kofi Mensah is a computational immunologist in a vaccine and infectious disease group. His data is T-cell and
+    B-cell receptor sequencing, bulk and increasingly single-cell, delivered as one AIRR Rearrangement TSV per sample with
+    a CDR3 amino acid sequence, V and J gene calls and a clone count. He builds sequence-similarity networks in R with NAIR
+    or ClustIRR: each node is a clone (one unique CDR3, sized by how many cells carry it), and an edge joins two clones
+    whose CDR3 differs by one amino acid. He then pools the networks across samples to find "public" clusters shared by
+    several people and clusters whose frequency differs between patients and controls. One cohort is 108 samples and
+    901,045 unique clones; a single human antibody repertoire can reach millions. He codes fluently in R, reads igraph
+    objects directly, and draws the whole repertoire only when he exports to Gephi.
+characteristics:
+    expertise: advanced
+    time_pressure: medium
+    graph_literacy: intermediate
+    domain_knowledge: expert
+motivations:
+    - Find receptor clusters shared across people (public clusters) and clusters enriched in disease
+    - See a cluster's membership across samples, subjects and time points at once
+    - Compare repertoire structure (cluster count, largest cluster, degree) between patient groups
+    - Link clusters to known antigen specificities in reference databases
+    - Show the whole repertoire, not a hand-picked handful of clusters, in a figure
+behaviors:
+    - Loads AIRR TSV files and a sample table into R and builds one network per sample at Hamming distance 1
+    - Clusters with igraph fast greedy or Leiden and colors nodes by sample, cluster or clone count
+    - Runs NAIR's public-cluster search (top clusters per sample, representative clones, skeleton expansion)
+    - Tests sequences shared by at least 10 samples for association with disease status (Fisher's exact test)
+    - Reads cluster properties as heat maps and box plots, and draws sequence logos per cluster
+    - Exports a large network to Gephi when a whole-repertoire picture is needed
+frustrations:
+    - Network plots stay readable for only a few hundred clones, while a repertoire has hundreds of thousands or millions
+    - All-pairs distances become prohibitively expensive above about 100,000 unique sequences
+    - Levenshtein distance runs up to 25 times slower than Hamming distance
+    - Published figures show selected clusters, so the shape of the whole repertoire is never seen
+    - The cluster method changes the answer (Leiden was an outlier in NAIR's comparison)
+    - NAIR was archived from CRAN in 2025 because its maintainer stopped answering email
+context:
+    frequency: weekly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W1060
+sources:
+    - title: Yang et al. 2023 - NAIR, Network Analysis of Immune Repertoire (Frontiers in Immunology)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10443597/
+      summary: Hamming distance 1 networks per sample, public and COVID-associated clusters, 108 samples and 901,045 TCRs, runtime 2 s to 35 min for 1,000-50,000 clones
+    - title: Miho et al. 2019 - Large-scale network analysis of antibody repertoires (Nature Communications)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6428871
+      summary: Visualization informative only for a few hundred clones; networks of more than 500,000 nodes and up to 6 million clones; 625 cores for a 1.6-million-node network
+    - title: ClustIRR (Bioconductor)
+      url: https://bioconductor.org/packages/ClustIRR
+      summary: Per-repertoire graphs joined into one, Leiden or Louvain communities, Bayesian differential community occupancy
+    - title: AIRR Rearrangement schema
+      url: https://docs.airr-community.org/en/stable/datarep/rearrangements.html
+      summary: Tab-separated format with junction_aa, v_call, j_call, clone_id, duplicate_count and cell_id
+    - title: NAIR on CRAN
+      url: https://cran.r-project.org/package=NAIR
+      summary: Archived 2025-12-15 because the maintainer's email was undeliverable
+    - title: scirpy clonotype network
+      url: https://scirpy.scverse.org/en/latest/generated/scirpy.tl.clonotype_network.html
+      summary: Single-cell clonotype networks of many disconnected components, filtered by min_cells and min_nodes
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

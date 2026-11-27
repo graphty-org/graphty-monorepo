@@ -1,0 +1,158 @@
+id: W119
+name: Ring Detection Through Shared Identifiers
+category: analysis
+validated: false
+personas:
+    - fraud-strategy-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - degree-analysis
+    - metric-histograms
+    - filtering
+    - saved-filters
+    - computed-attributes
+    - component-analysis
+    - community-profiling
+    - centrality-degree
+    - link-prediction
+    - selection-statistics
+    - details-on-demand
+    - visual-encoding-nodes
+    - legend-display
+    - large-graph-rendering
+    - algorithm-progress
+    - analysis-history
+    - data-export
+    - bipartite-projection
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - histogram
+    - filter-panel
+    - computed-attributes-panel
+    - algorithm-panel
+    - progress-bar
+    - cluster-table
+    - ranked-node-table
+    - link-prediction-panel
+    - graph-canvas
+    - node-details-panel
+    - visual-encoding-panel
+    - legend-panel
+    - analysis-history-panel
+    - data-export-dialog
+starting_state:
+    data_type: two-mode graph of users and identifiers (card, device, IP, phone, email) plus peer-to-peer transfers and chargeback labels
+    node_count: 10,000-100,000 users plus their identifiers (the Neo4j walkthrough has about 33,700 users)
+    edge_density: sparse, with a long tail of super-connected identifiers
+    user_expertise: expert
+goal: >-
+    **Intent**: Find rings of accounts that share cards, devices, phones and other identifiers (synthetic identities and
+    mule rings) across the whole customer base, before they bust out or cash out, and hand investigators ranked rings they
+    can explain. Run as a weekly batch by fraud-strategy staff; the confirmed rings become rules and labels.
+
+
+    **Mental Model**: "Contact field crowding." Honest people rarely share a card or a device with strangers; a cluster of
+    accounts tied together by several private identifiers is a ring. Public identifiers (a shared Wi-Fi address) are noise
+    and must be capped. Connected components come first because they are deterministic and easy to explain.
+
+
+    **Task Phases**:
+
+    1. **Load the two-mode graph** - Users and identifier nodes, user-uses-identifier edges, P2P transfer edges,
+    chargeback labels (about 241 flagged users in the Neo4j walkthrough)
+
+    2. **Inspect identifier degree** - Histogram of accounts per identifier by type; very high-degree
+    identifiers are noise
+
+    3. **Project to users by rules** - Link two users only under explicit rules: a shared card plus a P2P
+    transfer (6,240 edges in the walkthrough), or a card or device used by 10 or fewer accounts plus two more shared
+    identifiers (5,316 edges); save the rule so it can be rerun
+
+    4. **Run weakly connected components** - 28,203 components in the walkthrough, median size 1, largest 175
+
+    5. **Propagate labels** - Flag every account in a component with a known-fraud account; the walkthrough found
+    452 risk accounts, 211 of them new, under 1 percent of users but 12.7 percent of P2P value
+
+    6. **Profile components** - Size distribution, share of flagged members, value moved; open single rings to
+    check they make sense, with the reason for every link shown
+
+    7. **Rank further candidates** - Fraud-risk-weighted degree, then Jaccard node similarity with inverse-degree
+    weights; look for accounts that bridge two fraud communities
+
+    8. **Hand off** - Export ranked lists and ring membership to investigators and a candidate rule to the rule
+    engine; feed confirmed and cleared outcomes back as labels for the next run
+
+
+    **Decision Points**:
+
+    - Which identifier types and combinations count as a link?
+
+    - What sharing cap turns an identifier into noise (the walkthrough used 10 accounts)?
+
+    - Is a large component a real ring or the product of a missed hub?
+
+    - Which candidates go to investigators this week?
+
+    - Is the rule worth deploying, given the value it would have caught and the innocents it flags?
+
+
+    **Information Needs**:
+
+    - Degree distribution per identifier type
+
+    - Edge count of each projection rule before running it
+
+    - Component size distribution and the largest components listed
+
+    - For any link in a ring, which identifiers or transfers produced it
+
+    - Share of flagged accounts and value moved per component
+
+
+    **Pain Points**:
+
+    - Super-connected identifiers merge innocent customers into one giant component
+
+    - Investigators reject rings they cannot explain
+
+    - IP data is inexact and devices can be used without consent, so every rule needs review
+
+    - Projection rules and caps live in notebooks that nobody else can rerun
+
+    - No clean path for dispositions to return as labels
+
+
+    **Data Flow**:
+
+    - Input: Users, identifiers and usage edges; P2P transfers; chargeback or confirmed-fraud labels (CSV or a graph
+    database export)
+
+    - Transformations: Identifier degree count and cap, rule-based projection to a user-user graph, weakly connected
+    components, label propagation, weighted degree and similarity ranking
+
+    - Output: Ranked rings with link explanations, candidate rule, label file for the next run
+success_criteria:
+    - metric: Explainable rings
+      target: For any link in a ring the user can see the identifiers or transfers that produced it
+    - metric: Rerunnable projection
+      target: The projection rule, identifier cap and thresholds are saved and rerun on next week's data without code
+    - metric: Hub control
+      target: Removing identifiers above a cap visibly breaks the giant component before components are read
+sources:
+    - title: Exploring fraud detection with Neo4j and Graph Data Science, part 2
+      url: https://neo4j.com/blog/developer/exploring-fraud-detection-neo4j-graph-data-science-part-2/
+      summary: Two-mode graph, projection rules with counts, weakly connected components chosen as deterministic and easy to explain, label propagation results
+    - title: Exploring fraud detection with Neo4j and Graph Data Science, part 3
+      url: https://neo4j.com/blog/developer/exploring-fraud-detection-neo4j-graph-data-science-part-3/
+      summary: Fraud-risk-weighted degree and Jaccard similarity with inverse-degree weights; a top user linked two fraud communities through shared IPs
+    - title: Neo4j - Synthetic identity fraud use case
+      url: https://neo4j.com/developer/industry-use-cases/finserv/retail-banking/synthetic-identity-fraud/
+      summary: Shared identifiers across applications as the synthetic identity signal
+    - title: LexisNexis Risk - Uncovering synthetic identity fraud
+      url: https://risk.lexisnexis.com/-/media/files/financial%20services/white-paper/lnrs-uncovering-synthetic-identity-fraud-white-paper-nxr14904-02-0923-en-us.pdf
+      summary: Names the signal "contact field crowding"
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,68 @@
+id: economic-complexity-analyst
+name: Economic Complexity Analyst
+roster_persona: supply-chain-analyst
+tier: B
+scope: in-scope
+role: Growth Strategy Economist or Economic Geographer at a ministry, development agency, regional government or university
+quote: Everyone reads the same product space. I need my country on that exact map, this year next to five years ago,
+    and a ranked list of the products sitting right next to what we already export.
+bio: >-
+    Camila is an economist in a ministry of economy who writes diversification notes and investment-promotion priorities.
+    She starts from a country-by-product export table by year (HS or SITC), marks the products where a country has
+    revealed comparative advantage of at least 1, and reads them on the product space: a network of about 775 products
+    linked by proximity, the chance that countries export both, drawn once as a maximum spanning tree plus strong links
+    and then reused unchanged for every country and year. She ranks the products the country does not yet export by
+    density, the share of their neighbors it already exports. She uses the Atlas of Economic Complexity and the OEC for
+    quick views, and the ecomplexity package in Python or economiccomplexity and EconGeo in R for her own tables.
+    Economic geographers on her team run the same method on regions and industries for smart specialization strategies.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: intermediate
+    domain_knowledge: expert
+motivations:
+    - Show where a country or region sits in the product space and how that changed over the years
+    - Rank nearby products or industries a place could move into next
+    - Produce figures policymakers recognize, on the same map they have seen before
+    - Apply one method to countries, regions, cities or technologies
+behaviors:
+    - Downloads export or employment panels by year and builds a two-mode presence matrix by RCA of at least 1
+    - Computes proximity as the minimum of two conditional probabilities and density per place and product
+    - Loads the canonical product space layout from node and edge files with fixed coordinates instead of recomputing it
+    - Overlays one country's products on the fixed map and compares years or peer countries side by side
+    - Exports a ranked opportunity table next to the map for a policy note
+frustrations:
+    - Code packages return matrices or igraph objects, never a drawing on the canonical map
+    - Web tools show only their own data and fixed layout; her regional tables have no shared reference map
+    - Layout redesigns and classification revisions break year-over-year figures
+    - A hairball of the full proximity matrix shows nothing; the backbone has to be rebuilt by hand
+context:
+    frequency: monthly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W1006
+sources:
+    - title: Hidalgo, Klinger, Barabasi and Hausmann, The Product Space Conditions the Development of Nations (2007)
+      url: https://openalex.org/W2064927380
+      summary: Founding product space paper, cited 3,815 times (OpenAlex, 2026-11-25)
+    - title: Hidalgo and Hausmann, The building blocks of economic complexity (2009)
+      url: https://openalex.org/W1966402429
+      summary: Economic complexity method, cited 4,435 times (OpenAlex, 2026-11-25)
+    - title: Atlas of Economic Complexity, About
+      url: https://atlas.hks.harvard.edu/about/
+      summary: Reached more than 2 million people; used by policymakers, investors, entrepreneurs and academics
+    - title: The Product Space (Wikipedia)
+      url: https://en.wikipedia.org/wiki/The_Product_Space
+      summary: Proximity as minimum conditional probability, RCA of at least 1, spanning tree plus links of proximity 0.55 or more, 775 nodes and 1525 links, density
+    - title: py-ecomplexity
+      url: https://github.com/cid-harvard/py-ecomplexity
+      summary: RCA presence test (threshold 1 by default), proximity and density from a time-location-product-value table
+    - title: Balland, Boschma, Crespo and Rigby, Smart specialization policy in the EU
+      url: https://openalex.org/W2791808130
+      summary: Relatedness and complexity for regional diversification, cited 1,172 times (OpenAlex, 2026-11-25)
+    - title: Atlas of Economic Complexity 10.0
+      url: https://growthlab.hks.harvard.edu/news/atlas-economic-complexity-100-brings-new-data-and-product-space-design/
+      summary: Re-designed product space layout in October 2024

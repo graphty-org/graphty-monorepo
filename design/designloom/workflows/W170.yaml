@@ -1,0 +1,158 @@
+id: W170
+name: Building, Thresholding and Drawing a Microbial Co-occurrence Network
+category: analysis
+validated: false
+personas:
+    - interaction-network-ecologist
+requires_capabilities:
+    - data-import
+    - filtering
+    - saved-filters
+    - component-analysis
+    - community-detection
+    - community-profiling
+    - centrality-degree
+    - centrality-betweenness
+    - computed-attributes
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-force-directed
+    - comparison-view
+    - statistics-panel
+    - export-image
+    - data-export
+    - network-collection-small-multiples
+    - signed-edges
+    - interactive-threshold
+suggested_components:
+    - data-import-dialog
+    - file-drop-zone
+    - filter-panel
+    - range-slider
+    - graph-canvas
+    - layout-panel
+    - community-panel
+    - ranked-node-table
+    - computed-attributes-panel
+    - visual-encoding-panel
+    - legend-panel
+    - comparison-view
+    - statistics-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: taxa-by-samples abundance table with taxonomy and sample metadata, or an inferred association edge list with weights and p-values
+    node_count: 100-1,000 taxa
+    edge_density: moderate to dense before thresholding
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Infer a network of statistical associations among microbial taxa from sequencing data, threshold it,
+    find modules and candidate keystone taxa, draw it with positive and negative associations distinguished, and
+    compare networks between treatments.
+
+
+    **Mental Model**: "Who tends to show up together, and who avoids whom." Edges are correlations, not proven
+    interactions, and the picture depends on the threshold.
+
+
+    **Task Phases**:
+
+    1. **Start from the abundance table** - Taxa by samples with taxonomy and metadata
+
+    2. **Filter** - Keep taxa present in at least a chosen share of samples
+
+    3. **Infer** (outside or inside the tool) - SparCC, SPIEC-EASI, CoNet or a correlation with
+    normalization, producing weighted signed edges with significance
+
+    4. **Threshold** - Absolute correlation cutoff (0.3 is common) and p-value cutoff, or a
+    random-matrix-theory threshold, watching edge, component and module counts change
+
+    5. **Compute** - Degree, betweenness, modularity, positive-to-negative ratio, within-module degree (Zi) and
+    participation coefficient (Pi); module hubs Zi above 2.5 and connectors Pi above 0.62 as candidate keystone taxa
+
+    6. **Draw** - Color by module or phylum, positive edges green or blue and negative edges red, width by
+    correlation, force-directed layout
+
+    7. **Compare conditions** - One network per treatment; shared edges, modules and global properties side
+    by side
+
+    8. **Hand off** - Figure per condition, property table, keystone list, with the threshold and method stated
+
+
+    **Decision Points**:
+
+    - Which inference method and which threshold?
+
+    - Color by phylum or by module?
+
+    - Which taxa count as keystone?
+
+    - Are the networks comparable given the sample counts?
+
+
+    **Information Needs**:
+
+    - Live edge, component and module counts as the threshold moves
+
+    - Positive and negative edge counts
+
+    - Zi-Pi scatter with taxa labeled
+
+    - Taxonomy for each node on hover
+
+    - The threshold and method recorded with every figure
+
+
+    **Pain Points**:
+
+    - Results depend on threshold, method and OTU or ASV definition
+
+    - Moving between R, Gephi and Cytoscape loses attributes
+
+    - CoNet in Cytoscape is very memory intensive
+
+    - Large networks become unreadable hairballs
+
+    - Thresholds and methods are often poorly described in papers
+
+
+    **Data Flow**:
+
+    - Input: Abundance table with taxonomy, or an inferred weighted edge list with p-values plus a node table
+
+    - Transformations: Prevalence filter, inference, threshold, module detection, role classification
+
+    - Output: Per-condition network figures, property and keystone tables, comparison of conditions
+success_criteria:
+    - metric: Threshold transparency
+      target: Moving the threshold updates edge, component and module counts within one second (design goal; no source measures it)
+    - metric: Sign readability
+      target: Positive and negative edges distinguishable in the exported figure with a legend
+    - metric: Attribute survival
+      target: Taxonomy and module columns survive export and reimport
+sources:
+    - title: SpiecEasi vignette
+      url: https://bioconductor.statistik.tu-dortmund.de/packages/3.24/bioc/vignettes/SpiecEasi/inst/doc/SpiecEasi.html
+      summary: spiec.easi with StARS, getRefit, and abs(cor) >= 0.3 described as arbitrary
+    - title: NetCoMi - network construction and comparison for microbiome data
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8293835
+      summary: netConstruct, netCompare and diffnet
+    - title: CoNet app for Cytoscape
+      url: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5089131/
+      summary: Ensemble measures with permutation significance and multiple-testing correction
+    - title: Microbial network threshold review
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8131268
+      summary: The cutoff is often left to the user; random matrix theory thresholds
+    - title: Gephi guide (Brown University Library)
+      url: https://libguides.brown.edu/gephi
+      summary: Node table Id matching edge Source and Target, modularity and ForceAtlas2
+    - title: Goberna and Verdu 2022 - Cautionary notes on co-occurrence networks
+      url: https://www.uv.es/verducam/DamnNetworks.pdf
+      summary: 25-30 sites reasonable; simulations suggest over 1,300 samples for near-perfect inference
+    - title: Microbiome network workflow with prevalence filtering
+      url: https://github.com/jtclaypool/microbiome
+      summary: Prevalence filter of 50 percent presence with a 20 percent minimum
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,20 @@
+id: synthetic-network-generation
+name: Synthetic Network Generation from Partial Data
+category: analysis
+description: Generate an ensemble of plausible networks from partial observations -- a degree sequence, node locations
+    and sizes, or flow totals -- using configuration, spatial-distance or gravity rules, and compare each generated
+    network with the observed one on the same structural statistics.
+status: planned
+notes: Proposed from the user research in design/user-research/ (see its README for the populations behind it).
+    Fitting exponential random graph models stays in R (statnet); this capability covers the simpler generators and
+    the comparison.
+algorithms: []
+used_by_workflows:
+    - W3050
+implemented_by_components: []
+requirements:
+    - "Library parity: Generate many networks from a fitted rule with a seed, not one, and show the spread of each statistic against the observed value, because calibrating on a few statistics is unlikely to reproduce epidemic behavior."
+sources:
+    - title: Leung, Rudge and Fournie, Simulating contact networks for livestock disease epidemiology - a systematic review (Journal of the Royal Society Interface 2023)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10189310/
+      summary: 37 network-simulation models across seven frameworks, their calibration data and validation approaches

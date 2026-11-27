@@ -1,0 +1,25 @@
+id: source-grading
+name: Source and Grade on Every Item
+category: analysis
+description: Source reference and reliability grade on every node and edge, with configurable grading schemes (4x4, 6x6
+    Admiralty, UK 5x5x5 and 3x5x2, US standards, i2 default), styling driven by grade (confirmed solid, suspected
+    dotted), and judgment confidence (ICD 203) kept separate from item grades.
+status: planned
+notes: "Research trace: law-enforcement-and-intelligence-analysts.md section 10, requirement 5 (Must)."
+algorithms: []
+used_by_workflows:
+    - W09
+    - W103
+    - W104
+    - W106
+    - W1054
+    - W1090
+implemented_by_components: []
+requirements:
+    - "Must: Source and grade on every node and edge; configurable schemes (4x4, 6x6, 3x5x2); style by grade; ICD 203
+      confidence kept separate"
+sources:
+    - title: Law enforcement crime and intelligence analysts, and defense and national intelligence analysts (section
+          10, requirement 5)
+      url: design/user-research/law-enforcement-and-intelligence-analysts.md
+      summary: "Must in the research. Covered by Designloom when researched: Gap"

@@ -1,0 +1,136 @@
+id: W102
+name: Multi-Device Communication Analysis from Phone Extractions
+category: analysis
+validated: false
+personas:
+    - crime-intelligence-analyst
+requires_capabilities:
+    - data-import
+    - node-merging
+    - filtering
+    - temporal-navigation
+    - details-on-demand
+    - degree-analysis
+    - search
+    - data-export
+    - bipartite-projection
+    - entity-resolution-review
+    - provenance-tracking
+    - linked-timeline-view
+    - common-neighbor-finder
+    - cross-case-matching
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - node-merge-dialog
+    - filter-panel
+    - temporal-controls
+    - graph-canvas
+    - node-details-panel
+    - data-table-panel
+    - search-panel
+    - data-export-dialog
+starting_state:
+    data_type: forensic extractions from several seized phones (Cellebrite UFDR XML or ZIP package, other suites' XML or CSV) with contacts, call logs, app messages, group chats, media and locations
+    node_count: hundreds to thousands of contacts and accounts across devices
+    edge_density: sparse multigraph
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Combine the communications on every seized phone in a case into one graph, merge the many identifiers
+    of each person, find the contacts the phones share, and read the messages behind any link. Many cases now get
+    their communications evidence mainly from phone extractions, because carrier records do not show app messaging.
+
+
+    **Mental Model**: "Overlay everyone's phonebook and chats." Each phone is a seed; each contact or account is a
+    node; each message or call is a link; a person may be a phone number, an email, a WhatsApp account and app user IDs
+    with a different contact name on every phone.
+
+
+    **Task Phases**:
+
+    1. **Import every extraction** - UFDR reports or packages and other suites' XML or CSV exports
+
+    2. **Unify identities** - Merge identifiers that belong to one person across apps and devices
+
+    3. **Build the communication graph** - Contacts as nodes, communications as links, filtered by message type,
+    direction and time; group chats as person-to-group links, not pairwise ties
+
+    4. **Find common contacts** - Hubs (contacts on three or more devices) and bridges (contacts on exactly two
+    devices)
+
+    5. **Open the messages** (ongoing) - All messages between two parties across apps in one view; related artifacts
+    (a filename or hash) across phones, cloud and computers
+
+    6. **Build a pattern-of-life timeline** - See W99
+
+    7. **Cross-case match** - Check whether the same people appear in earlier cases
+
+    8. **Export** - With artifact references so each line traces to an extraction record
+
+
+    **Decision Points**:
+
+    - Are two identifiers the same person, and on what evidence?
+
+    - Which message types and time window matter for this offense?
+
+    - Is a shared contact meaningful or a common service?
+
+
+    **Information Needs**:
+
+    - Per contact: which devices it appears on and under which names
+
+    - Message counts by app, direction and time per pair
+
+    - The messages and artifacts behind any link
+
+    - Matches against earlier cases
+
+
+    **Pain Points**:
+
+    - Each forensic suite reads its own format; cross-suite analysis needs exports
+
+    - Contact names differ across phones, so one person appears several times
+
+    - Group chats flattened into pairwise links overstate ties
+
+    - Per-phone data sizes are unpublished, so tools must handle unknown volume
+
+
+    **Data Flow**:
+
+    - Input: Extraction reports and packages from several devices; earlier case charts or stores
+
+    - Transformations: Identity merging, communication graph, hub and bridge counts, two-mode group-chat links,
+    time filtering, cross-case matching
+
+    - Output: Unified communication graph with hubs and bridges, message drill-down, timeline, export with artifact
+    references
+success_criteria:
+    - metric: Shared contacts
+      target: Contacts on two or more devices are listed with device counts in one step
+    - metric: Identity merge transparency
+      target: Every merged person lists the identifiers and devices it came from, and merges can be undone
+    - metric: Evidence drill-down
+      target: Any link opens its messages with extraction record references
+sources:
+    - title: Cellebrite - Connect the dots, investigations with multiple digital devices
+      url: https://cellebrite.com/en/connect-the-dots-guide-to-investigations-with-multiple-digital-devices
+      summary: Correlating identifiers across platforms and devices, unified message view, pattern-of-life timelines, the 59-suspect Nampa ring
+    - title: Cellebrite - Plotting social circles in Pathfinder
+      url: https://cellebrite.com/en/series/tip-tuesday/how-to-plot-social-circles-in-cellebrite-pathfinders-investigative-analytics-solution/
+      summary: Graph identifies the people devices share in common (search excerpt)
+    - title: Cellebrite - Cross case analysis in Pathfinder
+      url: https://cellebrite.com/en/series/tip-tuesday/how-to-use-the-cross-case-analysis-feature-in-cellebrite-pathfinder-to-find-hidden-correlations/
+      summary: Whether the same people were involved in different cases (search excerpt)
+    - title: Octostar - Forensic importer
+      url: https://install.octostar.com/docs/octostar/forensic-importer
+      summary: UFDR XML and ZIP import, filtering by message type, direction and time, hubs on three or more devices and bridges on exactly two
+    - title: Magnet Forensics - Letting Connections in AXIOM work for you
+      url: https://magnetforensics.com/resources/letting-connections-in-magnet-axiom-work-for-you
+      summary: Relating artifacts by a chosen attribute such as filename or hash across phones, cloud and computers
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

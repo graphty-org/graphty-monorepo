@@ -1,0 +1,67 @@
+id: research-portfolio-analyst
+name: Research Portfolio Analyst
+roster_persona: bibliometric-analyst
+tier: A
+scope: in-scope
+role: Evaluation Analyst in a Research Funder's Strategy Office
+quote: The board wants to know what we fund, who gets it, and whether that changed since the last strategy. The grant-to-paper links are the part I trust least.
+bio: >-
+    Yaw Osei is an evaluation analyst in a national health research funder's strategy office. Once or twice a year,
+    and whenever the board asks, he analyzes what the funder's portfolio supports: which fields and topics, which
+    institutions receive funding, how field shares shift between strategy periods, and where the funder overlaps with
+    other funders. His data is grant records (funder, award ID, investigators, institution, amount, start and end dates,
+    abstract) and the papers, patents and trials that acknowledge them, drawn from Dimensions, NIH RePORTER and OpenAlex
+    funder filters. He works in Python and Tableau, groups works by field and institution, topic-models grant abstracts
+    to lay grants out by similarity as NIHMaps did, and overlays the portfolio on a fixed science map to compare periods
+    and peer funders. He knows his data well and is careful about linkage quality, because grant-to-paper links are
+    inferred and differ by source.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Show the board what the portfolio covers and how it shifted between periods
+    - Show which institutions and investigators receive funding and how concentrated it is
+    - Find overlaps and gaps relative to other funders
+    - Present comparable maps year over year on identical coordinates
+behaviors:
+    - Looks up the funder's identifier and filters works and grants by it
+    - Groups the portfolio by field and topic and compares two periods side by side
+    - Builds funder-institution-field views from grant and paper records
+    - Topic-models grant abstracts and lays grants out by similarity
+    - Overlays portfolio counts on a fixed base map of fields or journals
+    - Checks grant-to-paper linkage against a second source before reporting
+frustrations:
+    - Grant-to-paper links are inferred and differ between Dimensions and RePORTER
+    - Award amounts not available when grouping in OpenAlex
+    - Tutorials stop at tables; the network form of a funder-institution-field view is left to him
+    - Maps whose positions move between runs, so periods cannot be compared
+context:
+    frequency: as-needed
+    devices:
+        - desktop
+    voluntary: true
+workflows:
+    - W54
+    - W57
+    - W60
+sources:
+    - title: OpenAlex tutorial - funder portfolios
+      url: https://help.openalex.org/tutorials/funder-portfolios/
+      summary: Funder ID lookup, grouping by field and institution, comparing periods; no award amounts when grouping
+    - title: Talley et al. 2011 - Database of NIH grants using machine-learned categories (NIHMaps)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5361216
+      summary: 700-topic model of NIH awards and a similarity map of grants
+    - title: Science as a public good - comparing Dimensions and RePORTER linkage
+      url: https://arxiv.org/pdf/2105.00152
+      summary: Grant-to-paper linkage differs by source; Dimensions preferred for linking
+    - title: Dimensions - funding strategy page (vendor)
+      url: https://www.dimensions.ai/resources/sharpen-your-funding-strategy-and-strengthen-your-grant-applications
+      summary: Grants linked to publications, patents and trials
+    - title: Rafols, Porter and Leydesdorff - Science overlay maps
+      url: https://arxiv.org/abs/0912.3882
+      summary: Overlay maps for benchmarking funding agencies and comparing periods
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

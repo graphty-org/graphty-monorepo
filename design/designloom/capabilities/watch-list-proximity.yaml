@@ -1,0 +1,20 @@
+id: watch-list-proximity
+name: Watch-List Proximity Screening
+category: analysis
+description: Load a list of entities and flag every node with a path to one within k steps over chosen edge types
+    (trade, ownership), showing the path and its evidence; rerun when the list changes.
+status: planned
+notes: "Research trace: supply-chain-and-physical-infrastructure-networks.md section 10, requirement R41 (Must)."
+algorithms: []
+used_by_workflows:
+    - W217
+    - W230
+    - W1090
+implemented_by_components: []
+requirements:
+    - "Must: Watch-list proximity: load a list of entities, flag every node with a path to one within k steps over
+      chosen edge types, show the path and its evidence"
+sources:
+    - title: Supply Chain Risk Analysts and Physical Infrastructure Network Engineers (section 10, requirement R41)
+      url: design/user-research/supply-chain-and-physical-infrastructure-networks.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

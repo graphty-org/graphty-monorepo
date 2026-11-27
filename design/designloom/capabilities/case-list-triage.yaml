@@ -1,0 +1,47 @@
+id: case-list-triage
+name: Ranked case list triage
+category: analysis
+description: A list of cases produced by a saved pattern query or a seeded score, grouped by target entity, sortable by
+    score, amount or age, each row opening its case subgraph, with assign, comment and confirm or dismiss statuses
+    recorded in a case history and exported as labels. Replaces the anomaly-panel role described in the persona index
+    section 7.
+status: planned
+notes: "Research trace: population-to-designloom-persona-index.md section 7 (decision: replace anomaly-panel with a ranked case list, Must in its requirements table, row 4a) and financial-crime-fraud-aml-kyc.md section 5.1 (alert to case consolidation) and section 10, requirement 12 (alert and case overlays, Should). The conformance deviation list that this record once carried belongs to conformance-overlay."
+algorithms: []
+used_by_workflows:
+    - W06
+    - W336
+    - W12
+    - W2072
+implemented_by_components:
+    - case-list-panel
+requirements:
+    - "Must: Build the case list from a saved pattern query (a read query with its parameters) or from a seeded score,
+      and record which query or score and which run produced each case"
+    - "Must: Group pattern matches into one case per target entity (a node, an edge, several of them or a subgraph),
+      so several alerts about one customer are investigated once, not one by one"
+    - "Must: Sort and filter the list by score, amount, age, status and assignee; when rows are ranked by a
+      heavy-tailed score, rank by log, rank or within-module value, never by a z-score cutoff"
+    - "Must: Open a case's subgraph on the canvas from its row, with the triggering matches marked through a style layer
+      on the case result"
+    - "Must: Assign a case, comment on it, and set its status (in progress, confirmed, dismissed) with an optional note;
+      every change is kept in the case history with who made it and when"
+    - "Should: Show on every drawn node whether it has an open alert, a prior case or a prior report (financial-crime
+      requirement 12)"
+    - "Should: Export confirmed and dismissed decisions as labels, so a seeded score can be rerun on them"
+sources:
+    - title: "Linkurious Enterprise user manual 4.2, alert setup"
+      url: https://doc.linkurious.com/user-manual/4.2/alert-setup/
+      summary: "Alert models are read queries users set; the target entity deduplicates and groups pattern occurrences into cases; alerts run every hour by default"
+    - title: "Linkurious Enterprise user manual 4.2, investigating cases"
+      url: https://doc.linkurious.com/user-manual/4.2/alert-investigate/
+      summary: "Cases are assigned from the information panel, commented with mentions, and set to In progress, Confirmed or Dismissed with an optional note; the activity panel keeps the history"
+    - title: "Neo4j, Exploring fraud detection with Neo4j Graph Data Science, part 3"
+      url: https://neo4j.com/blog/developer/exploring-fraud-detection-neo4j-graph-data-science-part-3/
+      summary: "Label-seeded ranking: start from flagged accounts, rank others by weighted degree over shared identifiers, triage to label more fraud accounts"
+    - title: "Persona index section 7, analysis methods the research contradicts"
+      url: design/user-research/population-to-designloom-persona-index.md
+      summary: "Decision: replace anomaly-panel with a ranked case list; anomaly-detection survives only as the scoring step feeding it"
+    - title: "Financial crime, fraud, AML and KYC analysts (sections 5.1 and 10)"
+      url: design/user-research/financial-crime-fraud-aml-kyc.md
+      summary: "Alert to SAR sequence; Linkurious Watchtower consolidates alert results for one entity into a single case; requirement 12 asks for alert and case overlays (Should)"

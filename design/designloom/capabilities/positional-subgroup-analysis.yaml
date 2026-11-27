@@ -1,0 +1,69 @@
+id: positional-subgroup-analysis
+name: Cohesive Subgroups, Positions and Triad Census
+category: analysis
+description: The classic sociometric subgroup and position analyses with UCINET- and statnet-compatible definitions
+    -- per-node k-core number, maximal cliques with a minimum size, n-cliques and n-clans, k-plexes, factions, the
+    triad census, structural and regular equivalence with hierarchical clustering, and blockmodels shown as a permuted
+    matrix, a block density table, an image matrix and a reduced graph of positions -- each published as node values
+    or a partition a style layer can encode, with the convention and parameters that produced it.
+status: planned
+notes: "Research trace: academic-social-network-research.md section 10, row 'Classic descriptives with UCINET
+    definitions' (Must), and section 5.14. Partly ships: graphty-element's KCoreAlgorithm.ts publishes a per-node
+    core number ('Core depth', undirected, loops and parallel edges noted as caveats), so a k-core can already be
+    colored or filtered; nothing else here ships. Core-periphery fit for ONA readouts stays in boundary-measures;
+    the permuted matrix display builds on matrix-view. Any requirement below that this note does not name as
+    shipping counts as planned."
+algorithms: []
+used_by_workflows:
+    - W26
+    - W187
+    - W3114
+implemented_by_components: []
+requirements:
+    - "Must: Classic descriptives with UCINET definitions: cliques, n-clans, factions, k-cores, core-periphery,
+      equivalence and the triad census, each a result the reader can see, style and export"
+    - "Must: k-cores: a per-node core number on the undirected graph (the shipping 'Core depth'), with the k-core subgraph selectable by a threshold; say whether direction was dropped, as sna kcores defaults to directed Freeman degree and graphty-element's k-core counts neighbors undirected"
+    - "Must: Cliques: maximal cliques of at least a chosen size (UCINET Network>Subgroups>Cliques), counts by size, the number of cliques per node, and node-by-node clique co-membership (sna clique.census); refuse or warn before enumerating on large dense graphs, since the cost grows very sharply with size and density"
+    - "Must: n-cliques, n-clans and k-plexes with the reader's n or k and a minimum group size, named as UCINET names them"
+    - "Library parity: Factions: a partition into a chosen number of groups that maximizes within-group density, reporting the number of errors as fit and accepting several random starts, since the search can stop at a local solution"
+    - "Must: Triad census: the 16 directed MAN types (003 to 300) in sna triad.census order, or 4 types for undirected data, on a dichotomized graph with the cutoff stated; for the whole network and per node"
+    - "Must: Structural equivalence: distances between tie profiles by Hamming (sna equiv.clust default), Euclidean or correlation, rows and columns both, diagonal excluded by default, then hierarchical clustering (complete linkage by default) shown as a dendrogram the reader cuts into k positions; CONCOR as an alternative"
+    - "Must: Regular equivalence: REGE and categorical REGE with the neighborhood depth (UCINET default 3), with a caution on undirected data, where REGE can make nearly every non-isolate look equivalent"
+    - "Must: Blockmodel display: the adjacency matrix permuted by position with dividing lines; a block density table; an image matrix from a stated cutoff (the overall density by default, as UCINET teaching material uses); fit (r-squared or error count); and a reduced graph with one node per position and an edge per 1-block"
+    - "Must: Every partition (clique membership, faction, position) is a node value the canvas can color or group, and every result records its convention (directed or symmetrized, weight dichotomized at what value, diagonal) for the methods section"
+sources:
+    - title: Academic Social Network Researchers (sections 4 row 19, 5.14, 7 and 10)
+      url: design/user-research/academic-social-network-research.md
+      summary: "Must in the research. Covered by Designloom when researched: NOT covered (only k-core inside MCODE)"
+    - title: Hanneman and Riddle, Introduction to Social Network Methods, chapter 11 (cliques and sub-groups)
+      url: https://faculty.ucr.edu/~hanneman/nettext/C11_Cliques.html
+      summary: UCINET Network>Subgroups (Cliques, N-Cliques, N-Clan, K-Plex, Factions) and Network>Regions>K-Core;
+          clique co-membership with single-linkage clustering; factions report errors and a blocked matrix
+    - title: Hanneman and Riddle, chapter 13 (structural equivalence)
+      url: https://faculty.ucr.edu/~hanneman/nettext/C13_%20Structural_Equivalence.html
+      summary: Profile similarity, CONCOR and tabu search under Network>Roles & Positions; blocked matrix, image matrix
+          and fit statistics
+    - title: Hanneman and Riddle, chapter 15 (regular equivalence)
+      url: https://faculty.ucr.edu/~hanneman/nettext/C15_Regular_Equivalence.html
+      summary: REGE and CATREGE, search depth 3 by default; use REGE on undirected data cautiously, if at all
+    - title: Hanneman and Riddle, section 5.3 (matrix permutation, blocks and images)
+      url: https://math.libretexts.org/Bookshelves/Scientific_Computing_Simulations_and_Modeling/Book%3A_Introduction_to_Social_Network_Methods_(Hanneman)/05%3A_Using_Matrices_to_Represent_Social_Relations/5.03%3A_Matrix_permutation_blocks_and_images
+      summary: Data>Permute and Transform>Block; block density matrix; image matrix with the average density as cutoff
+    - title: sna equiv.clust
+      url: https://search.r-project.org/CRAN/refmans/sna/html/equiv.clust.html
+      summary: Defaults equiv.fun sedist, method hamming, mode digraph, diag FALSE, cluster.method complete
+    - title: sna blockmodel
+      url: https://search.r-project.org/CRAN/refmans/sna/html/blockmodel.html
+      summary: Block content density by default; also sum, median, min, max and block types
+    - title: sna triad.census
+      url: https://search.r-project.org/CRAN/refmans/sna/html/triad.census.html
+      summary: 16 directed types or 4 undirected; dichotomize valued data first
+    - title: sna kcores
+      url: https://search.r-project.org/CRAN/refmans/sna/html/kcores.html
+      summary: Core number per vertex; defaults mode digraph, cmode freeman, values counted
+    - title: sna clique.census
+      url: https://search.r-project.org/CRAN/refmans/sna/html/clique.census.html
+      summary: Maximal cliques by size, per vertex and co-membership; cost grows very sharply with size and density
+    - title: Borgatti and Everett 1999, Models of core/periphery structures
+      url: https://doi.org/10.1016/S0378-8733(99)00019-2
+      summary: The core-periphery model UCINET fits; kept with boundary-measures for ONA readouts

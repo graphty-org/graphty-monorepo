@@ -1,36 +1,76 @@
 id: style-presets
 name: Visual Style Presets
 category: export
-description: Save and apply consistent visual styling (colors, sizes, fonts) for professional output. Provide built-in
-    presets for different contexts (presentation, print, colorblind-safe) and allow custom presets.
+description: Save and apply named visual styles (colors, sizes, labels, legend) so a deliverable looks the same every
+    time it is regenerated. Built-in presets cover the constraints recipients actually impose -- print and journal
+    figures that must survive grayscale and color-vision deficiency, accessible web embeds that must meet WCAG
+    contrast, and neutral-emphasis court exhibits -- and users can save, share and reapply their own.
 status: planned
 algorithms: []
 used_by_workflows:
     - W15
     - W20
     - W25
+    - W103
+    - W145
+    - W152
+    - W159
+    - W165
+    - W211
+    - W246
+    - W253
+    - W287
+    - W31
+    - W323
+    - W327
+    - W370
+    - W383
+    - W393
+    - W417
+    - W427
+    - W43
+    - W431
+    - W63
+    - W68
+    - W72
 implemented_by_components:
     - visual-encoding-panel
 requirements:
-    - Provide 'Default' preset with balanced colors and sizes for general use
-    - Provide 'Presentation' preset with larger nodes (1.5x), bolder edges, larger labels (18px+)
-    - Provide 'Print' preset optimized for grayscale printing with pattern differentiation
-    - Provide 'Dark Mode' preset with light elements on dark background
-    - Provide 'Colorblind Safe' preset using ColorBrewer colorblind-friendly palette
-    - Provide 'High Contrast' preset for accessibility with maximum contrast ratios
-    - "Store preset settings: node size range, edge width range, label font/size, color palettes"
-    - "Store preset settings: background color, selection highlight color, hover effects"
-    - Apply preset with single click from preset dropdown menu
-    - Preview preset effect on hover before applying
-    - Allow saving current style configuration as custom preset with user-defined name
-    - Support up to 10 custom presets per user
-    - Provide 'Reset to Default' option for custom presets
-    - Provide 'Delete' option for custom presets (built-in presets cannot be deleted)
-    - Export presets as JSON file for sharing
-    - Import presets from JSON file with validation
-    - Apply preset changes immediately with smooth 200ms transition animation
-    - Persist selected preset preference across sessions
+    - "Library parity: Provide 'Default' preset with balanced colors and sizes for general use"
+    - "Library parity: Provide 'Presentation' preset with larger nodes, bolder edges and larger labels for projection"
+    - "Must: Provide 'Print' preset that stays readable in grayscale (redundant encodings such as shape or pattern, not hue alone) with labels at least caption size at the chosen print width"
+    - "Must: Provide 'Colorblind Safe' preset that avoids red-green contrasts, and a check that previews the current style under grayscale and common color-vision deficiencies"
+    - "Must: Provide 'High Contrast' preset whose text and marks meet WCAG contrast requirements, for accessible embeds"
+    - "Must: Provide a 'Neutral emphasis' preset with uniform node size unless a stated measure is encoded and no decorative marks, for court and evidence charts"
+    - "Library parity: Provide 'Dark Mode' preset with light elements on dark background"
+    - "Library parity: Store preset settings: node size range, edge width range, label font/size, color palettes"
+    - "Library parity: Store preset settings: background color, selection highlight color, hover effects, legend layout"
+    - "Must: Store query- or attribute-defined color groups with the preset so they reapply to new data"
+    - "Library parity: Apply preset with single click from preset dropdown menu"
+    - "Library parity: Preview preset effect before applying"
+    - "Must: Allow saving current style configuration as custom preset with user-defined name"
+    - "Library parity: Provide 'Reset to Default' option for custom presets"
+    - "Library parity: Provide 'Delete' option for custom presets (built-in presets cannot be deleted)"
+    - "Must: Export presets as JSON file for sharing, and include the active preset in session files and deliverable templates"
+    - "Library parity: Import presets from JSON file with validation"
+    - "Library parity: Apply preset changes with an animated transition that can be turned off (motion off for embeds)"
+    - "Library parity: Persist selected preset preference across sessions"
 sources:
-    - title: W15 Findings Communication
-      url: https://graphty.app/docs/
-      summary: Style management - apply consistent styling
+    - title: Marai et al. 2019, Ten simple rules to create biological network figures for communication
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6762067
+      summary: Labels at least caption size; avoid red-green and check grayscale; no unjustified 3D
+    - title: PLOS figure requirements
+      url: https://journals.plos.org/plosmedicine/s/figures
+      summary: Journal figure width, resolution and format constraints that a print preset must meet
+    - title: US Access Board, Section 508 ICT standards
+      url: https://www.access-board.gov/ict/
+      summary: Federal web content follows WCAG 2.0 Level AA, including contrast
+    - title: Understanding the new ADA web accessibility requirements for state and local governments
+      url: https://www.sog.unc.edu/blogs/coates-canons/understanding-new-ada-web-accessibility-requirements-state-and-local-governments-2
+      summary: ADA Title II adopted WCAG 2.1 Level AA for state and local government web content
+    - title: Communicating findings and deliverables (requirements R7, R11, R13, R14, R24)
+      url: design/user-research/communicating-findings-and-deliverables.md
+      summary: Grayscale and colorblind checks, WCAG contrast, neutral emphasis, style kept in sessions and reusable deliverable templates
+    - title: Personal knowledge graphs and note networks (requirement 9)
+      url: design/user-research/personal-knowledge-graphs-and-note-networks.md
+      summary: Query-defined color groups saved with the view

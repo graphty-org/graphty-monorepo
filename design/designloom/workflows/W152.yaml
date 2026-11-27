@@ -1,0 +1,137 @@
+id: W152
+name: From a Matrix and Atlas Coordinates to a 3D Ball-and-Stick Brain Figure
+category: reporting
+validated: false
+personas:
+    - clinical-connectome-researcher
+    - computational-network-neuroscientist
+    - ieeg-epilepsy-network-researcher
+    - whole-brain-modeler
+requires_capabilities:
+    - data-import
+    - data-validation
+    - filtering
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - graph-rendering
+    - zoom-pan
+    - style-presets
+    - export-image
+    - view-bookmarks
+    - matrix-import
+    - fixed-node-positions
+    - anatomical-context-mesh
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - visual-encoding-panel
+    - gradient-editor
+    - range-slider
+    - legend-panel
+    - graph-canvas
+    - image-export-dialog
+    - session-save-dialog
+starting_state:
+    data_type: N x N connectivity matrix (text) plus a node table of x, y, z (MNI mm), color value, size value and label
+    node_count: 68-1000
+    edge_density: dense before thresholding (complete for functional data)
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Draw a connectome, or a significant subnetwork, as spheres at the brain regions' anatomical positions
+    joined by edges, inside a translucent brain, for the main figure of a paper. This is the figure in almost every
+    network neuroscience paper; BrainNet Viewer is the standard tool and nilearn or netplotbrain the scripted ones.
+
+
+    **Mental Model**: "Put the network back in the head." Node positions are facts about anatomy and never move; the
+    only choices are which edges to show and how to color and size things.
+
+
+    **Task Phases**:
+
+    1. **Prepare the node file** - Six tab-separated columns with no header: x, y, z in MNI millimeters,
+    color value (often module number), size value (degree, centrality or t-value), label ("-" for none). Coordinates
+    come from atlas centroids (nilearn find_parcellation_cut_coords) or files shipped for AAL90, HOA112, Dos160 and
+    others; often edited in Excel
+
+    2. **Prepare the edge file** - N x N ASCII matrix in node-file row order; zero means no edge; in
+    undirected mode only the upper triangle is read
+
+    3. **Load** - Choose a background surface (ICBM152 or Colin27) plus the node and edge files
+
+    4. **Set options** - Layout (single view, lateral and medial per hemisphere, or full); lower surface
+    opacity; threshold, label, size and color nodes (by colormap or by module); threshold edges by value or sparsity
+    and color by value, length or module (module color when both ends share it, gray otherwise)
+
+    5. **Export** - Pixel or physical size and DPI; TIFF, PNG, EPS; optionally a rotating movie; save all
+    options to a file
+
+    6. **Batch** (varies) - Re-render with the saved option file for every subject, threshold or window
+
+
+    **Decision Points**:
+
+    - Which edge threshold: value, top percent, or the significant component only?
+
+    - Which column drives node color (module, network) and which drives size (degree, t-value)?
+
+    - Which views (lateral, medial, dorsal) make the subnetwork readable?
+
+    - Is the background brain in the same template as the coordinates?
+
+
+    **Information Needs**:
+
+    - Confirmation that the matrix is N x N, matches the node count and is symmetric
+
+    - Edge count after thresholding, before drawing (an unthresholded weighted matrix draws every connection)
+
+    - The template or space name of both the coordinates and the background surface
+
+    - Legend with the color column, scale endpoints and size mapping
+
+
+    **Pain Points**:
+
+    - Node size and color are baked into the node file, so every analysis change means regenerating files
+
+    - Forgetting the threshold on a weighted matrix draws the full connection set
+
+    - Rendering slows at thousands of nodes
+
+    - Coordinates in one MNI template and the brain in another, so nodes float outside the brain
+
+    - Requires MATLAB; nilearn's alternative draws spheres only and takes percentile thresholds as strings like "80%"
+
+
+    **Data Flow**:
+
+    - Input: BrainNet .node and .edge files, or a matrix CSV/TSV plus a coordinate and label table, plus a background brain surface
+
+    - Transformations: Row-order join of matrix to node table, edge threshold, fixed-position 3D placement, color and size mapping
+
+    - Output: Multi-view publication image, rotating movie or interactive HTML, saved option file for batch rendering
+success_criteria:
+    - metric: Time from matrix and coordinates to a first figure
+      target: Under 15 minutes without editing a text file by hand (design goal; no source measures it)
+    - metric: Position fidelity
+      target: Every node lies inside the background brain when both use the same named template
+    - metric: Batch reuse
+      target: A saved style renders the same figure for 50 subjects in one step
+sources:
+    - title: BrainNet Viewer manual v1.42
+      url: https://nitrc.org/docman/view.php/504/1280/brainnet
+      summary: Node and edge file formats, layouts, threshold warning, export options, BrainNet_MapCfg batch command
+    - title: Xia et al. 2013, BrainNet Viewer
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC3701683
+      summary: Tool paper; rendering slows with thousands of nodes
+    - title: nilearn view_connectome reference
+      url: https://nilearn.github.io/dev/modules/generated/nilearn.plotting.view_connectome.html
+      summary: Interactive 3D from matrix and coordinates with percentile edge threshold, saved as HTML
+    - title: NetPlotBrain paper
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10312269/
+      summary: Nodes as a DataFrame, named templates and multi-view strings for scripted figures
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

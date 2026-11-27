@@ -1,0 +1,17 @@
+id: shared-risk-diversity
+name: Shared-Risk Group Diversity Check
+category: export
+description: Define shared-risk groups (conduit, pole line, crossing) and check whether two paths share any, including
+    polyline overlap within a distance tolerance.
+status: planned
+notes: "Research trace: supply-chain-and-physical-infrastructure-networks.md section 10, requirement R18 (Should)."
+algorithms: []
+used_by_workflows:
+    - W225
+implemented_by_components: []
+requirements:
+    - "Should: Shared-risk groups; check two paths share none, including polyline overlap within a tolerance"
+sources:
+    - title: Supply Chain Risk Analysts and Physical Infrastructure Network Engineers (section 10, requirement R18)
+      url: design/user-research/supply-chain-and-physical-infrastructure-networks.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

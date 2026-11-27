@@ -1,0 +1,166 @@
+id: W3066
+name: Kinase Activity Inference and Kinase-Substrate Network from Phosphoproteomics
+category: analysis
+validated: false
+personas:
+    - proteomics-bench-scientist
+    - signaling-network-modeler
+    - network-biology-core-bioinformatician
+requires_capabilities:
+    - data-import
+    - data-validation
+    - target-set-activity-scoring
+    - attached-site-nodes
+    - annotation-coverage-flags
+    - dataset-version-tracking
+    - bipartite-layout
+    - layout-hierarchical
+    - layout-force-directed
+    - filtering
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - node-glyph-charts
+    - legend-display
+    - details-on-demand
+    - analysis-provenance
+    - export-image
+suggested_components:
+    - data-import-dialog
+    - attribute-table-join-dialog
+    - data-table-panel
+    - filter-panel
+    - visual-encoding-panel
+    - layout-panel
+    - legend-panel
+    - node-details-panel
+    - graph-canvas
+    - image-export-dialog
+starting_state:
+    data_type: >-
+        phosphosite table (protein, residue and position, log2 fold change per condition, p-value) plus a versioned
+        kinase-substrate table (PhosphoSitePlus, SIGNOR, optionally NetworKIN predictions) or a precomputed kinase score
+        table
+    node_count: tens of scored kinases; hundreds to thousands of measured sites (4,624 sites on 3,036 proteins in one example)
+    edge_density: sparse, two-mode, directed kinase -> site
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Find which kinases changed activity between conditions, and show the measured substrate sites that
+    drive each score, as a directed kinase -> site -> protein network.
+
+
+    **Mental Model**: "A kinase is as active as its substrates are phosphorylated." Each kinase node carries a score
+    and its significance; each site node carries its measured change; an arrow says this kinase is known to
+    phosphorylate this site.
+
+
+    **Task Phases**:
+
+    1. **Import sites** - One row per site, id as accession, residue and position (P06239_S59); drop rows mapping
+    to several proteins; report how many sites matched
+
+    2. **Choose the kinase-substrate source** - PhosphoSitePlus alone, or with SIGNOR or NetworKIN predictions
+    above a score cutoff; record the release
+
+    3. **Score kinases** - KSEA z-score with Benjamini-Hochberg FDR, or import KSEA App, PTM-SEA or RoKAI results;
+    require a minimum of measured substrates per kinase (2 to 5 in the published examples)
+
+    4. **Build the network** - Kinase nodes, site nodes attached to their protein, directed kinase -> site edges
+    for the substrates actually measured
+
+    5. **Filter and style** - Keep significant kinases and their substrates; kinase color by score with a border
+    for significance, site color by log2 fold change on a diverging scale, kinase size by measured substrate count;
+    two-mode or top-down layout with kinases above sites
+
+    6. **Read** - Which sites drive each kinase's score, which sites several kinases share, which kinases rest on
+    only a few measured substrates
+
+    7. **Export** - Figure with legend; the kinase score table and the kinase-substrate links used; a methods line
+    with source, release, minimum count and cutoffs
+
+
+    **Decision Points**:
+
+    - Which kinase-substrate source and release, and include predicted substrates?
+
+    - Minimum number of measured substrates for a kinase to be scored (the KSEA App examples use 2 and 5; benchmarKIN
+    uses 5)
+
+    - Mean, significant-only mean or delta count, and FDR or p cutoff (0.05 or 0.01 in the examples)
+
+    - Site as its own node, as a slice of its protein, or collapsed per protein?
+
+    - Show kinases with too few substrates greyed out, or hide them?
+
+
+    **Information Needs**:
+
+    - Per kinase: score, p, FDR, number of known substrates and how many were measured
+
+    - Per site: protein, residue and position, log2 fold change, p, and every kinase known to target it
+
+    - Which source and release each edge came from
+
+    - Sites that matched no kinase (most of them)
+
+
+    **Pain Points**:
+
+    - Scoring tools output a bar plot and a links table, never the network; users rebuild it elsewhere
+
+    - A site is not a protein, so a protein network averages sites away or needs one node per site
+
+    - Kinases are known for fewer than 5% of phosphosites, so scores favor well-studied kinases and silently skip
+    others
+
+    - Database releases and cutoffs change the result and are rarely recorded
+
+
+    **Data Flow**:
+
+    - Input: Site table; kinase-substrate table with release; cutoffs; or precomputed kinase scores
+
+    - Transformations: Site id matching, kinase scoring with FDR and minimum count, kinase -> site -> protein graph,
+    significance filter, two-mode layout
+
+    - Output: Kinase-substrate network figure with legend, kinase score table, links table, methods line
+success_criteria:
+    - metric: Sites kept distinct
+      target: Every measured site is its own element with its own value, none averaged into its protein
+    - metric: Coverage visible
+      target: Each kinase shows its measured substrate count, and kinases below the minimum are marked, not silently dropped
+    - metric: Reproducible
+      target: Export records kinase-substrate source, release, scoring method, minimum count and cutoffs
+sources:
+    - title: Wirbel, Cutillas and Saez-Rodriguez - Phosphoproteomics-based profiling of kinase activities (KSEA in kinact)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6126574
+      summary: Site ids, PhosphoSitePlus and SIGNOR sources, mean, significant-mean and delta-count scores, BH correction
+    - title: KSEA App (Bioinformatics 2017)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5860163
+      summary: PhosphoSitePlus by default, NetworKIN optional above a score cutoff, z-score with FDR
+    - title: KSEAapp KSEA.Complete reference
+      url: https://search.r-project.org/CRAN/refmans/KSEAapp/html/KSEA.Complete.html
+      summary: Six-column input; m.cutoff and p.cutoff; outputs a bar plot, a score table and the kinase-substrate links used
+    - title: PTMsigDB and PTM-SEA (Molecular and Cellular Proteomics 2019)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6398202
+      summary: 491 site-specific signatures, 220 human kinase signatures, directional scoring, 10,000 permutations
+    - title: PhosNetVis
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11247916
+      summary: Kinase and substrate nodes, directed edges, sites as slices; 2D and 3D force layouts; PhosphoSitePlus counts
+    - title: PTMNavigator (Nature Communications 2025)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11711753/
+      summary: Site nodes beside proteins on about 3,000 pathway diagrams, kinase activity as node borders
+    - title: PhosphoAtlas (Cancer Research 2016)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4907268
+      summary: Cytoscape session of 292 kinases, 1,276 substrates and 4,758 kinase -> substrate edges; site knowledge on edges
+    - title: benchmarKIN (Nature Communications 2025)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC12098709/
+      summary: Resource coverage (OmniPath 467 kinases, PhosphoSitePlus 390); at least five measured targets; bias toward well-studied kinases
+    - title: Needham et al. 2019 - Illuminating the dark phosphoproteome
+      url: https://pubmed.ncbi.nlm.nih.gov/30670635/
+      summary: Kinases are known for fewer than 5% of the phosphoproteome
+    - title: RoKAI (Nature Communications 2021)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC7895941
+      summary: Refines site profiles over a functional network before scoring, to soften missing annotations
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,33 @@
+id: graph-authoring
+name: Hand Authoring on an Empty Canvas
+category: analysis
+description: Add, rename, delete and connect nodes and edges by click, drag and keyboard on an empty canvas, with pinned
+    positions that survive layouts; every civic mapping method starts on paper and is retyped.
+status: planned
+notes: "Research trace: systems-and-stakeholder-mapping-civic.md section 9, table row 1 (Must)."
+algorithms: []
+used_by_workflows:
+    - W196
+    - W197
+    - W198
+    - W200
+    - W203
+    - W232
+    - W239
+    - W406
+    - W423
+    - W426
+    - W427
+implemented_by_components: []
+requirements:
+    - "Must: Hand authoring on an empty canvas: add, rename, delete nodes and edges by click, drag and keyboard (every
+      method starts on paper and is retyped)"
+    - "Must: Create and edit a graph by hand: add a vertex by clicking, connect two vertices, set weight and direction, delete, and type an edge list or adjacency matrix that becomes a drawing."
+    - "Must: Create, link, relink and delete nodes and edges by hand, with hand placement kept across sessions and mixed node types (code, quotation, memo, document)."
+    - "Must: Draw a directed graph by hand: add, rename and delete nodes and arrows with keyboard shortcuts, block cycles while drawing (lagged and temporal arcs exempt), and keep manual positions in the saved file."
+sources:
+    - title: "Systems Mappers and Civic Power-Mappers: Foundations, NGOs, Evaluators and Organizers (section 9, table
+          row 1)"
+      url: design/user-research/systems-and-stakeholder-mapping-civic.md
+      summary: "Must in the research. Covered by Designloom when researched: No. All
+          workflows assume imported data."

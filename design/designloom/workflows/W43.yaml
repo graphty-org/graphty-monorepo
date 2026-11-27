@@ -1,0 +1,143 @@
+id: W43
+name: Laying Out, Styling and Reading a Network Figure
+category: analysis
+validated: false
+personas:
+    - analyst-alex
+    - expert-emma
+requires_capabilities:
+    - layout-force-directed
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - community-detection
+    - centrality-degree
+    - filtering
+    - zoom-pan
+    - style-presets
+    - view-bookmarks
+    - comparison-view
+    - export-image
+    - analysis-provenance
+    - partition-drawing-agreement
+suggested_components:
+    - layout-panel
+    - layout-option
+    - visual-encoding-panel
+    - gradient-editor
+    - color-picker
+    - legend-panel
+    - graph-canvas
+    - filter-panel
+    - bookmark-panel
+    - comparison-view
+    - image-export-dialog
+starting_state:
+    data_type: attributed graph with a ranking and a partition
+    node_count: 100-100000
+    edge_density: sparse to moderate
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Make and read the figure that, for applied analysts, often is the main finding: a force-directed map
+    sized by a ranking, colored by a partition or category, labeled selectively and exported as vector graphics -- and
+    read it for groups, empty space and bridges without being misled by what a layout cannot show.
+
+
+    **Mental Model**: "Visual network analysis." It is not the node positions that count but the density of nodes and
+    its variation; distances and axes in a force layout carry no meaning.
+
+
+    **Task Phases**:
+
+    1. **Size nodes** - By a ranking such as degree (range about 10 to 150)
+
+    2. **Lay out** - Fruchterman-Reingold until it stabilizes, then ForceAtlas2 with Prevent Overlap and
+    Scaling 10; LinLog and gravity 0 for clearer clusters; there is no catch-all setting; record the seed
+
+    3. **Color** - Hue by partition (modularity class) or category; brightness for continuous variables
+
+    4. **Label** - By node size above a threshold, trying more than one sizing variable
+
+    5. **Read** - Groups, empty space, non-circular shapes (polarization), dense regions surrounded by sparse
+    ones (structural holes), bridges between regions; then which attributes align with poles and clusters
+
+    6. **Name clusters** - Add "qualifying" nodes (genres, labels) after freezing the main layout (double
+    spatialization)
+
+    7. **Check against the computed partition** - Look for visual clusters the partition splits, and
+    communities the drawing does not show
+
+    8. **Export** - SVG or PDF for Inkscape (PNG resolution is poor), with legend
+
+
+    **Decision Points**:
+
+    - Which algorithm and parameters, and when to stop?
+
+    - Which seed, and does a second seed give the same reading?
+
+    - Which size and color variables, label threshold and filters?
+
+    - Does the visual grouping match the computed communities?
+
+    - Vector or raster export?
+
+
+    **Information Needs**:
+
+    - Layout parameters, seed and convergence state
+
+    - Partition color legend and size legend
+
+    - Nodes whose visual neighborhood disagrees with their community
+
+    - Two layouts side by side for comparison
+
+
+    **Pain Points**:
+
+    - Layout distance correlates poorly with shortest-path distance (R^2 0.167 in the jazz network) and almost not at
+    all with commute distance
+
+    - Unseeded layouts differ every run
+
+    - Readers see clusters the partition splits, or miss ones it finds
+
+    - Gephi records none of the settings; Gephi Lite exports images only, not SVG or PDF
+
+    - Keeping every node visible does not scale to millions of nodes (W47)
+
+
+    **Data Flow**:
+
+    - Input: Graph with rankings, partitions and categories
+
+    - Transformations: Seeded force layout, encoding, label filtering, partition-drawing comparison
+
+    - Output: Vector figure with legend, recorded layout settings, a written reading
+success_criteria:
+    - metric: Figure reproducible
+      target: Same seed and parameters reproduce the same drawing
+    - metric: Figure honest
+      target: Disagreements between drawing and partition are visible before export
+    - metric: Vector export
+      target: SVG or PDF with legend exported without hanging at 10^5 elements
+sources:
+    - title: Introduction to network visualization with Gephi (Grandjean)
+      url: https://www.martingrandjean.ch/introduction-to-network-visualization-gephi/
+      summary: Size by ranking, FR then ForceAtlas2 settings, color by modularity class, label threshold, SVG/PDF export
+    - title: Gephi quick start (BU mirror)
+      url: https://www.bu.edu/networks/files/2012/08/gephi-tutorial-quick_start.pdf
+      summary: The canonical Gephi figure-making sequence
+    - title: What do we see when we look at networks (Venturini, Jacomy and Jensen)
+      url: https://arxiv.org/abs/1905.02202
+      summary: Visual network analysis reading protocol; layout distances vs path and commute distance; visual vs computed clusters; double spatialization
+    - title: NetworkX spring_layout
+      url: https://networkx.org/documentation/stable/reference/generated/networkx.drawing.layout.spring_layout.html
+      summary: Layouts take a seed; otherwise random starting positions
+    - title: Gephi Lite differences with Gephi
+      url: https://docs.gephi.org/lite/user-manual/differences-with-gephi/
+      summary: Image export only, not SVG or PDF; lighter graphs
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

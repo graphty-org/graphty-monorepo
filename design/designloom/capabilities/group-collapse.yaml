@@ -1,0 +1,55 @@
+id: group-collapse
+name: Group and Nested Containment Collapse
+category: analysis
+description: Reduced views of very large graphs by community, block-model level or k-core, with drill-down to members.
+status: planned
+notes: "Research trace: network-scientists-and-analysis-method-validity.md section 9, requirement R30 (Should)."
+algorithms: []
+used_by_workflows:
+    - W105
+    - W11
+    - W113
+    - W115
+    - W117
+    - W129
+    - W13
+    - W131
+    - W187
+    - W188
+    - W189
+    - W214
+    - W222
+    - W227
+    - W260
+    - W261
+    - W276
+    - W364
+    - W367
+    - W47
+    - W76
+    - W77
+    - W79
+    - W82
+    - W83
+    - W85
+    - W87
+    - W1132
+    - W2006
+    - W3096
+implemented_by_components: []
+requirements:
+    - "Should: Coarse-grained views of very large graphs (SBM levels, communities, k-core) with drill-down"
+    - "Must: Group nodes by an attribute or containment (team, application, site, schema, namespace, server over process, table over column) into collapsible boxes with aggregated edge counts and worst-of status rollup, expanding in place."
+    - "Must: Nodes that stand for a cluster (a wallet cluster of addresses) and expand into members or collapse back, with membership evidence shown."
+    - "Must: Group nodes by an attribute hierarchy (CIDR blocks, internal versus external, zones, code block groups) and collapse or expand each group."
+    - "Should: Collapse a graph into a class-level or community-level summary graph for consumers who cannot read instance-level node-link diagrams."
+    - "Must: Collapse nodes by a categorical attribute into group nodes sized by membership with aggregated edge weights, expand a group into subgroups, and show a group-by-group matrix of tie counts or weights."
+    - "Should: Roll many nodes (pages, stories, accounts) up to one node per attribute value (domain, outlet, actor) with summed edge weights and a reversible mapping."
+    - "Should: Aggregate nodes by geography, company or group with drill-down, and export with labels hidden or nodes grouped for confidential publication."
+    - "Should: Color, group and collapse nodes by a level of an attached hierarchy (ICD chapter, MedDRA SOC or HLT, GO, chemical class), expanding back to members."
+    - "Should: Nested groups that expand and collapse, laid out only when opened, with numeric per-node overlays summarized on collapsed groups."
+    - "Should: Switch between person, address, domain and organization levels without re-importing."
+sources:
+    - title: Network Scientists and the Validity of Core Analysis Methods (section 9, requirement R30)
+      url: design/user-research/network-scientists-and-analysis-method-validity.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

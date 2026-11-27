@@ -1,39 +1,50 @@
 id: anomaly-detection
 name: Anomaly Detection
 category: analysis
-description: Identify nodes or edges that deviate significantly from expected patterns. Find statistical outliers
-    (unusual degree, centrality) and structural anomalies (unexpected community membership, unusual neighbors). Essential
-    for fraud detection, error identification, and discovery.
+description: "Score nodes whose structure or attributes deviate from a pattern most nodes follow, as the scoring step that feeds a ranked case list (case-list-triage). Degree and betweenness are heavy-tailed, so scores are taken on log or rank scales, as deviation from a fitted pattern (OddBall-style egonet laws) or as within-module z, never as raw z-scores; each flag keeps its own factor and reason. Used in fraud, cyber and data-error work."
 status: planned
 algorithms:
-    - Z-score outlier detection
-    - Isolation Forest
-    - Local Outlier Factor
+    - "Log- and rank-scale outlier scoring"
+    - "OddBall egonet pattern deviation"
+    - "Within-module degree z-score"
+    - "Isolation Forest"
+    - "Local Outlier Factor"
 used_by_workflows:
-    - W06
     - W07
     - W12
+    - W128
+    - W336
+    - W429
 implemented_by_components:
     - anomaly-panel
 requirements:
-    - Calculate z-score for each numeric attribute; flag nodes with |z| > 3.0 as outliers
-    - Provide z-score threshold parameter adjustable from 2.0 to 5.0 (default 3.0)
-    - "Detect degree outliers: nodes with degree > mean + threshold * stddev"
-    - "Detect clustering coefficient outliers: unusually high or low local clustering"
-    - "Detect centrality outliers: extreme betweenness or PageRank values"
-    - "Detect community membership anomalies: nodes weakly connected to assigned community"
-    - Calculate composite anomaly score from 0.0 to 1.0 based on multiple factors
-    - Provide anomaly score weighting configuration for each factor
-    - "Categorize anomalies by type: 'degree_outlier', 'structural_anomaly', 'attribute_outlier'"
-    - Rank nodes by anomaly score in descending order
-    - Display top-20 anomalous nodes with anomaly type and score
-    - Support configuring which attributes to include in anomaly detection
-    - Store anomaly score as node attribute named 'anomaly_score'
-    - Store anomaly type as node attribute named 'anomaly_type'
-    - Complete analysis within 10 seconds for graphs under 50,000 nodes
-    - Provide 'Explain anomaly' detail showing which factors contributed to score
-    - Support filtering to show only nodes above anomaly score threshold
+    - "Should: Score numeric attributes on log or rank scales, not raw z-scores; on heavy-tailed degree or betweenness a raw z (or mean + k * stddev) flags the tail by construction"
+    - "Library parity: Offer deviation from a fitted pattern: fit an egonet relation (OddBall) and score each node by its distance from the fit"
+    - "Library parity: Offer within-module degree z-score, computed inside each community, for structural outliers (hub-role-analysis)"
+    - "Library parity: Let the caller define 'normal' per node type, so each type is scored against its own distribution"
+    - "Library parity: Ship no fixed default cutoff; return scores ranked, and apply a cutoff only when the caller sets one"
+    - "Library parity: Detect clustering coefficient outliers: unusually high or low local clustering"
+    - "Library parity: Detect community membership anomalies: nodes weakly connected to their assigned community"
+    - "Should: Keep each factor's score separate with its reason; never combine incomparable scores into one weighted composite"
+    - "Library parity: Return anomaly types as codes ('degree_outlier', 'structural_anomaly', 'attribute_outlier') with the factor values behind them; how many to show and how to word them belong to the application"
+    - "Should: Return, for each flagged node, which factors contributed and their values"
+    - "Library parity: Support configuring which attributes and node types to include"
+    - "Library parity: Store each factor's score as a node attribute and the anomaly type as 'anomaly_type'"
+    - "Library parity: Support filtering to nodes above a caller-chosen score"
+    - "Must: Record the method, parameters, node-type grouping and any fitted pattern with the result"
 sources:
-    - title: Practical Graph Analysis Guide - Chapter 4
-      url: https://graphty.app/docs/
-      summary: Anomaly Detection Pipeline - establish baseline, detect deviations
+    - title: "OddBall: Spotting Anomalies in Weighted Graphs (Akoglu, McGlohon and Faloutsos)"
+      url: https://www.andrew.cmu.edu/user/lakoglu/pubs/oddball_TR.pdf
+      summary: "Fits power-law relations between egonet features and scores each node by its distance from the fit; assumes most nodes follow the pattern"
+    - title: "Graph-based anomaly detection and description: a survey (Akoglu, Tong and Koutra 2015)"
+      url: https://arxiv.org/abs/1404.4679
+      summary: "Survey of graph anomaly methods; supports keeping each factor's score and reason rather than a blended composite"
+    - title: "BOND: Benchmarking Unsupervised Outlier Node Detection on Static Attributed Graphs"
+      url: https://arxiv.org/abs/2206.10071
+      summary: "Found that most methods evaluated fail to detect organic outliers"
+    - title: "Scale-free networks are rare (Broido and Clauset 2019)"
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6399239/
+      summary: "Degree distributions are heavy-tailed across 928 networks, so raw z-scores on degree flag the tail by construction"
+    - title: "Functional cartography of complex metabolic networks (Guimera and Amaral 2005)"
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC2175124
+      summary: "Within-module degree z-score and participation coefficient as the normalized hub measures"

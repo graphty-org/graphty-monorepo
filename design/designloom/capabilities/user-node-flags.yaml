@@ -1,0 +1,21 @@
+id: user-node-flags
+name: User Node Flags
+category: analysis
+description: User-set marks on nodes (owned, high value, believed, validated) stored as calculated values that queries,
+    filters and styles can use.
+status: planned
+notes: "Research trace: cybersecurity-graph-work.md section 10, requirement 3 (Must)."
+algorithms: []
+used_by_workflows:
+    - W108
+    - W109
+    - W110
+    - W1096
+implemented_by_components: []
+requirements:
+    - "Must: User-set node flags (owned, high value) as calculated values that queries and styles use"
+sources:
+    - title: "Cybersecurity Graph Work: Attack Paths, Threat-Intel Pivoting, Incident Response, Network, Cloud and
+          Binary Graphs (section 10, requirement 3)"
+      url: design/user-research/cybersecurity-graph-work.md
+      summary: "Must in the research. Covered by Designloom when researched: Not covered"

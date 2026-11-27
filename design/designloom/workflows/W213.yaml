@@ -1,0 +1,139 @@
+id: W213
+name: Diffusion Trace of a Claim or URL
+category: exploration
+validated: false
+personas:
+    - communication-network-scholar
+    - coordination-detection-scientist
+requires_capabilities:
+    - data-import
+    - temporal-navigation
+    - temporal-analysis
+    - animated-transitions
+    - centrality-degree
+    - community-detection
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - hover-highlight
+    - details-on-demand
+    - filtering
+    - large-graph-rendering
+    - export-image
+    - data-export
+    - multiplex-relations
+    - linked-views-selection
+    - provenance-tracking
+    - table-to-graph-builder
+suggested_components:
+    - search-input
+    - data-import-dialog
+    - graph-canvas
+    - temporal-controls
+    - histogram
+    - visual-encoding-panel
+    - legend-panel
+    - node-tooltip
+    - node-details-panel
+    - ranked-node-table
+    - filter-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: timestamped reposts, quotes, replies and mentions of one claim, URL or post; each edge carries post ID, text and time
+    node_count: 100-10000
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Show how one claim, link or post spread: who posted first, which accounts caused bursts, which edges
+    carried it between communities, and in what order. Fact-checkers and researchers did this with Hoaxy, now Hoaxy2
+    and OSoMeNet on Bluesky.
+
+
+    **Mental Model**: "Replay the outbreak." The network and the timeline are one object: brushing time filters the
+    graph, playing time grows it, and every edge is a post you can open.
+
+
+    **Task Phases**:
+
+    1. **Query** - Enter a claim's keywords, a URL or a post; collect matching posts with their repost, quote,
+    reply and mention relations
+
+    2. **Build the network** - Directed edges between accounts by relation type, each with its post and
+    timestamp; nodes sized by how often they were reposted
+
+    3. **Read the timeline** - Cumulative posts over time beside the network; zoom into an interval, hover for
+    daily counts, add older or newer posts
+
+    4. **Replay the spread** - Animate the network unfolding from start to end date, in 2D or 3D
+
+    5. **Find early spreaders and amplifiers** - Who posted first, which large nodes preceded bursts, which
+    edges bridge communities; edges colored by type (reposts, mentions, replies, quotes, multiple types)
+
+    6. **Open the evidence** - Click an edge to open the posts behind it; click a node for the account's
+    mentions, replies and quotes with links
+
+    7. **Export** - Image and data; pair the figure with the timeline in a published investigation
+
+
+    **Decision Points**:
+
+    - Which relation types count as spread?
+
+    - Which time interval holds the story?
+
+    - Who is the origin versus the amplifier?
+
+    - Prune the network for performance, and what is lost?
+
+
+    **Information Needs**:
+
+    - Activity over time linked to the graph in both directions
+
+    - Edge type legend with counts
+
+    - First-seen time per account
+
+    - The posts behind any edge
+
+
+    **Pain Points**:
+
+    - The original Hoaxy was retired in July 2025 and bot scores were removed
+
+    - Networks are pruned for performance without saying what was dropped
+
+    - The timeline and graph live in separate tools when data comes from elsewhere
+
+
+    **Data Flow**:
+
+    - Input: Post records (CSV, JSON, NDJSON) with author, target author, relation type, timestamp, post ID and text
+
+    - Transformations: Typed directed multigraph with timestamps, time-window filter, animation, first-seen times
+
+    - Output: Network image with edge-type legend and timeline, exported edge list, list of early spreaders and amplifiers
+success_criteria:
+    - metric: Linked time and graph
+      target: Brushing an interval on the activity chart filters the network and playback animates growth
+    - metric: Evidence access
+      target: Clicking an edge shows the posts and timestamps that created it
+    - metric: Origin identification
+      target: User can name the first posters and the accounts preceding the largest bursts
+sources:
+    - title: Bellingcat toolkit - Hoaxy
+      url: https://bellingcat.gitbook.io/toolkit/more/all-tools/hoaxy
+      summary: Temporal trends panel, play control, click-through on edges and nodes, edge colors by type, pruning, retirement in July 2025
+    - title: OSoMe - exploring the latest OSoMe tools
+      url: https://osome.iu.edu/research/blog/exploring-the-latest-osome-tools
+      summary: Hoaxy2 searches Bluesky in real time; OSoMeNet; user-supplied API keys
+    - title: Hoaxy system paper
+      url: https://ar5iv.labs.arxiv.org/html/1707.07592
+      summary: Diffusion network construction with nodes sized by influence
+    - title: Graphika - Spamouflage report
+      url: https://graphika.com/spamouflageUS
+      summary: Published investigations pair network maps with the full takedown timeline
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,118 @@
+id: crime-intelligence-analyst
+name: Crime Intelligence Analyst
+roster_persona: intelligence-analyst
+tier: A
+scope: in-scope
+role: Criminal Intelligence Analyst, County Sheriff's Office or State Police
+quote: Give me every carrier's records in one chart, tell me which numbers two of my suspects both called, and keep my layout when the next warrant return comes in.
+bio: >-
+    Marisol Ruiz has been a criminal intelligence analyst for four years in a large county sheriff's office, modeled on the
+    Harris County unit that sifts "tens of millions of data points" down to a chart of about a hundred people. She does
+    not own cases; she serves detectives, task-force officers and prosecutors who bring her warrant returns and ask
+    "who is this number, who else is in the crew, was he there". Her day is call detail records (CDRs) from several
+    carriers, each with its own columns, time zone and carrier key; tower dumps; license plate reader (ALPR) reads; jail
+    call logs (one year of a gang's outbound calls was about 600,000 nodes); Cash App and Zelle returns; provider returns
+    from Meta, Google and Snap; adult service ads; and the gang database. She cleans everything in Excel, imports it into
+    i2 Analyst's Notebook through saved import specifications (one per carrier), and pulls records-management (RMS)
+    data with SQL. She knows degree and "who sits between the sets" from i2's SNA feature and a vendor course, but she
+    is not a graph theorist. She hands off charts to detectives in the free i2 Chart Reader and may have to testify
+    about how she built them.
+characteristics:
+    expertise: intermediate
+    time_pressure: high
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Find the phone, vehicle or account that ties a suspect to a scene
+    - Find the "shot caller" and the people who bridge rival sets or crews
+    - Turn a pile of warrant returns into a short list of numbers for detectives to subpoena next
+    - Produce charts a prosecutor can put in front of a jury and that she can defend on the stand
+    - Keep a case chart current as pen-register and warrant data keep arriving
+behaviors:
+    - Requests the carrier's CDR reference document (carrier key) and cell-site list with every warrant return
+    - Normalizes phone numbers (country and dialling codes) and time zones in Excel before import, because carriers mix device, switch, central and UTC times
+    - Keeps one saved i2 import specification per carrier in a shared workgroup folder
+    - Imports calls with Directed link multiplicity so each pair shows one line per direction labeled with a call count and summed duration
+    - Looks for numbers called by two or more subjects and for contacts that appear on two or more seized phones
+    - Hides one-off contacts and filters to a window around the offense, then opens a single pair to see each call
+    - Intersects tower dumps from several scenes to find the few numbers present at all of them
+    - Runs convoy analysis on ALPR reads to find vehicles traveling with a target vehicle
+    - Builds a theme-line timeline next to the association chart for every major case
+    - Grades intelligence items and draws confirmed links solid and suspected links dotted
+    - Deconflicts subjects through several agency systems many times a day before an operation
+frustrations:
+    - 'Built-in link views in RMS and jail systems weight every link the same: "You cannot group them up by crime-type, region, or gang"'
+    - Every carrier's records arrive in a different layout and time zone and must be fixed by hand
+    - i2 charts lag on large data, cost thousands of dollars a seat a year and take months to learn
+    - Re-importing new records risks losing the hand layout and notes on a chart detectives already know
+    - Contact names for the same person differ on every seized phone, so the same person appears several times
+    - Sometimes the analysis goes nowhere after days of cleaning
+context:
+    frequency: daily
+    devices:
+        - desktop
+    voluntary: false
+workflows:
+    - W09
+    - W97
+    - W98
+    - W99
+    - W100
+    - W101
+    - W102
+    - W103
+    - W104
+    - W107
+    - W18
+    - W293
+    - W298
+    - W299
+    - W302
+    - W303
+    - W2006
+sources:
+    - title: IACA 2024 Virtual Conference - Social Network Analysis (Harris County)
+      url: https://iaca.net/assets/Training-Files/Webinars/VirtualConferences/2024VirtualConference/2024%20IACA%20SNA%20Bush.pdf
+      summary: Harris County analyst's funnel from 10M+ records to about 100 nodes, jail-call networks of 600K nodes per year, 244.6K ads linked by 13,336 phone numbers, and the complaint that operational systems weight all links equally
+    - title: Missouri State Highway Patrol - Criminal Intelligence Analyst I job description
+      url: https://www.machs.mo.gov/MSHPWeb/PatrolDivisions/HRD/Civilian/CivilianJobDescriptions/documents/CriminalIntelligenceAnalystI-DDCC-TAU.pdf
+      summary: Daily deconflictions through multiple systems, record analysis to find interrelationships, intelligence booklets for prosecutors
+    - title: SWGDE Recommendations for Cell Site Analysis 17-F-001 v2.0
+      url: https://www.swgde.org/wp-content/uploads/2024/06/2023-12-18-SWGDE-Recommendations-for-Cell-Site-Analysis-17-F-001-2.0.pdf
+      summary: Carrier keys, cell-site lists, mixed time zones within a single CDR, and verification of plots
+    - title: UNODC Criminal Intelligence Manual for Analysts
+      url: https://www.azdps.gov/sites/default/files/2023-07/Criminal_Intelligence_Manual_for_Analysts.pdf
+      summary: Telephone analysis, association charting, grading systems and charting conventions taught to analysts
+    - title: Law Enforcement Analytic Standards, 2nd edition
+      url: https://www.azdps.gov/sites/default/files/2023-07/Law_Enforcement_Analytic_Standards_2nd_edition.pdf
+      summary: Analysts must be able to testify as fact, summary and expert witnesses; source attribution and grading
+    - title: SelectHub - i2 Analyst's Notebook reviews
+      url: https://www.selecthub.com/p/data-visualization-tools/i2-analyst-s-notebook/
+      summary: Price from about $7,160 a year, learning curve and lag on large data reported by users
+    - title: i2 Analyst's Notebook product sheet
+      url: https://i2group.com/hubfs/Products/i2-Analysts-Notebook.pdf
+      summary: Over 2,000 organizations and 4,500+ users in 140+ countries; redaction and Chart Reader for sharing
+    - title: Nextgov (2002) - Software sorts out suspect phone data
+      url: https://nextgov.com/digital-government/2002/06/software-sorts-out-suspect-phone-data/204384
+      summary: i2 PatternTracer took up to 100,000 telephone records at a time
+    - title: i2 Analyst's Notebook 9.4 - Setting the link direction
+      url: https://docs.i2group.com/anb/9.4.0/setting_the_link_direction.html
+      summary: One direction for all links or read from a column whose values must be transformed
+    - title: IBM technote - Resolving OutOfMemoryException errors when importing data into Analyst's Notebook
+      url: https://www.ibm.com/support/pages/resolving-outofmemoryexception-errors-when-importing-data-analysts-notebook
+      summary: A large blank used range in a spreadsheet causes out-of-memory errors at import
+    - title: IBM technote - Long string values imported from Excel truncated to 255 characters
+      url: https://www.ibm.com/support/pages/why-are-long-string-values-imported-excel-file-sometimes-truncated-255-characters
+      summary: Excel driver truncation of long text during import
+    - title: IBM technote - Changing and replacing values in an import specification data column
+      url: https://www.ibm.com/support/pages/changing-and-replacing-values-i2-analysts-notebook-import-specification-data-column
+      summary: Column actions and substitution files rewrite values before matching
+    - title: i2 Analyst's Notebook 9.4.1 - Import specifications
+      url: https://docs.i2group.com/anb/9.4.1/import_specifications.html
+      summary: Saved .ximp and .oimp specifications that cannot be converted between each other
+    - title: Graphty user research - Data preparation, import and first assessment
+      url: https://github.com/graphty-org/graphty-monorepo/blob/master/design/user-research/data-preparation-and-import.md
+      summary: Composite persona section 2.2 and the event-table workflow in section 4.3
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,113 @@
+id: W154
+name: Patient versus Control Comparison with the Network-Based Statistic
+category: analysis
+validated: false
+personas:
+    - clinical-connectome-researcher
+requires_capabilities:
+    - data-import
+    - data-validation
+    - component-analysis
+    - filtering
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - comparison-view
+    - details-on-demand
+    - export-image
+    - data-export
+    - matrix-import
+    - multi-graph-sets
+suggested_components:
+    - data-import-dialog
+    - attribute-table-join-dialog
+    - network-list-panel
+    - range-slider
+    - progress-bar
+    - data-table-panel
+    - graph-canvas
+    - legend-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: one symmetric N x N matrix per subject (folder of text files or one N x N x subjects array), a design matrix and a contrast
+    node_count: 70-400
+    edge_density: complete before testing; the result is a small connected component
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Find a connected set of edges whose strength differs between patients and controls, with family-wise
+    error control on the whole component rather than on each of thousands of edges, then show it as a 3D subnetwork
+    and an edge table. Most clinical connectome studies report this.
+
+
+    **Mental Model**: "Which part of the wiring differs?" A single edge rarely survives correction; a cluster of
+    connected edges that all differ does.
+
+
+    **Task Phases**:
+
+    1. **Inputs** - Per-subject matrices in a folder (alphanumeric order, so names must be zero-padded) or
+    one array; design matrix with covariates; contrast such as [1 -1]; test (one sample, t-test, F-test); node
+    coordinates, which are required to display a result
+
+    2. **Primary threshold** (iterated) - Threshold the per-edge t-statistic; liberal values find extended
+    but weak effects, conservative ones focal strong effects; in the bundled example 2.5 gives a component too dense
+    to interpret and 3.5 finds nothing
+
+    3. **Permutation settings** - 5,000 permutations, FWER 0.05, NBS or FDR, component size by extent or
+    intensity
+
+    4. **Run and read** - Component p-value; view only if a component is significant
+
+    5. **Figure and table** - Write the component as edge and node files and draw it in 3D (W152); edge table
+    with region labels and t-values; often a circular connectogram grouped by lobe or network
+
+
+    **Decision Points**:
+
+    - Which primary threshold, and was it chosen before seeing results?
+
+    - Extent or intensity for component size?
+
+    - Which covariates belong in the design?
+
+
+    **Information Needs**:
+
+    - Subject-to-file and subject-to-group assignment, checked before running
+
+    - Component size, p-value and the edges with their t-values and region names
+
+    - Which nodes participate in the component and how many edges each contributes
+
+
+    **Pain Points**:
+
+    - File order silently mis-assigns subjects ("Subject11.txt comes before Subject1.txt")
+
+    - The primary threshold is arbitrary and "a matter of experimentation"
+
+    - The built-in viewer is basic; figures need another program
+
+
+    **Data Flow**:
+
+    - Input: Per-subject matrices, design matrix, contrast, node coordinates and labels
+
+    - Transformations: Per-edge GLM, primary threshold, connected components, permutation null of maximal component size
+
+    - Output: Significant component as a subgraph, edge table, 3D figure, connectogram
+success_criteria:
+    - metric: Subject assignment safety
+      target: User sees and confirms the subject-to-file-to-group mapping before the test runs
+    - metric: Result readability
+      target: Component shown as a highlighted subnetwork with region labels and t-values on click
+    - metric: Hand-off
+      target: Component exported as an edge table and as node/edge files without manual editing
+sources:
+    - title: NBS Connectome reference manual v1.2
+      url: https://NITRC.org/docman/view.php/629/1249/Reference_Manual_NBS_v1.2.pdf
+      summary: Inputs, file-order warning, primary threshold guidance, schizophrenia example (71 regions, 12 patients, 15 controls), permutation settings, BrainNet Viewer for figures
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

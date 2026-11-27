@@ -1,0 +1,102 @@
+id: forensic-accountant
+name: Forensic Accountant
+roster_persona: trial-exhibit-analyst
+tier: B
+scope: in-scope
+role: Forensic Accountant and Certified Fraud Examiner, litigation support firm (traces funds, builds trial exhibits, testifies)
+quote: The court does not ask whether money moved. It asks how much of the victim's 50,000 dollars is in that house, under the rule it accepts, with every number tied to a statement page.
+bio: >-
+    Miriam Feldman is a forensic accountant and certified fraud examiner at a litigation-support firm. Her cases arrive as
+    boxes and PDFs of bank statements, check images, deposit tickets, wire records and signature cards from many banks,
+    obtained by subpoena. She extracts them into rows with OCR tools (DocuClipper, Valid8), normalizes them into one
+    template in Excel or a database (date, account, counterparty, amount, instrument, check number, memo, source page),
+    and matches transfers between the subject's own accounts so they are not counted twice. Only then does she chart: a
+    flow-of-funds Sankey or a link chart in i2 for the exhibit. When restitution or forfeiture depends on it she traces
+    under a legal rule (lowest intermediate balance, pro rata, first in first out), walking each account in time order with
+    a running balance, and often runs two rules to show the sensitivity. Every number on her exhibits must tie back to a
+    page of a statement and survive cross-examination.
+characteristics:
+    expertise: expert
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Build one reconciled transaction database from many banks' records
+    - Show sources and uses of funds clearly to a judge, jury or opposing counsel
+    - State how much of the victim's money reached each account or asset under the rule the court accepts
+    - Produce exhibits that are reproducible and tie every figure to a source document
+behaviors:
+    - Plans the subpoenas, then inventories every record received with an index and status log
+    - Extracts statements, checks and wires from PDFs into rows and normalizes them into one template
+    - Reviews for leads (payees, endorsements, signatories, where checks were negotiated)
+    - Matches debits and credits of the same amount within a few days across the subject's accounts as internal transfers
+    - Analyzes by date, payee and source and builds a flow matrix among accounts
+    - Traces a seed deposit forward or an account's money backward under LIBR, pro rata or FIFO, keeping balance checkpoints
+    - Draws a Sankey or flow chart sized by amount and exports the allocation table and transactions behind each flow
+frustrations:
+    - Extraction and transfer matching across banks take most of the time
+    - The tracing rule changes the answer, and charting tools do not apply the rules
+    - Every exhibit number must be traceable to a statement page, which charting tools do not carry
+    - Link charts show that money moved but not how much of a particular deposit arrived
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W120
+    - W121
+    - W126
+    - W15
+    - W314
+    - W321
+sources:
+    - title: Peterson - A Guide to the Financial Analysis of Personal and Corporate Bank Records (NW3C, 2nd ed. 1998)
+      url: https://www.ojp.gov/pdffiles1/Digitization/174809NCJRS.pdf
+      summary: Fourteen steps from planning and inventory through flow analysis among accounts, charts and presentation
+    - title: A taxonomy of tracing rules - one size does not fit all (ABI Journal 2018, via Cozen O'Connor)
+      url: https://cozen.com/news-resources/publications/2018/a-taxonomy-of-tracing-rules-one-size-does-not-fit-all
+      summary: Tracing as an equitable substitute; LIBR, pro rata, FIFO and LIFO as the accepted methods
+    - title: DocuClipper - Flow of funds analysis
+      url: https://www.docuclipper.com/docs/flow-of-funds-analysis/
+      summary: Sankey of sources, accounts and destinations; pin a link to list its transactions; workbook export; transfer matching
+    - title: LawNext - Software to follow the money through financial evidence (Valid8)
+      url: https://www.lawnext.com/2023/01/this-new-category-of-legal-software-lets-you-follow-the-money-through-financial-evidence-data.html
+      summary: Sankey diagrams with relative size accuracy and export of the transactions behind any flow
+    - title: Fifth Circuit unpublished opinion on the lowest intermediate balance rule
+      url: https://www.ca5.uscourts.gov/Opinions/unpub/00/00-50358.0.wpd.pdf
+      summary: Claim capped at the lowest balance after the deposit; later deposits do not restore it (read through search summary)
+    - title: Federal Rule of Evidence 1006 (Cornell LII)
+      url: https://law.cornell.edu/rules/fre/rule_1006
+      summary: Summaries of voluminous admissible writings; underlying originals must be made available
+    - title: Federal Rule of Evidence 107 and 2024 committee notes
+      url: https://www.courtrules.net/federal/evidence/rule-107
+      summary: Illustrative aids allowed unless prejudice substantially outweighs utility; not evidence; kept out of deliberations without consent or order
+    - title: United States v. Bray, 139 F.3d 1104 (6th Cir. 1998)
+      url: https://caselaw.findlaw.com/court/us-6th-circuit/1097222.html
+      summary: A Rule 1006 summary must be accurate and nonprejudicial and not annotated with the proponent's conclusions
+    - title: United States v. Fei Xie, No. 25-6034 (10th Cir. Mar. 31, 2026), unpublished
+      url: https://www.ca10.uscourts.gov/sites/ca10/files/opinions/010111410037.pdf
+      summary: Charts built from non-trial sources inadmissible under Rule 611(a); objections to red framing, size and an agency badge rejected on plain-error review
+    - title: Weintraub - trial demonstratives guidance
+      url: https://www.weintraub.com/?p=6334
+      summary: Build from the general ledger, bank records or cash flow summaries and test demonstrative evidence before trial
+    - title: R v Calland [2017] EWCA Crim 2308
+      url: https://caselaw.nationalarchives.gov.uk/ewca/crim/2017/2308
+      summary: Cell-mast locations allowed only at town level on a sequence-of-events chart
+    - title: Law Enforcement Analytic Standards, 2nd edition
+      url: https://www.azdps.gov/sites/default/files/2023-07/Law_Enforcement_Analytic_Standards_2nd_edition.pdf
+      summary: Products must clearly distinguish sources and keep opinions out of the factual portion
+    - title: RFFlow link analysis sample
+      url: https://www.rff.com/link_analysis_sample.php
+      summary: Circles for people, rectangles for businesses, solid confirmed and dotted suspected links
+    - title: IBM support - i2 Analyst's Notebook PDF truncation above Letter
+      url: https://www.ibm.com/support/pages/node/510995
+      summary: i2 8.9.5 truncated PDFs larger than Letter
+    - title: IBM support - custom paper sizes above A0
+      url: https://www.ibm.com/support/pages/node/242017
+      summary: Large-format charts need custom paper sizes set up by hand
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

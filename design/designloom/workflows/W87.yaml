@@ -1,0 +1,156 @@
+id: W87
+name: Requirement Traceability and Automatic Diagram Layout
+category: analysis
+validated: false
+personas:
+    - mbse-systems-engineer
+requires_capabilities:
+    - data-import
+    - search
+    - node-selection
+    - neighborhood-expansion
+    - filtering
+    - layout-hierarchical
+    - layout-radial
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - details-on-demand
+    - computed-attributes
+    - report-generation
+    - export-image
+    - group-collapse
+    - directed-closure
+    - matrix-view
+    - dependency-format-import
+    - orthogonal-port-layout
+suggested_components:
+    - data-import-dialog
+    - search-input
+    - graph-canvas
+    - layout-panel
+    - filter-panel
+    - cluster-collapse-control
+    - heatmap-panel
+    - node-details-panel
+    - legend-panel
+    - report-generator-dialog
+    - image-export-dialog
+starting_state:
+    data_type: SysML model (requirements with derive and containment, blocks with satisfy, tests with verify, nested blocks with ports and connectors) from Cameo/Teamwork Cloud, Capella or the SysML v2 Systems Modeling API
+    node_count: 100-5,000 model elements (no source gives typical model sizes)
+    edge_density: sparse, strongly typed, deep containment
+    user_expertise: expert
+goal: >-
+    **Intent**: When a requirement changes, list every derived requirement, satisfying block and verifying test it
+    touches; show coverage gaps at a design review; and keep nested structure diagrams readable by generating their
+    layout from the model instead of drawing it.
+
+
+    **Mental Model**: "The model is the truth; diagrams are views of it." Traceability is a typed closure from a
+    requirement; structure diagrams are nested boxes with ports on their borders and connectors between them.
+
+
+    **Task Phases** (no source gives per-step durations):
+
+    Change impact on a requirement:
+
+    1. **Start at the changed requirement** - Its traceability properties list linked elements
+
+    2. **Build a relation map** - Choose the context element, relationship types, element types and scope; tree or
+    radial layout; set the depth expanded automatically; maps re-render as the model changes
+
+    3. **Check coverage in a matrix** - Requirements on one axis, design elements or tests on the other; empty rows are
+    gaps; add missing relationships and remove redundant ones in the matrix
+
+    4. **Decide and record** - Update derived requirements and design; bring the matrix and maps to the design review
+
+    Keeping structure diagrams readable:
+
+    1. **Generate rather than draw** - Lay out block definition, internal block and parametric diagrams automatically;
+    group elements into nested structures to control the level of detail
+
+    2. **Run the layout in the modeling tool** - ELK in Capella (not for sequence, activity or state machine
+    diagrams); nesting at arbitrary depth, sometimes with large white space
+
+    3. **Hand-tune** - Align lines, ports and element positions by hand where the layout falls short
+
+
+    **Decision Points**:
+
+    - Which relationship types and how much depth define the impact of this change?
+
+    - Is an empty matrix row a real gap or a modeling omission?
+
+    - Accept the automatic layout or hand-tune it?
+
+
+    **Information Needs**:
+
+    - Typed closure from a requirement, with relationship types stated
+
+    - Requirements with no satisfy or verify relationship
+
+    - Containment hierarchy with ports and connector types
+
+    - A matrix view kept in step with the node-link view
+
+
+    **Pain Points**:
+
+    - Diagram arrangement is time-consuming; hand-drawn diagrams drift from the model
+
+    - Generic arrange-all layouts do not suit nested boxes with ports
+
+    - Automatic layout fails on architecture diagrams with allocated functions
+
+    - Matrices grow very large
+
+
+    **Data Flow**:
+
+    - Input: SysML v1 model in Cameo or Teamwork Cloud, Capella model, or SysML v2 model through the Systems Modeling
+    API (REST, OpenAPI)
+
+    - Transformations: Typed closure with depth, coverage check (missing satisfy or verify), nested orthogonal layout
+    with ports
+
+    - Output: Relation maps, traceability matrices with gaps marked, regenerated structure diagrams for the design review
+success_criteria:
+    - metric: Impact list
+      target: User lists every derived requirement, satisfying block and verifying test from one changed requirement
+    - metric: Coverage gaps
+      target: Requirements with no satisfy or verify relationship are listed and highlighted
+    - metric: Diagram readability
+      target: Nested structure diagrams lay out automatically with ports on box borders and need little hand-tuning
+sources:
+    - title: No Magic documentation - Relation map criteria, layout and depth
+      url: https://docs.nomagic.com/x/OwcmC
+      summary: Context element, criteria, element types, scope, tree or radial layout, depth
+    - title: No Magic documentation - Predefined relation maps
+      url: https://docs.nomagic.com/MT/latest/magic-cyber-systems-engineer---cameo-systems-modeler/predefined-relation-maps-303992535.html
+      summary: Requirement containment and derivation maps that re-render as the model changes
+    - title: No Magic documentation - Traceability
+      url: https://docs.nomagic.com/x/OS8mC
+      summary: Tracing is fundamental to impact analysis when requirements change
+    - title: No Magic documentation - Matrices
+      url: https://docs.nomagic.com/x/NS8mC
+      summary: Satisfy, Refine and Verify matrices; empty rows as coverage gaps; edit relationships in the matrix
+    - title: Tom Sawyer Software - Model-Based Engineering (vendor)
+      url: https://tomsawyer.com/model-based-engineering
+      summary: Automatic layout of BDD, IBD and parametric diagrams; nested drawing structure; thousands of elements claimed
+    - title: capellambse context diagrams
+      url: https://capellambse-context-diagrams.readthedocs.io/en/stable/diagram_view/
+      summary: ELK-generated architecture diagrams with arbitrary nesting depth, sometimes large white space
+    - title: Capella ELK plugin notes
+      url: https://capella.rail-research.europa.eu/docs/user/tools/capella/custom-plugins/elk/
+      summary: Run ELK with snap-to-grid off; not for sequence, activity or state machine diagrams
+    - title: Capella forum - Beautifying diagrams with automatic functions
+      url: https://forum.mbse-capella.org/t/effectively-beatifying-diagrams-with-automatic-functions-how/6516
+      summary: Hours of aligning lines and ports; ELK fails with allocated functions
+    - title: OMG - Systems Modeling API and Services 1.0
+      url: https://www.omg.org/news/releases/pr2025/07-21-25.htm
+      summary: Standard interface to navigate, query and update SysML v2 models
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

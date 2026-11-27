@@ -1,40 +1,59 @@
 id: explorer-elena
 name: Explorer Elena
-role: New Graph User
-quote: Just show me something interesting - I'll figure out what questions to ask once I can see the shape of the data.
-bio: Elena is a product manager who occasionally needs to explore relationship data but has no formal training in graph
-    theory or network analysis. She's technically curious and comfortable with software, but she doesn't want to learn
-    specialized terminology just to answer a simple question. She values tools that let her discover insights through
-    interaction rather than requiring upfront expertise.
+roster_persona: explorer-elena
+tier: A
+scope: in-scope
+role: Occasional Analyst New to Network Analysis (Community, Social-Media or Nonprofit Analyst)
+quote: I typed up who replies to whom in a spreadsheet. Just show me something interesting - I'll figure out what questions to ask once I can see the shape of the data.
+bio: >-
+    Elena is an occasional analyst with no formal training in graph theory or network analysis. The best-documented
+    version of her is a community or social-media analyst (the people NodeXL was built for: "social media analysts and
+    community administrators" with "little technical background or experience with SNA techniques"); she could equally
+    be a data journalist with a company register, a nonprofit staffer mapping a system in a workshop, or a business
+    analyst with a from-to table in Excel. She does not arrive with an edge list. She arrives with a table she built,
+    often by hand (member profiles and forum posts typed into Excel took observed novices "on average 2.5 hours"), and a
+    question that is not yet a network question ("Do people who post more often also complete more projects?"). She
+    reads pictures more than numbers, prefers a browser tool she does not have to install, and loses confidence quickly
+    when a tool crashes or shows a wall of metrics. An earlier version of this record made her a product manager; no
+    source shows product managers bringing data to graph tools, so that role was dropped.
 characteristics:
     expertise: novice
     time_pressure: low
     graph_literacy: none
-    domain_knowledge: basic
+    domain_knowledge: intermediate
 motivations:
-    - Quickly understand unfamiliar datasets without extensive training
-    - Find interesting patterns that spark questions worth investigating further
-    - Communicate findings to stakeholders using intuitive visualizations
-    - Avoid feeling intimidated by technical tools that assume domain expertise
-    - Build confidence with graph data before deciding if deeper analysis is worthwhile
+    - Find "a unique social role", "an interesting sub-group" or "anything else of particular interest" in her own data
+    - Turn a hand-built table into a picture without learning specialized terminology first
+    - Communicate findings to managers or stakeholders with an intuitive visualization
+    - Avoid feeling intimidated by technical tools that assume domain expertise or math confidence
+    - Decide whether deeper network analysis is worth her time
 behaviors:
+    - Collects data by hand from a forum, register, workshop or export and types it into Excel
+    - Struggles to reshape the table into an edge list and confuses the edge and vertex sheets
     - Starts by loading data and immediately looking at the visualization
-    - Clicks on prominent nodes to see what they are and who they connect to
-    - Uses search to find specific entities she knows about
-    - Explores by following connections outward from interesting starting points
-    - Relies heavily on visual cues like node size and color to understand importance
-    - Takes screenshots to share discoveries with colleagues
-    - Abandons tools quickly if the learning curve feels too steep
+    - Finds the first picture "kind of a mess" and needs layout and mapping before anything appears
+    - Uses several visual properties for a single attribute when given many choices
+    - Relies on node size and color rather than metric tables; rarely uses any metric other than degree
+    - Reads drawn distance as similarity and wider links as closer relationships
+    - Clicks prominent nodes and searches for entities she knows about
+    - Re-collects data after the first picture changes her question
+    - Spends over an hour hand-tuning the layout, then adds legends and annotations outside the tool
+    - Takes screenshots or embeds to share discoveries with colleagues
+    - Abandons tools quickly if they crash, lack undo or feel steep
 goals:
-    - Visualize a network dataset
-    - Understand what graph analysis can do
-    - Learn basic structure of their data
-    - Load data and see visualization quickly
+    - Load a hand-built spreadsheet and see a network quickly, without installing anything
+    - Turn her first question into one the network can answer
+    - Find hubs, bridges, subgroups and the overall shape, in words she understands
+    - Share a clean, labeled picture with stakeholders
 frustrations:
-    - Overwhelming number of options
-    - Unclear terminology
-    - No guidance on where to start
-    - Fear of breaking things
+    - Strict import shapes (required headers, a Links sheet, ids equal to labels, .xls rejected)
+    - Not knowing how to turn her table into nodes and edges
+    - Tools that cannot answer "who is central" (Flourish computes no centrality)
+    - Walls of numbers that recall math anxiety ("seeing all those numbers")
+    - Crashes with no undo, so she has to start over and starts doubting herself
+    - Free tiers that make her map public
+    - Image-only export with no SVG or lossless PNG
+    - Overwhelming number of options and unclear terminology
 context:
     frequency: as-needed
     devices:
@@ -45,12 +64,38 @@ workflows:
     - W02
     - W14
     - W18
+    - W240
 sources:
+    - title: Hansen et al. - Do You Know the Way to SNA? A Process Model for Analyzing and Visualizing Social Media Data
+      url: https://www.cs.umd.edu/users/ben/papers/DerekL.2012Do.pdf
+      summary: 15 novice analysts with NodeXL over a month; hand data collection, edge-list confusion, messy first picture, metric anxiety, layout tuning, re-collection, median 12.5 hours
+    - title: Bonsignore et al. - First Steps to NetViz Nirvana, Evaluating Social Network Analysis with NodeXL
+      url: https://www.cs.umd.edu/~ben/papers/Bonsignore2009First.pdf
+      summary: 21 graduate students; tasks to find a social role and a sub-group; Excel skill the primary barrier; requests for SVG export
+    - title: Bradshaw - A journalist's introduction to network analysis
+      url: https://onlinejournalismblog.com/2020/06/08/a-journalists-introduction-to-network-analysis/
+      summary: Journalists' questions (most connected, bridges, clusters, shape) and data (directors, tweets, co-mentions); start in Flourish
+    - title: Kumu docs - Systems practice
+      url: https://docs.kumu.io/disciplines/systems-practice
+      summary: Nonprofit and public-sector staff draw factors, causal links and loops by hand
+    - title: Kumu FAQ - My data won't import
+      url: https://docs.kumu.io/frequently-asked-questions/my-data-wont-import.-what-can-i-do
+      summary: Label header, From and To columns required; .xls rejected
+    - title: Miriam Posner - Network analysis with Flourish
+      url: https://miriamposner.com/classes/dh201w21/tutorials-guides/network-analysis/flourish-graph
+      summary: No provision for encoding centrality; id equals label
+    - title: Zoss et al. 2018 - Network visualization literacy
+      url: https://cns.iu.edu/docs/publications/2018-NetSci-Zoss.pdf
+      summary: Low network literacy; distance read as similarity and wider links made nodes seem more similar
+    - title: Gephi Lite - Differences with Gephi
+      url: http://docs.gephi.org/lite/user-manual/differences-with-gephi/
+      summary: Browser tool for beginners; image export only, no SVG or PDF; saves to GitHub Gists
+    - title: Pragmatic Works - Power BI force-directed graph
+      url: https://pragmaticworks.com/blog/power-bi-custom-visuals-force-directed-graph
+      summary: Business analysts draw a from-to table with a count from Excel in Power BI
     - title: Progressive Disclosure - Nielsen Norman Group
       url: https://www.nngroup.com/articles/progressive-disclosure/
-      summary:
-          Foundation for progressive disclosure design pattern - new users should see only the most important options
-          initially
-    - title: Progressive Disclosure - The Decision Lab
-      url: https://thedecisionlab.com/reference-guide/design/progressive-disclosure
-      summary: Cognitive science behind progressive disclosure for reducing complexity
+      summary: New users should see only the most important options initially
+version: 1.1.0
+created_at: 2026-01-16T16:22:44.421Z
+updated_at: 2026-11-25T00:00:00.000Z

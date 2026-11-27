@@ -1,0 +1,80 @@
+id: graph-data-wrangler
+name: Graph Data Wrangler
+roster_persona: notebook-graph-data-scientist
+tier: B
+scope: in-scope
+role: Research Software Engineer, Bioinformatician or Data Scientist Preparing Network Files
+quote: My colleague needs a file Cytoscape can open. I need to know the threshold is defensible and that nothing got silently dropped on the way.
+bio: >-
+    Erik Lindqvist is a research software engineer who prepares network files for colleagues who use desktop tools.
+    He writes pandas, R and SQL, and his inputs are correlation and distance matrices, event logs with millions of rows,
+    and relational tables. He uses pandas with NetworkX, R igraph, the WGCNA export to Cytoscape, tn93 with HIV-TRACE
+    for sequence distances, and Neo4j LOAD CSV when the data belongs in a database. The deliverable is a node table and
+    an edge table (or a database) the colleague's tool can open, with a defensible edge threshold, the right direction
+    and weights, and a record of what was dropped. He is the person who discovers that NetworkX DiGraph keeps one edge
+    per pair, that MERGE without a uniqueness constraint is very slow, and that a low threshold produces a file no
+    desktop tool can open.
+characteristics:
+    expertise: expert
+    time_pressure: medium
+    graph_literacy: advanced
+    domain_knowledge: advanced
+motivations:
+    - Hand colleagues a file that opens and means what they think it means
+    - Pick edge thresholds from the data, not from a default, and record why
+    - Keep a reproducible pipeline and a log of every row dropped or merged
+    - Scale to millions of events or tens of thousands of genes without crashing the downstream tool
+behaviors:
+    - Converts correlation, similarity or distance matrices to thresholded edge lists, sweeping thresholds and watching edge counts
+    - Aggregates event logs with groupby before building a graph, so repeated events are counted rather than silently collapsed
+    - Maps relational tables to labels and relationships, keeping business keys and adding uniqueness constraints first
+    - Loads into Neo4j in batches, nodes before relationships, and checks counts per label and type
+    - Pulls a capped subgraph from a database or repository for colleagues instead of the whole thing
+    - Checks components, isolates and self-loops right after building, before handing off
+frustrations:
+    - A threshold that is too low produces monstrous files desktop tools cannot open
+    - NetworkX DiGraph silently keeps one edge per pair, so repeated replies vanish unless counted first
+    - igraph errors that some vertex names in the edge list are not in the vertex data frame, from case or whitespace differences
+    - Neo4j MERGE without a uniqueness constraint is very slow on large loads
+    - GUI tools leave no record of the separator, merge strategy or direction chosen
+    - Each tool wants a different matrix or list format, so he writes converters
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W01
+    - W18
+    - W292
+    - W293
+    - W295
+    - W296
+    - W299
+    - W300
+    - W301
+    - W303
+    - W1162
+sources:
+    - title: Bioconductor support - WGCNA export threshold
+      url: https://support.bioconductor.org/p/95965/
+      summary: A threshold that is too low produces monstrous files
+    - title: Penn networks book - Network data hands-on
+      url: http://wonderlab.gse.upenn.edu/networks_book/ch6-network-data-handson.html
+      summary: Count repeated replies with groupby before building a graph; DiGraph keeps one edge per pair
+    - title: Posit forum - Some vertex names in edge list are not listed in vertex data frame
+      url: https://forum.posit.co/t/network-analysis-error-messages-some-vertex-names-in-edge-list-are-not-listed-in-vertex-data-frame/157302
+      summary: igraph endpoint matching failure between edge and vertex tables
+    - title: Neo4j data ingestion guide - LOAD CSV
+      url: https://neo4j.com/docs/data-ingestion-guide/ingestion-methods/load-csv/
+      summary: Create uniqueness constraints first, batch with CALL IN TRANSACTIONS, nodes then relationships
+    - title: WGCNA - exportNetworkToCytoscape reference
+      url: https://search.r-project.org/CRAN/refmans/WGCNA/html/exportNetworkToCytoscape.html
+      summary: Matrix to Cytoscape edge and node files with a default threshold of 0.5
+    - title: Graphty user research - Data preparation, import and first assessment
+      url: https://github.com/graphty-org/graphty-monorepo/blob/master/design/user-research/data-preparation-and-import.md
+      summary: Composite persona section 2.4 and the matrix, event, large-file and relational workflows
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

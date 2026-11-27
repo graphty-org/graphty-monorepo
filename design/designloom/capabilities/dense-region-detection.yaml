@@ -1,0 +1,38 @@
+id: dense-region-detection
+name: Dense Region Detection
+category: analysis
+description: Find densely connected regions (molecular complexes) by scoring each node's neighborhood and growing
+    clusters outward from high-scoring seed nodes, as MCODE does. Unlike community detection it does not partition
+    the graph - nodes that score too low stay unassigned - so it is a separate capability with its own result shape.
+status: planned
+notes: Proposed from design/user-research/systems-biology-omics-networks.md, where MCODE has 272,551 Cytoscape App
+    Store downloads and its clusters are a common input to enrichment. graphty-element ships k-core
+    (KCoreAlgorithm.ts), which MCODE's vertex weighting builds on, but no seeded dense-region finder. The per-node
+    core number as a measure the reader sees and styles is recorded in positional-subgroup-analysis.
+algorithms:
+    - MCODE (Bader and Hogue 2003) - vertex weight is the density of the highest k-core of the node's neighborhood
+      times that k; clusters grow from the highest-weighted seeds, then haircut and fluff post-processing
+used_by_workflows:
+    - W21
+    - W430
+implemented_by_components: []
+requirements:
+    - "Must: Use MCODE's parameter names and defaults so published methods sections can be followed literally - Degree Cutoff 2, Node Score Cutoff 0.2, Haircut on, Fluff off, K-Core 2 and Max. Depth from Seed 100"
+    - "Library parity: Scope the run to the whole network or to the current selection"
+    - "Must: Return a cluster id only for nodes placed in a cluster and mark every other node as unassigned, never as a cluster of its own; report how many nodes stayed unassigned"
+    - "Library parity: Return each cluster's score (density times number of nodes, as in the paper) and its seed node, and rank clusters by score"
+    - "Must: Record the method, every parameter and the scope with the result so the run can be repeated"
+    - "Library parity: Hand the clusters to the same per-cluster steps as community detection (enrichment, subnetwork extraction, per-cluster hubs)"
+sources:
+    - title: MCODE user manual (Bader Lab)
+      url: https://baderlab.org/Software/MCODE/UsersManual
+      summary: Degree Cutoff 2, Node Score Cutoff 0.2, Haircut true, Fluff false, K-Core 2, Max. Depth from Seed 100; unscored nodes stay unclustered
+    - title: clusterMaker2 documentation
+      url: https://rbvi.ucsf.edu/cytoscape/clusterMaker2
+      summary: MCODE is offered as a network cluster algorithm beside MCL and the partitioning methods
+    - title: Cytoscape App Store, MCODE
+      url: https://apps.cytoscape.org/apps/mcode
+      summary: Download count, read on 2026-11-25 for systems-biology-omics-networks.md
+    - title: Bader and Hogue 2003, An automated method for finding molecular complexes in large protein interaction networks
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC149346/
+      summary: Vertex weight is the core-clustering coefficient (density of the highest k-core of the neighborhood) times k_max; complex score is density times number of vertices

@@ -1,0 +1,179 @@
+id: W313
+name: Journal Figure and Network Deposit
+category: reporting
+validated: false
+personas:
+    - publication-figure-author
+    - graph-deliverable-recipient
+    - genomics-cytoscape-user
+    - network-biology-core-bioinformatician
+requires_capabilities:
+    - label-overlap-removal
+    - filtering
+    - component-analysis
+    - community-detection
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-force-directed
+    - annotation
+    - export-image
+    - data-export
+    - analysis-history
+    - report-generation
+    - journal-figure-export
+    - analysis-provenance
+    - matrix-view
+suggested_components:
+    - graph-canvas
+    - filter-panel
+    - cluster-collapse-control
+    - visual-encoding-panel
+    - gradient-editor
+    - legend-panel
+    - annotation-toolbar
+    - image-export-dialog
+    - data-export-dialog
+    - session-save-dialog
+    - share-dialog
+    - analysis-history-panel
+starting_state:
+    data_type: analyzed biological or scientific network with 10-40 attribute columns and recorded thresholds
+    node_count: 100-2,000
+    edge_density: sparse to moderate
+    user_expertise: intermediate+
+goal: >-
+    **Intent**: Turn a finished working network into a multi-panel journal figure with a complete legend, a methods
+    paragraph, a saved session and a network deposit that reviewers can open, and do it again after every review round.
+    Network scientists, neuroscientists and bibliometricians follow the same steps with their own additions (seed,
+    atlas, counting method).
+
+
+    **Mental Model**: "Caption first, then cut to the message." The figure is an argument that must survive reduction
+    to an 85 mm column and a reviewer asking which threshold was used. The deposit is the evidence behind the figure.
+
+
+    **Task Phases**:
+
+    1. **Write the caption first** - State the one claim the panel supports; decide node-link or adjacency
+    matrix (a matrix for dense networks)
+
+    2. **Cut to the message** - Filter, keep the largest component, collapse clusters, aggregate the
+    periphery; split overview and detail into separate panels rather than overloading one
+
+    3. **Style for print** - Labels at least caption size; no red-green; check grayscale; no unjustified 3D;
+    target 85, 114 or 174 mm width with 6-8 pt minimum fonts, or the journal's pixel and dpi rules (PLOS 789-2250 px
+    at 300 dpi, TIFF or EPS, at most 10 MB)
+
+    4. **Frame and export** - Fit the whole network because only the visible area is exported; export vector
+    PDF or SVG; for bitmaps, resolution comes from zoom, not the DPI field
+
+    5. **Record parameters** - Copy creation parameters (source and version, thresholds, clustering, layout,
+    seed) into the legend and methods paragraph by hand; update them if filters changed the network
+
+    6. **Build the legend** - Legend Creator covers node mappings only; edge style, color and width legends are
+    drawn by hand; Gephi exports have no legend at all
+
+    7. **Assemble panels** - Illustrator or Inkscape; repeated after every reviewer round
+
+    8. **Save the session** - Zipped session file with data, styles and positions
+
+    9. **Deposit** - Export to NDEx as private, share the URL with reviewers, fill every property, request a
+    DOI after acceptance, after which the network is frozen
+
+
+    **Decision Points**:
+
+    - Node-link diagram or adjacency matrix for this density?
+
+    - What to remove, collapse or aggregate without changing the claim?
+
+    - Vector or bitmap, and at what physical width?
+
+    - Which parameters must appear in the legend versus the methods?
+
+    - When to make the deposit public and request the DOI?
+
+
+    **Information Needs**:
+
+    - The journal's width, font, format, color and size rules
+
+    - Every parameter that produced the network and the view (source version, thresholds, algorithm, layout, seed)
+
+    - A preview at final printed size and in grayscale
+
+    - Node AND edge encodings with their scale endpoints for the legend
+
+    - Which reviewers have the private link
+
+
+    **Pain Points**:
+
+    - Only the visible canvas is exported; framing is manual
+
+    - The DPI field does not set bitmap resolution
+
+    - Legends cover nodes but not edges, and are not part of the export
+
+    - Text exported as fonts breaks on two-byte characters
+
+    - Parameters are typed by hand and go stale after filtering
+
+    - Gephi exports use Preview styling, not the working view; very large PDF exports hang
+
+    - Every review round means redoing panel assembly in Illustrator
+
+
+    **Data Flow**:
+
+    - Input: Working network with attributes, analysis results and their parameters, journal specifications
+
+    - Transformations: Filtering, clustering and collapse, print styling, framing, legend and parameter block
+    generation, panel assembly
+
+    - Output: Vector or high-resolution figure files, legend text with parameters, methods paragraph, session file,
+    NDEx private link then DOI
+success_criteria:
+    - metric: Legend completeness
+      target: Exported figure states every node and edge encoding with scale endpoints and the parameters that produced the network
+    - metric: Print legibility
+      target: Smallest label at least 6 pt at the chosen column width, readable in grayscale
+    - metric: Rework after review
+      target: A requested change is re-exported without manual panel reassembly
+    - metric: Reviewer access
+      target: Reviewers open the exact network behind the figure from a private link
+sources:
+    - title: Ten simple rules to create biological network figures for communication (Marai et al.)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6762067
+      summary: Caption first, matrix for dense networks, cut and aggregate, legible labels, avoid red-green, no unjustified 3D
+    - title: EnrichmentMap protocol - Exporting figures, creating legends and saving work
+      url: https://baderlab.github.io/EnrichmentMap_Protocol/exporting-figures-creating-legends-and-saving-work.html
+      summary: Only the visible part of the map is exported; Show Creation Parameters copied into the legend
+    - title: Cytoscape User Manual - Export Your Data
+      url: https://manual.cytoscape.org/en/3.10.3/_sources/Export_Your_Data.md.txt
+      summary: PDF recommended for publication; text-as-font caveat for two-byte characters
+    - title: Cytoscape tutorial - Legend Creator
+      url: https://cytoscape.org/cytoscape-tutorials/protocols/legend-creator
+      summary: Does not support edge line style, color or thickness
+    - title: cytoscape-discuss - image export resolution
+      url: https://groups.google.com/g/cytoscape-discuss/c/WyE-wbZU0q0
+      summary: Bitmap resolution comes from zoom, not the DPI field
+    - title: NDEx Current Protocols
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8544027
+      summary: Private reviewer URL, all properties required before a DOI, frozen after DOI
+    - title: PLOS Medicine - Figures
+      url: https://journals.plos.org/plosmedicine/s/figures
+      summary: 789-2250 px at 300 dpi, TIFF or EPS, at most 10 MB, captions outside the file
+    - title: Nature research figure guide
+      url: https://research-figure-guide.nature.com/figures/preparing-figures-our-specifications
+      summary: Vector art, RGB, embedded fonts
+    - title: Gephi Q&A - exports use Preview
+      url: https://answers.launchpad.net/gephi/+question/191110
+      summary: Styling must be redone in Preview because exports do not use the Overview
+    - title: University of Toronto Gephi tutorial - static image export
+      url: https://mdlutoronto.github.io/gephi-visualize-network-dataset/7-g-export-visualizations-as-static-images/
+      summary: Add the legend in Illustrator or Inkscape
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

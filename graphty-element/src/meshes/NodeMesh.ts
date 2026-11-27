@@ -91,7 +91,7 @@ const BOX_OR_ELLIPSE: ReadonlySet<string> = new Set(["rectangle", "none", "ellip
  * @param texture - The style's texture.
  * @returns The opacity, 1 when the style names none.
  */
-export function styleOpacity(texture: NodeStyleConfig["texture"]): number {
+function styleOpacity(texture: NodeStyleConfig["texture"]): number {
     const color = texture?.color;
     return typeof color === "object" && "opacity" in color ? (color.opacity ?? 1) : 1;
 }

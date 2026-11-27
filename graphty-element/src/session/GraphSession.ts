@@ -289,6 +289,7 @@ import type {
     SessionTours,
     SessionViews,
     SettingEffect,
+    SettingEffectCode,
     SourceDraftChange,
     StartingCamera,
     TransactionOptions,
@@ -2572,6 +2573,9 @@ function configOf(
 /** The graph settings the 2D view ignores: it is drawn flat, and without depth. */
 const IGNORED_IN_2D: ReadonlySet<GraphSettingKey> = new Set(["lighting", "node.sizeSpace"]);
 
+/** The graph settings the 3D view ignores: only the 2D view is turned on screen. */
+const IGNORED_IN_3D: ReadonlySet<GraphSettingKey> = new Set(["viewRotation"]);
+
 /** Every graph setting `config.inEffect` answers for. */
 const GRAPH_SETTINGS: ReadonlySet<string> = new Set<GraphSettingKey>([
     "background",
@@ -2579,6 +2583,7 @@ const GRAPH_SETTINGS: ReadonlySet<string> = new Set<GraphSettingKey>([
     "node.sizeSpace",
     "labels.declutter",
     "labels.avoidNodesAndEdges",
+    "viewRotation",
 ]);
 
 /**
@@ -2601,12 +2606,15 @@ function settingEffect(key: GraphSettingKey, layout: LayoutChoice, sizeSpace: st
 
     // "screen" holds a node's size through a 2D zoom too; "pivot" needs depth, which 2D has none of.
     const screen = key === "node.sizeSpace" && sizeSpace === "screen";
-    const ignored = layout.dimension === "2d" && IGNORED_IN_2D.has(key) && !screen;
-    return Object.freeze({
-        inEffect: !ignored,
-        code: ignored ? "setting.notIn2d" : "setting.inEffect",
-        params: { setting: key },
-    });
+    const ignored2d = layout.dimension === "2d" && IGNORED_IN_2D.has(key) && !screen;
+    const ignored3d = layout.dimension === "3d" && IGNORED_IN_3D.has(key);
+    let code: SettingEffectCode = "setting.inEffect";
+    if (ignored2d) {
+        code = "setting.notIn2d";
+    } else if (ignored3d) {
+        code = "setting.notIn3d";
+    }
+    return Object.freeze({ inEffect: code === "setting.inEffect", code, params: { setting: key } });
 }
 
 /**

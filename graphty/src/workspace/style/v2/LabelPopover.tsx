@@ -10,7 +10,7 @@
 import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
 import React from "react";
 
-import { labelRuledOut } from "./drawn";
+import { labelFieldHidden, labelRuledOut } from "./drawn";
 import { LabelFieldLine, type LabelLineContext } from "./LabelFieldLine";
 import {
     BACKGROUND,
@@ -101,16 +101,19 @@ export function LabelPopover({
         (field) => !LABEL_COVERED.has(field) && (style as Record<string, unknown>)[field] !== undefined,
     );
     const set = (line: LabelLineSpec): boolean => labelLineFields(line).some((field) => fieldSet(label, field));
-    // A line another field rules out appears once it applies (design "Input rules", "Tabs").
+    // A line another field rules out appears once it applies (design "Input rules", "Tabs"); a line drawn only in the
+    // other view is hidden, set or not.
     const shown = (line: LabelLineSpec, beside: readonly LabelLineSpec[] = []): boolean =>
-        !labelRuledOut(
+        !labelFieldHidden(ctx.session, line.field) &&
+        (!labelRuledOut(
             ctx,
             kind.style,
             style,
             line.field,
             labelLineFields(line),
             beside.flatMap((each) => labelLineFields(each)),
-        ) || set(line);
+        ) ||
+            set(line));
     const onUnset = (group: LabelGroup): void => {
         const drop = group.name === POSITION && kind.distance !== undefined ? [kind.distance] : [];
         write(Object.fromEntries(labelGroupFields(group).map((field) => [field, undefined])), drop);

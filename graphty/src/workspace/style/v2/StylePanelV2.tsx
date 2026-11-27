@@ -33,7 +33,7 @@ import { useShaderList } from "../shaderList";
 import { focusLineNext } from "../useFocusLine";
 import { channelWord, experimentChannelsOff, failureWords } from "../words";
 import { dataChannelOf } from "./dataEntries";
-import { viewDim } from "./drawn";
+import { channelHidden, shaderHidden } from "./drawn";
 import { replaceUse } from "./families";
 import { kindGroupOf, type KindMember, kindsShown, kindStarts, lineWidthOf, ownsOf, PLAIN_LOOK } from "./kindGroups";
 import {
@@ -112,8 +112,10 @@ function thingChannels(
     const own = (thing.own ?? []).filter((c) => kindChannels.has(c));
     // A pie's, chart's or record's data spec is its own, though no `parts.ts` item lists it (DataRow.tsx).
     const data = dataChannelOf(ctx, thing.id);
+    // A channel drawn only in the other view is not offered in this one: its row, its "+" item and its Find a
+    // setting result are hidden, and what the layer holds for it stays (design "Input rules", 2026-11-27).
     return [...new Set([...items.filter((c) => offered.has(c)), ...own, ...(data === undefined ? [] : [data])])].filter(
-        (c) => !taken.has(c),
+        (c) => !taken.has(c) && !channelHidden(ctx.session, c),
     );
 }
 
@@ -388,7 +390,13 @@ function freeKind(ctx: RowContext, thing: ThingSpec, waiting: readonly string[])
         return undefined;
     }
     const drawn = new Set(kindsShown(ctx, group).map((member) => member.id));
-    return group.members.find((member) => !drawn.has(member.id) && !waiting.includes(`${thing.id}:${member.id}`));
+    // A kind drawn only in the other view is not added in this one (an Over line in 3D).
+    return group.members.find(
+        (member) =>
+            !drawn.has(member.id) &&
+            !waiting.includes(`${thing.id}:${member.id}`) &&
+            !channelHidden(ctx.session, member.head),
+    );
 }
 
 /**
@@ -486,6 +494,8 @@ function ThingSection({
             shaders: true,
             shapeOwnsReplace: true,
             renderRow: (entry) => <ShaderUseRow ctx={ctx} entry={entry} />,
+            // A use of a shader drawn only in the other view is hidden in this one; the layer keeps it.
+            listed: (entry) => !shaderHidden(ctx.session, entry.descriptor?.views),
         },
         sectionBox,
         holdsShaders,
@@ -519,22 +529,12 @@ function ThingSection({
                     return [{ key: thing.id, label: thing.name }];
                 }
                 if (!shown.some((each) => each.thing === thing)) {
-                    // A thing that draws nothing in this view (a 3D-only one in 2D) is dimmed, still pickable.
-                    const main = thing.start ?? thing.main.at(0);
-                    return [
-                        {
-                            key: thing.id,
-                            label: thing.name,
-                            dimmed: main === undefined ? undefined : viewDim(ctx, main),
-                            hint: thing.hint,
-                        },
-                    ];
+                    return [{ key: thing.id, label: thing.name, hint: thing.hint }];
                 }
-                // A kind group with a kind still free adds it (a second Arrow is the source end, ia-design 2),
-                // dimmed as that kind is in this view (a plate in 3D, E669).
+                // A kind group with a kind still free adds it (a second Arrow is the source end, ia-design 2).
                 const free = freeKind(ctx, thing, waiting);
                 if (free !== undefined) {
-                    return [{ key: thing.id, label: thing.name, hint: thing.hint, dimmed: viewDim(ctx, free.head) }];
+                    return [{ key: thing.id, label: thing.name, hint: thing.hint }];
                 }
                 // Several rows edited together share plain channels only, so a further label waits for one row.
                 // graphty-element draws at most LABEL_CAP further labels, so "+" stops offering one there.
@@ -800,6 +800,7 @@ export function StylePanelV2({ ctx: row }: Readonly<{ ctx: RowContext }>): React
                     return found === undefined ? channel : `${found.group ?? ""}:${found.line.channel}`;
                 }}
                 home={(channel) => homes.get(channel)}
+                offered={(channel) => !channelHidden(ctx.session, channel)}
                 words={(channel) => {
                     const found = lineFor(ctx.side, channel);
                     return [found?.line.name ?? "", found?.group ?? "", ...(FIND_WORDS[channel] ?? [])].filter(

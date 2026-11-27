@@ -12,7 +12,7 @@ import { useWorkspace } from "../../state/WorkspaceContext";
 import { Field, type RowContext } from "../PropertyRow";
 import { lineIn, writeIn } from "../row";
 import { channelWord, COMBINE_OPTIONS, combineOf, failureWords } from "../words";
-import { dimOf, ruledOut } from "./drawn";
+import { channelHidden, dimOf, ruledOut } from "./drawn";
 import { GroupMenu, type MenuGroup } from "./GroupMenu";
 import { groupSet, unsetIn } from "./lineWrites";
 import { lineChannels, type LineSpec, rubricChannels, type SubGroup, type ThingRubric } from "./rubric";
@@ -139,16 +139,21 @@ export function ThingPopover({
         lines.some((line) => line.channel === head.channel)
             ? lines
             : [head, ...lines];
-    // A line another setting of the row rules out appears once it applies (design "Input rules", "Tabs").
+    // A line another setting of the row rules out appears once it applies (design "Input rules", "Tabs"). A line drawn
+    // only in the other view is hidden, set or not, and a group of only such lines leaves the "..." menu.
     const own = [...rubricChannels(rubric), ...(head === undefined ? [] : [head.channel])];
     const shown = (line: LineSpec): boolean =>
-        !ruledOut(
+        !channelHidden(ctx.session, line.channel) &&
+        (!ruledOut(
             ctx,
             line.channel,
             // A condition on the line's own other value (a pair's second number) never hides it.
             own.filter((channel) => !lineChannels(line).includes(channel)),
-        ) || lineChannels(line).some((channel) => setOn(ctx, channel));
-    const groups: readonly (SubGroup | ExtraGroup)[] = [...(rubric.groups ?? []), ...moreGroups];
+        ) ||
+            lineChannels(line).some((channel) => setOn(ctx, channel)));
+    const groups: readonly (SubGroup | ExtraGroup)[] = [...(rubric.groups ?? []), ...moreGroups].filter(
+        (group) => "node" in group || group.lines.some((line) => !channelHidden(ctx.session, line.channel)),
+    );
     const onUnset = (group: SubGroup | ExtraGroup): void => {
         const done =
             "node" in group
@@ -268,8 +273,8 @@ export function FirstLines({ ctx, main }: Readonly<{ ctx: RowContext; main: Chan
                     modifier={null}
                     removeName={undefined}
                     onRemove={() => undefined}
-                    // Combine meets the main value, so it draws nothing wherever that value does not (a 2D-only
-                    // raised edge's in 3D).
+                    // Combine meets the main value, so it draws nothing wherever that value does not (a raised
+                    // edge's on a round shape).
                     dimmed={dimOf(ctx, main.channel)}
                 />
             )}

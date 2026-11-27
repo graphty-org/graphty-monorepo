@@ -1,8 +1,8 @@
 /**
- * Style panel v2 dims what graphty-element draws nothing for in the view shown now, from the element's own
- * view facts, on the REAL graphty-element and real input: a line, a "+" item and a Shaders gallery tile that
- * only draw in one view are dimmed in the other with a tooltip saying which, never hidden or removed, and
- * switching the view from the toolbar's Mode menu turns that around.
+ * Style panel v2 on the REAL graphty-element and real input, from the element's own view facts: a setting drawn only
+ * in one view is hidden in the other -- its row, its line, its "+" item, its kind and its Shaders gallery tile -- and
+ * what the layer holds for it stays, shown again once the toolbar's Mode menu switches back. Whatever draws nothing
+ * for another reason (a layer above, a 3D layout under a Lift) is dimmed with a tooltip saying why.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -39,10 +39,70 @@ async function lineOf(root: ParentNode, channel: string): Promise<HTMLElement> {
     });
 }
 
-describe("Style panel v2 dims what draws nothing in this view", () => {
+/**
+ * The names a section's "+" menu offers, by real clicks; the menu is closed again.
+ * @param section - the section.
+ * @param plus - its "+" button's name.
+ * @returns the items' names.
+ */
+async function plusItems(section: HTMLElement, plus: RegExp): Promise<string[]> {
+    await userEvent.click(within(section).getByRole("button", { name: plus }));
+    const names = (await screen.findAllByRole("menuitem")).map((item) => item.textContent.trim());
+    await userEvent.keyboard("{Escape}");
+    return names;
+}
+
+describe("Style panel v2 hides what draws only in the other view", () => {
     withFeatures(["file-styles", "style-panel-v2"]);
 
-    it("Lift draws only out of a flat layout in 3D: it is dimmed in 2D and over a 3D layout, never removed", async () => {
+    it("Raised edge (2D) and Finish (3D) come and go with the view; a raised edge set in 2D survives 3D", async () => {
+        const { session, nodes } = await openGraph();
+        // A raised edge is a flat shape's bevel.
+        await session.styles.update(nodes, { set: { "node.color": "#E8590C", "node.shape": "rectangle" } });
+        await session.styles.settled();
+        await switchView("2D");
+        const tab = await openStyle("Key people");
+        const effects = sectionOf(tab, "node-effects");
+        const fill = sectionOf(tab, "node-fill");
+        const effectsPlus = /^Add to node effects/;
+        const fillPlus = /^Add to node fill/;
+        assert.include(await plusItems(effects, effectsPlus), "Raised edge", "offered in 2D");
+        assert.notInclude(await plusItems(fill, fillPlus), "Finish", "not offered in 2D");
+
+        // In 2D, "+ Raised edge" adds it, by real clicks.
+        await userEvent.click(within(effects).getByRole("button", { name: effectsPlus }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Raised edge" }));
+        await waitFor(() => {
+            assert.isNotNull(effects.querySelector('[data-thing="raised"]'), "its row is drawn");
+        });
+        await waitFor(() => {
+            assert.isDefined(session.styles.get(nodes)?.set?.["node.raisedBorderWidth"]);
+        });
+        const width = session.styles.get(nodes)?.set?.["node.raisedBorderWidth"];
+
+        await switchView("3D");
+        await waitFor(() => {
+            assert.isNull(effects.querySelector('[data-thing="raised"]'), "the row is hidden in 3D");
+        });
+        assert.notInclude(await plusItems(effects, effectsPlus), "Raised edge", "not offered in 3D");
+        assert.include(await plusItems(fill, fillPlus), "Finish", "offered in 3D");
+        assert.strictEqual(
+            session.styles.get(nodes)?.set?.["node.raisedBorderWidth"],
+            width,
+            "the layer keeps its raised edge",
+        );
+
+        await switchView("2D");
+        await waitFor(() => {
+            const line = effects.querySelector('[data-thing="raised"] .ws-row[data-line="node.raisedBorderWidth"]');
+            assert.isNotNull(line, "shown again in 2D");
+            assert.isNull(line.closest("[data-dimmed]"), "and not dimmed");
+        });
+        assert.strictEqual(session.styles.get(nodes)?.set?.["node.raisedBorderWidth"], width, "unchanged");
+        assert.notInclude(await plusItems(fill, fillPlus), "Finish", "hidden again in 2D");
+    });
+
+    it("Lift draws only out of a flat layout in 3D: dimmed over a 3D layout, hidden in 2D", async () => {
         const { session } = await openGraph();
         await switchView("3D");
         await openStyle("Links");
@@ -73,93 +133,34 @@ describe("Style panel v2 dims what draws nothing in this view", () => {
         await userEvent.keyboard("{Escape}");
         await userEvent.keyboard("{Escape}");
         await switchView("2D");
-        await openLine();
-        await waitFor(() => {
-            const again = document.querySelector('[data-thing-popover] .ws-row[data-line="edge.lift"]');
-            assert.isNotNull(again, "in 2D Lift is still there");
-            assert.equal(dimmed(again), "3D only", "dimmed, its tooltip saying why");
-        });
+        const group = await openLine();
+        assert.isNull(group.querySelector('.ws-row[data-line="edge.lift"]'), "in 2D Lift is hidden");
     });
 
-    it("Raised edge draws only in 2D: in 3D its '+' item and its row are dimmed '2D only', in 2D they are not (E441)", async () => {
+    it("node Plate: hidden from '+' in 3D, offered in 2D, and a Behind plate's row hidden in 3D (E669)", async () => {
         const { session, nodes } = await openGraph();
-        // A raised edge is a flat shape's: on a sphere it is dimmed in both views.
-        await session.styles.update(nodes, { set: { "node.color": "#E8590C", "node.shape": "rectangle" } });
-        await session.styles.settled();
-        await switchView("3D");
-        const tab = await openStyle("Key people");
-        const border = sectionOf(tab, "node-effects");
-        await userEvent.click(within(border).getByRole("button", { name: /^Add to node effects/ }));
-        const item = await screen.findByRole("menuitem", { name: "Raised edge" });
-        assert.equal(dimmed(item), "2D only", "the '+' item is dimmed in 3D");
-        await userEvent.click(item);
-        await waitFor(() => {
-            assert.isDefined(session.styles.get(nodes)?.set?.["node.raisedBorderWidth"], "a dimmed item still adds");
-        });
-        const row = await waitFor(() => {
-            const found = border.querySelector<HTMLElement>('[data-thing="raised"]');
-            assert.isNotNull(found);
-            return found;
-        });
-        await waitFor(() => {
-            const line = row.querySelector('.ws-row[data-line="node.raisedBorderWidth"]') ?? row;
-            assert.equal(dimmed(line), "2D only", "the row is dimmed in 3D");
-        });
-        await switchView("2D");
-        await waitFor(() => {
-            const line = border.querySelector('[data-thing="raised"] .ws-row[data-line="node.raisedBorderWidth"]');
-            assert.isNotNull(line);
-            assert.isNull(dimmed(line), "not dimmed in 2D");
-        });
-    });
-
-    // A node's Plate (its underlay and overlay, E669) draws only in 2D.
-    for (const [side, names] of [["node", ["Plate"]]] as const) {
-        it(`${side} ${names.join(" and ")}: in 3D the '+' items are dimmed '2D only', in 2D not (E669)`, async () => {
-            await openGraph();
-            const tab = await openStyle(side === "node" ? "Key people" : "Links");
-            await showKind(side);
-            const effects = sectionOf(tab, `${side}-effects`);
-            const items = async (): Promise<(string | null)[]> => {
-                await userEvent.click(
-                    within(effects).getByRole("button", { name: new RegExp(`^Add to ${side} effects`) }),
-                );
-                const found: (string | null)[] = [];
-                for (const name of names) {
-                    found.push(dimmed(await screen.findByRole("menuitem", { name })));
-                }
-                await userEvent.keyboard("{Escape}");
-                return found;
-            };
-            await switchView("3D");
-            assert.deepEqual(
-                await items(),
-                names.map(() => "2D only"),
-                "dimmed in 3D",
-            );
-            await switchView("2D");
-            assert.deepEqual(
-                await items(),
-                names.map(() => null),
-                "not dimmed in 2D",
-            );
-        });
-    }
-
-    it("node Plate: with a Behind plate on the layer, the '+' item adding Over is still dimmed '2D only' in 3D (E669)", async () => {
-        const { session, nodes } = await openGraph();
-        await session.styles.update(nodes, { set: { "node.underlayColor": "#ff0000" } });
-        await session.styles.settled();
         const tab = await openStyle("Key people");
         await showKind("node");
-        await switchView("3D");
         const effects = sectionOf(tab, "node-effects");
-        await userEvent.click(within(effects).getByRole("button", { name: /^Add to node effects/ }));
-        assert.equal(dimmed(await screen.findByRole("menuitem", { name: "Plate" })), "2D only");
-        await userEvent.keyboard("{Escape}");
+        const plus = /^Add to node effects/;
+        await switchView("3D");
+        assert.notInclude(await plusItems(effects, plus), "Plate", "not offered in 3D");
+        await switchView("2D");
+        assert.include(await plusItems(effects, plus), "Plate", "offered in 2D");
+        await session.styles.update(nodes, { set: { "node.underlayColor": "#ff0000" } });
+        await session.styles.settled();
+        await waitFor(() => {
+            assert.isNotNull(effects.querySelector('[data-thing="plate"]'), "the plate's row in 2D");
+        });
+        await switchView("3D");
+        await waitFor(() => {
+            assert.isNull(effects.querySelector('[data-thing="plate"]'), "hidden in 3D");
+        });
+        assert.notInclude(await plusItems(effects, plus), "Plate", "and no Over plate to add");
+        assert.strictEqual(session.styles.get(nodes)?.set?.["node.underlayColor"], "#ff0000", "the layer keeps it");
     });
 
-    it("a custom shader declaring 3D only is dimmed in 2D in the Shaders gallery, as a built-in one is", async () => {
+    it("a custom shader declaring 3D only is not in the Shaders gallery in 2D, and is in 3D", async () => {
         const { session } = await openGraph();
         const added = await session.shaders.add(`/* graphty-shader 1
 {"id":"user/lamp","name":"Lamp","place":"over","views":["3d"],"params":[]}
@@ -169,44 +170,38 @@ vec4 shade(NodeInput n) { return n.color; }
         assert.isTrue(added.ok, JSON.stringify(added));
         await switchView("2D");
         const tab = await openStyle("Key people");
-        const open = async (): Promise<HTMLElement> => {
-            // Effects "+" > Shader opens the one list of the node's shaders (E381, E668).
-            await openShaderList(tab, "node");
-            return waitFor(() => {
-                const found = document.querySelector<HTMLElement>('.ws-gallery-tile[data-shader="user/lamp"]');
-                assert.isNotNull(found, "the custom shader is in the gallery");
-                return found;
-            });
-        };
-        const tile = await open();
-        assert.isTrue(tile.hasAttribute("data-dimmed"), "dimmed in 2D");
-        assert.notEqual(tile.getAttribute("aria-disabled"), "true", "still pickable");
+        // Effects "+" > Shader opens the one list of the node's shaders (E381, E668).
+        await openShaderList(tab, "node");
+        await waitFor(() => {
+            assert.isNotNull(document.querySelector(".ws-gallery-tile"), "the gallery is open");
+        });
+        assert.isNull(document.querySelector('.ws-gallery-tile[data-shader="user/lamp"]'), "hidden in 2D");
         await userEvent.keyboard("{Escape}");
         await switchView("3D");
-        const again = await open();
-        assert.isFalse(again.hasAttribute("data-dimmed"), "not dimmed in 3D");
+        await openShaderList(tab, "node");
+        await waitFor(() => {
+            assert.isNotNull(document.querySelector('.ws-gallery-tile[data-shader="user/lamp"]'), "listed in 3D");
+        });
     });
-    it("edge Outline: '+' Outline is Under line, drawn in both views; with it drawn, the free Over line is dimmed '2D only' in 3D (E669, E677)", async () => {
+
+    it("edge Outline: '+' Outline is Under line in both views; with it drawn, Over line is offered in 2D only (E669, E677)", async () => {
         const { session, edges } = await openGraph();
         const tab = await openStyle("Links");
         await showKind("edge");
         const line = sectionOf(tab, "edge-line");
-        const outlineItem = async (): Promise<string | null> => {
-            await userEvent.click(within(line).getByRole("button", { name: /^Add to edge line/ }));
-            const found = dimmed(await screen.findByRole("menuitem", { name: /^Outline/ }));
-            await userEvent.keyboard("{Escape}");
-            return found;
-        };
+        const plus = /^Add to edge line/;
+        const offersOutline = async (): Promise<boolean> =>
+            (await plusItems(line, plus)).some((name) => name.startsWith("Outline"));
         await switchView("3D");
-        assert.isNull(await outlineItem(), "Under line draws in 3D (E677)");
+        assert.isTrue(await offersOutline(), "Under line draws in 3D (E677)");
         await session.styles.update(edges, { set: { "edge.outlineColor": "#ff0000", "edge.outlineWidth": 2 } });
         await session.styles.settled();
         await waitFor(() => {
             assert.isNotNull(line.querySelector('[data-thing="outline"]'));
         });
-        assert.equal(await outlineItem(), "2D only", "Over line, the free kind, in 3D");
+        assert.isFalse(await offersOutline(), "Over line, the free kind, is hidden in 3D");
         await switchView("2D");
-        assert.isNull(await outlineItem(), "not dimmed in 2D");
+        assert.isTrue(await offersOutline(), "offered in 2D");
     });
 
     it("a Shape a layer above draws over on every node is dimmed, naming that layer, and still takes a pick", async () => {

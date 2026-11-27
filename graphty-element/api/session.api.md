@@ -1954,7 +1954,7 @@ export interface GraphSession {
 }
 
 // @public
-export type GraphSettingKey = "background" | "lighting" | "node.sizeSpace" | "labels.declutter" | "labels.avoidNodesAndEdges";
+export type GraphSettingKey = "background" | "lighting" | "node.sizeSpace" | "labels.declutter" | "labels.avoidNodesAndEdges" | "viewRotation";
 
 export { GraphSource }
 
@@ -7636,7 +7636,7 @@ export interface SettingEffect extends CodedFact<SettingEffectCode> {
 }
 
 // @public
-export type SettingEffectCode = "setting.inEffect" | "setting.notIn2d";
+export type SettingEffectCode = "setting.inEffect" | "setting.notIn2d" | "setting.notIn3d";
 
 // @public
 export interface SetUser {

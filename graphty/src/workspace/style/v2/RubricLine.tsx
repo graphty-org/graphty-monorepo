@@ -38,7 +38,7 @@ import { tippedWord } from "../segmentTips";
 import { ValueField } from "../ValueField";
 import { channelWord, failureWords, fieldName, scrubLetter, takesBinding } from "../words";
 import { BesidePopover } from "./dataLines";
-import { dimOf, drawnValue, valueDimOf } from "./drawn";
+import { channelHidden, dimOf, drawnValue, valueDimOf, valueHidden } from "./drawn";
 import { PointPair } from "./ItemFields";
 import { ItemListEditor } from "./ItemListEditor";
 import { moveUnit, rangeOf, readsAsPercent, ruleOf, unsetIn } from "./lineWrites";
@@ -394,7 +394,7 @@ export function SegmentsLine({
         readonly name: string;
         readonly glyph?: keyof typeof GLYPHS;
         readonly disabled?: boolean;
-        /** Why graphty-element draws nothing for the option in this view: dimmed, its tooltip saying why. */
+        /** Why graphty-element draws nothing new for the option: dimmed, its tooltip saying why. */
         readonly dimmed?: string;
         /** A word option's hover tooltip, when its short word needs its long one ("Extend the palette"). */
         readonly tip?: string;
@@ -534,16 +534,21 @@ function segmentsControl(args: ControlArgs): React.ReactNode {
     // Unset, the segment drawn now is shown: what the layers beneath paint, else graphty-element's default (E495:
     // picking the value already drawn is never mistaken for an option that does nothing).
     const shown = value ?? drawnValue(ctx, descriptor.channel);
-    // A value graphty-element draws only in the other view (`valueViews`: a node size's Pivot in 2D) is dimmed.
-    const options = (segmentOptions(line, values) ?? []).map((option) => {
-        const dimmed = valueDimOf(ctx, descriptor, option.value);
-        return dimmed === undefined ? option : { ...option, dimmed };
-    });
+    const now = typeof shown === "string" || typeof shown === "boolean" ? String(shown) : "";
+    // A value graphty-element draws only in the other view (`valueViews`: a node size's Pivot in 2D) is hidden, unless
+    // it is the value the row holds now, which stays shown rather than changed (design "Input rules", 2026-11-27); a
+    // value that draws nothing new for another reason is dimmed.
+    const options = (segmentOptions(line, values) ?? [])
+        .filter((option) => option.value === now || !valueHidden(ctx.session, descriptor, option.value))
+        .map((option) => {
+            const dimmed = valueDimOf(ctx, descriptor, option.value);
+            return dimmed === undefined ? option : { ...option, dimmed };
+        });
     return (
         <SegmentsLine
             label={label}
             options={options}
-            value={typeof shown === "string" || typeof shown === "boolean" ? String(shown) : ""}
+            value={now}
             onPick={(picked) => {
                 if (picked === "") {
                     write(descriptor.channel, undefined);
@@ -1268,6 +1273,11 @@ interface RubricLineProps {
  * @returns The line, or nothing where the element offers none of its channels
  */
 export function RubricLine(props: RubricLineProps): React.JSX.Element | null {
+    // A line graphty-element draws only in the other view is hidden; what the layer holds for it stays (design "Input
+    // rules", 2026-11-27).
+    if (channelHidden(props.ctx.session, props.line.channel)) {
+        return null;
+    }
     if (props.line.choices !== undefined) {
         return <ChoiceLine {...props} />;
     }
@@ -1299,7 +1309,8 @@ function OneLine({ ctx, line, row, named: alwaysNamed = false }: RubricLineProps
     if (descriptor?.renderable !== true || !units) {
         return null;
     }
-    // A line graphty-element draws nothing for now (a 3D-only line in 2D) is dimmed, never hidden.
+    // A line graphty-element draws nothing for now for a reason other than the view (a border's wave on a solid line)
+    // is dimmed; one drawn only in the other view is not drawn at all (`RubricLine`).
     const dimmed = dimOf(ctx, channel);
     const rule = ruleOf(line, descriptor);
     const kept = keptField(ctx, line, row, descriptor, rule, set, alwaysNamed);
@@ -1605,7 +1616,10 @@ export function LineFrame({
     modifier: React.ReactNode;
     removeName: string | undefined;
     onRemove: () => void;
-    /** Why graphty-element draws nothing for it now ("2D only"): the line is dimmed, with these words as its tooltip. */
+    /**
+     * Why graphty-element draws nothing for it now ("Only when Pattern is dash or dot"): the line is dimmed, with
+     * these words as its tooltip.
+     */
     dimmed?: string;
     /** Drawn under the switch line above it ("Opacity" under Letter outline): its name is indented. */
     under?: boolean;

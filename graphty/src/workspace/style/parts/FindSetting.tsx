@@ -114,6 +114,8 @@ function AlsoSetBy({
  * @param props.words - more words a setting is found by (Style panel v2's line and sub-group names)
  * @param props.home - where this panel holds a setting, heading its results (Style panel v2's sections and things)
  * @param props.lineKey - the line a found setting is drawn on: settings sharing one (a pair, a unit line) draw it once
+ * @param props.offered - whether the panel offers a setting now; one it does not is never found (Style panel v2: a
+ * setting drawn only in the other view)
  * @returns The results
  */
 export function FindSettingResults({
@@ -124,6 +126,7 @@ export function FindSettingResults({
     words,
     home,
     lineKey,
+    offered,
 }: Readonly<{
     ctx: RowContext;
     query: string;
@@ -132,12 +135,15 @@ export function FindSettingResults({
     words?: (channel: Channel) => readonly string[];
     home?: (channel: Channel) => FoundHome | undefined;
     lineKey?: (channel: Channel) => string;
+    offered?: (channel: Channel) => boolean;
 }>): React.JSX.Element {
     const { session } = ctx;
     const own = new Set(ctx.layers.map((layer) => layer.row ?? layer.id));
     const rows = layerRows(session.styles.tree()).filter((id) => !own.has(id));
     const reaches = rows.length === 0 ? [] : session.styles.layersUnder(rows);
-    const groups = findSettings(ctx.side, query, parts, words, home);
+    const groups = findSettings(ctx.side, query, parts, words, home)
+        .map((group) => ({ ...group, channels: group.channels.filter((channel) => offered?.(channel) ?? true) }))
+        .filter((group) => group.channels.length > 0);
     // Made in this render, so a render of the results alone draws every line again.
     const drawn = new Set<string>();
     const drawOnce = (channel: Channel): React.ReactNode => {

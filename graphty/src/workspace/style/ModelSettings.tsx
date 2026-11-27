@@ -11,6 +11,7 @@ import { useWorkspace } from "../state/WorkspaceContext";
 import { modelChip, PART_CODES } from "./modelWords";
 import type { RowContext } from "./PropertyRow";
 import { lineIn, removeLine, writeIn } from "./row";
+import { channelHidden } from "./v2/drawn";
 import { ANIMATION_CHANNELS, CUSTOM_MODEL, failureWords, MODEL_SETTING_ROWS } from "./words";
 
 /** A model's clip, as graphty-element's summary lists it. */
@@ -240,8 +241,12 @@ export function SettingRows({
     clips = [],
     inherited = {},
 }: Readonly<SettingRowsProps>): React.JSX.Element {
+    const { session } = useWorkspace();
     const animated = clips.length > 0 && channels.includes("node.modelAnimation");
-    const shown = MODEL_SETTING_ROWS.filter((row) => channels.includes(row.channel));
+    // A row graphty-element draws only in the other view (Light: 3D only) is hidden; its value stays.
+    const shown = MODEL_SETTING_ROWS.filter(
+        (row) => channels.includes(row.channel) && (session === null || !channelHidden(session, row.channel)),
+    );
     const own = (channel: Channel): unknown => values[channel] ?? inherited[channel];
     const clip = clips.find((c) => c.name === own("node.modelAnimation"));
     // The held pose, the layer's own or the model's (a model added still keeps its pose as its own).

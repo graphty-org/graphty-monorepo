@@ -49,6 +49,20 @@ describe("whether a graph setting is in effect", () => {
         session.dispose();
     });
 
+    it("answers that the 3D view ignores the view's rotation, and the 2D view keeps it", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([{ id: "a" }]);
+        await session.layout.setDimension("2d");
+        assert.isTrue(session.config.inEffect("viewRotation").inEffect);
+        await session.layout.setDimension("3d");
+        assert.deepStrictEqual(session.config.inEffect("viewRotation"), {
+            inEffect: false,
+            code: "setting.notIn3d",
+            params: { setting: "viewRotation" },
+        });
+        session.dispose();
+    });
+
     it("refuses a key that names no graph setting", () => {
         const session = createGraphSession();
         try {

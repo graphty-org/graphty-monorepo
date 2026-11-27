@@ -26,6 +26,7 @@ import type { RowContext } from "./PropertyRow";
 import { layerWord, lineIn, removeLine, without, writeIn, writeLine } from "./row";
 import { ShaderEditorDialog } from "./ShaderEditorDialog";
 import { focusSectionNext } from "./useFocusLine";
+import { shaderHidden } from "./v2/drawn";
 import { currentMember, familyOf, membersOf, pickReplace, replaceUse, switchMember } from "./v2/families";
 import { ModelValueField, ValueField } from "./ValueField";
 import {
@@ -210,25 +211,29 @@ function shapeList(args: LineHelpers, base: AssetLine | undefined, state: ShapeL
     const family = familyOf(ctx.side, "shape");
     // Model... alone: the Models gallery it opens holds Add custom model... (owner, 2026-11-24: one path to any control).
     const models = (base?.extraChoices ?? []).map((choice) => ({ ...choice, section: SHAPE_LIST_SECTIONS.models }));
-    // Picking a shader writes through the Shape family, so with no family the list offers none.
+    // A shader drawn in the shapes' place: its list choice is the value shown.
+    const members = family === undefined ? [] : membersOf(ctx, family);
+    const now = family === undefined ? undefined : currentMember(ctx, family, members);
+    const shader = now?.startsWith(SHADER_MEMBER) === true ? now.slice(SHADER_MEMBER.length) : undefined;
+    // Picking a shader writes through the Shape family, so with no family the list offers none. A shader drawn only in
+    // the other view is not listed, unless it is the one drawn now (design "Input rules", 2026-11-27).
     const shaders =
         family === undefined
             ? []
             : [
                   { value: NEW_REPLACE_PICK, label: GALLERY_WORDS.newShader, section: SHAPE_LIST_SECTIONS.shaders },
-                  ...ctx.session.catalog.shaders({ target: "node", place: "replace" }).map((shader) => ({
-                      value: `${REPLACE_PICK}${shader.id}`,
-                      label: shader.plainName,
-                      section: SHAPE_LIST_SECTIONS.shaders,
-                  })),
+                  ...ctx.session.catalog
+                      .shaders({ target: "node", place: "replace" })
+                      .filter((each) => each.id === shader || !shaderHidden(ctx.session, each.views))
+                      .map((each) => ({
+                          value: `${REPLACE_PICK}${each.id}`,
+                          label: each.plainName,
+                          section: SHAPE_LIST_SECTIONS.shaders,
+                      })),
               ];
     const fail = (error: unknown): void => {
         store.set({ notice: { message: failureWords("Shape", "changed", error), error: true } });
     };
-    // A shader drawn in the shapes' place: its list choice is the value shown.
-    const members = family === undefined ? [] : membersOf(ctx, family);
-    const now = family === undefined ? undefined : currentMember(ctx, family, members);
-    const shader = now?.startsWith(SHADER_MEMBER) === true ? now.slice(SHADER_MEMBER.length) : undefined;
     // A model: listed first in Models, so the list names it.
     const model = base?.model;
     const named =

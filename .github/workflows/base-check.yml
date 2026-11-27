@@ -136,7 +136,7 @@ jobs:
             # as ci.yml's test job: the style fidelity oracle pictures, and lavapipe for the WebGPU node families
             - name: Fetch the style fidelity oracle pictures from Git LFS
               if: startsWith(inputs.variant, 'graphty-element-browser')
-              run: git lfs pull --include "$(node -p "require('./graphty-element/test/browser/oracle-scorecard-samples.json').map((id) => 'graph-io/test/fidelity/oracles/' + id + '.png').join(',')")"
+              run: $RUNNER_TEMP/trusted/tools/lfs-pull-retry.sh --include "$(node -p "require('./graphty-element/test/browser/oracle-scorecard-samples.json').map((id) => 'graph-io/test/fidelity/oracles/' + id + '.png').join(',')")"
 
             - name: Install Mesa lavapipe
               if: startsWith(inputs.variant, 'webgpu-graph-algorithms-node')

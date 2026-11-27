@@ -187,8 +187,6 @@
         "src/workspace/settings/ShaderSettings.tsx": ["open", "paste", "picking", "settings"],
         "src/workspace/settings/numberFormat.ts": ["?"],
         "src/workspace/settings/shaderPreferences.ts": ["?"],
-        "src/workspace/source-steps/AddCard.tsx": ["answers", "questions"],
-        "src/workspace/source-steps/FieldsTab.tsx": ["filter", "offset"],
         "src/workspace/start/HeroGraph.tsx": [
             "attempt",
             "card",

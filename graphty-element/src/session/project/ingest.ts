@@ -1211,7 +1211,8 @@ export class Ingest<K extends KnownEdge> {
             counts: Object.freeze({ nodes: supplied.nodes.size, edges: supplied.edges.size }),
         });
         // What the load saw that the graph does not keep, for `data.issues()`.
-        const facts = this.sealedTally === null ? null : loadFactsOf(this.sealedTally, this.leaveOutUnmatched);
+        const facts =
+            this.sealedTally === null ? null : loadFactsOf(this.sealedTally, this.leaveOutUnmatched, command.held);
         const prior = same < 0 ? undefined : earlier[same];
         const had = prior === undefined ? undefined : earlierProvenance?.[key];
         // What it supplied, joined to what the load it continues supplied; no copy when it continues none.

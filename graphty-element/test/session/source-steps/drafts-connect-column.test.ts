@@ -7,6 +7,7 @@
 
 import { assert, describe, it } from "vitest";
 
+import { isGraphtyError } from "../../../src/errors/GraphtyError";
 import { createGraphSession, type GraphSession } from "../../../src/session";
 
 const csv = (name: string, ...data: string[]): { type: string; config: { data: string }; name: string } => ({
@@ -60,6 +61,46 @@ describe("source-steps drafts: an edge from a column of a source in the graph", 
         assert.notStrictEqual(session.data.sources({ staged: true }).find((s) => s.key === people)?.state, "staged");
     });
 
+    it("refuses an other end that names no field, and removing the other end leaves a one-match Connect", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import(PEOPLE, { key: "badge", type: "person" });
+        await session.data.import(csv("doors.csv", "door,building", "D1,North", "D2,South"), {
+            key: "door",
+            type: "door",
+            mode: "merge",
+        });
+        const entries = await session.data.stage(ENTRIES, { key: "entry", type: "entry" });
+        const draft = session.data.draft();
+        const from = { source: entries, field: "badge" };
+        draft.connect({ from, into: { space: "person" }, to: { field: "door", into: { space: "door" } } });
+        const at = draft.steps().findIndex((row) => row.op === "join.edges");
+        assert.isAbove(at, -1);
+        assert.strictEqual(draft.steps()[at]?.act?.to?.field, "door", "two ends");
+        let refusal: unknown = null;
+        try {
+            draft.replaceStep(at, {
+                act: "connect",
+                options: { from, into: { space: "person" }, to: { field: "", into: { space: "door" } } },
+            });
+        } catch (error) {
+            refusal = error;
+        }
+        assert.isTrue(
+            isGraphtyError(refusal) && refusal.code === "E_BAD_COMMAND" && refusal.details.reason === "no-field",
+        );
+        draft.replaceStep(at, { act: "connect", options: { from, into: { space: "person" } } });
+        const row = draft.steps().find((each) => each.op === "join.edges");
+        assert.isUndefined(row?.act?.to, "read back without an other end");
+        assert.isAbove(
+            row?.buckets === null
+                ? 0
+                : (draft.preview().steps.find((s) => s.op === "join.edges")?.buckets?.newEdges ?? 0),
+            0,
+        );
+        draft.dispose();
+        session.dispose();
+    });
+
     it("runs the edge the other way when asked", async () => {
         const session = createGraphSession({ features: ["source-steps"] });
         await session.data.import(ENTRIES, { key: "entry", type: "entry" });
@@ -92,5 +133,58 @@ describe("source-steps drafts: an edge from a column of a source in the graph", 
         for (const e of edges) {
             assert.notStrictEqual(String(e.source), String(e.target), "an edge between two nodes");
         }
+    });
+    it("connects door entries staged as edges to people and buildings, one edge per entry, read back", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import(csv("people.csv", "person,name", "P1,Ann", "P2,Bo"), {
+            key: "person",
+            type: "person",
+        });
+        const draft = session.data.draft();
+        const buildings = await draft.stage(csv("buildings.csv", "bldg,floors", "H1,4", "H2,9"), {
+            key: "bldg",
+            type: "building",
+        });
+        const doors = await draft.stage(
+            csv("doors.csv", "entry,person,bldg", "E1,P1,H1", "E2,P1,H2", "E3,P2,H1", "E4,P9,H1"),
+            { edges: { from: { column: "person" }, to: { column: "bldg" } } },
+        );
+        assert.strictEqual(draft.sourceTable(doors).summary().mapping.rows, "edges");
+        draft.connect({
+            from: { source: doors, field: "person" },
+            into: { space: "person" },
+            to: { field: "bldg", into: { source: buildings } },
+            edgeType: "entered",
+        });
+        const act = draft.steps().find((row) => row.source === doors)?.act;
+        assert.strictEqual(act?.act, "connect", "read back as the Connect that made it");
+        assert.strictEqual(act?.to?.field, "bldg");
+        await draft.commit();
+        assert.deepStrictEqual(drawn(session), ["P1->H1", "P1->H2", "P2->H1"], "P9 names no person");
+        session.dispose();
+    });
+    it("commits a staged source the draft reads as edges, so the Connect over its rows lands", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import(csv("people.csv", "person,name", "P1,Ann", "P2,Bo"), {
+            key: "person",
+            type: "person",
+        });
+        const buildings = await session.data.stage(csv("buildings.csv", "bldg,floors", "H1,4", "H2,9"), {
+            key: "bldg",
+            type: "building",
+        });
+        const doors = await session.data.stage(csv("doors.csv", "entry,person,bldg", "E1,P1,H1", "E2,P2,H2"), {
+            key: "entry",
+        });
+        const draft = session.data.draft();
+        draft.setMapping(doors, { rows: "edges", edges: { source: "person", target: "bldg" } });
+        draft.connect({
+            from: { source: doors, field: "person" },
+            into: { space: "person" },
+            to: { field: "bldg", into: { source: buildings } },
+        });
+        await draft.commit();
+        assert.deepStrictEqual(drawn(session), ["P1->H1", "P2->H2"], "the rows are read as edges after the commit");
+        session.dispose();
     });
 });

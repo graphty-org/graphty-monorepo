@@ -152,7 +152,7 @@ jobs:
                   restore-keys: lfs-${{ matrix.project }}-
 
             - name: Fetch this project's baseline images and the pinned fonts from Git LFS
-              run: git lfs pull --include "visual-baselines/${{ matrix.project }}/**,visual-fonts/**"
+              run: tools/lfs-pull-retry.sh --include "visual-baselines/${{ matrix.project }}/**,visual-fonts/**"
 
             # master's capture code (this workflow's), as the full run's re-capture does for an older commit
             - name: Use the workflow's capture code

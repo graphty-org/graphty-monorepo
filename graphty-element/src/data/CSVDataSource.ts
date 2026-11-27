@@ -112,8 +112,13 @@ const ENDPOINT_PAIRS: readonly (readonly [string, string])[] = [
 /** The header names that make a file the reader is not told the shape of a node list. */
 const NODE_ID_COLUMNS: readonly string[] = ["id", "Id", "ID"];
 
+/** Digits led by a zero, spaced or not: a code such as a ZIP, a phone or a DUNS number, never a quantity. */
+const CODE = /^0[\d\s]+$/;
+
 /**
- * Type every text cell of the records on its own, as a number, a boolean or text.
+ * Type every text cell of the records on its own, as a number, a boolean or text. The cells of a
+ * column of codes (one is led by a zero, so it is text) stay text all of them, so `"081"` and `"500"`
+ * are one type and match another file's codes as they are written.
  *
  * graph-io types a CSV column as a whole, so one cell that is not a number (`n/a`) turns every
  * number in its column into text. The element has always typed a cell by what it holds, which is
@@ -122,15 +127,36 @@ const NODE_ID_COLUMNS: readonly string[] = ["id", "Id", "ID"];
  * @returns the records
  */
 function typeCells(imported: ImportedRecords): ImportedRecords {
-    for (const { data } of [...imported.nodes, ...imported.edges]) {
-        for (const [key, value] of Object.entries(data)) {
-            if (typeof value === "string") {
-                data[key] = parseTextCell(value);
+    for (const table of [imported.nodes, imported.edges]) {
+        const codes = codeColumns(table);
+        for (const { data } of table) {
+            for (const [key, value] of Object.entries(data)) {
+                if (typeof value === "string" && !codes.has(key)) {
+                    data[key] = parseTextCell(value);
+                }
             }
         }
     }
 
     return imported;
+}
+
+/**
+ * The columns holding a code led by a zero.
+ * @param table - the records of one table
+ * @returns their names
+ */
+function codeColumns(table: ImportedRecords["nodes" | "edges"]): ReadonlySet<string> {
+    const out = new Set<string>();
+    for (const { data } of table) {
+        for (const [key, value] of Object.entries(data)) {
+            if (typeof value === "string" && CODE.test(value.trim())) {
+                out.add(key);
+            }
+        }
+    }
+
+    return out;
 }
 
 /**

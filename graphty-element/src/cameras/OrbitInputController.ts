@@ -37,6 +37,12 @@ const PAN_BUTTONS: ReadonlySet<number> = new Set([1, 2]);
 /** CSS pixels a right-button drag must move before its release opens no context menu. */
 const PAN_CLICK_SLOP = 3;
 
+/** Each `PointerEvent.button` this controller handles and its bit in `PointerEvent.buttons`. */
+const BUTTON_BITS: Readonly<Record<number, number>> = { 0: 1, 1: 4, 2: 2 };
+
+/** The `PointerEvent.button` of the right mouse button. */
+const RIGHT_BUTTON = 2;
+
 /**
  * One axis from a pair of opposing keys: 1, -1, or 0 when neither or both are on.
  * @param plus - Whether the key that moves the positive way is on.
@@ -70,6 +76,12 @@ export class OrbitInputController implements GestureEndHooks {
     private isPanning = false;
     /** CSS pixels the current or last pan drag moved, to tell a right-click from a right-drag. */
     private panTravel = 0;
+    /** The `PointerEvent.button` of the drag under way. */
+    private pressedButton = 0;
+    /** Whether the browser's context menu request at this right press was held back to the release. */
+    private menuHeld = false;
+    /** Set while the controller sends the held-back request, so its own handler lets it pass. */
+    private sendingMenu = false;
     private lastX = 0;
     private lastY = 0;
     private isMultiTouch = false;
@@ -98,7 +110,12 @@ export class OrbitInputController implements GestureEndHooks {
             this.isPointerDown = true;
             this.isPanning = pans;
             this.panTravel = 0;
+            this.pressedButton = evt.button;
+            this.menuHeld = false;
             this.dragKind = null;
+            // The drag keeps the pointer wherever it goes until the button comes up: moves over a
+            // page's side panel or a menu, and the release outside the canvas, still reach it.
+            this.capture(evt.pointerId);
             if (evt.button === 1) {
                 // Not the browser's middle-click autoscroll
                 evt.preventDefault();
@@ -110,7 +127,11 @@ export class OrbitInputController implements GestureEndHooks {
         }
     };
 
-    private readonly pointerUpHandler = (): void => {
+    private readonly pointerUpHandler = (evt?: PointerEvent): void => {
+        if (evt?.type === "pointerup" && this.menuHeld && evt.button === RIGHT_BUTTON) {
+            this.sendHeldMenu(evt);
+        }
+        this.menuHeld = false;
         this.isPointerDown = false;
         this.isPanning = false;
         // The pointer up ends the drag; a click that moved nothing is no gesture.
@@ -121,8 +142,85 @@ export class OrbitInputController implements GestureEndHooks {
         }
     };
 
+    // Babylon.js lets go of the pointer whenever the canvas loses focus, as it does when a context
+    // menu opened at the right press (macOS, Linux) takes focus under a drag that is just starting.
+    // The button is still held, so the drag keeps the pointer: without it, moves off the canvas or
+    // over the menu never reach the canvas and the pan stops (#10200).
+    private readonly lostPointerCaptureHandler = (evt: PointerEvent): void => {
+        if (!this.isPointerDown || this.isMultiTouch) {
+            return;
+        }
+        if (this.released(evt)) {
+            this.pointerUpHandler();
+            return;
+        }
+        this.capture(evt.pointerId);
+    };
+
+    /**
+     * Whether the mouse button the drag began with is no longer held: it came up where the canvas
+     * never heard it (outside the window).
+     * @param evt - A pointer event of the drag.
+     * @returns True when the drag is over.
+     */
+    private released(evt: PointerEvent): boolean {
+        return evt.pointerType === "mouse" && (evt.buttons & (BUTTON_BITS[this.pressedButton] ?? 0)) === 0;
+    }
+
+    /**
+     * Takes the pointer for the canvas, unless the pointer is no longer down (its release raced
+     * the call).
+     * @param pointerId - The pointer.
+     */
+    private capture(pointerId: number): void {
+        try {
+            this.canvas.setPointerCapture(pointerId);
+        } catch {
+            // NotFoundError: the pointer is not active any more, so there is nothing to keep.
+        }
+    }
+
+    /**
+     * Sends the context menu request held back at a right press, now that the release shows it was a
+     * click: one `contextmenu` event from the canvas at the release point, as a right-click raises
+     * on Windows. A right-drag that panned sends none.
+     * @param evt - The right button's release.
+     */
+    private sendHeldMenu(evt: PointerEvent): void {
+        if (this.panTravel >= PAN_CLICK_SLOP) {
+            return;
+        }
+        this.sendingMenu = true;
+        try {
+            this.canvas.dispatchEvent(
+                new MouseEvent("contextmenu", {
+                    bubbles: true,
+                    cancelable: true,
+                    composed: true,
+                    clientX: evt.clientX,
+                    clientY: evt.clientY,
+                    screenX: evt.screenX,
+                    screenY: evt.screenY,
+                    button: RIGHT_BUTTON,
+                    buttons: 0,
+                    ctrlKey: evt.ctrlKey,
+                    shiftKey: evt.shiftKey,
+                    altKey: evt.altKey,
+                    metaKey: evt.metaKey,
+                }),
+            );
+        } finally {
+            this.sendingMenu = false;
+        }
+    }
+
     private readonly pointerMoveHandler = (evt: PointerEvent): void => {
         if (!this.isPointerDown || this.isMultiTouch) {
+            return;
+        }
+        // The button came up where the canvas never heard it (outside the window): the drag is over.
+        if (this.released(evt)) {
+            this.pointerUpHandler();
             return;
         }
 
@@ -187,9 +285,21 @@ export class OrbitInputController implements GestureEndHooks {
         }
     };
 
-    // A right-button drag that panned is not a right-click: on Windows its release would open
-    // the context menu. Where the menu opens on the press (macOS, Linux) it opens as before.
+    // A right-button drag that pans is not a right-click, so it asks for no context menu. Where
+    // the browser asks for the menu at the right press (macOS, Linux), the press cannot tell a
+    // click from a drag yet: the request is held back and sent at the release, only when the
+    // pointer stayed put (sendHeldMenu). On Windows it comes after the release, and only a drag's
+    // is stopped. A request with no right button held (a touch-and-hold, Shift+F10) passes.
     private readonly contextMenuHandler = (evt: MouseEvent): void => {
+        if (this.sendingMenu) {
+            return;
+        }
+        if (this.isPointerDown && this.pressedButton === RIGHT_BUTTON && !this.isMultiTouch) {
+            this.menuHeld = true;
+            evt.preventDefault();
+            evt.stopPropagation();
+            return;
+        }
         if (this.panTravel >= PAN_CLICK_SLOP) {
             evt.preventDefault();
             evt.stopPropagation();
@@ -311,7 +421,10 @@ export class OrbitInputController implements GestureEndHooks {
 
         this.canvas.addEventListener("pointerdown", this.pointerDownHandler);
         this.canvas.addEventListener("pointerup", this.pointerUpHandler);
+        // A canceled pointer (the system took a touch) ends the drag as its release would.
+        this.canvas.addEventListener("pointercancel", this.pointerUpHandler);
         this.canvas.addEventListener("pointermove", this.pointerMoveHandler);
+        this.canvas.addEventListener("lostpointercapture", this.lostPointerCaptureHandler);
         this.canvas.addEventListener("wheel", this.wheelHandler, { passive: false });
         this.canvas.addEventListener("contextmenu", this.contextMenuHandler);
 
@@ -338,7 +451,9 @@ export class OrbitInputController implements GestureEndHooks {
 
         this.canvas.removeEventListener("pointerdown", this.pointerDownHandler);
         this.canvas.removeEventListener("pointerup", this.pointerUpHandler);
+        this.canvas.removeEventListener("pointercancel", this.pointerUpHandler);
         this.canvas.removeEventListener("pointermove", this.pointerMoveHandler);
+        this.canvas.removeEventListener("lostpointercapture", this.lostPointerCaptureHandler);
         this.canvas.removeEventListener("wheel", this.wheelHandler);
         this.canvas.removeEventListener("contextmenu", this.contextMenuHandler);
 

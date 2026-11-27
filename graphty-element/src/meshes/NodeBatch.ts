@@ -140,6 +140,12 @@ export class NodeBatch {
         this.mesh.setEnabled(false);
         if (source.material) {
             attachRowPull(source.material);
+            // The batch draws the rows, so the source itself is first drawn when a row gets a mesh of its own: the
+            // first selection, which paid for that shader's compile (issue #10124). Compile it now, in the load.
+            const subMesh = source.subMeshes?.[0];
+            if (subMesh !== undefined) {
+                source.material.isReadyForSubMesh(source, subMesh, true);
+            }
         }
 
         glowRowsInPlace(this.mesh);

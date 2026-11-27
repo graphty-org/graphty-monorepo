@@ -20,7 +20,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf, renderManagerOf } from "../../src/Graph";
-import { click, drag, nextFrame, type Point, wheel } from "../helpers/real-input";
+import { click, drag, holdKey, nextFrame, type Point, releaseKey, wheel } from "../helpers/real-input";
 
 const WIDTH = 400;
 const HEIGHT = 300;
@@ -476,6 +476,63 @@ describe("renderOnDemand", () => {
         await untilResting(element);
         assert.strictEqual(loopTicks(element).drawn - before, 1, "one frame for the new size");
         await restsOnTheCurrentPicture(element);
+    });
+
+    // A panel a key opens beside a graph that draws every frame (a running layout) resized the
+    // canvas after the loop's frame had drawn it, so the resize cleared that frame and drew the
+    // scene a second time in the same rendering step: one more whole frame of the reader's
+    // keypress, about 60 ms at 50,000 nodes (issue #10229).
+    it("draws a resize a keypress makes once in its rendering step while the loop draws every frame", async () => {
+        const element = await mounted(false);
+        const { scene, engine } = element.graph;
+        await ticksAcross(element, RESTING_TICKS);
+        const drawnAt: number[] = [];
+        const drawn = scene.onAfterRenderObservable.add(() => {
+            drawnAt.push(Number(document.timeline.currentTime));
+        });
+        const heights = [HEIGHT - 60, HEIGHT, HEIGHT - 30];
+        const resizeOnKey = (event: KeyboardEvent): void => {
+            if (event.key === "t") {
+                element.style.height = `${String(heights[0])}px`;
+            }
+        };
+        document.addEventListener("keydown", resizeOnKey);
+        cleanups.push(() => {
+            scene.onAfterRenderObservable.remove(drawn);
+            document.removeEventListener("keydown", resizeOnKey);
+        });
+
+        while (heights.length > 0) {
+            const height = heights[0];
+            // Created after the element's own ResizeObserver, so it runs after the element's in the
+            // rendering step the resize is painted in: every frame of that step has been drawn.
+            const step = new Promise<number>((resolve) => {
+                const observer = new ResizeObserver(([entry]) => {
+                    if (entry.contentRect.height !== height) {
+                        return;
+                    }
+
+                    observer.disconnect();
+                    resolve(Number(document.timeline.currentTime));
+                });
+                observer.observe(element);
+                cleanups.push(() => {
+                    observer.disconnect();
+                });
+            });
+            const before = engine.getRenderHeight();
+            await holdKey("t");
+            await releaseKey("t");
+            const at = await step;
+
+            assert.notStrictEqual(engine.getRenderHeight(), before, "the canvas has its new size");
+            assert.isAtMost(
+                drawnAt.filter((t) => t === at).length,
+                1,
+                `the rendering step of the resize to ${String(height)} drew the scene once`,
+            );
+            heights.shift();
+        }
     });
 
     it("draws a camera moved through the API in one frame, not again to check it", async () => {

@@ -386,12 +386,99 @@ describe("source-steps drafts: drawing a draft", () => {
         };
         assert.deepStrictEqual(look("A-1"), { halo: 1, border: "none" }, "a merged account is ringed");
         assert.deepStrictEqual(look("A-9"), { halo: 0, border: "dashed" }, "a new account is dashed, not ringed");
+        assert.isAtLeast(
+            Number(session.styles.explain({ node: "A-9" }).merged["node.borderScreenWidth"]),
+            2,
+            "its dashed border is drawn wide enough to see on a graph framed whole",
+        );
+        // Where the edges it brings meet, a new node stays in sight: drawn hollow, in front of them.
+        const fill = (id: string): unknown =>
+            (session.styles.explain({ node: id }).merged["node.color"] as { hex?: string } | undefined)?.hex;
+        assert.strictEqual(String(fill("A-9")).toUpperCase(), "#FFFFFF", "a new node is drawn hollow");
+        assert.notStrictEqual(String(fill("A-1")).toUpperCase(), "#FFFFFF", "a merged node keeps its fill");
+        assert.isAbove(
+            Number(session.styles.explain({ node: "A-9" }).merged["node.drawOrder"]),
+            0,
+            "a new node is drawn in front of the edges",
+        );
+        assert.isTrue(
+            session.styles.explain({ node: "A-9" }).merged["node.onTop"],
+            "a new node is drawn on top in 3D too, where the edges meeting it would cover it",
+        );
+        // The graph the reader already has stays in sight over what a join adds, however many new nodes it adds.
+        assert.isTrue(session.styles.explain({ node: "A-1" }).merged["node.onTop"], "a merged node is on top too");
+        assert.isAbove(
+            Number(session.styles.explain({ node: "A-1" }).merged["node.drawOrder"]),
+            Number(session.styles.explain({ node: "A-9" }).merged["node.drawOrder"]),
+            "a node the graph holds is drawn in front of a new one",
+        );
+        assert.notStrictEqual(
+            session.styles.explain({ node: "A-9" }).merged["node.sizeSpace"],
+            "screen",
+            "with no new size, a new node keeps its own size",
+        );
+        const sized = session.styles.showDraft({ merged: "#7048E8", new: "#E8590C", newSize: 1 });
+        await session.styles.settled();
+        assert.deepStrictEqual(
+            [
+                session.styles.explain({ node: "A-9" }).merged["node.size"],
+                session.styles.explain({ node: "A-9" }).merged["node.sizeSpace"],
+            ],
+            [1, "screen"],
+            "with a new size, a new node is drawn at that size on screen, seen at any zoom",
+        );
+        assert.notStrictEqual(
+            session.styles.explain({ node: "A-1" }).merged["node.sizeSpace"],
+            "screen",
+            "a merged node keeps its size",
+        );
+        sized.end();
         assert.isFalse(session.styles.showingBranches, "not a branches view");
         assert.strictEqual(session.styles.list(), layers, "the layer list is unchanged");
         assert.strictEqual(session.history.steps.length, steps, "no undo step");
         view.end();
         await session.styles.settled();
         assert.deepStrictEqual(look("A-1"), { halo: 0, border: "none" }, "ending the view takes the ring off");
+        d.dispose();
+        session.dispose();
+    });
+
+    it("showDraft marks what the commit removes while Before shows, only with a color for it", async () => {
+        const session = createGraphSession({ features: ["source-steps"] });
+        await session.data.import(csv("people.csv", "badge,name\nB1,Ann\nB2,Bo"), { key: "badge", type: "person" });
+        const people = session.data.sources()[0]?.key ?? "";
+        const boss = await session.data.stage(csv("boss.csv", "badge,boss\nB1,B2"), { key: "badge", type: "boss" });
+        await session.data.add(boss);
+        await session.data.connect({ from: { source: boss, field: "boss" }, into: { source: people } });
+        const d = session.data.draft();
+        d.removeSource(boss);
+        await d.display(true);
+        await d.show("before");
+        const edge = session.data.edges()[0]?.id ?? "";
+        const look = (): unknown => {
+            const node = (id: string): Readonly<Record<string, unknown>> => session.styles.explain({ node: id }).merged;
+            const line = session.styles.explain({ edge }).merged as Readonly<Record<string, unknown>>;
+            const gone = node(String(session.data.nodes().at(-1)?.id));
+            return [
+                (gone["node.borderColor"] as { hex?: string } | undefined)?.hex,
+                gone["node.opacity"],
+                line["edge.opacity"],
+                node("B2")["node.opacity"],
+            ];
+        };
+        session.styles.showDraft({ merged: "#7048E8", new: "#E8590C" });
+        await session.styles.settled();
+        const plain = look();
+        session.styles.showDraft({ merged: "#7048E8", new: "#E8590C", removed: "#123456" });
+        await session.styles.settled();
+        assert.deepStrictEqual(look(), ["#123456", 0.4, 0.4, (plain as unknown[])[3]]);
+        assert.notDeepEqual(plain, look());
+        // With a new size, what the commit removes is held at it too, so it is seen among the edges it takes with it.
+        session.styles.showDraft({ merged: "#7048E8", new: "#E8590C", removed: "#123456", newSize: 1 });
+        await session.styles.settled();
+        const gone = session.styles.explain({ node: String(session.data.nodes().at(-1)?.id) }).merged;
+        assert.deepStrictEqual([gone["node.size"], gone["node.sizeSpace"]], [1, "screen"]);
+        assert.notStrictEqual(session.styles.explain({ node: "B2" }).merged["node.sizeSpace"], "screen", "B2 stays");
         d.dispose();
         session.dispose();
     });
@@ -431,7 +518,7 @@ describe("source-steps drafts: drawing a draft", () => {
                 "edge.style": "dash",
             },
             encode: {
-                "node.haloOpacity": { by: "graphty.draft", map: { merged: 1, new: 0 } },
+                "node.haloOpacity": { by: "graphty.draft", map: { merged: 1, new: 0, removed: 0 } },
                 "node.borderWidth": { by: "graphty.draft", map: { merged: 0, new: 0.1 } },
             },
         });

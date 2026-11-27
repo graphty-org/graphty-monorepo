@@ -855,7 +855,11 @@ function lookFiller(channel: string, scales: ScaleRegistry): ((painted: unknown)
 }
 
 /** Each dirty element's mesh-keying values as they stood before a pass, by channel and then by dirty position. */
-type MeshValues = ReadonlyMap<ChannelColumn, readonly unknown[]>;
+interface MeshValues {
+    readonly columns: ReadonlyMap<ChannelColumn, readonly unknown[]>;
+    /** By dirty position, 1 when the element's key was interned from those values (see `TargetStore.unkeyed`). */
+    readonly settled: Uint8Array;
+}
 
 /**
  * Read each dirty element's mesh-keying values before a pass paints over them.
@@ -876,7 +880,12 @@ function meshValuesOf(store: TargetStore): MeshValues {
         }
     }
 
-    return values;
+    const settled = new Uint8Array(store.dirtyCount);
+    for (let at = 0; at < store.dirtyCount; at++) {
+        settled[at] = store.unkeyed[store.dirty[at]] === 0 ? 1 : 0;
+    }
+
+    return { columns: values, settled };
 }
 
 /**
@@ -902,9 +911,13 @@ function meshValuesKept(
     index: number,
     held: number,
 ): boolean {
+    if (before.settled[at] !== 1) {
+        return false;
+    }
+
     for (const which of written) {
         const column = columns[which] as ChannelColumn;
-        const was = before.get(column);
+        const was = before.columns.get(column);
         const value = readColumn(column, index);
         if ((held === 0 && value !== undefined) || !Object.is(value, was === undefined ? undefined : was[at])) {
             return false;
@@ -1145,10 +1158,10 @@ interface TargetStore {
     /** Whether any layer has ever painted a channel that keys a source mesh. */
     meshWritten: boolean;
     /**
-     * Whether a pass painted the columns and was canceled before it interned them, so a key may not match its
-     * element's values: the next pass interns every dirty element, whatever its values were before it.
+     * Which elements a pass painted and did not intern, one byte each: a pass canceled between the two leaves their
+     * keys out of step with their values, so whichever pass reaches each of them next interns it whatever it held.
      */
-    internPending: boolean;
+    unkeyed: Uint8Array;
 }
 
 /** One channel one layer paints, with everything knowable already worked out. */
@@ -1498,7 +1511,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             dirtyCount: 0,
             painted: new Uint8Array(INITIAL_CAPACITY),
             meshWritten: false,
-            internPending: false,
+            unkeyed: new Uint8Array(INITIAL_CAPACITY),
         };
     };
 
@@ -1539,6 +1552,8 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         stamps.set(store.stamps);
         const painted = new Uint8Array(capacity);
         painted.set(store.painted);
+        const unkeyed = new Uint8Array(capacity);
+        unkeyed.set(store.unkeyed);
 
         for (const column of store.columns.values()) {
             growColumn(column, capacity);
@@ -1548,6 +1563,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         store.meshKeys = meshKeys;
         store.stamps = stamps;
         store.painted = painted;
+        store.unkeyed = unkeyed;
         store.dirty = new Uint32Array(capacity);
     };
 
@@ -2122,6 +2138,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             for (let at = from; at < to; at++) {
                 const index = store.dirty[at];
                 const held = store.meshKeys[index];
+                store.unkeyed[index] = 0;
                 // An element whose mesh-keying values this pass left as they were keeps the key they were interned to:
                 // a color edit re-keyed every node, most of its repaint at 10,000 nodes (issue #10302).
                 if (
@@ -2270,8 +2287,10 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         // Clearing is what makes a removal and an update correct, and it is exactly what the
         // add-on-top path does not have to do: nothing below the new layer changed, so what those
         // layers painted is already right where it needs to be.
-        const before = store.meshWritten && !store.internPending ? meshValuesOf(store) : null;
-        store.internPending = true;
+        const before = store.meshWritten ? meshValuesOf(store) : null;
+        for (let at = 0; at < store.dirtyCount; at++) {
+            store.unkeyed[store.dirty[at]] = 1;
+        }
         if (from === 0) {
             clearDirty(store);
         }
@@ -2302,8 +2321,6 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         if (store.meshWritten) {
             slice = await internDirty(store, context, slice, before);
         }
-
-        store.internPending = false;
 
         for (let at = 0; at < store.dirtyCount; at++) {
             store.painted[store.dirty[at]] = 1;
@@ -2514,6 +2531,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
 
         closeUp(store.meshKeys, dropped, carried, used, 0);
         closeUp(store.painted, dropped, carried, used, 0);
+        closeUp(store.unkeyed, dropped, carried, used, 0);
         for (const column of store.columns.values()) {
             closeUpColumn(column, dropped, carried, used);
         }
@@ -2551,12 +2569,14 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         const sourceOf = new Int32Array(count).fill(-1);
         const meshKeys = new Float64Array(capacity);
         const painted = new Uint8Array(capacity);
+        const unkeyed = new Uint8Array(capacity);
         for (let from = 0; from < store.count; from++) {
             const to = from < carried ? remap[from] : count;
             if (to < count) {
                 sourceOf[to] = from;
                 meshKeys[to] = store.meshKeys[from];
                 painted[to] = store.painted[from];
+                unkeyed[to] = store.unkeyed[from];
             } else if (store.meshKeys[from] !== 0) {
                 // Gone, or not worth carrying: the mesh it was drawn from loses it.
                 store.meshes.release(store.meshKeys[from]);
@@ -2571,6 +2591,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         store.count = count;
         store.meshKeys = meshKeys;
         store.painted = painted;
+        store.unkeyed = unkeyed;
         store.stamps = new Int32Array(capacity);
         store.dirty = new Uint32Array(capacity);
         const holes: number[] = [];

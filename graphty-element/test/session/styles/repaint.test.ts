@@ -1313,6 +1313,8 @@ describe("an edit that moves no element to another mesh (issue #10302)", () => {
             () => false,
             () => true,
         );
+        // a pass over one node (a hover) must not settle the others the canceled pass left
+        await h.engine.repaintElements(large, { node: [0], edge: [] }, quietContext());
         await h.engine.repaintAll(recolored, quietContext());
 
         assert.isTrue(canceled);

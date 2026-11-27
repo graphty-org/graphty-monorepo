@@ -2413,6 +2413,7 @@ export interface LabelTable {
     readonly radius?: number;
     // (undocumented)
     readonly rows: readonly LabelTableRow[];
+    readonly shrinkToNode?: boolean;
     readonly textPixel?: number;
     // (undocumented)
     readonly valign?: TableVAlign;

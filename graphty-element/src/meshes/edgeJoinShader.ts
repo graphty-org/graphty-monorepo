@@ -73,7 +73,7 @@ import {
     ROW_EXTENT_ROUND,
     ROW_EXTENT_SEEN_THROUGH,
 } from "./edgeTrim";
-import { CURVE_STRIDE, PULLED_CURVE_GLSL } from "./pulledCurve";
+import { CURVE_STRIDE, curvePointGlsl, PULLED_CURVE_GLSL } from "./pulledCurve";
 
 /** The longest miter drawn, as a multiple of half the line's width (SVG's and Canvas's limit). */
 export const EDGE_MITER_LIMIT = 4;
@@ -90,6 +90,83 @@ export const JOIN_FLOATS_PER_PIECE = 20;
  * edge's length along its pieces.
  */
 export const WIDENED_FLOATS_PER_PIECE = 21;
+
+/**
+ * The slot attributes a plain line batch binds, at their offsets in its slot: (name, first float, floats). A curve
+ * run's program (`EDGE_CURVE_RUN`) reads the same floats under the `slot`-prefixed names ({@link CURVE_RUN_SLOT_NAMES}).
+ */
+export const JOIN_SLOT_ATTRIBUTES: readonly (readonly [string, number, number])[] = [
+    ["pPrev", 0, 3],
+    ["pA", 3, 3],
+    ["pB", 6, 3],
+    ["pNext", 9, 3],
+    ["run", 12, 2],
+    ["pPrev2", 14, 3],
+    ["pNext2", 17, 3],
+];
+
+/** The names a curve run's program reads {@link JOIN_SLOT_ATTRIBUTES} under, in the same order. */
+export const CURVE_RUN_SLOT_NAMES = ["slotPrev", "slotA", "slotB", "slotNext", "slotRun", "slotPrev2", "slotNext2"];
+
+/**
+ * A CURVE RUN (`EDGE_CURVE_RUN`, issue #10046): a curve drawn from ONE slot of a plain line batch, not a slot per
+ * piece. The batch's template is then `MAX_PIECES` (64) copies of the join template, each vertex carrying its copy's
+ * number (`curvePiece`), and the vertex shader draws piece `curvePiece` of the slot's curve: its six points are points
+ * of the curve's cut path, from the slot's two centers and its span, by the very `pulledCurvePoint` a pulled curve
+ * batch runs (`meshes/pulledCurve.ts`), so both render paths draw the same float32 points. A curve slot is marked by
+ * a run spacing of -1 (a solid line's is 0): (source center, target center, (samples, first, pieces), (startAt,
+ * endAt, shape 0), (shape 1, -1), (shape 2, 0, 0)), `curveShape`'s numbers. A straight slot draws as it always did
+ * from copy 0, and its other copies draw nothing; a batch with no curve keeps the one-piece template.
+ */
+const CURVE_RUN_GLSL = `
+#ifdef EDGE_CURVE_RUN
+${curvePointGlsl(false)}
+attribute float curvePiece;
+${CURVE_RUN_SLOT_NAMES.map((name, i) => `attribute ${JOIN_SLOT_ATTRIBUTES[i][2] === 2 ? "vec2" : "vec3"} ${name};`).join("\n")}
+vec3 pPrev2;
+vec3 pPrev;
+vec3 pA;
+vec3 pB;
+vec3 pNext;
+vec3 pNext2;
+vec2 run;
+
+// Read the slot: a straight piece from copy 0, or piece curvePiece of a curve. False for a copy that draws nothing.
+bool readSlot() {
+    int j = int(curvePiece + 0.5);
+    if (slotRun.y > -0.5) {
+        pPrev2 = slotPrev2;
+        pPrev = slotPrev;
+        pA = slotA;
+        pB = slotB;
+        pNext = slotNext;
+        pNext2 = slotNext2;
+        run = slotRun;
+        return j == 0;
+    }
+    vec4 counts = vec4(slotB, slotPrev2.x);
+    vec4 cut = vec4(slotNext, slotRun.x);
+    int pieces = int(counts.z + 0.5);
+    if (j >= pieces) {
+        return false;
+    }
+    // the neighbors EdgeLineBatch.writeFlat picks for a run's piece j, as a pulled curve's piece picks them
+    int prev = j == 0 ? 0 : j - 1;
+    int prev2 = j < 2 ? prev : j - 2;
+    int next = j == pieces - 1 ? j + 1 : j + 2;
+    int next2 = j >= pieces - 2 ? next : j + 3;
+    pA = pulledCurvePoint(slotPrev, slotA, counts, cut, j);
+    pB = pulledCurvePoint(slotPrev, slotA, counts, cut, j + 1);
+    pPrev = pulledCurvePoint(slotPrev, slotA, counts, cut, prev);
+    pPrev2 = pulledCurvePoint(slotPrev, slotA, counts, cut, prev2);
+    pNext = pulledCurvePoint(slotPrev, slotA, counts, cut, next);
+    pNext2 = pulledCurvePoint(slotPrev, slotA, counts, cut, next2);
+    // a solid line that does not taper never reads its run (as a pulled curve's)
+    run = vec2(0.0);
+    return true;
+}
+#endif
+`;
 
 /**
  * The static attributes of a widened batch, each a vec4, in their buffer's order: the line color
@@ -216,7 +293,9 @@ const LEAN_CORNERS = LEAN_TEMPLATE_INDICES.map((i) => LEAN_TEMPLATE_OF[i] ?? 0);
  *
  * A CURVE's entry (`EDGE_PULLED_CURVE`) takes four texels: the second's alpha is its part of its edge's run of
  * entries, and the third and fourth hold the edge's span (`meshes/pulledCurve.ts`). Each draw slot names an entry
- * and j, one of its `CURVE_STRIDE` pieces (`edgeSlots`): it draws the path's piece k * CURVE_STRIDE + j of part k.
+ * (`edgeSlots`), and the batch's template holds `CURVE_STRIDE` copies of the join template, each vertex carrying its
+ * copy's number j (`curvePiece`, `CustomLineRenderer.setCurveTemplate`): it draws the path's piece k * CURVE_STRIDE + j
+ * of part k, so a curve costs one draw slot, as the object path's (`EDGE_CURVE_RUN`, #10046).
  * Its six points are points of that path, picked as `EdgeLineBatch.writeFlat`
  * picks a run's neighbors (they stop at the run's ends), and its run is zero: a solid line that does not taper
  * never reads it (its `perTotal` is 0 and the pattern branch is off). A piece at or past the span's last point
@@ -379,9 +458,11 @@ const int CORNER_OF[PIECE_CORNERS] = int[PIECE_CORNERS](${JOIN_TEMPLATE_INDICES.
 #ifdef EDGE_PULLED_CURVE
 ${PULLED_CURVE_GLSL}
 
-// pieces an entry holds (PulledLineBatch's CURVE_STRIDE); a longer curve takes a run of entries
+// pieces an entry holds (PulledLineBatch's CURVE_STRIDE), one a copy of the template; a longer line takes a run of entries
 const int CURVE_STRIDE = ${String(CURVE_STRIDE)};
-// each draw slot's entry times CURVE_STRIDE plus its piece, a name a slot (PulledLineBatch's slot table)
+// the template copy this vertex is in: the piece of the entry it draws
+attribute float curvePiece;
+// each draw slot's entry, a name a slot (PulledLineBatch's slot table)
 uniform highp sampler2D edgeSlots;
 ${pulledTexelGlsl("edgeSlots", "pulledSlotsTexel")}
 // set by pullEdge for a slot past its own curve's pieces: the vertex is put outside the clip volume
@@ -440,8 +521,8 @@ void pullEdge() {
         pulledSkip = true;
         return;
     }
-    piece = name / CURVE_STRIDE;
-    int j = name - piece * CURVE_STRIDE;
+    piece = name;
+    int j = int(curvePiece + 0.5);
 #endif
     int texel = piece * PIECE_TEXELS;
     vec4 tint = pulledRowsTexel(texel + 1);
@@ -574,6 +655,7 @@ vec3 pNext2;
 vec2 run;
 #else
 attribute vec3 position;
+#ifndef EDGE_CURVE_RUN
 attribute vec3 pPrev2;
 attribute vec3 pPrev;
 attribute vec3 pA;
@@ -581,6 +663,7 @@ attribute vec3 pB;
 attribute vec3 pNext;
 attribute vec3 pNext2;
 attribute vec2 run;
+#endif
 // 1 while the visibility mask hides the piece's edge, which then draws nothing; 0 (and an unbound
 // attribute reads 0) draws it. One float a piece, so hiding or showing an edge writes no point.
 attribute float edgeHidden;
@@ -648,6 +731,7 @@ uniform vec3 edgeAgeWindow;
 
 const float EPS = 1e-4;
 ${PULLED_EDGE_GLSL}
+${CURVE_RUN_GLSL}
 ${NEAR_TRIM_GLSL}
 vec4 clipOf(vec3 p) {
     return viewProjection * (world * vec4(p, 1.0));
@@ -783,6 +867,12 @@ void main() {
         gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
         return;
     }
+#ifdef EDGE_CURVE_RUN
+    if (!readSlot()) {
+        gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+        return;
+    }
+#endif
 #endif
 #ifdef EDGE_SLOT_COLOR
     vEdgeColor = edgeColor;

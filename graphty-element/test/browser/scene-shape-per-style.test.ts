@@ -275,6 +275,8 @@ describe("the scene grows with styles and nodes, not with edges", () => {
         // billboard values are buffers of theirs (ArrowCapBatch).
         for (const [kind, name] of [
             ["pA", "slots"],
+            // a batch whose slots may draw a whole curve reads them under its own names (`EDGE_CURVE_RUN`)
+            ["slotA", "slots"],
             ["arrowDirection", "arrowDirection"],
         ]) {
             const buffer = mesh.getVertexBuffer(kind)?.getWrapperBuffer();

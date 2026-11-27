@@ -4,7 +4,8 @@
  *
  * A curve batch drew unindexed, 30 vertices a piece, and each of them worked out six points of its curve from the row
  * table: a still frame of 100,000 curved edges took about 40% more GPU time than the objects path, whose batch draws
- * the template's 14 vertices a piece, indexed. The batch now draws the template indexed, an instance a piece.
+ * the template's 14 vertices a piece, indexed. The batch now draws the template indexed: an instance a curve, whose
+ * template is a copy of the join template for each piece it may draw (#10046).
  */
 
 import "../../src/graphty-element";
@@ -15,6 +16,7 @@ import { afterEach, assert, describe, it } from "vitest";
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 import { JOIN_TEMPLATE_VERTICES } from "../../src/meshes/edgeJoinShader";
+import { CURVE_STRIDE } from "../../src/meshes/pulledCurve";
 
 const ADAPTER = (import.meta.env as Record<string, string | undefined>).GRAPHTY_BROWSER_GPU ?? "";
 const RENDERERS = ADAPTER === "" ? (["webgl"] as const) : (["webgl", "webgpu"] as const);
@@ -128,6 +130,12 @@ describe.each(RENDERERS)("a curve batch's vertex work on %s", (renderer) => {
         assert.isAbove(pieces, EDGES.length, "each curve is drawn in several pieces");
         const { vertices, draws } = vertexWork(element, batch);
         assert.strictEqual(draws, 1, "the batch draws once a frame");
-        assert.strictEqual(vertices, pieces * JOIN_TEMPLATE_VERTICES, `${String(pieces)} pieces`);
+        // one instance a curve, its template a copy of the join template a piece it may draw (#10046), as the object
+        // path's batch draws a curve from one slot
+        assert.strictEqual(
+            vertices,
+            EDGES.length * CURVE_STRIDE * JOIN_TEMPLATE_VERTICES,
+            `${String(EDGES.length)} curves`,
+        );
     });
 });

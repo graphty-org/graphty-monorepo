@@ -1286,6 +1286,8 @@ export class EdgeMesh {
                 pulled: pulled !== false,
                 pulledCurve: pulled === "curve",
                 pulledLean: pulled === "smooth" ? "smooth" : pulled === "lean",
+                // a plain 3D line's slot may draw a whole lone curve (`EdgeLineBatch.placeCurve`, #10046)
+                curveRun: pulled === false && !widened && pattern === undefined,
             },
             scene,
         );

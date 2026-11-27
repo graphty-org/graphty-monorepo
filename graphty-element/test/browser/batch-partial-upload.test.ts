@@ -140,7 +140,8 @@ function lineMirrors(batch: EdgeLineBatch): readonly Mirror[] {
     }
 
     return [
-        { name: "slots", buffer: wrapper("pA"), rows: slots, width: stride },
+        // a batch whose slots may draw a whole curve reads them under its own names (`EDGE_CURVE_RUN`)
+        { name: "slots", buffer: wrapper(batch.drawsCurves ? "slotA" : "pA"), rows: slots, width: stride },
         ...(statics === null
             ? []
             : [{ name: "statics", buffer: wrapper("edgeColorA"), rows: statics, width: EDGE_STATIC_FLOATS }]),
@@ -428,7 +429,9 @@ describe("the element's switch", () => {
         const lines = new Set(
             scene.meshes
                 .filter(isEdgeLineBatchMesh)
-                .flatMap((mesh) => ["pA", "edgeHidden"].map((kind) => mesh.getVertexBuffer(kind)?.getWrapperBuffer())),
+                .flatMap((mesh) =>
+                    ["pA", "slotA", "edgeHidden"].map((kind) => mesh.getVertexBuffer(kind)?.getWrapperBuffer()),
+                ),
         );
         const sent: { floats: number; whole: boolean }[] = [];
         const upload = Buffer.prototype.updateDirectly;
@@ -578,7 +581,8 @@ describe("a context lost while a window is in force", () => {
         const scene = element.graph.getScene();
         const buffers = (kind: string): Set<Buffer | undefined> =>
             new Set(scene.meshes.map((mesh) => mesh.getVertexBuffer(kind)?.getWrapperBuffer()));
-        const lines = buffers("pA");
+        // a batch whose slots may draw a whole curve reads them under its own names (`EDGE_CURVE_RUN`)
+        const lines = new Set([...buffers("pA"), ...buffers("slotA")]);
         lines.delete(undefined);
         assert.isAbove(lines.size, 0, "the edges are drawn as a batch");
         const update = vi.spyOn(Buffer.prototype, "updateDirectly");

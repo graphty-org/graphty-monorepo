@@ -168,7 +168,7 @@ describe("a pulled curve's path", () => {
         assert.isAbove(uncut, 0, "some curves clear neither node and are drawn uncut");
     });
 
-    it("cuts a lone curve from one working-out of its control points, and keeps the points it cut", () => {
+    it("cuts a lone curve from one working-out of its control points, and keeps no points: the shader works them out", () => {
         let kept = 0;
         for (const [i, { src, dst, rSrc, rDst }] of cases().entries()) {
             curveWork.controls = 0;
@@ -196,7 +196,8 @@ describe("a pulled curve's path", () => {
             );
         }
 
-        assert.isAtLeast(kept, 200, "a cut curve keeps the points it was cut to");
+        // a lone curve is drawn from its span on both render paths (`curveShape` kind 0, #10046), so no route keeps them
+        assert.strictEqual(kept, 0, "cut curves that kept their points");
     });
 
     it("puts every point of a fanned arc where the object path's cut arc has it, drawn either way round", () => {

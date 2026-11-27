@@ -11,20 +11,30 @@ import { UNTIMED_AGE } from "../session/time/ageFade";
 import { CustomLineRenderer, type JoinedPatternKind } from "./CustomLineRenderer";
 import { DirtyRuns, sendThinInstanceMatrices } from "./DirtyRuns";
 import {
+    CURVE_RUN_SLOT_NAMES,
     EDGE_STATIC_ATTRIBUTES,
     EDGE_STATIC_FLOATS,
     JOIN_FLOATS_PER_PIECE,
+    JOIN_SLOT_ATTRIBUTES,
     WIDENED_FLOATS_PER_PIECE,
 } from "./edgeJoinShader";
+import type { Xyz } from "./edgeRoute";
 import { batchUploadFrames, type EdgeAgeState, type RangedUploads } from "./FrameRoster";
 import { ParkedSlots } from "./ParkedSlots";
 import { discreteMeshCount } from "./PatternedLineMesh";
+import { curveShape, type CurveSpan } from "./pulledCurve";
 
 /** Floats in one 4x4 world matrix, which is what a thin-instance slot holds. */
 const FLOATS_PER_MATRIX = 16;
 
 /** Floats in one slot of a plain batch: the piece and its neighbors (see `edgeJoinShader`). */
 const FLOATS_PER_SLOT = JOIN_FLOATS_PER_PIECE;
+
+/**
+ * The run spacing that marks a slot drawing a whole curve ({@link EdgeLineBatch.placeCurve}); a solid line's is 0 and
+ * a pattern's above 0.
+ */
+const CURVE_MARK = -1;
 
 /** Slots a new batch starts with, before the first doubling. */
 const INITIAL_SLOTS = 32;
@@ -138,6 +148,8 @@ export interface EdgeLineMeta {
         /** Dashes and gaps of several lengths (`line.dashArray`, world units), repeating every `elementLength + gap`. */
         dashes?: readonly number[] | undefined;
     };
+    /** A plain 3D line whose slot may draw a whole lone curve (`EDGE_CURVE_RUN`, {@link EdgeLineBatch.placeCurve}). */
+    curveRun?: boolean;
     /**
      * A joined line drawn with a shader or a taper (`edgeJoinShader`'s `EDGE_WIDENED`): each slot
      * also carries the whole edge's length, and the static values in a buffer of their own.
@@ -208,6 +220,12 @@ export function segmentMatrixToRef(srcPoint: Vector3, dstPoint: Vector3, out: Ma
 export class EdgeLineBatch {
     /** The one mesh that draws every edge in this batch. */
     readonly mesh: Mesh;
+
+    /** Whether a slot here may draw a whole lone curve ({@link EdgeLineBatch.placeCurve}). */
+    readonly drawsCurves: boolean;
+
+    /** Whether the mesh has the curve run's template yet: given it when the first curve is placed. */
+    private curveTemplate = false;
 
     /** Every slot, live or free, packed end to end, {@link EdgeLineBatch.stride} floats each. */
     private slots: Float32Array;
@@ -363,6 +381,7 @@ export class EdgeLineBatch {
         this.uploads = batchUploadFrames.rangedUploads(scene);
         const meta = (mesh.metadata ?? {}) as EdgeLineMeta;
         this.pattern = meta.pattern;
+        this.drawsCurves = meta.curveRun === true;
         const widened = meta.joinedLine === true && meta.widened === true;
         this.stride = widened ? WIDENED_FLOATS_PER_PIECE : FLOATS_PER_SLOT;
         this.parking = meta.joinedLine === true ? null : new ParkedSlots(this.stride);
@@ -536,6 +555,7 @@ export class EdgeLineBatch {
             !this.gone &&
             !from.gone &&
             from.stride === this.stride &&
+            (this.drawsCurves || !from.isCurve(index)) &&
             (from.matrices === null) === (this.matrices === null) &&
             (from.statics === null) === (this.statics === null);
         if (!copied) {
@@ -546,6 +566,9 @@ export class EdgeLineBatch {
         const { stride } = this;
         const parked = from.isParked(index);
         this.slots.set(from.placementOf(index), slot * stride);
+        if (from.isCurve(index)) {
+            this.takeCurveTemplate();
+        }
         if (this.statics !== null && from.statics !== null) {
             this.writeStatic(slot, from.statics.subarray(index * EDGE_STATIC_FLOATS, (index + 1) * EDGE_STATIC_FLOATS));
         }
@@ -737,6 +760,62 @@ export class EdgeLineBatch {
     }
 
     /**
+     * Draw one slot as a whole lone curve (`EDGE_CURVE_RUN`, issue #10046): the vertex shader works out each piece of
+     * the curve's cut path from its two centers and its span, as a pulled curve's does (`meshes/pulledCurve.ts`), so a
+     * curve costs one slot, not one a piece. Only in a batch that {@link EdgeLineBatch.drawsCurves}, for a solid line
+     * that does not taper: its run is never read.
+     * @param index - The slot.
+     * @param src - The source center the curve is cut between.
+     * @param dst - The target center.
+     * @param span - Where its cut path starts and stops (`curveSpan`).
+     */
+    placeCurve(index: number, src: Xyz, dst: Xyz, span: CurveSpan): void {
+        if (this.gone) {
+            return;
+        }
+
+        this.takeCurveTemplate();
+        this.forget(index);
+        const [shape0, shape1, shape2] = curveShape(span);
+        const at = index * this.stride;
+        const s = this.slots;
+        s.fill(0, at, at + this.stride);
+        s[at] = src.x;
+        s[at + 1] = src.y;
+        s[at + 2] = src.z;
+        s[at + 3] = dst.x;
+        s[at + 4] = dst.y;
+        s[at + 5] = dst.z;
+        s[at + 6] = span.samples;
+        s[at + 7] = span.first;
+        s[at + 8] = span.pieces;
+        s[at + 9] = span.startAt;
+        s[at + 10] = span.endAt;
+        s[at + 11] = shape0;
+        s[at + 12] = shape1;
+        s[at + 13] = CURVE_MARK;
+        s[at + 14] = shape2;
+        this.slotRuns.mark(index, this.uploads.on, this.highWater);
+    }
+
+    /**
+     * Whether a slot draws a whole curve ({@link EdgeLineBatch.placeCurve}).
+     * @param index - The slot.
+     * @returns True for a curve slot.
+     */
+    isCurve(index: number): boolean {
+        return this.drawsCurves && this.slots[index * this.stride + 13] === CURVE_MARK;
+    }
+
+    /** Give the mesh the curve run's template, once (`CustomLineRenderer.setCurveTemplate`). */
+    private takeCurveTemplate(): void {
+        if (!this.curveTemplate) {
+            this.curveTemplate = true;
+            CustomLineRenderer.setCurveTemplate(this.mesh);
+        }
+    }
+
+    /**
      * Draw or stop drawing one slot.
      *
      * Only the hiding half does anything. A zero slot collapses the piece to a point, and the
@@ -859,10 +938,11 @@ export class EdgeLineBatch {
             return 0;
         }
 
+        const [a, b] = this.endOffsets(index);
         const at = index * this.stride;
-        const x = this.slots[at + 6] - this.slots[at + 3];
-        const y = this.slots[at + 7] - this.slots[at + 4];
-        const z = this.slots[at + 8] - this.slots[at + 5];
+        const x = this.slots[at + b] - this.slots[at + a];
+        const y = this.slots[at + b + 1] - this.slots[at + a + 1];
+        const z = this.slots[at + b + 2] - this.slots[at + a + 2];
 
         return Math.sqrt(x * x + y * y + z * z); // eslint-disable-line unicorn/prefer-modern-math-apis -- per edge, per frame; Math.hypot measured ~17x slower here
     }
@@ -894,8 +974,19 @@ export class EdgeLineBatch {
         }
 
         const at = index * this.stride;
+        const [a, b] = this.endOffsets(index);
 
-        return [Vector3.FromArray(this.slots, at + 3), Vector3.FromArray(this.slots, at + 6)];
+        return [Vector3.FromArray(this.slots, at + a), Vector3.FromArray(this.slots, at + b)];
+    }
+
+    /**
+     * Where a slot's two ends are among its floats: its piece's start and end, or a curve slot's two centers, which
+     * its edge reads its drawn points from instead (`Edge.drawnCurve`).
+     * @param index - The slot.
+     * @returns The two offsets.
+     */
+    private endOffsets(index: number): [number, number] {
+        return this.isCurve(index) ? [0, 3] : [3, 6];
     }
 
     /**
@@ -911,7 +1002,7 @@ export class EdgeLineBatch {
             return out.setAll(0);
         }
 
-        return out.fromArray(this.slots, index * this.stride + (end === 0 ? 3 : 6));
+        return out.fromArray(this.slots, index * this.stride + this.endOffsets(index)[end]);
     }
 
     /**
@@ -1438,13 +1529,11 @@ export class EdgeLineBatch {
             this.buffer?.dispose();
             const { stride } = this;
             const buffer = new Buffer(this.mesh.getEngine(), this.slots, true, stride, false, true);
-            this.mesh.setVerticesBuffer(buffer.createVertexBuffer("pPrev", 0, 3, stride, true));
-            this.mesh.setVerticesBuffer(buffer.createVertexBuffer("pA", 3, 3, stride, true));
-            this.mesh.setVerticesBuffer(buffer.createVertexBuffer("pB", 6, 3, stride, true));
-            this.mesh.setVerticesBuffer(buffer.createVertexBuffer("pNext", 9, 3, stride, true));
-            this.mesh.setVerticesBuffer(buffer.createVertexBuffer("run", 12, 2, stride, true));
-            this.mesh.setVerticesBuffer(buffer.createVertexBuffer("pPrev2", 14, 3, stride, true));
-            this.mesh.setVerticesBuffer(buffer.createVertexBuffer("pNext2", 17, 3, stride, true));
+            // a curve run's program reads the same floats under names of its own (`EDGE_CURVE_RUN`)
+            JOIN_SLOT_ATTRIBUTES.forEach(([name, offset, size], i) => {
+                const kind = this.drawsCurves ? CURVE_RUN_SLOT_NAMES[i] : name;
+                this.mesh.setVerticesBuffer(buffer.createVertexBuffer(kind, offset, size, stride, true));
+            });
             this.buffer = buffer;
             if (this.statics !== null) {
                 this.mesh.setVerticesBuffer(buffer.createVertexBuffer("runTotal", 20, 1, stride, true));

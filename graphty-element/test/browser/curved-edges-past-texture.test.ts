@@ -20,6 +20,7 @@ import { afterEach, assert, describe, it } from "vitest";
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 import type { RenderPath } from "../../src/meshes/NodeBatch";
+import { CURVE_STRIDE } from "../../src/meshes/pulledCurve";
 import { edgeBetween } from "../helpers/testSetup";
 import { pixelsOverBar as overBar, readCanvas } from "../helpers/whole-canvas";
 
@@ -273,20 +274,24 @@ describe.each(RENDERERS)("a curve's draw on %s", (renderer) => {
         ];
         assert.deepInclude(element.graph.rowCounts, { pulledEdges: pairs + 1, objectEdges: 0 });
         const counts = [short, long, bent].map(({ slots, pieces }) => `${String(slots)} for ${String(pieces)}`);
-        // the draw covers each curve's own pieces, an instance each, whatever the other curves ask for: the
-        // bent line's 201 pieces take the long curve's freed slots, then new ones
+        // the draw covers each curve from one slot, an instance each, whatever the other curves ask for (#10046): the
+        // bent line's 201 pieces take an entry, and so a slot, for each CURVE_STRIDE of them
         assert.isAbove(short.pieces, 0, "the short curves are drawn from the batch");
-        assert.strictEqual(short.slots, short.pieces, `short curves: ${counts.join(", then ")}`);
-        assert.strictEqual(long.slots, long.pieces, `with the long curve: ${counts.join(", then ")}`);
+        assert.strictEqual(short.slots, pairs, `short curves: ${counts.join(", then ")}`);
+        assert.strictEqual(long.slots, pairs + 1, `with the long curve: ${counts.join(", then ")}`);
         assert.strictEqual(bent.pieces, short.pieces + 201, "the bent line is drawn in 201 pieces");
-        assert.strictEqual(bent.slots, bent.pieces, `with the bent line: ${counts.join(", then ")}`);
+        assert.strictEqual(
+            bent.slots,
+            pairs + Math.ceil(201 / CURVE_STRIDE),
+            `with the bent line: ${counts.join(", then ")}`,
+        );
         assert.deepEqual(errors, [], "no error");
         assert.equal(overBar(objectsRest, await readCanvas(element.graph)), 0, "the objects path's picture");
     });
 });
 
 /**
- * Six horizontal and six vertical long curves (64 pieces each, so four entries apiece) crossing in one plane, the
+ * Six horizontal and six vertical long curves (64 pieces each, an entry apiece) crossing in one plane, the
  * horizontals first, or added in turn (horizontal, vertical, horizontal, ...).
  * @param interleaved - Whether the edges are added in turn.
  * @returns The nodes, the edges, and which edges are horizontal.

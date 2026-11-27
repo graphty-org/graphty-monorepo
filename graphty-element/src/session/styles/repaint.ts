@@ -854,6 +854,79 @@ function lookFiller(channel: string, scales: ScaleRegistry): ((painted: unknown)
         typeof painted === "object" && painted !== null ? withLabelLook(painted, scales.carried) : painted;
 }
 
+/** Each dirty element's mesh-keying values as they stood before a pass, by channel and then by dirty position. */
+interface MeshValues {
+    readonly columns: ReadonlyMap<ChannelColumn, readonly unknown[]>;
+    /** By dirty position, 1 when the element's key was interned from those values (see `TargetStore.unkeyed`). */
+    readonly settled: Uint8Array;
+}
+
+/**
+ * Read each dirty element's mesh-keying values before a pass paints over them.
+ * @param store - The store.
+ * @returns The values of every mesh-keying column that exists, by dirty position.
+ */
+function meshValuesOf(store: TargetStore): MeshValues {
+    const values = new Map<ChannelColumn, unknown[]>();
+    for (const channel of meshChannelsFor(store.target)) {
+        const column = store.columns.get(channel);
+        if (column !== undefined) {
+            const read = new Array<unknown>(store.dirtyCount);
+            for (let at = 0; at < store.dirtyCount; at++) {
+                read[at] = readColumn(column, store.dirty[at]);
+            }
+
+            values.set(column, read);
+        }
+    }
+
+    const settled = new Uint8Array(store.dirtyCount);
+    for (let at = 0; at < store.dirtyCount; at++) {
+        settled[at] = store.unkeyed[store.dirty[at]] === 0 ? 1 : 0;
+    }
+
+    return { columns: values, settled };
+}
+
+/**
+ * Whether a pass left every mesh-keying value of one element as it was, so the key it holds still names its mesh.
+ * A value compared by identity: an object built again with equal fields counts as changed, and is interned.
+ *
+ * Key zero is the style with nothing painted (`makeStore` interns it first), so an element holding it is kept only
+ * while it still has nothing painted. One holding it with values is one whose row was given up and taken again, whose
+ * columns still hold the old element's values: interned.
+ * @param before - The values before the pass.
+ * @param columns - The mesh-keying columns now, by channel.
+ * @param written - The positions in `columns` that exist.
+ * @param at - The element's dirty position.
+ * @param index - Its dense index.
+ * @param held - The key it holds.
+ * @returns True when nothing changed.
+ */
+function meshValuesKept(
+    before: MeshValues,
+    columns: readonly (ChannelColumn | null)[],
+    written: readonly number[],
+    at: number,
+    index: number,
+    held: number,
+): boolean {
+    if (before.settled[at] !== 1) {
+        return false;
+    }
+
+    for (const which of written) {
+        const column = columns[which] as ChannelColumn;
+        const was = before.columns.get(column);
+        const value = readColumn(column, index);
+        if ((held === 0 && value !== undefined) || !Object.is(value, was === undefined ? undefined : was[at])) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 /**
  * Paint one element in one column.
  * @param column - The column.
@@ -1084,6 +1157,11 @@ interface TargetStore {
     painted: Uint8Array;
     /** Whether any layer has ever painted a channel that keys a source mesh. */
     meshWritten: boolean;
+    /**
+     * Which elements a pass painted and did not intern, one byte each: a pass canceled between the two leaves their
+     * keys out of step with their values, so whichever pass reaches each of them next interns it whatever it held.
+     */
+    unkeyed: Uint8Array;
 }
 
 /** One channel one layer paints, with everything knowable already worked out. */
@@ -1433,6 +1511,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
             dirtyCount: 0,
             painted: new Uint8Array(INITIAL_CAPACITY),
             meshWritten: false,
+            unkeyed: new Uint8Array(INITIAL_CAPACITY),
         };
     };
 
@@ -1473,6 +1552,8 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         stamps.set(store.stamps);
         const painted = new Uint8Array(capacity);
         painted.set(store.painted);
+        const unkeyed = new Uint8Array(capacity);
+        unkeyed.set(store.unkeyed);
 
         for (const column of store.columns.values()) {
             growColumn(column, capacity);
@@ -1482,6 +1563,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         store.meshKeys = meshKeys;
         store.stamps = stamps;
         store.painted = painted;
+        store.unkeyed = unkeyed;
         store.dirty = new Uint32Array(capacity);
     };
 
@@ -1975,11 +2057,19 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
      * @param store - The store.
      * @param context - The signal to stop on.
      * @param deadline - When this slice runs out.
+     * @param before - Each dirty element's mesh-keying values before this pass painted it, or null to intern them all.
      * @returns The next slice's deadline.
      */
-    const internDirty = async (store: TargetStore, context: RepaintContext, deadline: number): Promise<number> => {
+    const internDirty = async (
+        store: TargetStore,
+        context: RepaintContext,
+        deadline: number,
+        before: MeshValues | null,
+    ): Promise<number> => {
         const channels = meshChannelsFor(store.target);
         const columns = channels.map((channel) => store.columns.get(channel) ?? null);
+        // Only the channels something has written can differ from before: the rest are absent on both sides.
+        const written = columns.flatMap((column, which) => (column === null ? [] : [which]));
         const { meshes } = store;
         let slice = deadline;
 
@@ -2047,8 +2137,19 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         const internSlice = (from: number, to: number): void => {
             for (let at = from; at < to; at++) {
                 const index = store.dirty[at];
-                const key = uniform ?? keyOf(index);
                 const held = store.meshKeys[index];
+                store.unkeyed[index] = 0;
+                // An element whose mesh-keying values this pass left as they were keeps the key they were interned to:
+                // a color edit re-keyed every node, most of its repaint at 10,000 nodes (issue #10302).
+                if (
+                    uniform === undefined &&
+                    before !== null &&
+                    meshValuesKept(before, columns, written, at, index, held)
+                ) {
+                    continue;
+                }
+
+                const key = uniform ?? keyOf(index);
 
                 // Counted only when an element MOVES to another mesh, so an edit that leaves
                 // every mesh where it was -- a color, a label -- costs no bookkeeping at all.
@@ -2186,6 +2287,10 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         // Clearing is what makes a removal and an update correct, and it is exactly what the
         // add-on-top path does not have to do: nothing below the new layer changed, so what those
         // layers painted is already right where it needs to be.
+        const before = store.meshWritten ? meshValuesOf(store) : null;
+        for (let at = 0; at < store.dirtyCount; at++) {
+            store.unkeyed[store.dirty[at]] = 1;
+        }
         if (from === 0) {
             clearDirty(store);
         }
@@ -2214,7 +2319,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         // Interning is skipped entirely while no layer has ever painted a channel that keys a
         // mesh, which is the ordinary case: a color encoding moves no element to another mesh.
         if (store.meshWritten) {
-            slice = await internDirty(store, context, slice);
+            slice = await internDirty(store, context, slice, before);
         }
 
         for (let at = 0; at < store.dirtyCount; at++) {
@@ -2426,6 +2531,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
 
         closeUp(store.meshKeys, dropped, carried, used, 0);
         closeUp(store.painted, dropped, carried, used, 0);
+        closeUp(store.unkeyed, dropped, carried, used, 0);
         for (const column of store.columns.values()) {
             closeUpColumn(column, dropped, carried, used);
         }
@@ -2463,12 +2569,14 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         const sourceOf = new Int32Array(count).fill(-1);
         const meshKeys = new Float64Array(capacity);
         const painted = new Uint8Array(capacity);
+        const unkeyed = new Uint8Array(capacity);
         for (let from = 0; from < store.count; from++) {
             const to = from < carried ? remap[from] : count;
             if (to < count) {
                 sourceOf[to] = from;
                 meshKeys[to] = store.meshKeys[from];
                 painted[to] = store.painted[from];
+                unkeyed[to] = store.unkeyed[from];
             } else if (store.meshKeys[from] !== 0) {
                 // Gone, or not worth carrying: the mesh it was drawn from loses it.
                 store.meshes.release(store.meshKeys[from]);
@@ -2483,6 +2591,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         store.count = count;
         store.meshKeys = meshKeys;
         store.painted = painted;
+        store.unkeyed = unkeyed;
         store.stamps = new Int32Array(capacity);
         store.dirty = new Uint32Array(capacity);
         const holes: number[] = [];

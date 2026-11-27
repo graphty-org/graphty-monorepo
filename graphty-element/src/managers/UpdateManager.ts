@@ -77,6 +77,9 @@ interface FramingBox {
 /** A framing box's corners alone, kept after a fit to tell whether the extent moved. */
 type FittedBox = Pick<FramingBox, "min" | "max">;
 
+/** A selected node as the camera follows it: its `Node`, or a row stored with none (`UpdateManager.selectedPlaces`). */
+type SelectedPlace = Pick<Node, "id" | "dragging" | "drawnPosition">;
+
 /**
  * The box the nodes alone occupy: every visible node, where it is in world space, out to its size.
  * This is what the 2D/3D view-mode switch frames. Zoom-to-fit frames {@link framingBox}, which
@@ -655,7 +658,7 @@ export class UpdateManager implements Manager {
      * The selection the camera is still gliding to: once the selection is cleared mid-glide, the
      * glide carries on to it; see `followSelection`.
      */
-    private glidingTo: readonly Node[] = [];
+    private glidingTo: readonly SelectedPlace[] = [];
     /**
      * Whether `camera.autoRotate` turned the camera on the last pass. It keeps a graph drawn on
      * demand drawing, and nothing else: the picture is finished when the layout and the styles
@@ -1549,13 +1552,25 @@ export class UpdateManager implements Manager {
 
         // A selected row stored with no `Node` gets one, as the selection's own pass gives it (`applyNodeSelection`):
         // its halo is the `Node`'s. Built, it takes the masks (`adoptBuiltNode`).
-        for (const id of nodeSelection?.ids() ?? []) {
+        for (const id of this.selectionBuildsNodes() ? (nodeSelection?.ids() ?? []) : []) {
             if (dataManagerInternals.builtNode(this.dataManager, id) === undefined) {
                 this.dataManager.nodes.get(id);
             }
         }
 
         this.applyColumnRows(null, nodeVisibility, showContext);
+    }
+
+    /**
+     * Whether a selected row stored with no `Node` needs one built: only while the selection draws its own halo
+     * (`Node.haloLook`), which only a `Node` does. With the starting rows on, the Selected row paints the selection's
+     * look as a style, which a row's batch draws, halo and all (`NodeBatches.syncHalo`); building a `Node` for each
+     * of 5,000 selected rows was one 240 ms frame of a select-all at 10,000 nodes. A `Node` built later for another
+     * reason takes the selection then (`adoptBuiltNode`).
+     * @returns True when it does.
+     */
+    private selectionBuildsNodes(): boolean {
+        return this.graphContext.getStyles().config.graph.startingRows !== true;
     }
 
     /**
@@ -1568,8 +1583,9 @@ export class UpdateManager implements Manager {
 
         // `ids()` reads the bytes with an indexed loop, the same reach as the write that moved
         // the mask; the per-element work below is one lookup per member.
+        const build = this.selectionBuildsNodes();
         for (const id of nodeSelection?.ids() ?? []) {
-            const node = this.dataManager.nodes.get(id);
+            const node = build ? this.dataManager.nodes.get(id) : dataManagerInternals.builtNode(this.dataManager, id);
             if (node && node.index !== INVALID_INDEX && nodeSelection?.has(node.index) === true) {
                 next.add(node);
             }
@@ -3777,7 +3793,7 @@ export class UpdateManager implements Manager {
             this.finishGlideTo(following);
         }
 
-        const nodes = this.graphContext.getSelectionManager?.()?.getSelectedNodes() ?? [];
+        const nodes = this.selectedPlaces();
         this.heldSelection = nodes.length === 0 ? null : selectionKey(nodes);
         this.followingSelection = false;
         this.glidingTo = [];
@@ -3801,7 +3817,7 @@ export class UpdateManager implements Manager {
      * while the element is framing the graph or a node of it is dragged (see `followSelection`).
      * @param nodes - The selection.
      */
-    private finishGlideTo(nodes: readonly Node[]): void {
+    private finishGlideTo(nodes: readonly SelectedPlace[]): void {
         if (
             !this.graphContext.getStyles().config.behavior.camera.pivotOnSelection ||
             nodes.some((node) => node.dragging) ||
@@ -3813,6 +3829,45 @@ export class UpdateManager implements Manager {
         if (this.camera.followPoint(selectionCenter(nodes), 1, true)) {
             this.viewMoved();
         }
+    }
+
+    /**
+     * The selected nodes where they are drawn, building no `Node`: a built node is its `Node`, and a row stored with
+     * none is read from the row table, where a batched `Node` reads its own place (`Node.drawnPosition`) too. Asking
+     * for the `Node`s built one for each of 5,000 selected rows, in the frame that drew a select-all.
+     * @returns The places, in selection order.
+     */
+    private selectedPlaces(): SelectedPlace[] {
+        const manager = this.graphContext.getSelectionManager?.();
+        const ids = manager?.getSelectedNodeIds() ?? null;
+        if (manager === undefined || ids === null) {
+            return manager?.getSelectedNodes() ?? [];
+        }
+
+        const table = this.graphContext.getRowTable?.() ?? null;
+        const places: SelectedPlace[] = [];
+        for (const id of ids) {
+            const built = dataManagerInternals.builtNode(this.dataManager, id);
+            const row = built === undefined ? dataManagerInternals.rowOf(this.dataManager, id) : INVALID_INDEX;
+            if (built !== undefined) {
+                places.push(built);
+            } else if (table !== null && row >= 0 && row < table.rows) {
+                places.push({
+                    id,
+                    dragging: false,
+                    get drawnPosition() {
+                        return table.centerOf(row);
+                    },
+                });
+            } else {
+                const node = this.dataManager.getNode(id);
+                if (node !== undefined) {
+                    places.push(node);
+                }
+            }
+        }
+
+        return places;
     }
 
     /**
@@ -3838,7 +3893,7 @@ export class UpdateManager implements Manager {
         // and so where every node is drawn, depended on how many frames ran before the clear, and a
         // node the reader was about to click could be off the canvas one time and on it the next
         // (issue #10165).
-        const selected = this.graphContext.getSelectionManager?.()?.getSelectedNodes() ?? [];
+        const selected = this.selectedPlaces();
         const nodes = selected.length > 0 ? selected : this.glidingTo;
         this.glidingTo = [];
         if (nodes.length === 0 || nodes.some((node) => node.dragging)) {
@@ -6546,7 +6601,7 @@ function drawHalosIntoFrozenList(scene: Scene, meshes: Iterable<AbstractMesh>, f
     return true;
 }
 
-function selectionCenter(nodes: readonly Node[]): Vector3 {
+function selectionCenter(nodes: readonly SelectedPlace[]): Vector3 {
     const center = nodes[0].drawnPosition.clone();
     for (const node of nodes.slice(1)) {
         center.addInPlace(node.drawnPosition);
@@ -6561,7 +6616,7 @@ function selectionCenter(nodes: readonly Node[]): Vector3 {
  * @param held - The held selection's `selectionKey`, or null.
  * @returns True when they hold the same nodes.
  */
-function isHeld(nodes: readonly Node[], held: string | null): boolean {
+function isHeld(nodes: readonly SelectedPlace[], held: string | null): boolean {
     const ids = new Set(held?.split("\u0000"));
     return ids.size === nodes.length && nodes.every((node) => ids.has(String(node.id)));
 }
@@ -6571,6 +6626,6 @@ function isHeld(nodes: readonly Node[], held: string | null): boolean {
  * @param nodes - The selected nodes.
  * @returns Their ids, joined.
  */
-function selectionKey(nodes: readonly Node[]): string {
+function selectionKey(nodes: readonly SelectedPlace[]): string {
     return nodes.map((node) => String(node.id)).join("\u0000");
 }

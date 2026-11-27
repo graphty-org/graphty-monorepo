@@ -2886,27 +2886,6 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         return cut === -1 ? painted : painted.slice(0, cut);
     };
 
-    /**
-     * What a layer selects among the elements drawn: a filter step that hides some of them takes
-     * them out of the count, so a key never counts nodes the drawing does not show.
-     * @param id - The layer.
-     * @returns How many, and out of how many of its kind.
-     */
-    const selectsAmongDrawn = (id: LayerId): { count: number; of: number } => {
-        const whole = sources.resolveScope?.(WHOLE_GRAPH) ?? emptyScope();
-        const compiled = byId().get(id);
-        const edges = compiled?.layer.target === "edge";
-        const drawn = sources.drawn?.() ?? elementsOf(DRAWN);
-        const test = compiled?.selector.test ?? null;
-        let count = 0;
-        for (const index of edges ? drawn.edges : drawn.nodes) {
-            if (test === null || test(index)) {
-                count++;
-            }
-        }
-        return { count, of: edges ? whole.edgeCount : whole.nodeCount };
-    };
-
     /** What a legend is read from. */
     const legendSources: LegendSources = {
         // The stack's own layers: a branches view's stand-ins are not layers and never reach a key.
@@ -5753,7 +5732,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         },
 
         drawnCount(id: LayerId): number {
-            return selectsAmongDrawn(id).count;
+            return amongDrawn(id).matched;
         },
 
         drawnValues(channel: Channel): readonly DrawnValue[] {

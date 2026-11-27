@@ -1,0 +1,73 @@
+id: program-comprehension-developer
+name: Developer Learning an Unfamiliar System
+roster_persona: dependency-impact-engineer
+tier: A
+scope: in-scope
+role: Software Developer joining or maintaining a multi-service application (program comprehension)
+quote: I just joined this team. Before I touch anything, show me which parts of the system actually call each other at run time.
+bio: >-
+    Jonas is a backend developer who has just moved onto a team that owns a Java system of several services and
+    hundreds of classes. Most of his first weeks go to reading code and asking colleagues how it fits together; a field
+    study of 78 professional developers found program comprehension takes about 58 percent of their time. He has the
+    source and an OpenTelemetry trace feed, so he opens the system in a software-city view such as ExplorViz: services
+    as foundations, packages as districts, classes as buildings, observed method calls as pipes between them. He works
+    alone on a desktop most days and joins a shared VR or phone AR session when a senior colleague walks him through
+    the system. Software-city views are older than the headsets: CodeCity ran a controlled experiment with 41
+    participants from academia and industry in 2011, and a 2019 study compared the city on a screen and in VR. Most
+    evaluations of the immersive modes used students or small paired teams (20 to 24 participants), so evidence
+    about working developers in headsets is thin.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: intermediate
+    domain_knowledge: intermediate
+motivations:
+    - Build a working map of an unfamiliar system before changing it
+    - See which components call which at run time, not only what the static imports say
+    - Find what depends on a class before refactoring it
+    - Be walked through the system by a colleague who can point at the same building
+behaviors:
+    - Instruments the application with an OpenTelemetry agent and opens the live or recorded traces in a city view
+    - Opens one district at a time and keeps the rest collapsed
+    - Follows call pipes from a class to its callers and callees
+    - Works alone on a desktop and joins a shared VR or AR session for walkthroughs
+frustrations:
+    - Names of buildings and districts are hard to read in VR and AR
+    - Immersive modes run slowly on a large system
+    - Evidence that 3D or AR helps experienced developers is mixed; one study found AR helped novices but not experts identify dependencies
+    - Setup (instrumentation, a trace collector) comes before any picture
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+        - mobile
+        - vr-headset
+    voluntary: true
+workflows:
+    - W421
+sources:
+    - title: Xia et al. 2018 - Measuring program comprehension, a large-scale field study with professionals (IEEE TSE)
+      url: https://xin-xia.github.io/publication/TSE17.pdf
+      summary: Developers spend about 58 percent of their time on program comprehension (78 to 79 professionals, about 3,148 to 3,244 working hours across versions)
+    - title: ExplorViz project page
+      url: https://explorviz.uni-kiel.de/1-about/
+      summary: Web-based system and program comprehension tool; 3D city metaphor; OpenTelemetry traces; static analysis; AR and VR evaluated with test subjects
+    - title: Krause-Glau, Hansen and Hasselbring 2022 - Collaborative program comprehension via software visualization in extended reality
+      url: https://eprints.soton.ac.uk/488885/
+      summary: Desktop, VR and mobile AR multi-user modes; two preliminary studies; readability and performance problems
+    - title: Brueck 2020 - ExplorViz collaborative VR thesis (Kiel)
+      url: https://oceanrep.geomar.de/id/eprint/49581
+      summary: 24 participants solved software analysis tasks in teams
+    - title: Wettel, Lanza and Robbes 2011 - Software systems as cities, a controlled experiment (ICSE)
+      url: https://2011.icse-conferences.org/content/software-systems-cities-controlled-experiment.html
+      summary: 41 participants from academia and industry; CodeCity improved correctness and time over Eclipse with Excel
+    - title: Romano et al. 2019 - On the use of virtual reality in software visualization, the case of the city metaphor
+      url: https://www.iris.unisa.it/handle/11386/4779848
+      summary: City on a screen and in VR both more correct than Eclipse; VR faster than the screen city (abstract)
+    - title: Joos et al. 2025 - survey of immersive network analysis
+      url: https://arxiv.org/html/2501.08500v2
+      summary: AR helped novices, not experts, identify dependencies in large systems
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

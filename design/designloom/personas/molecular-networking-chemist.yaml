@@ -1,0 +1,73 @@
+id: molecular-networking-chemist
+name: Molecular Networking Chemist
+roster_persona: molecular-networking-chemist
+tier: B
+scope: in-scope
+role: Natural Products Chemist / Untargeted Metabolomics Scientist
+quote: GNPS gave me three thousand spectra in four hundred little families. I need to find the families that differ between my groups and put names on the unknowns.
+bio: >-
+    Dr. Zainab Okoro is a natural products chemist who runs untargeted liquid chromatography tandem mass spectrometry
+    (LC-MS/MS) on extracts, microbiome samples or environmental samples. She converts vendor files, detects features in
+    MZmine or MS-DIAL, and submits jobs to GNPS or GNPS2 for classical or feature-based molecular networking. The result
+    is a similarity graph: nodes are consensus spectra or features with precursor mass, retention time, per-group
+    abundance, library hits and structures; edges are spectral cosine similarity with a mass difference. Because GNPS
+    keeps only mutual top-10 neighbors and caps components at 100 nodes, she gets thousands of small molecular families
+    plus singletons. She reads them in the GNPS browser one family at a time, propagates annotations with NAP and
+    MolNetEnhancer, and finishes the figure in Cytoscape with chemViz2 structures and per-group pie charts. GNPS served
+    over 300,000 accesses a month in 2021.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: intermediate
+    domain_knowledge: expert
+motivations:
+    - Find molecular families whose abundance differs between sample groups
+    - Put names on unknown spectra from annotated neighbors in the same family
+    - Spot new analogs of a known compound by mass difference
+    - Compare networks built with different settings without re-reading every family
+behaviors:
+    - Submits GNPS jobs with default tolerances, cosine 0.7, six matched peaks, TopK 10 and component cap 100
+    - Opens families one at a time from the View Spectral Families list in the browser
+    - Types a mass difference to highlight matching edges (for example a methylation)
+    - Runs NAP and MolNetEnhancer, then imports GraphML and library tables into Cytoscape
+    - Sizes nodes by summed peak intensity, draws pies from the group columns and structures from SMILES
+frustrations:
+    - The GNPS browser viewer is limited to a single component at a time
+    - Cytoscape search is very slow on large molecular networks
+    - Reruns with other settings give families that differ in size, composition and order, and random per-family layouts make comparison arduous
+    - Conventional networking leaves many nodes disconnected as singletons
+    - Separate jobs have to be merged by hand in Cytoscape
+context:
+    frequency: monthly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W25
+    - W253
+sources:
+    - title: GNPS documentation - molecular networking
+      url: https://ccms-ucsd.github.io/GNPSDocumentation/networking/
+      summary: Default parameters, TopK mutual neighbors, component size cap
+    - title: GNPS documentation - Cytoscape
+      url: https://ccms-ucsd.github.io/GNPSDocumentation/cytoscape/
+      summary: Browser viewer limited to one component; Cytoscape search slow on large networks
+    - title: Nothias et al. 2020 - Feature-based molecular networking
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC7885687
+      summary: MZmine features, duplicate nodes in classical networking, more than 6,767 jobs in 2019
+    - title: GNPS usage statistics (Aron et al. 2020 protocol)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8705952
+      summary: Over 300,000 accesses a month from more than 160 countries; 87 percent of usage is molecular networking
+    - title: Wang et al. 2016 - Sharing and community curation of mass spectrometry data with GNPS
+      url: https://openalex.org/works/doi:10.1038/nbt.3597
+      summary: Founding GNPS paper, cited 5,108 times (OpenAlex, 2026-11-25); the size proxy behind Tier B
+    - title: specXplore (2024)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11024886
+      summary: Family composition changes with settings; random layouts make comparison arduous
+    - title: Cell Reports Methods 2026 - disconnected nodes in molecular networking
+      url: https://doi.org/10.1016/j.crmeth.2026.101468
+      summary: Conventional molecular networking leaves many nodes disconnected
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

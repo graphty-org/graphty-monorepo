@@ -1,0 +1,145 @@
+id: W361
+name: Name Normalization and Entity Cleanup
+category: analysis
+validated: false
+personas:
+    - litigation-support-analyst
+    - receiving-party-production-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - node-merging
+    - search
+    - details-on-demand
+    - degree-analysis
+    - filtering
+    - analysis-history
+    - data-export
+    - entity-resolution-review
+    - delimited-recipient-import
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - data-table-panel
+    - node-merge-dialog
+    - search-panel
+    - node-details-panel
+    - analysis-history-panel
+    - data-export-dialog
+starting_state:
+    data_type: email header fields (From, To, Cc, Bcc as display names and addresses) for a document collection, plus a seed list of known custodians
+    node_count: thousands to tens of thousands of raw aliases before merging
+    edge_density: sparse
+    user_expertise: expert
+goal: >-
+    **Intent**: Turn the raw display names and addresses in email headers into one entity per real person before any
+    people graph is drawn, so that counts, rankings and privilege logs are not distorted by split or wrongly merged
+    people. In Relativity this is the name normalization operation of a structured analytics set; Brainspace and
+    Everlaw have equivalent merge tools.
+
+
+    **Mental Model**: "One person, many identifiers." A person is an entity; every address, display name and chat
+    handle is an alias that must be assigned to exactly one entity. Getting this wrong silently changes every number
+    downstream.
+
+
+    **Task Phases**:
+
+    1. **Seed known people** - Pre-create entities for custodians (from processing and legal hold) and link their
+    known aliases with Assign to Entity; classify entities as custodian or communicator
+
+    2. **Scope the run** - Build a saved search of email only, optionally a subset such as privileged documents; start
+    with the priority custodian alone, then add custodians incrementally
+
+    3. **Configure** - Map To, Cc and Bcc header fields; set domain filtering and an exclusion list of shared mailboxes
+    and distribution addresses
+
+    4. **Run and know the parser rules** - Splits recipient strings on semicolons, caps aliases per entity to prevent
+    over-merging, merges entities with the same first and last name, excludes any document with more than 500
+    entities and aliases
+
+    5. **Review selectively** - Sort entities by frequency; triage into Junk, To Check and Not Sure; open important
+    entities and verify that their documents really belong to one person (verifying all is not practical)
+
+    6. **Fix** - Assign up to 500 aliases to an entity or merge up to 50 entities; the survivor is the custodian
+    entity, else the lowest id, and other entity data is deleted; there is no documented unmerge; alias names must not
+    be edited
+
+    7. **Hand off** - Entity From, Entity Recipient and Entity Participant fields now feed searches, the people graph
+    and privilege logs
+
+
+    **Decision Points**:
+
+    - Is this alias the same person, a different person with the same name, or a shared mailbox?
+
+    - Which addresses go on the exclusion list so they do not become hubs?
+
+    - Which entities are worth verifying, given that verifying all of them is impractical?
+
+    - Merge now (irreversible) or leave for later review?
+
+
+    **Information Needs**:
+
+    - Entity list sortable by frequency with alias count per entity
+
+    - For one entity: every alias, its source field, and the documents behind it
+
+    - Which entities are custodians and which are only seen through custodians' mail
+
+    - A preview of what a merge will change (counts, survivor) before committing
+
+    - An audit of merges and assignments made, by whom and when
+
+
+    **Pain Points**:
+
+    - Normalization "can create many thousands of entities and aliases" and "the results are not perfect"
+
+    - No documented split or unmerge; a wrong merge cannot be undone cleanly
+
+    - Alias names must not be edited "even if it's incorrect" because later runs read them
+
+    - Same name for different people, generic names, many addresses per person, personal accounts and code names
+
+
+    **Data Flow**:
+
+    - Input: Header fields of email documents (or delimited recipient strings from a production load file), seed
+    custodian list, exclusion list
+
+    - Transformations: String parsing into aliases, automatic grouping into entities, manual assign and merge,
+    classification
+
+    - Output: Entity and alias table with classifications, entity fields on every document, audit of changes
+success_criteria:
+    - metric: Merge reversibility
+      target: Any merge can be undone and the prior entities restored
+    - metric: Verification coverage
+      target: Every entity in the top 100 by frequency has been checked against its documents
+    - metric: Count transparency
+      target: User can state how many aliases and entities exist and how many were excluded
+sources:
+    - title: Relativity - Name normalization
+      url: https://help.relativity.com/RelativityOne/Content/Relativity/Analytics/Name_normalization.htm
+      summary: Seed entities, header field mapping, parser rules, 500-entity document exclusion
+    - title: Relativity - Best practices for name normalization
+      url: https://help.relativity.com/Server2024/Content/Relativity/Analytics/Best_practices_for_name_normalization.htm
+      summary: Priority custodian first, triage categories Junk, To Check, Not Sure, verify entities against documents
+    - title: Relativity - Name normalization quick reference
+      url: https://help.relativity.com/Server2025/Content/System_Guides/User_quick_reference/Analytics/Name_normalization.htm
+      summary: Many thousands of entities and aliases; not practical to verify every entity
+    - title: Relativity - Name normalization results
+      url: https://help.relativity.com/Server2025/Content/Relativity/Analytics/Name_normalization_results.htm
+      summary: Assign up to 500 aliases, merge up to 50 entities, survivor rules, no unmerge, do not edit alias names
+    - title: Brainspace - Communications
+      url: https://docs.revealdata.com/brainspace/docs/communications
+      summary: Merge by Shift-clicking nodes in the graph and choosing Merge
+    - title: Brainspace - People Manager
+      url: https://docs.revealdata.com/brainspace/docs/people-manager
+      summary: Naming and managing merged people and their aliases
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

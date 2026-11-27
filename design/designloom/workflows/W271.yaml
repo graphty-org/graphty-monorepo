@@ -1,0 +1,128 @@
+id: W271
+name: Port a Graph Algorithm to Another Engine
+category: administration
+validated: false
+personas:
+    - plugin-author-data-scientist
+requires_capabilities:
+    - computed-attributes
+    - centrality-pagerank
+    - sample-datasets
+    - data-import
+    - visual-encoding-nodes
+    - legend-display
+    - data-preview
+    - data-export
+suggested_components:
+    - algorithm-panel
+    - algorithm-card
+    - sample-data-dialog
+    - data-import-dialog
+    - graph-canvas
+    - visual-encoding-panel
+    - legend-panel
+    - data-table-panel
+    - data-export-dialog
+starting_state:
+    data_type: a reference implementation of a per-node metric in NetworkX plus small test graphs with known answers
+    node_count: 5-1000
+    edge_density: moderate
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Take a graph metric that already works in one engine (NetworkX) and make it run in another with the
+    same name, the same arguments and the same numbers, then use it like a built-in.
+
+
+    **Mental Model**: "Same name, same arguments, same dict." A metric is a function from a graph to a value per node;
+    a port is correct when it gives the reference numbers on the cases where libraries usually disagree.
+
+
+    **Task Phases**:
+
+    1. **Keep the reference signature** - Implement the function under the same name and arguments; a NetworkX backend
+    registers through a `networkx.backends` entry point and supplies convert_from_nx and convert_to_nx
+
+    2. **Declare what is unsupported** - List parameters the engine cannot honor (cuGraph's pagerank omits dangling; the
+    Neptune backend omits personalization, nstart, weight and dangling); unsupported calls fall back to the reference
+
+    3. **Test against the reference suite** - Set NETWORKX_TEST_BACKEND and NETWORKX_FALLBACK_TO_NX and run
+    `pytest --pyargs networkx`; known gaps are marked as expected failures; results are converted back for comparison
+
+    4. **Check the cases where libraries disagree** - Dangling nodes with personalization, isolated nodes, direction,
+    normalization (betweenness endpoints and directedness), convergence tolerance
+
+    5. **Use it unchanged** - Callers keep their code and opt in with `backend="cugraph"` or an environment variable
+
+
+    **Design hypothesis, not observed: porting into graphty-element** - By analogy the author wants one runnable
+    example, a map from node id to number back (as graphology's `pagerank(graph)` returns), a parity check against
+    NetworkX on a small graph with a dangling and an isolated node, and the result usable for color and size like a
+    built-in. To be tested with real authors.
+
+
+    **Decision Points**:
+
+    - Which reference parameters can the new engine honor, and which are declared unsupported?
+
+    - Is a numeric difference a bug or a documented default (normalization, tolerance)?
+
+    - Fall back silently or fail loudly on an unsupported parameter?
+
+
+    **Information Needs**:
+
+    - The reference function's signature and defaults
+
+    - Side-by-side values per node from both engines on small known graphs
+
+    - The list of parameters the new engine ignores
+
+    - Edge weight and node attribute access in the shape the author already knows
+
+
+    **Pain Points**:
+
+    - Betweenness normalization changed across NetworkX versions and depends on endpoints and directedness
+
+    - igraph and NetworkX PageRank disagree with dangling nodes plus personalization, and when an isolated node is
+    dropped or edges are treated as undirected
+
+    - Defaults that differ silently between engines
+
+    - Examples that show registration boilerplate but no complete metric
+
+
+    **Data Flow**:
+
+    - Input: Reference implementation, small test graphs with dangling and isolated nodes
+
+    - Transformations: Re-implementation, conversion of graphs between engines, per-node comparison
+
+    - Output: A metric usable unchanged by callers and a parity record
+success_criteria:
+    - metric: Numerical parity
+      target: Per-node values match the reference within a stated tolerance on graphs with dangling and isolated nodes
+    - metric: First working example (hypothesis)
+      target: About 15 lines of author code from function to a colored graph
+sources:
+    - title: NetworkX backends guide
+      url: https://networkx.org/documentation/stable/reference/backends.html
+      summary: Entry points, convert_from_nx and convert_to_nx, unsupported parameter lists, NETWORKX_TEST_BACKEND test runs, fallback
+    - title: nx-cugraph - how it works
+      url: https://docs.nvidia.com/cugraph/latest/nx_cugraph/how-it-works/
+      summary: Same NetworkX calls dispatched to a GPU backend
+    - title: NetworkX pagerank reference
+      url: https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.link_analysis.pagerank_alg.pagerank.html
+      summary: Returns a dictionary of nodes with PageRank as value
+    - title: graphology metrics
+      url: https://graphology.github.io/standard-library/metrics.html
+      summary: pagerank(graph) returns per-node values; pagerank.assign writes node attributes
+    - title: NetworkX betweenness_centrality reference
+      url: https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.centrality.betweenness_centrality.html
+      summary: Normalization depends on endpoints and directedness
+    - title: igraph-help - PageRank vs NetworkX
+      url: https://lists.gnu.org/archive/html/igraph-help/2020-01/msg00009.html
+      summary: Disagreement with dangling nodes and personalization due to solver choice
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,73 @@
+id: power-grid-planning-engineer
+name: Power Grid Planning Engineer
+roster_persona: none
+tier: none
+scope: out-of-scope
+role: Transmission Planning Engineer at an ISO, RTO or utility
+quote: The contingency run gives me four thousand rows of violations. I need to see which outage overloads which line,
+    where it is on the map, and whether my proposed upgrade actually fixes it.
+bio: >-
+    Aditi is a transmission planning engineer at an independent system operator. Every year, and for every large
+    interconnection request, she runs the NERC TPL-001 planning events (P0 through P7) on base cases of 2,000 to more
+    than 80,000 buses in PSS/E, with PowerWorld and PSLF as secondary tools and Python (psspy) to automate the runs. Her
+    study is a contingency analysis: she defines the study area as a subsystem by area, zone, voltage range or owner in a
+    .sub text file, the monitored elements in a .mon file and the outages in a .con file, rebuilds the distribution
+    factor file, runs AC contingency analysis and exports thermal and voltage violations to Excel. She then reviews the
+    violation table by area and contingency, proposes mitigations (new lines, transformers, remedial action schemes),
+    and reruns. The cases are Critical Energy Infrastructure Information, so they cannot leave controlled systems. She
+    is a power systems expert; graph measures are only screening tools to her, because the physics decides.
+characteristics:
+    expertise: expert
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: expert
+motivations:
+    - Find every thermal and voltage violation for P1 to P7 events in her study area before the compliance deadline
+    - Trace each violation to the outage that caused it
+    - Propose and defend the cheapest mitigation that clears the violations
+    - Explain results to stakeholders who do not read PSS/E output
+behaviors:
+    - Selects the study area by attribute (area, zone, kV range, owner, bus list) and expands it to the branches to monitor
+    - Edits subsystem, monitored-element and contingency text files by hand or in Python
+    - Runs ACCC, exports flows, voltages and events to Excel and filters branches above 90 percent of their rating that rose at least 5 percent
+    - Reads violation tables sorted by area, contingency and monitored element
+    - Looks at one-line or geographic views with post-contingency loading as line color or width
+    - Reruns the whole study after each proposed upgrade and compares before and after
+frustrations:
+    - Subsystems and monitored elements live in hand-edited text files; a change means rebuilding the distribution factor file
+    - One-line diagrams show only a limited number of measurements legibly
+    - Many contingency states are hard to visualize at once
+    - Geographic and topological views are rarely combined in grid tools
+    - Cases are CEII and cannot be uploaded to cloud tools
+context:
+    frequency: weekly
+    devices:
+        - desktop
+    voluntary: false
+workflows:
+    - W218
+sources:
+    - title: NERC TPL-001-5.1 Transmission System Planning Performance Requirements
+      url: https://www.nerc.com/pa/Stand/Reliability%20Standards/TPL-001-5.1.pdf
+      summary: Planning events P0 through P7 that every transmission planner must study
+    - title: Colorado State University ECE461 PSS/E Lab 4
+      url: https://www.engr.colostate.edu/ECE461/FA13/LAB4/LAB4.pdf
+      summary: Step-by-step .sub, .mon, .con, DFAX and ACCC procedure
+    - title: Virginia Tech thesis automating TPL-001 studies
+      url: https://vtechworks.lib.vt.edu/bitstreams/efb3cbf5-f126-4d7a-8ad9-ec5d0ecc42cf/download
+      summary: Python automation of ACCC with violation filtering at 90 percent of Rate A
+    - title: Transmission planning engineer job posting (Dice)
+      url: https://dice.com/job-detail/0a5b3004-a9cf-4aaf-aed9-2f7410e59a69
+      summary: PSS/E, TARA, PowerWorld and Python skills requested
+    - title: TAMU ACTIVSg2000 synthetic grid
+      url: https://electricgrids.engr.tamu.edu/electric-grid-test-cases/activsg2000
+      summary: Public 2,000-bus, 3,209-branch case with coordinates, standing in for confidential cases
+    - title: FERC Form 715 instructions
+      url: https://ferc.gov/industries-data/electric/electric-industry-forms/form-no-715-annual-transmission-planning-and-evaluation-report-instructions
+      summary: Planning cases are Critical Energy Infrastructure Information
+    - title: Overbye et al., visualization of power system information (PSCC 2002)
+      url: https://documents.pserc.wisc.edu/documents/publications/papers/2002_general_publications/pscc02_paper_revisedfinalwithpsccfooter.pdf
+      summary: One-line diagrams show only a limited number of measurements legibly
+    - title: Survey of power system visualization (arXiv 2106.04661)
+      url: https://arxiv.org/pdf/2106.04661
+      summary: Many contingency states are a core visualization issue; geographic and topological views rarely combined

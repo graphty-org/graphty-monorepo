@@ -1,0 +1,154 @@
+id: W348
+name: Task Mining and Customer Journey Maps
+category: analysis
+validated: false
+personas:
+    - task-mining-analyst
+    - customer-journey-analyst
+    - process-mining-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - node-merging
+    - filtering
+    - layout-hierarchical
+    - visual-encoding-edges
+    - comparison-view
+    - details-on-demand
+    - statistics-panel
+    - event-log-import
+    - process-map-derivation
+    - conformance-overlay
+    - visual-encoding-nodes
+    - selection-statistics
+    - export-image
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - graph-canvas
+    - cluster-collapse-control
+    - filter-panel
+    - comparison-view
+    - node-details-panel
+    - statistics-panel
+    - node-merge-dialog
+    - range-slider
+    - visual-encoding-panel
+    - image-export-dialog
+starting_state:
+    data_type: desktop UI action recordings (task mining) or web analytics and touchpoint logs (customer journeys)
+    node_count: 10-200 steps or touchpoints, from 20,000-70,000 recorded actions or millions of web events
+    edge_density: dense
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Apply process maps to data finer or messier than system logs: desktop clicks recorded on a few users'
+    machines, or customer touchpoints across channels. Both need abstraction into levels and comparison with an
+    intended path.
+
+
+    **Mental Model**: Task mining: "the clicks inside a step." Customer journey: "the path the customer really took
+    versus the one we designed."
+
+
+    **Task Phases**:
+
+    Task mining:
+
+    1. **Record** - 2 to 7 experienced users, 20,000 to 70,000 actions, with PII masking; users pause when off
+    task
+
+    2. **Segment and cluster** (vendor) - Cut routines out of unsegmented per-user streams; cluster screenshots of the
+    same screen into steps and tasks with decision points
+
+    3. **Review steps** - Check each step's screenshots, rename and merge
+
+    4. **Link to cases** - Match tasks to system-level cases; drill from a system activity into its UI actions
+
+    Customer journey:
+
+    1. **Map data** - Customer or session as case, touchpoint or channel as activity
+
+    2. **Discover** - Simplified map of real journeys
+
+    3. **Check against designed journeys** - Share of journeys conforming to each design
+
+    4. **Slice and compare** - By device, campaign or landing page; before and after a designed change
+
+
+    **Decision Points**:
+
+    - Where does one routine end and the next begin in a UI stream?
+
+    - Which level of the hierarchy answers the question?
+
+    - Session or customer as the case?
+
+    - Which segments to compare?
+
+
+    **Information Needs**:
+
+    - Action, step and task counts with time per task and per application
+
+    - Hierarchy of UI actions inside tasks inside system activities
+
+    - Conforming share per designed journey and where journeys leave it
+
+    - Segment comparison on one layout
+
+
+    **Pain Points**:
+
+    - Click-level maps too detailed to read
+
+    - UI logs with no case identifier
+
+    - Personal data in screenshots and keystrokes
+
+    - Very many variants and loops in web journeys
+
+
+    **Data Flow**:
+
+    - Input: UI action logs with screenshots metadata, or analytics and touchpoint event exports
+
+    - Transformations: Segmentation, step clustering, hierarchical abstraction, case matching, journey derivation,
+    conformance to designed journeys, segment filters
+
+    - Output: Task map with automation candidates; journey maps with conformance rates and segment comparisons
+success_criteria:
+    - metric: Level switching
+      target: User can collapse UI actions into tasks and expand a system activity into its UI actions on one map
+    - metric: Designed versus actual
+      target: Conforming share per designed journey shown with the map
+sources:
+    - title: UiPath Task Mining - best practices
+      url: https://docs.uipath.com/task-mining/automation-suite/2023.4/user-guide/best-practices-utm
+      summary: 2 to 7 users, 20,000 to 70,000 actions, 200 to 1,000 actions an hour, PII masking
+    - title: UiPath Task Mining - introduction
+      url: https://docs.uipath.com/task-mining/automation-cloud/latest/user-guide/introduction
+      summary: Screenshot clustering into steps, decision points, task maps
+    - title: Celonis - What is task mining
+      url: https://www.celonis.com/process-mining/what-is-task-mining
+      summary: Desktop recording and case matching to business cases
+    - title: Leno et al. 2020 - robotic process mining
+      url: https://arxiv.org/pdf/2008.05782
+      summary: Unsegmented UI logs without case ids; segmentation before discovery
+    - title: UiPath Task Mining release notes November 2024
+      url: https://docs.uipath.com/task-mining/automation-cloud/latest/release-notes/november-2024
+      summary: Unassisted Task Mining deprecated for removal December 1, 2025 (from search summary)
+    - title: Microsoft Power Automate Process Mining - process map
+      url: https://learn.microsoft.com/en-us/power-automate/minit/process-map
+      summary: Hierarchical maps combining UI recordings with system event logs
+    - title: Weijs and Caron - customer journey mining (ICSOFT 2022)
+      url: https://scitepress.org/PublishedPapers/2022/112639/pdf/index.html
+      summary: GA4 data in Celonis; 10.31 percent conform to one designed journey
+    - title: Hansson et al. 2021 - Telenor customer journeys
+      url: https://ceur-ws.org/Vol-3112/paper3.pdf
+      summary: 4,934 customers; 10-25 percent deviate; SMS notification lowered deviations
+    - title: UiPath Task Mining - recorder overview
+      url: https://docs.uipath.com/task-mining/automation-cloud/latest/user-guide/recorder-client-overview.md
+      summary: Captures screenshots and metadata for every input and click, applies PII masking
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

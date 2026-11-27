@@ -1,0 +1,36 @@
+id: centrality-hits
+name: "Hub and Authority Centrality (HITS)"
+category: analysis
+description: "Kleinberg's HITS on a directed graph: each node gets a hub score (cites good authorities) and an authority
+    score (cited by good hubs) from one power-iteration run. Its own measure, not a PageRank option, because it returns
+    two values per node. Court-citation research uses it; a benchmark on paper and patent citations found it weak, so
+    W56 and the patent workflows are deliberately not linked. W387 is linked because its centrality step computes hub
+    and authority scores on raw flow weights."
+status: in-progress
+notes: "Partly ships: graphty-element/src/algorithms/HITSAlgorithm.ts returns hub, authority and a combined score per node from one run, with Max Iterations, Tolerance, Normalized and an optional weight column (read as a strength), and reports iterations and convergence. Planned: refusing undirected input with a code; today an undirected graph runs and the scores converge together. Any requirement below that this note does not name as shipping counts as planned."
+algorithms:
+    - HITS (hubs and authorities) (shipped)
+used_by_workflows:
+    - W2036
+    - W387
+implemented_by_components: []
+requirements:
+    - "Library parity: Return a hub score and an authority score per node, plus the combined score, from one run"
+    - "Library parity: Expose the iteration cap, convergence tolerance, normalization and an optional edge-weight column"
+    - "Library parity: Report the number of iterations run and whether the run converged"
+    - "Library parity: Refuse undirected input with a code, since hub and authority scores need edge direction"
+sources:
+    - title: Kleinberg 1999, Authoritative sources in a hyperlinked environment
+      url: https://doi.org/10.1145/324133.324140
+      summary: The HITS method; hub and authority scores by mutual reinforcement over a directed graph
+    - title: Soh 2021, Simulating subject communities in case law citation networks (Frontiers in Physics)
+      url: https://www.frontiersin.org/journals/physics/articles/10.3389/fphy.2021.665563/full
+      summary: "Uses Kleinberg's authority and hub scores, computed with NetworkX, to choose nodes in court citation
+          networks"
+    - title: Fowler et al. 2007, Network analysis and the law (Political Analysis)
+      url: https://www.cambridge.org/core/journals/political-analysis/article/network-analysis-and-the-law-measuring-the-legal-importance-of-precedents-at-the-us-supreme-court/D9B2F13BE2594E1527780AAFDD6BF164
+      summary: Importance scores for Supreme Court precedents from citation patterns; cites Kleinberg 1999
+    - title: Xu, Mariani, Lu and Medo 2020, Unbiased evaluation of ranking metrics (Journal of Informetrics)
+      url: https://arxiv.org/abs/2001.05414
+      summary: HITS, citation count and Collective Influence "produce significantly worse ranking results" on science
+          and technology citation data

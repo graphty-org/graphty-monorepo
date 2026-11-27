@@ -1,0 +1,17 @@
+id: diversity-metrics
+name: Diversity over a classification
+category: analysis
+description: Compute Rao-Stirling diversity (variety, balance, disparity) and network coherence of a unit's records over
+    a category classification with a distance matrix.
+status: planned
+notes: "Research trace: bibliometrics-and-science-mapping.md section 10, requirement 19 (Should)."
+algorithms: []
+used_by_workflows:
+    - W57
+implemented_by_components: []
+requirements:
+    - "Should: Diversity metrics over a classification (Rao-Stirling)"
+sources:
+    - title: Bibliometrics and Science Mapping (section 10, requirement 19)
+      url: design/user-research/bibliometrics-and-science-mapping.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

@@ -1,0 +1,24 @@
+id: item-link-out
+name: "Link Out from a Node or Edge"
+category: interaction
+description: "Open an external page for a node or edge from a URL template filled with its attribute values (for example a GNPS mirror plot of the two spectra an edge joins, or a library entry for a node)."
+status: planned
+notes: "Research trace: network-pharmacology-herb-compound-target-networks.md section 10, requirement R19 (Must, link out); systems-biology-omics-networks.md section 5.13 and its tools table (GNPS mirror plots)."
+algorithms: []
+used_by_workflows:
+    - W253
+    - W3102
+implemented_by_components: []
+requirements:
+    - "Must: Open an external page for a node or edge from a URL template filled with its attribute values"
+    - "Should: Let the consumer set the template per node or edge type, and percent-encode the values it inserts"
+sources:
+    - title: "GNPS in-browser views"
+      url: "https://ccms-ucsd.github.io/GNPSDocumentation/networkingviews"
+      summary: "GNPS opens a mirror plot of the two spectra an edge joins from the network view"
+    - title: "Network pharmacology research, section 10, requirement R19"
+      url: "design/user-research/network-pharmacology-herb-compound-target-networks.md"
+      summary: "Embeddable viewer with link out, Must"
+    - title: "Systems biology research, section 5.13"
+      url: "design/user-research/systems-biology-omics-networks.md"
+      summary: "GNPS molecular networking, job to figure; mirror plots are a GNPS strength"

@@ -1,0 +1,67 @@
+id: endogamous-heritage-dna-researcher
+name: Endogamous-Heritage DNA Researcher
+roster_persona: family-historian-dna
+tier: B
+scope: in-scope
+role: Hobby Researcher of an Intermarried Community (Ashkenazi Jewish)
+quote: Everyone matches everyone, so tell me before I spend a week whether clustering can separate anything at all.
+bio: >-
+    Shoshana Perlman tests software by day and researches her Ashkenazi Jewish family in the evenings, and she is active
+    in a Jewish genealogy society's DNA special interest group. Her community intermarried for generations, so her
+    thousands of matches share background DNA with one another and with her: predicted close cousins are often distant
+    relatives, and a shared-match list contains almost everybody. The published clustering methods assume this does not
+    happen -- one tutorial states plainly that network graph analysis is not helpful for those with moderate to severe
+    endogamy, and a RootsTech 2025 presentation says the Leeds method very likely will not work for her. She works with
+    Jonathan Brecher's Shared Clustering, using its endogamy check and its per-cluster similarity reports, MyHeritage
+    AutoClusters (which adjusts its matching for Ashkenazi testers), GEDmatch one-to-one comparisons, and DNA Painter
+    chromosome maps with the segment minimum raised from 7 cM to 10 or 15 cM. Every threshold she uses is higher than
+    the default, and her cluster diagram has a speckly background instead of clean squares.
+characteristics:
+    expertise: intermediate
+    time_pressure: low
+    graph_literacy: intermediate
+    domain_knowledge: advanced
+motivations:
+    - Find the few real clusters among her closest matches
+    - Tell real relatives from community background sharing
+    - Tie one cluster to one grandparent's town
+    - Know before investing a week whether the method applies to her at all
+behaviors:
+    - Runs an endogamy check first, and treats a very slow complete download as the same signal
+    - Downloads all matches but only the shared matches above a raised cM floor, to keep the pair table usable
+    - Raises every threshold: 50 cM to cluster and between shared matches, minimum cluster size 3, no gray allowed
+    - Reads a speckly diagram for already-identified matches and for any group of three or four
+    - Falls back to a similarity report per cluster when clustering alone separates nothing
+frustrations:
+    - Published methods and vendor defaults assume no endogamy, and fail silently when it is present
+    - Only one Windows-only tool tells her up front whether clustering will work
+    - Raising thresholds leaves only a tiny percentage of her matches in the picture
+    - Her matches appear in many clusters at once, which no node-link view can show
+    - Chromosome maps mis-assign small segments unless she raises the minimum by hand
+context:
+    frequency: weekly
+    devices:
+        - desktop
+    voluntary: true
+workflows:
+    - W2098
+    - W2099
+sources:
+    - title: Shared Clustering wiki - Endogamy, advanced analysis techniques
+      url: https://github-wiki-see.page/m/jonathanbrecher/sharedclustering/wiki/Endogamy---Advanced-analysis-techniques
+      summary: Endogamy check, Endogamy Special download, cluster settings 3/0/50/50, speckly diagram, per-cluster similarity
+    - title: Newman - DNA and endogamy (RootsTech 2025)
+      url: https://cms-z-assets.familysearch.org/bc/86/5633a4c2b3a3dfce11ae6ae3dd40/rootstech2025newman-dnaendogamy.pdf
+      summary: The Leeds method very likely will not work for endogamous testers; raise the minimum threshold
+    - title: Family Locket - Gephi part 5, analyze the network graph
+      url: https://familylocket.com/creating-network-graphs-with-gephi-part-5-analyze-the-network-graph
+      summary: Network graph analysis is not helpful with moderate to severe endogamy; connections to many clusters
+    - title: DNA Painter - Chromosome mapping and endogamy
+      url: https://dnapainter.com/blog/chromosome-mapping-and-endogamy/
+      summary: 7 cM default raised to 10 cM for Ashkenazi testers, 15 cM to cut false segments
+    - title: MyHeritage - Introducing AutoClusters
+      url: https://magazine.myheritage.com/myheritage-news/introducing-autoclusters-for-dna-matches/
+      summary: Clustering adjusted for endogamous populations such as Ashkenazi Jews and Acadians
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,20 @@
+id: process-model-notation
+name: Process Model Notation
+category: analysis
+description: Render Petri nets (places, transitions, arcs), process trees and BPMN (events, tasks, exclusive and
+    parallel gateways) as first-class graph types laid out start to end, with PNML and BPMN 2.0 XML import and export.
+status: planned
+notes: "Research trace: process-mining-and-process-maps.md section 10, requirement R12 (Must)."
+algorithms: []
+used_by_workflows:
+    - W345
+    - W346
+    - W360
+implemented_by_components: []
+requirements:
+    - "Must: Render and import Petri nets (places, transitions, tokens; PNML), process trees and BPMN 2.0 (typed tasks, start and end events, exclusive and parallel gateways) as first-class graph types laid out start to end."
+sources:
+    - title: "Process Mining Analysts: Process Maps, Models and Deviations from Event Logs (section 10, requirement
+          R12)"
+      url: design/user-research/process-mining-and-process-maps.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

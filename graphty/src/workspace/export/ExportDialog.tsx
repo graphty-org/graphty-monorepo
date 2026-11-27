@@ -59,12 +59,19 @@ export function ExportDialog(): React.JSX.Element {
     const exportSource = useWorkspaceState((state) => state.exportSource);
     const exportTour = useWorkspaceState((state) => state.exportTour);
     const exportView = useWorkspaceState((state) => state.exportView);
+    // on reload: fresh: in flight: a video recording, which a reload ends
     const [recording, setRecording] = useState(false);
+    // on reload: gap #9702: the output the reader picked; a reload opens on the one `exportOn` names
     const [output, setOutput] = useState<OutputId>("image");
+    // on reload: gap #9702: the reader's Image choices
     const [cameraImage, setCameraImage] = useState<CameraImageChoices>(DEFAULT_CAMERA_IMAGE);
+    // on reload: gap #9702: the reader's Video choices
     const [tourVideo, setTourVideo] = useState<TourVideoChoices>(DEFAULT_TOUR_VIDEO);
+    // on reload: gap #9702: the reader's Data choices
     const [data, setData] = useState<DataChoices>(DEFAULT_DATA);
+    // on reload: gap #9702: the reader's Report title, words and sections
     const [report, setReport] = useState<ReportChoices>(DEFAULT_REPORT);
+    // on reload: gap #9702: the files exported in this visit, each with its choices
     const [recent, setRecent] = useState<readonly RecentExport[]>([]);
 
     useEffect(() => {
@@ -120,6 +127,7 @@ export function ExportDialog(): React.JSX.Element {
      * @param message - the notice.
      * @param file - the file's name, when a file was saved.
      */
+    // on reload: fresh: pointer: a settings popover opened for a look
     const [settingsOpen, setSettingsOpen] = useState(false);
     // A press outside closes the settings on its way down, so the click it ends in is judged by what
     // was open when it began: one click on the backdrop closes the settings alone.

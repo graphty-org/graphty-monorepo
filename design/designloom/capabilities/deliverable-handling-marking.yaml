@@ -1,0 +1,26 @@
+id: deliverable-handling-marking
+name: "Deliverable audience and handling marking"
+category: export
+description: "Every exported page, image, link and embed carries its intended audience, handling restriction (for example a restricted SAR case file, an access-limited line list, a minimum group size) and data date, visible on the artifact itself so a reader knows whether she may forward, print or show it."
+status: planned
+notes: "Research trace: communicating-findings-and-deliverables.md section 6 (sensitivity: classification marking); no numbered requirement. The requirements are written from that sensitivity list (SAR confidentiality, classification marking, minimum group sizes, small cells) and marked Should, since five workflows need them."
+algorithms: []
+used_by_workflows:
+    - W1018
+    - W315
+    - W316
+    - W319
+    - W2006
+implemented_by_components: []
+requirements:
+    - "Should: Let the author set an intended audience, a handling restriction and a data date on a deliverable, kept
+      with the saved view"
+    - "Should: Draw that marking on every exported page and image and show it on every link and embed, so it travels
+      with the artifact rather than with the file name"
+    - "Should: Return the marking as structured values (audience, restriction, date) so an application writes its own
+      wording"
+sources:
+    - title: "Communicating findings: the deliverables each population hands to someone else (section 6 (sensitivity:
+          classification marking); no numbered requirement)"
+      url: design/user-research/communicating-findings-and-deliverables.md
+      summary: The need appears in this workflow of the research, but in no numbered requirement.

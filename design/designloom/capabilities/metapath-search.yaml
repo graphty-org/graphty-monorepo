@@ -1,0 +1,19 @@
+id: metapath-search
+name: Typed Path (Metapath) Search
+category: analysis
+description: Find paths between two nodes that match a sequence of node and edge types, with path counts per pattern, a
+    per-pattern cap and highlighting of selected paths.
+status: planned
+notes: "Research trace: knowledge-graph-engineers-and-graphrag.md section 10, table row 12 (Must)."
+algorithms: []
+used_by_workflows:
+    - W140
+implemented_by_components: []
+requirements:
+    - "Must: Typed-path (metapath) search between two nodes with path counts and a per-pattern cap; selected paths
+      highlighted"
+sources:
+    - title: Knowledge Graph Engineers, Ontologists and GraphRAG Developers (section 10, table row 12)
+      url: design/user-research/knowledge-graph-engineers-and-graphrag.md
+      summary: "Must in the research (the document says: must-have for biomedical). Covered by Designloom when
+          researched: No (pattern-search, all-paths-finding lack typed patterns)"

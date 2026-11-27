@@ -1,0 +1,76 @@
+id: literature-discovery-researcher
+name: Literature Discovery Researcher
+roster_persona: bibliometric-analyst
+tier: A
+scope: in-scope
+role: PhD Student or Systematic Reviewer Using Citation Graphs to Find Papers
+quote: I do not need a pretty map. I need to know I have not missed the paper my examiner will ask about, and to keep a list of what I read.
+bio: >-
+    Anders Lindqvist is a second-year PhD student starting his thesis literature review. He begins from one to ten seed
+    papers and uses Connected Papers (5 free graphs a month), Litmaps (2 free maps, 100 articles each), ResearchRabbit
+    and Inciteful to see what surrounds them, then exports a reading list as BibTeX or RIS into Zotero. His graphs hold
+    a few dozen to a few hundred papers. He clicks a promising node to make it the next seed, reads the "prior works"
+    and "derivative works" lists to find seminal papers and surveys, switches Litmaps axes to find reviews or
+    cutting-edge papers, and wants an email when a new paper cites his seeds. A variant of this persona is a systematic
+    reviewer, who must log an include or exclude decision for every candidate found by backward and forward
+    snowballing, iterate until no new papers appear, and report citation-search counts in a PRISMA flow diagram; for
+    that, tools such as citationchaser matter more than pictures. He uses the graph weekly during a review and does not
+    care about graph theory, only about coverage and traceability.
+characteristics:
+    expertise: novice
+    time_pressure: medium
+    graph_literacy: none
+    domain_knowledge: moderate
+motivations:
+    - Not miss key papers in his topic
+    - See clusters of related work and the prior and derivative works of his seed set
+    - Keep a growing, exportable reading list synced to his reference manager
+    - Be told when new papers cite his seeds
+    - For systematic reviews, show a traceable include or exclude decision and counts for every iteration
+behaviors:
+    - Enters seeds by DOI, title or URL, or imports a BibTeX library
+    - Clicks a node to make it the next seed, rebuilding the graph each time
+    - Reads node size as citation count, color as year and distance as similarity
+    - Switches attribute axes (date, citation count, momentum, connectivity) to find reviews or recent influential papers
+    - Adds papers from ranked tables (PageRank, similarity) to a growing collection
+    - Exports BibTeX or RIS into Zotero
+    - As a systematic reviewer, snowballs backward and forward one iteration at a time and records counts per stage outside the graph tool
+frustrations:
+    - Graph quotas on free accounts
+    - Static graphs that must be rebuilt as the review grows
+    - No control over, or explanation of, how similarity is computed
+    - Coverage gaps and missing references in the underlying database
+    - A redesign that removed the network view he relied on
+    - No place to log screening decisions next to the graph
+context:
+    frequency: weekly
+    devices:
+        - laptop
+    voluntary: true
+workflows:
+    - W55
+sources:
+    - title: HKUST library - citation mapping tools comparison
+      url: https://libguides.hkust.edu.hk/citation-chaining/citation-mapping-tools-comparison
+      summary: Connected Papers, Litmaps, ResearchRabbit and Inciteful compared on quotas, export and alerts
+    - title: Aaron Tay - All about citation chasing and tools
+      url: https://aarontay.substack.com/p/all-about-citation-chasing-and-tools
+      summary: Opaque similarity, coverage gaps, PROSPERO counts naming citationchaser and Connected Papers
+    - title: Litmaps help - visualization and axes
+      url: https://docs.litmaps.com/en/articles/9181490-use-and-edit-litmaps-visualization
+      summary: Switchable axes (date, citations, momentum, connectivity, similarity) and pinned positions
+    - title: Litmaps help - Monitor
+      url: https://docs.litmaps.com/en/articles/9126249-monitor-get-alerts-for-important-research
+      summary: Scheduled reruns that email new papers
+    - title: Effortless Academic - ResearchRabbit 2026 review
+      url: https://effortlessacademic.com/research-rabbit-2026-review-for-researchers/
+      summary: Network view removed after redesign; axis plot and Zotero sync remain
+    - title: Wohlin - Guidelines for snowballing in systematic literature studies (EASE 2014)
+      url: https://www.wohlin.eu/ease14.pdf
+      summary: Backward and forward snowballing in iterations with per-stage decisions until saturation
+    - title: PRISMA 2020 and PRISMA-S common questions
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC9014944
+      summary: Citation searching counts reported in the flow diagram and supplements
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

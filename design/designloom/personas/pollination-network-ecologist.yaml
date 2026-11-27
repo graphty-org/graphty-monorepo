@@ -1,0 +1,87 @@
+id: pollination-network-ecologist
+name: Pollination Network Ecologist
+roster_persona: interaction-network-ecologist
+tier: B
+scope: in-scope
+role: Postdoctoral Researcher / Field Community Ecologist
+quote: I have three seasons of transect counts from 20 sites. I need one clean two-row web per site and proof the grazed sites really are less nested than chance.
+bio: >-
+    Dr. Gabriela Morales is a postdoc studying how land use, grazing or restoration changes plant-pollinator networks. Her
+    field crews walk transects or watch flowering plants for fixed 10-minute periods and record every visit in a
+    spreadsheet: date, site, transect, plant, pollinator morphospecies, count. Weeks later a taxonomist replaces the
+    morphospecies codes with names. Each season she ends up with 8 to 40 sites, each a web of 10 to 60 plants by 20 to
+    150 pollinators, plus a separate table of floral abundance. She does all analysis in R with the bipartite package,
+    copying the vignette code: frame2webs to split the long table into one matrix per site, plotweb for the two-row
+    figure, visweb for the matrix, networklevel and specieslevel for indices, nullmodel for null-model correction,
+    computeModules for modules, betalinkr for link turnover and second.extinct for robustness. She is fluent in her own
+    indices (NODF, H2', d', connectance) and strong in statistics, but generic graph vocabulary means little to her, and
+    she finishes every figure by hand in Illustrator or Inkscape.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Show that treatment sites differ in specialization, nestedness or modularity after null-model correction
+    - Produce one clean two-row bipartite figure per site with the same species order across all sites
+    - Report an index table with observed value, null mean, z-score and p-value that a reviewer will accept
+    - Identify the key plant and pollinator species (high strength, high d', module connectors)
+    - Deposit the interaction matrices on Dryad or Web of Life so the study can be reused
+behaviors:
+    - Collects data as one long observation table per season and splits it into one matrix per site or season
+    - Fixes spelling variants and merges morphospecies before building networks, because each variant becomes a separate species
+    - Draws plants as bars along the bottom and pollinators along the top, bar width by total interactions, link width by visit count, sorted by marginal totals or correspondence analysis to reduce crossings
+    - Looks at the shaded adjacency matrix sorted by totals to see nestedness as a filled triangle
+    - Prefers quantitative indices (H2', weighted NODF, species strength) over binary ones on the vignette's advice
+    - Compares every index against 1,000 randomized webs that keep row and column totals, and adds a second null model when a reviewer asks
+    - Checks sampling completeness with interaction accumulation curves before trusting any comparison
+    - Runs secondary-extinction simulations removing pollinators by abundance, degree or at random and reports robustness
+    - Reruns the whole pipeline in batches when reviewers request a new null model or a different temporal resolution
+frustrations:
+    - Species labels overlap and become unreadable on webs with more than a few dozen species
+    - Spelling variants silently become separate species when the long table is split into webs
+    - Null-model loops over hundreds of replicates and dozens of sites take a long time
+    - Twenty site figures come out with twenty different species orders unless she pads every web to one species list
+    - Plots are static and limited to two levels; every figure needs manual touch-up in a vector editor
+    - Five R packages give five different betweenness values for the same web
+    - General graph tools expect an edge list, not a plants-by-pollinators matrix
+context:
+    frequency: as-needed
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W163
+    - W164
+    - W165
+    - W166
+    - W1042
+sources:
+    - title: bipartite package - Intro2bipartite vignette (Dormann)
+      url: https://cran.r-project.org/web/packages/bipartite/vignettes/Intro2bipartite.pdf
+      summary: The standard workflow for plotting bipartite webs, computing indices, null models and modules; notes the "betweenness mess"
+    - title: bipartite package - Plotting with bipartite vignette
+      url: https://cran.case.edu/web/packages/bipartite/vignettes/PlottingWithBipartite.html
+      summary: plotweb and visweb options; notes that label placement on larger networks "quickly becomes somewhat confusing"
+    - title: bipartite frame2webs help page
+      url: https://search.r-project.org/CRAN/refmans/bipartite/html/frame2webs.html
+      summary: Splits a long observation table into one web per site or season; spelling variants become separate species
+    - title: PolliNet plant-pollinator network monitoring protocol
+      url: https://www.inaturalist.org/projects/pollinator-network-monitoring-pollinet/journal/78288-plant-pollinator-network-monitoring-protocol
+      summary: Field protocol of 10-minute plant watches between 9:00 and 17:00 in calm, clear weather
+    - title: Sampling an ecological network - UZH course manual
+      url: https://ieubascomptelab01.uzh.ch/bio365-fs23/downloads/Figures/03-21_sampling_an_ecological_network/03-21_sampling_eco_nw_manual.pdf
+      summary: Transect and timed-watch sampling with effort standardized by area and time
+    - title: Dormann et al. 2009 - Indices, graphs and null models for analyzing bipartite ecological networks
+      url: https://www.biometrie.uni-freiburg.de/Dateien/PDF/dormann2009openecolj.pdf
+      summary: Data cleaning decisions and the warning that raw indices merely reflect the number of species without null models
+    - title: CaraDonna et al. - Interaction rewiring and the rapid turnover of plant-pollinator networks
+      url: https://experts.arizona.edu/en/publications/interaction-rewiring-and-the-rapid-turnover-of-plantpollinator-ne/
+      summary: Weekly censuses for three years produced 41 weekly networks of nearly 30,000 interactions
+    - title: Postdoctoral posting in pollinator ecology (Wurzburg)
+      url: https://www.safeguard.biozentrum.uni-wuerzburg.de/News/ViewNews.aspx?NewsId=83
+      summary: Job posting asking for very good knowledge of ecological statistics using R
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

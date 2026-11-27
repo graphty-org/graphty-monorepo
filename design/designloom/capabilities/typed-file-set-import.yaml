@@ -1,0 +1,24 @@
+id: typed-file-set-import
+name: "Typed node-and-relationship file set import"
+category: data
+description: "Read a graph delivered as several node files (one per node type) plus a relationships file, such as the ICIJ Offshore Leaks release (one CSV per node type and one for all relationships), or as one two-section text file, such as GUESS GDF (nodedef> then edgedef> with typed columns, read by Gephi), into one typed graph that keeps each node type and column type. Must for Offshore Leaks (investigative-journalism-and-osint.md R6); Should for GDF (R21)."
+status: planned
+notes: "Research trace: investigative-journalism-and-osint.md section 10, requirement R6 (Must, Offshore Leaks node files per type plus a relationships file) and R21 (Should, GDF)."
+algorithms: []
+used_by_workflows:
+    - W1162
+implemented_by_components: []
+requirements:
+    - "Must: Read a graph delivered as several node files (one per node type) plus a relationships file, such as the ICIJ Offshore Leaks release, into one typed graph"
+    - "Must: Keep each node's type and each column's type, and report relationship rows whose endpoints match no node"
+    - "Should: Read a GUESS GDF file (nodedef> then edgedef> sections with typed columns)"
+sources:
+    - title: "ICIJ Offshore Leaks - Database download"
+      url: "https://offshoreleaks.icij.org/pages/database"
+      summary: "One CSV per node type and one for all relationships"
+    - title: "Gephi - GDF file format"
+      url: "https://docs.gephi.org/desktop/User_Manual/Import/GDF_File_Format"
+      summary: "nodedef> and edgedef> sections with typed columns"
+    - title: "Investigative journalism and OSINT research, section 10, requirements R6 and R21"
+      url: "design/user-research/investigative-journalism-and-osint.md"
+      summary: "Typed multi-relational import, Must; GDF import, Should"

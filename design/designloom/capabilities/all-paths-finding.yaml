@@ -1,8 +1,9 @@
 id: all-paths-finding
 name: All Paths Finding
 category: analysis
-description: Find all paths between two nodes up to a specified maximum length, enabling comprehensive connection
-    analysis beyond just the shortest path.
+description: Answer "how do A and B connect?" beyond one shortest path -- all shortest paths with their ties, k
+    shortest loopless paths, and bounded enumeration of simple paths -- constrained by edge type, direction and a hop
+    limit, between single nodes or node sets, with the "no path" result and its reason and the weight convention used.
 status: planned
 algorithms:
     - depth-first-search
@@ -11,28 +12,76 @@ algorithms:
 used_by_workflows:
     - W05
     - W06
+    - W105
+    - W108
+    - W109
+    - W114
+    - W120
+    - W140
+    - W143
+    - W151
+    - W183
+    - W198
+    - W225
+    - W230
+    - W244
+    - W255
+    - W258
+    - W262
+    - W263
+    - W308
+    - W320
+    - W34
+    - W40
+    - W423
+    - W56
+    - W74
+    - W78
+    - W81
+    - W84
+    - W85
+    - W89
 implemented_by_components:
     - algorithm-panel
     - path-finder-dialog
 requirements:
-    - Find all simple paths (no repeated nodes) between user-specified source and target
-    - Provide maximum path length parameter adjustable from 2 to 15 (default 5)
-    - Return paths sorted by length in ascending order (shortest first)
-    - Display total path count before showing individual paths
-    - Limit displayed results to configurable maximum (default 100) to prevent UI overload
-    - Display 'N more paths not shown' when results exceed display limit
-    - Identify nodes appearing in >50% of paths as common intermediate nodes
-    - Highlight common intermediate nodes distinctly in path list
-    - Support directed path finding for directed graphs
-    - Support undirected path finding (ignore direction) for directed graphs
-    - Display 'No paths found within length limit' when no paths exist up to max length
-    - Display 'No path exists (disconnected)' when nodes are in different components
-    - Provide filter to show only paths containing specified intermediate node
-    - Provide filter to show only paths using specified edge type
-    - Complete search within 5 seconds; abort and report partial results after timeout
-    - "Report 'Search timeout: showing N of estimated M paths' when computation exceeds limit"
-    - "Export path list as CSV with columns: path_id, length, node_sequence"
+    - "Must: Offer the path queries the research found in use, each as its own mode - all shortest paths (every tie), k shortest loopless paths (Yen), and all simple paths up to a hop limit"
+    - "Must: For k shortest paths, state how ties at the k-th position are handled; Cypher picks among them arbitrarily"
+    - "Must: Require a maximum hop count for simple-path enumeration (the number of simple paths can grow as O(n!)); the hop limit is a user choice with no fixed range (Bloom bounds shortest path at 20 hops, Linkurious templates default to 4 and allow 10, Defender blast radius stops at 7)"
+    - "Must: Constrain paths by edge type (typed or metapath patterns), by direction or ignoring direction, and through required waypoint nodes"
+    - 'Must: Accept a source set and a target set (for example "owned" to "Tier Zero"), not only two single nodes, and allow the search to run in reverse'
+    - "Must: When paths are weighted, state whether the weight is read as a distance or as a strength and which conversion was used (weight-semantics); never leave the convention unlabeled"
+    - "Must: Return paths ordered by length, or by summed or combined edge weight when the user ranks by weight"
+    - "Must: Return the total path count with the list, and cap the number returned with a stated, adjustable cap; report that the cap was reached rather than silently truncating"
+    - 'Must: Return "no path" with its reason as a code - different components, blocked by direction, blocked by edge type or time, or none within the hop limit'
+    - "Library parity: Report which nodes appear in many of the returned paths (for example choke points) as counts per node; the application decides which to emphasize"
+    - "Library parity: Report progress on long enumerations and let the user stop them, returning the paths found so far marked as partial (algorithm-progress)"
+    - "Library parity: Let a selected path in the list select and highlight it in the drawing (path-highlighting)"
+    - "Must: List each path node by node, deduplicated, and export the list with each path's id, length, weight and node sequence, and a chronological hop table when edges carry time"
+    - "Library parity: Time-respecting paths are out of scope here; static paths overstate reachability on temporal data (temporal-and-dynamic-networks.md)"
 sources:
-    - title: NetworkX All Simple Paths
+    - title: NetworkX all_simple_paths
       url: https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.simple_paths.all_simple_paths.html
-      summary: Standard algorithm for enumerating all paths between nodes
+      summary: Enumerates simple paths with a cutoff depth; the number of simple paths can be O(n!), so large graphs
+          may run for a very long time
+    - title: NetworkX shortest_simple_paths
+      url: https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.simple_paths.shortest_simple_paths.html
+      summary:
+          k shortest loopless paths (Yen), cited in design/user-research/network-scientists-and-analysis-method-validity.md
+          (Workflow D, requirement R12)
+    - title: Neo4j Cypher manual, shortest paths
+      url: https://neo4j.com/docs/cypher-manual/current/patterns/shortest-paths/
+      summary: ALL SHORTEST and SHORTEST k; when k cuts through a tie the choice is arbitrary
+    - title: Neo4j Bloom scene interactions
+      url: https://neo4j.com/docs/bloom-user-guide/current/bloom-visual-tour/bloom-scene-interactions/
+      summary: Shortest path between two selected nodes, bounded at 20 hops (graph-database-query-and-expand-exploration.md)
+    - title: Linkurious user manual
+      url: https://doc.linkurious.com/user-manual/latest/page.html
+      summary: Path query templates with a hop limit, default 4 and at most 10 (graph-database-query-and-expand-exploration.md)
+    - title: Microsoft Defender XDR, investigate incidents
+      url: https://learn.microsoft.com/en-us/defender-xdr/investigate-incidents
+      summary: Blast radius shows top-rated paths to critical targets, at most seven hops; source-set to target-set path
+          queries are a Must in cybersecurity-graph-work.md
+    - title: Holme and Saramaki 2012, Temporal networks
+      url: https://arxiv.org/abs/1108.1780
+      summary: Time-respecting paths are not transitive; static aggregation overstates reachability

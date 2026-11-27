@@ -1,0 +1,82 @@
+id: coordination-detection-scientist
+name: Coordination Detection Scientist
+roster_persona: social-media-network-researcher
+tier: B
+scope: in-scope
+role: Research Scientist, University Observatory or Platform Trust-and-Safety Team
+quote: Every threshold I pick changes who gets accused. Show me the edges, where they came from, and what happens to the groups when I move the cutoff.
+bio: >-
+    Dr. Jing Li holds a network science PhD and works as a research scientist in a university social media observatory;
+    peers do the same job on platform trust-and-safety teams. She builds and validates detectors for coordinated
+    behavior: accounts that repost the same posts, share the same links within seconds, post the same hashtag sequences,
+    or publish paraphrased text in lockstep. She writes Python (pandas, NetworkX, igraph) and uses the R packages
+    CooRTweet and CooRnet and the coordination network toolkit, which writes GraphML for Gephi. Her datasets start at
+    tens of thousands to about a million accounts (11,669 in the White Helmets co-retweet case, 887,239 in the crypto
+    pump-and-dump case of Pacheco and colleagues) and shrink to hundreds or a few thousand after edge filtering. She
+    turns behavioral traces into an account-to-account similarity network, keeps only the strongest edges, extracts
+    groups, and validates them by reading their content. Drawing is the slow part: she opens Gephi or visone only after
+    the graph has been cut down, because NetworkX drawing of large graphs "runs for days".
+characteristics:
+    expertise: expert
+    time_pressure: medium
+    graph_literacy: advanced
+    domain_knowledge: expert
+motivations:
+    - Find groups of accounts that act together and show the evidence that links them
+    - Make the effect of each threshold (time window, minimum repetitions, edge percentile) visible before a group is named
+    - Validate detected groups by hand, since there is no ground truth and authors can report precision but not recall
+    - Produce figures and tables that a platform, a newsroom or a reviewer can check edge by edge
+    - Keep cross-platform evidence honest - several platforms in one graph do not by themselves prove cross-platform coordination
+behaviors:
+    - States a coordination conjecture first (co-retweet, co-URL, co-hashtag, synchronized posting, shared images, handle swaps)
+    - Drops low-activity accounts with a support minimum (5 to 10 actions per account) and excludes self-retweets
+    - Builds account x feature two-mode graphs and projects them to accounts with TF-IDF cosine, Jaccard or co-occurrence weights
+    - Sets a co-action time window in seconds (25 to 60 seconds in published work) and a minimum participation count
+    - Keeps only the top 0.5 to 1 percent of edges, or edges above a normalized weight, then takes connected components
+    - Splits a giant component with Louvain; tries k-core, k-clique or label propagation as alternatives
+    - Runs semantic coordination with sentence embeddings in one-day sliding windows when campaigns paraphrase with language models
+    - Reads exemplar posts, images and hashtags beside each group and checks suspensions and takedown lists
+    - Runs each content type separately and combines them, recording which criterion produced each edge
+frustrations:
+    - Threshold choice drives the result and most tools hide the knob or its effect
+    - Drawing more than a few hundred thousand nodes is impractical in code and slow in Gephi
+    - Bot scores are gone for X because Botometer depended on the X API, and many coordinated accounts score as human anyway
+    - Meta Content Library data cannot be downloaded and must be analyzed inside Meta's environment or a cleanroom
+    - Lost provenance - an edge in the final graph no longer says which post pairs and which criterion created it
+    - Identical-text, co-URL and synchrony detectors fail once a language-model campaign rewords, staggers or drops links
+context:
+    frequency: daily
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W208
+    - W209
+    - W210
+    - W213
+sources:
+    - title: Pacheco et al. - Uncovering Coordinated Networks on Social Media (ICWSM 2021)
+      url: https://ar5iv.labs.arxiv.org/html/2001.05658
+      summary: The two-mode trace, TF-IDF projection, top-percentile edge filter and manual validation framework, with case sizes
+    - title: CooRTweet vignette (CRAN)
+      url: https://cran.r-project.org/web/packages/CooRTweet/vignettes/vignette.html
+      summary: time_window and min_participation parameters, median edge-weight default, cross-platform caveat
+    - title: Coordination network toolkit (PyPI)
+      url: https://pypi.org/project/coordination-network-toolkit/1.0.1/
+      summary: Command-line coordination detection that writes GraphML for Gephi
+    - title: Weber and Neumann - Amplifying influence through coordinated behaviour (2021)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8557266
+      summary: 20,563 accounts, five coordination criteria with windows of 15 to 1,440 minutes, focal-structure extraction
+    - title: Cinus et al. - Exposing cross-platform coordinated inauthentic activity in the 2024 US election
+      url: https://arxiv.org/html/2410.22716v4
+      summary: Cross-platform co-URL network and sentence-embedding similarity in daily windows with a 0.95 cutoff
+    - title: Python Software Foundation job board - disinformation research scientist posting
+      url: https://www.python.org/jobs/8212/
+      summary: Job ad asking for network science, graph ML or computational social science with NetworkX or igraph
+    - title: Meta Content Library FAQ
+      url: https://developers.facebook.com/docs/content-library-and-api/support/faqs
+      summary: Data may not be downloaded by any means; analysis stays inside Meta's environment
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

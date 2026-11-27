@@ -1,0 +1,183 @@
+id: W209
+name: Coordinated Behavior Network Detection
+category: analysis
+validated: false
+personas:
+    - coordination-detection-scientist
+    - osint-investigator
+requires_capabilities:
+    - data-import
+    - data-validation
+    - computed-attributes
+    - filtering
+    - saved-filters
+    - metric-histograms
+    - component-analysis
+    - community-detection
+    - centrality-eigenvector
+    - temporal-analysis
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - details-on-demand
+    - selection-statistics
+    - comparison-view
+    - analysis-history
+    - large-graph-rendering
+    - export-image
+    - data-export
+    - bipartite-projection
+    - provenance-tracking
+    - coordination-detection
+    - table-to-graph-builder
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - computed-attributes-panel
+    - histogram
+    - range-slider
+    - filter-panel
+    - algorithm-panel
+    - cluster-table
+    - community-panel
+    - heatmap-panel
+    - comparison-view
+    - analysis-history-panel
+    - graph-canvas
+    - node-details-panel
+    - visual-encoding-panel
+    - legend-panel
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: action table (account, action type, target post or URL or hashtag, timestamp, text) or a projected account-similarity edge list from CooRTweet, CooRnet or the coordination network toolkit
+    node_count: 10000-900000 before filtering, hundreds to a few thousand after
+    edge_density: dense before filtering, sparse after
+    user_expertise: expert
+goal: >-
+    **Intent**: Find groups of accounts that act in concert - reposting the same posts, sharing the same links within
+    seconds, using the same hashtag sequences, posting in lockstep, or publishing paraphrased text together - and
+    present each group with the evidence that links it. Output is a hypothesis for forensic confirmation, not a verdict.
+
+
+    **Mental Model**: "Similarity network, then threshold, then components." Accounts are linked by how much behavior
+    they share; almost everyone shares a little, so only the strongest edges survive, and what remains falls into
+    groups. Every threshold changes who is accused.
+
+
+    **Task Phases**:
+
+    1. **State the conjecture** - Pick the suspicious behavior: co-repost, co-URL, co-hashtag, synchronized
+    posting in time bins, shared images, handle swaps, or semantic similarity of text
+
+    2. **Filter by support** - Drop accounts below a minimum number of actions (5 to 10 depending on the trace;
+    at least 10 reposts for co-repost); exclude self-reposts
+
+    3. **Build the two-mode graph** - Accounts linked to features (posts, URLs, hashtags, 30-minute time bins,
+    image hashes, handles) with TF-IDF weights so a viral item counts less
+
+    4. **Project to accounts** - Edge weight is cosine similarity, Jaccard or co-occurrence count;
+    for co-action methods only count shared actions inside a time window in seconds (25 to 60 seconds in published
+    work) with a minimum repetition count; sum weights across several criteria if combining
+
+    5. **Filter edges** - Keep the top 0.5 percent of edges (co-repost, synchrony) or top 1 percent (images),
+    or normalized weight above 0.1, or k nearest neighbors with k = ln(number of accounts); watch how group membership
+    changes as the cutoff moves
+
+    6. **Extract groups** - Connected components of the filtered graph with singletons removed; Louvain to split
+    a giant component; k-core, k-clique or label propagation as alternatives
+
+    7. **Semantic variant** - Embed each post with a multilingual sentence model, average cosine similarity
+    between account pairs inside one-day sliding windows, keep edges at 0.95 or above, flag the top 0.5 percent by
+    eigenvector centrality; record per edge which criterion and post pairs created it
+
+    8. **Validate** - Read exemplar content per group, measure precision at several thresholds, compare to random
+    samples, check suspensions and takedown lists, use case evidence (price spikes for pump-and-dump); do not treat bot
+    scores as proof
+
+    9. **Present** - Account networks sized by degree, components colored by group, exemplar posts, images or
+    hashtags beside each group, heatmaps of membership and content similarity; run content types separately and combine
+
+
+    **Decision Points**:
+
+    - Which behavior is suspicious for this case?
+
+    - What time window, support minimum and edge percentile to use, and how sensitive are the groups to each?
+
+    - Components, or community detection inside a giant component?
+
+    - Does a cross-platform group show cross-platform coordination, or only accounts on several platforms?
+
+    - Which groups are strong enough to name publicly?
+
+
+    **Information Needs**:
+
+    - Edge-weight distribution to place the threshold
+
+    - Group count, sizes and membership at each threshold, compared side by side
+
+    - For any edge: the criterion and the shared posts, URLs or timestamps behind it
+
+    - Exemplar content per group
+
+    - Account attributes (creation date, platform, suspension status) per group
+
+
+    **Pain Points**:
+
+    - Thresholds drive results and are hidden in code
+
+    - Projected graphs are huge before filtering and slow to draw
+
+    - Provenance of each edge is lost after projection
+
+    - Identical-text and synchrony detectors miss paraphrased, staggered language-model campaigns
+
+    - Platform data that cannot leave a cleanroom
+
+
+    **Data Flow**:
+
+    - Input: Action table (CSV, NDJSON) or a projected edge list (GraphML from the coordination network toolkit, CSV from
+    CooRTweet or CooRnet), optional per-post embedding vectors
+
+    - Transformations: Support filter, two-mode graph, time-windowed projection to weighted account pairs, percentile
+    edge filter, components or community detection, per-group content summary
+
+    - Output: Coordinated groups table with members and exemplar content, account network figure, threshold sensitivity
+    comparison, edge list with provenance
+success_criteria:
+    - metric: Threshold sensitivity
+      target: User sees group membership change as the edge cutoff moves before naming any group
+    - metric: Edge provenance
+      target: Any edge can be traced to the criterion and shared items that created it
+    - metric: Validation readiness
+      target: Every group is exported with members and exemplar content for manual review
+sources:
+    - title: Pacheco et al. - Uncovering Coordinated Networks on Social Media (ICWSM 2021)
+      url: https://ar5iv.labs.arxiv.org/html/2001.05658
+      summary: Support minimums, TF-IDF two-mode projection, top 0.5 and 1 percent edge filters, components, manual validation
+    - title: CooRTweet vignette (CRAN)
+      url: https://cran.r-project.org/web/packages/CooRTweet/vignettes/vignette.html
+      summary: time_window and min_participation, median edge-weight default, cross-platform caveat
+    - title: CooRnet get_coord_shares
+      url: https://rdrr.io/github/fabiogiglietto/CooRnet/man/get_coord_shares.html
+      summary: Coordination interval estimated from data or set in seconds, plus a minimum repetition count
+    - title: Broniatowski - Coordinated behavior on Facebook
+      url: https://iddp.gwu.edu/sites/g/files/zaxdzs5791/files/downloads/Coordinated%20Behavior%20On%20Facebook%3B%20Broniatowski.pdf
+      summary: A 25-second co-sharing window
+    - title: Weber and Neumann - Amplifying influence through coordinated behaviour
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC8557266
+      summary: Five criteria with 15 to 1,440 minute windows, summed weights, k-nearest-neighbor and focal-structure filters, heatmaps
+    - title: Cinus et al. - Cross-platform coordinated inauthentic activity in the 2024 US election
+      url: https://arxiv.org/html/2410.22716v4
+      summary: Cross-platform co-URL network and sentence-embedding similarity in one-day windows at 0.95 with eigenvector flagging
+    - title: Antonakaki and Ioannidis - TeleTwin
+      url: https://arxiv.org/abs/2610.23944
+      summary: Identical-text, co-URL and synchrony detectors fail against reworded, staggered language-model campaigns
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

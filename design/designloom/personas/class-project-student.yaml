@@ -1,0 +1,85 @@
+id: class-project-student
+name: Class Project Student
+roster_persona: class-project-student
+tier: A
+scope: in-scope
+role: Undergraduate in a Social Network Analysis or Digital Methods Course
+quote: The assignment says find the most important people and the groups, and export a figure. I have the lab slides and one tutorial.
+bio: >-
+    Dev is a third-year undergraduate in a communication, political science, history or media-studies methods course.
+    He knows spreadsheets but not programming. The course requires Gephi desktop (or Polinode or Flourish) for two to
+    six weeks: a few lab assignments on a supplied dataset (Les Miserables, 74 characters and 248 links; the Quaker
+    network, 119 nodes and 174 edges; a class network the students built) and then a group final project on a network
+    of 100 to 1,000 nodes that he collects himself. He follows the handout's menu paths step by step, rarely reasons
+    about direction, which centrality or modularity resolution, and judges success by whether the figure looks like the
+    one on the slide. Once the course ends he may never open the tool again, and if the tool fails in the first session
+    he abandons it.
+characteristics:
+    expertise: novice
+    time_pressure: high
+    graph_literacy: basic
+    domain_knowledge: intermediate
+motivations:
+    - Produce "a well-designed, informative visualization of your network" for the grade
+    - Answer "Who are the most important people in it? What groups and communities do they belong to?"
+    - Finish the lab inside the class period without fighting installation
+    - Write a report paragraph that explains a measure correctly in plain words
+    - Hand in a figure and a top-five table before the late penalty applies
+behaviors:
+    - Installs the tool the night before or in the first lab, and loses 10 to 60 minutes when Java or the OS build is wrong
+    - Imports a nodes CSV then an edges CSV in the Data Laboratory, choosing directed or undirected because the handout says so
+    - Often skips checking that the node and edge counts match the file
+    - Runs ForceAtlas2 and stops it by eye when nodes stop moving
+    - Runs average degree, modularity, diameter and PageRank because each writes a column he can then size or color by
+    - Sizes nodes by degree and colors by modularity class, then toggles labels and Label Adjust
+    - Exports PNG first, discovers it is blurry, then switches to SVG or PDF
+    - Copies the top nodes from the exported table into Google Slides or Word and annotates the figure there
+    - Asks a chat assistant what betweenness means when the tool does not explain it
+frustrations:
+    - Installation and Java version problems on a personal laptop
+    - No undo, so one wrong click means starting over
+    - The first drawing "doesn't look very useful (yet)"
+    - The tool "doesn't automatically tell us what these measures mean or how they are calculated"
+    - Preview "may not look identical to what you see in the Overview tab"
+    - Only the eight largest modularity classes get colors; the rest are gray
+    - His communities differ from a classmate's on the same data because modularity is not deterministic
+    - Handouts written for an older version whose menus moved
+context:
+    frequency: weekly
+    devices:
+        - laptop
+    voluntary: false
+workflows:
+    - W231
+    - W233
+    - W234
+    - W238
+    - W26
+sources:
+    - title: Rutgers SC&I 373 Network Analysis syllabus (Ognyanova, 2025)
+      url: https://kateto.net/teach/SCI%20373%20Network%20Analysis%20Syllabus%20-%20Ognyanova%20-%202025.pdf
+      summary: Polinode and Gephi required; final project analyzed and visualized in Gephi or Polinode; goals and late penalty
+    - title: Warwick IM904 week 4 Gephi lab
+      url: https://warwick.ac.uk/fac/cross_fac/cim/people/academic-technology/im904/week4
+      summary: Two-hour lab on Twitter mention networks; Mixed graph type, giant component and degree filters, modularity coloring
+    - title: Grinnell Digital Methods network analysis tutorial III
+      url: https://sarahjpurcell.sites.grinnell.edu/digital_methods/tutorials/network-analysis-iii/
+      summary: Data Laboratory CSV import; notes Gephi does not explain what its measures mean
+    - title: UBC Library Gephi hands-on activity
+      url: https://ubc-library-rc.github.io/gephi-palladio/content/05_Gephi_hands_on_activity.html
+      summary: Les Miserables GEXF lab; the first drawing does not look useful yet
+    - title: Gephi FAQ
+      url: http://gephi.org/faq/
+      summary: No undo, degree computed dynamically, top eight modularity classes colored, beginners pointed to Gephi Lite
+    - title: Frank Takes Gephi tutorial
+      url: https://github.com/franktakes/gephi-tutorial
+      summary: ForceAtlas2 settings, preview differs from overview, export as SVG or PDF, export node table
+    - title: Mapping Controversies 1.8 (Jacomy)
+      url: https://jacomyma.github.io/mapping-controversies/1.8
+      summary: Stop the layout by eye; "Your clusters will differ because the modularity clustering algorithm is not deterministic"
+    - title: Programming Historian - Exploring and Analyzing Network Data with Python
+      url: https://programminghistorian.org/en/lessons/exploring-and-analyzing-network-data-with-python
+      summary: Quaker network of 119 nodes and 174 edges used as the import count check
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

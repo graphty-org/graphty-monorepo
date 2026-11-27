@@ -1,0 +1,159 @@
+id: W1060
+name: Immune Repertoire Similarity Network to Public and Disease-Associated Clusters
+category: analysis
+validated: false
+personas:
+    - immune-repertoire-analyst
+    - single-cell-computational-biologist
+requires_capabilities:
+    - data-import
+    - data-validation
+    - distance-threshold-network
+    - interactive-threshold
+    - large-graph-rendering
+    - progressive-loading
+    - component-analysis
+    - component-browser
+    - community-detection
+    - filtering
+    - visual-encoding-nodes
+    - legend-display
+    - metric-histograms
+    - comparison-view
+    - details-on-demand
+    - search
+    - export-by-cluster
+    - data-export
+    - export-image
+    - sequence-edit-distance-network
+    - shared-clusters-across-samples
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - attribute-table-join-dialog
+    - progressive-loader
+    - range-slider
+    - histogram
+    - filter-panel
+    - cluster-table
+    - community-panel
+    - visual-encoding-panel
+    - legend-panel
+    - graph-canvas
+    - comparison-view
+    - node-details-panel
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: one AIRR Rearrangement TSV per sample (CDR3 amino acid sequence, V and J calls, clone count) plus a sample table
+    node_count: 10^3-5x10^4 clones per sample; 10^5-10^6 pooled across a cohort
+    edge_density: sparse; thousands of small clusters and many singletons
+    user_expertise: advanced
+goal: >-
+    **Intent**: Turn T-cell or B-cell receptor sequences from many samples into a similarity network, find the clusters
+    of near-identical receptors that several people share, and find the clusters whose frequency differs between
+    patients and controls.
+
+
+    **Mental Model**: "Receptors that differ by one letter probably see the same antigen." A cluster is a candidate
+    specificity; a cluster found in many patients and few controls is a candidate disease response.
+
+
+    **Task Phases**:
+
+    1. **Load the repertoires** - One AIRR TSV per sample and a sample table (subject, time point, disease status);
+    one node per clone (unique CDR3 amino acid sequence), sized by clone count, with sample and subject as attributes
+
+    2. **Build the edges** - Join clones whose CDR3 differs by at most one amino acid (Hamming distance; Levenshtein
+    optional, up to 25 times slower), per sample or pooled; a cutoff of 2 gives fewer, larger clusters
+
+    3. **Cluster** - Connected components or a community method (fast greedy, Louvain, Leiden); note that methods
+    disagree
+
+    4. **Find public clusters** - Keep each sample's largest clusters and abundant single clones, network their most
+    abundant representatives, and expand clusters holding clones from several samples back to all their members
+
+    5. **Find disease-associated clusters** - Test sequences shared by at least 10 samples for association with disease
+    status (Fisher's exact test, p < 0.05), group significant sequences with their neighbors, and network them
+
+    6. **Read and compare** - Color by disease status, sample or cluster; open one cluster to see its members across
+    samples, subjects and time points; compare network properties between groups
+
+    7. **Export** - The cluster table with sample and subject counts, one file per cluster, and a figure of the whole
+    pooled network rather than a few selected clusters
+
+
+    **Decision Points**:
+
+    - Hamming or Levenshtein distance, and a cutoff of 1 or 2?
+
+    - Per-sample networks or one pooled network?
+
+    - Connected components or a community method, given that methods give different clusters?
+
+    - How many samples or subjects make a cluster "public"?
+
+    - Which minimum share count and p-value define a disease-associated cluster?
+
+
+    **Information Needs**:
+
+    - Clone count, sample count and subject count per cluster
+
+    - Cluster size distribution and the number of singletons
+
+    - For one cluster, its members per sample, subject and time point, with clone counts
+
+    - Edge and cluster counts as the distance cutoff changes
+
+    - The distance rule, cutoff and cluster method stored with the network
+
+
+    **Pain Points**:
+
+    - Network plots are informative for only a few hundred clones, while repertoires reach hundreds of thousands or
+    millions
+
+    - All-pairs distances become prohibitively expensive above about 100,000 unique sequences
+
+    - Figures show hand-picked clusters, so the whole repertoire is never seen
+
+    - Public and associated clusters are separate pipelines with separate plots
+
+    - Whole-repertoire drawings need an export to Gephi
+
+
+    **Data Flow**:
+
+    - Input: AIRR TSV per sample (junction_aa, v_call, j_call, duplicate_count, optional cell_id), sample table
+
+    - Transformations: Edit-distance edges at a threshold, clusters, pooling across samples, per-cluster sample and
+    subject counts, association test by disease status
+
+    - Output: Pooled repertoire network colored by cluster status, cluster table, per-cluster files, figure
+success_criteria:
+    - metric: Pooled repertoire drawn
+      target: 10^5-10^6 clones shown interactively with every cluster visible, not a selected subset
+    - metric: Shared-cluster transparency
+      target: User can state, for any cluster, how many samples and subjects contain it
+    - metric: Threshold reproducibility
+      target: Distance type, cutoff and cluster method are saved with the network and exported
+sources:
+    - title: Yang et al. 2023 - NAIR, Network Analysis of Immune Repertoire
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10443597/
+      summary: Hamming distance 1, public cluster and disease-associated cluster pipelines, 108 samples and 901,045 TCRs, 1,594 public and 135 COVID-associated clusters, runtime figures
+    - title: NAIR repository
+      url: https://github.com/mlizhangx/Network-Analysis-for-Repertoire-Sequencing-
+      summary: buildRepSeqNetwork returns an igraph object, adjacency matrix, node and cluster tables and plots colored by metadata
+    - title: Miho et al. 2019 - Large-scale network analysis of antibody repertoires
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC6428871
+      summary: Visualization limited to a few hundred clones; Levenshtein-distance networks of more than 500,000 nodes drawn in Gephi; all-pairs cost above 100,000 sequences
+    - title: ClustIRR (Bioconductor)
+      url: https://bioconductor.org/packages/ClustIRR
+      summary: Joint similarity graph across repertoires, community detection, differential community occupancy
+    - title: AIRR Rearrangement schema
+      url: https://docs.airr-community.org/en/stable/datarep/rearrangements.html
+      summary: Tab-separated rearrangement records with required junction_aa, v_call and j_call columns
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

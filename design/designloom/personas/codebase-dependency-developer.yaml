@@ -1,0 +1,95 @@
+id: codebase-dependency-developer
+name: Developer Who Keeps a Codebase's Dependency Graph Clean
+roster_persona: dependency-impact-engineer
+tier: A
+scope: in-scope
+role: Senior Software Developer, Software Architect or Monorepo / Build Engineer
+quote: Our CI just went red on a new circular import. Show me the cycle, which edge to cut, and everything else this pull request touches.
+bio: >-
+    Teodor is the senior developer who owns the structure of a TypeScript monorepo of a few hundred packages and a few
+    thousand modules. He reads two graphs that come out of the code itself. The first is the module graph:
+    dependency-cruiser rules in `.dependency-cruiser.js` forbid circular imports and imports from a higher layer, run
+    in CI with the `err` reporter, which exits with the number of error-level violations, and the violations that
+    already existed when the rules were adopted sit in a known-violations baseline (`--baseline`, `--ignore-known`) so
+    only new ones fail the build. When a rule fires he draws the graph: `ddot` or `archi` collapses modules to
+    folders, `--focus` shows one module with its direct neighbors, `--reaches` shows everything that can reach a
+    module, and `--affected main` draws what his branch changed plus everything that reaches it, often as a Mermaid
+    graph in the pull request summary. madge's `--circular` and `--image` do the quick version. The second is the
+    project graph: `nx graph --focus` to see a package's neighbors, Nx tags and `depConstraints` that make a forbidden
+    project import a lint error, and `nx affected -t build --graph` to see what CI will rebuild and why. Colleagues on
+    Java run ArchUnit's `slices().should().beFreeOfCycles()` and layered-architecture rules, frozen with
+    `FreezingArchRule` on legacy code; colleagues on Python run import-linter's layers and acyclic-siblings contracts
+    and its `explore` browser view. In larger companies a separate build team runs the same reverse-dependency
+    computation over Bazel with `rdeps`. The tools are among the most installed in software: in the week of 2026-11-18
+    to 2026-11-24 npm counted about 10.0 million downloads of dependency-cruiser, 4.3 million of madge and 15.9
+    million of nx, every one of which draws a dependency graph.
+characteristics:
+    expertise: expert
+    time_pressure: medium
+    graph_literacy: intermediate
+    domain_knowledge: advanced
+motivations:
+    - Keep layers pointing one way and the module graph free of cycles, enforced in CI rather than by review
+    - Adopt rules on a grown codebase without fixing every old violation first, and shrink the backlog over time
+    - Know which packages and modules a change affects, so CI builds and tests only those and reviewers see the blast radius
+    - Pick the cheapest dependency to cut when a cycle appears
+behaviors:
+    - Writes forbidden rules (no circular imports, no import from a higher layer, no orphans) in a config file checked into the repository
+    - Runs the rule check on every pull request and fails the build on new error-level violations
+    - Records existing violations in a baseline and lets only new ones fail; updates the baseline in shrink-only mode as old ones are fixed
+    - Draws the graph collapsed to folders or packages first, then focuses on one module and its neighbors
+    - Draws the changed modules and everything that reaches them for a pull request, with the changed ones highlighted
+    - Looks for a minimal set of edges whose removal makes the graph acyclic (import-linter's cycle breakers) before refactoring
+    - Answers teammates' "why is this package installed" questions with npm explain
+frustrations:
+    - The full module graph is unreadable; every tool tells him to focus, collapse or exclude before drawing
+    - Static Graphviz images cannot be explored, so each new question is a new command and a new picture
+    - Rule output is a text list of violating edges; seeing the cycle they form takes a second tool
+    - Very large Bazel graphs are best read one path at a time, and an inferred query universe can silently shrink the result
+context:
+    frequency: daily
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W81
+    - W84
+    - W85
+sources:
+    - title: npm download counts, dependency-cruiser, week of 2026-11-18 to 2026-11-24
+      url: https://api.npmjs.org/downloads/point/last-week/dependency-cruiser
+      summary: 10,032,839 downloads
+    - title: npm download counts, madge, week of 2026-11-18 to 2026-11-24
+      url: https://api.npmjs.org/downloads/point/last-week/madge
+      summary: 4,252,575 downloads
+    - title: npm download counts, nx, week of 2026-11-18 to 2026-11-24
+      url: https://api.npmjs.org/downloads/point/last-week/nx
+      summary: 15,892,176 downloads
+    - title: dependency-cruiser - command line interface
+      url: https://github.com/sverweij/dependency-cruiser/blob/main/doc/cli.md
+      summary: err reporter exits with the number of error violations; ddot, archi, mermaid, d2 and json output; --focus, --reaches, --affected, --highlight, --collapse; --baseline (shrink-only mode) and --ignore-known
+    - title: madge
+      url: https://github.com/pahen/madge
+      summary: --circular lists circular imports; --image draws the graph with circular modules in red; --depends lists dependents
+    - title: Nx - Explore your workspace
+      url: https://nx.dev/docs/features/explore-graph
+      summary: nx graph, --focus, --file JSON export, nx affected --graph; "Viewing the entire graph can be unmanageable even for smaller repositories"
+    - title: Nx - Enforce module boundaries
+      url: https://nx.dev/docs/features/enforce-module-boundaries
+      summary: Project tags and depConstraints; a violation is a lint error
+    - title: ArchUnit user guide
+      url: https://www.archunit.org/userguide/html/000_Index.html
+      summary: slices().should().beFreeOfCycles(), layeredArchitecture(); FreezingArchRule records existing violations so only new ones are reported
+    - title: Import Linter - Interactive UI
+      url: https://import-linter.readthedocs.io/en/stable/ui/
+      summary: Browser view of a package's children with drill-down, import totals, module counts and cycle breakers; drawgraph writes DOT
+    - title: Import Linter - Contract types
+      url: https://import-linter.readthedocs.io/en/stable/contract_types/
+      summary: Forbidden, layers, independence and acyclic-siblings contracts
+    - title: Bazel - Query guide
+      url: https://bazel.build/query/guide
+      summary: rdeps for reverse dependencies within a universe; for a big graph, start with a single path
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

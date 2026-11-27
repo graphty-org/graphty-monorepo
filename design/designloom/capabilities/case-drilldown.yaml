@@ -1,0 +1,23 @@
+id: case-drilldown
+name: Case Drilldown
+category: analysis
+description: From a node, edge, variant or deviation, list the cases behind it and show each case's full event history;
+    follower, four-eyes, mandatory and forbidden filters created from the map; named filtered copies with an exportable
+    filter recipe and counts.
+status: planned
+notes: "Research trace: process-mining-and-process-maps.md section 10, requirement R8 (Must)."
+algorithms: []
+used_by_workflows:
+    - W340
+    - W341
+    - W343
+    - W345
+implemented_by_components: []
+requirements:
+    - "Must: Filters from the map (follower with never, time and same/different resource; mandatory and forbidden
+      activity; endpoints; timeframe modes; case performance; variant); drill to cases and each case's history"
+sources:
+    - title: "Process Mining Analysts: Process Maps, Models and Deviations from Event Logs (section 10, requirement R8)"
+      url: design/user-research/process-mining-and-process-maps.md
+      summary: "Must in the research. Covered by Designloom when researched: No (details-on-demand shows attributes, not
+          cases)"

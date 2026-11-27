@@ -1,0 +1,160 @@
+id: W129
+name: Inspect a Microsoft GraphRAG Index in Gephi
+category: analysis
+validated: false
+personas:
+    - graphrag-developer
+requires_capabilities:
+    - data-import
+    - data-validation
+    - basic-statistics
+    - degree-analysis
+    - community-detection
+    - visual-encoding-nodes
+    - legend-display
+    - layout-force-directed
+    - large-graph-rendering
+    - component-analysis
+    - search
+    - details-on-demand
+    - export-image
+    - group-collapse
+    - graphrag-output-import
+    - supplied-community-hierarchy
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - statistics-panel
+    - algorithm-panel
+    - community-panel
+    - visual-encoding-panel
+    - legend-panel
+    - layout-panel
+    - graph-canvas
+    - node-details-panel
+    - image-export-dialog
+starting_state:
+    data_type: GraphRAG index output (graph.graphml snapshot, or parquet tables entities, relationships, communities, community_reports, text_units, documents)
+    node_count: 1000-100000
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: See the whole graph that a Microsoft GraphRAG indexing run extracted from a corpus, to judge whether
+    the extraction and its communities look sane before spending more on LLM indexing. This is the official
+    visualization procedure published by the GraphRAG project, which ships no viewer of its own.
+
+
+    **Mental Model**: "X-ray the index." The developer is not looking for findings about the domain; she is looking for
+    symptoms of bad extraction: boilerplate hubs, many tiny islands, near-duplicate labels side by side, clusters that
+    mix unrelated topics.
+
+
+    **Task Phases**:
+
+    1. **Enable the snapshot** (plus the indexing run) - Set snapshots graphml true (and raw_graph true to keep
+    the pre-merge extraction) in settings.yaml and run graphrag index. Indexing cost is dominated by LLM calls; one
+    study needed 35 minutes and about 4,000 calls per textbook. If GraphML was off, either re-index or rebuild a graph
+    from the parquet tables with pandas and NetworkX
+
+    2. **Find the file** - graph.graphml sits in output.base_dir (v3 config; v1 and v2 used storage.base_dir)
+
+    3. **Import into Gephi** - File > Open gives a plain undirected view; Gephi supports only part of GraphML
+
+    4. **Install Leiden** (once) - Tools > Plugins > Leiden Algorithm > Install > restart
+
+    5. **Statistics** - Run Average Degree; run Leiden with quality function Modularity and resolution 1
+
+    6. **Color by cluster** - Appearance > Nodes > Partition > Cluster > Palette > Generate with "Limit number
+    of colors" unchecked > Apply
+
+    7. **Size by degree** - Appearance > Nodes > Ranking > Degree, min 10, max 150 > Apply
+
+    8. **Layout** - OpenORD with only the Liquid and Expansion stages (Expansion 50, others 0), then
+    ForceAtlas 2 with Scaling 15, Dissuade Hubs on, LinLog off, Prevent Overlap on; stop when nodes settle
+
+    9. **Read it** - Look for unexpected hubs (for example "Project Gutenberg"), many tiny components,
+    near-duplicate labels, and clusters that mix topics; note candidates for a stoplist or prompt change
+
+
+    **Decision Points**:
+
+    - Re-index with snapshots on, or rebuild the graph from parquet tables?
+
+    - Which GraphRAG version wrote the output (table and column names differ across v1, v2 and v3)?
+
+    - Is a hub real domain structure or extraction noise to stoplist?
+
+    - Are the clusters coherent enough, or does the extraction prompt need work before another paid run?
+
+
+    **Information Needs**:
+
+    - Node and edge counts, average degree, top hubs by degree
+
+    - Component count and size distribution
+
+    - GraphRAG's own hierarchical communities (levels, parent, children) with their report text, not only a recomputed
+    clustering
+
+    - Entity type and description for a clicked node, plus the text units it came from
+
+    - Which GraphRAG version and settings produced the files
+
+
+    **Pain Points**:
+
+    - Gephi recomputes its own Leiden clustering and ignores GraphRAG's community hierarchy, so the picture can
+    disagree with the communities behind the reports
+
+    - GraphML snapshots are off by default; forgetting them means another paid indexing run or a conversion script
+
+    - Version drift: v1 renamed name to title and rank to combined_degree; v2 renamed every table (formerly
+    create_final_*); v3 changed text_units.document_ids to a single document_id and removed the UMAP x/y columns
+
+    - Third-party viewers break on schema changes (0 nodes on GraphRAG 3.0.6)
+
+    - Many manual steps and a plugin install to reach a readable picture
+
+
+    **Data Flow**:
+
+    - Input: graph.graphml or GraphRAG parquet tables
+
+    - Transformations: Import, degree and community statistics, partition color and ranking size, force layout
+
+    - Output: An annotated picture, a list of noise hubs and suspected duplicates, notes for prompt or stoplist changes
+success_criteria:
+    - metric: Time from finished index to readable whole-graph view
+      target: Under 10 minutes with no plugin install or conversion script (design goal; no source measures it)
+    - metric: Community fidelity
+      target: Colors can show GraphRAG's own communities at a chosen level, not only a recomputed clustering
+    - metric: Noise detection
+      target: User can list the top 20 hubs and the component size distribution and flag noise hubs
+sources:
+    - title: GraphRAG visualization guide
+      url: https://microsoft.github.io/graphrag/visualization_guide/
+      summary: The official Gephi procedure - Leiden plugin, partition color, degree size, OpenORD then ForceAtlas 2 settings
+    - title: GraphRAG configuration (YAML)
+      url: https://microsoft.github.io/graphrag/config/yaml/
+      summary: snapshots.graphml and raw_graph options; output.base_dir
+    - title: GraphRAG breaking changes
+      url: https://raw.githubusercontent.com/microsoft/graphrag/main/breaking-changes.md
+      summary: Table and column renames across v1, v2, v3; v3 removed umap and embed_graph
+    - title: Gephi GraphML import
+      url: https://docs.gephi.org/desktop/User_Manual/Import/GraphML_Format
+      summary: Gephi supports only part of GraphML
+    - title: GraphRAG costs explained
+      url: https://techcommunity.microsoft.com/blog/azure-ai-services-blog/graphrag-costs-explained-what-you-need-to-know/4207978
+      summary: Indexing cost is dominated by LLM calls
+    - title: GraphRAG on textbooks
+      url: https://arxiv.org/pdf/2509.07846
+      summary: About 35 minutes and 4,000 LLM calls per textbook
+    - title: GraphRAG visualization from parquet with pandas and NetworkX
+      url: https://evannzhongg.github.io/2025/04/11/GraphRag-Visualization
+      summary: Rebuilding a graph from parquet tables when GraphML was not written
+    - title: GraphRAG issue 2272
+      url: https://github.com/microsoft/graphrag/issues/2272
+      summary: Third-party viewer shows 0 nodes after a schema change in 3.0.6
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

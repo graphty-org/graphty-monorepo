@@ -1,0 +1,23 @@
+id: flow-allocation-tracing
+name: Balance-aware flow allocation
+category: analysis
+description: Trace a seed amount forward or a destination backward through accounts in time order with running balances,
+    splitting onward payments under a named rule (lowest intermediate balance, FIFO, LIFO, pro rata; crypto poison,
+    haircut, FIFO), recording balance checkpoints, and exporting an allocation table of step, rule, balance and traced
+    amount.
+status: planned
+notes: "Research trace: financial-crime-fraud-aml-kyc.md section 10, requirement 18 (Must)."
+algorithms: []
+used_by_workflows:
+    - W121
+    - W124
+    - W105
+implemented_by_components: []
+requirements:
+    - "Must: Balance-aware flow allocation from a source forward or a destination backward under LIBR, FIFO or pro rata
+      (crypto: poison, haircut, FIFO), with balance checkpoints"
+sources:
+    - title: "Financial crime investigators: fraud rings, anti-money-laundering, beneficial ownership, crypto tracing
+          and insurance fraud (section 10, requirement 18)"
+      url: design/user-research/financial-crime-fraud-aml-kyc.md
+      summary: Must in the research.

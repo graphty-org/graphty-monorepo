@@ -1,0 +1,117 @@
+id: W326
+name: Orphan and Dead-End Note Sweep
+category: administration
+validated: false
+personas:
+    - personal-knowledge-gardener
+    - zettelkasten-writer
+    - pkm-vault-analyst
+requires_capabilities:
+    - component-analysis
+    - degree-analysis
+    - filtering
+    - saved-filters
+    - node-selection
+    - details-on-demand
+    - data-export
+suggested_components:
+    - graph-canvas
+    - filter-panel
+    - ranked-node-table
+    - data-table-panel
+    - node-details-panel
+    - data-export-dialog
+starting_state:
+    data_type: note link graph including attachments, tags and unresolved links
+    node_count: 1,000-20,000
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Periodic housekeeping: find notes that nobody links to (orphans), notes that link nowhere (dead ends),
+    under-linked notes and broken links, and decide for each whether to link, tag, merge or delete it.
+
+
+    **Mental Model**: "Tidy the garden." Isolated notes are lost notes; the graph is a maintenance checklist.
+
+
+    **Task Phases**:
+
+    1. **Show orphans** - Open the global graph with Orphans on; orphans sit "on the outside off to themselves";
+    untagged notes form an outer ring when tags are shown
+
+    2. **Remove noise** - Filter out daily notes and templates with path filters
+
+    3. **Work through stragglers** - Click each isolated note; link it, tag it, merge it or delete it
+
+    4. **Switch to a list** (optional) - A plugin or script writes a report of notes with no backlinks, no links either
+    way, or only one link; obsidiantools lists isolated notes, media files and canvas files
+
+    5. **Apply a rule of thumb** (optional) - Logseq advice: fewer than two connections is dangling; many more than eight
+    is overloaded and should be split
+
+    6. **Re-run later** - Saved presets for Orphans, Broken links and Dead ends
+
+
+    **Decision Points**:
+
+    - Does "orphan" mean no backlinks or no links at all?
+
+    - Do attachments and tags count as connections?
+
+    - Which folders (daily notes, templates, archive) are exempt?
+
+    - Link, merge or delete this note?
+
+
+    **Information Needs**:
+
+    - Count and list of orphans, dead ends and unresolved links under the chosen definition
+
+    - Each note's title, folder and creation date beside it
+
+    - Degree in and out for under-linked and overloaded notes
+
+
+    **Pain Points**:
+
+    - In a picture, orphans are a scatter of dots on the rim with no list to work through
+
+    - Definitions are fixed by the tool rather than chosen
+
+    - Progress is lost between sessions
+
+
+    **Data Flow**:
+
+    - Input: Note link graph with resolved and unresolved links, tags, attachments, folder paths
+
+    - Transformations: In- and out-degree, isolate detection, folder exclusions, threshold on degree
+
+    - Output: Edits to notes (new links, merges, deletions); optionally an exported list of notes to fix
+success_criteria:
+    - metric: Definition control
+      target: User chooses orphan, dead-end and under-linked definitions and excluded folders
+    - metric: Actionable list
+      target: Matching notes shown as a sortable list that can be exported and re-run
+sources:
+    - title: Obsidian forum - How do you use the graph view?
+      url: https://forum.obsidian.md/t/how-do-you-use-the-graph-view/
+      summary: Orphans on the outside; click each straggler and link or delete
+    - title: Obsidian forum - What's the point of the graph view?
+      url: https://forum.obsidian.md/t/whats-the-point-of-the-graph-view-how-are-you-using-it/71316
+      summary: Untagged notes form an outer ring when tags are shown
+    - title: Find Unlinked Files plugin
+      url: https://community.obsidian.md/plugins/find-unlinked-files
+      summary: Writes a report of notes with no backlinks (search summary)
+    - title: obsidiantools (PyPI)
+      url: https://pypi.org/project/obsidiantools/
+      summary: isolated_notes, isolated_media_files and isolated_canvas_files
+    - title: Logseq forum - How to leverage Logseq's linked structure
+      url: https://discuss.logseq.com/t/how-to-leverage-logseqs-linked-structure/21147
+      summary: Under two connections dangling, many more than eight overloaded; graph useful for spotting missing links
+    - title: Advanced Graph View plugin
+      url: https://community.obsidian.md/plugins/graph-insight
+      summary: Orphans, Broken links and Dead ends presets
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

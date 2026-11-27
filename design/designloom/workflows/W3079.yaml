@@ -1,0 +1,114 @@
+id: W3079
+name: Find Files and Teams That Keep Changing Together
+category: analysis
+validated: false
+personas:
+    - version-control-collaboration-analyst
+requires_capabilities:
+    - version-control-history-import
+    - change-coupling
+    - socio-technical-congruence
+    - containment-hierarchy-rollup
+    - temporal-analysis
+    - graph-diff
+    - layout-hierarchical
+    - filtering
+    - visual-encoding-edges
+    - matrix-view
+    - details-on-demand
+    - data-export
+suggested_components:
+    - file-drop-zone
+    - graph-canvas
+    - filter-panel
+    - heatmap-panel
+    - node-details-panel
+    - temporal-controls
+    - data-export-dialog
+starting_state:
+    data_type: git history with ticket IDs in commit messages, a file-to-component mapping, a developer-to-team table, optionally the static import graph (dependency-cruiser or Nx JSON)
+    node_count: thousands of files rolled up to tens or hundreds of components and a handful of teams; no source gives a typical size
+    edge_density: dense before thresholds (a large commit couples every pair of its files), sparse after them
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Find files, components and services that change together although nothing in the code links them,
+    and the teams that must coordinate because of it, so architecture and team boundaries can be aligned.
+    The persona is version-control-collaboration-analyst; codebase-dependency-developer reads the static import graph
+    of the same code in W85.
+
+
+    **Mental Model**: "What changes together belongs together, or the teams that own it must talk."
+
+
+    **Task Phases** (no source gives per-step durations):
+
+    1. **Export and clean the history** - As in W3078, with identities merged
+
+    2. **Choose the grouping rule** - Same commit, same author within a time window, or same ticket ID (CodeScene);
+    code-maat treats a day's commits as one logical commit
+
+    3. **Set thresholds** - Minimum revisions, minimum shared revisions, minimum coupling percentage, maximum changeset
+    size (code-maat defaults 5, 5, 30% and 30 files)
+
+    4. **Read file coupling** - Hierarchical view over folders; hover a file to see what it changes with; Sum of
+    Couplings to rank central files
+
+    5. **Roll up** - Components and services; then teams, to see coordination needs between teams
+
+    6. **Compare with the import graph** - Mark coupling no import explains, and imports that never co-change
+
+    7. **Compare periods** - Is the coupling growing, fading or stable (CodeScene colors)?
+
+
+    **Decision Points**:
+
+    - Which grouping rule and window fit how this organization commits?
+
+    - Which coupled pairs are expected (a test and its code) and which are hidden dependencies?
+
+    - Which team pairs should merge, split or agree on an interface?
+
+
+    **Information Needs**:
+
+    - Coupling degree and shared revisions per pair, with the rule and thresholds shown
+
+    - Coupling rolled up to components and teams
+
+    - Change in coupling between two periods
+
+
+    **Pain Points**:
+
+    - A few sweeping commits couple everything until the changeset size is capped
+
+    - The history and the import graph live in different tools
+
+
+    **Data Flow**:
+
+    - Input: git log, ticket IDs, file-to-component and developer-to-team mappings, optional import graph
+
+    - Transformations: Logical changesets, co-change counting, thresholds, roll-up, coordination needs, diff between periods
+
+    - Output: Coupling graph and matrix, team coordination map, list of hidden dependencies
+success_criteria:
+    - metric: Coupling
+      target: User obtains change-coupling edges with the grouping rule and thresholds stated
+    - metric: Teams
+      target: User sees which team pairs share coupled code
+    - metric: Hidden dependencies
+      target: User lists coupled pairs with no import path between them
+sources:
+    - title: CodeScene - Change coupling
+      url: https://codescene.io/docs/guides/technical/change-coupling.html
+      summary: Same commit, same programmer within a period, same Ticket ID; hierarchical view; trend colors; component and team overlays
+    - title: code-maat (Adam Tornhill)
+      url: https://github.com/adamtornhill/code-maat
+      summary: Coupling thresholds and defaults; one-day temporal period; component mapping
+    - title: TNM (JetBrains Research)
+      url: https://github.com/JetBrains-Research/tnm
+      summary: File dependency matrix from co-commits; coordination needs; mirror congruence
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

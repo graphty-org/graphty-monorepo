@@ -1,0 +1,171 @@
+id: W172
+name: Animal Social and Contact Networks
+category: analysis
+validated: false
+personas:
+    - animal-social-network-ecologist
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - temporal-analysis
+    - temporal-navigation
+    - filtering
+    - centrality-degree
+    - centrality-eigenvector
+    - clustering-coefficient
+    - community-detection
+    - metric-histograms
+    - statistics-panel
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - comparison-view
+    - export-image
+    - data-export
+    - network-collection-small-multiples
+    - null-model-ensembles
+    - co-location-network-builder
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - temporal-controls
+    - filter-panel
+    - range-slider
+    - graph-canvas
+    - ranked-node-table
+    - histogram
+    - statistics-panel
+    - visual-encoding-panel
+    - legend-panel
+    - comparison-view
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: group sightings, RFID or PIT detection stream, proximity-logger contacts or GPS relocations, plus an individual attribute table
+    node_count: 4-1,400 individuals (median about 15; hundreds in long-term studies)
+    edge_density: moderate to dense
+    user_expertise: expert
+goal: >-
+    **Intent**: Build a network of individual animals from raw observations, weight each pair by how often they were
+    seen together, test whether traits such as sex, age or season predict social position against permutation-based
+    null models, and show how the network changes over time. A disease variant builds a contact network from
+    proximity collars and simulates transmission across it.
+
+
+    **Mental Model**: "Who was seen with whom, relative to how often each was seen at all." Edges are association
+    indices between 0 and 1, and significance comes from shuffling the raw observations, not the finished network.
+
+
+    **Task Phases**:
+
+    1. **Define nodes and edges** (planning) - Individuals as nodes; associations, directed interactions or proximity
+    as edges
+
+    2. **Collect and load** - Group scans or photo-ID surveys, feeder detection streams (timestamp, tag,
+    location), proximity contacts or GPS tables (id, datetime, x, y), plus sex, age, rank and kinship
+
+    3. **Build groups** - Group-by-individual matrix from sightings; infer flocking events from detection
+    streams; group GPS points by a time window and a distance threshold (for example 50 m); merge proximity records
+    between the same pair within one or two minutes
+
+    4. **Compute association indices** - Simple ratio or half-weight index, subset by period, location or
+    class
+
+    5. **Build null networks** - Swap individuals between groups within day, location or class, shuffle
+    identities within time steps, shift whole trajectories, or permute node labels
+
+    6. **Compute node and network measures** - Strength, eigenvector centrality, clustering, modularity
+
+    7. **Test hypotheses** - Compare observed effects (for example sex difference in strength) against the
+    null distribution; matrix regression with kinship; lagged association rates
+
+    8. **Check power and accuracy** - Subsample observations or bootstrap groups
+
+    9. **Draw** - Nodes colored by sex or age class and sized by strength, edge width by association index,
+    one panel per season or time window
+
+    10. **Disease variant** - Contact network from proximity loggers, then simulate transmission across it
+
+
+    **Decision Points**:
+
+    - What counts as a group or a contact (time window, distance threshold)?
+
+    - Simple ratio or half-weight index?
+
+    - Data-stream permutation, node-label permutation or both?
+
+    - Which time windows to compare?
+
+
+    **Information Needs**:
+
+    - Number of sightings per individual, since rarely seen animals have unreliable indices
+
+    - Association index per pair on hover with the counts behind it
+
+    - Observed statistic against the null distribution with p-value
+
+    - Individual attributes (sex, age, rank) driving color, size and group comparisons
+
+    - Network per time window with stable node positions
+
+
+    **Pain Points**:
+
+    - Graph tools assume an edge list, not sightings, detection streams or GPS tables
+
+    - Permutation choice is contested; data-stream permutations inflate false positives for regression
+
+    - Inferring flocking events needs memory that grows with the square of the data
+
+    - Proximity loggers split contacts and lose detection range over months
+
+
+    **Data Flow**:
+
+    - Input: Sightings, detection streams, proximity contacts or GPS relocations; individual attribute table
+
+    - Transformations: Grouping, association indices, permutation nulls, node measures, hypothesis tests, time windows
+
+    - Output: Per-period sociograms, measure tables, test results, contact networks for transmission models
+success_criteria:
+    - metric: Raw-to-network path
+      target: User builds an association network from a detection or sighting table without leaving the tool
+    - metric: Temporal stability
+      target: Individuals keep their positions across season panels
+    - metric: Test transparency
+      target: The permutation type and number are shown with every p-value
+sources:
+    - title: Farine and Whitehead 2015 - Constructing, conducting and interpreting animal social network analysis
+      url: https://kops.uni-konstanz.de/entities/publication/8843792c-3d9a-427e-88d0-c5be7788fb7a
+      summary: Defining nodes and edges, collection, inference, measures, tests and power and accuracy
+    - title: asnipe get_network help
+      url: https://search.r-project.org/CRAN/refmans/asnipe/html/get_network.html
+      summary: SRI and HWI indices subset by time, location and class
+    - title: asnipe network_permutation help
+      url: https://search.r-project.org/CRAN/refmans/asnipe/html/network_permutation.html
+      summary: Data-stream permutations within day, location or class
+    - title: asnipe gmmevents help
+      url: https://search.r-project.org/CRAN/refmans/asnipe/html/gmmevents.html
+      summary: Flocking event inference from detection streams and memory guidance
+    - title: spatsoc randomizations reference
+      url: https://docs.ropensci.org/spatsoc/reference/randomizations.html
+      summary: Step, daily and trajectory randomizations for GPS data
+    - title: Weiss et al. - permutation methods and type I error
+      url: https://www.biorxiv.org/content/10.1101/2020.04.29.068056.full.pdf
+      summary: Data-stream permutations over 30 percent false positives for regression; node-label about 5 percent
+    - title: Farine and Carter 2022 - Permutation tests for hypothesis testing with animal social network data
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC9292850
+      summary: Proposes double permutation
+    - title: Drewe et al. 2012 - Proximity loggers on badgers and cattle
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC3383709/
+      summary: Merging split contact records and correcting for detection-distance decline
+    - title: Simulating devil facial tumour disease outbreaks across empirically derived contact networks
+      url: https://figshare.utas.edu.au/articles/journal_contribution/Simulating_devil_facial_tumour_disease_outbreaks_across_empirically_derived_contact_networks/22890347
+      summary: Network transmission model predicts faster devil extinction than a mean-field model
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

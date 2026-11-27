@@ -1,0 +1,21 @@
+id: large-source-aggregation
+name: "Aggregate millions of rows into a small drawn graph"
+category: performance
+description: "Aggregate 1-10 million event, flow or log rows off the main thread into a drawn graph of tens to hundreds of nodes, and re-aggregate on every slider move or filter within the latency bound in index section 6.3 (Liu and Heer 2014: an added 500 ms reduces exploration; progress shown past 1 s per Nielsen). Sources: process-mining-and-process-maps.md R22, geographic-flow-and-mobility-networks.md R15, cybersecurity-graph-work.md source table (LANL 1.65 billion events)."
+status: planned
+notes: "Research trace: process-mining-and-process-maps.md section 10, requirement R22 (Must)."
+algorithms: []
+used_by_workflows:
+    - W340
+    - W382
+    - W113
+implemented_by_components: []
+requirements:
+    - "Must: Scale: aggregate 1-10 million events interactively in the browser while drawing tens to hundreds of nodes;
+      legible labels when expanded"
+sources:
+    - title: "Process Mining Analysts: Process Maps, Models and Deviations from Event Logs (section 10, requirement
+          R22)"
+      url: design/user-research/process-mining-and-process-maps.md
+      summary: "Must in the research. Covered by Designloom when researched: No (large-graph-rendering targets many
+          nodes)"

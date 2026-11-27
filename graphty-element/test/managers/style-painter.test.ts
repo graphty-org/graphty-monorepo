@@ -590,6 +590,35 @@ describe("StylePainter row paints, one look per mesh key", () => {
         assert.isFalse(held.painter.rowPaint(1)?.style === first?.style, "a label is per row, so its style is too");
     });
 
+    it("hands rows of one halo one style, and rows of two halos two (#10048)", async () => {
+        const held = harness();
+        await held.styles.add({
+            name: "halo",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.halo": true, "node.haloColor": "#ffcc00" },
+        });
+        await held.paintAll();
+
+        const styles = new Set(NODES.map((_, index) => held.painter.rowPaint(index)?.style));
+        assert.strictEqual(styles.size, 1, "a halo restyle built one style per row");
+        for (let index = 0; index < NODES.length; index++) {
+            assert.deepStrictEqual(held.painter.rowPaint(index), held.painter.nodePaint(index));
+        }
+
+        await held.styles.add({
+            name: "switch halo",
+            target: "node",
+            selector: { match: "expression", where: 'data.kind == `"switch"`' },
+            set: { "node.haloColor": "#0000ff" },
+        });
+        await held.paintAll();
+        const [host, otherHost, switchRow, otherSwitch] = NODES.map((_, index) => held.painter.rowPaint(index)?.style);
+        assert.isFalse(host === switchRow, "a row with another halo color shares no style");
+        assert.strictEqual(host, otherHost);
+        assert.strictEqual(switchRow, otherSwitch);
+    });
+
     it("gives nodes of one look one style through nodePaint too, so a Node compares it by reference (#7966)", async () => {
         const held = harness();
         await held.paintAll();

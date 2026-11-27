@@ -22,6 +22,8 @@
  */
 import assert from "node:assert/strict";
 
+import { reloadSweep } from "./reload-sweep.mjs";
+
 // ---------------------------------------------------------------- steps many routes share
 
 /**
@@ -877,4 +879,5 @@ export const routes = [
             },
         },
     },
+    reloadSweep,
 ];

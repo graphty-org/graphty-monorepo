@@ -1,0 +1,22 @@
+id: dataset-version-tracking
+name: Dataset Version Tracking
+category: analysis
+description: A graph records its source dataset and version (FlyWire release, CAVE materialization) and node ids can be
+    remapped across versions from an old-to-new table with a count of changed nodes.
+status: planned
+notes: "Research trace: network-neuroscience-connectomics.md section 10, requirement R27 (Must)."
+algorithms: []
+used_by_workflows:
+    - W156
+    - W157
+    - W1126
+    - W3066
+implemented_by_components: []
+requirements:
+    - "Must: A graph snapshot records its dataset version (FlyWire release, CAVE materialization); node ids can be
+      remapped across versions from a supplied old-to-new table"
+sources:
+    - title: "Network Neuroscientists: Structural, Functional and Cellular Connectomics (section 10, requirement R27)"
+      url: design/user-research/network-neuroscience-connectomics.md
+      summary: "Must in the research (the document says: should-have (must-have for cellular users)). Covered by
+          Designloom when researched: Not covered"

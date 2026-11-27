@@ -1,0 +1,17 @@
+id: attribute-survivorship-view
+name: "Attribute Survivorship View"
+category: visualization
+description: "For a merged entity, show every source record as a node linked to the merged node and colored by source system, and per attribute list every source value, the surviving value, the winning source, the rule that chose it (source priority, recency) and any manual pin or ignore; pin, ignore or edit a value from there."
+status: planned
+notes: "Research trace: graph-database-query-and-expand-exploration.md section 10, requirement 33 (Must)."
+algorithms: []
+used_by_workflows:
+    - W1012
+implemented_by_components: []
+requirements:
+    - "Must: Per-attribute provenance on a merged entity: every source value, the winning value, the rule that chose it,
+      and any manual pin or ignore"
+sources:
+    - title: Graph Database Users Who Explore by Search, Query and Expand (section 10, requirement 33)
+      url: design/user-research/graph-database-query-and-expand-exploration.md
+      summary: Must in the research.

@@ -1,0 +1,17 @@
+id: dynamic-hypergraph-table-import
+name: "Timed Hyperedge Table Import (PAOHvis CSV)"
+category: data
+description: "Read PAOHvis CSV (edge_id, node_name, time_slot, then optional edge description, group_name and role; uppercase header; comma or semicolon) as timed hyperedges in the hypergraph-data model, with each node's group and role per time slot, and report rows that failed to parse instead of stopping the load."
+status: planned
+notes: "Research trace: data-preparation-and-import.md section 9, requirement 28 (Could); a Could in the research, so it is built after every Must and Should."
+algorithms: []
+used_by_workflows:
+    - W294
+implemented_by_components: []
+requirements:
+    - "Could: PAOHvis hypergraph CSV: rows of hyperedge, node and time slot with per-slot group and role, read as timed
+      hyperedges"
+sources:
+    - title: Data Preparation, Import and First Assessment Across All Graph Users (section 9, requirement 28)
+      url: design/user-research/data-preparation-and-import.md
+      summary: "Could in the research. Covered by Designloom when researched: Planned: dynamic-hypergraph-table-import"

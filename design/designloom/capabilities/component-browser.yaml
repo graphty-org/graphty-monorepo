@@ -1,0 +1,21 @@
+id: component-browser
+name: Component browser and packing layout
+category: visualization
+description: List thousands of small connected components with size and attribute summaries, sort and open one, export
+    it, and pack all components plus singletons in one view ordered by an attribute.
+status: planned
+notes: "Research trace: systems-biology-omics-networks.md section 10, requirement 33 (Must)."
+algorithms: []
+used_by_workflows:
+    - W253
+    - W1060
+    - W3102
+    - W3103
+implemented_by_components: []
+requirements:
+    - "Must: Component browser: list components with size and attribute summaries, sort, open one, export it"
+sources:
+    - title: Systems Biologists and Bench Scientists Working With Molecular Interaction Networks (section 10,
+          requirement 33)
+      url: design/user-research/systems-biology-omics-networks.md
+      summary: Must in the research.

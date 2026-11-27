@@ -701,6 +701,8 @@ export const edgeInternals = {} as {
      * graph-root's space.
      */
     seenThroughStop(node: RowMeasure, centre: Vector3, toward: Vector3): Vector3;
+    /** A test of whether a point lies outside a node's drawn shape, as a curve is cut there; see `Edge.outside`. */
+    outside(node: RowMeasure, centre: Xyz): (x: number, y: number, z: number) => boolean;
 };
 
 /**
@@ -885,6 +887,7 @@ export class Edge {
         edgeInternals.leaveNode = (edge, node, centre, toward) => edge.leaveNode(node, centre, toward);
         edgeInternals.bareEnd = (edge, end, centre, toward) => edge.bareEnd(end, centre, toward);
         edgeInternals.boxReachOf = (node, direction) => Edge.boxReachOf(node, direction);
+        edgeInternals.outside = (node, centre) => Edge.outside(node, centre);
         edgeInternals.lineInWorld = (edge) => {
             const curve = edge.drawnCurve;
             if (curve !== null) {
@@ -1984,8 +1987,11 @@ export class Edge {
         // render ceiling for edges that are not going to move. It used to sit below a timing call
         // and a lookup into the layout engine, neither of which the early exit needs: the
         // engine's answer is only read further down, for an edge that IS moving.
-        const srcPos = this.endPosition("source");
-        const dstPos = this.endPosition("target");
+        // With no row drawn without a Node (always, on "objects"), both ends are their Nodes': asked once, not per end.
+        const batches = this.context.getNodeBatches?.() ?? null;
+        const rows = batches !== null && batches.columnRowCount > 0;
+        const srcPos = rows ? this.endPosition("source") : this.srcNode.drawnPosition;
+        const dstPos = rows ? this.endPosition("target") : this.dstNode.drawnPosition;
 
         const srcMoved = !(this._lastSrcPos?.equalsWithEpsilon(srcPos, 0.001) ?? false);
         const dstMoved = !(this._lastDstPos?.equalsWithEpsilon(dstPos, 0.001) ?? false);
@@ -5091,7 +5097,7 @@ export class Edge {
      */
     private static outside(
         node: RowMeasure,
-        centre: Vector3,
+        centre: Xyz,
         gap = 0,
         onOutline = false,
     ): (x: number, y: number, z: number) => boolean {

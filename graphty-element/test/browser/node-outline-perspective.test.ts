@@ -15,7 +15,7 @@
  */
 
 import { Matrix, Vector3 } from "@babylonjs/core";
-import { afterAll, assert, beforeAll, describe, it } from "vitest";
+import { afterAll, assert, beforeAll, describe, it, vi } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
 
@@ -126,6 +126,11 @@ describe("node.outline under perspective", () => {
 
     it("keeps the ring against the node as the graph turns", async () => {
         for (const turn of [0.3, 0.3, 0.3]) {
+            // At rest the scene freezes what it draws and recomputes no world matrix; a turn drawn by
+            // hand right after must still draw the ring at the new angle.
+            await vi.waitFor(() => {
+                assert.isTrue(graph.scene._activeMeshesFrozen, "the scene at rest froze what it draws");
+            });
             assert.isTrue(graph.camera.autoTurn(turn), "the view turns");
             const g = await gaps("side");
             assert.isAtMost(Math.max(g.left, g.right), MAX_GAP, `after a turn: gaps ${JSON.stringify(g)}`);

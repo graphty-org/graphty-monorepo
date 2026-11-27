@@ -1,0 +1,123 @@
+id: W150
+name: Building a Database-Backed Graph View into an Application
+category: administration
+validated: false
+personas:
+    - graph-database-app-developer
+requires_capabilities:
+    - graph-rendering
+    - neighborhood-expansion
+    - node-selection
+    - details-on-demand
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - layout-force-directed
+    - progressive-loading
+    - query-result-import
+    - live-data-source
+    - supernode-safeguards
+suggested_components:
+    - graph-canvas
+    - node-details-panel
+    - context-menu
+    - progressive-loader
+starting_state:
+    data_type: graph database (Neo4j or Neptune) behind the developer's own backend API; an empty application screen
+    node_count: "stored: any; on screen: one entity and whatever end users expand, usually tens to hundreds"
+    edge_density: any, with hubs
+    user_expertise: expert
+goal: >-
+    **Intent**: Ship a "connections" screen inside a product (an investigation console, customer 360, network topology)
+    where end users click an entity, double-click to expand, and read details in a side panel, with no query language.
+    The developer chooses an SDK (NVL, neovis.js, KeyLines, Ogma, yFiles) and writes everything between the database and
+    the drawing.
+
+
+    **Mental Model**: "The SDK is the paint; I build the plumbing." Drawing is solved; fetching, mapping, expanding and
+    protecting the view from hubs are the developer's job.
+
+
+    **Task Phases**:
+
+    1. **Install the SDK** - npm install @neo4j-nvl/base, plus @neo4j-nvl/interaction-handlers for standard interactions
+    and @neo4j-nvl/react for React; give the container an explicit height or the graph does not show
+
+    2. **Connect a driver behind an API** - KeyLines' tutorial runs prepared Cypher in an Express route with
+    disableLosslessIntegers true; neovis.js takes connection details, initialCypher and per-label mappings in one config
+
+    3. **Map records by hand** - NVL wants {id} nodes and {id, from, to} relationships; KeyLines wants node and link items
+    passed to chart.expand()
+
+    4. **Implement expand on double-click** - An event handler (NVL's getHits reports what is under the pointer) calls a
+    parameterized backend query and merges new items by id; the query, its LIMIT and any hub threshold are the
+    developer's code; no fetched SDK page documents a supernode rule
+
+    5. **Style and wire up** - Size, color and edge thickness from properties; selection drives a side panel
+
+
+    No source gives per-step timings. The same screen from the product side is covered in
+    developers-embedding-and-extending-graph-visualization.md, workflow 5.3.
+
+
+    **Decision Points**:
+
+    - Which SDK, given license (NVL is free only with a Neo4j license), framework and data source?
+
+    - What LIMIT and hub threshold for expand?
+
+    - How to merge new results with what is drawn (by database id or business key)?
+
+
+    **Information Needs**:
+
+    - The SDK's expected node and edge shape, and how driver records map to it
+
+    - Hidden-degree counts to decide when a node is a hub
+
+    - Integer handling between the driver and JavaScript
+
+
+    **Pain Points**:
+
+    - The SDK draws but does not fetch; record conversion, expand queries, paging and hub thresholds are all custom code
+
+    - Neo4j integers arrive as two-part objects unless the driver is configured
+
+    - A blank screen until the container gets an explicit height
+
+    - Each new data source means writing the glue again
+
+
+    **Data Flow**:
+
+    - Input: End-user clicks; prepared parameterized queries in the backend; driver records
+
+    - Transformations: Records mapped to SDK items, merged by id on each expand, styled from properties
+
+    - Output: An embedded connections view used daily by the product's own users
+success_criteria:
+    - metric: First working example
+      target: Database-backed click-to-expand view in about 15 lines of author code, with no record-mapping code
+    - metric: Hub safety
+      target: Expanding a hub never freezes the view, without the developer writing a threshold
+    - metric: Data source reuse
+      target: Switching from Neo4j to Neptune changes configuration, not mapping code
+sources:
+    - title: Neo4j Visualization Library overview
+      url: https://neo4j.com/docs/nvl/current/
+      summary: Libraries to build visualizations like those in Bloom
+    - title: Neo4j Graph Visualization Library announcement
+      url: https://neo4j.com/blog/graph-database/neo4j-graph-visualization-library/
+      summary: Packages, getHits, free with a Neo4j license, used in Bloom, Query and Python viz
+    - title: NVL installation
+      url: https://neo4j.com/docs/nvl/current/installation
+      summary: npm packages, node and relationship shape, container height
+    - title: neovis.js
+      url: https://github.com/neo4j-contrib/neovis.js
+      summary: initialCypher, per-label mappings, property-driven styling
+    - title: KeyLines Neo4j tutorial
+      url: https://developers.cambridge-intelligence.com/docs/keylines/neo4j-tutorial
+      summary: Express route with the driver, disableLosslessIntegers, chart.expand()
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

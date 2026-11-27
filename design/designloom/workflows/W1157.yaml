@@ -1,0 +1,129 @@
+id: W1157
+name: Locate a Gene on an Assembly Graph by Sequence Hit and Extract Its Path
+category: analysis
+validated: false
+personas:
+    - bacterial-assembly-finisher
+requires_capabilities:
+    - data-import
+    - graph-rendering
+    - search
+    - node-selection
+    - neighborhood-expansion
+    - ego-network
+    - path-highlighting
+    - path-focus-dimming
+    - component-analysis
+    - external-label-overlays
+    - details-on-demand
+    - visual-encoding-nodes
+    - legend-display
+    - data-export
+    - export-image
+    - gfa-sequence-graph-import
+    - bidirected-edge-model
+    - path-track-overlay
+    - sequence-hit-overlay
+    - path-sequence-extraction
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - attribute-table-join-dialog
+    - graph-canvas
+    - search-panel
+    - data-table-panel
+    - ego-network-dialog
+    - path-finder-dialog
+    - node-details-panel
+    - legend-panel
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: GFA assembly graph plus a table of sequence hits (BLAST tabular output, or GAF) for a FASTA of query genes
+    node_count: 3-3,000 segments
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Find where a resistance, virulence or marker gene lies on the assembly graph, see which replicon it is
+    on, and pull out the sequence along the path that spells it.
+
+
+    **Mental Model**: "Paint the gene on the map." Each hit covers part of one or more segments; the component the hit
+    sits on is the molecule that carries the gene.
+
+
+    **Task Phases**:
+
+    1. **Load the graph and hits** - Load the GFA, then a hits table keyed on segment name with query, start, end,
+    identity and coverage
+
+    2. **Filter hits** - Set identity and coverage cutoffs and pick one query or all queries
+
+    3. **Show hits on the graph** - Paint each hit onto the covered part of its segment in the query's color
+
+    4. **Narrow the view** - Redraw only the nodes within a chosen number of steps of the hit segments
+
+    5. **Follow the path** - Find oriented paths through the hit segments that spell the query; choose one
+
+    6. **Extract and save** - Copy the sequence along the chosen path, honoring orientation and removing overlaps;
+    export the hit table with component ids and an image
+
+
+    **Decision Points**:
+
+    - Which identity and coverage cutoffs separate real hits from partial matches?
+
+    - Which candidate path is real when a gene runs through a repeat? Depth on each path helps
+
+    - Is the gene on the chromosome or a plasmid component?
+
+
+    **Information Needs**:
+
+    - Hits per query with segment, position range, identity and coverage
+
+    - Number of candidate paths per query, and each path's node list with orientation
+
+    - Component and depth of each hit segment
+
+
+    **Pain Points**:
+
+    - The search needs BLAST installed on the same computer
+
+    - Paths with gaps are not accepted, so scaffold paths are split
+
+    - Path sequence is shorter than the sum of its nodes because overlaps are removed, which confuses length checks
+
+
+    **Data Flow**:
+
+    - Input: GFA graph, BLAST tabular or GAF hits, optional node label CSV
+
+    - Transformations: hit-to-segment join, neighborhood scope, oriented path search, sequence spelling
+
+    - Output: path sequence FASTA, hit table with component, highlighted image
+success_criteria:
+    - metric: Replicon assignment
+      target: User can state which component carries each query gene
+    - metric: Path sequence correctness
+      target: Extracted sequence equals the oriented concatenation of segments minus overlaps
+sources:
+    - title: Bandage wiki - BLAST searches
+      url: https://github.com/rrwick/Bandage/wiki/BLAST-searches
+      summary: Database build, query load, hits painted on nodes, query paths column
+    - title: Bandage wiki - Graph paths
+      url: https://github.com/rrwick/Bandage/wiki/Graph-paths
+      summary: Oriented path notation with start and end positions; overlaps removed when extracting
+    - title: Bandage wiki - Graph scope
+      url: https://github.com/rrwick/Bandage/wiki/Graph-scope
+      summary: Around BLAST hits scope with a distance in nodes
+    - title: Bandage paper (Wick et al. 2015)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4595904
+      summary: 16S rRNA gene rebuilt from fragmented nodes; resistance regions traced in Salmonella genomic islands
+    - title: SPAdes output documentation
+      url: https://ablab.github.io/spades/output.html
+      summary: Gapped paths split because Bandage does not accept gaps
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

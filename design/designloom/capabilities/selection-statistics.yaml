@@ -1,38 +1,86 @@
 id: selection-statistics
 name: Selection Statistics
 category: analysis
-description: Display aggregate statistics for selected nodes compared to the overall graph, enabling quick assessment of
-    how a subset differs from the whole.
+description: Display aggregate statistics for the selected nodes beside the same statistics for the whole graph --
+    size, internal and boundary edges, attribute summaries -- so a reader can see how a subset (a group, a community,
+    a case) differs from the whole. Comparisons are descriptive; differences in network data are not tested with
+    independent-sample tests, because nodes in a network are not independent observations.
 status: planned
 algorithms: []
 used_by_workflows:
-    - W12
     - W17
     - W21
     - W24
+    - W110
+    - W119
+    - W137
+    - W158
+    - W186
+    - W190
+    - W198
+    - W209
+    - W216
+    - W268
+    - W270
+    - W272
+    - W274
+    - W315
+    - W430
+    - W341
+    - W348
+    - W359
+    - W362
+    - W416
+    - W434
+    - W436
+    - W57
+    - W60
+    - W61
+    - W62
+    - W63
+    - W64
+    - W65
+    - W66
+    - W67
+    - W68
+    - W69
+    - W70
+    - W71
+    - W72
+    - W74
+    - W75
+    - W82
+    - W93
+    - W98
+    - W1054
+    - W2096
+    - W2098
 implemented_by_components:
     - metric-card
 requirements:
-    - Display count of selected nodes
-    - Display count of edges among selected nodes (induced subgraph edges)
-    - Display count of edges connecting selected to unselected nodes (cut edges)
-    - Calculate mean, median, min, max for each numeric attribute of selected nodes
-    - Calculate value distribution (percentages) for each categorical attribute of selected nodes
-    - Display selection statistics alongside whole-graph statistics for comparison
-    - Highlight metrics where selection differs from graph by >1 standard deviation
-    - Display 'Above average' or 'Below average' indicator for each compared metric
-    - Update statistics within 200ms as selection changes
-    - Display mini-histogram comparing selection distribution to graph distribution for numeric attributes
-    - Support comparing two simultaneous selections (Selection A vs Selection B)
-    - Display statistical significance (p-value) for differences when selection size > 30
-    - "Export selection statistics as CSV with columns: attribute, selection_value, graph_value, difference"
-    - Display 'Selection empty' message when no nodes are selected
-    - Display 'Selection too small for statistics' when fewer than 3 nodes selected
-    - Support pinning statistics snapshot to compare against future selections
+    - "Library parity: Display count of selected nodes"
+    - "Must: Display count of edges among selected nodes (induced subgraph edges) and the density of that subgraph"
+    - "Must: Display count of edges connecting selected to unselected nodes (cut edges) and the E-I index of the selection (external minus internal over total, -1 all internal to +1 all external)"
+    - "Must: Calculate mean, median, min, max for each numeric attribute of selected nodes"
+    - "Must: Calculate value distribution (percentages) for each categorical attribute of selected nodes"
+    - "Must: Display selection statistics alongside whole-graph statistics for comparison, as values and differences"
+    - "Should: Compare heavy-tailed measures (degree, betweenness and other centralities) by median, rank or percentile, not by mean and standard deviations, which flag the tail by construction"
+    - "Library parity: Display mini-histogram comparing selection distribution to graph distribution for numeric attributes"
+    - "Library parity: Support comparing two simultaneous selections (Selection A vs Selection B)"
+    - "Should: Do not report p-values from independent-sample tests; when a significance figure is shown it comes from a permutation or randomization null (for example random node sets of the same size) and names that null"
+    - "Library parity: Export selection statistics as CSV with columns: attribute, selection_value, graph_value, difference"
+    - "Library parity: Report an empty selection, and a selection too small for a meaningful summary, as states with a code the app words"
+    - "Must: Support pinning statistics snapshot to compare against future selections"
 sources:
-    - title: Gephi Data Laboratory
-      url: https://gephi.org/users/
-      summary: Selection-based statistics for node subset analysis
-    - title: Cytoscape Select Panel
-      url: https://manual.cytoscape.org/
-      summary: Selection statistics pattern in network analysis tools
+    - title: Microsoft Viva Insights, change management ONA queries (E-I index)
+      url: https://learn.microsoft.com/viva/insights/advanced/analyst/change-management-queries
+      summary: E-I index from -1 (all internal) to +1 (all external) used to flag group insularity
+    - title: Organizational network analysis and people analytics (requirement on E-I index and density within groups)
+      url: design/user-research/organizational-network-analysis-people-analytics.md
+      summary: E-I index and density within and between groups per attribute are must-have measures
+    - title: Network scientists and analysis method validity (correction to W12; significance traditions)
+      url: design/user-research/network-scientists-and-analysis-method-validity.md
+      summary: Degree and betweenness are heavy-tailed so z-scores flag the tail; significance comes from randomized nulls or network models
+    - title: Academic social network research (section 5.5, QAP and ERGM)
+      url: design/user-research/academic-social-network-research.md
+      summary: Network claims rest on permutation tests or statistical network models, not independent-sample tests

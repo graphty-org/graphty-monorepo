@@ -1,0 +1,19 @@
+id: hub-role-analysis
+name: Hub Role Analysis
+category: analysis
+description: Within-module degree z-score, participation coefficient, role map, supernode cap with selective expansion,
+    and optional normalization by a collection-effort column.
+status: planned
+notes: "Research trace: network-scientists-and-analysis-method-validity.md section 9, requirement R14 (Must)."
+algorithms: []
+used_by_workflows:
+    - W04
+    - W17
+    - W41
+implemented_by_components: []
+requirements:
+    - "Must: Hub roles: within-module z, participation coefficient, role map; supernode cap and selective expansion"
+sources:
+    - title: Network Scientists and the Validity of Core Analysis Methods (section 9, requirement R14)
+      url: design/user-research/network-scientists-and-analysis-method-validity.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

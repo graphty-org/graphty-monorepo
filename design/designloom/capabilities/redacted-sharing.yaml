@@ -1,0 +1,23 @@
+id: redacted-sharing
+name: Redacted and Read-Only Sharing
+category: export
+description: Save copies with items or properties removed per audience or classification level, and share read-only views.
+status: planned
+notes: "Research trace: law-enforcement-and-intelligence-analysts.md section 10, requirement 7 (Must)."
+algorithms: []
+used_by_workflows:
+    - W103
+    - W106
+    - W1018
+    - W2006
+    - W318
+    - W226
+    - W227
+implemented_by_components: []
+requirements:
+    - "Must: Redacted copies per audience or classification level, and read-only sharing"
+sources:
+    - title: Law enforcement crime and intelligence analysts, and defense and national intelligence analysts (section
+          10, requirement 7)
+      url: design/user-research/law-enforcement-and-intelligence-analysts.md
+      summary: "Must in the research. Covered by Designloom when researched: Gap"

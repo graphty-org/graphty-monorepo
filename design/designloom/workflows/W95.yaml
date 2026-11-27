@@ -1,0 +1,146 @@
+id: W95
+name: Cryptocurrency Flow Tracing to the Exchange
+category: analysis
+validated: false
+personas:
+    - investigative-journalist
+    - osint-investigator
+requires_capabilities:
+    - data-import
+    - neighborhood-expansion
+    - filtering
+    - temporal-analysis
+    - path-highlighting
+    - visual-encoding-edges
+    - visual-encoding-nodes
+    - layout-hierarchical
+    - details-on-demand
+    - annotation
+    - legend-display
+    - data-export
+    - export-image
+    - provenance-tracking
+    - external-lookup-expansion
+    - temporal-validity
+    - parallel-edge-aggregation
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - graph-canvas
+    - context-menu
+    - filter-panel
+    - range-slider
+    - temporal-controls
+    - node-details-panel
+    - data-table-panel
+    - annotation-toolbar
+    - legend-panel
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: seed wallet addresses plus transaction CSVs or explorer API JSON (amount, token, time per transfer)
+    node_count: hundreds of seed wallets; tens of thousands of transactions in one project
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Follow money from known wallets through counterparties until it reaches an exchange or an attributed
+    service, label who controls each address and where that label came from, and have experts confirm the path before
+    publication. ICIJ's Coin Laundry project (2025) traced tens of thousands of transactions from hundreds of wallets
+    over 10 months, mainly with Arkham Intelligence and Tronscan.
+
+
+    **Mental Model**: "Follow the money until it goes dark." Each hop is a transfer of an amount of a token at a time;
+    a centralized exchange is the end of the visible trail; an address label is a lead, not proof.
+
+
+    **Task Phases**:
+
+    1. **Seed wallets** - From scam victims, sanctions lists, police reports, court records, regulator
+    complaints, test transactions and earlier leaks
+
+    2. **Look up each address** - In a blockchain explorer (Tronscan, Etherscan) or Arkham, using its
+    filters to find top counterparties; export activity as CSV; at scale, pull from explorer APIs with scripts
+
+    3. **Follow inflows and outflows** - Counterparty by counterparty; filter by amount, token and
+    date; no source gives a standard hop limit
+
+    4. **Label attributed addresses** (ongoing) - Exchanges, services, sanctioned entities, each with the source of the
+    label; check exchange hot wallets against published proof-of-reserves data
+
+    5. **Stop at the exchange** (decision) - Activity inside a centralized exchange is off-chain; ask the exchange and
+    ask regulators and police whether they know the addresses
+
+    6. **Expert confirmation** - Outside tracing experts confirm the path; findings double-, triple- or
+    quadruple-checked
+
+    7. **Right of reply** - Send the wallet addresses to subjects early
+
+    8. **Publish** - No source described the format of the published flow chart
+
+
+    **Decision Points**:
+
+    - Which counterparty is worth following next, given amount, token and timing?
+
+    - Is an address label trustworthy, and who asserted it?
+
+    - Has the flow reached an exchange, where the on-chain trail ends?
+
+    - Is the path confirmed by an independent expert?
+
+
+    **Information Needs**:
+
+    - Parallel transfers between two addresses summed per token, with count, first and last time
+
+    - Address label with its source and date
+
+    - Which nodes are exchanges or services (dead ends) and which are unattributed
+
+    - The path from a seed to an exchange listed hop by hop with amounts and times
+
+
+    **Pain Points**:
+
+    - Labels from a commercial platform treated as proof
+
+    - Thousands of small transfers that bury the main flow
+
+    - Opaque exchanges that end the trail
+
+    - Keeping the expert-confirmed path separate from exploratory hops
+
+
+    **Data Flow**:
+
+    - Input: Seed address list; transaction CSV from explorers or Arkham; explorer API JSON
+
+    - Transformations: Directed multigraph of transfers, aggregation per address pair and token, amount, token and
+    date filters, label attachment with source, path extraction
+
+    - Output: Confirmed flow path with amounts and times, labeled address table, chart for publication, address list
+    for right of reply
+success_criteria:
+    - metric: Flow readability
+      target: Parallel transfers collapse into one edge per address pair and token with summed amount
+    - metric: Label provenance
+      target: Every attributed address shows the source of its label
+    - metric: Path listing
+      target: User can export the seed-to-exchange path hop by hop with amounts, tokens and times
+sources:
+    - title: ICIJ - Coin Laundry cryptocurrency FAQ
+      url: https://www.icij.org/investigations/coin-laundry/cryptocurrency-faqs/
+      summary: 113 journalists, hundreds of wallets, tens of thousands of transactions, Arkham and Tronscan, two dozen experts, seed sources
+    - title: iMEdD Lab - Interview with ICIJ's Spencer Woodman (Voutsina 2026)
+      url: https://lab.imedd.org/en/?p=48253
+      summary: Counterparty filters, proof-of-reserves checks, law enforcement lacked the addresses, double to quadruple checking, early right of reply
+    - title: IJNet - 5 essential tools for cryptocurrency investigations (Williams 2025)
+      url: https://ijnet.org/en/story/5-essential-tools-journalists-conducting-cryptocurrency-investigations
+      summary: Arkham Visualizer overview of all transactions for a wallet; explorer tools
+    - title: GIJN - Reporter's guide to investigating cryptocurrency
+      url: https://gijn.org/resource/reporters-guide-to-investigating-cryptocurrency/
+      summary: CSV export from explorers; labels are leads, not proof; exchanges are off-chain (read via search summary)
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

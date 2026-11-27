@@ -4,50 +4,68 @@ category: administration
 validated: false
 personas:
     - knowledge-engineer
+    - enterprise-kg-engineer
 requires_capabilities:
     - data-import
     - data-validation
     - data-export
     - basic-statistics
     - component-analysis
+    - comparison-view
     - search
     - details-on-demand
+    - neighborhood-expansion
     - node-merging
+    - group-collapse
+    - entity-resolution-review
+    - graph-diff
+    - rdf-import
+    - schema-meta-graph
+    - rdf-export
 suggested_components:
     - data-import-dialog
     - data-preview-table
     - data-export-dialog
     - statistics-panel
+    - comparison-view
     - search-input
+    - graph-canvas
     - node-details-panel
     - node-merge-dialog
 starting_state:
-    data_type: multiple source systems
+    data_type: multiple source systems (relational extracts, CSV, documents, existing ontologies)
     node_count: 10000-10000000
     edge_density: varies
     user_expertise: expert
 goal: >-
-    **Intent**: Build and maintain an enterprise knowledge graph that integrates data from multiple sources. User wants to
-    create a unified, queryable representation of organizational knowledge.
+    **Intent**: Build and maintain an enterprise knowledge graph that integrates data from many sources. This is the
+    umbrella over several narrower workflows; for builders the graph view is a debugging and sanity-checking instrument,
+    not the deliverable (18 of 19 interviewed practitioners used node-link diagrams, mostly as sanity checks).
 
 
-    **Mental Model**: "Building a living encyclopedia" - creating interconnected knowledge that grows and evolves. Also
-    like "connecting the corporate brain" - linking information across silos.
+    **Mental Model**: "Does the building match the blueprint?" The schema is the blueprint; each load or extraction run
+    produces an as-built graph that must be checked against it.
 
 
-    **Task Phases**:
+    **Task Phases** (with what the visual tool does in each):
 
-    1. **Schema Design** - Define entity types, relationship types, and constraints (ontology)
+    1. **Schema design** - Sketch labels and relationship types (Neo4j Data Importer, arrows.app) or classes and
+    properties (Protege); the visual task is reading the model as a small diagram (see W131, W134)
 
-    2. **Entity Extraction** - Extract entities from source systems (databases, documents, APIs)
+    2. **Entity extraction** - ETL from structured sources or LLM extraction from documents (see W132, W129); the visual
+    task is a quality profile of the result (see W130)
 
-    3. **Relationship Mapping** - Identify and create relationships between entities
+    3. **Relationship mapping and load** - Generate and run ingestion; the visual task is comparing the loaded schema
+    meta-graph with the intended model and checking counts per type (see W131)
 
-    4. **Entity Resolution** - Merge duplicate entities representing the same real-world thing
+    4. **Entity resolution** - Build duplicate candidates, review each group with its neighbors and evidence, merge, and
+    keep a log that re-applies after rebuilds (see W130)
 
-    5. **Quality Validation** - Check completeness, consistency, accuracy
+    5. **Quality validation** - SHACL or ROBOT reports for RDF graphs, counts and rebuild diffs for property graphs; the
+    visual task is locating violations on the schema (see W137, W135)
 
-    6. **Deployment** - Connect to query interfaces, applications, AI systems
+    6. **Deployment and exploration** - Connect to query interfaces and applications; builders keep exploring around
+    resources while writing queries (see W138)
 
 
     **Decision Points**:
@@ -60,59 +78,60 @@ goal: >-
 
     - How to balance ontological rigor with practical mappability?
 
-    - When is quality "good enough" to deploy?
+    - When is a rebuild good enough to promote to consumers?
 
 
     **Information Needs**:
 
     - Source system schemas and data samples
 
-    - Domain expertise (what entities matter?)
+    - Schema meta-graph of the loaded data with exact counts, compared with the intended model
 
-    - Entity extraction results with confidence scores
+    - Duplicate candidate groups with neighbors and source evidence
 
-    - Duplicate candidate pairs for resolution
-
-    - Quality metrics (coverage, consistency, freshness)
+    - Quality metrics (coverage, consistency, freshness) and count deltas since the last rebuild
 
 
     **Pain Points**:
 
-    - Source data quality varies widely
+    - Whole-graph views turn into hairballs (9 of 19 practitioners criticized hairballs)
 
-    - Schema changes break downstream applications
+    - Neo4j Browser shows 300 nodes by default and freezes near 1,000
 
-    - Entity resolution errors propagate through the graph
+    - Invalidated links come back on every rebuild
 
-    - Stakeholders don't understand ontology value
+    - Graph tools handle RDF semantics poorly (literals hidden, language tags stripped, RDF-star dropped)
 
-    - Keeping the KG up-to-date as source data changes
+    - Consumers cannot read node-link diagrams at scale (12 of 19) and need abstracted views
 
 
     **Data Flow**:
 
-    - Input: Multiple source systems (databases, documents, APIs)
+    - Input: Multiple source systems (databases, documents, APIs, ontologies)
 
     - Transformations: Extraction, mapping, resolution, validation
 
-    - Output: Integrated knowledge graph + query interfaces + quality reports
+    - Output: Integrated knowledge graph, query interfaces, quality reports, merge and invalidation logs
 success_criteria:
     - metric: Coverage
       target: Key domain entities and relationships captured
-    - metric: Quality
-      target: Entity resolution accuracy > 95%
+    - metric: Load verification
+      target: Loaded schema and per-type counts checked against the model after every rebuild
     - metric: Usability
       target: Downstream applications successfully query the KG
 sources:
-    - title: Practical Graph Analysis Guide - Chapter 12
-      url: https://graphty.app/docs/
-      summary: Knowledge Graph Construction Workflow
+    - title: Knowledge Graphs in Practice (Li et al. 2023)
+      url: https://arxiv.org/pdf/2304.01311
+      summary: Interviews with 19 practitioners; node-link diagrams as sanity checks, hairballs, consumers need abstracted views
     - title: Schema Engineering for Enterprise Knowledge Graphs
       url: https://www.researchgate.net/publication/322584212_Schema_engineering_for_enterprise_knowledge_graphs_A_reflecting_survey_and_case_study
       summary: Survey on ontology design for enterprise KGs
     - title: Procedure Model for Building Knowledge Graphs
       url: https://arxiv.org/html/2409.13425v1
       summary: Step-by-step methodology for RDF knowledge graph construction
-version: 1.0.0
+    - title: Neo4j Operations Manual - procedures
+      url: https://neo4j.com/docs/operations-manual/current/procedures/
+      summary: Schema visualization procedure and its estimation caveat
+version: 1.1.0
 created_at: 2026-01-16T16:42:38.371Z
-updated_at: 2026-01-16T16:42:38.371Z
+updated_at: 2026-11-25T00:00:00.000Z

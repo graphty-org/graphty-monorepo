@@ -1,0 +1,117 @@
+id: W284
+name: Keeping an Embedded Graph Fast
+category: analysis
+validated: false
+personas:
+    - graph-product-frontend-engineer
+    - observability-service-map-engineer
+    - 3d-graph-embedder
+    - plugin-author-graph-library-author
+requires_capabilities:
+    - large-graph-rendering
+    - progressive-loading
+    - filtering
+    - layout-force-directed
+    - algorithm-progress
+    - overview-minimap
+    - supernode-safeguards
+suggested_components:
+    - graph-canvas
+    - progress-bar
+    - progressive-loader
+    - filter-panel
+    - cluster-collapse-control
+    - minimap
+    - status-bar
+starting_state:
+    data_type: an embedded view that has become slow at the sizes customers load
+    node_count: 2000-100000+
+    edge_density: moderate to dense
+    user_expertise: expert developer
+goal: >-
+    **Intent**: Keep an embedded graph responsive as customers load bigger graphs, using the cheapest fixes first and a
+    renderer change last.
+
+
+    **Mental Model**: "Draw less, compute elsewhere." Batch changes, cheapen edges and labels, precompute layout, reduce
+    the graph, and only then move to WebGL or the GPU.
+
+
+    **Task Phases**:
+
+    1. **Batch mutations** - Group many changes into one redraw
+
+    2. **Cheapen edges** - Straight or haystack edges, opaque rather than semi-transparent (more than twice as fast),
+    hide edges while the viewport moves, pixel ratio 1
+
+    3. **Cheapen labels** - Minimum zoomed font size, labels on hover, level-of-detail styles
+
+    4. **Precompute layout** - Coordinates computed offline or in a worker; a 10,000-node layout means waiting at least
+    half a minute
+
+    5. **Reduce before drawing** - Fold, filter, group, aggregate
+
+    6. **Move to WebGL or GPU** - A WebGL renderer with style gaps (no dashed lines) and seconds of sprite-sheet building
+    with no progress bar, or GPU simulation for hundreds of thousands of points
+
+
+    **Decision Points**:
+
+    - Which visual features can be dropped during interaction?
+
+    - Precompute layout on the server or run it in a worker with a time cap?
+
+    - Is it time to change renderer?
+
+
+    **Information Needs**:
+
+    - Where the time goes: layout, label rendering, edge rendering
+
+    - Progress and time remaining for long layouts
+
+    - Which styles are unsupported or slow on the fast renderer
+
+
+    **Pain Points**:
+
+    - Fast paths that silently drop styles
+
+    - Long layouts and renderer warm-ups with no progress indication
+
+    - Main-thread layouts that freeze the browser and end evaluations
+
+
+    **Data Flow**:
+
+    - Input: The product's largest realistic graphs
+
+    - Transformations: Batched updates, level of detail, precomputed or worker layouts, reduction, renderer switch
+
+    - Output: A view that stays interactive at the target size
+success_criteria:
+    - metric: Interaction frame rate
+      target: Pan and zoom stay interactive at 10,000 nodes with labels on demand
+    - metric: Long work visibility
+      target: Every layout or warm-up longer than one second reports progress and can be cancelled
+    - metric: Style parity
+      target: Switching to the fast renderer drops no style without reporting which
+sources:
+    - title: Cytoscape.js - Performance
+      url: https://js.cytoscape.org/#performance
+      summary: Batching, haystack edges, opaque edges more than twice as fast, hideEdgesOnViewport, pixelRatio, min-zoomed-font-size
+    - title: yFiles - Large graph performance
+      url: https://docs.yworks.com/yfiles-html/dguide/large_graph_performance/
+      summary: Level-of-detail styles; a 10,000-node layout takes at least half a minute
+    - title: visNetwork - Performance
+      url: https://datastorm-open.github.io/visNetwork/performance.html
+      summary: Precomputed igraph coordinates with stabilization off
+    - title: Cytoscape.js WebGL preview
+      url: https://blog.js.cytoscape.org/2025/01/13/webgl-preview/
+      summary: Large frame-rate gain; no dashed lines; sprite-sheet build with no progress bar
+    - title: OpenJS Foundation - Introducing cosmos.gl
+      url: https://openjsf.org/blog/introducing-cosmos-gl
+      summary: GPU simulation for hundreds of thousands of points and links
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,74 @@
+id: bacterial-assembly-finisher
+name: Microbial Genome Finisher
+roster_persona: bacterial-assembly-finisher
+tier: B
+scope: in-scope
+role: Microbiology Lab Bioinformatician (genome assembly and plasmids)
+quote: Two circles and no dead ends means I am done. Anything else, I open the graph and find where it tangles and which piece the resistance gene sits on.
+bio: >-
+    Dr. Yusuf Demir is a bioinformatician in a hospital and public health microbiology lab who closes the genomes of
+    resistant bacterial isolates. He assembles short and long reads with Unicycler, Flye, Trycycler or Hybracter, and
+    opens the assembly graph (GFA) in Bandage for every isolate: each replicon is a connected component, a complete
+    chromosome or plasmid is one segment linked end to start, depth normalized to the chromosome hints at plasmid copy
+    number, and a node with several links at each end is a repeat. He BLASTs resistance and marker genes against the
+    graph to see which replicon carries them, extracts the sequence along a path, and saves a graph image for the
+    report. Graphs are a few to a few thousand segments. He is fluent with strand, overlaps, depth and copy number, and
+    uses components, cycles and dead ends without calling them graph theory.
+characteristics:
+    expertise: advanced
+    time_pressure: medium
+    graph_literacy: intermediate
+    domain_knowledge: expert
+motivations:
+    - Confirm the chromosome and every plasmid closed into circles with no dead ends
+    - Find which replicon carries a resistance or virulence gene
+    - Judge plasmid copy number and repeat multiplicity from depth
+    - Decide whether more long reads would resolve a tangle
+behaviors:
+    - Runs Bandage info for node count, edge count, total length, dead ends and N50
+    - Draws the whole graph in single node style and counts closed circles
+    - Colors by depth and reads each component's depth against the chromosome
+    - Builds a BLAST database of the graph, searches a FASTA of genes and reads hits painted on nodes
+    - Types or selects a path through oriented nodes and copies its sequence
+    - Saves the graph image with Bandage image for the isolate report
+frustrations:
+    - Bandage gets little development ("don't expect a lot development or support on this repo")
+    - BLAST must be installed on the same computer before searching the graph
+    - Bandage paths cannot contain gaps, so SPAdes splits gapped scaffold paths
+    - Distinguishing a small plasmid, a phage and a spike-in control takes manual checking
+    - Figures need manual relayout
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W1156
+    - W1157
+    - W1159
+sources:
+    - title: Bandage paper (Wick et al. 2015)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC4595904
+      summary: Assembly graph viewer; depth as node width; BLAST hits highlighted; 16S and resistance-region examples
+    - title: Bandage README
+      url: https://github.com/rrwick/Bandage
+      summary: Little active development; BandageNG is the most active fork
+    - title: Unicycler README
+      url: https://github.com/rrwick/Unicycler
+      summary: Ideal bacterial graph has no dead ends; depth normalized so plasmids show copy number; repeat structure
+    - title: Unicycler paper (Wick et al. 2017)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC5481147
+      summary: Completed replicons are single contigs linked end to start; inspected in Bandage
+    - title: Bandage wiki - BLAST searches
+      url: https://github.com/rrwick/Bandage/wiki/BLAST-searches
+      summary: Local BLAST required; database build, query load, hit coloring and query paths
+    - title: SPAdes output documentation
+      url: https://ablab.github.io/spades/output.html
+      summary: GFA 1.2 with scaffold paths; gapped paths split because Bandage does not accept gaps
+    - title: Galaxy Training - plasmid metagenomics
+      url: https://training.galaxyproject.org/topics/microbiome/tutorials/plasmid-metagenomics-nanopore/tutorial.html
+      summary: Bandage used to judge whether plasmids assembled as circles before resistance screening
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

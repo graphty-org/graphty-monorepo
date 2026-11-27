@@ -1,0 +1,120 @@
+id: W329
+name: Structured Neighborhood Navigation (TheBrain Plex)
+category: exploration
+validated: false
+personas:
+    - zettelkasten-writer
+    - pkm-canvas-mapper
+requires_capabilities:
+    - ego-network
+    - layout-hierarchical
+    - layout-radial
+    - animated-transitions
+    - node-selection
+    - search
+    - view-bookmarks
+    - analysis-history
+    - large-graph-rendering
+    - note-format-import
+suggested_components:
+    - graph-canvas
+    - search-input
+    - bookmark-panel
+    - analysis-history-panel
+    - node-details-panel
+starting_state:
+    data_type: hand-built typed network (parent, child, jump links; siblings derived)
+    node_count: 1,000-572,000 thoughts (only 10-60 drawn at a time)
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Navigate a very large, hand-built network one neighborhood at a time, with relationship type deciding
+    where each neighbor sits. This is how one long-term TheBrain user's network of more than 572,000 thoughts and
+    1,120,000 links, entered by hand since 1997, stays usable; the same pattern appears in Obsidian as ExcaliBrain and
+    Breadcrumbs.
+
+
+    **Mental Model**: "Stand on one idea and look around." Parents are above, children below, jumps to one side,
+    siblings to the other. The whole graph is never drawn.
+
+
+    **Task Phases**:
+
+    1. **Activate a thought** - Click it; it moves to the center and becomes the active thought; linked
+    thoughts arrange around it by relationship
+
+    2. **Add a child** - With a thought active, add a new thought below it
+
+    3. **Add a parent** - Add a broader thought above; a thought may have several parents
+
+    4. **Add a jump** - Link a related thought that is neither parent nor child; jumps sit to the left
+
+    5. **See siblings** (automatic) - Children sharing a parent are derived, not created, and sit to the right
+
+    6. **Move on** (continuous) - Click any neighbor to make it active; the view redraws; links in the note
+    footer act the same; unlinked mentions can be converted to links
+
+    7. **Find the way back** - Past-thought trail; pins for current hot topics; search; backlinks to where the
+    active thought is referenced
+
+
+    **Decision Points**:
+
+    - Is the new idea a child, a parent or a jump?
+
+    - Pin this thought as a current hot topic?
+
+    - Follow the trail back or search?
+
+
+    **Information Needs**:
+
+    - Relationship type of every neighbor, shown by position
+
+    - Derived siblings without manual linking
+
+    - A trail of previously active items and pinned items
+
+
+    **Pain Points**:
+
+    - Force-directed graphs of the same network are unreadable and slow
+
+    - Proprietary format; manual linking only
+
+    - Typed relations in Obsidian live in plugin views separate from the visual graph
+
+
+    **Data Flow**:
+
+    - Input: Typed network (thoughts with parent, child and jump links); for Obsidian, typed frontmatter relations such
+    as up, down, next and previous
+
+    - Transformations: One-hop neighborhood around the active item, partitioned by relation type, siblings derived from
+    shared parents, positioned by type with an animated transition
+
+    - Output: New thoughts and links; navigation history
+success_criteria:
+    - metric: Scale independence
+      target: Navigation stays immediate on a network of hundreds of thousands of nodes because only the neighborhood is drawn
+    - metric: Relation legibility
+      target: User can tell parent, child, jump and sibling apart by position alone
+sources:
+    - title: TheBrain help - Thought relationships
+      url: https://help.thebrain.com/androidphone/thoughtrelationships.html
+      summary: Active thought centered; parents above, children below, jumps left, siblings right and derived
+    - title: TheBrain blog - Navigating beyond the plex
+      url: https://thebrain.com/blog/navigating-beyond-the-plex
+      summary: Past thoughts, pins, search, backlinks, converting unlinked mentions
+    - title: Jerry's Brain
+      url: https://sites.google.com/view/jerrysbrain/welcome
+      summary: Over 572,000 thoughts and over 1,120,000 links as of March 2024, built by hand since December 1997
+    - title: ExcaliBrain
+      url: https://github.com/zsviczian/excalibrain
+      summary: TheBrain-like parent, child, friend and sibling navigation in Obsidian
+    - title: Breadcrumbs plugin
+      url: https://dev.obsidianstats.com/plugins/breadcrumbs
+      summary: Typed up, down, next and previous links
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

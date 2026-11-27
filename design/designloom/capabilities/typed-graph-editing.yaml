@@ -1,0 +1,21 @@
+id: typed-graph-editing
+name: Typed Graph Editing
+category: analysis
+description: Create and edit nodes and edges by hand against a typed property schema with required fields and
+    validation, and round-trip the result (for example STIX Attack Flow JSON).
+status: planned
+notes: "Research trace: cybersecurity-graph-work.md section 10, requirement 18 (Should)."
+algorithms: []
+used_by_workflows:
+    - W116
+    - W117
+    - W1013
+implemented_by_components: []
+requirements:
+    - "Should: Create and edit nodes and edges by hand with a typed property schema (for example confidence 0-100), and
+      round-trip STIX Attack Flow JSON"
+sources:
+    - title: "Cybersecurity Graph Work: Attack Paths, Threat-Intel Pivoting, Incident Response, Network, Cloud and
+          Binary Graphs (section 10, requirement 18)"
+      url: design/user-research/cybersecurity-graph-work.md
+      summary: "Should in the research. Covered by Designloom when researched: Not covered"

@@ -1,0 +1,20 @@
+id: orthogonal-port-layout
+name: Orthogonal Layout of Nested Boxes with Ports
+category: visualization
+description: Orthogonal, layered layout of nested boxes with ports on their borders and typed connectors, regenerated
+    from the model with little hand-tuning.
+status: planned
+notes: "Research trace: dependency-and-impact-analysis-engineers.md section 10, requirement R31 (Should)."
+algorithms: []
+used_by_workflows:
+    - W83
+    - W87
+implemented_by_components: []
+requirements:
+    - "Should: Orthogonal, layered layout of nested boxes with side ports and typed connectors, regenerated from the
+      model"
+sources:
+    - title: "Engineers Who Analyze Dependencies: IT Services, Networks, Software and Data Lineage (section 10,
+          requirement R31)"
+      url: design/user-research/dependency-and-impact-analysis-engineers.md
+      summary: "Should in the research. Covered by Designloom when researched: Partly"

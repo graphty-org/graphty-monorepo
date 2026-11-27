@@ -1,0 +1,167 @@
+id: W2030
+name: Page Through Generated Small Graphs to Find and Draw a Counterexample
+category: analysis
+validated: false
+personas:
+    - graph-theory-researcher
+requires_capabilities:
+    - data-import
+    - import-report
+    - graph-collection-browser
+    - network-collection-small-multiples
+    - layout-circular-chord
+    - layout-force-directed
+    - manual-layout-preservation
+    - basic-statistics
+    - filtering
+    - search
+    - node-selection
+    - details-on-demand
+    - export-image
+    - journal-figure-export
+    - data-export
+    - small-graph-code-import
+    - exact-small-graph-layouts
+    - exact-graph-invariants
+    - tikz-figure-export
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - network-list-panel
+    - comparison-view
+    - graph-canvas
+    - layout-panel
+    - statistics-panel
+    - filter-panel
+    - node-details-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: graph6 or sparse6 file (or plantri planar code), one unlabeled graph per line, from a generator and filter
+    node_count: 5-30 per graph; a few to thousands of graphs
+    edge_density: varies
+    user_expertise: expert
+goal: >-
+    **Intent**: Look at the graphs that an exhaustive generator and a conjecture filter left behind, find the one that
+    is a counterexample or an extremal example, check whether it is already known, and draw it exactly for a paper.
+
+
+    **Mental Model**: "A deck of small cards." Each graph is a separate object to be read whole, with its invariants
+    printed beside it; the reader flips through the deck, sorts it by an invariant and pulls out the interesting card.
+    Symmetry and planarity are facts the drawing must show, not effects a simulation might reveal.
+
+
+    **Task Phases**:
+
+    1. **Generate and filter outside the tool** - Run geng (or plantri for planar classes) with order, edge, degree
+    and connectivity constraints, pipe the output into a filter that tests the conjecture, and deduplicate by
+    canonical label; the survivors are a graph6, sparse6 or planar code file
+
+    2. **Load the collection** - Drop the file or paste graph6 strings; confirm the number of graphs read and that
+    each is the expected order and size; planar code keeps its embedding
+
+    3. **Page through** - See the graphs as a grid of small drawings in a fast, deterministic layout (circular by
+    default, shells or planar where they apply), each with order, size, degree sequence and the invariant the
+    conjecture is about
+
+    4. **Sort and narrow** - Sort or filter the collection by an invariant, and open one graph full size with every
+    vertex labeled
+
+    5. **Find the structure** - Switch the open graph between circular, shell, planar straight-line and Tutte drawings
+    until its symmetry or the structure the proof uses is visible; highlight that structure (an independent set, a
+    coloring, a cycle)
+
+    6. **Check whether it is known** - Compare with House of Graphs, which checks whether the graph or an isomorphic
+    copy is in its list and shows its 44 invariants
+
+    7. **Draw for the paper** - Fine-tune vertex positions by hand, keep them with the graph, and export a vector
+    figure or TikZ; export the graph6 string for upload and citation
+
+
+    **Decision Points**:
+
+    - Which invariant to sort by, and which value marks a candidate?
+
+    - Which layout shows the symmetry: circular, shells, planar or Tutte?
+
+    - Is the graph already known under a House of Graphs id, or is it new?
+
+    - Is the hand-adjusted drawing still faithful (no hidden edge crossings or overlaps)?
+
+
+    **Information Needs**:
+
+    - Number of graphs read from the file, and any line that failed to parse
+
+    - Order, size, degree sequence and the conjecture's invariant for every graph in the collection
+
+    - Exact invariants for the open graph (girth, diameter, chromatic and independence number, automorphism group
+    order, spectrum)
+
+    - The graph6 string of the open graph, to search for it and cite it
+
+    - Vertex labels on every vertex
+
+
+    **Pain Points**:
+
+    - Generators print text and draw nothing
+
+    - SageMath shows at most 20 graphs per array and each array is saved separately
+
+    - Force-directed layouts hide symmetry and change between runs
+
+    - graph6 and sparse6 drop the planar embedding
+
+    - Network tools import tables, not graph6 strings
+
+
+    **Data Flow**:
+
+    - Input: graph6, sparse6 or digraph6 lines, or plantri planar code; a pasted graph6 string
+
+    - Transformations: parse every line into its own graph, compute basic invariants, exact layout per graph, sort and
+    filter by invariant, hand adjustment of the chosen drawing
+
+    - Output: An exact figure (vector or TikZ) and the graph6 string of the chosen graph
+success_criteria:
+    - metric: Collection import
+      target: Every line of a graph6 or sparse6 file becomes one graph, and the count matches the file
+    - metric: Determinism
+      target: The same graph gets the same drawing every time it is opened
+    - metric: Symmetry visible
+      target: For a vertex-transitive graph such as the Petersen graph, at least one offered layout shows its symmetry
+    - metric: Figure readiness
+      target: The exported figure labels every vertex and matches the hand-adjusted positions
+    - metric: Embedding kept
+      target: A graph read from plantri planar code is drawn planar from its own clockwise neighbor order, without recomputing an embedding
+    - metric: Exact invariants
+      target: Girth, diameter, chromatic and independence number and automorphism group order are exact values, not estimates
+sources:
+    - title: Computer-assisted graph theory, a survey (Jooken, 2025)
+      url: https://arxiv.org/html/2508.20825
+      summary: geng and plantri generation, piping into a filter that checks for a counterexample, graph6 and sparse6, PHOEG plots graph sets by invariants
+    - title: House of Graphs 2.0 (Coolsaet, D'hondt, Goedgebeur, 2022)
+      url: https://arxiv.org/html/2210.17253
+      summary: Nearly 22,000 interesting graphs, 44 invariants, drawing tool from a spring embedding with tikz export, ids cited in papers
+    - title: House of Graphs, a database of interesting graphs (2012)
+      url: https://ar5iv.arxiv.org/html/1204.3549
+      summary: Submitting a graph checks whether it or an isomorphic copy is already in the list
+    - title: SageMath graph_list reference
+      url: https://doc.sagemath.org/html/en/reference/graphs/sage/graphs/graph_list.html
+      summary: from_graph6 and from_sparse6; show_graphs at most 20 graphs per array, circular layout by default
+    - title: SageMath graph_plot reference
+      url: https://doc.sagemath.org/html/en/reference/plotting/sage/graphs/graph_plot.html
+      summary: circular, spring, planar (Schnyder), Tutte (3-connected planar), tree and other layouts
+    - title: plantri guide
+      url: https://users.cecs.anu.edu.au/~bdm/plantri/plantri-guide.txt
+      summary: Planar code records neighbors in clockwise order; graph6 and sparse6 do not represent the embedding
+    - title: Graph formats (McKay)
+      url: https://users.cecs.anu.edu.au/~bdm/data/formats.txt
+      summary: graph6, sparse6 and digraph6 definitions, printable ASCII
+    - title: NetworkX read_graph6
+      url: https://networkx.org/documentation/stable/reference/readwrite/generated/networkx.readwrite.graph6.read_graph6.html
+      summary: A graph6 file with multiple lines is read as a list of graphs, not one graph
+version: 1.1.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

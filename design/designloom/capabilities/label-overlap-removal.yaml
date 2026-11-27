@@ -1,0 +1,65 @@
+id: label-overlap-removal
+name: Label Overlap Removal
+category: visualization
+description: Place the node labels that are shown so that no two overlap and no label covers another node, on screen
+    and in every exported figure, without hand-editing the file afterwards. Researchers in psychometrics, network
+    pharmacology, ecology and social media analysis name overlapping labels as a reason their figures need Illustrator
+    or Inkscape, and the tools they use either move nodes (Gephi Label Adjust), only reduce overlaps (yFiles generic
+    labeling) or offer nothing for print (qgraph, Cytoscape).
+status: planned
+notes: "Research trace: psychometric-network-analysis.md requirement R11 (must); network-pharmacology-herb-compound-target-networks.md requirement R10 (must); ecological-interaction-networks.md (italic Latin labels with collision avoidance, should); communicating-findings-and-deliverables.md requirement R26. Not shipped: visual-encoding-nodes chooses which labels are visible but does not resolve overlaps."
+algorithms: []
+used_by_workflows:
+    - W15
+    - W313
+    - W370
+    - W431
+    - W163
+    - W208
+    - W94
+    - W403
+    - W404
+implemented_by_components: []
+requirements:
+    - "Must: Remove overlaps between visible labels, and between a label and any node, in 2D views and in every export
+      (SVG, PDF, PNG); report the labels that could not be placed instead of drawing them on top of each other"
+    - "Must: Offer two modes as a consumer option, with labels-only as the default because it keeps the layout the reader already studied. Labels only - try candidate positions around each node and add a leader line when a label sits away from its node; nodes never move (yFiles generic labeling, which reduces but cannot always remove overlaps). Nodes and labels - move nodes the smallest distance that makes room for their labels, as Gephi Label Adjust does, and keep their relative order so the drawing stays recognizable"
+    - "Library parity: Keep placement stable - the same layout, labels and seed give the same placement, and a small change (one label edited, one node dragged) moves only nearby labels"
+    - "Must: Work with short-code labels and a mapping table or legend of full text (psychometric item codes, herb compound codes), since shortening is the most common way these users fit labels at journal column width"
+    - "Must: Size labels for the export, not the screen - resolve overlaps at the export's physical width and font size, so a figure at an 85 mm column is overlap-free even when the on-screen view was"
+    - "Must: On screen, when a label cannot be placed, hide it by a consumer-set priority (size, ranking or an attribute) and keep it available on hover or selection, as sigma.js does with its label grid"
+    - "Must: In 3D views, resolve overlaps in screen space for the current camera, keep labels facing the camera, and fade or hide labels behind nearer nodes; for print, resolve them in each fixed exported view. Headset legibility (size and distance) stays with xr-label-legibility"
+sources:
+    - title: Psychometric network analysis (requirement R11)
+      url: design/user-research/psychometric-network-analysis.md
+      summary: "Must: short labels with full item text available, group colors and label collision avoidance"
+    - title: Network pharmacology herb-compound-target networks (requirement R10)
+      url: design/user-research/network-pharmacology-herb-compound-target-networks.md
+      summary: "Must: label collision avoidance and short-code labels with a mapping table for the published figure"
+    - title: Ecological interaction networks (frustrations)
+      url: design/user-research/ecological-interaction-networks.md
+      summary: R bipartite vignette - "for larger networks the placement of the labels quickly becomes somewhat
+          confusing"
+    - title: qgraph issue 5, Node labels overlapping
+      url: https://github.com/SachaEpskamp/qgraph/issues/5
+      summary: Labels in tightly clustered spring layouts become unreadable; the answers offer HTML tooltips (no help
+          for print) or stronger repulsion, and no label placement fix
+    - title: Gephi blog, Label Adjust
+      url: https://gephi.wordpress.com/2008/11/15/label-adjust/
+      summary: Label Adjust "slightly moves nodes where labels are overlapping"
+    - title: Gephi Noverlap plugin
+      url: https://gephi.org/desktop/plugins/noverlap/
+      summary: Noverlap prevents round nodes from overlapping and "doesn't manage labels"
+    - title: University of Toronto Map and Data Library, Gephi tutorial section F
+      url: https://mdlutoronto.github.io/gephi-visualize-network-dataset/6-f-add-labels-and-make-final-layout-adjustments/
+      summary: Teaching sequence runs Label Adjust, then Noverlap, as the last step before export
+    - title: yFiles for HTML, Label Placement
+      url: https://docs.yworks.com/yfiles-html/dguide/label_placement/
+      summary: Generic labeling moves only labels and "cannot resolve all overlaps"; integrated labeling "fixes all
+          overlaps but alters the node positions"
+    - title: cytoscape-helpdesk, how to prevent node labels from occluding each other (2016)
+      url: https://groups.google.com/g/cytoscape-helpdesk/c/djlA3moVD74
+      summary: No automatic option; replies suggest manual layout and zoom, label wrapping, or a paid layout app
+    - title: sigma.js v4 settings reference
+      url: https://v4.sigmajs.org/reference/settings/
+      summary: labelDensity and labelRenderedSizeThreshold drive density-based culling of labels on screen

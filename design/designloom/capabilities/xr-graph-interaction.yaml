@@ -1,0 +1,18 @@
+id: xr-graph-interaction
+name: 3D and XR Embedding Controls
+category: export
+description: Camera control modes, custom node meshes and sprites, and XR controller selection of nodes that does not
+    re-render on host state changes.
+status: planned
+notes: "Research trace: developers-embedding-and-extending-graph-visualization.md section 10, table row 18 (Should)."
+algorithms: []
+used_by_workflows:
+    - W283
+implemented_by_components: []
+requirements:
+    - "Should: 3D embedding parity: camera control modes, custom node meshes, labels that scale to 10k+ nodes, an idle
+      render loop when nothing changes, and XR input that does not re-render on host state changes"
+sources:
+    - title: Developers Who Embed Graph Visualization in Products or Extend It With Plugins (section 10, table row 18)
+      url: design/user-research/developers-embedding-and-extending-graph-visualization.md
+      summary: "Should in the research. Covered by Designloom when researched: Partly (3D exists; XR unknown)"

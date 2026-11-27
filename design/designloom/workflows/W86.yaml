@@ -1,0 +1,172 @@
+id: W86
+name: Internal-Link Audit and Migration Simulation
+category: analysis
+validated: false
+personas:
+    - seo-site-architecture-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - filtering
+    - component-analysis
+    - centrality-pagerank
+    - centrality-degree
+    - community-detection
+    - computed-attributes
+    - metric-histograms
+    - visual-encoding-nodes
+    - legend-display
+    - layout-force-directed
+    - large-graph-rendering
+    - comparison-view
+    - export-image
+    - data-export
+    - graph-diff
+    - dependency-format-import
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - attribute-table-join-dialog
+    - filter-panel
+    - algorithm-panel
+    - ranked-node-table
+    - histogram
+    - visual-encoding-panel
+    - legend-panel
+    - graph-canvas
+    - comparison-view
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: crawler link export (All Inlinks or Outlinks - source, destination, type, follow, link position, anchor) plus page table (status, depth, indexability, Link Score) and Analytics sessions
+    node_count: 500-100,000 URLs
+    edge_density: dense from sitewide navigation and footer links, many parallel edges
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Find important pages that receive little internal link value, orphans and pages buried too deep, and
+    before a redesign or migration predict which high-traffic pages will lose internal PageRank by comparing the live
+    and staging link graphs.
+
+
+    **Mental Model**: "Link value flows from the home page; follow where it pools and where it starves." The question
+    is about the whole graph and how it changes between two versions, not the closure of one node.
+
+
+    **Task Phases** (no source gives per-step durations):
+
+    Audit:
+
+    1. **Crawl** - From the home page; the crawler computes crawl depth, inlink counts and Link Score
+
+    2. **Read in the crawler first** - Sort by Link Score and depth; find orphans against sitemap, Analytics and Search
+    Console URLs; glance at the crawl map colored by depth
+
+    3. **Export the edges** - All Inlinks or Outlinks (the file can be huge)
+
+    4. **Clean** - Hyperlinks only; drop nofollow; filter or down-weight navigation and footer links (one practitioner
+    uses 0.4 for sitewide links); keep source and target; strip the byte order mark
+
+    5. **Import** - Edge table, create missing nodes, merge parallel edges by sum; past about 50,000 URLs filter to the
+    giant component
+
+    6. **Compute** - Weighted directed PageRank; modularity, tuning resolution until classes match site sections
+
+    7. **Style and lay out** - Color by modularity class or section, size by in-degree or PageRank; ForceAtlas2 with
+    overlap prevention; join Analytics sessions and log hits as node attributes
+
+    8. **Act** - List high-value pages with low internal PageRank; propose links from strong pages; re-crawl to confirm
+
+    Migration or redesign simulation:
+
+    1. Build a staging copy of the new structure and crawl both live and staging
+
+    2. Rename the staging host to the live domain so node ids match
+
+    3. Build both graphs identically and join organic sessions per landing page
+
+    4. Compare PageRank per page between graphs; flag high-traffic pages that lose value and outliers with far fewer
+    inlinks
+
+    5. Deliver side-by-side graph images with a per-page table of PageRank and sessions; adjust the plan before launch
+
+
+    **Decision Points**:
+
+    - Keep, filter or down-weight navigation and footer links?
+
+    - What to do with URL parameters (no standard rule; decided per site)?
+
+    - Which modularity resolution matches the site's sections?
+
+    - Which pages need new internal links, from where?
+
+
+    **Information Needs**:
+
+    - Edge counts dropped by each cleaning rule
+
+    - PageRank, in-degree and crawl depth per page alongside sessions
+
+    - Per-page PageRank difference between the two graphs, sortable and usable for color
+
+    - Orphan list (in sitemap or Analytics but not reached by the crawl)
+
+
+    **Pain Points**:
+
+    - Crawler diagrams stop at 10,000 URLs
+
+    - Exports of 1 to 20 GB must be trimmed by hand before Gephi accepts them
+
+    - A practical Gephi ceiling of about 100,000 nodes and a million edges
+
+    - Comparison of two graphs is done by hand in a spreadsheet
+
+
+    **Data Flow**:
+
+    - Input: Crawler edge CSV and page table (Screaming Frog, Sitebulb), Analytics and Search Console exports, logs
+
+    - Transformations: Link-type and position filters, edge weighting, parallel-edge merge, giant component, weighted
+    PageRank, modularity, attribute join, per-node difference between two graphs
+
+    - Output: Audit or pre-launch report with side-by-side graph images, per-page PageRank and sessions table, list of
+    links to add
+success_criteria:
+    - metric: Import
+      target: A crawler inlinks export imports with cleaning options and no hand trimming
+    - metric: Comparison
+      target: User sees per-page PageRank change between live and staging and can sort and color by it
+    - metric: Scale
+      target: Graphs of 100,000 URLs lay out and compute PageRank in the browser
+sources:
+    - title: Onely - Plotting a website's structure in Gephi
+      url: https://www.onely.com/blog/plotting-websites-structure-gephi/
+      summary: Cleaning rules, Gephi import, merge by sum, giant component past 50,000 URLs, PageRank, modularity, ForceAtlas2, sitewide weight 0.4
+    - title: Search Engine Land - Visualizing site structure in advance of a major change
+      url: https://searchengineland.com/visualizing-site-structure-advance-major-change-286510
+      summary: Live versus staging crawl comparison; example product page PageRank rose from 0.016629 to 0.02171
+    - title: Screaming Frog - How to analyse link position
+      url: https://www.screamingfrog.co.uk/how-to-analyse-link-position/
+      summary: Filter links by position (content, navigation, footer)
+    - title: Screaming Frog - Link Score
+      url: https://www.screamingfrog.co.uk/link-score/
+      summary: 0-100 internal PageRank-like value from Crawl Analysis
+    - title: Screaming Frog - Visualisations guide
+      url: https://www.screamingfrog.co.uk/guides/visualisations
+      summary: Diagrams up to 10k URLs; nodes past the cap grayed out
+    - title: Sitebulb - Crawl map examples
+      url: https://sitebulb.com/resources/guides/crawl-map-examples/
+      summary: Crawl maps colored by depth expose flat architecture, pagination chains and content explosion
+    - title: Sitebulb - Auditing internal linking
+      url: https://support.sitebulb.com/en/articles/12839707-auditing-internal-linking-with-sitebulb
+      summary: Orphans found only in sitemap, Analytics or Search Console
+    - title: Briggsby - Internal link analysis with Python
+      url: https://www.briggsby.com/internal-link-analysis-with-python
+      summary: NetworkX pagerank(alpha=0.85), page type from URL patterns, score histograms across scenarios
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -98,6 +98,16 @@ export function styleOpacity(texture: NodeStyleConfig["texture"]): number {
 }
 
 /**
+ * The opacity a style paints a node's body at, as a line's end reads it: `node.opacity`, or 0 for a wireframe body,
+ * which hides nothing between its lines, so a plain line stops at its outline as at a translucent one (issue #10374).
+ * @param style - The resolved style.
+ * @returns The opacity.
+ */
+export function paintedBodyOpacity(style: Pick<NodeStyleConfig, "texture" | "effect"> | null | undefined): number {
+    return style?.effect?.wireframe === true ? 0 : styleOpacity(style?.texture);
+}
+
+/**
  * Where a node body's source draws in the blended pass (Babylon draws a lower `alphaIndex` first),
  * plus its look's place ({@link lookPlace}): after the node surfaces (`NodeBillboardBatch`, 1e8) and the edges with an
  * index (about 1e9), before every mesh that keeps the default, as the sources' distance once put

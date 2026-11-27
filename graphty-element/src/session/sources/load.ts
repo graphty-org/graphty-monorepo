@@ -22,6 +22,7 @@ import {
 } from "@graphty/graph-io";
 
 import type { EdgeId, NodeId, SourceKey } from "../../catalog/types";
+import { fixedIdsOf } from "../../data/declaredPins";
 import { ErrorAggregator } from "../../data/ErrorAggregator";
 import { aggregateErrors, columnsMapping, sourceGraph, toRecords } from "../../data/graph-io-import";
 import { GraphtyError } from "../../errors/GraphtyError";
@@ -160,6 +161,8 @@ interface Read {
     readonly info: SourceReportInfo | undefined;
     /** graph-io's issues, as codes and params. */
     readonly issues: readonly CodedFact[];
+    /** The nodes the source marks fixed (graph-io's `fixed` role), which a `pins: "data"` load pins. */
+    readonly fixed: readonly NodeId[];
 }
 
 /**
@@ -196,6 +199,7 @@ async function readRows(
         },
         info: report.source,
         issues: report.issues.map((issue) => ({ code: issue.code, params: factParams(issue.params) })),
+        fixed: fixedIdsOf(snapshot),
     };
 }
 
@@ -281,6 +285,9 @@ function importCommand(
         mode: options.mode ?? "replace",
         held,
         ...(options.layout === undefined ? {} : { layout: options.layout }),
+        // Pinned in the load's own step, as a file's or a dataset's are; left off when none is marked.
+        ...(options.pins === undefined ? {} : { pins: options.pins }),
+        ...(read.fixed.length === 0 ? {} : { fixed: read.fixed }),
         ...(options.existing === undefined ? {} : { existing: options.existing }),
         ...(options.unmatched === undefined ? {} : { unmatched: options.unmatched }),
         ...(options.duplicateIds === undefined ? {} : { duplicateIds: options.duplicateIds }),
@@ -999,6 +1006,7 @@ async function readPages(
             },
             info: next.info,
             issues: [...read.issues, ...next.issues],
+            fixed: [...read.fixed, ...next.fixed],
         };
     }
 

@@ -1280,7 +1280,7 @@ export class Node implements ModelUser {
     borderReachAlong(dir: Xyz): number {
         const reach = this.borderReach;
         const outline = reach > 0 ? this.reachOutline : null;
-        const inset = outline !== null && NodeMesh.isFitted(this.drawnStyle?.shape) ? this.fillInset() : 0;
+        const inset = outline === null ? 0 : this.fillInset();
         if (outline === null || inset <= 0) {
             return reach;
         }
@@ -4708,8 +4708,8 @@ export class Node implements ModelUser {
      */
     get outlineHalfExtents(): Readonly<{ x: number; y: number; z: number }> {
         const half = this.drawnHalfExtents;
-        // only a fitted mesh (a flat shape, or one sized to its extents) is drawn in by the border's inset
-        const inset = NodeMesh.isFitted(this.drawnStyle?.shape) ? this.fillInset() : 0;
+        // every mesh, fitted or kept at its own proportions, is drawn in by the border's inset (#10403)
+        const inset = this.fillInset();
         return inset === 0 ? half : { x: half.x + inset, y: half.y + inset, z: half.z };
     }
 

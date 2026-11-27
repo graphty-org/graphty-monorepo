@@ -662,6 +662,9 @@ export class NodeMesh {
         const extents = this.fillExtents(sized, inset);
         const mesh = creator(size, scene, createOptions.shape.detail);
         if (!this.isFitted(createOptions.shape)) {
+            // keeping its own proportions, the solid still draws its fill in by the inset of a border centered on or
+            // inside its outline, so the ring ends where the plain solid would (#10403)
+            NodeMesh.insetOutline(mesh, inset);
             return mesh;
         }
 
@@ -1496,6 +1499,22 @@ export class NodeMesh {
         mat.freeze();
 
         return mat;
+    }
+
+    /**
+     * Shrinks a mesh drawn at its own proportions so its outline across the view comes in by `inset` on every
+     * side: the fill of a solid whose border sits centered on or inside its size.
+     * @param mesh - The mesh a shape creator returned.
+     * @param inset - How far in, on each side, in world units.
+     */
+    private static insetOutline(mesh: Mesh, inset: number): void {
+        mesh.computeWorldMatrix(true);
+        const { minimumWorld: min, maximumWorld: max } = mesh.getBoundingInfo().boundingBox;
+        const across = Math.max(max.x - min.x, max.y - min.y);
+        if (inset > 0 && across > 0) {
+            mesh.scaling.scaleInPlace(Math.max(across - 2 * inset, MIN_NODE_SIZE) / across);
+            mesh.bakeCurrentTransformIntoVertices();
+        }
     }
 
     /**

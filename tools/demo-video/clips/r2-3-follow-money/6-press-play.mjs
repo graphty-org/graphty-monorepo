@@ -6,6 +6,12 @@ import { MONEY_CLIP, moneyCase, onMap, timeline, timelineSettings, toStart } fro
 
 export default {
     id: "press-play",
+    // A placeholder while the app refuses the edges' ISO time column as the time field (Set in Data
+    // shows "time cannot be the time field"; no Timeline button follows). Delete `placeholder` and
+    // `seconds` to film it again: setup and run below are kept as they were.
+    placeholder:
+        "Press play and watch the links appear in order (placeholder: the time column cannot be set, so there is no Timeline)",
+    seconds: 4,
     ...MONEY_CLIP,
     caption: "Mid-August: payments flow to Riga",
     async setup(h) {

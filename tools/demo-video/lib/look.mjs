@@ -64,6 +64,14 @@ body.clear { background: transparent; }
 .label .bar { width: 72px; height: 7px; border-radius: 4px; background: ${LIME}; }
 .label .text { font: 600 50px/1.1 Inter; color: #fff; white-space: nowrap;
   text-shadow: 0 2px 18px rgba(0,0,0,0.85), 0 0 3px rgba(0,0,0,0.6); }
+.chap-big { position: absolute; left: 0; right: 0; top: 640px; height: 340px; padding: 0 ${STAGE.x}px 70px;
+  box-sizing: border-box; display: flex; flex-direction: column; justify-content: flex-end;
+  background: linear-gradient(to bottom, rgba(18,23,31,0), rgba(18,23,31,0.82) 55%); }
+.chap-big .kicker { margin-bottom: 18px; }
+.chap-big .title { font-size: 96px; text-shadow: 0 2px 24px rgba(0,0,0,0.6); }
+.chap-small { position: absolute; right: ${W - STAGE.x - STAGE.w}px; top: 22px; font: 600 24px/1 Inter; color: #c9d1d9;
+  white-space: nowrap; }
+.chap-small b { color: ${LIME}; font-weight: 700; margin-right: 10px; }
 .card .later { opacity: 0; }
 .card.reveal .later { opacity: 1; }
 .frame { position: absolute; inset: 0; background: rgba(18,23,31,0.86); }
@@ -245,9 +253,28 @@ export const html = {
      * @returns the page
      */
     label: ({ text }) => page(div("label", div("bar", "") + div("text", esc(text))), true),
+    /**
+     * A chapter's name laid over its footage (transparent PNG): large in the lower third over a soft
+     * shade (`big`), or small at the top right of the caption band, above any tag.
+     * @param data - the fields
+     * @param data.number - the chapter number, or none
+     * @param data.title - the chapter's name
+     * @param data.big - true for the large version
+     * @returns the page
+     */
+    chapterName: ({ number, title, big }) =>
+        page(
+            big
+                ? div(
+                      "chap-big",
+                      (number != null ? div("kicker", "Chapter " + esc(number)) : "") + div("title", esc(title)),
+                  )
+                : div("chap-small", (number != null ? "<b>" + esc(number) + "</b>" : "") + esc(title)),
+            true,
+        ),
 };
 
-const TRANSPARENT = new Set(["caption", "corners", "label"]);
+const TRANSPARENT = new Set(["caption", "corners", "label", "chapterName"]);
 
 // runs in the page: the fonts are in and two frames are drawn with them
 function fontsThenTwoFrames() {

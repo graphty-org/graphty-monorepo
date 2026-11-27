@@ -13,7 +13,7 @@ export default {
     leadMs: 600,
     async run(h) {
         const { page } = h;
-        await h.click(page.getByRole("button", { name: /^Graph bioplex/ }));
+        await h.click(page.getByRole("button", { name: /^Graph bioplex/i }));
         await h.click(inspector(page).getByRole("tab", { name: "Values" }));
         await h.waitFor(inspector(page).getByText("10,251", { exact: true }));
         await h.pause(700);

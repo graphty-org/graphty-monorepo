@@ -5,6 +5,11 @@ import { CYTOSCAPE_SESSION, FILES_CLIP, FROM_CYTOSCAPE, FROM_START, openFromStar
 
 export default {
     id: "opens-looking-same",
+    // A placeholder while a Cytoscape session opens with none of its styles: the yeast galactose
+    // session draws plain default nodes and only the Everything layer (no "By COMMON" label layer,
+    // no colors), with every experiment on. Delete `placeholder` and `seconds` to film it again.
+    placeholder: "Cytoscape files open with their styles (placeholder: a .cys session opens with none of its styles)",
+    seconds: 4,
     ...FILES_CLIP,
     ...FROM_START,
     caption: "Cytoscape sessions keep their styles",

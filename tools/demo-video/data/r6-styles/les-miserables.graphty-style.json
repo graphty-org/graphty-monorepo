@@ -1,0 +1,88 @@
+{
+    "$schema": "https://graphty.app/schema/documents/graphty-style/v2.json",
+    "kind": "graphty-style",
+    "version": 2,
+    "created": "2026-11-27T19:10:21.954Z",
+    "modified": "2026-11-27T19:10:21.954Z",
+    "generator": { "name": "graphty-element", "version": "3.39.0" },
+    "dependencies": {
+        "columns": [
+            {
+                "kind": "edge",
+                "name": "shared_chapters",
+                "schema": { "type": "integer", "measurement": "quantitative" }
+            }
+        ]
+    },
+    "layers": [
+        {
+            "id": "everything_1",
+            "name": "Everything",
+            "target": "edge",
+            "selector": { "match": "everything" },
+            "set": {
+                "edge.animationSpeed": 0,
+                "edge.color": "#6B7280",
+                "edge.width": 12,
+                "edge.style": "zigzag",
+                "edge.arrowHead": "normal"
+            },
+            "encode": {
+                "edge.label": {
+                    "by": "data.shared_chapters",
+                    "scale": "passthrough",
+                    "format": { "maximumSignificantDigits": 3 }
+                }
+            },
+            "source": { "by": "template", "templateId": "graphty:starting-everything" },
+            "row": "everything_2"
+        },
+        {
+            "id": "pinned_1",
+            "name": "Pinned",
+            "target": "node",
+            "selector": { "match": "state", "state": "pinned" },
+            "set": { "node.haloColor": "#868E96", "node.haloScale": 1.3, "node.haloOpacity": 1 },
+            "source": { "by": "template", "templateId": "graphty:starting-pinned" }
+        },
+        {
+            "id": "selected_1",
+            "name": "Selected",
+            "target": "edge",
+            "selector": { "match": "state", "state": "selected" },
+            "set": { "edge.bandColor": "#0077BB", "edge.bandWidth": 2.5, "edge.bandOpacity": 1 },
+            "source": { "by": "template", "templateId": "graphty:starting-selected" },
+            "row": "selected_2"
+        },
+        {
+            "id": "selected_2",
+            "name": "Selected",
+            "target": "node",
+            "selector": { "match": "state", "state": "selected" },
+            "set": { "node.haloColor": "#0077BB", "node.haloScale": 1.45, "node.haloOpacity": 1 },
+            "source": { "by": "template", "templateId": "graphty:starting-selected" },
+            "row": "selected_2"
+        },
+        {
+            "id": "hovered_1",
+            "name": "Hovered",
+            "target": "node",
+            "selector": { "match": "state", "state": "hovered" },
+            "source": { "by": "template", "templateId": "graphty:starting-hovered" }
+        }
+    ],
+    "tree": [
+        { "folder": "Louvain", "id": "folder:louvain_1", "children": [] },
+        { "layer": "pinned_1", "pin": "top" },
+        { "layer": "selected_2", "pin": "top" },
+        { "layer": "hovered_1", "pin": "top" }
+    ],
+    "valueLabels": [
+        { "path": "results.louvain.group", "value": 1, "label": "Group 1" },
+        { "path": "results.louvain.group", "value": 5, "label": "Group 2" },
+        { "path": "results.louvain.group", "value": 3, "label": "Group 3" },
+        { "path": "results.louvain.group", "value": 4, "label": "Group 4" },
+        { "path": "results.louvain.group", "value": 2, "label": "Group 5" },
+        { "path": "results.louvain.group", "value": 0, "label": "Group 6" }
+    ]
+}

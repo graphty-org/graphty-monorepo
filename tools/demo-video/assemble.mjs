@@ -22,6 +22,7 @@
  *                                         "duck"?: [ { "at" | "onBeat", "seconds", "gain"? } ] },
  *     "bpm"?, "offset"?, "sfx"?: [ { "file", "at" | "onBeat", "gain"? } ],
  *     "sections": [ { "marker": "Intro" | null, "chapter": { "number": 1, "title": "...", "seconds": 2 }?,
+ *                     "name": { "number"?: 1, "title": "...", "bigSeconds"?: 2 }?,
  *                     "items": [ { "clip": "<id>", "seconds": 5?, "caption": "<used if not recorded>"?,
  *                                  "ramp": [[t | [mark, s], speed], ...]?, "to": [mark, s]?, "onBeat": n?, "sfx": [ { "file", "at"?, "gain"? } ]? }
  *                              | { "card": "title" | "end" | "placeholder", "seconds": 3, ...card fields } ] } ] }
@@ -737,6 +738,43 @@ async function overFrame(frame, card, seconds, later = null, blur = true) {
     return mp4;
 }
 
+/**
+ * A section's `name` laid over a part: large over the section's first part for `bigSeconds` (2),
+ * then small at the top right for the rest of the section (no full-screen chapter card).
+ * @param part - the part ({ file, seconds, ... })
+ * @param name - { number?, title, bigSeconds? }
+ * @param first - true for the section's first part
+ * @returns the part, its file replaced
+ */
+async function withName(part, name, first) {
+    const small = await png("chapterName", { ...name, big: false }, next("png"));
+    const loop = (f) => ["-loop", "1", "-framerate", String(FPS), "-i", f];
+    const bigSec = Math.min(name.bigSeconds ?? 2, part.seconds - 0.4);
+    let graph;
+    let inputs = [...loop(small)];
+    if (first) {
+        inputs = [...inputs, ...loop(await png("chapterName", { ...name, big: true }, next("png")))];
+        graph =
+            `[1]format=rgba,fade=in:st=${(bigSec - 0.4).toFixed(3)}:d=0.4:alpha=1[s];` +
+            `[2]format=rgba,fade=out:st=${(bigSec - 0.4).toFixed(3)}:d=0.4:alpha=1[b];` +
+            "[0][s]overlay=format=auto[a];[a][b]overlay=format=auto,format=yuv420p";
+    } else graph = "[0][1]overlay=format=auto,format=yuv420p";
+    const mp4 = next("mp4");
+    await run([
+        "-i",
+        part.file,
+        ...inputs,
+        "-filter_complex",
+        graph,
+        "-frames:v",
+        String(toFrames(part.seconds)),
+        "-an",
+        ...ENC,
+        mp4,
+    ]);
+    return { ...part, file: mp4 };
+}
+
 // ---------------------------------------------------------------- the parts, in order
 const segments = [];
 const marks = [];
@@ -812,6 +850,8 @@ for (const section of cut.sections) {
         prev = { list: items, at: items.length - 1, item, lastOut: before };
         playhead += items.at(-1).seconds - XF;
     }
+    // `name`: the chapter's name over its footage instead of a chapter card
+    if (section.name) for (const [i, p] of items.entries()) items[i] = await withName(p, section.name, i === 0);
     const head = section.chapter ? [await chapterSegment(section.chapter, items[0])] : [];
     if (section.marker) marks.push({ title: section.marker, index: segments.length });
     segments.push(...head, ...items);

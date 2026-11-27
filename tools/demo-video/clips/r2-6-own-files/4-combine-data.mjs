@@ -9,6 +9,14 @@ let mule;
 
 export default {
     id: "combine-data",
+    // A placeholder while the app cannot join a list of accounts onto the accounts of an edge-list
+    // file: Add source > File... now only adds watchlist.csv as a waiting source (no Join screen, no
+    // "10 matched"), and the Join editor pairs it only with transfers' edge columns (from, to:
+    // "21 of 77 match"), never the node ids, so the risk lands on edges, not on the mule account.
+    // Delete `placeholder` and `seconds` and rewrite run for the Join editor to film it again.
+    placeholder:
+        "Join a second file on a shared column (placeholder: a list of accounts cannot be joined onto the accounts of an edge list)",
+    seconds: 4,
     ...FILES_CLIP,
     tag: "Synthetic data",
     caption: "Join a watch list by account",

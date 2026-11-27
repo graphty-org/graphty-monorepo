@@ -220,14 +220,16 @@ export async function createHuman(page, seed) {
          * @param options.near - a target to show the badge above
          * @param options.label - what the key does, shown after it ("3D"): a bare key means nothing to a viewer
          * @param options.badgeMs - how long the badge shows
+         * @param [options.holdMs] - hold the keys down this long (a camera key repeats while held); default a tap
+         * @param [options.show] - the badge's text when it differs from the key's Playwright name ("Right" for "ArrowRight")
          */
-        async shortcut(combo, { near, label = "", badgeMs = 1300 } = {}) {
-            await h.badge(combo, { near, label, badgeMs });
+        async shortcut(combo, { near, label = "", badgeMs = 1300, holdMs, show } = {}) {
+            await h.badge(show ?? combo, { near, label, badgeMs });
             log({ type: "key", key: combo, label, badge: true });
             await sleep(220);
             const keys = combo.split("+").map((k) => (k === "Ctrl" ? "Control" : k));
             for (const k of keys) await page.keyboard.down(k);
-            await sleep(r.range(70, 110));
+            await sleep(holdMs ?? r.range(70, 110));
             for (const k of keys.toReversed()) await page.keyboard.up(k);
             await sleep(400);
         },

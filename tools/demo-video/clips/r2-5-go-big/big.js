@@ -71,7 +71,10 @@ export async function bioplex(h, { blending = "On", fadeEnd, layout = FA2, zoomI
         .click();
     const form = page.getByRole("form", { name: "ForceAtlas2" });
     for (const [name, v] of Object.entries(layout.numbers)) {
-        const f = form.getByRole("spinbutton", { name, exact: true });
+        // a field with no default (Max iterations, "Automatic") is a textbox, not a spinbutton
+        const f = form
+            .getByRole("spinbutton", { name, exact: true })
+            .or(form.getByRole("textbox", { name, exact: true }));
         await f.fill(String(v));
         await f.press("Tab"); // Enter would apply the form before the rest is set
     }

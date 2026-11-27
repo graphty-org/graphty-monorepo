@@ -71,8 +71,7 @@ export async function bankIntro(h, { colors = true, flat = true } = {}) {
     await h.app.openFile(h.file(BANK));
     if (flat) await h.app.ready2D();
     else {
-        await page.getByRole("button", { name: "Table", exact: true, pressed: true }).click();
-        await page.getByRole("button", { name: "Table", exact: true, pressed: false }).waitFor();
+        await h.app.closeTable(); // the table no longer opens with every file
         await h.app.settled();
     }
     await analyze(h, "louv", "Louvain");

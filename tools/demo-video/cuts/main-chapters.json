@@ -1,0 +1,611 @@
+{
+    "name": "main-chapters",
+    "title": "Main video: chapters (no intro)",
+    "note": "The 14 chapters of the main demo video, silent; the intro is joined in front separately.",
+    "crossfadeMs": 400,
+    "music": null,
+    "sections": [
+        {
+            "marker": "The basics",
+            "name": {
+                "number": 1,
+                "title": "The basics"
+            },
+            "items": [
+                {
+                    "clip": "basics-open-sample",
+                    "at": ["opened", 0.1],
+                    "seconds": 3
+                },
+                {
+                    "clip": "basics-toolbar",
+                    "at": ["tour", 0],
+                    "seconds": 3.6,
+                    "speed": 2
+                },
+                {
+                    "clip": "basics-circle",
+                    "at": ["applied", -0.3],
+                    "seconds": 3.3
+                },
+                {
+                    "clip": "basics-neighbors",
+                    "at": ["clicked", -0.4],
+                    "seconds": 3.3,
+                    "dropMarks": ["clicked", 0.6, "neighbors lit", -1.0]
+                },
+                {
+                    "clip": "basics-communities",
+                    "at": ["communities colored", -3.0],
+                    "seconds": 3.6
+                },
+                {
+                    "clip": "basics-bigger",
+                    "at": ["bigger", -2.0],
+                    "seconds": 3.2
+                },
+                {
+                    "clip": "basics-lift-3d",
+                    "at": ["3D", -0.5],
+                    "seconds": 3.5,
+                    "dropMarks": ["3D", 0.6, "lifted", 0.6]
+                },
+                {
+                    "clip": "basics-save",
+                    "at": ["saved", -1.9],
+                    "seconds": 3
+                },
+                {
+                    "clip": "basics-reopen",
+                    "at": ["opened", -0.8],
+                    "seconds": 3.2
+                }
+            ]
+        },
+        {
+            "marker": "Styles",
+            "name": {
+                "number": 2,
+                "title": "Styles"
+            },
+            "items": [
+                {
+                    "clip": "styles-labels",
+                    "at": ["labels", -1.4],
+                    "seconds": 3
+                },
+                {
+                    "clip": "styles-color",
+                    "at": ["gradient", -1.2],
+                    "seconds": 3.8,
+                    "dropMarks": ["gradient", 0.9, "palette", -1.2]
+                },
+                {
+                    "clip": "styles-shapes-2d",
+                    "at": ["hexagons", -1.3],
+                    "seconds": 4.2,
+                    "dropMarks": ["hexagons", 0.8, "stars", -1.4]
+                },
+                {
+                    "clip": "styles-shapes-3d",
+                    "at": ["spheres", -1.2],
+                    "seconds": 4.0,
+                    "dropMarks": ["spheres", 0.8, "knots", -1.4]
+                },
+                {
+                    "clip": "labels",
+                    "at": ["widths", -1.8],
+                    "seconds": 3
+                },
+                {
+                    "clip": "styles-edge-lines",
+                    "at": ["zigzags", -1.2],
+                    "seconds": 4.0,
+                    "dropMarks": ["zigzags", 0.8, "arrows", -1.5]
+                },
+                {
+                    "clip": "styles-edge-labels",
+                    "at": ["values", -1.6],
+                    "seconds": 3
+                },
+                {
+                    "clip": "shape-around-groups",
+                    "at": ["communities outlined", -1.2],
+                    "seconds": 2.5
+                },
+                {
+                    "clip": "legend-and-why",
+                    "at": ["why shown", -1.5],
+                    "seconds": 3
+                }
+            ]
+        },
+        {
+            "marker": "Create and load styles",
+            "name": {
+                "number": 3,
+                "title": "Create and load styles"
+            },
+            "items": [
+                {
+                    "clip": "rule-under-10k",
+                    "at": ["transfers highlighted", -1.6],
+                    "seconds": 3,
+                    "caption": "Pick nodes with a rule"
+                },
+                {
+                    "clip": "point-out-group",
+                    "at": ["ring red", -1.6],
+                    "seconds": 3,
+                    "caption": "The picked nodes become a layer"
+                },
+                {
+                    "clip": "bulk-style",
+                    "at": ["16 restyled", -1.6],
+                    "seconds": 3,
+                    "caption": "Restyle many nodes at once"
+                },
+                {
+                    "clip": "styles-save",
+                    "at": ["saved", -1.5],
+                    "seconds": 2.6
+                },
+                {
+                    "clip": "styles-drop",
+                    "seconds": 3
+                },
+                {
+                    "clip": "styles-recipes",
+                    "seconds": 3.5
+                }
+            ]
+        },
+        {
+            "marker": "Layouts",
+            "name": {
+                "number": 4,
+                "title": "Layouts"
+            },
+            "items": [
+                {
+                    "clip": "list-of-layouts",
+                    "at": ["applied", -1.5],
+                    "seconds": 3
+                },
+                {
+                    "clip": "data-tree",
+                    "at": ["applied", -0.4],
+                    "seconds": 3.2
+                },
+                {
+                    "clip": "data-two-columns",
+                    "at": ["applied", -0.4],
+                    "seconds": 3
+                },
+                {
+                    "clip": "steps-from-one",
+                    "at": ["applied", -0.5],
+                    "seconds": 3,
+                    "caption": "Arranged by steps from Valjean"
+                },
+                {
+                    "clip": "ring-per-group",
+                    "at": ["applied", -0.5],
+                    "seconds": 3,
+                    "caption": "Each group on its own ring"
+                },
+                {
+                    "clip": "intro-morph",
+                    "at": ["circle", -0.5],
+                    "seconds": 3,
+                    "caption": "Glide from one layout to the next"
+                },
+                {
+                    "clip": "drag-to-pin",
+                    "at": ["dropped", -1.6],
+                    "seconds": 2.5
+                },
+                {
+                    "clip": "fly-to-group",
+                    "at": ["turning", -2.2],
+                    "seconds": 3
+                }
+            ]
+        },
+        {
+            "marker": "Algorithms",
+            "name": {
+                "number": 5,
+                "title": "Algorithms"
+            },
+            "items": [
+                {
+                    "clip": "data-algorithms-menu",
+                    "at": ["centrality", -0.4],
+                    "seconds": 3,
+                    "speed": 2
+                },
+                {
+                    "clip": "size-by-importance",
+                    "at": ["sized", -1.5],
+                    "seconds": 3,
+                    "caption": "The most important nodes grow largest"
+                },
+                {
+                    "clip": "shortest-path",
+                    "at": ["path drawn", -1.6],
+                    "seconds": 3.5,
+                    "caption": "The route between two nodes lights up"
+                },
+                {
+                    "clip": "what-holds-it",
+                    "at": ["impact shown", -1.5],
+                    "seconds": 3,
+                    "caption": "Remove one node, see what falls apart"
+                },
+                {
+                    "clip": "who-comes-first",
+                    "at": ["sorted", -1.5],
+                    "seconds": 3,
+                    "caption": "Rank nodes by an algorithm's score"
+                }
+            ]
+        },
+        {
+            "marker": "Present and share",
+            "name": {
+                "number": 6,
+                "title": "Present and share"
+            },
+            "items": [
+                {
+                    "clip": "picture",
+                    "at": ["copied", -1.5],
+                    "seconds": 2.5,
+                    "zoomAfter": "dialog"
+                },
+                {
+                    "clip": "fly-through",
+                    "at": ["exported", -1.5],
+                    "seconds": 3,
+                    "caption": "Record a fly-through video"
+                },
+                {
+                    "clip": "path-moves",
+                    "at": ["comets", -1.0],
+                    "seconds": 2.5
+                },
+                {
+                    "clip": "advanced-notes",
+                    "at": ["pinned", -1.8],
+                    "seconds": 3
+                },
+                {
+                    "clip": "send-project",
+                    "at": ["case open", -1.8],
+                    "seconds": 3,
+                    "caption": "Send the project to a colleague"
+                }
+            ]
+        },
+        {
+            "marker": "Big graphs",
+            "name": {
+                "number": 7,
+                "title": "Big graphs"
+            },
+            "items": [
+                {
+                    "clip": "bioplex-open",
+                    "at": ["counts shown", -1.8],
+                    "seconds": 3.5
+                },
+                {
+                    "clip": "fifty-thousand",
+                    "caption": "Make one with 50,000 nodes",
+                    "seconds": 3
+                },
+                {
+                    "clip": "blend-glow",
+                    "at": ["blended", -1.5],
+                    "seconds": 3
+                },
+                {
+                    "clip": "fade-long-edges",
+                    "at": ["faded", -1.5],
+                    "seconds": 3
+                }
+            ]
+        },
+        {
+            "marker": "Data management",
+            "name": {
+                "number": 8,
+                "title": "Data management"
+            },
+            "items": [
+                {
+                    "clip": "spreadsheet",
+                    "at": ["drawn", -1.5],
+                    "seconds": 3.5
+                },
+                {
+                    "clip": "drop-gephi",
+                    "at": ["saved positions", -2.5],
+                    "seconds": 3.5,
+                    "dropMarks": ["opened", -0.3, "saved positions", -0.8]
+                },
+                {
+                    "clip": "opens-looking-same",
+                    "seconds": 3
+                },
+                {
+                    "clip": "data-graph-query",
+                    "at": ["load", -1.0],
+                    "seconds": 3.5,
+                    "dropMarks": ["load", 0.4, "drawn", -0.6]
+                },
+                {
+                    "clip": "data-expand-node",
+                    "at": ["expanded", -3.0],
+                    "seconds": 3.5
+                },
+                {
+                    "clip": "data-table",
+                    "at": ["sorted", -1.6],
+                    "seconds": 3
+                },
+                {
+                    "clip": "data-inspector",
+                    "at": ["node", -1.5],
+                    "seconds": 2.6
+                },
+                {
+                    "clip": "data-clean-up",
+                    "at": ["fixed", -3.0],
+                    "seconds": 3.2
+                },
+                {
+                    "clip": "data-filter",
+                    "at": ["filtered", -2.0],
+                    "seconds": 3.2
+                },
+                {
+                    "clip": "combine-data",
+                    "caption": "Join a second file on a shared column",
+                    "seconds": 3.5
+                },
+                {
+                    "clip": "back-to-gephi",
+                    "at": ["exported", -1.5],
+                    "seconds": 2.5,
+                    "zoomAfter": "dialog"
+                }
+            ]
+        },
+        {
+            "marker": "Advanced styling",
+            "name": {
+                "number": 9,
+                "title": "Advanced styling"
+            },
+            "items": [
+                {
+                    "clip": "models-and-pictures",
+                    "at": ["figures", -0.8],
+                    "seconds": 2.5
+                },
+                {
+                    "clip": "advanced-own-model",
+                    "at": ["ducks", -2.0],
+                    "seconds": 3.5
+                },
+                {
+                    "clip": "advanced-shader-gallery",
+                    "at": ["holograms", -2.4],
+                    "seconds": 3.2
+                },
+                {
+                    "clip": "advanced-shader-layer",
+                    "at": ["comets", -2.2],
+                    "seconds": 3
+                },
+                {
+                    "clip": "advanced-background-light",
+                    "at": ["studio", -2.0],
+                    "seconds": 3
+                },
+                {
+                    "clip": "advanced-moving-edges",
+                    "at": ["flowing", -1.6],
+                    "seconds": 3
+                }
+            ]
+        },
+        {
+            "marker": "Use AI",
+            "name": {
+                "number": 10,
+                "title": "Use AI"
+            },
+            "items": [
+                {
+                    "clip": "advanced-ask",
+                    "at": ["sent", -0.8],
+                    "seconds": 4.4,
+                    "dropMarks": ["sent", 0.5, "answered", -0.5]
+                },
+                {
+                    "clip": "advanced-ask-selected",
+                    "at": ["sent", -0.8],
+                    "seconds": 4.5,
+                    "dropMarks": ["sent", 0.5, "answered", -0.5]
+                },
+                {
+                    "clip": "advanced-provider",
+                    "at": ["masked", -2.0],
+                    "seconds": 2.6
+                },
+                {
+                    "clip": "advanced-say-and-point",
+                    "dropMarks": ["heard", 0.8, "path", -0.8],
+                    "ramp": [
+                        [0.6, 2.5],
+                        [6.4, 2]
+                    ],
+                    "to": ["path", 1.0]
+                }
+            ]
+        },
+        {
+            "marker": "VR and AR",
+            "name": {
+                "number": 11,
+                "title": "VR and AR"
+            },
+            "items": [
+                {
+                    "clip": "ar-vr",
+                    "seconds": 5
+                }
+            ]
+        },
+        {
+            "marker": "Maps and globes",
+            "name": {
+                "number": 12,
+                "title": "Maps and globes"
+            },
+            "items": [
+                {
+                    "clip": "assign-location",
+                    "at": ["location set", -1.5],
+                    "seconds": 2.5,
+                    "caption": "Set each node's location"
+                },
+                {
+                    "clip": "data-place-names",
+                    "at": ["applied", -1.0],
+                    "seconds": 3.5
+                },
+                {
+                    "clip": "fewest-flights",
+                    "at": ["route drawn", -1.4],
+                    "seconds": 4.4,
+                    "dropMarks": ["route drawn", 0.6, "bold", -1.6]
+                },
+                {
+                    "clip": "flat-map",
+                    "at": ["flat", -1.0],
+                    "seconds": 2.6,
+                    "caption": "One key flattens the globe"
+                },
+                {
+                    "clip": "map-styles",
+                    "at": ["NASA Blue Marble", -1.0],
+                    "seconds": 4.0,
+                    "dropMarks": ["NASA Blue Marble", 1.0, "OpenTopoMap", -1.2]
+                }
+            ]
+        },
+        {
+            "marker": "Over time",
+            "name": {
+                "number": 13,
+                "title": "Over time"
+            },
+            "items": [
+                {
+                    "clip": "timeline",
+                    "seconds": 3,
+                    "caption": "Dates become a timeline"
+                },
+                {
+                    "clip": "press-play",
+                    "seconds": 3.5,
+                    "caption": "Press play: edges appear in order"
+                },
+                {
+                    "clip": "biggest-team-up",
+                    "caption": "A network grows year by year",
+                    "seconds": 3
+                }
+            ]
+        },
+        {
+            "marker": "Hotkeys and camera",
+            "name": {
+                "number": 14,
+                "title": "Hotkeys and camera"
+            },
+            "items": [
+                {
+                    "clip": "hotkeys-shortcuts",
+                    "at": ["dialog", -0.9],
+                    "seconds": 2.6
+                },
+                {
+                    "clip": "hotkeys-fly",
+                    "from": 0.6,
+                    "seconds": 3,
+                    "speed": 2
+                },
+                {
+                    "clip": "hotkeys-fit-frame",
+                    "at": ["fit", -1.4],
+                    "seconds": 4.0
+                },
+                {
+                    "clip": "hotkeys-save-camera",
+                    "at": ["saved", -1.0],
+                    "seconds": 5.0,
+                    "dropMarks": ["saved", 0.3, "keyed", 0]
+                },
+                {
+                    "clip": "hotkeys-neighbors",
+                    "at": ["neighbors", -2.0],
+                    "seconds": 3
+                },
+                {
+                    "clip": "hotkeys-walk",
+                    "seconds": 3
+                },
+                {
+                    "clip": "hotkeys-auto-rotate",
+                    "at": ["turning", -1.7],
+                    "seconds": 2.6
+                }
+            ]
+        },
+        {
+            "marker": "Outro",
+            "items": [
+                {
+                    "montage": [
+                        {
+                            "clip": "intro-bank"
+                        },
+                        {
+                            "clip": "intro-globe"
+                        },
+                        {
+                            "clip": "fewest-flights"
+                        },
+                        {
+                            "clip": "blend-glow"
+                        }
+                    ],
+                    "caption": "Your data. Your questions. Your browser.",
+                    "zoom": false,
+                    "each": 1.5
+                },
+                {
+                    "card": "end",
+                    "zoom": false,
+                    "big": "graphty.app",
+                    "lines": ["Free and open source"]
+                }
+            ]
+        }
+    ]
+}

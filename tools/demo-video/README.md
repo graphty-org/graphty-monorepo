@@ -73,6 +73,7 @@ export default {
     tag: "Synthetic data", // optional small label at the caption band's right
     dataset: "Les Miserables", // optional: a Samples card opened before setup
     featuresOff: ["file-styles"], // optional: experiments left off for this clip (say why in a comment)
+    browserArgs: ["--use-fake-device-for-media-stream"], // optional: extra Chromium flags (a voice clip's fake microphone)
     async setup(h) {
         // NOT recorded: get to the starting state, park the cursor
         await h.app.mode("2D");
@@ -243,6 +244,9 @@ The numbers below come from tmp/demo-video/rework/research-craft.md ("Rules").
 
 `marker` makes a chapter mark (mp4 chapters and the chapter list). `chapter` (`number`, `title`,
 optional `sub`; no `number` for "And more") adds a card over the blurred first frame of the section.
+A section's `name` (`number`, `title`, optional `bigSeconds`, default 2) shows the chapter's name
+without a card: large in the lower third over the section's first part for `bigSeconds`, then small
+at the top right of the caption band (above any tag) for the rest of the section.
 Cards hold `1.0 s + 0.33 s a word + 0.8 s` at full opacity (a web address counts three words), with
 the two crossfades on top: a chapter card at least 4 s, the title 3-3.4 s (it follows the cold open),
 the end card 6 s; a chapter's `short: true` makes a 2 s mini card (the highlight's change of

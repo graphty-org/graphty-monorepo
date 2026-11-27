@@ -17,11 +17,12 @@ export default {
         // the hand waits for the Force layout to be still, so the cut can drop the settle
         await h.app.settled();
         h.mark("settled");
+        // the Data panel no longer names the two columns it picked as the ends (no Source and
+        // Target lists since the 2026-11 Data panel): the clip shows the panel's Edges row instead
         await h.click(page.getByRole("button", { name: "Data", exact: true }));
-        const source = page.getByRole("combobox", { name: "Source" });
-        await h.waitFor(source);
-        await h.hover(source, 450);
-        await h.hover(page.getByRole("combobox", { name: "Target" }), 450);
+        const edges = page.getByRole("button", { name: "Add to edge attributes" });
+        await h.waitFor(edges);
+        await h.hover(page.getByRole("combobox", { name: "Direction" }), 600);
         h.mark("ends shown");
         await h.move(REST);
     },

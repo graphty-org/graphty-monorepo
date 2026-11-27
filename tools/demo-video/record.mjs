@@ -102,7 +102,8 @@ async function recordPlaceholder(clip) {
 }
 
 async function recordReal(clip, origin) {
-    const b = await launch();
+    // a clip's `browserArgs`: extra Chromium flags (the fake microphone a voice clip speaks into)
+    const b = await launch({ args: clip.browserArgs });
     const { page } = b;
     const problems = [];
     page.on("pageerror", (e) => problems.push(`page error: ${e.message.split("\n")[0]}`));

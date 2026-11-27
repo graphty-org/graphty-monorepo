@@ -4,6 +4,12 @@ import { EMPTY, MONEY_CLIP, moneyCase, onMap } from "./money.js";
 
 export default {
     id: "timeline",
+    // A placeholder while the app refuses the edges' ISO time column as the time field (Set in Data
+    // shows "time cannot be the time field"; no Timeline button follows). Delete `placeholder` and
+    // `seconds` to film it again: setup and run below are kept as they were.
+    placeholder:
+        'Dates become a timeline (placeholder: Set in Data refuses the transfers\' time column, "time cannot be the time field")',
+    seconds: 4,
     ...MONEY_CLIP,
     caption: "Open the transfers on a timeline",
     async setup(h) {

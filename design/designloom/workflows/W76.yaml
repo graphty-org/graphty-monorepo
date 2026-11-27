@@ -1,0 +1,163 @@
+id: W76
+name: Incident Triage on a Service Map
+category: analysis
+validated: false
+personas:
+    - sre-incident-responder
+requires_capabilities:
+    - data-import
+    - search
+    - filtering
+    - saved-filters
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - ego-network
+    - neighborhood-expansion
+    - path-highlighting
+    - hover-highlight
+    - details-on-demand
+    - temporal-navigation
+    - large-graph-rendering
+    - layout-hierarchical
+    - export-image
+    - multiplex-relations
+    - group-collapse
+    - directed-closure
+    - focus-caller-callee-view
+    - graph-diff
+    - unknown-edge-marking
+suggested_components:
+    - search-input
+    - filter-panel
+    - filter-chip
+    - graph-canvas
+    - ego-network-dialog
+    - node-details-panel
+    - node-tooltip
+    - legend-panel
+    - temporal-controls
+    - context-menu
+    - image-export-dialog
+starting_state:
+    data_type: trace-derived service graph (services as nodes, aggregated calls with rate, error rate and latency as directed edges) plus ownership catalog and deploy events
+    node_count: 100-20,000
+    edge_density: sparse overall, with gateway hubs of very high fan-in
+    user_expertise: expert
+goal: >-
+    **Intent**: When a page arrives, decide whether the alerting service is the cause or a victim, find the upstream
+    dependency that broke, and tell the incident commander which customer-facing services are affected. The graph
+    navigates between the alert and the evidence (traces, logs, deploys); it is never the deliverable.
+
+
+    **Mental Model**: "Walk downhill toward the cause, then uphill for the blast radius." Callers sit closer to the
+    customer; callees are more likely root causes. Red follows red.
+
+
+    **Task Phases** (no source gives per-step durations):
+
+    1. **Open from the alert** - The alerting service is the starting focus
+
+    2. **Scope the map** - Choose environment and a time window covering onset; nodes appear only with data in the
+    window; optionally a saved group or filter
+
+    3. **Read health overlays** - Node borders or outlines colored by health (5xx red, 4xx yellow, throttling purple);
+    size by traffic or health
+
+    4. **Isolate the alerting node** - Focus view with callers on one side and callees on the other
+
+    5. **Walk toward candidate causes** - Step to callees that are themselves unhealthy and re-center; repeat. Look down
+    the vertical stack too (service, process, host, data center): many unhealthy services on one host point at the host
+
+    6. **Walk the other way for blast radius** - From the faulty node follow only call edges to affected callers, up to
+    customer-facing services
+
+    7. **Filter to the affected population** - Restrict to services carrying one tenant or customer attribute; highlight
+    the failing path and its error responses
+
+    8. **Correlate with change and time** - Check last-deploy attributes and topology at an earlier time to see what
+    appeared just before onset
+
+    9. **Pivot and hand off** - Jump from the node to traces, logs and monitors; page the owner; report the affected
+    customer-facing services
+
+
+    **Decision Points**:
+
+    - Is the alerting service the cause or a victim?
+
+    - Which unhealthy neighbor to step to next?
+
+    - Which edge types count for blast radius (calls only, never ownership or correlation edges)?
+
+    - Whom to page?
+
+
+    **Information Needs**:
+
+    - Health state per node and error rate per edge in the chosen window
+
+    - Clear edge direction (caller to callee) at a glance
+
+    - Which nodes or edges are missing because spans were dropped or traffic was too low
+
+    - Owner, tier and last-deploy time per service
+
+    - The set of customer-facing services reachable upstream from the faulty node
+
+
+    **Pain Points**:
+
+    - The unfiltered map is a hairball around gateway hubs
+
+    - Missing nodes and vanished low-traffic edges look like absence of dependency
+
+    - Hard node caps (X-Ray displays up to 10,000 nodes) and shallow default depths
+
+    - Maps go stale and give no history of when a dependency appeared
+
+
+    **Data Flow**:
+
+    - Input: Span pairs or service-graph metrics (OpenTelemetry, vendor APIs, Prometheus), Kubernetes topology, deploy
+    events, ownership catalog
+
+    - Transformations: Time-window scoping, health overlay, focus and step navigation, edge-type-restricted upstream
+    closure, attribute filter
+
+    - Output: Root-cause candidate, affected-service list for the commander, map screenshot for the postmortem
+success_criteria:
+    - metric: Cause versus victim decision
+      target: User can name the first unhealthy callee with no unhealthy callees of its own
+    - metric: Blast radius
+      target: User can list every customer-facing service upstream of the faulty node using call edges only
+    - metric: Data completeness awareness
+      target: Missing or low-traffic edges are visibly distinguished from absent ones
+sources:
+    - title: Datadog - Dependency Map Navigator
+      url: https://www.datadoghq.com/blog/dependency-map-navigator/
+      summary: Callers left (closer to customers), callees right (more likely root causes), health-colored borders
+    - title: AWS - CloudWatch ServiceLens and X-Ray trace map
+      url: https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/ServiceLens.html
+      summary: Groups as saved filters, red/yellow/purple outlines for 5xx/4xx/429, up to 10,000 nodes
+    - title: Dynatrace - Smartscape Classic
+      url: https://docs.dynatrace.com/docs/analyze-explore-automate/smartscape-classic
+      summary: Vertical stack of application, service, process, host, data center; 31 unhealthy services traced to one host
+    - title: Dynatrace - Visual Resolution Path
+      url: https://docs.dynatrace.com/docs/analyze-explore-automate/smartscape/smartscape-in-context-views/visual-resolution-path
+      summary: Highlights the causal path between problem entities
+    - title: Honeycomb - Jack Henry service map
+      url: https://www.honeycomb.io/blog/jack-henry-bubble-up-service-map
+      summary: Filter to one institution ID, isolate the failing path, highlight HTTP 500s, drill to spans
+    - title: Edge Delta - Blast radius is a graph query
+      url: https://edgedelta.com/company/blog/blast-radius-is-a-graph-query
+      summary: Only dependency edges count; ownership or correlation edges pull in nearly every service within two hops
+    - title: InfoQ - Netflix real-time microservices dependency graph
+      url: https://infoq.com/news/2026/06/netflix-microservices-realtime/
+      summary: Time-window queries to correlate dependency changes with incident onset
+    - title: PagerDuty - Dependency mapping for faster incident resolution
+      url: https://www.pagerduty.com/resources/incident-management-response/learn/dependency-mapping-faster-incident-resolution/
+      summary: Dependency maps used to route incidents to owners
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

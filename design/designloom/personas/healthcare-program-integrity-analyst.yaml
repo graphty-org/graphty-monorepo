@@ -1,0 +1,63 @@
+id: healthcare-program-integrity-analyst
+name: Healthcare Program Integrity Analyst
+roster_persona: fraud-analyst
+tier: A
+scope: in-scope
+role: Program Integrity Analyst, health insurer SIU or Medicaid program-integrity contractor
+quote: Every referral network has hubs. I need the providers whose shared patients make no clinical sense.
+bio: >-
+    Kevin Brooks looks for fraudulent providers in claims data for a health insurer's special investigation unit and,
+    before that, a Medicaid program-integrity contractor. His data is a claims warehouse that links millions of patients to
+    rendering and referring providers, pharmacies, diagnoses and procedures. He works mostly in SQL and provider-risk
+    scoring products, and only occasionally in a graph tool. The graph he needs is a huge bipartite patient-to-provider
+    network, projected to a weighted provider-to-provider network where two providers are linked by the patients they
+    share. He measures how patients are shared, searches for anomalous substructures such as referral loops and
+    prescriber-pharmacy pairings, ranks providers and refers the strongest cases to a Medicaid Fraud Control Unit, the HHS
+    Office of Inspector General or the police, with evidence. Normal referral hubs (a hospital, a large clinic) look like
+    rings at first glance, so every finding needs a legitimate-explanation check.
+characteristics:
+    expertise: intermediate
+    time_pressure: low
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Find providers who share implausible patient populations, referral loops or pharmacy pairings
+    - Rank providers so scarce investigators work the strongest leads first
+    - Refer cases with evidence a fraud control unit or inspector general can act on
+behaviors:
+    - Extracts claims for a provider type and period from the warehouse with SQL
+    - Builds a patient-to-provider bipartite graph and projects it to providers weighted by shared patients
+    - Measures sharing structure and compares providers against peers in the same region
+    - Searches for anomalous substructures and unusual prescriber-pharmacy-patient patterns
+    - Ranks providers and writes referrals
+frustrations:
+    - Patient-sharing networks are far too large to draw whole
+    - Normal referral hubs look like rings
+    - Sharing measures may not catch newer schemes such as telemedicine fraud
+    - Graph tools are rarely available in the claims environment, and data cannot leave it
+context:
+    frequency: weekly
+    devices:
+        - desktop
+    voluntary: false
+workflows:
+    - W128
+sources:
+    - title: O'Malley, Bubolz and Skinner - patient-sharing networks and home health fraud (Social Science and Medicine 2023)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC10290506/
+      summary: Medicare home health claims 2002-2016 across 306 regions; bipartite mixture index associated with higher billing and strike-force action
+    - title: Paudel, Eberle and Talbert - graph-based anomaly detection in healthcare claims (FLAIRS 2017)
+      url: https://cdn.aaai.org/ocs/15455/15455-68704-1-PB.pdf
+      summary: Anomalous substructures over patient, provider, claim, diagnosis and procedure graphs from CMS data
+    - title: HHS-OIG - MFCU data mining
+      url: https://oig.hhs.gov/fraud/medicaid-fraud-control-units-mfcu/data-mining.asp
+      summary: Rules for Medicaid Fraud Control Unit data mining
+    - title: KFF - Understanding the role of Medicaid Fraud Control Units
+      url: https://www.kff.org/medicaid/understanding-the-role-of-medicaid-fraud-control-units-mfcus/
+      summary: MFCU role and referral sources; reports a 2026 waiver of prior OIG approval for data mining (read through search summary)
+    - title: Linkurious - Insurance fraud investigation
+      url: https://linkurious.com/blog/insurance-fraud-investigation/
+      summary: For medical claims, check whether providers share many common patients
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,175 @@
+id: W120
+name: Following the Money Through Parallel Transactions
+category: analysis
+validated: false
+personas:
+    - aml-investigator
+    - fiu-tax-intelligence-analyst
+    - crypto-blockchain-investigator
+    - forensic-accountant
+requires_capabilities:
+    - data-import
+    - data-preview
+    - visual-encoding-edges
+    - visual-encoding-nodes
+    - legend-display
+    - filtering
+    - metric-histograms
+    - temporal-navigation
+    - shortest-path
+    - all-paths-finding
+    - path-highlighting
+    - pattern-search
+    - layout-hierarchical
+    - details-on-demand
+    - annotation
+    - export-image
+    - data-export
+    - time-respecting-paths
+    - parallel-edge-aggregation
+    - reified-edge-view
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - graph-canvas
+    - visual-encoding-panel
+    - legend-panel
+    - filter-panel
+    - range-slider
+    - histogram
+    - temporal-controls
+    - path-finder-dialog
+    - pattern-search-dialog
+    - data-table-panel
+    - node-details-panel
+    - layout-panel
+    - annotation-toolbar
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: transaction extract, one row per transaction (from account, to account, amount, currency, timestamp, channel)
+    node_count: 20-2,000 accounts
+    edge_density: sparse between accounts but with tens to hundreds of parallel transactions per pair
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Show where money came from and went, how much and when, for every escalated case. The graph is a directed,
+    timestamped multigraph; the job is to collapse it into one readable edge per pair and direction carrying the sum, the
+    count and the date range, filter it by time and amount, and follow directed paths. It shows that money moved; how much
+    of a particular deposit arrived is W121.
+
+
+    **Mental Model**: "A flow chart of accounts." i2 users call it summing the links; Linkurious calls it edge grouping;
+    KeyLines calls it aggregate links. Thick arrows mean big totals, the timeline says when, and any thick arrow can be
+    opened back into its transactions.
+
+
+    **Task Phases**:
+
+    1. **Import** - Load a statement or transaction extract, mapping columns to account and transaction types
+    (i2 uses a saved import specification)
+
+    2. **Collapse parallel edges** - One edge per pair and direction with count, sum, average, minimum, maximum and
+    first and last date; width by sum
+
+    3. **Show net flow and a timeline** - Net flow between pairs; play a time bar to see the sequence
+
+    4. **Filter by time and amount** - Keep transactions over a threshold (the Cambridge Intelligence XRP example
+    uses 3,000 dollars) or within a period; filters apply to the individual transactions before summing; histograms show
+    peaks
+
+    5. **Trace paths with direction** - Directed paths from a source to a destination; templates such as "all
+    transactions within 24 hours of this one"; look for loops of 3 to 6 hops where each amount is 80 to 100 percent of the
+    previous and dates increase
+
+    6. **Hand off** - Export the image plus tables of sums, dates and paths for the case file or narrative
+
+
+    **Decision Points**:
+
+    - Sum per direction, or show net flow?
+
+    - Which threshold and period isolate the suspicious activity?
+
+    - Is a loop a round-trip (shrinking amounts, increasing dates) or ordinary business?
+
+    - Which paths go into the exhibit or narrative?
+
+
+    **Information Needs**:
+
+    - Per aggregated edge: count, sum, average, min, max, first and last date, currency
+
+    - The transactions behind any aggregated edge, listable and exportable
+
+    - Amount and date histograms
+
+    - Paths that respect direction and time order, with per-hop amount and date
+
+
+    **Pain Points**:
+
+    - Hundreds of parallel edges draw as an unreadable bundle
+
+    - In KeyLines, graph functions ignore aggregated links, so analysis and display disagree
+
+    - Aggregation is developer work in SDK-based tools
+
+    - Graph databases model the transaction as a node (account performs transaction, transaction benefits account) for
+    time-constrained queries, but investigators need it drawn as an edge
+
+    - Paths and sums do not answer how much of a given deposit arrived
+
+
+    **Data Flow**:
+
+    - Input: Transaction rows as CSV or Excel (bank extract, wire and ACH records, ISO 20022 or SWIFT exports converted to
+    rows)
+
+    - Transformations: Column mapping, parallel-edge aggregation, net flow, time and amount filtering before aggregation,
+    time-ordered path and cycle search
+
+    - Output: Flow chart image, table of aggregated edges, list of paths with per-hop amounts and dates
+success_criteria:
+    - metric: Readable multigraph
+      target: Parallel transactions collapse into one edge per pair and direction showing count, sum and date range, and expand back on demand
+    - metric: Filter before sum
+      target: Changing the date or amount filter updates every aggregated edge's totals
+    - metric: Exhibit tables
+      target: Aggregated edges and paths export as tables matching the drawn numbers
+sources:
+    - title: IBM i2 Analyst's Notebook - importing data
+      url: https://www.ibm.com/support/knowledgecenter/SSJSV9_latest/com.ibm.i2.anb.doc/import_data.html
+      summary: Columns mapped to entity and link types through an import specification
+    - title: IBM i2 - Sum numeric links
+      url: https://www.ibm.com/support/pages/node/716175
+      summary: Occurrences on the link label and summed numeric values for parallel links
+    - title: Linkurious user manual 4.2 - Edge grouping
+      url: https://doc.linkurious.com/user-manual/4.2/edgegrouping/
+      summary: Count, sum, average, min, max and first and last date per group of same type and direction
+    - title: KeyLines - Aggregate links
+      url: https://developers.cambridge-intelligence.com/docs/keylines/aggregate-links
+      summary: aggregateLinks with aggregateByDirection; graph functions ignore aggregate links
+    - title: Cambridge Intelligence - Anti-money-laundering showcase
+      url: https://developers.cambridge-intelligence.com/showcases/anti-money-laundering
+      summary: Net flow paired with a timeline
+    - title: Cambridge Intelligence - Identifying high-risk transactions in XRP data
+      url: https://cambridge-intelligence.com/blog/identifying-high-risk-transactions-in-xrp-ripple-data/
+      summary: Filter over a 3,000 dollar threshold and play the time bar
+    - title: i2 Analyst's Notebook - Showing data distribution
+      url: https://docs.i2group.com/anb/10.0.0/showing_data_distribution.html
+      summary: Histograms to show peaks
+    - title: i2 Analyst's Notebook - Find Path criteria
+      url: https://docs.i2group.com/anb/9.4.0/general_find_path_criteria.html
+      summary: Directed path finding
+    - title: Linkurious Enterprise 2.10 - query templates
+      url: https://linkurious.com/blog/linkurious-enterprise-2-10-more-expressive-visualizations-powerful-query-templates-and-improved-indexing-strategies/
+      summary: Templates such as all transactions within 24 hours of this transaction
+    - title: Neo4j - Transaction ring use case
+      url: https://neo4j.com/developer/industry-use-cases/finserv/retail-banking/transaction-ring/
+      summary: Transaction-as-node model; loops of 3-6 hops with each amount 80-100 percent of the last and increasing dates
+    - title: Altman et al. - Realistic synthetic financial transactions for AML models (2023)
+      url: https://arxiv.org/html/2306.16424v1
+      summary: Transactions as a directed temporal multigraph; laundering typology motifs
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -1,0 +1,114 @@
+id: W101
+name: Co-location and Convoy Analysis from License Plate Reads
+category: analysis
+validated: false
+personas:
+    - crime-intelligence-analyst
+requires_capabilities:
+    - data-import
+    - filtering
+    - visual-encoding-edges
+    - ego-network
+    - details-on-demand
+    - temporal-navigation
+    - data-export
+    - geospatial-location-events
+    - co-location-network-builder
+suggested_components:
+    - data-import-dialog
+    - filter-panel
+    - range-slider
+    - ranked-node-table
+    - graph-canvas
+    - node-details-panel
+    - ego-network-dialog
+    - data-export-dialog
+starting_state:
+    data_type: automatic license plate reader (ALPR) reads (plate, time, camera location) plus a target plate list; the same logic applies to tower dumps and extraction locations
+    node_count: 1-20 target vehicles, thousands to millions of reads
+    edge_density: sparse
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Find vehicles that repeatedly travel with a target vehicle -- a suspect's car or a stolen vehicle -- to
+    identify previously unknown associates, then pass them to the toll and timeline work.
+
+
+    **Mental Model**: "Who keeps showing up next to my target?" Two vehicles read by the same camera within seconds of
+    each other have an encounter; enough encounters make a companion link weighted by how often it happened.
+
+
+    **Task Phases**:
+
+    1. **Set targets and window** - Target plates and a date-time range
+
+    2. **Define an encounter** - Read at the same camera within a time tolerance (i2 uses plus or minus 10
+    seconds)
+
+    3. **Set a minimum count** - At least N encounters; 2 means the vehicle "has been in convoy with a target
+    vehicle on more than one occasion"
+
+    4. **Review candidates** - Vehicles "previously unknown, but ... identified traveling with known or
+    suspected criminals"; enrich with registration (make, model, color)
+
+    5. **Chart co-occurrence** - Target to companion links weighted by encounter count; pass companions to
+    W98 and W99
+
+    6. **Sanity-check chance meetings** - A convoy should be judged relative to background traffic, because
+    vehicles meet by chance on busy roads
+
+
+    **Decision Points**:
+
+    - How tight a time tolerance and how many repeat encounters?
+
+    - Is a frequent companion a real associate or a commuter on the same road?
+
+    - Which companions justify registration lookups and further legal process?
+
+
+    **Information Needs**:
+
+    - Encounter count per companion, with the camera, time and image behind each
+
+    - Background traffic at the cameras involved
+
+    - Registration details for each candidate
+
+
+    **Pain Points**:
+
+    - Convoy analysis sits in a separate database product and only on certain database back ends
+
+    - No graph view of companions until results are exported and re-imported
+
+    - Busy cameras create spurious companions
+
+
+    **Data Flow**:
+
+    - Input: ALPR reads, target plate list, registration data
+
+    - Transformations: Windowed co-occurrence at the same location, minimum-count filter, weighted co-occurrence graph
+
+    - Output: Companion list and target-companion chart weighted by encounters, passed to call and timeline analysis
+success_criteria:
+    - metric: Companion discovery
+      target: Vehicles with N or more encounters within the tolerance are listed with counts and evidence reads
+    - metric: Traceability
+      target: Each companion link opens the individual reads behind it
+sources:
+    - title: i2 iBase 10.0 - Convoy analysis
+      url: https://docs.i2group.com/ibase/10.0.0/convoy_analysis.html
+      summary: Compare a target list of vehicles with plate records, minimum encounters, SQL Server only (documentation behind login; search excerpt)
+    - title: i2 Group - Leveraging ANPR for intelligence-led policing
+      url: https://i2group.com/articles/leveraging-anpr-for-intelligence-led-policing
+      summary: Previously unknown vehicles identified traveling with suspects, enriched by registration data
+    - title: Vigilant PlateSearch brochure
+      url: https://www.motorolasolutions.com/content/dam/msi/docs/products/license-plate-recognition-systems/vigilant-platesearch/vigilant_platesearch_brochure.pdf
+      summary: Associate or convoy analysis marketed for plate reads (vendor claim)
+    - title: UCF - convoy detection research
+      url: https://stars.library.ucf.edu/scopus2015/3200
+      summary: Convoys should be judged relative to background traffic patterns
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

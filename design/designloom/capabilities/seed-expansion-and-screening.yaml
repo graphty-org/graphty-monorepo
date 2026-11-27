@@ -1,0 +1,19 @@
+id: seed-expansion-and-screening
+name: Seed-based citation expansion with screening log
+category: analysis
+description: Expand a selected set by references, citations and co-citation or coupling similarity from a scholarly API
+    into a growing collection, list ancestor and descendant candidates, record an include or exclude decision with stage
+    and iteration per candidate, export PRISMA counts, and rerun a saved expansion to flag new items.
+status: planned
+notes: "Research trace: bibliometrics-and-science-mapping.md section 10, requirement 28 (Should)."
+algorithms: []
+used_by_workflows:
+    - W55
+implemented_by_components: []
+requirements:
+    - "Should: Seed-based expansion from OpenAlex or Crossref: references, citations and similar papers of a selected
+      set, added to a growing collection"
+sources:
+    - title: Bibliometrics and Science Mapping (section 10, requirement 28)
+      url: design/user-research/bibliometrics-and-science-mapping.md
+      summary: "Should in the research. Covered by Designloom when researched: Partly"

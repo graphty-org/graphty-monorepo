@@ -1,0 +1,118 @@
+id: W408
+name: Text Network with Gaps and Drill-Back (InfraNodus)
+category: exploration
+validated: false
+personas:
+    - text-network-analyst
+requires_capabilities:
+    - data-import
+    - community-detection
+    - centrality-betweenness
+    - removal-impact-analysis
+    - visual-encoding-nodes
+    - layout-force-directed
+    - node-selection
+    - details-on-demand
+    - hover-highlight
+    - filtering
+    - data-export
+    - local-only-processing
+    - provenance-tracking
+    - text-to-network
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - graph-canvas
+    - community-panel
+    - ranked-node-table
+    - impact-analysis-dialog
+    - node-details-panel
+    - node-tooltip
+    - filter-panel
+    - data-export-dialog
+starting_state:
+    data_type: pasted text (from a 100-word abstract to a set of notes or articles), or CSV or GEXF
+    node_count: tens to a few hundred lemmas
+    edge_density: moderate, weighted by word distance
+    user_expertise: novice to intermediate
+goal: >-
+    **Intent**: Paste text, get a word network in one step, see its main topics and the structural gaps between them,
+    then select a word to read the statements that contain it. Used by writers, strategists and knowledge workers to
+    find what a text is about and what it leaves out.
+
+
+    **Mental Model**: "Topics are clusters, bridges are influential words, gaps are ideas waiting to be connected."
+
+
+    **Task Phases**:
+
+    1. **Paste text** - As little as an abstract, or import CSV or GEXF
+
+    2. **Normalize** (automatic) - Stopwords removed, lemmas merged, optional synonym list
+
+    3. **Build** (automatic) - A 4-word window links lemmas with weights 3, 2 and 1 by distance
+
+    4. **Read structure** - ForceAtlas layout, Louvain topics, node size by betweenness
+
+    5. **Find gaps** - Structural gaps between clusters; a language model writes a bridging question
+
+    6. **Drill back** - Select a keyword to show the statements that contain it
+
+    7. **Remove hubs** - Hide the most connected words to reveal concepts underneath
+
+    8. **Export** - Topic-tagged statements, graph files
+
+
+    **Decision Points**:
+
+    - Which hubs to remove to see beneath the obvious topic?
+
+    - Which gap is worth writing about?
+
+    - Merge which synonyms?
+
+
+    **Information Needs**:
+
+    - Topic membership and the top words per topic
+
+    - Most influential (high betweenness) words
+
+    - Pairs of topics with few connections between them
+
+    - Statements containing a selected word or pair
+
+
+    **Pain Points**:
+
+    - Fixed 4-word window with no other choice
+
+    - Commercial and server-hosted, so private text leaves the machine
+
+
+    **Data Flow**:
+
+    - Input: Pasted text, synonym list, or CSV or GEXF
+
+    - Transformations: Lemmatizing, distance-weighted windowed co-occurrence, community detection, betweenness,
+    gap detection between communities, hub removal
+
+    - Output: Topic network, list of gaps, topic-tagged statements, graph file
+success_criteria:
+    - metric: Time to first network
+      target: Under 1 minute from pasted text (design goal; no source measures it)
+    - metric: Drill-back
+      target: Selecting a word lists its statements immediately
+sources:
+    - title: InfraNodus, text network analysis method
+      url: https://infranodus.com/docs/text-network-analysis
+      summary: Normalization, 4-word window with distance weights, ForceAtlas, Louvain, betweenness sizing
+    - title: InfraNodus, how it works
+      url: https://infranodus.com/about/how-it-works
+      summary: Structural gaps and generated bridging questions
+    - title: InfraNodus documentation
+      url: https://infranodus.com/docs
+      summary: CSV and GEXF import, topic-tagged statement export
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

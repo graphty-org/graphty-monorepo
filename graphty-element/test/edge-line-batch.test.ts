@@ -413,6 +413,40 @@ describe("EdgeLineBatch", () => {
             assert.deepStrictEqual(sent, [], "the same color again writes nothing");
         });
 
+        /**
+         * Curved edges at 10,000 nodes held 1,147 MB where they held 996 before per-slot colors and hidden flags:
+         * 20 bytes a slot for arrays that, with every edge in the batch's color and none hidden, hold nothing.
+         */
+        test("a batch keeps per-slot colors and hidden flags only once a slot needs them", () => {
+            const drawn = joined();
+            const held = (): { colors: number; hidden: number } => {
+                const fields = drawn as unknown as { colors: Float32Array | null; hidden: Float32Array | null };
+                return { colors: fields.colors?.length ?? 0, hidden: fields.hidden?.length ?? 0 };
+            };
+            const slots = Array.from({ length: 100 }, (_, i) => {
+                const slot = drawn.acquire();
+                drawn.place(slot, new Vector3(i, 0, 0), new Vector3(i, 1, 0));
+                return slot;
+            });
+            const blue = [0x33, 0x66, 0x99].map((byte) => byte / 255);
+            drawn.setColor(slots[0], blue[0], blue[1], blue[2], 1);
+            drawn.copyColor(slots[1], slots[0]);
+            drawn.release(slots[2]);
+            assert.isFalse(drawn.unpark(slots[3]), "a shown slot has nothing to put back");
+            scene.render();
+            assert.deepEqual(held(), { colors: 0, hidden: 0 }, "every slot in the default and shown: nothing held");
+            assert.deepStrictEqual(drawn.colorOf(slots[4]), [...blue.map(Math.fround), 1]);
+
+            drawn.setColor(slots[5], 1, 0, 0, 1);
+            drawn.park(slots[6]);
+            const capacity = 128;
+            assert.deepEqual(held(), { colors: capacity * 4, hidden: capacity }, "one row and one flag a slot");
+            assert.deepStrictEqual(drawn.colorOf(slots[5]), [1, 0, 0, 1]);
+            assert.deepStrictEqual(drawn.colorOf(slots[4]), [...blue.map(Math.fround), 1], "the rest keep the default");
+            assert.isTrue(drawn.isParked(slots[6]));
+            assert.isFalse(drawn.isParked(slots[7]));
+        });
+
         test("a batch is drawn in the transparent pass exactly while a slot in it is translucent", () => {
             const drawn = joined();
             const first = drawn.acquire();

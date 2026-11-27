@@ -1,0 +1,136 @@
+id: W344
+name: Code-First Process Mining with PM4Py or bupaR
+category: analysis
+validated: false
+personas:
+    - process-mining-researcher
+    - clinical-pathway-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - filtering
+    - layout-hierarchical
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - animated-transitions
+    - statistics-panel
+    - export-image
+    - data-export
+    - event-log-import
+    - process-map-derivation
+    - variant-analysis
+    - token-replay-animation
+    - legend-display
+    - temporal-analysis
+    - centrality-degree
+suggested_components:
+    - graph-canvas
+    - filter-panel
+    - statistics-panel
+    - visual-encoding-panel
+    - temporal-controls
+    - image-export-dialog
+    - data-export-dialog
+    - data-import-dialog
+    - column-mapper
+    - range-slider
+    - legend-panel
+    - layout-panel
+starting_state:
+    data_type: XES file or a pandas or R data frame of events
+    node_count: 10-50 activities (ED study 1,754 cases, 16,376 events, 884 variants)
+    edge_density: moderate
+    user_expertise: expert
+goal: >-
+    **Intent**: Do process discovery from a script so the analysis is reproducible: load, clean, filter variants,
+    discover a map or model, check conformance, look at resources, and embed the result in a notebook or report.
+
+
+    **Mental Model**: "A pipeline of functions ending in a picture." Each step is a call with parameters; the
+    visualization is the last call and is usually a static image.
+
+
+    **Task Phases**:
+
+    1. **Load** - read_xes, or format a data frame with case, activity and timestamp keys; in bupaR build an
+    event log with case, activity, activity instance, lifecycle, timestamp and resource
+
+    2. **Clean** - Remove cases with too few events or broken boundaries and implausible durations (the ED
+    study kept 1,754 of 1,820)
+
+    3. **Variants** - Top-k or coverage filters (top 10 covered 21.3 percent; 80 percent needed 519 variants);
+    bupaR trace frequency filter at 95 percent
+
+    4. **Discover** - DFG and performance DFG viewed as Graphviz images; bupaR process_map with frequency on
+    nodes and performance on edges, secondary layers, direction TB, BT or RL, or returned unrendered for editing
+
+    5. **Models and conformance** - See W345
+
+    6. **Resources** - Handover-of-work, working-together and role networks; dotted chart
+
+    7. **Animate** - processanimateR in absolute or relative mode as an SVG widget
+
+
+    **Decision Points**:
+
+    - Which cleaning rules, and how many cases do they drop?
+
+    - Which variant coverage keeps the map readable without hiding the problem?
+
+    - Frequency or performance on nodes and edges?
+
+    - Which direction and which secondary metric for the figure?
+
+
+    **Information Needs**:
+
+    - Case, event and variant counts after each step
+
+    - Variant coverage curve
+
+    - Node and edge metrics in a form that can be exported as data, not only as an image
+
+
+    **Pain Points**:
+
+    - Static Graphviz images in Python that cannot be clicked or filtered
+
+    - Switching between console and viewer to tune parameters
+
+    - Layouts that change completely between parameter runs
+
+
+    **Data Flow**:
+
+    - Input: XES or event data frame
+
+    - Transformations: Format, clean, variant filter, DFG or model discovery, social network derivation
+
+    - Output: Interactive or static map, metrics tables, animation, notebook figures
+success_criteria:
+    - metric: Interactive result from a script
+      target: A script call yields an interactive map that can be filtered without re-running the cell
+    - metric: Layout stability
+      target: Changing a filter parameter keeps the positions of activities that remain
+sources:
+    - title: PM4Py API reference 2.7.11
+      url: https://pm4py.fit.fraunhofer.de/static/assets/api/2.7.11/api.html
+      summary: format_dataframe, filter_variants_top_k, discover_dfg, view_dfg, social network and dotted chart functions
+    - title: bupaR - frequency maps
+      url: https://bupaverse.github.io/docs/frequency_maps.html
+      summary: process_map types and relative frequencies
+    - title: bupaR - advanced maps
+      url: https://bupaverse.github.io/docs/advanced_maps.html
+      summary: Secondary node and edge layers, rankdir, render = FALSE
+    - title: processanimateR animate_process
+      url: https://search.r-project.org/CRAN/refmans/processanimateR/html/animate_process.html
+      summary: Absolute or relative animation as an SVG htmlwidget
+    - title: ED patient flow study (arXiv 2609.32010)
+      url: https://arxiv.org/pdf/2609.32010
+      summary: Cleaning rules, 884 variants, coverage figures
+    - title: van den Elzen et al. 2025
+      url: https://eprints.whiterose.ac.uk/id/eprint/225747/9/1-s2.0-S0306437925000444-main.pdf
+      summary: 427 visualizations in 74 case studies; 134 process maps; console and viewer switching
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

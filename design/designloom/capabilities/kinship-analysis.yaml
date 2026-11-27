@@ -1,0 +1,27 @@
+id: kinship-analysis
+name: Kinship Analysis
+category: analysis
+description: Generation assignment, matrimonial circuit census, relinking index, named relationship path between two
+    people, and detection of pedigree collapse versus data loops.
+status: planned
+notes: "Research trace: digital-humanities-and-historical-networks.md section 9 (requirements implied: GEDCOM import as an Ore graph or p-graph, layered generation layout, kin-typed edges with a descent-path query; all Should) and Workflow 10."
+algorithms: []
+used_by_workflows:
+    - W183
+    - W185
+implemented_by_components: []
+requirements:
+    - "Should: Assign generations on the directed (descent) part of a genealogy, which is acyclic"
+    - "Should: Take a census of matrimonial circuits and compute a 0-1 relinking index for marriages between already related families"
+    - "Should: Return a named relationship path between two people over kin-typed edges"
+    - "Should: Tell pedigree collapse (one ancestor reached by two lines) apart from a data loop (a cycle in descent), and report each as a code"
+sources:
+    - title: "Mrvar and Batagelj, Relinking marriages in genealogies (2004)"
+      url: "https://dlib.si/stream/URN:NBN:SI:DOC-7VRCE0CW/a6b4ecf9-7ca9-41a5-9e34-9fe88141a2ca/PDF"
+      summary: "Ore graphs and p-graphs, and the relinking index"
+    - title: "Puck (simpa-puck)"
+      url: "https://sourceforge.net/p/simpa-puck/"
+      summary: "Kinship software used for matrimonial circuit censuses"
+    - title: "Digital humanities research, section 9 and Workflow 10"
+      url: "design/user-research/digital-humanities-and-historical-networks.md"
+      summary: "Kinship and genealogical networks; GEDCOM import, generation layout and descent-path query, Should"

@@ -335,9 +335,11 @@ describe("partial uploads", () => {
                 batch.setDrawn(10, false);
                 batchUploadFrames.contextRestored(scene);
 
-                // A line batch's hidden flags (one float a slot) and colors (four) go up whole with its slots.
-                const flags = name === "lines" ? [SLOTS, SLOTS * 4] : [];
-                assert.deepEqual(frame(), [...flags, SLOTS * floats]);
+                // A line batch that holds no color but its default and hides nothing has no rows of either to send:
+                // its rebuilt hidden flags start at 0, and its colors are filled with the default, 4,096 rows at a
+                // time over its capacity (131,072 slots), before its slots go up whole.
+                const colors = name === "lines" ? Array.from({ length: 131_072 / 4096 }, () => 4096 * 4) : [];
+                assert.deepEqual(frame(), [...colors, SLOTS * floats]);
             });
         }
 
@@ -348,7 +350,8 @@ describe("partial uploads", () => {
             batch.setDrawn(3, false);
             batch.place(batch.acquire(), SRC, DST);
 
-            assert.deepEqual(frame(), [JOIN_FLOATS_PER_PIECE, JOIN_FLOATS_PER_PIECE]);
+            // the grown color buffer is filled with the default, 64 rows of four floats, which no array holds
+            assert.deepEqual(frame(), [64 * 4, JOIN_FLOATS_PER_PIECE, JOIN_FLOATS_PER_PIECE]);
         });
     });
 

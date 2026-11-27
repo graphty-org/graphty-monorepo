@@ -1,0 +1,161 @@
+id: W106
+name: Network Analysis for Military and Counter-Terrorism Targeting
+category: analysis
+validated: false
+personas:
+    - intelligence-analyst
+requires_capabilities:
+    - data-import
+    - node-merging
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - centrality-degree
+    - centrality-betweenness
+    - basic-statistics
+    - temporal-analysis
+    - temporal-navigation
+    - removal-impact-analysis
+    - comparison-view
+    - annotation
+    - details-on-demand
+    - report-generation
+    - export-image
+    - bipartite-projection
+    - entity-resolution-review
+    - linked-timeline-view
+    - source-grading
+    - redacted-sharing
+    - offline-audit-log
+suggested_components:
+    - data-import-dialog
+    - node-merge-dialog
+    - data-table-panel
+    - graph-canvas
+    - visual-encoding-panel
+    - legend-panel
+    - ranked-node-table
+    - statistics-panel
+    - temporal-controls
+    - impact-analysis-dialog
+    - comparison-view
+    - annotation-toolbar
+    - node-details-panel
+    - report-generator-dialog
+starting_state:
+    data_type: multi-source intelligence reporting, biometrics, forensics and captured media (DOMEX), personality files, communications, travel and financial records
+    node_count: no published size (no source found)
+    edge_density: varies
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Map a threat network from intelligence holdings, find who is central and who brokers between groups,
+    nominate high-payoff targets to the commander with supporting reporting, and assess afterward what an operation did
+    to the network. Steps follow Army doctrine (ATP 2-33.4 and FM 3-24), which is public even when the systems are not.
+
+
+    **Mental Model**: "Matrices first, then the diagram." An activities matrix ties people to organizations, events,
+    addresses and activities (two-mode); an association matrix records direct contact between people; the link diagram
+    draws both with doctrinal shapes and line styles. A central figure is not necessarily the leader, and a link chart
+    is a freeze-frame unless paired with a timeline.
+
+
+    **Task Phases**:
+
+    1. **Define the network and question** (doctrine) - Supports targeting and assessing personalities in step 3 of
+    intelligence preparation of the battlefield
+
+    2. **Extract entities and relationships** (doctrine) - From holdings including biometrics, forensics and DOMEX;
+    resolve one person across spellings and selectors
+
+    3. **Build the activities matrix** (doctrine) - People by organizations, events, entities, addresses and activities
+
+    4. **Build the association matrix** (doctrine) - Direct contacts between individuals; projecting the activities
+    matrix to person-to-person ties is common practice, not prescribed
+
+    5. **Draw the link diagram** (doctrine) - Circles for people, rectangles for activities, triangles for facilities;
+    green solid lines for money transfers, blue dotted lines for communications; a legend
+
+    6. **Analyze centrality and structure** (doctrine) - Which entity is central, who bridges subgroups, how
+    interactions changed over time; degree, betweenness (the broker role) and density; peripheral nodes often connect
+    to networks not yet mapped
+
+    7. **Build pattern-of-life timelines** (doctrine) - Time event charts paired with the link diagram (see W99)
+
+    8. **Summarize and nominate** (doctrine) - Interim hypotheses; rank high-value targets by relative worth; work out
+    how the network might react to the loss of each; nominate confirmed ones as high-payoff targets on a list submitted
+    to the commander, with supporting reports attached (attachment is inferred practice)
+
+    9. **Assess after action** (doctrine) - Damage assessment charts based on the network's organization; density over
+    time to monitor the effects of operations (a fall in density means the group is becoming fragmented)
+
+    10. **Release** (inferred) - Briefing versions per classification level with ICD 203 likelihood and confidence
+    language
+
+
+    **Decision Points**:
+
+    - Which nodes should be targeted for collection or defeat?
+
+    - Is a central figure really the leader, or a visible facilitator?
+
+    - How will the network react to losing each candidate?
+
+    - Did the operation fragment the network, or did it rewire?
+
+    - What can be released to each audience?
+
+
+    **Information Needs**:
+
+    - Two-mode people-by-activity data and its projection to people-by-people
+
+    - Degree, betweenness and density, before and after operations
+
+    - Supporting reports and their grades for each nominated individual
+
+    - Timelines of activity per individual
+
+    - Likelihood and confidence for each judgment, kept apart from item grades
+
+
+    **Pain Points**:
+
+    - One person appears under many spellings and selectors
+
+    - Grades and supporting reports get lost when a chart is redrawn for a briefing
+
+    - Releasable versions of classified charts are made by hand
+
+    - Systems are down or disconnected in the field; doctrine falls back to sticky notes on a whiteboard
+
+
+    **Data Flow**:
+
+    - Input: Multi-source reporting, biometrics, forensics, DOMEX, personality files, communications, travel and
+    financial records
+
+    - Transformations: Entity extraction and resolution, activities and association matrices, two-mode projection,
+    link diagram, centrality and density, removal reasoning, density over time
+
+    - Output: Link diagram with legend, high-payoff target list with supporting reports, damage assessment charts,
+    briefing versions per classification level
+success_criteria:
+    - metric: Two-mode support
+      target: Analyst moves between the activities matrix and the person-to-person diagram without re-entering data
+    - metric: Nomination package
+      target: Each nominated individual carries its supporting reports, grades and centrality values
+    - metric: Effects assessment
+      target: Density and structure before and after an operation are compared side by side
+sources:
+    - title: Army ATP 2-33.4 Intelligence Analysis (2020), chapter 5 and appendix F
+      url: https://irp.fas.org/doddir/army/atp2-33-4.pdf
+      summary: Link analysis steps, activities and association matrices, doctrinal shapes and line styles, pitfalls table 5-5, high-value and high-payoff targets, damage assessment, ICD 203 likelihood bands, whiteboard fallback
+    - title: Army FM 3-24 Insurgencies and Countering Insurgencies (2014), 4-94 to 4-102 and 7-52 to 7-55
+      url: https://irp.fas.org/doddir/army/fm3-24.pdf
+      summary: Degree, betweenness as broker role, density over time to monitor operations, peripheral nodes connected to unmapped networks
+    - title: i2 Analyst's Notebook product sheet
+      url: https://i2group.com/hubfs/Products/i2-Analysts-Notebook.pdf
+      summary: Redaction by clearance for releasable charts
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

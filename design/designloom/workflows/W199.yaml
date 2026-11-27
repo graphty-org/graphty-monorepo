@@ -1,0 +1,156 @@
+id: W199
+name: Fuzzy Cognitive Mapping Across Many Stakeholders
+category: analysis
+validated: false
+scope: deferred
+personas:
+    - fcm-participatory-modeller
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - node-merging
+    - visual-encoding-edges
+    - visual-encoding-nodes
+    - centrality-degree
+    - centrality-betweenness
+    - computed-attributes
+    - comparison-view
+    - statistics-panel
+    - metric-histograms
+    - legend-display
+    - export-image
+    - data-export
+    - signed-edges
+    - matrix-import
+    - multi-map-merge
+    - fcm-scenario
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - network-list-panel
+    - network-merge-dialog
+    - node-merge-dialog
+    - graph-canvas
+    - visual-encoding-panel
+    - algorithm-panel
+    - ranked-node-table
+    - comparison-view
+    - histogram
+    - legend-panel
+    - data-export-dialog
+    - image-export-dialog
+starting_state:
+    data_type: dozens of individual maps as adjacency matrices or weighted edge lists, each tagged with a stakeholder group
+    node_count: 10-20 concepts per map; 20-60 standard concepts after reconciliation; up to 86 maps per study
+    edge_density: medium
+    user_expertise: expert
+goal: >-
+    **Intent**: Digitize causal maps drawn by many stakeholders, reconcile their concepts, merge them into category-level
+    maps per stakeholder group, compare groups, compute structure, and run what-if scenarios to start a discussion. Used
+    in environmental management and global health; the review of 25 practices found the work split across three tools.
+
+
+    **Mental Model**: "Each person's map is a matrix of signed, weighted beliefs; the group map is their average; a
+    scenario pushes some concepts and watches where the system settles." Results are indicative, not predictions.
+
+
+    **Task Phases**:
+
+    1. **Field mapping** (outside the tool) - Groups of five or fewer, or individuals; concepts, arrows,
+    weights on 1-5 or weak/medium/strong anchored on the strongest and weakest links
+
+    2. **Digitize as matrices** - Enter or import each map as an adjacency matrix or edge list; rescale
+    weights to 0-1 or -1 to 1; tag with group and source map
+
+    3. **Reconcile labels** - Map each participant label to a standard concept and category with a
+    correspondence table; merge nodes, keeping the original labels
+
+    4. **Merge** - Average each relationship across maps (weighted or unweighted) per stakeholder group and
+    overall; record disagreement (spread) per link; check saturation (about 12-15 maps per group)
+
+    5. **Analyze** - Optional transitive closure giving positive, negative and net influence; degree, in-degree,
+    out-degree and betweenness; concept types (drivers, receivers, ordinary)
+
+    6. **Compare** - Group maps side by side and against one individual's map; links present in one group but not
+    another
+
+    7. **Run scenarios** - Clamp chosen concepts between -1 and +1, iterate linear and sigmoid models to a fixed
+    point, show relative change per concept as a bar chart; trust factors ranked consistently under both
+
+    8. **Return to stakeholders** - Simplified summary maps for community discussion and priority setting
+
+
+    **Decision Points**:
+
+    - Which participant labels mean the same concept?
+
+    - Weighted or unweighted averaging, and are there enough maps per group?
+
+    - Close the map transitively before computing centrality?
+
+    - Which concepts to clamp, and with which update function?
+
+    - How much to simplify for the community version?
+
+
+    **Information Needs**:
+
+    - Each map's matrix next to its drawing, with group and source tags
+
+    - Label correspondence table showing which originals became which standard concept
+
+    - Mean weight and spread per merged link; links contested between groups
+
+    - Centrality per concept, per group
+
+    - Scenario result as relative change per concept, labeled indicative
+
+
+    **Pain Points**:
+
+    - Draw in one tool, merge and close in another, compute in a third
+
+    - Manual label reconciliation across dozens of maps
+
+    - Matrix entry by hand
+
+    - Drawing tools treat signed weighted links as plain lines
+
+    - Scenario charts read as forecasts
+
+
+    **Data Flow**:
+
+    - Input: Adjacency matrices (CSV or XLSX) or weighted edge lists per map; correspondence table; group metadata
+
+    - Transformations: Weight rescaling, node merging by correspondence, per-group averaging with spread, transitive
+    closure, centrality, clamped iterative update to a fixed point
+
+    - Output: Per-group and overall merged maps, comparison views, centrality tables, scenario charts, simplified
+    community maps, matrices for the paper's supplement
+success_criteria:
+    - metric: Tool consolidation
+      target: Digitize, reconcile, merge, compute and scenario without leaving the tool
+    - metric: Merge transparency
+      target: User can state, for any merged link, how many maps contained it and their spread of weights
+    - metric: Reproducibility
+      target: Re-running the merge and scenario on the same inputs gives the same numbers
+sources:
+    - title: Review of 25 fuzzy cognitive mapping practices in nine countries (Global Health Action)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11103993/
+      summary: Group sizes, weighting, matrices, reconciliation, averaging and Bayesian merging, CIETmap closure, centrality in R or yEd, not predictive
+    - title: Sarmiento et al. 2024 - Four analysis moments for fuzzy cognitive mapping
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC11613336/
+      summary: Analysis stages and 12-15 maps per group for saturation
+    - title: Gray et al. 2013 - Mental Modeler (HICSS)
+      url: https://www.mentalmodeler.com/articles/Gray%20et%20al%20Mental%20Modeler%202013.pdf
+      summary: Matrix interface and scenarios clamping concepts between -1 and +1 with relative change as a bar chart
+    - title: Humber bio-based economy fuzzy cognitive map
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC3820682/
+      summary: Weak/medium/strong weights; linear and sigmoid iteration to a fixed point; robust factors
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

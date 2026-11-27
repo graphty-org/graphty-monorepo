@@ -8,9 +8,13 @@
  * timed: the frames until every label has been asked once.
  */
 import { NullEngine, Scene, UniversalCamera, Vector3 } from "@babylonjs/core";
-import { describe, it } from "vitest";
+import { assert, describe, it } from "vitest";
 
-import { fitTexturesToScreen, type ScreenFittedTexture } from "../../src/meshes/labelTextureFit";
+import {
+    fitTexturesToScreen,
+    type ScreenFittedTexture,
+    TEXTURE_FIT_CHECKS_PER_FRAME,
+} from "../../src/meshes/labelTextureFit";
 import { assertScalesLinearly } from "../helpers/cost";
 
 /**
@@ -51,5 +55,58 @@ describe("fitting label textures to the screen", () => {
             growth: "constant",
             counter: "frames until every label was checked once",
         });
+    });
+
+    /**
+     * Orbiting 10,000 labels checked a quarter of them every frame, and every fit is stale a frame later: frames
+     * while the camera orbits took 1.2 times as long. A moving frame checks the fixed 256; the walk's quarter waits
+     * for the camera to stop.
+     */
+    it("checks a fixed number of labels a frame while the camera moves, and a quarter once it stops", () => {
+        const size = 8192;
+        const scene = new Scene(new NullEngine());
+        const camera = new UniversalCamera("camera", new Vector3(0, 0, -10), scene);
+        scene.activeCamera = camera;
+        let checked = 0;
+        const labels = new Set<ScreenFittedTexture>();
+        for (let at = 0; at < size; at++) {
+            labels.add({
+                fitTextureToScreen: () => {
+                    checked++;
+                    return false;
+                },
+            });
+        }
+
+        fitTexturesToScreen(scene, labels);
+        const frame = (): number => {
+            checked = 0;
+            scene.onBeforeRenderObservable.notifyObservers(scene);
+            return checked;
+        };
+        // the first frame sees the camera for the first time
+        frame();
+        const moving: number[] = [];
+        for (let at = 1; at <= 8; at++) {
+            camera.position.x = at;
+            camera.getViewMatrix(true);
+            moving.push(frame());
+        }
+
+        const still = [frame(), frame(), frame(), frame(), frame()];
+        scene.dispose();
+
+        assert.deepEqual(
+            moving,
+            moving.map(() => TEXTURE_FIT_CHECKS_PER_FRAME),
+            "each moving frame checks the fixed number",
+        );
+        // the last moving frame already checked 256 of the walk
+        const quarter = size / 4;
+        assert.deepEqual(
+            still,
+            [quarter, quarter, quarter, quarter - TEXTURE_FIT_CHECKS_PER_FRAME, 0],
+            "four still frames finish the walk",
+        );
     });
 });

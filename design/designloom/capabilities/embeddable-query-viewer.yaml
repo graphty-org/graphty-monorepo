@@ -1,0 +1,19 @@
+id: embeddable-query-viewer
+name: Embeddable query-time subgraph viewer
+category: export
+description: A network view that a database website drops into its result page. It renders a server-returned subgraph
+    with edge width taken from confidence, expands a clicked node's neighbors from the server, links out to the record
+    page, and exports GraphML or CX2.
+status: planned
+notes: "Research trace: network-pharmacology-herb-compound-target-networks.md section 10, requirement R19 (Must)."
+algorithms: []
+used_by_workflows:
+    - W437
+implemented_by_components: []
+requirements:
+    - "Must: Embeddable viewer for database sites: query-time subgraph, expand on click, link out, edge width from
+      confidence, from a multi-million-edge store"
+sources:
+    - title: "Network Pharmacology Researchers: Herb-Compound-Target-Disease Networks (section 10, requirement R19)"
+      url: design/user-research/network-pharmacology-herb-compound-target-networks.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

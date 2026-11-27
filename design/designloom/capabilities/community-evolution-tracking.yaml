@@ -1,0 +1,21 @@
+id: community-evolution-tracking
+name: Community Evolution Tracking
+category: analysis
+description: Match communities across windows by overlap threshold, label births, deaths, merges and splits, check
+    stability or significance by resampling, and draw an alluvial view; two-period edge diff and node rewiring score.
+status: planned
+notes: "Research trace: temporal-and-dynamic-networks.md section 11, requirement T14 (Should)."
+algorithms: []
+used_by_workflows:
+    - W19
+    - W306
+    - W309
+implemented_by_components: []
+requirements:
+    - "Should: Community evolution: match communities across windows with a threshold, label births, deaths, merges,
+      splits; alluvial view"
+sources:
+    - title: Temporal and Dynamic Network Data and Analysis (section 11, requirement T14)
+      url: design/user-research/temporal-and-dynamic-networks.md
+      summary: "Should in the research. Covered by Designloom when researched: Partly (W19 lists the goal; no matching
+          method or view)"

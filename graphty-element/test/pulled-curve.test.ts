@@ -172,6 +172,7 @@ describe("a pulled curve's path", () => {
         let kept = 0;
         for (const [i, { src, dst, rSrc, rDst }] of cases().entries()) {
             curveWork.controls = 0;
+            curveWork.samplers = 0;
             const span = curveSpan(src, dst, outsideOf(src, rSrc), outsideOf(dst, rDst));
             if (span === null) {
                 continue;
@@ -182,6 +183,7 @@ describe("a pulled curve's path", () => {
                 1,
                 `case ${String(i)}: control points worked out once per placement`,
             );
+            assert.strictEqual(curveWork.samplers, 0, `case ${String(i)}: sampled straight into the flat samples`);
             kept += span.points === undefined ? 0 : 1;
             const want = Array.from({ length: span.pieces + 1 }, (_, j) => curvePathPoint(src, dst, span, j)).flatMap(
                 (p) => [p.x, p.y, p.z],

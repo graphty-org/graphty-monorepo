@@ -1,0 +1,153 @@
+id: W189
+name: Measuring a Reorganization or Merger with Before and After Group Networks
+category: analysis
+validated: false
+personas:
+    - people-analytics-ona-lead
+    - ona-consultant
+    - workplace-collaboration-analyst
+    - hr-business-partner
+requires_capabilities:
+    - data-import
+    - filtering
+    - node-merging
+    - comparison-view
+    - temporal-analysis
+    - temporal-navigation
+    - community-detection
+    - community-profiling
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - details-on-demand
+    - statistics-panel
+    - export-image
+    - report-generation
+    - group-collapse
+    - boundary-measures
+    - privacy-aggregation
+    - group-matching-across-snapshots
+    - reproducible-edge-rules
+suggested_components:
+    - data-import-dialog
+    - filter-panel
+    - node-merge-dialog
+    - comparison-view
+    - temporal-controls
+    - cluster-collapse-control
+    - heatmap-panel
+    - community-panel
+    - visual-encoding-panel
+    - legend-panel
+    - graph-canvas
+    - metric-card
+    - image-export-dialog
+    - report-generator-dialog
+starting_state:
+    data_type: two collaboration or survey networks (before and after) over the same people, with HR attributes whose values changed with the reorganization
+    node_count: 200-100000 people rolled up into 10-100 groups
+    edge_density: moderate
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Show whether a reorganization or merger changed how groups collaborate -- which group ties were
+    created, lost or changed, which groups became insular, and which groups broker information -- and explain what
+    drove the change.
+
+
+    **Mental Model**: "Two snapshots of the same organization, matched group to group." Individuals are rolled up into
+    groups; the question is about ties between groups, and groups must be matched across the org change before
+    anything can be compared.
+
+
+    **Task Phases**:
+
+    1. **Set up periods and population** - Choose a before and an after period (at least three months each),
+    filter the population, pick up to three HR attributes for grouping
+
+    2. **Match groups across the change** - Rename or combine attribute values so before and after groups
+    line up ("Inventory Management" plus "Facilities" becomes "Internal services"); choose up to three focus groups
+
+    3. **Read the ranked changes** - New ties between existing groups, lost ties, significant changes, net new
+    groups and lost groups, ranked by absolute percent change and magnitude
+
+    4. **Check insularity** - E-I index per group (-1 all internal, +1 all external; -0.67 is a 5:1 internal
+    ratio and marks silo risk; a drop of 0.1 or more flags increased insularity)
+
+    5. **Find broker groups** - Bridging index per group; top five with arrows for groups entering or leaving
+
+    6. **Explore side by side** - Before and after group graphs with node size as group size, segments
+    colored by a second attribute, edge thickness as collaboration amount, after-view edges colored for increase and
+    decrease, a collapsed "Other" node, expand a group into subgroups, a matrix of change in hours or percent
+
+    7. **Explain drivers** (optional) - Network regression of community membership on location, rank,
+    sub-function, role and legacy company, in survey and email networks
+
+    8. **Report** - Export views and matrices into the readout
+
+
+    **Decision Points**:
+
+    - Are the periods long enough and free of seasonal events?
+
+    - How should old and new groups be matched when units were split or merged?
+
+    - Which attribute defines a group, and does it have too many values to read?
+
+    - Is a change in a small group real or noise at that size?
+
+
+    **Information Needs**:
+
+    - Group ties new, lost and changed, ranked, with magnitude and percent
+
+    - E-I index per group in both periods and the change
+
+    - Bridging rank per group in both periods
+
+    - How metrics were aggregated (averaged across directions, summed across segments and months, size-weighted E-I)
+
+    - Whether a metric varies between runs
+
+
+    **Pain Points**:
+
+    - Attributes with more than 100 values cannot be used for grouping
+
+    - No way in survey tools to match groups across an org change between waves
+
+    - A bridging index that varies slightly between runs undermines small changes
+
+    - Group-size floors hide small teams that the reorganization touched
+
+
+    **Data Flow**:
+
+    - Input: Two networks (survey waves or collaboration periods) with HR attributes for each period
+
+    - Transformations: Group matching by renaming and combining attribute values, roll-up into group nodes with
+    aggregated edge weights, E-I and bridging per group, before/after difference
+
+    - Output: Side-by-side group graphs, change matrix, ranked change list, insularity and broker tables for the readout
+success_criteria:
+    - metric: Group matching
+      target: User can map every before group to an after group (or mark it new or lost) before comparing
+    - metric: Change readability
+      target: The top five group-tie changes are identifiable within 5 minutes of loading both periods (design goal; no source measures it)
+    - metric: Method transparency
+      target: Every exported change metric states its aggregation rule and both period windows
+sources:
+    - title: Microsoft Learn - Viva Insights Change management queries
+      url: https://learn.microsoft.com/viva/insights/advanced/analyst/change-management-queries
+      summary: Before/after periods, up to three attributes, renaming and combining values, ranked changes, E-I thresholds, Bridging Index, side-by-side group graphs and change matrix
+    - title: Activate Networks - The network approach to change initiatives (telecom case)
+      url: https://www.slideshare.net/slideshow/the-network-approach-to-change-initiatives/26073709
+      summary: Network regression showed sub-function rather than legacy company drove collaboration; 60-80 percent of email ties inside communities; week-to-week correlation 0.84-0.98
+    - title: Polinode documentation - Networks
+      url: https://docs.polinode.com/guide/networks.html
+      summary: Roll-up and Collaboration Matrix for group-level views in survey ONA
+    - title: Remote work and collaboration at Microsoft (EurekAlert summary)
+      url: https://www.eurekalert.org/news-releases/927729
+      summary: Remote work cut cross-group collaboration time by about 25 percent across 61,000+ employees
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

@@ -40,7 +40,7 @@ const POSITION_FLOATS = 4;
  * bounding radius; outline half extents and the row's reach outline in `rowOutline` (its first side
  * times 1024 plus its count of sides, 0 for none).
  */
-const EXTENT_FLOATS = 12;
+export const EXTENT_FLOATS = 12;
 const EXTENT_BOUNDING_RADIUS = 7;
 
 /** `rowOutline`: one side a texel, its start x and y and its end x and y. */

@@ -1,0 +1,57 @@
+id: network-archaeologist
+name: Network Archaeologist
+roster_persona: digital-humanist
+tier: B
+scope: in-scope
+role: Regional Archaeologist Building Site Similarity Networks in R
+quote: The network changes every time I change the similarity measure or the threshold. I need to see that, and I need it on the map.
+bio: >-
+    Dr. Santiago Ortega studies interaction among 50 to 700 settlements over several 50-year periods. His networks are not
+    built from documents but from artifacts: a site-by-type table of counts (ceramic wares, obsidian sources) per
+    period plus site coordinates, of the kind in the Southwest Social Networks database (over 700 sites, 42 wares,
+    AD 1200-1500 in five 50-year periods). He works in R with Peeples's published network scripts (statnet, tnet,
+    igraph) and GIS shapefiles of the study area, and opens Gephi or Visone only occasionally. His field has its own
+    textbook (Brughmans and Peeples 2023) and a habit of publishing replication code, and his reviewers ask whether
+    central sites stay central when the sample is small.
+characteristics:
+    expertise: advanced
+    time_pressure: low
+    graph_literacy: advanced
+    domain_knowledge: expert
+motivations:
+    - Infer interaction or shared practice from similarity of material culture, period by period
+    - Test whether central sites stay central under sampling error
+    - Draw networks over terrain at site coordinates
+    - Publish reproducible analysis alongside the article
+behaviors:
+    - Drops sites with too few sherds, converts counts to row proportions and computes Brainerd-Robinson similarity
+    - Thresholds similarity into a network (for example ties above 0.6) or keeps weights
+    - Computes degree, eigenvector and betweenness centrality and centralization per period
+    - Resamples sites from 90 percent down to 10 percent 1,000 times and correlates centralities with the full network
+    - Plots networks at site coordinates over a shapefile in R
+frustrations:
+    - The choice of similarity measure and threshold changes the network, and tools hide that choice
+    - Uncertainty from small samples is invisible in standard network tools
+    - Maps need separate GIS work
+context:
+    frequency: monthly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W177
+    - W184
+sources:
+    - title: Brughmans and Peeples 2023 - Network Science in Archaeology, chapter 1
+      url: https://www.cambridge.org/core/services/aop-cambridge-core/content/view/33B5AB5D5282DA60F080631646E464E6/9781009170666c1_1-25.pdf/introducing_network_science_for_archaeology.pdf
+      summary: The field's textbook and its methods
+    - title: Davis replication code after Peeples (Antiquity 2023 supplement)
+      url: https://static.cambridge.org/content/id/urn:cambridge.org:id:article:S0003598X23001230/resource/name/S0003598X23001230sup002.pdf
+      summary: Brainerd-Robinson similarity, thresholds, resampling of sites and plotting at coordinates in R
+    - title: Habiba, Athenstaedt, Mills and Brandes - similarity measures on SWSN data
+      url: https://www.inf.uni-konstanz.de/exalgo/group/habiba/papers/submission.pdf
+      summary: Similarity measures do not necessarily have similar contextual meaning; SWSN data sizes
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

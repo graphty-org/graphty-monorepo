@@ -535,6 +535,11 @@ export const dataManagerInternals = {} as {
      * the row or none is stored there.
      */
     unbuiltEdgeEnds(manager: DataManager, row: number): readonly [number, number] | undefined;
+    /**
+     * How many edges join two node rows, in either direction, read from the store with no object built: a curve in a
+     * bundle of more than one fans (`Edge.fanOf`).
+     */
+    edgesJoining(manager: DataManager, u: number, v: number): number;
     /** The id of an edge stored with no `Edge`, building none; undefined when an `Edge` draws the row or none is stored there. */
     unbuiltEdgeId(manager: DataManager, row: number): EdgeId | undefined;
     /**
@@ -655,6 +660,29 @@ function pairKey(a: NodeIdType, b: NodeIdType): string {
     const x = `${typeof a}:${String(a)}`;
     const y = `${typeof b}:${String(b)}`;
     return x < y ? `${x}|${y}` : `${y}|${x}`;
+}
+
+/**
+ * The rows of every edge joining two node rows in either direction (a self-loop's when they are one), read from a
+ * snapshot's arcs.
+ * @param snapshot - The snapshot.
+ * @param u - One node's row.
+ * @param v - The other's.
+ * @returns The edge rows.
+ */
+function snapshotRowsBetween(snapshot: GraphSnapshot, u: number, v: number): Set<number> {
+    const rows = new Set<number>();
+    for (const [from, to] of [
+        [u, v],
+        [v, u],
+    ]) {
+        const [lo, hi] = snapshot.arcsBetween(from, to);
+        for (let arc = lo; arc < hi; arc++) {
+            rows.add(snapshot.arcToEdge[arc]);
+        }
+    }
+
+    return rows;
 }
 
 /**
@@ -961,6 +989,7 @@ export class DataManager implements Manager {
         dataManagerInternals.storeEdgesUnbuilt = (manager, on) => {
             manager.edgesUnbuilt = on;
         };
+        dataManagerInternals.edgesJoining = (manager, u, v) => manager.edgesJoining(u, v);
         dataManagerInternals.unbuiltEdgeId = (manager, row) => {
             const counter = manager.unbuiltEdges.edgeIdAt(row);
             return counter === undefined ? undefined : edgeIdOf(counter);
@@ -3811,7 +3840,7 @@ export class DataManager implements Manager {
             return undefined;
         }
 
-        // A row line's paint is one an `Edge` pulls as a straight line, which needs no placement: the `Edge` takes it
+        // A row line's paint is one an `Edge` pulls (a straight line, or a lone curve placed below): the `Edge` takes it
         // now, so reading the edge map never shows its placeholder look until the frame loop paints it.
         const lined = queue && this.graphContext?.getEdgeRowLines?.()?.has(row) === true;
         // The layout keeps the row's place for the `Edge` (`adopt`), so it is not dropped here.
@@ -3835,6 +3864,12 @@ export class DataManager implements Manager {
         }
 
         this.graphContext?.getUpdateManager?.().adoptBuiltEdge(edge);
+        // ...but a row line drawn as a curve is placed from its rows (`EdgeRowLines.placeCurves`): its `Edge` is placed
+        // now too, so a read of its drawn curve finds it at once, as it found the curve of an `Edge` that drew it before
+        if (lined && !owed && paint?.style.line?.bezier === true) {
+            edge.update();
+        }
+
         return edge;
     }
 
@@ -3884,6 +3919,32 @@ export class DataManager implements Manager {
         // not arrived. The pending queue is empty in every load that supplies nodes before edges.
         const pending = this.pendingEdges.find((entry) => entry.edgeIndex === edgeIndex);
         return pending ? { edgeIndex, edge: null, pending } : null;
+    }
+
+    /**
+     * {@link dataManagerInternals.edgesJoining}: the builder's incidence lists, or the snapshot's arcs once the builder
+     * is let go, as {@link getEdgesBetween} reads them.
+     * @param u - One node's row.
+     * @param v - The other's.
+     * @returns The count.
+     */
+    private edgesJoining(u: number, v: number): number {
+        if (this.store.builderRelease.released) {
+            return snapshotRowsBetween(this.getSnapshot(), u, v).size;
+        }
+
+        const rows = new Set<number>();
+        const { builder } = this.store;
+        for (const [from, to] of [
+            [u, v],
+            [v, u],
+        ]) {
+            for (const e of builder.findEdges(from, to)) {
+                rows.add(e);
+            }
+        }
+
+        return rows.size;
     }
 
     /**
@@ -3997,7 +4058,7 @@ export class DataManager implements Manager {
     builtEdgesOfPairs(
         pairs: Iterable<readonly [NodeIdType, NodeIdType]>,
         freeze: boolean,
-    ): { readonly a: NodeIdType; readonly b: NodeIdType; readonly edges: Edge[] }[] | null {
+    ): { readonly a: NodeIdType; readonly b: NodeIdType; readonly edges: Edge[]; readonly rows: number[] }[] | null {
         if (!freeze && this.store.stale) {
             return null;
         }
@@ -4006,6 +4067,7 @@ export class DataManager implements Manager {
             a,
             b,
             edges: members.filter((each): each is Edge => typeof each !== "number"),
+            rows: members.filter((each): each is number => typeof each === "number"),
         }));
     }
 
@@ -4048,19 +4110,7 @@ export class DataManager implements Manager {
             return [];
         }
 
-        const rows = new Set<number>();
-        for (const [from, to] of u === v
-            ? [[u, v]]
-            : [
-                  [u, v],
-                  [v, u],
-              ]) {
-            const [lo, hi] = snapshot.arcsBetween(from, to);
-            for (let arc = lo; arc < hi; arc++) {
-                rows.add(snapshot.arcToEdge[arc]);
-            }
-        }
-
+        const rows = snapshotRowsBetween(snapshot, u, v);
         const built: Edge[] = [];
         const unbuilt: number[] = [];
         for (const row of rows) {

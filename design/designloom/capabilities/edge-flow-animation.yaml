@@ -1,0 +1,22 @@
+id: edge-flow-animation
+name: Edge Flow Animation
+category: analysis
+description: Animated particles along edges whose rate and speed map to data fields, with per-edge width, color and dash
+    from data.
+status: planned
+notes: "Research trace: developers-embedding-and-extending-graph-visualization.md section 10, table row 6 (Must)."
+algorithms: []
+used_by_workflows:
+    - W282
+    - W283
+implemented_by_components: []
+requirements:
+    - "Must: Edge flow encoding bound to data: animated particles whose rate and speed map to fields, plus per-edge
+      width, color and dash from data"
+    - "Should: Send one particle along a given edge on demand (when a message or transaction happens), and show
+      particles only on highlighted edges; 3d-force-graph's emitParticle and dep-tree's particles on highlighted links
+      are the precedents (https://github.com/vasturiano/3d-force-graph)"
+sources:
+    - title: Developers Who Embed Graph Visualization in Products or Extend It With Plugins (section 10, table row 6)
+      url: design/user-research/developers-embedding-and-extending-graph-visualization.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

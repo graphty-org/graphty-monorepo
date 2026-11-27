@@ -1,0 +1,134 @@
+id: W385
+name: Observed Versus Expected Flows
+category: analysis
+validated: false
+personas:
+    - urban-mobility-analyst
+    - mobility-epidemiologist
+requires_capabilities:
+    - data-import
+    - data-validation
+    - computed-attributes
+    - filtering
+    - visual-encoding-edges
+    - legend-display
+    - metric-histograms
+    - details-on-demand
+    - comparison-view
+    - export-image
+    - geographic-layout
+    - od-flow-import
+    - spatial-interaction-models
+    - geospatial-file-io
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - computed-attributes-panel
+    - filter-panel
+    - range-slider
+    - histogram
+    - visual-encoding-panel
+    - gradient-editor
+    - legend-panel
+    - node-details-panel
+    - comparison-view
+    - graph-canvas
+    - image-export-dialog
+    - attribute-table-join-dialog
+starting_state:
+    data_type: OD flow table plus a place table with population or other mass attribute
+    node_count: 30-5000
+    edge_density: moderate
+    user_expertise: expert
+goal: >-
+    **Intent**: Find which flows are larger or smaller than place size and distance predict, by fitting a spatial
+    interaction model (gravity or radiation) and mapping residuals instead of raw volumes.
+
+
+    **Mental Model**: "Big places attract; what is left over is the story." Raw flow maps mostly show where people
+    live; subtracting the expected flow reveals unusual ties.
+
+
+    **Task Phases**:
+
+    1. **Load flows with a tessellation** - Every origin and destination must exist in the place table, or the
+    library raises an error
+
+    2. **Fit a model** - Singly or doubly constrained gravity model using population as relevance (distance exponent
+    about -1.99 in the scikit-mobility example), or the parameter-free radiation model; or an adjusted-flow-volume null
+    model that needs only the flows
+
+    3. **Compute residuals** - Observed minus expected (positive means above expectation), or a scaled residual such as
+    (observed - expected) / expected^0.7 for London borough commuting by occupation
+
+    4. **Draw residuals, not volumes** - Flow lines colored by sign on a diverging scale, or an OD map (a grid of small
+    maps, one per origin) that shows self-flows and avoids clutter
+
+    5. **Plot with a floor** - Draw only flows above a minimum volume or absolute residual
+
+
+    **Decision Points**:
+
+    - Gravity (which constraint, power or exponential deterrence) or radiation?
+
+    - Which mass attribute (population, jobs)?
+
+    - Raw or scaled residuals?
+
+    - Node-link flows or an OD-map grid?
+
+    - What floor hides noise without hiding the finding?
+
+
+    **Information Needs**:
+
+    - Fitted parameters (distance exponent) and goodness of fit
+
+    - Expected, observed and residual for a clicked flow
+
+    - Residual distribution to set a symmetric diverging scale
+
+    - Count of flows whose ids are missing from the place table
+
+
+    **Pain Points**:
+
+    - Flow lines hide self-flows, overlap into a hairball, and let long flows dominate visually
+
+    - Centroids imply false precision about where flows start and end
+
+    - Folium-based quick plots are slow for many flows
+
+    - Model fitting happens in code and the map in another tool
+
+
+    **Data Flow**:
+
+    - Input: Flow table (origin, destination, count), place table (id, coordinates or polygon, population)
+
+    - Transformations: Model fit, expected flow per pair, residual per pair, sign-based coloring, minimum-flow filter
+
+    - Output: Residual flow map or OD-map grid with a diverging legend; table of observed, expected and residual
+success_criteria:
+    - metric: Model transparency
+      target: User can state the model type and fitted distance exponent shown with the map
+    - metric: Finding legibility
+      target: Strongest positive and negative residual flows identifiable without hovering
+    - metric: Legend correctness
+      target: Diverging scale centered on zero residual
+sources:
+    - title: scikit-mobility paper
+      url: https://arxiv.org/pdf/1907.07062
+      summary: FlowDataFrame with tessellation, singly constrained gravity fit, radiation model, plot_flows with min_flow
+    - title: FlowMapper.org (Koylu et al.)
+      url: https://arxiv.org/pdf/2110.03662
+      summary: Adjusted flow volume null model and doubly constrained gravity residuals
+    - title: Beecham - Visualization for social data science, networks chapter
+      url: https://vis4sds.github.io/vis4sds/05-network.html
+      summary: Scaled residuals for London commuting; flowline problems (self-flows hidden, hairball, long flows dominant, false precision)
+    - title: Wood, Dykes and Slingsby - Visualisation of origins, destinations and flows with OD maps
+      url: https://openaccess.city.ac.uk/id/eprint/537/
+      summary: OD maps as a grid of small maps that avoids flow-line clutter
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

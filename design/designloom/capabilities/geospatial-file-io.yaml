@@ -1,0 +1,49 @@
+id: geospatial-file-io
+name: "Geospatial file import and export"
+category: data
+description: "Import point, line and polygon features with their attributes from GeoJSON, shapefile, GeoPackage and KML or KMZ (and WKT or GeoJSON geometry columns in CSV), reading the declared coordinate reference system (.prj, GeoPackage metadata; GeoJSON is always WGS84 lon/lat per RFC 7946) and reprojecting to the display projection. Join features to graph nodes by zone id (reporting unmatched ids on both sides), accept H3 cell ids as zone ids, and place polygon nodes at a centroid, a point on the surface or a supplied population-weighted center. Optionally assign coordinate-only records to the containing polygon or H3 cell. Export nodes as points or their zone polygons, edges as lines, with computed attributes, to GeoJSON in WGS84 (and a zone-to-region lookup with region polygons). Supplies the boundary geometry that geographic-layout, od-flow-import and spatial-selection (imported hazard footprint) currently assume. Also reads networks that carry geometry - GraphML with coordinates, CSV with lat/lon, EPANET .inp water networks and MATPOWER or pandapower power cases - keeping coordinates and line geometry as attributes, and draws GeoJSON Point-with-area, Polygon and MultiPolygon features as nodes in their real shapes, with a check against a named geometry rule set (the EU deforestation regulation rules) that lists failing features before export. One record for all geospatial input (it absorbed geospatial-network-import and geojson-plot-nodes)."
+status: planned
+notes: "Research trace: geographic-flow-and-mobility-networks.md section 10, requirement R26 (Must); supply-chain-and-physical-infrastructure-networks.md section 10, requirements R19 (Must) and R44 (Should)."
+algorithms: []
+used_by_workflows:
+    - W380
+    - W381
+    - W382
+    - W383
+    - W384
+    - W385
+    - W386
+    - W387
+    - W388
+    - W173
+    - W225
+    - W229
+    - W216
+    - W220
+    - W221
+    - W61
+    - W63
+    - W1162
+    - W1096
+implemented_by_components: []
+requirements:
+    - "Must: Import zone boundaries (point, line and polygon features with attributes) from GeoJSON, shapefile,
+      GeoPackage and KML or KMZ, reading the declared coordinate system and reprojecting; join features to nodes by zone
+      id and report unmatched ids on both sides; accept H3 cell ids as zone ids"
+    - "Must: Import GraphML with coordinates, GeoJSON/GeoPackage, EPANET .inp, MATPOWER/pandapower, KMZ, CSV with
+      lat/lon"
+    - "Should: Plot nodes from GeoJSON: Point with area or Polygon and MultiPolygon drawn as shapes on the map,
+      validated against the EUDR Information System rules (closed rings, no holes or crossings, six decimals, 25 MB per
+      statement)"
+sources:
+    - title: "Geographic Flow and Mobility Networks: Migration, Commuting, Mobility and Trade Flows on a Map (section
+          10, requirement R26)"
+      url: design/user-research/geographic-flow-and-mobility-networks.md
+      summary: "Must in the research. Covered by Designloom when researched: No (no capability names a geospatial
+          format)"
+    - title: Supply Chain Risk Analysts and Physical Infrastructure Network Engineers (section 10, requirement R19)
+      url: design/user-research/supply-chain-and-physical-infrastructure-networks.md
+      summary: "Must in the research. Covered by Designloom when researched: Partly"
+    - title: Supply Chain Risk Analysts and Physical Infrastructure Network Engineers (section 10, requirement R44)
+      url: design/user-research/supply-chain-and-physical-infrastructure-networks.md
+      summary: "Should in the research. Covered by Designloom when researched: No"

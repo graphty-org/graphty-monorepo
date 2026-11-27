@@ -1,0 +1,109 @@
+id: W421
+name: Exploring a Running Software System as a 3D City (ExplorViz)
+category: exploration
+validated: false
+personas:
+    - program-comprehension-developer
+requires_capabilities:
+    - data-import
+    - graph-rendering
+    - layout-hierarchical
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - node-selection
+    - hover-highlight
+    - details-on-demand
+    - zoom-pan
+    - immersive-xr-session
+    - xr-label-legibility
+    - multi-user-session
+suggested_components:
+    - data-import-dialog
+    - graph-canvas
+    - cluster-collapse-control
+    - node-details-panel
+    - node-tooltip
+    - zoom-controls
+starting_state:
+    data_type: OpenTelemetry traces from an instrumented application
+    node_count: not reported
+    edge_density: hierarchical containment plus directed calls
+    user_expertise: advanced
+goal: >-
+    **Intent**: Understand how a running software system is put together and which components call which, alone on a
+    desktop or phone or with teammates in shared VR or AR.
+
+
+    **Mental Model**: "The system is a city." Applications are foundations, packages are stacked districts, classes are
+    buildings, and method calls are pipes between them.
+
+
+    **Task Phases**:
+
+    1. **Instrument** (setup) - For Java, an agent such as inspectIT Ocelot; export traces to an OpenTelemetry collector
+
+    2. **Open the web view** - The city is drawn from the hierarchy and the observed calls
+
+    3. **Explore** - Alone on a desktop or phone, or together in VR where users share one space and see each
+    other as avatars
+
+    4. **Answer a comprehension question** (varies) - Which components and calls implement a behavior; what depends on
+    a class
+
+
+    **Decision Points**:
+
+    - Which districts to open and which to keep collapsed?
+
+    - Desktop alone, or a shared immersive session?
+
+
+    **Information Needs**:
+
+    - Containment hierarchy with call counts between components
+
+    - Readable names of buildings and districts
+
+    - Where teammates are looking
+
+
+    **Pain Points**:
+
+    - Readability of visualized entities in VR and AR
+
+    - Performance problems in immersive mode
+
+    - AR helped novices but not experts identify dependencies in a separate study
+
+
+    **Data Flow**:
+
+    - Input: Live or recorded traces
+
+    - Transformations: Hierarchy aggregation, city layout, call-edge routing
+
+    - Output: Shared understanding; no export documented
+success_criteria:
+    - metric: Dependency identification
+      target: User names the callers of a chosen class correctly
+    - metric: Readability
+      target: Names stay legible in immersive mode
+sources:
+    - title: ExplorViz project page and 2022 collaborative program comprehension study (read through a search summary)
+      url: https://explorviz.uni-kiel.de/1-about/
+      summary: City metaphor, OpenTelemetry traces, desktop, mobile, VR, AR and avatars; readability and performance problems
+    - title: ExplorViz 2022 study PDF
+      url: https://oceanrep.geomar.de/id/eprint/56643/1/IST2022.pdf
+      summary: VR and AR suitable for collaborative program comprehension
+    - title: Joos et al. 2025 - survey of immersive network analysis
+      url: https://arxiv.org/html/2501.08500v2
+      summary: AR helped novices, not experts, identify dependencies in large systems
+    - title: Wettel, Lanza and Robbes 2011 - Software systems as cities, a controlled experiment
+      url: https://2011.icse-conferences.org/content/software-systems-cities-controlled-experiment.html
+      summary: 41 participants from academia and industry; city view more correct and faster than Eclipse with Excel
+    - title: Romano et al. 2019 - Virtual reality in software visualization, the city metaphor
+      url: https://www.iris.unisa.it/handle/11386/4779848
+      summary: City on a screen and in VR more correct than Eclipse; VR faster than the screen city (abstract)
+version: 1.1.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

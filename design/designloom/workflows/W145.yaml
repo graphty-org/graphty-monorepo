@@ -1,0 +1,150 @@
+id: W145
+name: Preparing a Perspective and Saved Queries for Non-Technical Colleagues
+category: administration
+validated: false
+personas:
+    - graph-perspective-curator
+requires_capabilities:
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - style-presets
+    - legend-display
+    - saved-filters
+    - pattern-search
+    - view-bookmarks
+    - data-export
+    - parameterized-saved-searches
+    - curated-perspectives
+    - deep-links
+suggested_components:
+    - visual-encoding-panel
+    - legend-panel
+    - color-picker
+    - icon
+    - pattern-search-dialog
+    - text-input
+    - select
+    - context-menu
+    - share-dialog
+    - data-export-dialog
+starting_state:
+    data_type: production graph database with a known schema, and a list of questions the business keeps asking
+    node_count: "stored: up to and above 10 million elements (Bloom quick-scans above that); on screen: whatever the phrases return"
+    edge_density: any
+    user_expertise: expert
+goal: >-
+    **Intent**: Make a graph database usable by people who will never write a query: decide what they see, what it is
+    called and how it looks, turn recurring questions into one-click parameterized searches and selection actions, lock
+    down writes, and publish entry points other systems can link to.
+
+
+    **Mental Model**: "Build the cockpit, not the flight." The curator designs a role-scoped lens over the schema and a
+    menu of safe, named questions; the business user only picks from the menu.
+
+
+    **Task Phases**:
+
+    1. **Create the perspective** - "Generate Perspective" (quick scan above 10,000,000 elements) and prune, or "Blank
+    Perspective"
+
+    2. **Define categories in business terms** - First matching category wins; hide properties and relationship types
+    users do not need ("a great Bloom experience is dependent on a good data model")
+
+    3. **Style** - Colors, sizes, icons and rule-based styles in the Legend panel
+
+    4. **Write search phrases** - Typed $parameters, a suggestion source for each, and the Cypher; read-only unless
+    "Write transaction" is set, because end users "may not understand the consequences"
+
+    5. **Write scene actions** - Cypher run from the right-click menu on the selected nodes
+
+    6. **Grant access** - One custom database role per perspective; in Linkurious, share templates with groups under four
+    rights levels
+
+    7. **Embed entry points** - Deep links with search=, perspective= and run=true, "generated programmatically" from
+    other systems; NeoDash Parameter Select reports
+
+    8. **Export the perspective** - JSON for version control or transfer between environments
+
+
+    No source gives per-step timings.
+
+
+    **Decision Points**:
+
+    - Which labels and properties are business-meaningful, and which to hide?
+
+    - Which questions deserve a search phrase, and what parameters and suggestion lists do they need?
+
+    - Is any phrase or action allowed to write?
+
+    - Which roles see which perspective?
+
+
+    **Information Needs**:
+
+    - The full schema with counts per label and relationship type
+
+    - What a phrase returns for sample parameter values, and how many records (against the 10,000 ceiling)
+
+    - Which property types the styling rules see (number versus string)
+
+
+    **Pain Points**:
+
+    - "There isn't a way to use currently displayed or selected data within the search phrase query"
+
+    - Generated perspectives need heavy pruning
+
+    - Rule-based styling sometimes reads a Double as a String
+
+    - The 10,000-record ceiling on a search phrase
+
+
+    **Data Flow**:
+
+    - Input: Database schema, business questions, database roles
+
+    - Transformations: Category and style definitions, parameterized query authoring, role mapping, deep link generation
+
+    - Output: Perspective JSON, search phrases, scene actions, deep links, shared templates
+success_criteria:
+    - metric: Question coverage
+      target: Each recurring business question runs as a named search with typed inputs, no query typed by the user
+    - metric: Write safety
+      target: No end-user action can write unless the curator enabled it explicitly
+    - metric: Portability
+      target: The perspective exports to a file and imports into another environment unchanged
+sources:
+    - title: Bloom perspective creation
+      url: https://neo4j.com/docs/bloom-user-guide/current/bloom-perspectives/perspective-creation/
+      summary: Generate versus blank, quick scan above 10 million, categories, hidden properties, scene actions
+    - title: Bloom advanced search phrases
+      url: https://neo4j.com/docs/bloom-user-guide/current/bloom-tutorial/search-phrases-advanced/
+      summary: Typed parameters, suggestion sources, write transaction off by default
+    - title: Bloom legend panel
+      url: https://neo4j.com/docs/bloom-user-guide/current/bloom-visual-tour/legend-panel/
+      summary: Rule-based styling
+    - title: Bloom perspective role-based access
+      url: https://neo4j.com/docs/bloom-user-guide/current/perspectives/perspective-rbac/
+      summary: Custom role per perspective, perspective and scene write privileges
+    - title: Bloom deep links
+      url: https://neo4j.com/docs/bloom-user-guide/current/bloom-tutorial/deep-links/
+      summary: search, perspective and run parameters
+    - title: Integrating graph data visualizations into no-code workflows with Bloom 2.0
+      url: https://neo4j.com/blog/developer/integrating-graph-data-visualizations-no-code-workflows-bloom-2-0/
+      summary: Technical users build custom reusable searches; deep links generated programmatically
+    - title: NeoDash Parameter Select
+      url: https://neo4j.com/labs/neodash/2.4/user-guide/reports/parameter-select/
+      summary: Dashboard parameter inputs feeding reports
+    - title: ScoobyGraph part 3 (Neo4j developer blog)
+      url: https://neo4j.com/developer-blog/scoobygraph-3/
+      summary: End-to-end perspective and pattern search tutorial
+    - title: Neo4j community thread on bypassing the Bloom limit
+      url: https://community.neo4j.com/t/bypass-10000-node-limit-in-bloom-neo4j-desktop/45670
+      summary: Search phrases cannot use the current selection
+    - title: Linkurious Enterprise user manual
+      url: https://doc.linkurious.com/user-manual/latest/page.html
+      summary: Templates shared with groups under rights levels
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

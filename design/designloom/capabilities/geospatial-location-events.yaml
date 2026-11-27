@@ -1,0 +1,22 @@
+id: geospatial-location-events
+name: Geospatial Location Events
+category: analysis
+description: A map view of location events drawn as sector wedges, timing-advance arcs with inner and outer edges, or
+    points with radius, each tied to an entity, a time and its source record with a draft or verified flag, selectable
+    together with the graph and timeline, with legend and true scale.
+status: planned
+notes: "Research trace: law-enforcement-and-intelligence-analysts.md section 10, requirement 9 (Should)."
+algorithms: []
+used_by_workflows:
+    - W100
+    - W101
+implemented_by_components: []
+requirements:
+    - "Should: Geographic view of location events as sector wedges, timing-advance arcs (inner and outer edge) or point
+      with radius, each tied to a phone, a time and its source record, with a draft or verified flag; the same event
+      selectable on chart, timeline and map; legend and true scale"
+sources:
+    - title: Law enforcement crime and intelligence analysts, and defense and national intelligence analysts (section
+          10, requirement 9)
+      url: design/user-research/law-enforcement-and-intelligence-analysts.md
+      summary: "Should in the research. Covered by Designloom when researched: Gap"

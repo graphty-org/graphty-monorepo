@@ -9,8 +9,53 @@ implements_capabilities:
     - neighborhood-expansion
     - ego-network
 used_in_workflows:
+    - W3024
     - W02
     - W05
+    - W06
+    - W105
+    - W108
+    - W110
+    - W111
+    - W116
+    - W122
+    - W124
+    - W127
+    - W138
+    - W142
+    - W143
+    - W145
+    - W147
+    - W150
+    - W151
+    - W169
+    - W196
+    - W197
+    - W198
+    - W200
+    - W203
+    - W232
+    - W258
+    - W262
+    - W281
+    - W282
+    - W327
+    - W330
+    - W341
+    - W363
+    - W406
+    - W409
+    - W420
+    - W423
+    - W426
+    - W437
+    - W72
+    - W76
+    - W88
+    - W89
+    - W95
+    - W1012
+    - W1013
 dependencies:
     - icon
     - keyboard-shortcut

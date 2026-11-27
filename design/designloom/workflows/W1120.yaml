@@ -1,0 +1,147 @@
+id: W1120
+name: Open Pipeline Output Tables as Parquet or Arrow
+category: exploration
+validated: false
+personas:
+    - notebook-graph-data-scientist
+    - ml-engineer-recsys
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - table-to-graph-builder
+    - precomputed-metric-columns
+    - notebook-widget
+    - large-graph-rendering
+    - basic-statistics
+    - filtering
+    - visual-encoding-nodes
+    - legend-display
+    - details-on-demand
+    - data-export
+    - columnar-table-import
+suggested_components:
+    - file-drop-zone
+    - column-mapper
+    - data-import-dialog
+    - data-table-panel
+    - statistics-panel
+    - visual-encoding-panel
+    - legend-panel
+    - graph-canvas
+    - node-details-panel
+    - data-export-dialog
+starting_state:
+    data_type: an edge table and a node table written as Parquet, Arrow or Feather by pandas, polars, DuckDB, Spark, cuDF, GraphRAG or Neo4j APOC; or the same two DataFrames passed to a notebook widget
+    node_count: 10000-1000000
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Take the edge and node tables a data pipeline just wrote, as Parquet or Arrow files or as DataFrames
+    in a notebook, and look at them as a graph without converting them to CSV or a graph file first, keeping every
+    column's type and every original id.
+
+
+    **Mental Model**: "The tables are the graph." Nodes are rows of one table and edges are rows of another; metric
+    columns computed upstream (component, community, PageRank, model score) are just more columns, ready to color by.
+
+
+    **Task Phases**:
+
+    1. **Write the tables** - The last pipeline step writes an edge table and a node table: `df.to_parquet`, DuckDB
+    `COPY (SELECT ...) TO 'edges.parquet' (FORMAT parquet)`, a Spark GraphFrames result (`id` on vertices, `src` and
+    `dst` on edges), GraphRAG's `entities` and `relationships` tables, or `apoc.export.parquet.data`
+
+    2. **Open them** - Drop both files on the viewer in the browser, or pass both DataFrames to a notebook widget that
+    sends them as Arrow bytes rather than JSON
+
+    3. **Map columns** - Choose the node id column, the source and target columns, the weight column and directed or
+    undirected; keep 64-bit integer ids exact
+
+    4. **Check what arrived** - Read row counts of both tables, the number of edge endpoints with no node row, each
+    column's type as written, and any column that could not be kept
+
+    5. **Encode and read** - Color and size by precomputed metric columns, filter by score or component, click a node
+    to read its full row
+
+    6. **Hand back** - Export the visible subset or annotations with the original ids, as Parquet or CSV, for the next
+    pipeline step to join on
+
+
+    **Decision Points**:
+
+    - Which column is the node id, and which are source and target, given that every writer names them differently?
+
+    - Directed or undirected?
+
+    - Load every row, or a filtered piece (one component, the top-scored nodes), when the table is larger than the
+    viewer can draw?
+
+    - Which precomputed column drives color and which drives size?
+
+
+    **Information Needs**:
+
+    - Row counts for both tables and the number of nodes and edges actually drawn
+
+    - Edge endpoints that match no node row, listed with their ids
+
+    - Each column's type as read (integer, float, string, timestamp, list) and any column dropped or converted
+
+    - The full row of a clicked node, every column
+
+
+    **Pain Points**:
+
+    - Viewers that take only CSV or graph files, forcing a conversion that drops column types
+
+    - 64-bit integer ids that lose precision in JavaScript numbers and stop matching
+
+    - Notebook widgets that serialize DataFrames to JSON, which is slow at millions of rows
+
+    - No shared layout across writers, so the same graph arrives with different column names each time
+
+
+    **Data Flow**:
+
+    - Input: Parquet, Arrow or Feather edge and node tables, or two DataFrames in a notebook
+
+    - Transformations: Column mapping, type-preserving read, id matching between tables, metric columns as visual
+    encodings, optional filtering to a piece
+
+    - Output: Interactive graph, an exported subset or annotations keyed by original ids
+success_criteria:
+    - metric: Conversion steps between the pipeline output and the view
+      target: None; the Parquet or Arrow tables open as written
+    - metric: Type fidelity
+      target: Every column keeps its written type, and 64-bit ids round-trip exactly
+    - metric: Transparency
+      target: The reader can state how many edge endpoints matched no node row
+sources:
+    - title: DuckDB Parquet overview
+      url: https://duckdb.org/docs/2.0/data/parquet/overview.html
+      summary: COPY (SELECT ...) TO 'file.parquet' (FORMAT parquet) writes any query result as Parquet
+    - title: GraphFrames user guide - creating GraphFrames
+      url: https://graphframes.io/04-user-guide/01-creating-graphframes.html
+      summary: Vertex DataFrame needs an id column; edge DataFrame needs src and dst
+    - title: GraphRAG outputs
+      url: https://microsoft.github.io/graphrag/index/outputs/
+      summary: Tables written as Parquet by default; relationships carry source, target and weight
+    - title: APOC Export Apache Parquet
+      url: https://neo4j.com/apoc/2026/export/parquet/
+      summary: apoc.export.parquet.data writes given nodes and relationships to a Parquet file
+    - title: anywidget - Jupyter Widgets, the good parts
+      url: https://anywidget.dev/en/jupyter-widgets-the-good-parts/
+      summary: Binary buffers cross to JavaScript as DataView; Arrow suggested for DataFrames
+    - title: Lonboard - how it works
+      url: https://developmentseed.org/lonboard/latest/how-it-works/
+      summary: GeoArrow in Parquet copied to the browser and decoded with WebAssembly instead of a text format
+    - title: Cosmograph README
+      url: https://cdn.jsdelivr.net/npm/@cosmograph/cosmograph@2.3.2/README.md
+      summary: Browser graph library reading .csv, .parquet, .arrow and .json; vendor claim of millions of points and edges
+    - title: hyparquet
+      url: https://github.com/hyparam/hyparquet
+      summary: Dependency-free JavaScript Parquet reader for browsers and Node
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

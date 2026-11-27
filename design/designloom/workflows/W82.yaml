@@ -1,0 +1,153 @@
+id: W82
+name: Discover Dependencies and Form Migration Move Groups
+category: analysis
+validated: false
+personas:
+    - cloud-migration-architect
+requires_capabilities:
+    - data-import
+    - data-validation
+    - data-preview
+    - filtering
+    - search
+    - node-selection
+    - selection-statistics
+    - hover-highlight
+    - centrality-degree
+    - community-detection
+    - community-profiling
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - layout-force-directed
+    - overview-minimap
+    - details-on-demand
+    - data-export
+    - group-collapse
+    - manual-grouping
+    - dependency-format-import
+    - unknown-edge-marking
+suggested_components:
+    - data-import-dialog
+    - column-mapper
+    - data-preview-table
+    - filter-panel
+    - search-input
+    - graph-canvas
+    - minimap
+    - community-panel
+    - cluster-table
+    - cluster-collapse-control
+    - node-details-panel
+    - data-table-panel
+    - legend-panel
+    - data-export-dialog
+starting_state:
+    data_type: time-sliced server-to-server connection records (source and destination server, process, IP, destination port, six-hour time slot) plus server inventory
+    node_count: 500-3,000 servers per appliance, several appliances
+    edge_density: sparse with a few shared-service hubs connected to nearly everything
+    user_expertise: expert
+goal: >-
+    **Intent**: Turn thousands of discovered servers into move groups -- blocks of servers moved together -- and order
+    them into waves, so no live dependency is cut between migrated and unmigrated servers.
+
+
+    **Mental Model**: "Draw circles around servers that talk to each other, after ignoring the ones that talk to
+    everyone." The analysis is graph partitioning, done today mostly by eye.
+
+
+    **Task Phases** (no source gives per-step durations):
+
+    1. **Deploy the collector** - An appliance polls connections every 5 minutes and sends a combined data point every
+    six hours
+
+    2. **Wait and check status** - At least 24 hours; each server shows a discovery status
+
+    3. **Open the multi-server map** - Logically grouped server nodes and connections since collection began, with an
+    overview inset
+
+    4. **Filter** - By server name, destination port, operating system, connection count and appliance; selecting a
+    node outlines its immediate dependents and lists incoming and outgoing connections with counts
+
+    5. **Spot and tag a cluster** - Box-select or modifier-click interconnected servers and tag them as an application;
+    hovering a port highlights every connection that opens it
+
+    6. **Drill to processes and ports** - Expand a server connection into process-to-process connections with
+    destination port
+
+    7. **Export** - Zipped CSV of 7 to 30 days, one row per dependency per six-hour slot; optionally include unresolved
+    IP-only connections
+
+    8. **Finish outside the tool** - Power BI network connections template with source, destination and process slicers
+
+    9. **Form move groups and waves** - Set aside shared services (Active Directory, DNS, monitoring); apply move group
+    rules (shared database, same owner, same patch window); combine groups into waves, early waves under 10 servers;
+    optionally run community detection with a size cap and adjust by hand
+
+
+    **Decision Points**:
+
+    - Which connections are noise or shared infrastructure to set aside?
+
+    - Where does a cluster boundary fall?
+
+    - Which cut dependencies are acceptable between waves?
+
+
+    **Information Needs**:
+
+    - Connection count and ports per edge, aggregated over the chosen window
+
+    - Degree per server to spot shared-service hubs
+
+    - Edges cut between proposed groups (count and weight)
+
+    - Unresolved (IP-only, unknown process) endpoints shown distinctly
+
+
+    **Pain Points**:
+
+    - 24-hour minimum wait
+
+    - Multi-server view hides unresolved connections
+
+    - Shared services must be removed by hand
+
+    - The map shows connections but does not propose groups; analysis ends in Power BI and Excel
+
+
+    **Data Flow**:
+
+    - Input: Azure Migrate / Azure Catalyst or AWS discovery connection CSV (Timeslot, Source server name, application
+    and process, Destination server name, IP, application, process and port); server inventory; owner interviews
+
+    - Transformations: Time aggregation, hub removal, port and process filters, lasso grouping or community detection
+    with size cap, group tagging
+
+    - Output: Move groups as server tags, wave plan in a runbook and spreadsheet, CSV and Power BI reports for owners
+success_criteria:
+    - metric: Grouping
+      target: Every server belongs to one editable group, with shared-service hubs set aside explicitly
+    - metric: Cut awareness
+      target: User can see how many connections each grouping cuts before committing a wave
+    - metric: Export
+      target: Groups and cut edges export as CSV for the runbook
+sources:
+    - title: Microsoft Learn - Agentless dependency analysis in Azure Migrate
+      url: https://learn.microsoft.com/en-us/azure/migrate/how-to-create-group-machine-dependencies-agentless
+      summary: Collection cadence, 24-hour wait, multi-server map, filters, lasso tagging, process drill-down, CSV columns, Power BI template
+    - title: AWS Migration Hub - Network diagram
+      url: https://docs.aws.amazon.com/migrationhub/latest/ug/network-diagram-how-to.html
+      summary: Shift-click selection, port hover highlighting, Group as application
+    - title: AWS Application Discovery Service - Grouping servers into applications
+      url: https://docs.aws.amazon.com/application-discovery/latest/userguide/applications.html
+      summary: Applications as named groups of discovered servers
+    - title: AWS Prescriptive Guidance - Wave planning
+      url: https://docs.aws.amazon.com/prescriptive-guidance/latest/large-migration-portfolio-playbook/wave-planning.html
+      summary: Move groups, move group rules, Active Directory set aside, small early waves
+    - title: Cloudamize - AI-augmented move groups and waves (vendor)
+      url: https://support.cloudamize.com/kb/ai-augmented-move-groups-waves
+      summary: Graph cleaning, deterministic community detection avoiding overly large clusters, manual adjustment
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

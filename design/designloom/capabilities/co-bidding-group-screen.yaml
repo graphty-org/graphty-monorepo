@@ -1,0 +1,18 @@
+id: co-bidding-group-screen
+name: "Co-bidding group screen"
+category: analysis
+description: "Find overlapping groups in a weighted co-bidding network and score each by coherence (geometric over arithmetic mean of internal weights) and exclusivity (internal over total strength) against null networks that shuffle bids within product codes per year, returning neutral per-group facts (scores, null percentile, member tenders) beside per-group screen columns such as relative price, bid variation and single bidding (requirement 33)."
+status: planned
+notes: "Research trace: financial-crime-fraud-aml-kyc.md section 10, requirement 33 (Must)."
+algorithms: []
+used_by_workflows:
+    - W2072
+implemented_by_components: []
+requirements:
+    - "Must: Group screen: overlapping groups scored by coherence and exclusivity against a null model that shuffles
+      bids within product codes, with per-group screen columns (relative price, bid variation, single bidding)"
+sources:
+    - title: "Financial crime investigators: fraud rings, anti-money-laundering, beneficial ownership, crypto tracing
+          and insurance fraud (section 10, requirement 33)"
+      url: design/user-research/financial-crime-fraud-aml-kyc.md
+      summary: Must in the research.

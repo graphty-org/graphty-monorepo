@@ -1,0 +1,88 @@
+id: communication-network-scholar
+name: Communication Network Scholar
+roster_persona: social-media-network-researcher
+tier: B
+scope: in-scope
+role: Assistant Professor of Communication / Think-Tank Co-Author
+quote: Give me one keyword collection, one recipe, and a figure that tells a reader whether this conversation is a polarized crowd or a community cluster.
+bio: >-
+    Dr. Maya Okafor is an assistant professor of communication who studies how health and political topics are
+    discussed on social media, often co-authoring with a think tank. She has a social science PhD, is fluent in Excel,
+    learned NodeXL in a methods course, and can run a Python or R script someone hands her but does not write
+    collectors. A typical project is one keyword or hashtag collection of 1,000 to 20,000 accounts; Pew's "pew
+    internet" example had 2,814 vertices and 3,437 edges, and Himelboim and colleagues classified 60 topic networks of
+    about 1,000 users each. She runs the standard NodeXL Twitter recipe, names each cluster from its top hashtags, URLs
+    and words, classifies the conversation's shape using the Pew six-type typology, ranks the bridging accounts by
+    betweenness, and moves the graph to Gephi for the publication figure. Since free X/Twitter academic access ended in
+    2023 she collects Bluesky, Reddit and Telegram data with Communalytic or 4CAT instead, and journals such as PLOS
+    One require her to share the data behind the maps.
+characteristics:
+    expertise: intermediate
+    time_pressure: medium
+    graph_literacy: moderate
+    domain_knowledge: advanced
+motivations:
+    - Publish defensible claims about polarization, echo chambers and who drives a public conversation
+    - Classify a conversation's structure (polarized, tight, brand, community, broadcast, support) with stated metrics
+    - Name every cluster from evidence (top hashtags, domains, words, accounts) rather than from impressions
+    - Reuse one saved analysis recipe across many topic networks so results are comparable
+    - Share data and figures in a form journals and readers can open without installing desktop software
+behaviors:
+    - Designs keyword queries with ORed spelling variants and re-collects because search APIs omit prolific posters at peak times
+    - Trusts the spreadsheet view of edges and vertices (one row per reply, mention or follow; one row per account) more than the picture
+    - Keeps duplicate edges and self-loops ("tweet" edges for posts with no reply or mention) because they carry detail and define isolates
+    - Runs one recipe that computes all centralities, Clauset-Newman-Moore clusters, a Group-in-a-Box layout and top items per group in one pass
+    - Keeps isolates for the network statistics but hides them in the published figure
+    - Reads density, modularity, isolate share and centralization to place the network in the Pew typology
+    - Sizes accounts by follower count, uses profile photos as node images, and exports images at 4096 x 3072 px
+    - Labels clusters from the per-group Top Items sheet and lists the top five accounts by betweenness in prose
+    - Compares a dozen networks side by side in one paper
+    - Anonymizes the handles of private individuals before publishing
+frustrations:
+    - Free platform data access disappeared in 2023; X Enterprise access was quoted at $42,000 to $210,000 per month
+    - NodeXL runs only on Windows Excel and runs out of memory around 80,000 to 100,000 edges on 16 GB of RAM
+    - Converting between collection tools, NodeXL workbooks, GEXF and Gephi needs scripts she cannot write
+    - 64-bit numeric account IDs are corrupted by Excel and by R's default importer
+    - Hairball figures with overlapping labels that reviewers cannot read
+    - Sharing an interactive map requires hosting a GEXF file and a separate web viewer
+    - Tutorials disagree about which direction a retweet or in-degree edge points
+context:
+    frequency: monthly
+    devices:
+        - laptop
+        - desktop
+    voluntary: true
+workflows:
+    - W207
+    - W208
+    - W212
+    - W213
+    - W214
+sources:
+    - title: Pew Research Center - How we analyzed Twitter social media networks with NodeXL
+      url: https://legacy.pewresearch.org/wp-content/uploads/sites/9/2014/02/How-we-analyzed-Twitter-social-media-networks.pdf
+      summary: The canonical NodeXL topic-network method - query design, edge types, unmerged duplicates, recipe, typology, 2,814-vertex example
+    - title: Pew Research Center - Mapping Twitter Topic Networks, from Polarized Crowds to Community Clusters
+      url: https://www.pewresearch.org/internet/2014/02/20/mapping-twitter-topic-networks-from-polarized-crowds-to-community-clusters/
+      summary: The six conversation structures and how clusters differ in URLs, hashtags and words
+    - title: Ahmed, Meier and Smith - NodeXL, a guide to network insights (SAGE chapter, author version)
+      url: https://dspace.stir.ac.uk/retrieve/f1292af1-5cdb-400b-820a-bccae8f82e1f/NodeXL%20-%20a%20guide%20to%20network%20insights%20-%20Author%20Version.pdf
+      summary: Recipe files, betweenness ranking, re-collection, anonymization and data-sharing practice of NodeXL scholars
+    - title: Himelboim et al. - Classifying Twitter Topic Networks Using Social Network Analysis
+      url: https://www.academia.edu/72459287/Classifying_Twitter_Topic_Networks_Using_Social_Network_Analysis
+      summary: 60 topic networks, 64,445 users, classified by density, modularity, centralization and isolates
+    - title: Nieman Lab - Elon Musk is crushing a big chunk of internet research
+      url: https://www.niemanlab.org/2023/04/among-all-of-his-mistakes-dont-forget-elon-musk-is-singlehandedly-crushing-a-big-chunk-of-internet-research-for-no-good-reason/
+      summary: End of academic API access and the $42,000-$210,000 per month Enterprise pricing
+    - title: Communalytic - Bluesky data available
+      url: https://socialmedialab.ca/2024/05/01/bluesky-data-is-now-available-via-communalytic-a-no-code-computational-social-science-research-tool-for-studying-online-discourse-2/
+      summary: No-code collection from Bluesky and other platforms with plan-based post caps
+    - title: CMU CASOS - Using ORA for social media
+      url: https://www.cmu.edu/casos-center/research/tools/using-ora-for-social-media.pdf
+      summary: 64-bit IDs that do not render in Excel and trip up R's default importer
+    - title: AoIR air-l list - drawing a one-million-node network
+      url: https://lists.aoir.org/archives/list/air-l@lists.aoir.org/thread/HBH254KSAUDCUKJKE5ARBGIGNNSOF4E3/
+      summary: A PhD student's question that shows the scale ambitions and skill gap of communication researchers
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

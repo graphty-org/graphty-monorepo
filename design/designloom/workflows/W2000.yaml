@@ -1,0 +1,165 @@
+id: W2000
+name: Bacterial Gene-Level Pangenome Graph by Genome Count and Lineage
+category: analysis
+validated: false
+personas:
+    - microbial-pangenome-analyst
+requires_capabilities:
+    - data-import
+    - data-validation
+    - import-report
+    - graph-rendering
+    - large-graph-rendering
+    - layout-force-directed
+    - multi-valued-attributes
+    - computed-attributes
+    - visual-encoding-nodes
+    - visual-encoding-edges
+    - legend-display
+    - metric-histograms
+    - filtering
+    - saved-filters
+    - node-selection
+    - component-analysis
+    - details-on-demand
+    - search
+    - export-image
+    - data-export
+    - sample-membership-sets
+    - subgraph-from-selection
+suggested_components:
+    - file-drop-zone
+    - data-import-dialog
+    - attribute-table-join-dialog
+    - data-table-panel
+    - visual-encoding-panel
+    - gradient-editor
+    - legend-panel
+    - histogram
+    - range-slider
+    - filter-panel
+    - layout-panel
+    - graph-canvas
+    - node-details-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: Panaroo final_graph.gml or PPanGGOLiN light GEXF with genome membership on nodes and edges, plus a per-isolate metadata table
+    node_count: 3,000-70,000 gene families
+    edge_density: sparse
+    user_expertise: advanced
+goal: >-
+    **Intent**: Read a species collection's gene-level pangenome as a graph: see the core and accessory genome, find
+    where accessory islands, plasmids and rearrangements attach to core genes, and tie them to the lineages, countries
+    or phenotypes of the genomes that carry them.
+
+
+    **Mental Model**: "A map of every gene the species has, with core genes as the roads every genome travels and
+    accessory genes as side streets only some genomes take." Each node is a gene family, each edge is two families seen
+    side by side on a contig, and both carry the list of genomes they occur in.
+
+
+    **Task Phases**:
+
+    1. **Load the graph** - Open Panaroo final_graph.gml (node size = number of genomes, genomeIDs, geneIDs, centroid,
+    dna, protein, degrees; edge genomeIDs and members; graph-level isolateNames) or PPanGGOLiN light GEXF (gene count,
+    name, product, partition, lengths, genome count, spot and module)
+
+    2. **Lay out** - Organic or ForceAtlas2 layout (PPanGGOLiN advises Stronger Gravity on, scaling 4000)
+
+    3. **Color by genome count** - Color nodes by how many genomes contain them to show core and accessory; or color by
+    partition (persistent, shell, cloud), size by gene count and set edge width by genomes sharing the link
+
+    4. **Select a frequency band** - Select nodes present in, for example, 1 to 3 genomes, then make a new graph from the
+    selection or hide it
+
+    5. **Join metadata** - Join gene annotations on the node name; join the isolate table (lineage, country, year,
+    phenotype) through each node's and edge's genome list
+
+    6. **Untangle (optional)** - Import Panaroo's capacity_cut_edges.txt as edge columns, hide edges where is_cut_edge
+    is true, relayout, then show them again
+
+    7. **Read and save** - Find accessory islands hanging off core paths, check which lineages carry them, export the
+    subgraph image and its node list
+
+
+    **Decision Points**:
+
+    - Which genome-count band counts as accessory, given a core threshold of 95 percent of genomes by default?
+
+    - Draw every rare gene family, or drop them for readability as published figures do?
+
+    - Which completely sequenced reference genome anchors the layout?
+
+    - Does an island track one lineage, or did it arise several times across the tree?
+
+
+    **Information Needs**:
+
+    - Genome count per node and per edge, and its histogram across the graph
+
+    - Isolate names resolved from genome indexes, and the metadata row for each genome in a node's list
+
+    - For a selection, how many genomes of each lineage or phenotype it contains
+
+    - Gene name, product and representative sequence of a clicked family
+
+    - Partition, spot and module of a node when the graph comes from PPanGGOLiN
+
+
+    **Pain Points**:
+
+    - The organic layout produces "very convoluted networks" and needs a separate reference script
+
+    - Genome membership is a semicolon string or a list of integer indexes; tying nodes to lineage needs a manual join
+
+    - Panaroo's metadata guide is unfinished
+
+    - Families with fewer than 20 genes, 84.68 percent of nodes, were left out of the PPanGGOLiN figure
+
+    - Full PPanGGOLiN GEXF "can be very heavy to manipulate"
+
+
+    **Data Flow**:
+
+    - Input: GML or GEXF gene graph with list-valued genome membership; isolate metadata CSV; gene annotation CSV
+
+    - Transformations: Genome count from membership, color and size mappings, frequency-band selection, subgraph
+    extraction, genome-keyed metadata join, optional hide-relayout-restore of cut edges
+
+    - Output: Subgraph figure with legend, node list of the island, membership summary by lineage
+success_criteria:
+    - metric: Time from final_graph.gml to a core and accessory colored graph
+      target: Under 5 minutes (design goal; no source measures it)
+    - metric: Lineage tie-in
+      target: User can state which lineages carry a selected island without leaving the tool
+    - metric: Rare families kept
+      target: Every gene family stays drawable; none must be dropped for performance
+sources:
+    - title: Panaroo Cytoscape guide
+      url: https://raw.githubusercontent.com/gtonkinhill/panaroo/master/docs/vis/cytoscape.md
+      summary: Organic layout, color by genome count, select 1 to 3 genomes, new graph from selection, table joined on name
+    - title: Panaroo output documentation
+      url: https://raw.githubusercontent.com/gtonkinhill/panaroo/master/docs/gettingstarted/output.md
+      summary: final_graph.gml holds annotation and which gene or edge is present in which genome
+    - title: Panaroo reference-based layout guide
+      url: https://raw.githubusercontent.com/gtonkinhill/panaroo/master/docs/vis/layout.md
+      summary: Cut long-range edges against a reference genome, hide them, relayout, show them again
+    - title: Panaroo source (GML attributes)
+      url: https://github.com/gtonkinhill/panaroo/blob/master/panaroo/__main__.py
+      summary: Node size, genomeIDs, geneIDs, centroid, dna, protein, degrees; edge genomeIDs and members; isolateNames
+    - title: Panaroo paper (Tonkin-Hill et al. 2020)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC7376924
+      summary: Graph model; 413, 328 and 1,054 genome collections; 138 resistance-associated gene triplets
+    - title: PPanGGOLiN paper (Gautreau et al. 2020)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC7108747
+      summary: Partitions; 3,117 genomes and 69,446 families; Gephi settings; rare families dropped from the figure
+    - title: PPanGGOLiN pangenome graph output
+      url: https://ppanggolin.readthedocs.io/en/latest/user/PangenomeAnalyses/pangenomeGraphOut.html
+      summary: Light GEXF node attributes; full GEXF very heavy; ForceAtlas2 settings
+    - title: PPanGGOLiN regions of genome plasticity
+      url: https://ppanggolin.readthedocs.io/en/latest/user/RGP/rgpAnalyses.html
+      summary: RGPs are shell and cloud gene clusters; spots group RGPs with similar persistent borders
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

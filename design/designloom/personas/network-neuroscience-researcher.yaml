@@ -1,0 +1,80 @@
+id: network-neuroscience-researcher
+name: Network Neuroscience Researcher
+roster_persona: network-neuroscientist
+tier: B
+scope: in-scope
+role: Postdoctoral Researcher, Cognitive or Clinical Neuroscience Lab
+quote: My graph is a thresholded correlation matrix. Change the threshold and half my group differences appear or vanish -- show me which results survive.
+bio: >-
+    Dr. Jana Kovac is a postdoc in a cognitive or clinical neuroscience lab who builds brain graphs from functional MRI
+    or diffusion MRI. Each subject yields a weighted, signed correlation matrix over about 100 to 400 brain regions that
+    is fully dense before thresholding; cohorts compare patients with controls, and time windows are sometimes stacked
+    into a multilayer network. She uses the MATLAB Brain Connectivity Toolbox and GenLouvain (custom nulls, resolution,
+    multilayer modularity), Python (bctpy, NetworkX) and her lab's consensus clustering scripts. Some colleagues now
+    model co-fluctuations of three or more regions as higher-order interactions. She stands for every user whose graph
+    is derived from a similarity matrix -- brain regions, genes, stocks, keywords -- where the threshold and the meaning
+    of a weight decide the result.
+characteristics:
+    expertise: advanced
+    time_pressure: medium
+    graph_literacy: advanced
+    domain_knowledge: advanced
+motivations:
+    - Compare network organization between patient and control groups without threshold artifacts
+    - Find modules and connector hubs that are stable across subjects and thresholds
+    - Track how modules change across time windows of a scan
+    - Use nulls that respect the brain's spatial embedding and signed weights
+behaviors:
+    - Thresholds correlation matrices proportionally or absolutely and sweeps the density
+    - Handles negative weights explicitly (signed nulls, or drops them), since Infomap requires positive weights
+    - Runs Louvain or GenLouvain 100 or more times and builds a consensus from the co-assignment matrix
+    - Labels hubs by within-module degree z-score and participation coefficient
+    - Builds multilayer networks of time windows and sweeps interlayer coupling with resolution
+    - Compares modularity against degree-preserving nulls plus distance-preserving nulls
+goals:
+    - A derived-graph builder that keeps the threshold, sign handling and density as recorded parameters
+    - Results reported across a range of thresholds, not at one
+    - Consensus modules with per-region uncertainty
+    - Hub roles (provincial vs connector) computed directly
+    - Multilayer modules with per-layer assignments and persistence
+frustrations:
+    - Proportional thresholding turning overall connectivity differences into spurious topology differences
+    - Degree-preserving nulls inflating modularity in spatially embedded networks
+    - Tools that assume positive weights or silently drop negative ones
+    - Consensus and multilayer methods available only as MATLAB scripts
+context:
+    frequency: weekly
+    devices:
+        - desktop
+        - laptop
+    voluntary: true
+workflows:
+    - W03
+    - W04
+    - W37
+    - W38
+    - W41
+    - W42
+    - W46
+    - W49
+    - W414
+    - W322
+sources:
+    - title: Community detection in network neuroscience (Betzel 2020 review)
+      url: https://ar5iv.labs.arxiv.org/html/2011.06723
+      summary: Brain Connectivity Toolbox and GenLouvain practice; 100 Louvain runs, resolution sweeps, consensus clustering, signed and spatial nulls, Infomap needs positive weights
+    - title: Proportional thresholding in resting-state fMRI functional connectivity networks (van den Heuvel et al. 2017)
+      url: https://research.vu.nl/en/publications/proportional-thresholding-in-resting-state-fmri-functional-connec/
+      summary: Proportional thresholds can turn overall connectivity differences into spurious topology differences
+    - title: Functional cartography of complex metabolic networks (Guimera and Amaral 2005)
+      url: https://pmc.ncbi.nlm.nih.gov/articles/PMC2175124
+      summary: Within-module degree z-score and participation coefficient define hub roles
+    - title: Community structure in time-dependent, multiscale and multiplex networks (Mucha et al. 2010)
+      url: https://arxiv.org/abs/0911.1824
+      summary: Multilayer modularity with interlayer coupling, used for time-windowed brain networks
+    - title: Higher-order organization of multivariate time series (Santoro, Battiston, Petri and Amico)
+      url: https://arxiv.org/abs/2203.10702
+      summary: Higher-order signals from products of z-scored fMRI time series
+    - title: Higher-order connectomics of human brain function (Nature Communications 2024 record)
+      url: https://research.birmingham.ac.uk/en/publications/higher-order-connectomics-of-human-brain-function-reveals-local-t/
+      summary: Higher-order analysis applied to 100 Human Connectome Project subjects

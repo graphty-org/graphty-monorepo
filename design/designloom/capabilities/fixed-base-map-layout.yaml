@@ -1,0 +1,23 @@
+id: fixed-base-map-layout
+name: Fixed base-map positions for overlays
+category: visualization
+description: Load node positions from a file and keep them fixed across loads, overlays and exports so units or periods
+    can be compared on identical coordinates; size and color nodes by a unit's count or share.
+status: planned
+notes: "Research trace: bibliometrics-and-science-mapping.md section 10, requirement 13 (Must)."
+algorithms: []
+used_by_workflows:
+    - W335
+    - W57
+    - W58
+    - W60
+    - W1006
+implemented_by_components: []
+requirements:
+    - "Must: Load a layout from file and keep positions fixed (base maps); size and color by a unit's share; compare
+      units or years on identical coordinates"
+    - "Must: Keep node positions from a saved base map fixed while sizing or coloring nodes by a different unit's or period's counts, so overlays are comparable across periods and units."
+sources:
+    - title: Bibliometrics and Science Mapping (section 10, requirement 13)
+      url: design/user-research/bibliometrics-and-science-mapping.md
+      summary: "Must in the research. Covered by Designloom when researched: No"

@@ -1,0 +1,155 @@
+id: W364
+name: Key Players and Custodian Prioritization at Early Case Assessment
+category: analysis
+validated: false
+personas:
+    - ediscovery-case-associate
+    - litigation-support-analyst
+requires_capabilities:
+    - graph-rendering
+    - filtering
+    - centrality-degree
+    - centrality-betweenness
+    - centrality-pagerank
+    - centrality-eigenvector
+    - community-detection
+    - layout-force-directed
+    - layout-hierarchical
+    - layout-radial
+    - visual-encoding-nodes
+    - legend-display
+    - node-selection
+    - statistics-panel
+    - view-bookmarks
+    - export-image
+    - data-export
+    - analysis-provenance
+    - group-collapse
+    - provenance-tracking
+    - truncation-reporting
+    - external-record-facet
+    - record-derived-edges
+suggested_components:
+    - graph-canvas
+    - filter-panel
+    - algorithm-panel
+    - ranked-node-table
+    - layout-panel
+    - legend-panel
+    - statistics-panel
+    - bookmark-panel
+    - image-export-dialog
+    - data-export-dialog
+starting_state:
+    data_type: normalized people graph over a whole project or a search result, with custodian flags
+    node_count: 10-100 drawn (Everlaw default 10 names, 25 maximum; Reveal default 100) out of thousands
+    edge_density: medium
+    user_expertise: intermediate
+goal: >-
+    **Intent**: Identify the key players in a matter and decide which custodians to collect, review first, add or
+    drop, then defend that list to the other side or an agency. Done at early case assessment and in phased reviews.
+
+
+    **Mental Model**: "Who is at the center of this, and who did we miss?" Big, central nodes are key players;
+    people who talk a lot with custodians but are not custodians are collection candidates.
+
+
+    **Task Phases**:
+
+    1. **Scope** - Open the graph on the whole project or the current search
+
+    2. **Choose node type** - People (communicators or names), email addresses, or domains
+
+    3. **Set caps** - Max node count (Reveal default 100) and max link count (default 1,000; raising it pulls in blast
+    email traffic); Everlaw draws the top 10 names and lets specified names show their top neighbors under a cap of
+    25 name nodes
+
+    4. **Remove noise** - Toggle To, Cc, Bcc; drop mass mailings by recipient count (for example fewer than 100);
+    minimum connections
+
+    5. **Read structure** - Color clusters; custodian and in-search glyphs; highlight by betweenness, PageRank or
+    eigenvector (all, incoming, outgoing); switch layouts (force-directed, hierarchical, radial and others)
+
+    6. **Decide** - Expand or reduce in-scope custodians based on communication patterns; discount custodians'
+    centrality because the graph is built from their own mailboxes
+
+    7. **Feed search** - Send a person (all aliases), a pair or a group to search or straight to review batches; share
+    and assign the document sets
+
+    8. **Deliver** - Custodian list and memo for the meet-and-confer or agency, with an exported graph image and a
+    table of communicators and communication counts
+
+
+    **Decision Points**:
+
+    - Which non-custodians communicate enough with key players to justify collection?
+
+    - Which custodians can be dropped or deferred to a later phase?
+
+    - Does a high centrality reflect importance or only that this person was collected?
+
+    - Which caps and filters make the picture honest rather than flattering?
+
+
+    **Information Needs**:
+
+    - Ranked table of people by sent, received and centrality, with custodian status
+
+    - "Showing N of M" for nodes and relationships
+
+    - Which custodian's mailbox each edge came from
+
+    - Communication counts between a candidate and existing custodians
+
+
+    **Pain Points**:
+
+    - Caps (25 name nodes, top 500 entities, 100 nodes) hide people without stating totals, except where a total of
+    pairs is shown
+
+    - Blast emails and distribution lists make everyone a hub
+
+    - Rankings that restate the collection decision (non-custodians appear only as sources and sinks)
+
+    - No record of which caps, filters and merges produced the image in the memo
+
+
+    **Data Flow**:
+
+    - Input: Normalized sender and recipient entities per document, custodian list, search result scope
+
+    - Transformations: Caps, role and recipient-count filters, centrality and clustering, layout
+
+    - Output: Custodian list and memo, graph image, communicator count table (CSV), saved searches and review batches
+success_criteria:
+    - metric: Candidate identification
+      target: User can list non-custodians ranked by communication with custodians in under 10 minutes (design goal; no source measures it)
+    - metric: Defensibility
+      target: The exported image carries the scope, caps and filters that produced it
+    - metric: Bias awareness
+      target: Custodian and non-custodian rankings can be compared separately
+sources:
+    - title: Reveal - Communications
+      url: https://docs.revealdata.com/docs/communications
+      summary: Communicators or Domains, Max Node Count 100, Max Link Count 1,000, blast email warning, image and CSV export
+    - title: Brainspace - Communications
+      url: https://docs.revealdata.com/brainspace/docs/communications
+      summary: Recipient volume filter to drop mass mailings, Add to Query
+    - title: Reveal - Connection Map
+      url: https://ai-help.revealdata.com/en/Connection-Map.html
+      summary: Betweenness, PageRank and eigenvector with in and out variants, six layouts, top 500 relationships with the total shown, custodian and search glyphs
+    - title: Everlaw - Introducing Communication Visualizer (2023)
+      url: https://www.everlaw.com/blog/2023/03/20/introducing-communication-visualizer/
+      summary: Identify the key players, selection mode, expedite to review, share and assign document sets
+    - title: Lets Get Visual (Casey, Reveal, 2022)
+      url: https://revealdata.com/blog/lets-get-visual-supercharging-ediscovery-with-data-visualization
+      summary: Expand or reduce in-scope custodians based on actual communication patterns
+    - title: FTC - Making the Second Request Process Both More Streamlined and More Rigorous (2021)
+      url: https://www.ftc.gov/enforcement/competition-matters/2021/09/making-second-request-process-both-more-streamlined-more-rigorous-during-unprecedented-merger-wave
+      summary: Parties describe custodians' responsibilities and how they will use eDiscovery tools
+    - title: SNAP - Enron email network
+      url: https://snap.stanford.edu/data/email-Enron.html
+      summary: 36,692 address nodes and 183,831 edges from about 0.5 million emails; non-Enron addresses only as sources and sinks
+version: 1.0.0
+created_at: 2026-11-25T00:00:00.000Z
+updated_at: 2026-11-25T00:00:00.000Z

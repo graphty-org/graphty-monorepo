@@ -10,6 +10,7 @@ used_in_workflows:
     - W02
     - W05
     - W17
+    - W64
 dependencies:
     - icon-button
     - tooltip

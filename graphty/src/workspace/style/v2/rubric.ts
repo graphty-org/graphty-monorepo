@@ -608,6 +608,19 @@ export const NODE_RUBRIC: Readonly<Record<string, ThingRubric>> = {
         // The fields are the list editor's (R15, `ItemList.tsx`), under Main.
         rowOwns: ["node.shapeTexts"],
         main: [{ channel: "node.labelTable", name: "Table", rule: "field" }],
+        // graphty-element draws a record's words, its table's and its fields', in the node's label letters: the
+        // Text group edits those. Size is the letters' own height (`letterSize`), which a table shrunk to fit its
+        // node scales with it; a screen size would not follow the node.
+        groups: [
+            {
+                name: "Text",
+                lines: [
+                    { channel: "node.labelColor", name: "Color" },
+                    { channel: "node.labelLetterSize", name: "Size" },
+                    { channel: "node.labelFont", name: "Font", rule: "R13" },
+                ],
+            },
+        ],
     },
 };
 

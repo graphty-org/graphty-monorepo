@@ -22,6 +22,7 @@ import { Button, Group } from "@mantine/core";
 import React, { useId, useState } from "react";
 
 import { useWorkspace } from "../../state/WorkspaceContext";
+import { shownChannel } from "../offered";
 import type { RowContext } from "../PropertyRow";
 import { colorPalettes, dataUndrawnWords } from "../words";
 import { CalculateLines } from "./CalculatePopover";
@@ -46,7 +47,8 @@ import {
 import { DataGroups, EmptyLine, KeepLine, PaletteLine } from "./DataGroups";
 import { BesidePopover, CommitText, PopLine, Segments, WordNumber } from "./dataLines";
 import { FormatLines } from "./FormatPopover";
-import { firstColors, LISTS, type ListSpec } from "./lists";
+import { PointPair } from "./ItemFields";
+import { coordinateDescriptor, firstColors, LISTS, type ListSpec } from "./lists";
 import { shownPaint, writtenPaint } from "./paint";
 import { lineFor } from "./rubric";
 import { LineFrame, RubricLine } from "./RubricLine";
@@ -399,14 +401,14 @@ function SourceControl({ args }: Readonly<{ args: EntryArgs }>): React.JSX.Eleme
 }
 
 /**
- * The Entry pop-over's "Each value" line, for a list field: Count or Equal share for words, Each item or one
- * statistic for numbers.
+ * The Entry pop-over's "Each value" line, for a list field: Count or Equal share for a pie's or chart's words (a
+ * record's: Count, Once or All), Each item or one statistic for numbers.
  * @param props - Component props
  * @param props.args - the entry
  * @returns The line, or nothing for an entry that does not spread
  */
 function EachLine({ args }: Readonly<{ args: EntryArgs }>): React.JSX.Element | null {
-    const { ctx, entry, put } = args;
+    const { ctx, channel, entry, put } = args;
     // Whether the field holds lists, and of what, is the column's (graphty-element's `spread`), never one node's.
     const spread =
         "field" in entry
@@ -416,9 +418,25 @@ function EachLine({ args }: Readonly<{ args: EntryArgs }>): React.JSX.Element | 
         return null;
     }
     const words = spread === "categories";
+    // A record writes a list of words as text (graphty-element counts it): counted, each word once, or every item.
+    const record = channel === "node.recordData";
     return (
         <PopLine line="entry.each" name="Each value">
-            {words ? (
+            {words && record ? (
+                <Segments
+                    label="Each value"
+                    value={entry.each === "equal" || entry.each === "items" ? entry.each : "count"}
+                    options={[
+                        ["count", "Count"],
+                        ["equal", "Once"],
+                        ["items", "All"],
+                    ]}
+                    onPick={(next) => {
+                        put({ ...entry, each: next === "count" ? undefined : (next as DataEntry["each"]) });
+                    }}
+                />
+            ) : null}
+            {words && !record ? (
                 <Segments
                     label="Each value"
                     value={entry.each === "equal" ? "equal" : "count"}
@@ -430,7 +448,8 @@ function EachLine({ args }: Readonly<{ args: EntryArgs }>): React.JSX.Element | 
                         put({ ...entry, each: next === "equal" ? "equal" : undefined });
                     }}
                 />
-            ) : (
+            ) : null}
+            {words ? null : (
                 <PanelField
                     label="Each value"
                     kind="select"
@@ -448,6 +467,33 @@ function EachLine({ args }: Readonly<{ args: EntryArgs }>): React.JSX.Element | 
                     }}
                 />
             )}
+        </PopLine>
+    );
+}
+
+/**
+ * A Points record entry's X / Y line: where its value is drawn, in the frame `node.shapeTexts` uses. Unset, the
+ * value sits one line below the entry before it.
+ * @param props - Component props
+ * @param props.args - the entry
+ * @returns The line
+ */
+function PlaceLine({ args }: Readonly<{ args: EntryArgs }>): React.JSX.Element | null {
+    const { ctx, entry, name, put } = args;
+    const descriptor = shownChannel(ctx.session, ctx.side, "node.shapeTexts", true);
+    if (descriptor === undefined) {
+        return null;
+    }
+    return (
+        <PopLine line="entry.at" name="X / Y">
+            <PointPair
+                descriptor={coordinateDescriptor(descriptor)}
+                label={`${name} point`}
+                point={entry.at === undefined ? undefined : { x: entry.at[0], y: entry.at[1] }}
+                onWrite={(point) => {
+                    put({ ...entry, at: point === undefined ? undefined : [point.x, point.y] });
+                }}
+            />
         </PopLine>
     );
 }
@@ -577,6 +623,7 @@ function EntryLines({
                 />
             </PopLine>
             <FormatLine args={args} />
+            {channel === "node.recordData" && spec.layout === "points" ? <PlaceLine args={args} /> : null}
             {colored ? (
                 <PopLine line="entry.color" name={null}>
                     <CompactColorInput

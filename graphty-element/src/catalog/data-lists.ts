@@ -93,7 +93,10 @@ export interface DataEntryCommon {
     /**
      * What a list value gives: `"count"` one part per distinct value holding how often it occurs (text lists' default),
      * `"equal"` one part per distinct value holding 1, `"items"` one part per item (number lists' default), or one part
-     * holding the list's `"sum"`, `"mean"`, `"min"` or `"max"`.
+     * holding the list's `"sum"`, `"mean"`, `"min"` or `"max"`. In a record's value cell the same
+     * choice reads as text: `"count"` each distinct word with how often it occurs, most first ("dog 2, cat 1"; text
+     * lists' default), `"equal"` each distinct word once, `"items"` every item (number lists' default), or the
+     * statistic.
      */
     readonly each?: "count" | "equal" | "items" | "sum" | "mean" | "min" | "max";
     /** Record, points layout: where the value is drawn, in the frame `node.shapeTexts` uses. */

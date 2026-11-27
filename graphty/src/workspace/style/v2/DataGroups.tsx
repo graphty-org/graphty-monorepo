@@ -1,6 +1,6 @@
 /**
  * The groups behind a data pop-over's "..." (tmp/entries-first/spec.md 2.2, 2.3): a pie's Colors, Other and No values
- * and its Disc; a chart's Scale, Other and Colors and its Axis, Border, Background and Box. Each opens beside the
+ * and its Disc; a chart's Scale, Other and Colors and its Axis, Border, Background and Box; a record's Text. Each opens beside the
  * pop-over (`GroupMenu`). The data groups write the spec; the look groups are the thing's rubric lines, as the fixed
  * pop-over draws them. Colors read graphty-element's categories (`dataFacts().categories`), never the panel's own.
  */
@@ -702,7 +702,8 @@ function groupsOf(ctx: RowContext, channel: DataChannel): DataGroup[] {
             ...lookGroups(ctx, "chart", "node.chartKind", ["node.chartMin", "node.chartHorizontal"]),
         ];
     }
-    return [];
+    // A record's Text group: the letters its words are drawn in.
+    return lookGroups(ctx, "record", "node.shapeTexts", []);
 }
 
 /**

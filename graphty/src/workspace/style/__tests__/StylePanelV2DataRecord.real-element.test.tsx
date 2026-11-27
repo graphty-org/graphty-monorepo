@@ -2,7 +2,8 @@
  * Style panel v2's Record from data on the REAL graphty-element, by real clicks: several fields picked at once, each
  * line reading the sample's value in its entry's format, a text column first drawing its own glyph on the picker, the
  * entry's value opening its pop-over and a tab picked there keeping it open, the Points layout, a Text entry, the
- * sample named by its label, and Alt+ArrowDown moving a row.
+ * sample named by its label, Alt+ArrowDown moving a row, and the record graphty-element draws: a list counted, a
+ * Points entry's X / Y and the Text group's letters, read from the element's drawn values and the canvas's pixels.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -14,7 +15,7 @@ import { userEvent } from "vitest/browser";
 
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
-import { openProject, openStyle, sectionOf, written } from "./v2Harness";
+import { openGroup, openProject, openStyle, picture, pixelsApart, sectionOf, written } from "./v2Harness";
 
 /**
  * The project with gene facts on each node, named by its label.
@@ -24,9 +25,12 @@ async function withGenes(): Promise<{ session: GraphSession; layer: string }> {
     const { session, id } = await openProject();
     await session.config.set({ data: { knownFields: { nodeLabelPath: "label" } } });
     await session.data.updateNodes([
-        { id: "a", values: { label: "TP53", gene: "TP53", degree: 34, logFC: -2.31 } },
-        { id: "b", values: { label: "MDM2", gene: "MDM2", degree: 12, logFC: 1.2 } },
-        { id: "c", values: { label: "ATM", gene: "ATM", degree: 3, logFC: 0.4 } },
+        {
+            id: "a",
+            values: { label: "TP53", gene: "TP53", degree: 34, logFC: -2.31, animals: ["dog", "cat", "dog", "horse"] },
+        },
+        { id: "b", values: { label: "MDM2", gene: "MDM2", degree: 12, logFC: 1.2, animals: ["cat"] } },
+        { id: "c", values: { label: "ATM", gene: "ATM", degree: 3, logFC: 0.4, animals: ["owl", "owl"] } },
     ]);
     await session.styles.settled();
     return { session, layer: id };
@@ -150,4 +154,97 @@ describe("Style panel v2's record from data", () => {
             );
         });
     });
+
+    it("draws a list counted, a Points entry at its X / Y, and its words in the Text group's letters", async () => {
+        const { session, layer } = await withGenes();
+        const element = document.querySelector("graphty-element");
+        assert.isNotNull(element);
+        const tab = await openStyle("Key people");
+        await recordOf(tab, ["animals"]);
+        // graphty-element counts a list of words, most first: the drawn table's value cell reads the counts.
+        await waitFor(() => {
+            assert.include(drawnCells(session), "dog 2, cat 1, horse 1");
+        });
+
+        // Each value: Once draws each word once.
+        const more = await screen.findByRole("button", { name: "animals settings" });
+        await userEvent.hover(more.closest<HTMLElement>(".ws-row") ?? more);
+        await userEvent.click(more);
+        const entry = await openFrom("animals settings");
+        await userEvent.click(within(entry).getByText("Once"));
+        await waitFor(() => {
+            const spec = written(session, layer, "node.recordData") as { entries: { each?: string }[] };
+            assert.strictEqual(spec.entries[0].each, "equal");
+            assert.include(drawnCells(session), "dog, cat, horse");
+        });
+        // A table entry has no X / Y: its cell is its place.
+        assert.isNull(entry.querySelector('[data-line="entry.at"]'));
+        await userEvent.keyboard("{Escape}");
+
+        // The record's Text group: color, size and the font picker; a larger size redraws the words.
+        const settings = await waitFor(() => {
+            const found = sectionOf(tab, "node-text").querySelector<HTMLElement>(
+                '[data-line="node.recordData"] button[aria-label^="Node record settings"]',
+            );
+            assert.isNotNull(found);
+            return found;
+        });
+        await userEvent.click(settings);
+        const pop = await openFrom("Node record settings");
+        const text = await openGroup(pop, "Text");
+        assert.strictEqual(text.dataset.groupPop, "Text");
+        for (const channel of ["node.labelColor", "node.labelLetterSize", "node.labelFont"]) {
+            assert.isNotNull(text.querySelector(`[data-line="${channel}"]`), channel);
+        }
+        const before = await picture(element);
+        const size = text.querySelector<HTMLInputElement>('[data-line="node.labelLetterSize"] input');
+        assert.isNotNull(size);
+        await userEvent.clear(size);
+        await userEvent.type(size, "2{Enter}");
+        await waitFor(() => {
+            assert.strictEqual(written(session, layer, "node.labelLetterSize"), 2);
+        });
+        assert.isAbove(pixelsApart(before, await picture(element)), 0, "the record's words are drawn larger");
+
+        // Points: the entry's pop-over gains X / Y, and the drawn text sits at the point typed.
+        await userEvent.click(within(pop).getByText("Points"));
+        await waitFor(() => {
+            assert.strictEqual((written(session, layer, "node.recordData") as { layout?: string }).layout, "points");
+        });
+        await userEvent.keyboard("{Escape}");
+        await userEvent.keyboard("{Escape}");
+        const again = await screen.findByRole("button", { name: "animals settings" });
+        await userEvent.hover(again.closest<HTMLElement>(".ws-row") ?? again);
+        await userEvent.click(again);
+        const point = await openFrom("animals settings");
+        const x = await waitFor(() => {
+            const found = point.querySelector<HTMLInputElement>(
+                '[data-line="entry.at"] input[aria-label="animals point x"]',
+            );
+            assert.isNotNull(found, "the X / Y line");
+            return found;
+        });
+        await userEvent.clear(x);
+        await userEvent.type(x, "0.5{Enter}");
+        await waitFor(() => {
+            const spec = written(session, layer, "node.recordData") as { entries: { at?: number[] }[] };
+            assert.deepEqual(spec.entries[0].at, [0.5, 0]);
+            const texts = session.styles
+                .drawnValues("node.shapeTexts")
+                .flatMap((each) => JSON.parse(String(each.value)) as unknown[][]);
+            assert.deepInclude(texts, [0.5, 0, "dog, cat, horse"]);
+        });
+    });
 });
+
+/**
+ * Every value cell's words of the record tables graphty-element draws.
+ * @param session - the session.
+ * @returns the words.
+ */
+function drawnCells(session: GraphSession): string[] {
+    return session.styles.drawnValues("node.labelTable").flatMap((each) => {
+        const table = JSON.parse(String(each.value)) as { rows: { cells: { lines: { text: string }[] }[] }[] };
+        return table.rows.map((row) => (row.cells.at(-1)?.lines ?? []).map((line) => line.text).join(""));
+    });
+}

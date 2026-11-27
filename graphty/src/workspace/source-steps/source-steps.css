@@ -169,12 +169,13 @@ dialog.jw-modal {
     align-items: center;
 }
 
-/* A card's named row: its words in one column, so the controls start at one x. */
+/* A card's named row: its words in one column, so the controls start at one x. The words share the
+   baseline of the controls' first line, so they stay on it when the controls wrap (#10216). */
 .jw-row {
     display: grid;
     grid-template-columns: 96px minmax(0, 1fr);
     gap: 8px;
-    align-items: center;
+    align-items: first baseline;
     min-height: 24px;
 }
 

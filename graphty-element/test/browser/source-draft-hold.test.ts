@@ -160,6 +160,38 @@ describe("a source draft's preview held still", () => {
         assert.isNull(d.graph.getLayoutManager().layoutEngine?.holdMask ?? null, "and the hold ends");
     });
 
+    test("after the commit the layout goes on from the preview's places, over every node (issue #10215)", async () => {
+        const d = await drawn();
+        link(d);
+        await d.draft.display(true, { hold: true });
+        await d.graph.waitForStableFrame();
+        const motions: string[] = [];
+        d.session.on("layout:motion-changed", ({ motion }) => motions.push(motion));
+        const held = places(d.graph, PEOPLE);
+        await d.draft.commit();
+        await d.graph.waitForStableFrame();
+        assert.include(motions, "running", "the layout runs again");
+        assert.isAbove(farthest(held, places(d.graph, PEOPLE)), 0, "the people the preview held move");
+    });
+
+    test.each([
+        ["cancelled", (draft: SourceDraft) => Promise.resolve(draft.dispose())],
+        ["no longer shown", (draft: SourceDraft) => draft.display(false)],
+    ] as const)("a draft %s lets the preview's hold go and leaves the graph as it was", async (_, end) => {
+        const d = await drawn();
+        const was = places(d.graph, PEOPLE);
+        link(d);
+        await d.draft.display(true, { hold: true });
+        await d.graph.waitForStableFrame();
+        const manager = d.graph.getLayoutManager();
+        assert.isNotNull(layoutManagerInternals.draftHeld(manager), "held while shown");
+        await end(d.draft);
+        await d.graph.waitForStableFrame();
+        assert.isNull(layoutManagerInternals.draftHeld(manager), "let go");
+        assert.isNull(manager.layoutEngine?.holdMask ?? null);
+        assert.strictEqual(farthest(was, places(d.graph, PEOPLE)), 0, "the graph as it was");
+    });
+
     test("a node the draft adds is not left drawn over a node the graph holds", async () => {
         const d = await drawn();
         d.draft.add(d.visits);

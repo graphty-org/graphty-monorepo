@@ -578,11 +578,11 @@ describe("every label field is reachable from the Label row and draws (E673)", (
                     return field === "sizeMode" ? "screen" : undefined;
                 }
                 const line = await lineIn(root, `node.labelStyle.${place.line.field}`);
-                if (place.line.rule === "R7t") {
-                    // A font style toggle (owner, 2026-11-23): Bold writes the weight, the others their flag.
-                    const word = field === "weight" ? "Bold" : `${field.charAt(0).toUpperCase()}${field.slice(1)}`;
+                if (place.line.rule === "R7t" && field !== place.line.field) {
+                    // A font style toggle (owner, 2026-11-23) writes its flag; the line's own field is its weight.
+                    const word = `${field.charAt(0).toUpperCase()}${field.slice(1)}`;
                     await userEvent.click(within(line).getByRole("button", { name: word }));
-                    return field === "weight" ? "bold" : true;
+                    return true;
                 }
                 // The fields a reader types in: a slider's hidden value input is not one.
                 const inputs = (): HTMLInputElement[] =>
@@ -656,7 +656,7 @@ describe("every label field is reachable from the Label row and draws (E673)", (
                             await pickSegment(line, "Inside");
                         } else if (rule === "R8" || rule === "R8f") {
                             await pickSegment(line, optionName(field, value));
-                        } else if (rule === "R5b") {
+                        } else if (rule === "R5b" || rule === "R7t") {
                             // A weight's presets are a combo box: its name typed picks it.
                             await typeIn(inputs()[0], optionName(field, value));
                         } else {

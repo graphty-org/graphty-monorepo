@@ -5,15 +5,7 @@
  * value bound to data, a list, an asset or a text source keeps today's field.
  */
 
-import {
-    AnglePicker,
-    ComboInput,
-    FontPicker,
-    PanelField,
-    SegmentedControl,
-    Slider,
-    ToggleIconButton,
-} from "@graphty/compact-mantine";
+import { AnglePicker, ComboInput, FontPicker, PanelField, SegmentedControl, Slider } from "@graphty/compact-mantine";
 import {
     type Channel,
     type ChannelDescriptor,
@@ -580,27 +572,6 @@ function checkboxControl(args: ControlArgs): React.ReactNode {
 }
 
 /**
- * Bold (R7t) on a weight channel (a glyph's): a text editor's toggle, pressed from 600, writing 700 or 400; the
- * number itself is the Advanced dialog's.
- * @param args - the line.
- * @returns The toggle
- */
-function boldControl(args: ControlArgs): React.ReactNode {
-    const { ctx, descriptor, value, write } = args;
-    const weight = value ?? drawnValue(ctx, descriptor.channel);
-    return (
-        <ToggleIconButton
-            label="Bold"
-            icon={<GLYPHS.fontBold size={14} aria-hidden />}
-            checked={typeof weight === "number" && weight >= 600}
-            onChange={(on) => {
-                write(descriptor.channel, on ? 700 : 400);
-            }}
-        />
-    );
-}
-
-/**
  * A number (R5), or two related numbers as a pair with their letters.
  * @param args - the line.
  * @returns The control
@@ -1039,8 +1010,8 @@ const CONTROLS: Readonly<Record<Exclude<Rule, "field" | "R15" | "R17">, (args: C
     R5: numberControl,
     R5b: presetControl,
     R7: checkboxControl,
-    // Font style toggles (R7t): a number channel's is Bold (a glyph's weight); a flag stays a checkbox.
-    R7t: (args) => (args.descriptor.accepts === "number" ? boldControl(args) : checkboxControl(args)),
+    // Font style toggles (R7t): a channel's flag stays a checkbox.
+    R7t: checkboxControl,
     R8: segmentsControl,
     R8f: segmentsControl,
     R9: valueControl,

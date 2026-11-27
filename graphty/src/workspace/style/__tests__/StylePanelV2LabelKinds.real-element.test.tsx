@@ -219,7 +219,7 @@ describe("a node's Label is Text or Glyph", () => {
         const pop = await panelOf();
         const glyph = within(pop).getByRole<HTMLInputElement>("textbox", { name: "Node glyph" });
         assert.equal(glyph.value, "A", "the glyph shows its letter");
-        // At most 6 lines tall (owner's input rules): the tabs, Glyph, Size, Color, Style; its Letters group beside.
+        // At most 6 lines tall (owner's input rules): the tabs, Glyph, Size, Color; its Letters group beside.
         const tops = new Set(
             [...pop.querySelectorAll<HTMLElement>(".ws-row, .ws-member")]
                 .filter((line) => line.parentElement?.closest(".ws-row") === null && line.checkVisibility())
@@ -229,6 +229,9 @@ describe("a node's Label is Text or Glyph", () => {
         const advanced = await openGroup(pop);
         const font = within(advanced).getByRole<HTMLInputElement>("combobox", { name: "Node glyph font" });
         assert.equal(font.value, "Sans serif", "the font shows what an unset glyph is drawn in");
+        // One path to the weight (#10380): the Letters group's Weight line, no Bold toggle.
+        within(advanced).getByRole("combobox", { name: /weight/i });
+        assert.isNull(within(pop).queryByRole("button", { name: "Bold" }), "no Bold toggle");
     });
 
     it("a file writing a glyph opens as one Label row of kind Glyph, its character shown and drawn", async () => {

@@ -193,10 +193,12 @@ Both tiers run 3 repetitions of each input on each page. `node benchmarks/compar
 fails when a tier names an input no page of its kind runs. Every page records its own wall time, printed when the
 run is recorded, so a run that grows shows which page grew.
 
-Neither tier has been timed on the NVIDIA card yet, so there is no baseline in the history and no measured length
-for a GPU run: the first `run quick` and `run full` record both. A smoke pass (SwiftShader, small graphs, one
-repetition) of the full tier takes about 50 minutes for the element pages and 50 for the app pages, run side by
-side; a timed run has three repetitions, real sizes and one page at a time under the lock, so expect several hours.
+The first timed full run on the NVIDIA card (RTX 4070 SUPER) is the baseline in the history: 1278 cells from 24
+pages in about 5 hours (296 minutes), the slowest the two 100k heavy element pages (E12, E14) at about 40 minutes each.
+Four pages (E11, A2, A7 and A8) did not finish within the 60 minutes a page is given and recorded nothing; the
+quick tier has no GPU baseline yet, so its first `run quick` records one. A smoke pass (SwiftShader, small graphs,
+one repetition) of the full tier takes about 50 minutes for the element pages and 50 for the app pages, run side by
+side.
 
 The quick tier is for any change to graphty-element's input, picking, selection, styles or render loop, or to the
 app's canvas, Inspector and table; the full tier runs nightly on this machine, or on demand.

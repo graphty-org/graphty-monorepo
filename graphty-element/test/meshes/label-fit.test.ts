@@ -4,7 +4,7 @@
  */
 import { assert, describe, it } from "vitest";
 
-import { imageAspectExtent, labelFitExtent } from "../../src/meshes/labelFit";
+import { imageAspectExtent, labelFitExtent, tableShrink } from "../../src/meshes/labelFit";
 
 const box = { width: 10, height: 2 };
 
@@ -183,5 +183,19 @@ describe("imageAspectExtent", () => {
     it("keeps the node's own box without the option or before the picture is read", () => {
         assert.isNull(imageAspectExtent({ type: "rectangle", size: 36 }, { width: 48, height: 24 }));
         assert.isNull(imageAspectExtent({ type: "rectangle", size: 36, imageAspect: true }, null));
+    });
+});
+
+describe("tableShrink", () => {
+    it("fits a table's box to a box-shaped node's box, never growing it", () => {
+        assert.closeTo(tableShrink("rectangle", { width: 4, height: 1 }, 2, 2), 0.5, 1e-9);
+        assert.closeTo(tableShrink("box", { width: 1, height: 4 }, 2, 2), 0.5, 1e-9);
+        assert.strictEqual(tableShrink("rectangle", { width: 1, height: 1 }, 2, 2), 1);
+    });
+
+    it("puts a table's corners on the ellipse through any other node's box", () => {
+        const k = tableShrink("circle", { width: 4, height: 3 }, 1, 1);
+        assert.closeTo((4 * k) ** 2 + (3 * k) ** 2, 1, 1e-9);
+        assert.strictEqual(tableShrink(undefined, { width: 0, height: 3 }, 1, 1), 1);
     });
 });

@@ -49,8 +49,8 @@ import { disposeLater } from "./meshes/handOverTogether";
 import { drawInRowOrder } from "./meshes/instanceRowOrder";
 import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
 import { unfreezeFor } from "./meshes/LabelBatch";
-import { imageAspectExtent, labelFitExtent } from "./meshes/labelFit";
-import { layoutLabelTable, roundedBoxOutline } from "./meshes/labelTable";
+import { imageAspectExtent, labelFitExtent, tableShrink } from "./meshes/labelFit";
+import { type LabelTable, layoutLabelTable, roundedBoxOutline } from "./meshes/labelTable";
 import { moveInstance } from "./meshes/moveInstance";
 import type { PieceBox } from "./meshes/nodeDecoration";
 import {
@@ -231,6 +231,43 @@ function tableOutlineFrame(
     return border !== undefined && border > 0 && inside
         ? [{ x: 0, y: 0, width: drawn.width, height: drawn.height, border, radius: drawn.radius }]
         : [];
+}
+
+/**
+ * How much smaller a node that does not grow round its table draws it: 1 unless the table asks to shrink to fit.
+ * @param table - the table
+ * @param fitted - the extent the node grows to round it, null when it does not
+ * @param type - the node's shape type
+ * @param drawn - the laid-out table's box
+ * @param drawn.width - its width
+ * @param drawn.height - its height
+ * @param width - the node's width
+ * @param height - its height
+ * @returns the scale
+ */
+function shrinkOf(
+    table: LabelTable | null,
+    fitted: unknown,
+    type: string | undefined,
+    drawn: { width: number; height: number },
+    width: number,
+    height: number,
+): number {
+    return fitted === null && table?.shrinkToNode === true ? tableShrink(type, drawn, width, height) : 1;
+}
+
+/**
+ * A label's options with its letters drawn `k` times as tall: its letter size scaled where it gives one, else its line
+ * height (`size`, else a 48th of its font size, as the label draws it unset).
+ * @param options - the label's options
+ * @param k - the scale
+ * @returns the options, scaled
+ */
+function shrunkLetters(options: RichTextLabelOptions, k: number): RichTextLabelOptions {
+    const { letterSize, size, fontSize } = options;
+    return letterSize !== undefined && letterSize > 0
+        ? { ...options, letterSize: letterSize * k }
+        : { ...options, size: (size ?? (fontSize ?? 48) / 48) * k };
 }
 
 /** How opaque a group following its members is drawn when no layer styled it: a faint region. */
@@ -709,6 +746,8 @@ export class Node implements ModelUser {
      * `shape.texts` places one; null when its label is not a table. Laid out with the mesh (`fitToLabel`).
      */
     private tableTexts: [number, number, string][] | null = null;
+    /** How much smaller the table's words are drawn than the label's, when the table shrinks to fit its node. */
+    private tableTextScale = 1;
 
     /**
      * The width, in the style's lengths, of the table outline this node draws over its face (its label's table is
@@ -3148,9 +3187,13 @@ export class Node implements ModelUser {
         let style: DecoratedStyle = extent === null ? o : { ...o, shape: { ...shape, width, height } };
         let key = extent === null ? meshKey : `${meshKey}|fit:${width}x${height}`;
         if (drawn !== null) {
+            // a node that does not grow round its table draws it smaller to fit inside, when the table asks
+            const k = shrinkOf(table, extent, shape?.type, drawn, width, height);
+            this.tableTextScale = k;
             // the table centered on the node: its points as fractions of the node's half width and height, y up
-            const fx = (x: number): number => Number((width > 0 ? (2 * x - drawn.width) / width : 0).toFixed(6));
-            const fy = (y: number): number => Number((height > 0 ? (drawn.height - 2 * y) / height : 0).toFixed(6));
+            const fx = (x: number): number => Number((width > 0 ? (k * (2 * x - drawn.width)) / width : 0).toFixed(6));
+            const fy = (y: number): number =>
+                Number((height > 0 ? (k * (drawn.height - 2 * y)) / height : 0).toFixed(6));
             this.tableTexts = drawn.texts.map((t): [number, number, string] => [fx(t.x), fy(t.y), t.text]);
             const box = (b: { x: number; y: number; width: number; height: number }): PieceBox => ({
                 x0: fx(b.x),
@@ -3183,7 +3226,7 @@ export class Node implements ModelUser {
             }
             // the table's own outline is the node's border where the node is the table's box; inside a larger node
             // (a margin round it) it is drawn where the table is, as Graphviz draws it
-            const outline = tableOutlineFrame(table?.border, drawn, width, height);
+            const outline = tableOutlineFrame(table?.border, drawn, width / k, height / k);
             this.tableFrame = outline[0]?.border ?? null;
             // each cell's outline drawn inside its box, as Graphviz strokes it
             const lines = [
@@ -4720,12 +4763,15 @@ export class Node implements ModelUser {
      */
     private syncShapeTexts(o: NodeStyleConfig, rebuild: boolean): void {
         const table = this.tableTexts ?? [];
+        const own = shapeTexts(o.shape?.texts);
+        const k = this.tableTextScale;
         const texts: ReturnType<typeof shapeTexts> = [
-            ...shapeTexts(o.shape?.texts),
+            ...own,
             ...table.map(([x, y, t]): ReturnType<typeof shapeTexts>[number] => [x, y, t, {}]),
         ];
         const half = this.drawnHalfExtents;
-        const key = texts.length === 0 ? undefined : JSON.stringify([o.shape?.texts, table, o.label, half.x, half.y]);
+        const key =
+            texts.length === 0 ? undefined : JSON.stringify([o.shape?.texts, table, k, o.label, half.x, half.y]);
         if (!rebuild && key === this.drawnShapeTexts) {
             return;
         }
@@ -4743,7 +4789,7 @@ export class Node implements ModelUser {
         const style = { ...o.label, location: "center" as const, attachOffset: 0, offsetX: 0, offsetY: 0 };
         // A text with no point of its own sits one of the previous text's lines below it, at its x.
         let previous: { readonly x: number; readonly y: number; readonly label: RichTextLabel } | undefined;
-        this.shapeTextLabels = texts.map(([x, y, text, look]) => {
+        this.shapeTextLabels = texts.map(([x, y, text, look], i) => {
             // right and down on screen
             const at =
                 x !== undefined && y !== undefined
@@ -4752,14 +4798,15 @@ export class Node implements ModelUser {
                           x: previous?.x ?? 0,
                           y: previous === undefined ? 0 : previous.y + previous.label.worldLineHeight,
                       };
+            const options = this.createLabelOptions(text, {
+                ...style,
+                ...(look.size === undefined ? {} : { letterSize: look.size * 2 * half.y }),
+                ...(look.color === undefined ? {} : { textColor: look.color }),
+                ...(look.font === undefined ? {} : { font: look.font }),
+                ...(look.rotation === undefined ? {} : { rotation: look.rotation }),
+            });
             const label = new RichTextLabel(scene, {
-                ...this.createLabelOptions(text, {
-                    ...style,
-                    ...(look.size === undefined ? {} : { letterSize: look.size * 2 * half.y }),
-                    ...(look.color === undefined ? {} : { textColor: look.color }),
-                    ...(look.font === undefined ? {} : { font: look.font }),
-                    ...(look.rotation === undefined ? {} : { rotation: look.rotation }),
-                }),
+                ...(i < own.length || k === 1 ? options : shrunkLetters(options, k)),
                 offsetX: at.x,
                 offsetY: at.y,
             });

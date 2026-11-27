@@ -2938,6 +2938,20 @@ export interface SessionDataApi {
         },
     ): Promise<LoadDraft>;
     /**
+     * The draft the last `prepare` handed back, while it is neither loaded nor disposed, with what
+     * it was read from and `onto` as `prepare` was given it. Autosave keeps it with the work: after a restore it is that draft read
+     * again (a file from the bytes autosave kept), so an application can reopen what it showed
+     * for it, such as a join screen.
+     *
+     * ```ts
+     * await element.autosaver.restore(entryId);
+     * const held = session.data.prepared();
+     * if (held?.onto === "graph") showJoinScreen(held.draft, held.source.name);
+     * ```
+     * @returns The draft and its source, or null when none is held.
+     */
+    prepared(): { readonly draft: LoadDraft; readonly source: DataSourceInput; readonly onto?: "graph" } | null;
+    /**
      * Every table joined onto the graph and still loaded, oldest first: the join each was made
      * with. Saved with the project.
      * @returns The joins.

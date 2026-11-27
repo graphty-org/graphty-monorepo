@@ -229,6 +229,33 @@ test("a selection change is announced in a live region, worded by the page when 
     );
 });
 
+test("the default announcement of one selected node looks up no neighbors", async () => {
+    const { host } = await mount({ "aria-label": "Network drawing" });
+    await addPath(host);
+    const live = host.shadowRoot?.querySelector("[role=status]");
+    assert.exists(live);
+    const { data } = host.session;
+    const neighbors = data.neighbors.bind(data);
+    let lookups = 0;
+    data.neighbors = (...args: Parameters<typeof neighbors>): ReturnType<typeof neighbors> => {
+        lookups++;
+        return neighbors(...args);
+    };
+
+    let changed = next(host, "selection:changed");
+    await host.session.selection.apply({ ids: ["b"] });
+    await changed;
+    assert.strictEqual(live.textContent, "b");
+    assert.strictEqual(lookups, 0, "the default announcement says only the names");
+
+    host.accessibleAnnouncement = ({ params }) => params.neighbors.map((n) => n.name).join();
+    changed = next(host, "selection:changed");
+    await host.session.selection.apply({ ids: ["a"] });
+    await changed;
+    assert.strictEqual(live.textContent, "b");
+    assert.strictEqual(lookups, 1, "a page's announcement gets the neighbors");
+});
+
 test("the node list is off by default; on, the keyboard walks it and selects a node", async () => {
     const { host, canvas } = await mount({ "aria-label": "Network drawing" });
     await addPath(host);

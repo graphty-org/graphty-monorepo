@@ -4126,7 +4126,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "Lengths are in the units of `node.size`, a line's `text` in label markup. Drawn in place of the " +
             "label's words, in the label's font: each cell's outline a line in the border's color " +
             "(`node.shapeLineWidth` wide, else the cell's border), each text line in its place. With " +
-            "`node.labelFit` the table is the label's box the node grows round.",
+            "`node.labelFit` the table is the label's box the node grows round; without it the table is drawn at its own " +
+            "size, and a table giving `shrinkToNode: true` is drawn smaller, words and all, to fit inside the node.",
     },
     "node.shapeLineWidth": {
         channel: "node.shapeLineWidth",

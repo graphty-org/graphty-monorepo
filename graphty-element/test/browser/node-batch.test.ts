@@ -635,6 +635,11 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
             node.drawnAnchor.scaling.set(1.5, 0.6, 1);
         }
 
+        // An internal anchor scaled behind the element's back tells nobody, and a scene the element
+        // froze at rest recomputes no world matrix: the objects frame would keep the old scale
+        // whenever the freeze had landed by now (#10234). A consumer's own mesh (`Node.mesh`) thaws it.
+        graph.getUpdateManager().thawActiveMeshes();
+
         const objects = await readFrame(graph);
         await frameOn(graph, "batched");
         const scale = Matrix.Scaling(1.5, 0.6, 1);

@@ -73,67 +73,51 @@ function step(line: string): void {
     console.log(`[safari] ${new Date().toISOString()} ${line}`);
 }
 
-/** The registrations of webinspectord, as they arrive. */
-interface Registrations {
-    /** Resolves once webinspectord has registered the PID; rejects if the log stream ends first. */
-    until(pid: number): Promise<void>;
-    /** Stop streaming. */
-    stop(): void;
+/**
+ * A time as `log show --start` reads it: local time, to the second.
+ * @param at - The time.
+ * @returns The time, as YYYY-MM-DD HH:MM:SS.
+ */
+function logTime(at: Date): string {
+    const two = (n: number): string => String(n).padStart(2, "0");
+    return `${at.getFullYear()}-${two(at.getMonth() + 1)}-${two(at.getDate())} ${two(at.getHours())}:${two(at.getMinutes())}:${two(at.getSeconds())}`;
 }
 
 /**
- * The PIDs of the applications webinspectord has finished registering ("Application Updated" in the
- * system log, written once it has looked up the application's icon), as they arrive. `log stream`
- * shows only what is written after it attaches, and the registration is written once, so the stream
- * must be listening before the webinspectord that writes it starts.
- * @returns The set, a wait for one PID, and a stop.
+ * Wait until webinspectord has finished registering the PID ("Application Updated" in the system log,
+ * written once it has looked up the application's icon) since `since`, read from the log store.
+ *
+ * The registration is written once, so it is read from the store, not from a live `log stream`: a
+ * stream that has printed its filter line can still miss it (#10202: the stream printed its filter
+ * line at 06:06:16, webinspectord registered Safari at 06:06:22, the store held the line, and the
+ * stream never passed it on, so the wait never ended). The store holds every registration since
+ * `since`, whenever the wait begins. The lookups run one after another until the registration is
+ * there; a Safari that never registers is bounded by the workflow step's limit.
+ * @param pid - The application's PID.
+ * @param since - Before the webinspectord that registers it started, from logTime.
  */
-async function inspectorRegistrations(): Promise<Registrations> {
-    const updated = new Set<number>();
-    let ended: Error | undefined;
-    let changed = (): void => undefined;
-    const stream = ownChild(
-        spawn("log", [
-            "stream",
-            "--style",
-            "compact",
-            "--level",
-            "info",
-            "--predicate",
-            'process == "webinspectord" AND eventMessage CONTAINS "Application Updated"',
-        ]),
-    );
-    let started = (): void => undefined;
-    const ready = new Promise<void>((resolve, reject) => {
-        started = resolve;
-        stream.once("exit", (code) => reject(new Error(`log stream exited (${String(code)}) before streaming`)));
-    });
-    stream.stdout.setEncoding("utf8");
-    stream.stdout.on("data", (chunk: string) => {
-        started(); // `log stream` prints its filter line once it is streaming
-        for (const match of chunk.matchAll(/Application Updated: \d+ - PID:(\d+)/g)) {
-            updated.add(Number(match[1]));
-        }
-
-        changed();
-    });
-    await ready;
-    stream.once("exit", (code) => {
-        ended = new Error(`log stream exited (${String(code)}) before webinspectord registered Safari`);
-        changed();
-    });
-    return {
-        async until(pid) {
-            while (!updated.has(pid)) {
-                if (ended !== undefined) {
-                    throw ended;
-                }
-
-                await new Promise<void>((resolve) => (changed = resolve));
+async function registered(pid: number, since: string): Promise<void> {
+    for (;;) {
+        const { stdout } = await promisify(execFile)(
+            "log",
+            [
+                "show",
+                "--start",
+                since,
+                "--info",
+                "--style",
+                "compact",
+                "--predicate",
+                'process == "webinspectord" AND eventMessage CONTAINS "Application Updated"',
+            ],
+            { maxBuffer: 64 << 20 },
+        );
+        for (const match of stdout.matchAll(/Application Updated: \d+ - PID:(\d+)/g)) {
+            if (Number(match[1]) === pid) {
+                return;
             }
-        },
-        stop: () => stream.kill(),
-    };
+        }
+    }
 }
 
 /**
@@ -154,26 +138,26 @@ async function inspectorRegistrations(): Promise<Registrations> {
  *
  * A Safari already running (left by an earlier step: ending a session does not quit Safari) is
  * registered by the fresh webinspectord within a moment of its start, once, which is why the
- * registrations are streamed from before safaridriver starts (#9324: the stream attached after it,
- * and the wait for a registration already written never ended).
- * @param registrations - webinspectord's registrations, streamed since before safaridriver started.
+ * registrations are read from before safaridriver starts (#9324: the wait began after that
+ * registration was written, and watched only for new ones).
+ * @param since - Before safaridriver started, from logTime.
  */
-async function warmSafari(registrations: Registrations): Promise<void> {
+async function warmSafari(since: string): Promise<void> {
     const running = processes().find((p) => p.cmdline.includes("Safari.app/Contents/MacOS/Safari"));
     if (running === undefined) {
-        await launchAndQuitSafari(registrations.until);
+        await launchAndQuitSafari(since);
     } else {
         step(`waiting for webinspectord to register Safari ${running.pid}, already running`);
-        await registrations.until(running.pid);
+        await registered(running.pid, since);
         step(`webinspectord registered Safari ${running.pid}`);
     }
 }
 
 /**
  * Launch Safari, wait until it has loaded a page and is registered, and quit it.
- * @param registered - Resolves once webinspectord has registered the PID.
+ * @param since - Before safaridriver started, from logTime.
  */
-async function launchAndQuitSafari(registered: (pid: number) => Promise<void>): Promise<void> {
+async function launchAndQuitSafari(since: string): Promise<void> {
     let loaded = (): void => undefined;
     const seen = new Promise<void>((resolve) => (loaded = resolve));
     const server = http.createServer((_request, response) => {
@@ -202,7 +186,7 @@ async function launchAndQuitSafari(registered: (pid: number) => Promise<void>): 
     const safariPid = processes().find((p) => p.cmdline.includes("Safari.app/Contents/MacOS/Safari"))?.pid;
     if (safariPid !== undefined) {
         step(`waiting for webinspectord to register Safari ${safariPid}`);
-        await registered(safariPid); // a Safari that never registers is bounded by the workflow step's limit
+        await registered(safariPid, since); // a Safari that never registers is bounded by the workflow step's limit
         console.log(`[safari] webinspectord registered it after ${Date.now() - started} ms`);
     }
 
@@ -218,7 +202,7 @@ async function launchAndQuitSafari(registered: (pid: number) => Promise<void>): 
  */
 export async function startSafariDriver(): Promise<SafariDriver> {
     const port = await freePort();
-    const registrations = await inspectorRegistrations();
+    const since = logTime(new Date());
     // --diagnose: safaridriver logs every session to ~/Library/Logs/com.apple.WebDriver, which the macOS
     // workflow keeps when a step fails.
     const driver: ChildProcess = ownChild(
@@ -235,7 +219,6 @@ export async function startSafariDriver(): Promise<SafariDriver> {
         } catch (error) {
             if (attempt > 20_000 || driver.exitCode !== null) {
                 driver.kill();
-                registrations.stop();
                 throw new Error(`safaridriver did not start: ${String(error)}`);
             }
 
@@ -245,12 +228,10 @@ export async function startSafariDriver(): Promise<SafariDriver> {
 
     step("safaridriver answers");
     try {
-        await warmSafari(registrations);
+        await warmSafari(since);
     } catch (error) {
         driver.kill();
         throw error;
-    } finally {
-        registrations.stop();
     }
 
     const call = async <T>(method: string, url: string, body?: unknown): Promise<T> => {

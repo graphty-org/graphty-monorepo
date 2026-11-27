@@ -82,13 +82,22 @@ const OFF_SCREEN_CSS =
 const DESCRIPTION_ID = "graphty-a11y-description";
 
 /**
+ * The selected nodes' names, at most {@link NAME_CAP}: all the default announcement says.
+ * @param session - The session.
+ * @returns The names.
+ */
+function selectedNames(session: GraphSession): NodeName[] {
+    return session.selection.nodes.slice(0, NAME_CAP).map((id) => session.data.nodeName(id));
+}
+
+/**
  * Reads the selection facts from a session.
  * @param session - The session.
  * @returns The selection, with names.
  */
 function selectionFacts(session: GraphSession): AccessibleSelection {
     const ids = session.selection.nodes;
-    const nodes = ids.slice(0, NAME_CAP).map((id) => session.data.nodeName(id));
+    const nodes = selectedNames(session);
     if (ids.length !== 1) {
         return { nodes, count: ids.length, neighbors: [], neighborCount: 0 };
     }
@@ -285,11 +294,15 @@ export class ScreenReader {
     }
 
     #announce(): void {
-        const params = selectionFacts(this.#host.session());
+        const session = this.#host.session();
         const announce = this.#host.announce();
+        // The default words only the names: the neighbor lookup, 6 ms of a selection at 10k nodes
+        // and 100k edges, is made only for a page that words the announcement itself.
         this.#live.textContent = announce
-            ? wordSafely(announce, { code: "selection", params })
-            : params.nodes.map((n) => n.name).join(", ");
+            ? wordSafely(announce, { code: "selection", params: selectionFacts(session) })
+            : selectedNames(session)
+                  .map((n) => n.name)
+                  .join(", ");
     }
 
     /**

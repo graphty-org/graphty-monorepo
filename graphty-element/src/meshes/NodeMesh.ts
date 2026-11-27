@@ -179,6 +179,31 @@ function nearestDrawing(ring: Mesh, view: Matrix, ahead: number, at: Vector3): T
 }
 
 /**
+ * Where along the view axis a solid's overlay or underlay slab is centered: just in front of the solid's nearest
+ * vertex toward the camera, or just behind its farthest.
+ * @param solid - The solid's mesh.
+ * @param view - The rotation from the solid's local space into view space.
+ * @param ahead - 1 when the camera looks along +z in view space, -1 along -z.
+ * @param depth - The slab's depth.
+ * @param halo - Which of the two.
+ * @returns The slab's center depth.
+ */
+function haloDepth(solid: Mesh, view: Matrix, ahead: number, depth: number, halo: "underlay" | "overlay"): number {
+    const positions = solid.getVerticesData(VertexBuffer.PositionKind) ?? [];
+    const { m } = view;
+    let [near, far] = [Infinity, -Infinity];
+    for (let i = 0; i < positions.length; i += 3) {
+        const z = positions[i] * m[2] + positions[i + 1] * m[6] + positions[i + 2] * m[10];
+        near = Math.min(near, z);
+        far = Math.max(far, z);
+    }
+    const [front, rear] = ahead > 0 ? [near, far] : [far, near];
+    const out = depth * 0.01 + depth / 2;
+
+    return halo === "overlay" ? front - ahead * out : rear + ahead * out;
+}
+
+/**
  * Move a node mesh's geometry back so its front face sits `-zIndex` steps behind the plane every
  * edge and every node at `zIndex` 0 is drawn on (both views look along +z). Its position stays the
  * node's own, so edges, picking and the layout see no difference; only the depth test does. In a
@@ -1049,7 +1074,7 @@ export class NodeMesh {
                 mesh.refreshBoundingInfo();
             }
             if (!ownOutline && !flat && !options.is2D) {
-                this.followView(mesh, fill, depth, (round) => piecesOf(offsetOutline(round, pad)));
+                this.followView(mesh, fill, depth, (round) => piecesOf(offsetOutline(round, pad)), kind);
             }
             mesh.material = this.createBorderMaterial(halo?.color ?? "#000000", opacity, scene);
 
@@ -1398,7 +1423,9 @@ export class NodeMesh {
      * round it (an icosahedron's is a decagon from one side and a hexagon from another), and with perspective the
      * near half of it is drawn larger than the far half, so a ring built once from the outline seen along z was drawn
      * turned against the solid (issue #9272). The ring is rebuilt, at the depth it was placed at, whenever the
-     * outline the camera sees changes.
+     * outline the camera sees changes. An overlay or underlay is instead moved just in front of the solid's nearest
+     * point toward the camera, or just behind its farthest: a box seen off its front reaches further toward the
+     * camera than its half-depth, and an overlay kept there sat inside the box, hidden by its fill (issue #10405).
      *
      * ponytail: one ring per style, drawn round the outline the nearest node drawing it shows; a node of the style
      * much further away or across the view shows a slightly different one. A ring per node if that shows.
@@ -1406,12 +1433,14 @@ export class NodeMesh {
      * @param fill - The node's mesh, whose source's vertices the outline is the hull of.
      * @param depth - How deep the ring is along z.
      * @param piecesOf - The ring's pieces round an outline of the solid.
+     * @param halo - An overlay (in front of the solid) or underlay (behind it); omitted, the ring keeps its depth.
      */
     private static followView(
         mesh: Mesh,
         fill: AbstractMesh,
         depth: number,
         piecesOf: (outline: Point2[]) => RingPiece[],
+        halo?: "underlay" | "overlay",
     ): void {
         const scene = mesh.getScene();
         const source = fill instanceof Mesh ? fill : (fill as InstancedMesh).sourceMesh;
@@ -1420,6 +1449,7 @@ export class NodeMesh {
         const quaternion = new Quaternion();
         let seen = "";
         let drawn: Point2[] = [];
+        let drawnShift = Number.NaN;
         const observer = scene.onBeforeRenderObservable.add(() => {
             const camera = scene.activeCamera;
             if (camera === null || source.isDisposed()) {
@@ -1445,17 +1475,21 @@ export class NodeMesh {
             turn.multiplyToRef(view, toView);
             toView.setTranslationFromFloats(0, 0, 0);
             const box = mesh.getBoundingInfo().boundingBox;
+            // kept at the depth it was placed at (behind the node, by z-index), or a halo moved off the solid
+            const shift =
+                halo === undefined ? box.minimum.z + depth / 2 : haloDepth(source, toView, ahead, depth, halo);
             let outline: Point2[];
             if (camera.mode === Camera.PERSPECTIVE_CAMERA) {
                 at.scaleInPlace(1 / scale.x);
                 // looking into the ring, its inner wall is seen down to the face away from the camera, drawn smaller
                 // than the node's middle by as much: that face's inner edge is put on the solid's outline
-                const back = (at.z + (ahead > 0 ? box.maximum.z : box.minimum.z)) / at.z;
+                const back = (at.z + shift + (ahead * depth) / 2) / at.z;
                 outline = this.solidOutline(source, toView, at).map(([x, y]): Point2 => [x * back, y * back]);
             } else {
                 outline = this.solidOutline(source, toView);
             }
             const same =
+                shift === drawnShift &&
                 outline.length === drawn.length &&
                 outline.every(([x, y], i) => Math.abs(x - drawn[i][0]) < 1e-6 && Math.abs(y - drawn[i][1]) < 1e-6);
             if (same) {
@@ -1463,8 +1497,7 @@ export class NodeMesh {
             }
 
             drawn = outline;
-            // kept at the depth it was placed at (behind the node, by z-index)
-            const shift = box.minimum.z + depth / 2;
+            drawnShift = shift;
             const data = ringVertexData(piecesOf(outline), depth);
             const positions = data.positions ?? [];
             for (let z = 2; z < positions.length; z += 3) {

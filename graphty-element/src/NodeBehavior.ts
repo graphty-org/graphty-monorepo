@@ -13,6 +13,7 @@ import { Scene } from "@babylonjs/core/scene.js";
 import type { CameraManager } from "./cameras/CameraManager";
 import { expansionOf } from "./data/expand";
 import type { Graph } from "./Graph";
+import { hearPenHover } from "./input/penHover";
 import { layoutEngineInternals } from "./layout/LayoutEngine";
 import { NGraphEngine } from "./layout/NGraphLayoutEngine";
 import { SimulationLayoutEngine } from "./layout/SimulationLayoutEngine";
@@ -353,6 +354,7 @@ export function nodePointerRosterOf(scene: Scene): NodePointerRoster {
         }, PointerEventTypes.POINTERMOVE);
         filterPointerPicks(scene);
         skipMovePicksInCameraDrags(scene, created);
+        hearPenHover(scene);
         nodePointerRosters.set(scene, created);
         roster = created;
     }

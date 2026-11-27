@@ -2,7 +2,7 @@ import "../selection/selection.css";
 import "./source-steps.css";
 
 import { ControlSection } from "@graphty/compact-mantine";
-import type { GraphSession, SourceDraft, SourceKey } from "@graphty/graphty-element/session";
+import type { DraftRing, GraphSession, SourceDraft, SourceKey } from "@graphty/graphty-element/session";
 import { Button, Group, Stack, Text } from "@mantine/core";
 import React, { type RefObject, useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -41,7 +41,6 @@ import {
     hasPane,
     MERGED_COLOR,
     NEW_COLOR,
-    newNodeIds,
     REMOVED_COLOR,
     stepsOf,
     waitingIn,
@@ -63,6 +62,8 @@ const KEY_COLORS: ReadonlySet<string> = new Set([MERGED_COLOR, NEW_COLOR, REMOVE
 
 /** No elements picked. */
 const NO_REFS: Picked["refs"] = [];
+/** No ring wider than the merged ring. */
+const NO_RINGS: readonly DraftRing[] = [];
 /** No open card: no steps to focus. */
 const NO_STEPS: JoinCardView["steps"] = [];
 /** The ring on what the open card merges, wider than the merged ring (1.4), so it reads apart framed whole. */
@@ -122,40 +123,6 @@ function useModalFocus(live: boolean, box: RefObject<HTMLElement | null>): void 
 }
 
 /**
- * Frames the preview again only when a card adds nodes out of view: the reader's own place is kept else.
- * @param draft - the open draft
- */
-function useFrameNew(draft: SourceDraft): void {
-    const { element } = useWorkspace();
-    const added = draft.preview().marks.nodes.new;
-    const shown = useRef(0);
-    useEffect(() => {
-        const more = added > shown.current;
-        shown.current = added;
-        if (!more || element === null) {
-            return undefined;
-        }
-        let current = true;
-        void draft
-            .display(true, { hold: true })
-            .then(async () => element.waitForSettled())
-            .then(() => {
-                const away =
-                    current &&
-                    draft.open &&
-                    draft.side === "after" &&
-                    newNodeIds(draft).some((id) => element.nodeScreenPosition(id)?.visible === false);
-                if (away) {
-                    element.zoomToFit();
-                }
-            });
-        return () => {
-            current = false;
-        };
-    }, [added, draft, element]);
-}
-
-/**
  * The preview: the reader's graph as it is, what each card's step changes in the card's color, and the
  * rows picked in the table alone at full strength.
  * @param session - the element's session
@@ -165,6 +132,7 @@ function useFrameNew(draft: SourceDraft): void {
  * @param colors - whether each card has a color
  * @param marked - the rows picked
  * @param version - counts the draft's changes
+ * @returns the rings the preview draws wider than the merged ring, for the key
  */
 function useCardColors(
     session: GraphSession,
@@ -174,7 +142,9 @@ function useCardColors(
     colors: boolean,
     marked: Picked["refs"],
     version: unknown,
-): void {
+): readonly DraftRing[] {
+    // on reload: fresh: derived: what the preview drawn now tells
+    const [rings, setRings] = useState<readonly DraftRing[]>(NO_RINGS);
     const open = joins.openCard?.steps ?? NO_STEPS;
     const { cards } = joins;
     const openKey = open.map((step) => step.index).join();
@@ -196,11 +166,13 @@ function useCardColors(
             ...(colors ? { steps } : {}),
             ...(marked.length > 0 ? { mark: { refs: marked } } : {}),
         });
+        setRings(shown.rings);
         return () => {
             shown.end();
         };
         // The view reads the draft when shown: it is shown again after every draft change, and when another card opens.
     }, [draft, colors, version, marked, session, openKey]); // eslint-disable-line react-hooks/exhaustive-deps -- cards, colors and the open card are read from the draft, which `version` and `openKey` follow
+    return rings;
 }
 
 /**
@@ -523,8 +495,7 @@ function WorkspaceBody({
     const list = JSON.stringify(shows);
     const picked = pickedRows?.list === list ? pickedRows : null;
     const marked = picked?.refs ?? NO_REFS;
-    useCardColors(session, draft, joins, colorOf, colors, marked, version);
-    useFrameNew(draft);
+    const rings = useCardColors(session, draft, joins, colorOf, colors, marked, version);
 
     const { marks, sources } = draft.preview();
     const rows = listRows(session, draft, names, joins, colors ? colorOf : null);
@@ -637,7 +608,7 @@ function WorkspaceBody({
                     onCancel={cancel}
                     onDone={done}
                 />
-                <JoinKey marks={marks} colors={colors} />
+                <JoinKey marks={marks} rings={rings} colors={colors} />
                 <div className="sel-ws-body">
                     <div className="sel-ws-cards jw-left">
                         <div className="jw-list">
@@ -781,7 +752,7 @@ function JoinWorkspace({
     // Done left another graph than the one the workspace opened on.
     const changed = useRef(false);
     const refit = useCallback(() => changed.current, []);
-    usePreviewCanvas(draft !== null, box, frame, refit);
+    usePreviewCanvas(draft !== null, box, frame, refit, true);
 
     // The draft is drawn After while the workspace is open, the reader's own graph held where it is;
     // closing by any door throws it away.
@@ -793,7 +764,7 @@ function JoinWorkspace({
         if (draft === null) {
             return undefined;
         }
-        void draft.display(true, { hold: true }).then(() => {
+        void draft.display(true, { hold: true, keepCamera: true }).then(() => {
             setDrawing(false);
         });
         return () => {

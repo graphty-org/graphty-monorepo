@@ -230,7 +230,7 @@ describe("Data > Fields as a + list on the real element", () => {
         const options = screen.getAllByRole("option");
         assert.deepEqual(
             options.map((each) => each.textContent),
-            ["count", "size1 will not convert", "code3 will not convert"],
+            ["count", "code3 will not convert", "size1 will not convert"],
         );
         for (const each of options) {
             // The list's check, then the column's type glyph.

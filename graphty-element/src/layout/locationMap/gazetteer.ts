@@ -8,6 +8,7 @@
  */
 
 import { GraphtyError } from "../../errors/GraphtyError";
+import { sampled } from "./sample";
 
 /** Where graphty.app hosts the gazetteer; the location map layout's `gazetteer` option default. */
 export const GAZETTEER_URL = "https://graphty.app/data/gazetteer/v1/";
@@ -272,7 +273,8 @@ export function hasLayers(gazetteer: Gazetteer, role: PlaceRole | "auto"): boole
 }
 
 /**
- * The share of a column's non-blank values a layer knows by name.
+ * The share of a column's non-blank values a layer knows by name, over its detection rows
+ * ({@link sampled}).
  * @param values - The values.
  * @param layer - The layer.
  * @returns 0 to 1; 0 for a column with no values.
@@ -280,7 +282,7 @@ export function hasLayers(gazetteer: Gazetteer, role: PlaceRole | "auto"): boole
 export function placeShare(values: readonly unknown[], layer: GazetteerLayer): number {
     let filled = 0;
     let known = 0;
-    for (const value of values) {
+    for (const value of sampled(values)) {
         const key = normalizePlace(value);
         if (key !== "") {
             filled++;
@@ -307,7 +309,7 @@ export function bestRole(values: readonly unknown[], gazetteer: Gazetteer): Plac
         const layer = gazetteer[role];
         if (layer !== undefined) {
             const share = placeShare(
-                values.map((v) => (role === "city" ? splitAtComma(v)[0] : v)),
+                sampled(values).map((v) => (role === "city" ? splitAtComma(v)[0] : v)),
                 layer,
             );
             if (share > bestShare) {

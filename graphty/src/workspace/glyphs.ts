@@ -152,6 +152,7 @@ import {
     Slash,
     SlidersHorizontal,
     Spline,
+    SplinePointer,
     Square,
     SquareArrowOutUpRight,
     SquareDashed,
@@ -481,6 +482,7 @@ export const GLYPHS = {
     // How a curved edge runs through its bends: corners rounded, one smooth curve, one Bezier curve.
     bendCorners: CornerUpRight,
     bendMidpoints: ChartSpline,
+    bendMidpointsHeadroom: SplinePointer,
     bendBezier: PenTool,
     // A chart's kind: bars, stacked bars, a line, a box plot, a row of cells.
     chartBar: ChartNoAxesColumn,

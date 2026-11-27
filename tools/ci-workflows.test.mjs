@@ -3326,8 +3326,12 @@ describe("actions/cache in the workflows", () => {
             const script = JSON.parse(readFileSync(new URL(`../${project}/package.json`, import.meta.url), "utf8"))
                 .scripts.lint;
             // only CI sets ESLINT_CACHE: a local lint never caches, so check:quick lints every file; eslint runs
-            // in the machine-wide lint slot so agents' eslints never stack up and get killed (#5904)
-            assert.match(script, /^node \.\.\/tools\/test-slots\.mjs --lint eslint [^&]*\$ESLINT_CACHE &&/);
+            // in the machine-wide lint slot so agents' eslints never stack up and get killed (#5904); a heap size
+            // may come first, since two type-aware workers outgrow Node's default 4 GB heap (#10232)
+            assert.match(
+                script,
+                /^(?:NODE_OPTIONS="[^"]*" )?node \.\.\/tools\/test-slots\.mjs --lint eslint [^&]*\$ESLINT_CACHE &&/,
+            );
             assert.deepEqual(target.outputs, ["{projectRoot}/node_modules/.cache/eslint"]);
             // never "--concurrency auto": it starts one type-aware worker (2.5 GB or more each) per two cores, 16 on
             // the 32-core dev machine, which drove the machine out of memory and got the lint killed with SIGTERM

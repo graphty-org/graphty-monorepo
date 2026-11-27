@@ -3,7 +3,9 @@
  * device is lost and the element rebuilds the layout on the device it brings back (issue #9929). Before the fix the
  * rebuild ran the whole schedule again from the settled arrangement and every node moved about 20 px. A layout still
  * running at the loss resumes and settles after it. Both under `"auto"` and under `"required"`, where the layout has
- * no simulation at all while the device is gone, so its settled state must be carried through that gap.
+ * no simulation at all while the device is gone, so its settled state must be carried through that gap. And
+ * `waitForSettled()` after the recovery resolves only once the layout reads settled, including one the loss
+ * interrupted mid-run (issue #9988).
  *
  * The layout's own device is destroyed: under `"auto"` that is the one drawn with, while under `"required"` the
  * accelerator here first runs on a device of its own.
@@ -96,5 +98,23 @@ describe("a force layout through a device loss", () => {
             // The rebuilt simulation counts from zero: a layout frozen at the loss and reading settled ran none.
             assert.isAbove(layoutOf(graph).iterationsDone, 0, "the rebuilt layout ran");
         });
+
+        for (const [at, maxIter] of [
+            ["settled", 150],
+            ["running", 1000],
+        ] as const) {
+            it(`waitForSettled after a device loss resolves once the layout is settled (${at} at the loss, ${policy})`, async () => {
+                const { graph, loseAndRecover } = await openLosable("batched", maxIter, policy);
+                if (at === "settled") {
+                    await graph.waitForStableFrame();
+                }
+
+                await loseAndRecover();
+                await graph.waitForSettled();
+
+                assert.isTrue(graph.getLayoutManager().isSettled, "the layout reads settled");
+                assert.isFalse(graph.getLayoutManager().running, "the layout is not running");
+            });
+        }
     }
 });

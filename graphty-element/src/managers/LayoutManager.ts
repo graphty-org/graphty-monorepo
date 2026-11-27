@@ -965,6 +965,7 @@ export class LayoutManager implements Manager {
         const resting = !next && this._running;
         this._running = next;
         if (resting) {
+            this.#endLossHold();
             this.onRest?.();
         }
 
@@ -1024,6 +1025,11 @@ export class LayoutManager implements Manager {
 
     /** How to stop listening to the controller. */
     private unsubscribeAcceleration: (() => void) | null = null;
+    /**
+     * Releases the `wait` token held while a layout a device loss interrupted is still owed its run, or null. See
+     * {@link LayoutManager.holdThroughLoss}.
+     */
+    #lossHold: (() => void) | null = null;
 
     /** How to stop listening for a new snapshot. */
     private unsubscribeSnapshot: (() => void) | null = null;
@@ -1091,6 +1097,11 @@ export class LayoutManager implements Manager {
      * next transition that attaches an accelerator brings it back.
      */
     private onAccelerationChange(): void {
+        // Every transition, including a failed reattach that rebuilds nothing.
+        if (this.acceleration !== null) {
+            this.releaseLossHoldIfAbandoned(this.acceleration);
+        }
+
         // FIRST, because an accelerator arriving or leaving can change WHICH ENGINE draws the
         // default force arrangement, and that is a rebuild rather than a new simulation inside the
         // engine that is running. Below it, the engine stays and only its simulation moves.
@@ -1108,6 +1119,7 @@ export class LayoutManager implements Manager {
             return;
         }
 
+        const wasRunning = this.running;
         try {
             // A layout that had settled stays settled, where it is drawn: only a layout that was
             // still running resumes on the new accelerator (issue #9929).
@@ -1115,10 +1127,53 @@ export class LayoutManager implements Manager {
             if (!engine.isSettled) {
                 this.running = !this.restoring();
             }
+            this.holdThroughLoss(controller, wasRunning && !engine.isSettled);
         } catch (error) {
             this.running = false;
             this.reportSimulationFailure(error);
+            this.holdThroughLoss(controller, wasRunning);
         }
+    }
+
+    /**
+     * Keep `waitForSettled()` waiting for a layout a device loss interrupted, until it has settled on the accelerator
+     * brought back (or on the CPU, under `"auto"`), as it would have without the loss (issue #9988). Without this, under
+     * `"required"` the layout has no simulation at all between the loss and the reattach, reads settled and counts as
+     * no work, so the wait ended there and the layout then resumed and ran on.
+     *
+     * Taken only at a loss (state `"error"`) that stopped a running layout. Released when the layout stops running
+     * (it settled, or the consumer paused it), when the manager is disposed, and when the controller has stopped
+     * trying to bring an accelerator back while no simulation runs: nothing would end the wait then.
+     * @param controller - The acceleration controller.
+     * @param interrupted - Whether this transition left a layout that was running owed the rest of its run.
+     */
+    private holdThroughLoss(controller: AccelerationController, interrupted: boolean): void {
+        if (this.#lossHold === null && interrupted && controller.status.state === "error") {
+            const scene = this.graphContext?.getScene();
+            const record = scene === undefined ? undefined : pendingWorkOf(scene);
+            this.#lossHold = record?.begin("layout", WHAT_RECOVERY_IS, "wait") ?? null;
+            // A reattach starts in the same call that published the loss, after its listeners: ask once it has.
+            queueMicrotask(() => {
+                this.releaseLossHoldIfAbandoned(controller);
+            });
+        }
+    }
+
+    /**
+     * End the loss hold when nothing is running and the controller is not bringing an accelerator back.
+     * @param controller - The acceleration controller.
+     */
+    private releaseLossHoldIfAbandoned(controller: AccelerationController): void {
+        if (!this.running && controller.accelerator === null && controller.status.recovering !== true) {
+            this.#endLossHold();
+        }
+    }
+
+    /** Release the loss hold, if one is held. */
+    #endLossHold(): void {
+        const release = this.#lossHold;
+        this.#lossHold = null;
+        release?.();
     }
 
     /**
@@ -1398,6 +1453,7 @@ export class LayoutManager implements Manager {
         this.onMotion = null;
         this.runningDriver = undefined;
         this.running = false;
+        this.#endLossHold();
     }
 
     /**
@@ -3951,6 +4007,9 @@ export interface GroupBox {
     readonly center: { readonly x: number; readonly y: number; readonly z: number };
     readonly half: { readonly x: number; readonly y: number; readonly z: number };
 }
+
+/** What a wait names while a layout a device loss interrupted is still owed the rest of its run. */
+const WHAT_RECOVERY_IS = "the layout is resuming after the device it ran on was lost";
 
 /** What a wait names while a layout over what the filter shows is being built. */
 const WHAT_RELAYOUT_IS = "the layout is being run again over what is shown";

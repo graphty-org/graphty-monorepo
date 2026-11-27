@@ -8328,6 +8328,7 @@ export interface SourceJoinOutcome {
     readonly current?: true;
     readonly edgesBetween: number;
     readonly fields: readonly string[];
+    readonly matched: readonly (number | null)[];
     readonly onto: readonly SourceJoinSide[];
     readonly ownNodes: boolean;
     readonly rows: readonly SourceJoinSide[];

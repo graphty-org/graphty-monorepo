@@ -18,6 +18,7 @@ import type { BuildIssue, BuildResult, ElementRef, StepStats } from "./types";
 const NUMBERS = [
     "newNodes",
     "newEdges",
+    "mergedEdges",
     "matched",
     "unmatched",
     "fanOut",
@@ -27,6 +28,7 @@ const NUMBERS = [
     "untouched",
     "keptNew",
     "selfLoops",
+    "pairsBelowMin",
     "emptyKey",
     "repeatedKept",
     "parallelPairs",

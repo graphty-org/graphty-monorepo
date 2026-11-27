@@ -133,6 +133,21 @@ export function overlaps(
 }
 
 /**
+ * The median width of the shown boxes over the median distance from one to its nearest neighbor: how large the nodes
+ * are drawn beside the gaps between them.
+ * @param boxes - center and width of each box, with whether it is shown (a box that does not say is)
+ * @returns the ratio
+ */
+export function widthToSpacing(boxes: readonly { x: number; y: number; w: number; visible?: boolean }[]): number {
+    const shown = boxes.filter((box) => box.visible !== false);
+    const middle = (values: number[]): number => values.sort((a, b) => a - b)[Math.floor(values.length / 2)] ?? 0;
+    const nearest = shown.map((a) =>
+        Math.min(...shown.filter((b) => b !== a).map((b) => Math.hypot(a.x - b.x, a.y - b.y))),
+    );
+    return middle(shown.map((box) => box.w)) / middle(nearest);
+}
+
+/**
  * The pairs of nodes the file itself draws over each other: their boxes, at the file's positions and sizes, overlap.
  * @param file - the file's values
  * @returns the pairs, as "a b" in id order; none for a file that stores no positions

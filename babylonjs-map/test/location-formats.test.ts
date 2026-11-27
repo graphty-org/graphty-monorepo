@@ -198,6 +198,10 @@ describe("geohash detection", () => {
         expect(detectLocationFormat(["dr5x1n7", "gcpsvqb", "u09tvw2", "sr2yk3m"]).format).toBe("geohash");
     });
 
+    it("never reads serial numbers as geohashes", () => {
+        expect(detectLocationFormat(["e0001", "e0002", "e0308"]).format).toBe(null);
+    });
+
     it("never reads ZIP codes as geohashes", () => {
         expect(detectLocationFormat(["10001", "94105", "60614", "02139"]).format).toBeNull();
     });

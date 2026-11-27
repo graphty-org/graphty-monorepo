@@ -9,7 +9,7 @@
  * - `i32` is `/^-?(0|[1-9][0-9]*)$/` within `[-2^31, 2^31)`; `0` / `1` are i32, never bool;
  * - `f64` is a decimal or exponent literal accepted by `Number()` that is not empty, not
  *   whitespace, not `Infinity` / `NaN`, not a hex / octal / binary form, has no leading zeros in
- *   its integer part, and whose value is finite (an integer literal outside i32 range is f64);
+ *   its integer part and no leading `+` (`+15551007` is a phone number), and whose value is finite (an integer literal outside i32 range is f64);
  * - everything else is `string`.
  */
 

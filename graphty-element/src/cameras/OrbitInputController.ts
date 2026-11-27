@@ -121,8 +121,23 @@ export class OrbitInputController implements GestureEndHooks {
         }
     };
 
+    // Babylon.js lets go of the pointer whenever the canvas loses focus, as it does when a context
+    // menu opened at the right press (macOS, Linux) takes focus under a drag that is just starting.
+    // The button is still held, so the drag keeps the pointer: without it, moves off the canvas or
+    // over the menu never reach the canvas and the pan stops (#10200).
+    private readonly lostPointerCaptureHandler = (evt: PointerEvent): void => {
+        if (this.isPointerDown && !this.isMultiTouch) {
+            this.canvas.setPointerCapture(evt.pointerId);
+        }
+    };
+
     private readonly pointerMoveHandler = (evt: PointerEvent): void => {
         if (!this.isPointerDown || this.isMultiTouch) {
+            return;
+        }
+        // The button came up where the canvas never heard it (outside the window): the drag is over.
+        if (evt.pointerType === "mouse" && evt.buttons === 0) {
+            this.pointerUpHandler();
             return;
         }
 
@@ -311,7 +326,10 @@ export class OrbitInputController implements GestureEndHooks {
 
         this.canvas.addEventListener("pointerdown", this.pointerDownHandler);
         this.canvas.addEventListener("pointerup", this.pointerUpHandler);
+        // A canceled pointer (the system took a touch) ends the drag as its release would.
+        this.canvas.addEventListener("pointercancel", this.pointerUpHandler);
         this.canvas.addEventListener("pointermove", this.pointerMoveHandler);
+        this.canvas.addEventListener("lostpointercapture", this.lostPointerCaptureHandler);
         this.canvas.addEventListener("wheel", this.wheelHandler, { passive: false });
         this.canvas.addEventListener("contextmenu", this.contextMenuHandler);
 
@@ -338,7 +356,9 @@ export class OrbitInputController implements GestureEndHooks {
 
         this.canvas.removeEventListener("pointerdown", this.pointerDownHandler);
         this.canvas.removeEventListener("pointerup", this.pointerUpHandler);
+        this.canvas.removeEventListener("pointercancel", this.pointerUpHandler);
         this.canvas.removeEventListener("pointermove", this.pointerMoveHandler);
+        this.canvas.removeEventListener("lostpointercapture", this.lostPointerCaptureHandler);
         this.canvas.removeEventListener("wheel", this.wheelHandler);
         this.canvas.removeEventListener("contextmenu", this.contextMenuHandler);
 

@@ -204,13 +204,13 @@ function compiled(
 
 /** The counts of a step whose elements a draft view colors as merged, new and untouched. */
 const STEP_MARKS = {
-    merged: ["merged"],
+    merged: ["merged", "mergedEdges"],
     new: ["newNodes", "newEdges", "keptNew"],
     untouched: ["untouched"],
 } as const;
 
 /** The counts of a step whose elements a marked step draws at full strength. */
-const STEP_ALL = ["merged", "newNodes", "newEdges", "keptNew", "matched", "untouched"] as const;
+const STEP_ALL = ["merged", "mergedEdges", "newNodes", "newEdges", "keptNew", "matched", "untouched"] as const;
 
 /** The session ids a draft view reads, or null while no draft is drawn. */
 type DraftIds = (
@@ -251,12 +251,61 @@ function mergedLook(color: string): LayerSpec["set"] {
 }
 
 /**
- * What a new node gets in a color: a dashed border.
+ * The ring of a node two listed steps merge, wider than one step's, so a later step that reaches only some of the
+ * nodes an earlier one merged (a watchlist after the identifiers) shows which, even in the same color.
+ */
+const MERGED_AGAIN_SCALE = 2;
+
+/**
+ * The nodes more than one of some steps merge.
+ * @param merged - Each step's merged elements, or null for none.
+ * @returns The nodes, as ids for {@link idLayers}.
+ */
+function mergedAgain(merged: readonly ({ readonly nodes: readonly NodeId[] } | null)[]): {
+    nodes: NodeId[];
+    edges: EdgeId[];
+} {
+    const seen = new Set<NodeId>();
+    const again = new Set<NodeId>();
+    for (const node of merged.flatMap((ids) => ids?.nodes ?? [])) {
+        (seen.has(node) ? again : seen).add(node);
+    }
+    return { nodes: [...again], edges: [] };
+}
+
+/**
+ * A draft mark's border width in screen pixels: a border in node units is a pixel wide on a graph framed whole, and
+ * a new node then looks like every other.
+ */
+const MARK_SCREEN_WIDTH = 3;
+
+/** A new node's fill: hollow, so it reads apart from the filled nodes where the edges it brings meet. */
+const NEW_FILL = "#FFFFFF";
+
+/** A new node's draw order among other ordered nodes in 2D; `node.onTop` keeps it in front of the edges in 3D too. */
+const NEW_DRAW_ORDER = 50;
+
+/**
+ * A node the graph holds already: on top and in front of every new one, so the graph the reader has stays in sight
+ * however many nodes a join adds over it.
+ */
+const HELD_LOOK = { "node.onTop": true, "node.drawOrder": 100 } as const;
+
+/**
+ * What a new node gets in a color: a dashed border round a hollow node, drawn in front of the edges.
  * @param color - The color.
  * @returns The channels.
  */
 function newNodeLook(color: string): LayerSpec["set"] {
-    return { "node.borderColor": color, "node.borderStyle": "dashed", "node.borderWidth": 0.1 };
+    return {
+        "node.color": NEW_FILL,
+        "node.drawOrder": NEW_DRAW_ORDER,
+        "node.onTop": true,
+        "node.borderColor": color,
+        "node.borderStyle": "dashed",
+        "node.borderWidth": 0.1,
+        "node.borderScreenWidth": MARK_SCREEN_WIDTH,
+    };
 }
 
 /**
@@ -269,19 +318,92 @@ function newEdgeLook(color: string): LayerSpec["set"] {
 }
 
 /**
+ * What a merged edge gets in a color: the color, drawn whole.
+ * @param color - The color.
+ * @returns The channels.
+ */
+function mergedEdgeLook(color: string): LayerSpec["set"] {
+    return { "edge.color": color };
+}
+
+/**
+ * The size channels of a new or removed node under a draft view's `newSize`.
+ * @param size - The view's `newSize`.
+ * @returns The channels; none without one.
+ */
+function markSize(size: number | undefined): LayerSpec["set"] {
+    return size === undefined ? {} : { "node.size": size, "node.sizeSpace": "screen" };
+}
+
+/**
+ * What a removed element gets in a color, drawn while Before shows: a new one's look, dimmed.
+ * @param color - The color.
+ * @param size - The view's `newSize`, which a removed node is held at too.
+ * @returns The layers.
+ */
+function removedLayers(color: string, size: number | undefined): LayerSpec[] {
+    const selector = { match: "expression", where: `${DRAFT_PATH} == 'removed'` } as const;
+    return [
+        {
+            name: "Removed",
+            target: "node",
+            selector,
+            set: { ...newNodeLook(color), "node.opacity": 0.4, ...markSize(size) },
+        },
+        { name: "Removed", target: "edge", selector, set: { ...newEdgeLook(color), "edge.opacity": 0.4 } },
+    ];
+}
+
+/**
  * What an untouched node gets in a color: a dotted border.
  * @param color - The color.
  * @returns The channels.
  */
 function untouchedLook(color: string): LayerSpec["set"] {
-    return { "node.borderColor": color, "node.borderStyle": "dotted", "node.borderWidth": 0.1 };
+    return {
+        "node.borderColor": color,
+        "node.borderStyle": "dotted",
+        "node.borderWidth": 0.1,
+        "node.borderScreenWidth": MARK_SCREEN_WIDTH,
+    };
+}
+
+/**
+ * The rings a draft view's `focus` draws over every other ring: on the nodes every focused step merges, so they read
+ * apart from what other steps merged, and from what only some of a join's steps reach (the identifiers reach every
+ * account, the watchlist read through them only some).
+ * @param view - The view.
+ * @param ids - The session ids of the drawn draft's elements.
+ * @returns The layers, none without a focus.
+ */
+function focusLayers(view: DraftView, ids: DraftIds): LayerSpec[] {
+    const { focus } = view;
+    // A step that merges no node (one that adds a source, or brings only edges) takes no node out.
+    const focused = (focus?.steps ?? [])
+        .map((step) => ({ step, merged: ids({ step, buckets: STEP_MARKS.merged })?.nodes ?? [] }))
+        .filter(({ merged }) => merged.length > 0);
+    const reached = new Set(focused[0]?.merged ?? []);
+    for (const { merged } of focused.slice(1)) {
+        const nodes = new Set(merged);
+        for (const node of reached) {
+            if (!nodes.has(node)) {
+                reached.delete(node);
+            }
+        }
+    }
+    return focused.flatMap(({ step, merged }) => {
+        const color = view.steps?.find((each) => each.step === step)?.color ?? view.merged;
+        const ring = { ...mergedLook(color), "node.haloScale": focus?.ring ?? MERGED_AGAIN_SCALE };
+        return idLayers("Focus", { nodes: merged.filter((node) => reached.has(node)), edges: [] }, ring);
+    });
 }
 
 /**
  * The layers a draft view (`styles.showDraft`) draws, bottom first: the rest faint when asked, a
- * ring on each node the commit would merge, a dashed border on each node it would add, and each
- * edge it would add drawn dashed, read from `graphty.draft`; a dotted border on the untouched nodes;
- * each listed step's in its own color over those; the marked elements at full strength; the ghosts
+ * ring on each node the commit would merge and each edge it would fold a row into in that color, a
+ * dashed border on each node it would add, and each edge it would add drawn dashed, read from `graphty.draft`; a dotted border on the untouched nodes;
+ * each listed step's in its own color over those, a node two listed steps merge ringed wider; the focused steps' merged
+ * nodes ringed at the focus ring; what it would remove dashed and dimmed; the marked elements at full strength; the ghosts
  * drawn faint as under a branches view.
  * @param view - The colors.
  * @param stack - The stack as project state holds it now.
@@ -327,16 +449,46 @@ export function draftLayers(
         ...(view.untouched === undefined
             ? []
             : idLayers("Untouched", ids({ untouched: true }), untouchedLook(view.untouched))),
+        {
+            name: "Held",
+            target: "node",
+            // every node, the cheapest selector: the New layer above draws a new node behind again
+            selector: { match: "everything" },
+            set: HELD_LOOK,
+        },
         { name: "Merged", target: "node", selector: marked("merged"), set: mergedLook(view.merged) },
-        { name: "New", target: "node", selector: marked("new"), set: newNodeLook(view.new) },
+        { name: "Merged", target: "edge", selector: marked("merged"), set: mergedEdgeLook(view.merged) },
+        {
+            name: "New",
+            target: "node",
+            selector: marked("new"),
+            set: { ...newNodeLook(view.new), ...markSize(view.newSize) },
+        },
         { name: "New", target: "edge", selector: marked("new"), set: newEdgeLook(view.new) },
     ];
     for (const { step, color } of view.steps ?? []) {
         specs.push(
-            ...idLayers("Untouched", ids({ step, buckets: STEP_MARKS.untouched }), untouchedLook(color)),
-            ...idLayers("Merged", ids({ step, buckets: STEP_MARKS.merged }), mergedLook(color)),
-            ...idLayers("New", ids({ step, buckets: STEP_MARKS.new }), newNodeLook(color), newEdgeLook(color)),
+            ...(view.untouched === undefined
+                ? []
+                : idLayers("Untouched", ids({ step, buckets: STEP_MARKS.untouched }), untouchedLook(color))),
+            ...idLayers("Merged", ids({ step, buckets: STEP_MARKS.merged }), mergedLook(color), mergedEdgeLook(color)),
+            // The layers above draw what the commit adds dashed: what the step made before keeps its line whole.
+            ...idLayers(
+                "New",
+                ids({ step, buckets: STEP_MARKS.new }),
+                { "node.borderColor": color, "node.borderWidth": 0.1, "node.borderScreenWidth": MARK_SCREEN_WIDTH },
+                { "edge.color": color },
+            ),
         );
+    }
+    specs.push(
+        ...idLayers("Merged", mergedAgain((view.steps ?? []).map(({ step }) => ids({ step, buckets: ["merged"] }))), {
+            "node.haloScale": MERGED_AGAIN_SCALE,
+        }),
+        ...focusLayers(view, ids),
+    );
+    if (view.removed !== undefined) {
+        specs.push(...removedLayers(view.removed, view.newSize));
     }
     if (strong !== null) {
         specs.push(...idLayers("Marked", strong, { "node.opacity": 1 }, { "edge.opacity": 1 }));

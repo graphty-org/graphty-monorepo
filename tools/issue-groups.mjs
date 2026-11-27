@@ -1094,7 +1094,11 @@ export function ledgerJobs(ledger, q, now, options = {}) {
         }
     }
     const live = liveClaims(options.claims);
-    const holding = (ledger.blocked ?? []).filter((b) => blockActive(ledger, b, live, now) && blockHolds(b, now));
+    // a block naming live work (an open pull request, a branch, a claim, a group) lasts while that work does, past its
+    // due time (#10254: #3454's collision with open #8465 passed its due and was offered as unscanned)
+    const holding = (ledger.blocked ?? []).filter(
+        (b) => blockActive(ledger, b, live, now) && (namesLiveWork(b) || blockHolds(b, now)),
+    );
     const blocked = new Set(holding.map((b) => b.issue));
     // an issue with a live wait is not free, scanned or not (#9764: a recorded wait still offered #9768)
     const waiting = new Set(

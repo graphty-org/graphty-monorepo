@@ -7,8 +7,10 @@
 
 import type { GraphtyErrorCode } from "../../../errors/codes";
 import { GraphtyError } from "../../../errors/GraphtyError";
+import { isSourceFactKey } from "../ids";
 import { isEmpty, normalize, tableRows } from "./build";
 import type { DraftState } from "./draft";
+import { numberedKey } from "./profile";
 import { buildOf, copyMap, mintEditId, type SourceSteps, type StepsEdit } from "./project";
 import { type Conflict, conflicts, pickEdit } from "./provenance";
 import type {
@@ -18,8 +20,11 @@ import type {
     CellValue,
     DrillUnit,
     ElementRef,
+    NodeRef,
     ReaderOp,
     Row,
+    RowFilter,
+    Source,
     Step,
     TableName,
     Value,
@@ -29,6 +34,7 @@ import type {
 const DRILL_COUNTS = [
     "newNodes",
     "newEdges",
+    "mergedEdges",
     "matched",
     "unmatched",
     "fanOut",
@@ -38,6 +44,7 @@ const DRILL_COUNTS = [
     "untouched",
     "keptNew",
     "selfLoops",
+    "pairsBelowMin",
     "emptyKey",
     "repeatedKept",
     "parallelPairs",
@@ -51,6 +58,7 @@ const DRILL_COUNTS = [
     "endsMissing",
     "newNodeTypes",
     "newEdgeTypes",
+    "hub",
 ] as const;
 
 /** One count of a step. */
@@ -102,6 +110,8 @@ export interface DrillRow {
     readonly key: CellValue | null;
     readonly name: string | null;
     readonly element: ElementRef | null;
+    /** For an edge, or a pair of nodes: its two ends. */
+    readonly ends: { readonly source: NodeRef; readonly target: NodeRef } | null;
     readonly held: Readonly<Record<string, Value>> | null;
     readonly incoming: Row | null;
     readonly shown: Readonly<Record<string, Value>> | null;
@@ -149,9 +159,10 @@ function refKey(ref: ElementRef): string {
  * The column a step's excluded keys are read from: the column its `except` already reads, else the
  * column it matches its rows by (a merge's or values step's key, an edge step's edge id or source end).
  * @param step - The step.
+ * @param src - The source whose rows it reads.
  * @returns The column, or null for a `join.add`, which leaves no row out.
  */
-function exceptColumn(step: Step): string | null {
+function exceptColumn(step: Step, src: Source | undefined): string | null {
     if (step.except !== undefined) {
         return step.except.column;
     }
@@ -164,7 +175,16 @@ function exceptColumn(step: Step): string | null {
         case "join.edge-values":
             return step.read.edgeId;
         default:
-            return step.read.edgeId ?? step.read.source;
+            // A step that links nodes by the values they carry leaves a node or an edge out by its key; one that
+            // links by rows, a row by the node it is or names: the values are what its rows share.
+            if (step.link?.of === "nodes") {
+                return "key";
+            }
+            if (step.link !== undefined) {
+                const own = step.read.table === "nodes" ? src?.mapping.nodes?.key : undefined;
+                return step.read.source ?? own ?? step.link.columns[0] ?? null;
+            }
+            return step.read.edgeId ?? step.read.source ?? step.read.target ?? null;
     }
 }
 
@@ -236,6 +256,50 @@ function effectOf(now: Built | null, was: Built | null): DrillRow["effect"] {
 }
 
 /**
+ * A record's columns: without the facts the session keeps beside them (`_source.loads` and the rest)
+ * and the key its source's rows were numbered by, which are no column of theirs.
+ * @param record - The record.
+ * @param numbered - That key, if the rows were numbered.
+ * @returns The columns.
+ */
+function ownColumns<T>(record: Readonly<Record<string, T>>, numbered?: string): Readonly<Record<string, T>> {
+    return Object.fromEntries(Object.entries(record).filter(([name]) => !isSourceFactKey(name) && name !== numbered));
+}
+
+/**
+ * The two ends of an edge, or of a pair of nodes.
+ * @param result - The build.
+ * @param el - The element listed.
+ * @param pair - The nodes' internal ids, for a pair.
+ * @returns The ends, or null for neither.
+ */
+function endsOf(result: BuildResult, el: Built | null, pair: DrillUnit["pair"]): DrillRow["ends"] {
+    const [from, to] = pair ?? (el !== null && "from" in el ? [el.from, el.to] : []);
+    const a = from === undefined ? null : resolved(result, from);
+    const b = to === undefined ? null : resolved(result, to);
+    return a !== null && b !== null && "space" in a && "space" in b
+        ? { source: { space: a.space, key: a.key }, target: { space: b.space, key: b.key } }
+        : null;
+}
+
+/**
+ * A row as read.
+ * @param src - Its source.
+ * @param copies - The rows as read.
+ * @param table - Its table.
+ * @param row - Its place; absent for no row.
+ * @returns The row, or null when there is none.
+ */
+function rowOf(
+    src: SourceSteps["sources"][string] | undefined,
+    copies: ReturnType<typeof copyMap>,
+    table: TableName,
+    row: number | undefined,
+): Row | null {
+    return src === undefined || row === undefined ? null : (tableRows(src, copies, table)?.[row] ?? null);
+}
+
+/**
  * The rows behind one count of one step of a draft: each with its key, the element it reached in
  * the draft, that element's values in the committed build and in the draft, the row as read, its
  * effect and the outcome it is reported under (5.4).
@@ -253,12 +317,15 @@ export function drillRows(
     const b1 = buildOf(state.value, state.copies);
     const units = unitsOf(state.value, b1, query);
     const step = state.value.steps[query.step];
-    const column = exceptColumn(step);
+    const column = exceptColumn(step, state.value.sources[step.source]);
     const copies = copyMap(state.copies);
     const codes = CODES[query.bucket] === undefined ? [] : [CODES[query.bucket] as DrillCode];
+    // an edge to one value of a cell holding several is listed by that value
+    const byValue = query.bucket === "newEdges" && step.op === "join.edges" && step.extract !== undefined;
     const rows = page(units, query.offset, query.limit).map((u): DrillRow => {
-        const source = u.source ?? step.source;
         const now = u.element === undefined ? null : resolved(b1, u.element);
+        // a count of elements, not rows, lists each by the source that brought it
+        const source = u.source ?? (u.row === undefined ? now?.loads[0] : undefined) ?? step.source;
         // A merged row is marked with node 2's id, an alias only in the draft build: look the
         // committed element up by the id the draft resolved it to first.
         const was =
@@ -266,23 +333,23 @@ export function drillRows(
         const touch = u.row === undefined ? undefined : now?.touch.find((t) => t.source === source && t.row === u.row);
         const table = u.table ?? touch?.table ?? null;
         const src = state.value.sources[source] as SourceSteps["sources"][string] | undefined;
-        const incoming =
-            u.row === undefined || table === null
-                ? null
-                : (touch?.cells ?? (src === undefined ? undefined : tableRows(src, copies, table)?.[u.row]) ?? null);
+        const incoming = table === null ? null : (touch?.cells ?? rowOf(src, copies, table, u.row));
         const cell = incoming === null || column === null ? undefined : incoming[column];
-        const key = isEmpty(cell) ? (u.key ?? now?.key ?? null) : cell;
+        const ends = endsOf(b1, now, u.pair);
+        const own = isEmpty(cell) ? (u.key ?? now?.key ?? null) : cell;
         return {
             source,
             table,
             row: u.row ?? null,
-            key,
+            key: (byValue ? ends?.target.key : undefined) ?? own,
             name: u.name ?? null,
             element: now === null ? null : refOf(now),
-            held: was === null ? null : { ...was.values },
-            incoming,
-            shown: now === null ? null : { ...now.values },
-            effect: effectOf(now, was),
+            ends,
+            held: was === null ? null : ownColumns(was.values),
+            incoming: incoming === null ? null : ownColumns(incoming, src && numberedKey(src)),
+            shown: now === null ? null : ownColumns(now.values),
+            // what the step did not reach is as it was, whatever the other steps did to it
+            effect: query.bucket === "untouched" ? "unchanged" : effectOf(now, was),
             codes,
         };
     });
@@ -325,11 +392,69 @@ export function drillCells(state: DraftState, query: CellQuery): { total: number
     return { total: all.length, cells };
 }
 
+/** A pair of values naming a row an excluded list holds. */
+interface ExceptCell {
+    readonly value: CellValue;
+    readonly with: CellValue;
+}
+
+/** What an excluded list takes: a key, a row a count listed, or a pair it holds. */
+type ExceptItem = CellValue | Pick<DrillRow, "key" | "incoming"> | ExceptCell;
+
 /**
- * Add keys to a step's excluded list, or take them off it (5.4): the step's `except`.
+ * The column that, with the one a step excludes by, names one row: its source's key, what a link's rows
+ * share, or an edge's other end.
+ * @param step - The step.
+ * @param src - Its source.
+ * @param column - The column it excludes by.
+ * @param row - The row.
+ * @returns The column, or null when none tells the row apart.
+ */
+function tellingColumn(step: Step, src: Source | undefined, column: string, row: Row): string | null {
+    const keys = [src?.mapping.nodes?.key, src?.mapping.edges?.edgeId];
+    // a row's own id names it, but not what a link's rows of one node share
+    const linked = step.op === "join.edges" && step.link !== undefined;
+    if (!linked && keys.includes(column)) {
+        return null;
+    }
+    const ends = step.op === "join.edges" ? [...(step.link?.columns ?? []), step.read.source, step.read.target] : [];
+    return [...keys, ...ends].find((each) => each !== undefined && each !== column && !isEmpty(row[each])) ?? null;
+}
+
+/**
+ * The pair naming one listed row, or its key when no second column tells it apart.
+ * @param step - The step.
+ * @param src - Its source.
+ * @param column - The column it excludes by.
+ * @param item - The row, key or pair.
+ * @returns The pair and its second column, or the key.
+ */
+function exceptItem(
+    step: Step,
+    src: Source | undefined,
+    column: string,
+    item: ExceptItem,
+): { readonly column: string | null; readonly pair: ExceptCell } | { readonly key: CellValue } {
+    if (item === null || typeof item !== "object") {
+        return { key: item };
+    }
+    if ("with" in item) {
+        return { column: step.except?.cells?.column ?? null, pair: item };
+    }
+    const { key, incoming } = item;
+    const other = incoming === null ? null : tellingColumn(step, src, column, incoming);
+    const held = step.except?.cells?.column;
+    // a list tells rows apart by one second column
+    return other === null || incoming === null || (held !== undefined && held !== other)
+        ? { key }
+        : { column: other, pair: { value: key, with: incoming[other] ?? null } };
+}
+
+/**
+ * Add keys or rows to a step's excluded list, or take them off it (5.4): the step's `except`.
  * @param value - The value.
  * @param index - The step's place.
- * @param keys - The keys.
+ * @param items - The keys, rows or pairs.
  * @param mode - `"exclude"` adds them, `"include"` takes them off.
  * @param column - The column the keys are in; absent, the one {@link exceptColumn} names.
  * @returns The step's new `except`, or null to take it off.
@@ -340,15 +465,15 @@ export function drillCells(state: DraftState, query: CellQuery): { total: number
 export function exceptOf(
     value: SourceSteps,
     index: number,
-    keys: readonly CellValue[],
+    items: readonly ExceptItem[],
     mode: "exclude" | "include",
     column?: string,
-): { readonly column: string; readonly values: readonly CellValue[] } | null {
+): RowFilter | null {
     const step = value.steps[index] as Step | undefined;
     if (step === undefined) {
         throw badCommand(`No step at ${String(index)}.`, { reason: "no-step", index });
     }
-    const own = exceptColumn(step);
+    const own = exceptColumn(step, value.sources[step.source]);
     if (own === null) {
         throw badCommand("A join.add step leaves no row out.", { reason: "no-except", index });
     }
@@ -359,17 +484,46 @@ export function exceptOf(
             column: own,
         });
     }
-    const held = step.except?.values ?? [];
-    let values: CellValue[];
-    if (mode === "exclude") {
-        const seen = new Set(held.map((h) => normalize(h)));
-        const added = keys.filter((k) => !seen.has(normalize(k)) && Boolean(seen.add(normalize(k))));
-        values = [...held, ...added];
-    } else {
-        const out = new Set(keys.map((k) => normalize(k)));
-        values = held.filter((h) => !out.has(normalize(h)));
+    const at = column ?? own;
+    const named = items.map((item) => exceptItem(step, value.sources[step.source], at, item));
+    const telling =
+        step.except?.cells?.column ?? named.flatMap((each) => ("pair" in each ? [each.column] : [])).find(Boolean);
+    const told = (each: (typeof named)[number]): boolean => "pair" in each && each.column === telling;
+    const keys = named.filter((each) => !told(each)).map((each) => ("pair" in each ? each.pair.value : each.key));
+    const pairs = named.flatMap((each) => (told(each) && "pair" in each ? [each.pair] : []));
+    const pairKey = (p: ExceptCell): string => JSON.stringify([normalize(p.value), normalize(p.with)]);
+    const values = changed(step.except?.values ?? [], keys, mode, (k) => normalize(k));
+    const cells = changed(step.except?.cells?.pairs ?? [], pairs, mode, pairKey);
+    if (values.length === 0 && cells.length === 0) {
+        return null;
     }
-    return values.length === 0 ? null : { column: column ?? own, values };
+    return {
+        column: at,
+        values,
+        ...(cells.length === 0 || telling === undefined || telling === null
+            ? {}
+            : { cells: { column: telling, pairs: cells } }),
+    };
+}
+
+/**
+ * A list with some things added, each once, or taken off.
+ * @param held - The list.
+ * @param items - The things.
+ * @param mode - Which.
+ * @param key - What tells two apart.
+ * @returns The list.
+ */
+function changed<T>(
+    held: readonly T[],
+    items: readonly T[],
+    mode: "exclude" | "include",
+    key: (item: T) => string,
+): T[] {
+    const names = new Set((mode === "exclude" ? held : items).map((each) => key(each)));
+    return mode === "include"
+        ? held.filter((each) => !names.has(key(each)))
+        : [...held, ...items.filter((each) => !names.has(key(each)) && Boolean(names.add(key(each))))];
 }
 
 /** Which cells a batch pick takes one source's value for. */

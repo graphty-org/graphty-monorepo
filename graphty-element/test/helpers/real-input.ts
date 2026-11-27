@@ -73,9 +73,19 @@ function send(): Send {
  * @param element - The element the point is on.
  * @param point - The point, in CSS pixels from the element's top-left corner.
  * @returns The same point in the top page's CSS pixels.
+ * @throws When the point is off the test page: input there reaches nothing, and the element only sees
+ *     `pointerleave`, so a test sending it would pass or fail for the wrong reason.
  */
 export function toPage(element: Element, point: Point): Point {
     const rect = element.getBoundingClientRect();
+    const onPage = { x: rect.left + point.x, y: rect.top + point.y };
+    if (onPage.x < 0 || onPage.y < 0 || onPage.x >= window.innerWidth || onPage.y >= window.innerHeight) {
+        throw new Error(
+            `point (${point.x}, ${point.y}) on the element is (${onPage.x}, ${onPage.y}) on the page, ` +
+                `outside the ${window.innerWidth} x ${window.innerHeight} px test page`,
+        );
+    }
+
     const frame = window.frameElement;
     if (frame === null) {
         return { x: rect.left + point.x, y: rect.top + point.y };

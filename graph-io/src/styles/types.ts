@@ -543,6 +543,8 @@ export interface NodeStyleValues {
     readonly labelWeight: StyleLabelWeight;
     /** Whether the label is italic. */
     readonly labelItalic: boolean;
+    /** Whether a line is drawn under the label's words (yEd's `underlinedText`). */
+    readonly labelUnderline: boolean;
     /** Where the label sits relative to the node. */
     readonly labelPosition: StyleLabelPosition;
     /** How the label's lines line up with one another: `left`, `center` (the default) or `right`. */
@@ -1162,6 +1164,8 @@ export interface EdgeStyleValues {
     readonly labelTextAlign: StyleLabelTextAlign;
     /** Whether the label is italic. */
     readonly labelItalic: boolean;
+    /** Whether a line is drawn under the label's words; see the node's. */
+    readonly labelUnderline: boolean;
     /** The width the label's lines wrap at (a length); see the node's. */
     readonly labelWrapWidth: number;
     /** Whether a line wider than `labelWrapWidth` is cut with an ellipsis; see the node's. */

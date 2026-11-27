@@ -460,7 +460,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         const follow = within(await open()).getByRole("menuitemcheckbox", { name: /^Focus selected/ });
         assert.equal(follow.getAttribute("aria-checked"), "true");
         await userEvent.click(
-            page.elementLocator(await open()).getByRole("menuitemcheckbox", { name: /^Focus selected/ }),
+            page.getByRole("menu", { name: /^Camera/ }).getByRole("menuitemcheckbox", { name: /^Focus selected/ }),
         );
         await waitFor(() => {
             assert.isFalse(element.layoutBehavior?.camera?.pivotOnSelection);

@@ -389,19 +389,16 @@ describe("the timeline dock on a phone", () => {
 
     it("sets the window from the sheet's fields, and closes", async () => {
         const { session, dock } = await openDock();
-        const sheet = within(await openSheet(dock));
-        await sheet.findByRole("textbox", { name: "From" });
+        const sheetElement = await openSheet(dock);
+        await within(sheetElement).findByRole("textbox", { name: "From" });
         const lastScope = await openSheet(dock);
         const last = (): Locator => page.elementLocator(lastScope).getByRole("textbox", { name: "To", exact: true });
         const from = session.time.parse("2025-03-01", { timeZone: session.time.timeZone });
 
-        await userEvent.clear(
-            page.elementLocator(await openSheet(dock)).getByRole("textbox", { name: "From", exact: true }),
-        );
-        await userEvent.type(
-            page.elementLocator(await openSheet(dock)).getByRole("textbox", { name: "From", exact: true }),
-            "2025-03-01",
-        );
+        const first = (): Locator =>
+            page.elementLocator(sheetElement).getByRole("textbox", { name: "From", exact: true });
+        await userEvent.clear(first());
+        await userEvent.type(first(), "2025-03-01");
         await userEvent.clear(last());
         await userEvent.type(last(), "2025-03-10{Enter}");
 

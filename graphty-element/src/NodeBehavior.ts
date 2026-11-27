@@ -203,8 +203,8 @@ function deliverPointerEvent(scene: Scene, roster: NodePointerRoster, pointerInf
 
             // A camera drag (a button or a touch down, no node held) hovers nothing when
             // `camera.hoverWhileDragging` is off: the release picks the hover up again (#10221).
-            const { buttons } = pointerInfo.event as { buttons?: number };
-            if ((buttons ?? 0) !== 0 && roster.hoverWhileDragging?.() === false) {
+            // The option is read first, so a move with the option on never reads the event.
+            if (roster.hoverWhileDragging?.() === false && pointerInfo.event.buttons !== 0) {
                 roster.dragHoldsHover = true;
                 break;
             }

@@ -20,8 +20,12 @@ export const INSPECTOR_EVENTS = [
  */
 export const HOVER_EVENTS = ["selection:hover-changed"] as const;
 
-/** The events a repaint publishes in the task that finishes it, before the frame that draws it. */
-const REPAINT_EVENTS: ReadonlySet<keyof SessionEventMap> = new Set([
+/**
+ * The events a repaint publishes in the task that finishes it, before the frame that draws it: a
+ * listener hears these `afterFrame`. Any other event (a history step, a run) fires before its
+ * repaint has arrived, so a listener held for a frame would land in the middle of the repaint.
+ */
+export const REPAINT_EVENTS: ReadonlySet<keyof SessionEventMap> = new Set([
     "style:changed",
     "style:batch-changed",
     "project:derived",

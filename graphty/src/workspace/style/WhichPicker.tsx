@@ -41,7 +41,7 @@ import { formatNumber } from "../inspector/words";
 import { isPanelEscape } from "../keys/keys";
 import { StyleSelection } from "../selection/StyleSelection";
 import { layerSelection } from "../selection/values";
-import { INSPECTOR_EVENTS, useSessionEvents } from "../sessionEvents";
+import { INSPECTOR_EVENTS, REPAINT_EVENTS, useSessionEvents } from "../sessionEvents";
 import { formatCount } from "../settings/numberFormat";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -3214,7 +3214,7 @@ function CategoryCard({
             setVersion((v) => v + 1);
         };
         const offs = (["run:changed", "project:derived"] as const).map((event) =>
-            session.on(event, bump, { afterFrame: true }),
+            session.on(event, bump, { afterFrame: REPAINT_EVENTS.has(event) }),
         );
         return () => {
             offs.forEach((off) => {

@@ -12,6 +12,7 @@ import { runFailureWords, selectedNameWords } from "../inspector/words";
 import { layoutWarningWords } from "../layout/refusalWords";
 import { RenderCount } from "../renderCount";
 import { runName } from "../runWords";
+import { REPAINT_EVENTS } from "../sessionEvents";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { LegendCard } from "./LegendCard";
 import { legendSections } from "./legendSections";
@@ -111,7 +112,7 @@ function useCanvasReading(session: GraphSession | null, paused: boolean): Canvas
         };
         read();
         const offs = [
-            ...REDRAW_EVENTS.map((event) => session.on(event, read, { afterFrame: true })),
+            ...REDRAW_EVENTS.map((event) => session.on(event, read, { afterFrame: REPAINT_EVENTS.has(event) })),
             session.on("selection:changed", () => {
                 const { nodes, edges } = session.selection;
                 // While a selection editor is open its own count is what is said, never this one.

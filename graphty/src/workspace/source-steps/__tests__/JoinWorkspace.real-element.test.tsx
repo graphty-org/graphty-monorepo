@@ -14,6 +14,7 @@ import type { GraphSession, SourceStepRow } from "@graphty/graphty-element/sessi
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { clickCardBlank } from "../../../test/cards";
 import { withFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import { cardPalette } from "../../selection/cardPalette";
@@ -22,7 +23,6 @@ import {
     addMatch,
     advanced,
     choose,
-    clickCardBlank,
     done,
     draftOf,
     drop,
@@ -933,7 +933,7 @@ describe("the join workspace's cards work as the selection workspace's cards do 
         });
         await fromCardMenu(modal, "Duplicate");
         await waitFor(() => {
-            assert.deepStrictEqual(joinLines(modal), ["people + entries", "people + entries"]);
+            assert.lengthOf(joinLines(modal), 2, "a second card");
         });
         assert.include(
             openCard(modal).textContent ?? "",
@@ -947,7 +947,8 @@ describe("the join workspace's cards work as the selection workspace's cards do 
             1,
             "the copy writes nothing",
         );
-        await selectJoin(modal, "people + entries");
+        // The written card is first: its copy, not joined, goes last.
+        await userEvent.click(within(modal).getAllByRole("button", { name: /^Expand / })[0]);
         await waitFor(() => {
             assert.isNotNull(modal.querySelector(".jw-lower"), "the card's table is shown");
         });

@@ -1463,6 +1463,32 @@ describe("GraphML styles: writing", () => {
         expect(back.styles.styles.rules.some((r) => r.role === "exceptions")).toBe(false);
     });
 
+    it("writes a hollow vee as yEd's standard head, approximated, never as a name yEd does not have", async () => {
+        const b = new GraphBuilder({ directed: true });
+        b.addNode("a");
+        b.addNode("b");
+        b.addEdge("a", "b");
+        const snapshot = b.freeze();
+        const styles = planStyles(
+            {
+                format: "test",
+                edge: { values: { targetArrow: ["other:hollow-vee"] } },
+                fingerprint: styleFingerprint(snapshot),
+            },
+            { node: featuresOf(snapshot, "node"), edge: featuresOf(snapshot, "edge") },
+        );
+        const losses = registry.checkExport(snapshot, "graphml", { styles });
+        expect(
+            losses
+                .filter((l) => l.code === "W_STYLE_APPROXIMATED")
+                .map((l) => [l.style?.target, l.style?.property, l.count]),
+        ).toEqual([["edge", "targetArrow", 1]]);
+        const text = await registry.exportGraphToString(snapshot, "graphml", { styles });
+        expect(text).toContain('target="standard"');
+        // yEd's own arrow attributes name only yEd arrows; the exact value stays in graphty's block
+        expect(text).not.toContain('target="hollow-vee"');
+    });
+
     it("writes a gradient fill as yEd's color2, and an inside label in yEd's internal model", async () => {
         const b = new GraphBuilder({ directed: true });
         b.addNode("a");

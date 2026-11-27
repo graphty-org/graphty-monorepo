@@ -22,6 +22,9 @@ const ARC_SEGMENTS = 32;
 /** How thick the open box's frame is: the open dot's ring (its radius 0.5 inset 22.5%). */
 const OPEN_FRAME = 0.5 * 0.225;
 
+/** How thick the hollow vee's frame is, in its own lengths (yEd's pen of 1 round a standard head 15 long). */
+const HOLLOW_VEE_FRAME = 1 / 15;
+
 /** The vee's outline (`createVee`): its tip, a back corner, its notch half the cap back from the tip, the other corner. */
 const VEE_OUTLINE: readonly (readonly [number, number])[] = [
     [0, 0],
@@ -1300,8 +1303,9 @@ void main() {
         // CROSS_OPEN_DELTA: the same outlined, its 0.25 stroke a twelfth of its length; the bar it strokes is solid
         "open-cross-delta": () => [...frame(CROSS_DELTA.delta, 1 / 12), rect(-1, -5 / 6, 0.25)],
         // the inverted triangle (base across the tip, point back along the line) as a frame as thick as open-box's
-        // the vee's outline as a frame as thick as open-inverted's
-        "hollow-vee": () => frame(VEE_OUTLINE, OPEN_FRAME),
+        // the vee's outline as a frame as thick as yEd's 1 px pen on its 15 px head: open-inverted's frame would not fit
+        // inside the vee's narrow arms, and its insets would cross and cover the whole vee
+        "hollow-vee": () => frame(VEE_OUTLINE, HOLLOW_VEE_FRAME),
         "open-inverted": () =>
             frame(
                 [

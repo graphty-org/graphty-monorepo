@@ -3637,6 +3637,12 @@ export const YED_ARROWS: ReadonlyMap<string, string> = new Map([
     ["other:open-vee", "plain"],
 ]);
 
+/**
+ * The values the reader keeps as `other:` that are not yEd names, by the yEd name drawn nearest to them: a hollow vee
+ * (an unfilled framed edge's standard head) goes back as the standard head, filled.
+ */
+const YED_NEAREST: ReadonlyMap<string, string> = new Map([["other:hollow-vee", "standard"]]);
+
 /** yEd's internal label model positions by neutral position: the center, and against a side or in a corner inside. */
 const INTERNAL_MODEL_POSITIONS: ReadonlyMap<string, string> = new Map(
     [...INTERNAL_POSITIONS].map(([model, position]) => [position, model]),
@@ -3665,6 +3671,10 @@ export function yedValue(table: ReadonlyMap<string, string>, value: string, near
     const exact = table.get(value);
     if (exact !== undefined) {
         return { value: exact, exact: true };
+    }
+    const near = YED_NEAREST.get(value);
+    if (near !== undefined) {
+        return { value: near, exact: false };
     }
     // a value the reader kept as other:<raw> goes back as written
     return value.startsWith("other:") ? { value: value.slice(6), exact: true } : { value: nearest, exact: false };

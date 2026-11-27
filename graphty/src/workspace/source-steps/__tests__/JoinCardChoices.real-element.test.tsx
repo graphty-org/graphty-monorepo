@@ -95,7 +95,7 @@ async function match(modal: HTMLElement, other: string, field = "badge", named =
  * @param name - the choice.
  * @param way - the way.
  */
-async function pickWay(modal: HTMLElement, name: string, way: string): Promise<void> {
+async function pickWay(modal: HTMLElement, name: string | RegExp, way: string): Promise<void> {
     await userEvent.click(within(within(modal).getByRole("radiogroup", { name })).getByText(way));
 }
 
@@ -248,7 +248,7 @@ describe("a join card's choices (source-steps)", () => {
         const { session, modal } = await opened(["doors.csv", DOORS], ["entries.csv", ENTRIES]);
         await match(modal, "entries");
         await joinAs(modal, NODE);
-        await pickWay(modal, "No match", "Skip");
+        await pickWay(modal, /^Unmatched /u, "Skip");
         await advanced(modal);
         await typeIn(modal, "Edge type", "entered");
         await newest(session, (step) => step.act?.edgeType === "entered", "set");
@@ -404,7 +404,7 @@ describe("a join card's choices (source-steps)", () => {
                 ["B7"],
             );
         });
-        await pickWay(modal, "No match", "Add");
+        await pickWay(modal, /^Unmatched /u, "New node");
         await within(modal).findByRole("button", { name: "1 new node" });
         assert.strictEqual(added(), 1, "B7");
     });
@@ -496,7 +496,7 @@ describe("a join card's choices (source-steps)", () => {
         // HR's B7 becomes a person, so a department it holds links it too.
         await match(modal, "hr");
         await joinAs(modal, "Fields of hr on people");
-        await pickWay(modal, "No match", "Add");
+        await pickWay(modal, /^Unmatched /u, "New node");
         await newest(session, (step) => step.act?.unmatchedFrom === "keep", "B7 is a person now");
         await userEvent.click(within(modal).getByRole("button", { name: "Join" }));
         await pickSources(modal, "person", "person");
@@ -504,7 +504,7 @@ describe("a join card's choices (source-steps)", () => {
         await joinAs(modal, "Edge between person sharing dept");
         await newest(session, (step) => step.buckets?.newEdges === 6, "B1, B2, B4 and B7 are Ops");
         await selectJoin(modal, "people + hr");
-        await pickWay(modal, "No match", "Skip");
+        await pickWay(modal, /^Unmatched /u, "Skip");
         await newest(session, (step) => step.buckets?.newEdges === 3, "B7's links go");
         await selectJoin(modal, "person, dept");
         await within(modal).findByRole("button", { name: "3 new edges" });
@@ -534,5 +534,64 @@ describe("a join card's choices (source-steps)", () => {
         assert.strictEqual(rule(), "overwrite", "with its rule");
         assert.lengthOf(session.data.staged(), 1, "buildings.csv is not staged");
         assert.isNotNull(screen.queryByRole("dialog", { name: "Join" }));
+    });
+
+    it("names whose rows a choice is about, and keeps Missing beside Unmatched outside Advanced (#10394)", async () => {
+        const { session, modal } = await opened(["entries.csv", ENTRIES]);
+        await match(modal, "entries");
+        await joinAs(modal, NODE);
+        const unmatched = await within(modal).findByRole("radiogroup", { name: "Unmatched entries" });
+        const missing = within(modal).getByRole("radiogroup", { name: "Missing people" });
+        for (const [group, ways] of [
+            [unmatched, ["New node", "Skip"]],
+            [missing, ["Skip", "New node"]],
+        ] as const) {
+            assert.deepStrictEqual(
+                within(group)
+                    .getAllByRole("radio")
+                    .map((radio) => group.querySelector(`label[for="${CSS.escape(radio.id)}"]`)?.textContent),
+                [...ways],
+            );
+        }
+        assert.isNull(within(modal).queryByText("No match"));
+        assert.isNull(within(modal).queryByText("Missing end"));
+        // Shown without opening Advanced, right under Unmatched.
+        assert.isTrue(missing.checkVisibility(), "Missing is drawn without opening Advanced");
+        const rows = [...modal.querySelectorAll(".jw-row")];
+        const at = (group: HTMLElement): number => rows.findIndex((row) => row.contains(group));
+        assert.strictEqual(at(missing), at(unmatched) + 1, "Missing sits right under Unmatched");
+        // Each two-way choice spans its row.
+        const row = unmatched.closest(".jw-row-controls")?.getBoundingClientRect();
+        const control = unmatched.getBoundingClientRect();
+        assert.isAtMost(Math.abs((row?.width ?? 0) - control.width), 1, "the control spans its row");
+        const nodes = (): number => draftOf(session).preview().after.nodes;
+        const before = nodes();
+        await pickWay(modal, "Missing people", "New node");
+        await waitFor(() => {
+            assert.strictEqual(nodes(), before + 1, "B9 is made a person");
+        });
+    });
+
+    it("an edge card asks about missing ends, and has no Unmatched row (#10394)", async () => {
+        const { modal } = await opened(["doors.csv", DOORS], ["entries.csv", ENTRIES]);
+        await match(modal, "entries");
+        await addMatch(modal, 2, ["entries", "door"], ["doors", "door"]);
+        await joinAs(modal, EDGE);
+        const missing = await within(modal).findByRole("radiogroup", { name: "Missing end" });
+        assert.isNotNull(within(missing).queryByRole("radio", { name: "New node" }));
+        assert.isNull(within(modal).queryByRole("radiogroup", { name: /^Unmatched / }));
+    });
+
+    it("lines a row left under Advanced up with the rows above it (#10394)", async () => {
+        const { modal } = await opened(["entries.csv", ENTRIES]);
+        await match(modal, "entries");
+        await joinAs(modal, NODE);
+        const above = await within(modal).findByRole("radiogroup", { name: "Unmatched entries" });
+        await advanced(modal);
+        const type = await within(modal).findByRole("combobox", { name: "Edge type" });
+        const left = (each: Element | null): number => each?.closest(".jw-row")?.getBoundingClientRect().left ?? NaN;
+        assert.strictEqual(left(type), left(above), "the rows start at one x");
+        const label = (each: Element): number => each.closest(".jw-row-controls")?.getBoundingClientRect().left ?? NaN;
+        assert.strictEqual(label(type), label(above), "their controls start at one x");
     });
 });

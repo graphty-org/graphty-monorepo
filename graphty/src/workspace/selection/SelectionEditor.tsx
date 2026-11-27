@@ -38,14 +38,15 @@ import { useDebouncedValue } from "@mantine/hooks";
 import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
 
-import { canFocus, focusInspectorTitle, focusIsLost, tabStops } from "../frame/focus";
+import { canFocus, focusInspectorTitle, focusIsLost } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
-import { isTypingTarget, matchesKey, printable } from "../keys/keys";
+import { printable } from "../keys/keys";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { DrawnSwatches } from "../style/drawnSwatches";
 import { AddCondition } from "../style/WhichPicker";
+import { CARD_KEYS, runCardKey, tabWrap } from "./cardKeys";
 import { MatchesStrip } from "./MatchesStrip";
 import {
     addBranch,
@@ -1182,29 +1183,12 @@ export function SelectionEditor({
         setSelected(null);
         setAdding(null);
     };
-    // A card's keys, as its "..." menu shows them, on the card itself (a click on its blank space
-    // focuses it) or on its header's controls (its grip, its fold, ...).
+    // A card's keys, as its "..." menu shows them.
     const cardKeys = (event: React.KeyboardEvent<HTMLElement>): void => {
-        const target = event.target as HTMLElement;
-        const card = target.matches("[data-card-id]")
-            ? target
-            : target.closest<HTMLElement>("[data-card-id] > .cm-card-head")?.parentElement;
-        const branchId = card?.dataset.cardId;
-        const branch = rule.branches.find((each) => each.id === branchId);
-        if (branch === undefined || isTypingTarget(target)) {
-            return;
-        }
-        const at = rule.branches.indexOf(branch);
-        const item = cardItems(branch, at).find(
-            (each) =>
-                each.key !== undefined && (each.reason ?? null) === null && matchesKey(event.nativeEvent, each.key),
-        );
-        if (item === undefined) {
-            return;
-        }
-        event.preventDefault();
-        event.stopPropagation();
-        item.onRun();
+        runCardKey(event, (branchId) => {
+            const at = rule.branches.findIndex((each) => each.id === branchId);
+            return at < 0 ? undefined : cardItems(rule.branches[at], at);
+        });
     };
     // A card's "..." items.
     const cardItems = (branch: UnionBranch, at: number): readonly SelectionMenuItem[] => {
@@ -1218,7 +1202,7 @@ export function SelectionEditor({
                 label: "Rename",
                 icon: "rename",
                 group: "edit",
-                key: "F2",
+                key: CARD_KEYS.rename,
                 onRun: () => {
                     setRenaming(branchId);
                 },
@@ -1228,7 +1212,7 @@ export function SelectionEditor({
                 label: on ? "Turn off" : "Turn on",
                 icon: on ? "hide" : "show",
                 group: "edit",
-                key: "Shift+Mod+H",
+                key: CARD_KEYS.off,
                 onRun: () => {
                     toggle(branch);
                 },
@@ -1238,7 +1222,7 @@ export function SelectionEditor({
                 label: "Duplicate",
                 icon: "duplicate",
                 group: "edit",
-                key: "Mod+D",
+                key: CARD_KEYS.duplicate,
                 reason: reading.branchesLeft === 0 ? "No more cards" : null,
                 reasonDrawn: false,
                 onRun: () => {
@@ -1266,7 +1250,7 @@ export function SelectionEditor({
                 label: "Move up",
                 icon: "moveUp",
                 group: "edit",
-                key: "Mod+]",
+                key: CARD_KEYS.up,
                 reason: at === 0 ? "Already at the top" : null,
                 reasonDrawn: false,
                 onRun: () => {
@@ -1278,7 +1262,7 @@ export function SelectionEditor({
                 label: "Move down",
                 icon: "moveDown",
                 group: "edit",
-                key: "Mod+[",
+                key: CARD_KEYS.down,
                 reason: at === rule.branches.length - 1 ? "Already at the bottom" : null,
                 reasonDrawn: false,
                 onRun: () => {
@@ -1290,7 +1274,7 @@ export function SelectionEditor({
                 label: "Delete",
                 icon: "delete",
                 group: "remove",
-                key: "Delete",
+                key: CARD_KEYS.delete,
                 onRun: () => {
                     removeCard(branch);
                 },
@@ -1589,19 +1573,7 @@ export function SelectionEditor({
     // the status bar: the workspace is drawn last in the page, so the header is otherwise far back.
     // The modal keeps Tab inside it both ways: past its last control to its first, and back.
     const tabToHead = (event: React.KeyboardEvent<HTMLElement>): void => {
-        if (event.key !== "Tab" || event.altKey || event.ctrlKey || event.metaKey) {
-            return;
-        }
-        const root = wsBox.current;
-        if (root === null) {
-            return;
-        }
-        const stops = tabStops(root);
-        const [from, to] = event.shiftKey ? [stops.at(0), stops.at(-1)] : [stops.at(-1), stops.at(0)];
-        if (from === event.target && to !== undefined) {
-            event.preventDefault();
-            to.focus();
-        }
+        tabWrap(event, wsBox.current);
     };
 
     const workspace =
@@ -1691,21 +1663,18 @@ export function SelectionEditor({
                                   />
                                   <RowMore name={wsTitle} items={titleItems} />
                                   <span className="sel-ws-gap" />
-                                  <Button
-                                      size="compact-xs"
-                                      variant="subtle"
-                                      aria-keyshortcuts="Escape"
-                                      rightSection={
-                                          <Text span size="sm" c="dimmed" className="sel-key">
-                                              Esc
-                                          </Text>
-                                      }
-                                      onClick={() => {
-                                          closeAfterPaint("cancel");
-                                      }}
-                                  >
-                                      Cancel
-                                  </Button>
+                                  <Tooltip label="Cancel (Esc)" openDelay={500}>
+                                      <Button
+                                          size="compact-xs"
+                                          variant="subtle"
+                                          aria-keyshortcuts="Escape"
+                                          onClick={() => {
+                                              closeAfterPaint("cancel");
+                                          }}
+                                      >
+                                          Cancel
+                                      </Button>
+                                  </Tooltip>
                                   <Button
                                       size="compact-xs"
                                       onClick={() => {
@@ -2003,7 +1972,7 @@ function NewStepPane({
  * @param props.onRename - takes the typed name, or undefined for none
  * @returns The title
  */
-function TitleName({
+export function TitleName({
     id,
     owner,
     name,

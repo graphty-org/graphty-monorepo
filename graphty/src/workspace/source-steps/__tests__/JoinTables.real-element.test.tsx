@@ -239,18 +239,23 @@ describe("the join workspace's two tables (source-steps)", () => {
         await pickSources(modal, "people", "entries");
         await pickFields(modal, "badge", "badge");
         const shown = within(modal).getByRole("radiogroup", { name: "Rows shown" });
+        const tables = (): string[] =>
+            ["people", "entries"].filter((name) => within(modal).queryByRole("grid", { name }) !== null);
         await userEvent.click(within(shown).getByText("Only entries"));
         await waitFor(() => {
             assert.deepStrictEqual([...rowsAt(modal, "entries").values()], ["B999"]);
         });
+        assert.deepStrictEqual(tables(), ["entries"], "people's table is not drawn (#10394)");
         await userEvent.click(within(shown).getByText("Only people"));
         await waitFor(() => {
             assert.strictEqual([...rowsAt(modal, "people").values()][0], "B30", "the first no entry names");
         });
+        assert.deepStrictEqual(tables(), ["people"], "entries' table is not drawn");
         await userEvent.click(within(shown).getByText("Matched"));
         await waitFor(() => {
             assert.notInclude([...rowsAt(modal, "people").values()], "");
         });
+        assert.deepStrictEqual(tables(), ["people", "entries"], "both tables again");
     });
 
     it("draws two tables under each other where there is no room beside, and beside each other on a tablet upright", async () => {

@@ -672,7 +672,7 @@ describe("Escape on the workspace, wherever focus was left", () => {
             await userEvent.click(box, { position: { x: 300, y: 8 }, force: true });
             await userEvent.keyboard("{Escape}");
             await waitFor(() => {
-                assert.isNull(document.querySelector(".sel-ws"), "the button says Esc, so Esc cancels");
+                assert.isNull(document.querySelector(".sel-ws"), "Cancel's key, Esc, cancels");
             });
         }
     });

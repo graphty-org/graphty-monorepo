@@ -23,6 +23,7 @@ import {
     done,
     draftOf,
     emptyProject,
+    fromHeadMenu,
     joinAs,
     joinLines,
     joinsOf,
@@ -535,11 +536,11 @@ describe("a join card's ways to join (source-steps)", () => {
         assert.deepStrictEqual(joinLines(modal), lines);
         // Undo takes the card's last write back as one step, and Redo makes the picked join again.
         const made = JSON.stringify(draftOf(session).steps());
-        await userEvent.click(within(modal).getByRole("button", { name: /^Undo/ }));
+        await fromHeadMenu(modal, "Undo");
         await waitFor(() => {
             assert.notStrictEqual(JSON.stringify(draftOf(session).steps()), made, "the last write is taken back");
         });
-        await userEvent.click(within(modal).getByRole("button", { name: /^Redo/ }));
+        await fromHeadMenu(modal, "Redo");
         await waitFor(() => {
             assert.strictEqual(checkedWay(modal), pick);
             assert.lengthOf(joinsOf(session), steps);
@@ -663,7 +664,7 @@ describe("a join card's ways to join (source-steps)", () => {
         await removeOpen(modal);
         await selectJoin(modal, "accounts + watch");
         await within(modal).findByRole("radio", { checked: true, name: "Fields of watch on accounts" });
-        await within(modal).findByRole("radiogroup", { name: "No match" });
+        await within(modal).findByRole("radiogroup", { name: /^Unmatched /u });
         await screen.findByRole("dialog", { name: "Join" });
         await choose(modal, "Source 1", "identifiers");
         assert.lengthOf(joinsOf(session), 0, "its source changed, the card asks again");

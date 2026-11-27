@@ -36,7 +36,7 @@ import { DifferRow, ReduceRow } from "./WorkspaceParts";
 export function Row({ label, children }: Readonly<{ label: string; children: React.ReactNode }>): React.JSX.Element {
     return (
         <div className="jw-row">
-            <Text size="xs" truncate>
+            <Text size="xs" truncate title={label}>
                 {label}
             </Text>
             <div className="jw-row-controls">{children}</div>
@@ -68,6 +68,7 @@ function Choice<T extends string>({
         <Row label={label}>
             <SegmentedControl
                 size="xs"
+                fullWidth
                 aria-label={label}
                 value={value}
                 data={data.map((each) => ({ ...each }))}
@@ -238,8 +239,19 @@ function takesSeveral(step: SourceStepRow): boolean {
 /** Whether a value naming nothing makes a node. */
 const MISSING = [
     { value: "skip", label: WORKSPACE_WORDS.skip },
-    { value: "add", label: WORKSPACE_WORDS.add },
+    { value: "add", label: WORKSPACE_WORDS.newNode },
 ] as const;
+
+/**
+ * The one source an outcome's rows land on, which a value naming nothing would make a node of.
+ * @param outcome - the outcome
+ * @param name - a side's name
+ * @returns its name, or null when the ends are of two sources
+ */
+function ontoName(outcome: SourceJoinOutcome, name: (side: SourceJoinSide) => string): string | null {
+    const names = [...new Set(outcome.onto.map((side) => name(side)))];
+    return names.length === 1 ? names[0] : null;
+}
 
 /** What a card's options take. */
 interface OptionProps {
@@ -487,7 +499,7 @@ function edgeOptions(props: OptionProps, edgeType: AdvancedRow, newType: Advance
     const missing = (
         <Choice
             key="missing"
-            label={WORKSPACE_WORDS.missing}
+            label={WORKSPACE_WORDS.missing(ontoName(outcome, props.name))}
             value={result.missing}
             data={MISSING}
             onChange={(next) => {
@@ -515,13 +527,13 @@ function edgeOptions(props: OptionProps, edgeType: AdvancedRow, newType: Advance
                         }}
                     />
                 ) : null}
+                {isEdge ? null : missing}
                 {meets ? existing : null}
                 {turns ? direction : null}
             </>
         ),
         advanced: [
             ...(isEdge && !meets ? [{ row: existing, set: result.existing !== DEFAULT_RESULT.existing }] : []),
-            ...(isEdge ? [] : [{ row: missing, set: result.missing !== DEFAULT_RESULT.missing }]),
             ...(turns ? [] : [{ row: direction, set: directionOf(outcome, result) !== "into-from" }]),
             edgeType,
             // Named after its column until the reader names it.
@@ -607,7 +619,14 @@ export function Options(props: OptionProps): React.JSX.Element {
         <>
             {ways === null ? null : (
                 <Choice
-                    label={WORKSPACE_WORDS.noMatch}
+                    // An edge's rows are the edges: what it asks is whether a missing end makes a node.
+                    label={
+                        outcome.code === "edge"
+                            ? WORKSPACE_WORDS.missing(ontoName(outcome, props.name))
+                            : WORKSPACE_WORDS.unmatched(
+                                  [...new Set(outcome.rows.map((side) => props.name(side)))].join(", "),
+                              )
+                    }
                     value={noMatchOf(outcome, result) ?? ways[0]}
                     data={ways.map((way) => ({ value: way, label: NO_MATCH_WORDS[way] }))}
                     onChange={(noMatch) => {

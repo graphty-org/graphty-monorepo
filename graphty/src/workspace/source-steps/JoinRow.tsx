@@ -13,7 +13,7 @@ import { WORKSPACE_WORDS } from "./words";
 
 /**
  * "Join +" below the data sources (the source-steps experiment), built as "Filter +" is: its "+" opens
- * the join workspace, with its key (Shift+J) shown beside it. Every join of the graph is listed under it,
+ * the join workspace, and its key (Shift+J) is said on hover. Every join of the graph is listed under it,
  * one line each: a press opens the workspace on it, and so does its "..." menu's Open; Remove opens the
  * workspace with it taken out.
  * @param props - Component props

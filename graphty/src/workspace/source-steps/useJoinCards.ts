@@ -66,6 +66,10 @@ export interface JoinCards {
     readonly select: (id: string | null) => void;
     readonly add: () => void;
     readonly remove: (id: string) => void;
+    /** Names a card as typed, or takes its name off when nothing is: a written card's join carries it. */
+    readonly rename: (id: string, typed: string) => void;
+    /** Turns every step of a written card off or on, as one undo step. */
+    readonly setOff: (id: string, off: boolean) => void;
     readonly setLines: (lines: readonly CardLine[], resided: boolean) => void;
     readonly setIgnoring: (change: Partial<Ignoring>) => void;
     readonly pick: (outcome: SourceJoinOutcome) => void;
@@ -239,7 +243,7 @@ export function useJoinCards(
                 outcome,
                 result,
                 next,
-                joinOf(card.steps, next.lines, outcome),
+                joinOf(card.steps, next.lines, outcome, next.name),
             );
             // An outcome of some of the lines leaves the others out.
             const whole = wholeLines(next.lines);
@@ -373,6 +377,41 @@ export function useJoinCards(
             select(card.id);
         },
         remove,
+        rename: (id, typed) => {
+            const name = typed.trim() === "" ? undefined : typed.trim();
+            const card = cards.find((each) => each.id === id);
+            const joinId = card?.step?.join?.id;
+            try {
+                if (joinId === undefined) {
+                    // Not written yet: the card keeps the name, and its first step's join takes it.
+                    setMine((now) =>
+                        now.map((each) => {
+                            if (each.id !== id) {
+                                return each;
+                            }
+                            const { name: _was, ...rest } = each;
+                            return name === undefined ? rest : { ...rest, name };
+                        }),
+                    );
+                } else {
+                    draft.renameJoin(joinId, name ?? null);
+                }
+            } catch (error) {
+                refuse(id)(error);
+            }
+        },
+        setOff: (id, off) => {
+            const steps = cards.find((each) => each.id === id)?.steps ?? [];
+            try {
+                draft.batch(() => {
+                    for (const step of steps) {
+                        draft.editStep(step.index, { off });
+                    }
+                });
+            } catch (error) {
+                refuse(id)(error);
+            }
+        },
         setLines: onOpen(setLines),
         setIgnoring: onOpen(setIgnoring),
         pick: onOpen(pick),

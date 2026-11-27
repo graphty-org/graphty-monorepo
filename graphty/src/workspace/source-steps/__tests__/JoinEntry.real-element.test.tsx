@@ -71,12 +71,14 @@ async function joinEntries(session: GraphSession): Promise<void> {
 }
 
 describe("the doors into the join workspace (source-steps)", () => {
-    it("Join + below the data sources opens the workspace, showing its Shift+J key", async () => {
+    it("Join + below the data sources opens the workspace; its Shift+J key is said on hover, never drawn", async () => {
         await foundingProject();
         const plus = await joinPlus();
         assert.strictEqual(plus.getAttribute("aria-keyshortcuts"), "Shift+J");
-        const row = plus.closest("[data-join-plus]");
-        assert.include(row?.textContent ?? "", "J", "the key is drawn beside the +");
+        const section = plus.closest("[data-join-plus]")?.parentElement;
+        assert.notInclude(section?.textContent ?? "", "Shift+J", "no key drawn beside the +");
+        await userEvent.hover(plus);
+        await screen.findByRole("tooltip", { name: /Shift\+J/u });
         const list = screen.getByRole("list", { name: "Data sources" });
         assert.isTrue(
             (list.compareDocumentPosition(plus) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,

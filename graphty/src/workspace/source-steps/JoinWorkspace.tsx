@@ -3,7 +3,7 @@ import "./source-steps.css";
 
 import { CardList, type CardListItem, ControlSection } from "@graphty/compact-mantine";
 import type { DraftRing, GraphSession, SourceDraft, SourceKey } from "@graphty/graphty-element/session";
-import { Button, Group, Stack, Text } from "@mantine/core";
+import { Button, Group, Stack, Text, Tooltip } from "@mantine/core";
 import React, { type RefObject, useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -11,15 +11,25 @@ import { sourceStepsOn } from "../features";
 import { focusIsLost } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
-import { ariaKey, isTypingTarget, matchesKey } from "../keys/keys";
+import { ariaKey, formatKey, isTypingTarget, matchesKey } from "../keys/keys";
+import { CARD_KEYS, runCardKey, tabWrap } from "../selection/cardKeys";
 import { cardPalette } from "../selection/cardPalette";
 import { usePreviewCanvas } from "../selection/previewCanvas";
-import { RowMore } from "../selection/SelectionMenu";
+import { RowMore, type SelectionMenuItem } from "../selection/SelectionMenu";
 import { useSessionEvents } from "../sessionEvents";
 import type { JoinWorkspaceOpen } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { commitWorkspace } from "./actions";
-import { nameOf, namingLines, rowNames, sideChoices, type SourceNames, sourceNames, spaceName } from "./cardWords";
+import {
+    foldedSummary,
+    nameOf,
+    namingLines,
+    rowNames,
+    sideChoices,
+    type SourceNames,
+    sourceNames,
+    spaceName,
+} from "./cardWords";
 import { JoinCardBody } from "./JoinCard";
 import { cardsOf, countsOf, type JoinCardView, type OpenCard, removeSteps, wholeLines } from "./joinCards";
 import { JoinHead, JoinKey } from "./JoinHead";
@@ -32,7 +42,6 @@ import {
     WORKSPACE_REDO_KEY,
     WORKSPACE_UNDO_KEY,
 } from "./keys";
-import { KeyWords } from "./KeyWords";
 import { ReaderEdits } from "./ReaderEdits";
 import { StagedRows } from "./StagedFields";
 import { type FirstCards, type JoinCards, useJoinCards } from "./useJoinCards";
@@ -405,7 +414,203 @@ function moveCard(draft: SourceDraft, moving: readonly number[], target: readonl
 }
 
 /**
- * "+ Join" under the cards, as "+ Card" is under the selection workspace's, with its key shown.
+ * Whether the reader turned a card off: every step it wrote is off.
+ * @param card - the card
+ * @returns true when it is
+ */
+function isOff(card: JoinCardView): boolean {
+    return card.steps.length > 0 && card.steps.every((step) => step.off);
+}
+
+/**
+ * The state a card says beside its title: off, or not joined yet.
+ * @param card - the card
+ * @returns the words, or null for none
+ */
+function stateWords(card: JoinCardView): string | null {
+    if (isOff(card)) {
+        return WORKSPACE_WORDS.off;
+    }
+    return card.step === null ? WORKSPACE_WORDS.notJoined : null;
+}
+
+/** What a card's "..." items do. */
+interface CardActs {
+    readonly rename: (id: string) => void;
+    readonly reorder: (id: string, to: number) => void;
+    readonly remove: (id: string) => void;
+    readonly say: (words: string) => void;
+}
+
+/**
+ * A card's "..." items, as the selection workspace's cards have them, by the same keys.
+ * @param id - the card
+ * @param placed - every card, in step order
+ * @param joins - the join cards
+ * @param acts - what the items do
+ * @returns the items, or undefined for no such card
+ */
+function joinCardItems(
+    id: string,
+    placed: readonly PlacedCard[],
+    joins: Pick<JoinCards, "cards" | "setOff">,
+    acts: CardActs,
+): readonly SelectionMenuItem[] | undefined {
+    const at = placed.findIndex((each) => each.id === id);
+    const item = placed.at(at);
+    if (item === undefined) {
+        return undefined;
+    }
+    const card = joins.cards.find((each) => each.id === id);
+    const written = card !== undefined && card.steps.length > 0;
+    const off = card !== undefined && isOff(card);
+    const offWords = off ? WORKSPACE_WORDS.turnOn : WORKSPACE_WORDS.turnOff;
+    const rename: readonly SelectionMenuItem[] =
+        card === undefined
+            ? []
+            : [
+                  {
+                      id: "rename",
+                      label: WORKSPACE_WORDS.rename,
+                      icon: "rename",
+                      group: "edit",
+                      key: CARD_KEYS.rename,
+                      onRun: () => {
+                          acts.rename(id);
+                      },
+                  },
+              ];
+    const turn: readonly SelectionMenuItem[] = written
+        ? [
+              {
+                  id: "hide",
+                  label: offWords,
+                  icon: off ? "show" : "hide",
+                  group: "edit",
+                  key: CARD_KEYS.off,
+                  onRun: () => {
+                      joins.setOff(id, !off);
+                      acts.say(`${offWords} ${item.title}`);
+                  },
+              },
+          ]
+        : [];
+    return [
+        // A source added as it is goes by its source's name: a join alone is renamed.
+        ...rename,
+        ...turn,
+        {
+            id: "up",
+            label: WORKSPACE_WORDS.moveUp,
+            icon: "moveUp",
+            group: "edit",
+            key: CARD_KEYS.up,
+            reason: at === 0 ? WORKSPACE_WORDS.atTop : null,
+            reasonDrawn: false,
+            onRun: () => {
+                acts.reorder(id, at - 1);
+            },
+        },
+        {
+            id: "down",
+            label: WORKSPACE_WORDS.moveDown,
+            icon: "moveDown",
+            group: "edit",
+            key: CARD_KEYS.down,
+            reason: at === placed.length - 1 ? WORKSPACE_WORDS.atBottom : null,
+            reasonDrawn: false,
+            onRun: () => {
+                acts.reorder(id, at + 1);
+            },
+        },
+        {
+            id: "delete",
+            label: WORKSPACE_WORDS.delete,
+            icon: "delete",
+            group: "remove",
+            key: CARD_KEYS.delete,
+            onRun: () => {
+                acts.remove(id);
+                acts.say(`${WORKSPACE_WORDS.delete} ${item.title}`);
+            },
+        },
+    ];
+}
+
+/**
+ * Moves a card to another place in the list, its join's steps as one block.
+ * @param draft - the open draft
+ * @param placed - every card, in step order
+ * @param id - the card
+ * @param to - its new place
+ * @param say - says what moved
+ */
+function moveTo(
+    draft: SourceDraft,
+    placed: readonly PlacedCard[],
+    id: string,
+    to: number,
+    say: (words: string) => void,
+): void {
+    const from = placed.findIndex((each) => each.id === id);
+    const moving = placed[from]?.steps ?? [];
+    const target = placed.at(to)?.steps ?? [];
+    if (from === to || to < 0 || moving.length === 0 || target.length === 0) {
+        return;
+    }
+    moveCard(draft, moving, target, to > from);
+    say(`${to > from ? WORKSPACE_WORDS.moveDown : WORKSPACE_WORDS.moveUp} ${placed[from].title}`);
+}
+
+/**
+ * The workspace's "..." items: Undo and Redo, then what the preview shows.
+ * @param draft - the open draft
+ * @param acts - what the items do
+ * @param acts.undo - takes back the newest change
+ * @param acts.redo - makes again what Undo took back
+ * @param acts.frame - frames the matches
+ * @param acts.edits - opens or closes the Reader edits list
+ * @returns the items
+ */
+function headItems(
+    draft: SourceDraft,
+    acts: Readonly<{ undo: () => void; redo: () => void; frame: () => void; edits: () => void }>,
+): readonly SelectionMenuItem[] {
+    return [
+        {
+            id: "undo",
+            label: WORKSPACE_WORDS.undo,
+            icon: "undo",
+            group: "edit",
+            key: WORKSPACE_UNDO_KEY,
+            reason: draft.canUndo ? null : WORKSPACE_WORDS.nothingToUndo,
+            reasonDrawn: false,
+            onRun: acts.undo,
+        },
+        {
+            id: "redo",
+            label: WORKSPACE_WORDS.redo,
+            icon: "redo",
+            group: "edit",
+            key: WORKSPACE_REDO_KEY,
+            reason: draft.canRedo ? null : WORKSPACE_WORDS.nothingToRedo,
+            reasonDrawn: false,
+            onRun: acts.redo,
+        },
+        { id: "fit", label: WORKSPACE_WORDS.frameMatches, icon: "maximize", group: "view", onRun: acts.frame },
+        {
+            id: "edits",
+            label: STEP_WORDS.readerEdits,
+            icon: "notes",
+            group: "view",
+            key: READER_EDITS_KEY,
+            onRun: acts.edits,
+        },
+    ];
+}
+
+/**
+ * "+ Join" under the cards, as "+ Card" is under the selection workspace's; its key is said on hover.
  * @param props - Component props
  * @param props.onAdd - adds a card
  * @returns the button
@@ -413,17 +618,18 @@ function moveCard(draft: SourceDraft, moving: readonly number[], target: readonl
 function AddJoin({ onAdd }: Readonly<{ onAdd: () => void }>): React.JSX.Element {
     return (
         <div className="sel-card-new" data-join-plus="">
-            <Button
-                size="compact-xs"
-                variant="subtle"
-                aria-label={WORKSPACE_WORDS.open}
-                aria-keyshortcuts={ariaKey(JOIN_WORKSPACE_KEY)}
-                leftSection={<GLYPHS.add size={12} aria-hidden />}
-                rightSection={<KeyWords combo={JOIN_WORKSPACE_KEY} />}
-                onClick={onAdd}
-            >
-                {WORKSPACE_WORDS.open}
-            </Button>
+            <Tooltip label={`${WORKSPACE_WORDS.open} (${formatKey(JOIN_WORKSPACE_KEY)})`} openDelay={500}>
+                <Button
+                    size="compact-xs"
+                    variant="subtle"
+                    aria-label={WORKSPACE_WORDS.open}
+                    aria-keyshortcuts={ariaKey(JOIN_WORKSPACE_KEY)}
+                    leftSection={<GLYPHS.add size={12} aria-hidden />}
+                    onClick={onAdd}
+                >
+                    {WORKSPACE_WORDS.open}
+                </Button>
+            </Tooltip>
         </div>
     );
 }
@@ -501,6 +707,10 @@ function WorkspaceBody({
     const [pickedRows, setPickedRows] = useState<Picked | null>(null);
     // on reload: fresh: pointer: the preview's look, picked for a look
     const [colors, setColors] = useState(true);
+    // on reload: fresh: pointer: the card whose name's box is open, or null
+    const [renaming, setRenaming] = useState<string | null>(null);
+    // on reload: fresh: pointer: the header's box for the open card's name is open
+    const [renamingHead, setRenamingHead] = useState(false);
     const unfinishedEnds = useWorkspaceState((state) => state.stagedEnds)?.source;
     const joins = useJoinCards(session, draft, first, version, () => {
         // Another card's rows are not this one's.
@@ -523,27 +733,25 @@ function WorkspaceBody({
     const pane = openCard !== undefined && hasPane(openCard, listed);
 
     const steps = draft.steps();
-    const named = rowNames(
-        session,
-        names,
-        joins.cards.map((card) => namingLines(session, steps, card)),
-    );
+    const namings = joins.cards.map((card) => namingLines(session, steps, card));
+    const named = rowNames(session, names, namings);
+    const say = (words: string): void => {
+        store.set({ announcement: words });
+    };
+    const cardItems = (id: string): readonly SelectionMenuItem[] | undefined =>
+        // Read when a menu is drawn or a key pressed: the acts are defined further down.
+        joinCardItems(id, placed, joins, {
+            rename: setRenaming,
+            reorder: (card, to) => {
+                reorder(card, to);
+            },
+            remove: (card) => {
+                removeCard(card);
+            },
+            say,
+        });
     const menuOf = (id: string, title: string): React.JSX.Element => (
-        <RowMore
-            name={title}
-            items={[
-                {
-                    id: "remove",
-                    label: WORKSPACE_WORDS.remove,
-                    icon: "delete",
-                    group: "remove",
-                    key: DELETE_KEY,
-                    onRun: () => {
-                        removeCard(id);
-                    },
-                },
-            ]}
-        />
+        <RowMore name={title} items={cardItems(id) ?? []} />
     );
     const editorProps = {
         session,
@@ -581,7 +789,7 @@ function WorkspaceBody({
             : `${formatNumber(headCounts.matchedRows)} of ${formatNumber(headCounts.rows)} ${WORKSPACE_WORDS.rowsWord}${
                   mergedNodes > 0 ? `, ${formatNumber(mergedNodes)} ${WORKSPACE_WORDS.nodesWord}` : ""
               }`;
-    const items: readonly PlacedCard[] = [
+    const placed: readonly PlacedCard[] = [
         ...joins.addSteps.map((step): PlacedCard => {
             const id = addCardId(step.index);
             const title = `${nameOf(names, step.source)}, ${WORKSPACE_WORDS.added}`;
@@ -591,7 +799,6 @@ function WorkspaceBody({
                 id,
                 title,
                 className: "sel-card",
-                menu: menuOf(id, title),
                 children:
                     id === joins.open ? (
                         <AddEditor session={session} draft={draft} names={names} joins={joins} step={step} />
@@ -601,6 +808,8 @@ function WorkspaceBody({
         ...joins.cards.map((card, at): PlacedCard => {
             const title = named[at];
             const open = openCard?.id === card.id;
+            const off = isOff(card);
+            const state = stateWords(card);
             return {
                 at: card.step?.index ?? Number.POSITIVE_INFINITY,
                 steps: card.steps.map((step) => step.index).sort((x, y) => x - y),
@@ -609,12 +818,18 @@ function WorkspaceBody({
                 color: colorOf(at),
                 className: "sel-card",
                 data: { "data-join-card": card.id },
+                off,
+                summary: (
+                    <Text size="sm" c="dimmed" truncate span className="sel-card-summary">
+                        {foldedSummary(namings[at].lines)}
+                    </Text>
+                ),
                 aside:
-                    card.step === null ? (
+                    state === null ? undefined : (
                         <Text size="sm" c="dimmed" className="sel-state">
-                            {WORKSPACE_WORDS.notJoined}
+                            {state}
                         </Text>
-                    ) : undefined,
+                    ),
                 header:
                     open && headCounts !== null ? (
                         <Button
@@ -630,12 +845,25 @@ function WorkspaceBody({
                             {headWords}
                         </Button>
                     ) : undefined,
-                menu: menuOf(card.id, title),
                 children: open ? <CardEditor key={card.id} {...editorProps} card={openCard} /> : null,
             };
         }),
     ].sort((x, y) => (x.at === y.at ? 0 : x.at - y.at));
+    const items = placed.map((item) => ({ ...item, menu: menuOf(item.id, item.title) }));
 
+    // A card moves in step order, its join's steps as one block; the element refuses a move that puts a
+    // join before what it reads.
+    const reorder = (id: string, to: number): void => {
+        try {
+            moveTo(draft, items, id, to, say);
+        } catch (error) {
+            joins.refuse("")(error);
+        }
+    };
+    const rename = (id: string, typed: string): void => {
+        joins.rename(id, typed);
+        say(`${WORKSPACE_WORDS.renamed} ${typed.trim()}`);
+    };
     const toggleEdits = (): void => {
         setEditsOpen((now) => !now);
     };
@@ -725,7 +953,12 @@ function WorkspaceBody({
                 aria-labelledby={titleId}
                 tabIndex={-1}
                 className="sel-ws sel-modal jw-modal"
-                onKeyDown={keys}
+                onKeyDown={(event) => {
+                    // A card's own key comes first, and marks the press as answered for the rest.
+                    runCardKey(event, cardItems);
+                    tabWrap(event, box.current);
+                    keys(event);
+                }}
             >
                 <JoinHead
                     titleId={titleId}
@@ -736,8 +969,6 @@ function WorkspaceBody({
                     onSide={(side) => {
                         void draft.show(side);
                     }}
-                    onUndo={undo}
-                    onRedo={redo}
                     onCancel={cancel}
                     onDone={done}
                     name={
@@ -745,31 +976,18 @@ function WorkspaceBody({
                             ? null
                             : (named[joins.cards.findIndex((card) => card.id === openCard.id)] ?? null)
                     }
+                    renaming={renamingHead}
+                    onRenaming={setRenamingHead}
+                    onRename={(name) => {
+                        rename(openCard?.id ?? "", name ?? "");
+                    }}
                     menu={
                         <RowMore
                             name={WORKSPACE_WORDS.title}
-                            items={[
-                                {
-                                    id: "fit",
-                                    label: WORKSPACE_WORDS.frameMatches,
-                                    icon: "maximize",
-                                    group: "view",
-                                    onRun: frameMarked,
-                                },
-                                {
-                                    id: "edits",
-                                    label: STEP_WORDS.readerEdits,
-                                    icon: "notes",
-                                    group: "view",
-                                    key: READER_EDITS_KEY,
-                                    onRun: toggleEdits,
-                                },
-                            ]}
+                            items={headItems(draft, { undo, redo, frame: frameMarked, edits: toggleEdits })}
                         />
                     }
-                >
-                    <JoinKey marks={marks} rings={rings} colors={colors} />
-                </JoinHead>
+                />
                 <div className="sel-ws-body">
                     <div className="sel-ws-cards">
                         <CardList
@@ -798,21 +1016,12 @@ function WorkspaceBody({
                                 }
                             }}
                             onRemove={removeCard}
+                            renaming={renaming}
+                            onRenamingChange={setRenaming}
+                            onRename={rename}
                             keyboardReorder
-                            onReorder={(id, to) => {
-                                // A card is dragged by its grip, as a selection card is: its join moves in step order.
-                                const from = items.findIndex((each) => each.id === id);
-                                const moving = items[from]?.steps ?? [];
-                                const target = items.at(to)?.steps ?? [];
-                                if (from === to || moving.length === 0 || target.length === 0) {
-                                    return;
-                                }
-                                try {
-                                    moveCard(draft, moving, target, to > from);
-                                } catch (error) {
-                                    joins.refuse("")(error);
-                                }
-                            }}
+                            // A card is dragged by its grip, as a selection card is: its join moves in step order.
+                            onReorder={reorder}
                             add={<AddJoin onAdd={joins.add} />}
                             footer={
                                 <>
@@ -834,6 +1043,7 @@ function WorkspaceBody({
                     </div>
                     <div className="sel-ws-center" {...(pane ? { "data-strip": "" } : {})}>
                         <div className="sel-ws-preview" />
+                        <JoinKey marks={marks} rings={rings} colors={colors} />
                         {pane ? (
                             <JoinPane
                                 session={session}

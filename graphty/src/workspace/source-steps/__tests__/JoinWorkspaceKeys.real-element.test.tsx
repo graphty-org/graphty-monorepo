@@ -21,6 +21,8 @@ import {
     done,
     draftOf,
     emptyProject,
+    fromHeadMenu,
+    headMenu,
     joinAs,
     joinLines,
     joinsOf,
@@ -138,7 +140,7 @@ describe("the join workspace's keys (source-steps)", () => {
     it("work after Undo took the open card's step back, and Esc still cancels", async () => {
         const { session, modal } = await opened(["entries.csv", ENTRIES]);
         await join(session, modal, NODE);
-        await userEvent.click(within(modal).getByText("No match"));
+        await userEvent.click(within(modal).getByText(/^Unmatched /u));
         await userEvent.keyboard("{Control>}z{/Control}");
         await waitFor(() => {
             assert.lengthOf(draftOf(session).steps(), 1, "only people's Add is left");
@@ -149,24 +151,33 @@ describe("the join workspace's keys (source-steps)", () => {
         assert.isNull(session.data.currentDraft());
     });
 
-    it("Redo makes the undone join again, from its button as from its key; with nothing to take back both are off", async () => {
+    it("Redo makes the undone join again, from its menu item as from its key; with nothing to take back both are off", async () => {
         const { session, modal } = await opened(["entries.csv", ENTRIES]);
-        const button = (name: RegExp): HTMLButtonElement =>
-            within(modal).getByRole<HTMLButtonElement>("button", { name });
-        assert.isTrue(button(/^Undo/).disabled, "nothing to undo yet");
+        // Whether the "..." menu's item is off; the menu is closed again after the look.
+        const off = async (name: string): Promise<boolean> => {
+            const menu = await headMenu(modal);
+            const item = within(menu).getByRole("menuitem", { name: new RegExp(`^${name}`, "u") });
+            const disabled = item.getAttribute("aria-disabled") === "true";
+            await userEvent.keyboard("{Escape}");
+            await waitFor(() => {
+                assert.isNull(screen.queryByRole("menu"));
+            });
+            return disabled;
+        };
+        assert.isTrue(await off("Undo"), "nothing to undo yet");
         await join(session, modal, NODE);
         const joins = (): number => joinsOf(session).length;
         const steps = session.history.steps.length;
-        await userEvent.click(button(/^Undo/));
+        await fromHeadMenu(modal, "Undo");
         await waitFor(() => {
             assert.strictEqual(joins(), 0);
-            assert.isFalse(button(/^Redo/).disabled);
         });
-        await userEvent.click(button(/^Redo/));
+        assert.isFalse(await off("Redo"));
+        await fromHeadMenu(modal, "Redo");
         await waitFor(() => {
             assert.strictEqual(joins(), 1);
-            assert.isTrue(button(/^Redo/).disabled);
         });
+        assert.isTrue(await off("Redo"));
         await userEvent.keyboard("{Control>}z{/Control}");
         await waitFor(() => {
             assert.strictEqual(joins(), 0);
@@ -299,11 +310,10 @@ describe("the join workspace's keys (source-steps)", () => {
             assert.lengthOf(draftOf(session).steps(), 1);
         });
         assert.lengthOf(joinLines(modal), 0);
-        const undo = within(modal).getByRole("button", { name: /^Undo/ });
-        await userEvent.click(undo);
+        await fromHeadMenu(modal, "Undo");
         await within(modal).findByRole("radio", { checked: true, name: NODE });
         assert.deepStrictEqual(joinLines(modal), ["people + entries"]);
-        await userEvent.click(undo);
+        await fromHeadMenu(modal, "Undo");
         await waitFor(() => {
             assert.isNull(within(modal).queryByRole("radio", { checked: true, name: NODE }));
         });
@@ -413,7 +423,9 @@ describe("a join card's matches and table (source-steps)", () => {
         await within(modal).findByRole("radio", { name: "Fields of watch on people" });
         assert.deepStrictEqual(joinLines(modal), ["people + watch, phone", "people + watch, name"]);
         await selectJoin(modal, "people + watch, phone");
-        await userEvent.click(within(within(modal).getByRole("radiogroup", { name: "No match" })).getByText("Add"));
+        await userEvent.click(
+            within(within(modal).getByRole("radiogroup", { name: /^Unmatched /u })).getByText("New node"),
+        );
         // The second card joined at once too, so the first card's step is no longer the newest.
         await waitFor(() => {
             assert.isTrue(
@@ -501,7 +513,9 @@ describe("a join card's matches and table (source-steps)", () => {
         );
         assert.deepStrictEqual(read, ["entries", "people", "badge", "badge"]);
         await within(again).findByRole("radio", { checked: true, name: NODE });
-        await userEvent.click(within(within(again).getByRole("radiogroup", { name: "No match" })).getByText("Skip"));
+        await userEvent.click(
+            within(within(again).getByRole("radiogroup", { name: /^Unmatched /u })).getByText("Skip"),
+        );
         await newest(session, (row) => row.act?.unlinked === "drop", "its options are changed in place");
         assert.include(again.textContent ?? "", "nodes removed 1", "E3 badges no one");
         assert.deepStrictEqual(joinLines(again), ["entries + people", "New join"], "still one card");
@@ -602,5 +616,32 @@ describe("a join card's matches and table (source-steps)", () => {
         await userEvent.keyboard("gates{Enter}");
         await screen.findByRole("listitem", { name: /gates/ });
         assert.include(session.data.staged()[0]?.name ?? "", "gates");
+    });
+
+    it("are said on hover and to a screen reader, never drawn on the workspace (#10394)", async () => {
+        const { session, modal } = await opened(["entries.csv", ENTRIES]);
+        await join(session, modal, NODE);
+        // No key mark in what is drawn while no menu is open.
+        const words = (where: HTMLElement): string[] => (where.textContent ?? "").split(/[^A-Za-z+]+/u);
+        for (const where of [modal, screen.getByRole("region", { name: "Data place" })]) {
+            const drawn = words(where);
+            for (const mark of ["Ctrl", "Cmd", "Esc", "Shift+J", "Del"]) {
+                assert.notInclude(drawn, mark, `${mark} is not drawn`);
+            }
+        }
+        const head = modal.querySelector<HTMLElement>(".sel-ws-head");
+        if (head === null) {
+            throw new Error("no header");
+        }
+        assert.notInclude(words(head), "B", "no lone B beside After");
+        for (const [control, key] of [
+            [within(head).getByRole("radiogroup", { name: "Before / After" }), "B"],
+            [within(head).getByRole("button", { name: "Cancel" }), "Escape"],
+            [within(modal).getByRole("button", { name: "Join" }), "Shift+J"],
+        ] as const) {
+            assert.strictEqual(control.getAttribute("aria-keyshortcuts"), key, `${key} is said to a screen reader`);
+        }
+        await userEvent.hover(within(head).getByRole("button", { name: "Cancel" }));
+        await screen.findByRole("tooltip", { name: /Esc/u });
     });
 });

@@ -26,6 +26,8 @@ import {
     draftOf,
     drop,
     emptyProject,
+    fromHeadMenu,
+    headMenu,
     joinAs,
     joinLines,
     newest,
@@ -124,7 +126,7 @@ describe("the join workspace looks and works like the selection workspace (#1036
         await matchBadge(modal);
         // The match joins at once: its type and No match are drawn, and the card is the written one from here.
         const type = await within(modal).findByRole("radiogroup", { name: "Join type" });
-        const noMatch = await within(modal).findByRole("radiogroup", { name: "No match" });
+        const noMatch = await within(modal).findByRole("radiogroup", { name: /^Unmatched /u });
         const cards = within(modal).getByRole("group", { name: "Joins" });
         const card = cards.querySelector<HTMLElement>("section.cm-list-card.sel-card[data-card-id]:not([data-folded])");
         if (card === null) {
@@ -141,7 +143,8 @@ describe("the join workspace looks and works like the selection workspace (#1036
         for (const gone of [".jw-list", ".jw-editor", ".jw-card", ".jw-left"]) {
             assert.isNull(modal.querySelector(gone), `no ${gone}`);
         }
-        assert.isNotNull(modal.querySelector(".sel-ws-head .jw-key"), "the key sits in the header");
+        assert.isNotNull(modal.querySelector(".sel-ws-center > .jw-key"), "the key sits under the drawing");
+        assert.isNull(modal.querySelector(".sel-ws-head .jw-key"), "not in the header");
         assert.isNotNull(within(cards).queryByRole("button", { name: "Join" }), "+ Join under the cards");
     });
 
@@ -243,7 +246,7 @@ describe("the join workspace (source-steps)", () => {
         const { session, modal } = await opened();
         const steps = session.data.steps().length;
         await connect(modal, session);
-        await userEvent.click(within(modal).getByRole("button", { name: /^Undo/ }));
+        await fromHeadMenu(modal, "Undo");
         await waitFor(() => {
             assert.isFalse(
                 session.data
@@ -558,11 +561,15 @@ describe("the join workspace (source-steps)", () => {
         await waitFor(() => {
             assert.strictEqual(merged().at(-1)?.act?.repeated, "last");
         });
-        await userEvent.click(within(within(modal).getByRole("radiogroup", { name: "No match" })).getByText("Add"));
+        await userEvent.click(
+            within(within(modal).getByRole("radiogroup", { name: /^Unmatched /u })).getByText("New node"),
+        );
         await waitFor(() => {
             assert.notStrictEqual(merged().at(-1)?.act?.unmatchedFrom, "drop");
         });
-        await userEvent.click(within(within(modal).getByRole("radiogroup", { name: "No match" })).getByText("Skip"));
+        await userEvent.click(
+            within(within(modal).getByRole("radiogroup", { name: /^Unmatched /u })).getByText("Skip"),
+        );
         await waitFor(() => {
             assert.strictEqual(merged().at(-1)?.act?.unmatchedFrom, "drop");
         });
@@ -599,7 +606,7 @@ describe("the join workspace (source-steps)", () => {
             assert.isFalse(edges(), "the card's step is gone");
         });
         assert.lengthOf(joinLines(modal), 0);
-        await userEvent.click(within(modal).getByRole("button", { name: /^Undo/ }));
+        await fromHeadMenu(modal, "Undo");
         await waitFor(() => {
             assert.isTrue(edges(), "Undo brings the step back");
         });
@@ -768,5 +775,179 @@ describe("the join workspace (source-steps)", () => {
             );
         });
         assert.deepStrictEqual(joinLines(modal), ["people + entries", "doors + entries"], "one card per join");
+    });
+});
+
+describe("the join workspace's cards work as the selection workspace's cards do (#10394)", () => {
+    /**
+     * The open card.
+     * @param modal - the workspace.
+     * @returns it.
+     */
+    function openCard(modal: HTMLElement): HTMLElement {
+        const card = modal.querySelector<HTMLElement>("[data-card-id]:not([data-folded])");
+        if (card === null) {
+            throw new Error("no open card");
+        }
+        return card;
+    }
+
+    /**
+     * Runs an item of the open card's "..." menu.
+     * @param modal - the workspace.
+     * @param item - the item.
+     */
+    async function fromCardMenu(modal: HTMLElement, item: string): Promise<void> {
+        await userEvent.click(within(openCard(modal)).getByRole("button", { name: /^More for / }));
+        const menu = await screen.findByRole("menu");
+        await userEvent.click(within(menu).getByRole("menuitem", { name: new RegExp(`^${item}`, "u") }));
+    }
+
+    it("renames a join from the header's title: the card, the header and the Data panel read the name", async () => {
+        const { session, modal } = await opened();
+        await connect(modal, session);
+        const head = modal.querySelector<HTMLElement>(".sel-ws-head");
+        if (head === null) {
+            throw new Error("no header");
+        }
+        await userEvent.click(within(head).getByRole("button", { name: "people + entries, rename" }));
+        const box = await within(head).findByRole("textbox", { name: "Rename people + entries" });
+        await userEvent.fill(box, "Badge entries");
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.deepStrictEqual(joinLines(modal), ["Badge entries"]);
+        });
+        assert.include(head.textContent ?? "", "Badge entries");
+        assert.isNotNull(screen.getByRole("dialog", { name: "Join" }), "the dialog keeps its name");
+        await done(modal);
+        assert.strictEqual(session.data.steps().find((row) => row.join !== undefined)?.join?.name, "Badge entries");
+        const place = await screen.findByRole("region", { name: "Data place" });
+        await waitFor(() => {
+            assert.deepStrictEqual(joinLines(place), ["Badge entries"]);
+        });
+        const again = await openJoins();
+        await selectJoin(again, "Badge entries");
+        assert.deepStrictEqual(joinLines(again), ["Badge entries"], "reopened, it keeps the name");
+    });
+
+    it("F2 on a card opens its name's box, and a name given before the match is complete is kept", async () => {
+        const { session, modal } = await opened();
+        const card = openCard(modal);
+        card.focus();
+        await userEvent.keyboard("{F2}");
+        const box = await within(modal).findByRole("textbox", { name: "Rename New join" });
+        await userEvent.fill(box, "Badges");
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.deepStrictEqual(joinLines(modal), ["Badges"]);
+        });
+        await connect(modal, session);
+        await waitFor(() => {
+            assert.strictEqual(
+                draftOf(session)
+                    .steps()
+                    .find((row) => row.join !== undefined)?.join?.name,
+                "Badges",
+            );
+        });
+        assert.deepStrictEqual(joinLines(modal), ["Badges"]);
+    });
+
+    it("turns a card off and on, moves it, folds it to its matches, and deletes it, from its menu", async () => {
+        const { session, modal } = await opened(false, { name: "doors.csv", text: "door,name\nD1,North\nD2,South" });
+        await connect(modal, session);
+        const edges = (): number => draftOf(session).preview().marks.edges.new;
+        const before = edges();
+        assert.isAbove(before, 0);
+        await fromCardMenu(modal, "Turn off");
+        await waitFor(() => {
+            assert.strictEqual(edges(), 0, "off, the card makes nothing");
+        });
+        assert.include(openCard(modal).textContent ?? "", "Off");
+        await fromHeadMenu(modal, "Undo");
+        await waitFor(() => {
+            assert.strictEqual(edges(), before, "one Undo turns it back on");
+        });
+        await fromCardMenu(modal, "Turn off");
+        await fromCardMenu(modal, "Turn on");
+        await waitFor(() => {
+            assert.strictEqual(edges(), before);
+        });
+        // A second card, then the first moved below it.
+        await userEvent.click(within(modal).getByRole("button", { name: "Join" }));
+        await pickSources(modal, "doors", "entries");
+        await pickFields(modal, "door", "door");
+        await joinAs(modal, "Edge from doors to entries");
+        await waitFor(() => {
+            assert.deepStrictEqual(joinLines(modal), ["people + entries", "doors + entries"]);
+        });
+        const folded = modal.querySelector<HTMLElement>("[data-card-id][data-folded]");
+        assert.include(folded?.textContent ?? "", "badge = badge", "a folded card shows its matches");
+        await selectJoin(modal, "people + entries");
+        await fromCardMenu(modal, "Move down");
+        await waitFor(() => {
+            assert.deepStrictEqual(joinLines(modal), ["doors + entries", "people + entries"]);
+        });
+        await userEvent.click(within(openCard(modal)).getByRole("button", { name: /^More for / }));
+        const menu = await screen.findByRole("menu");
+        assert.isNull(within(menu).queryByRole("menuitem", { name: /^Remove/ }), "it says Delete");
+        await userEvent.click(within(menu).getByRole("menuitem", { name: /^Delete/ }));
+        await waitFor(() => {
+            assert.deepStrictEqual(joinLines(modal), ["doors + entries"], "only that card goes");
+        });
+    });
+
+    it("keeps the header to the title, the preview's look and side, its menu, Cancel and Done", async () => {
+        const { session, modal } = await opened();
+        await connect(modal, session);
+        const head = modal.querySelector<HTMLElement>(".sel-ws-head");
+        if (head === null) {
+            throw new Error("no header");
+        }
+        const buttons = within(head)
+            .getAllByRole("button")
+            .map((button) => button.getAttribute("aria-label") ?? button.textContent);
+        assert.deepStrictEqual(buttons, ["people + entries, rename", "More for Join", "Cancel", "Done"]);
+        assert.lengthOf(within(head).getAllByRole("radiogroup"), 2, "Card colors / Styled, Before / After");
+        assert.isNull(head.querySelector(".jw-key"), "the key is not in the header");
+        const menu = await headMenu(modal);
+        const items = within(menu)
+            .getAllByRole("menuitem")
+            .map((item) => item.textContent ?? "");
+        const labels = ["Undo", "Redo", "Frame the matches", "Reader edits"];
+        assert.lengthOf(items, labels.length);
+        labels.forEach((label, at) => {
+            assert.isTrue(items[at].startsWith(label), `${label} is item ${String(at + 1)}`);
+        });
+    });
+
+    it("an edge's Edge type, named in the join, reads in the inspector as the Table's type column names it", async () => {
+        const { session, modal } = await opened();
+        await connect(modal, session);
+        await advanced(modal);
+        await userEvent.click(within(modal).getByLabelText("Edge type"));
+        await userEvent.keyboard("entry{Enter}");
+        await waitFor(() => {
+            assert.strictEqual(draftOf(session).steps().at(-1)?.act?.edgeType, "entry");
+        });
+        await done(modal);
+        const type = session.data.readableValues().find((each) => each.path === "graphty.type" && each.on === "edge");
+        assert.isDefined(type, "the element names the edges' type");
+        // A reader picks an edge in the Table, by a click on its row.
+        await userEvent.keyboard("{Shift>}T{/Shift}");
+        await userEvent.click(await screen.findByRole("tab", { name: /^Edges/ }));
+        const grid = await screen.findByRole("grid", { name: "Edges" });
+        await userEvent.click((await within(grid).findAllByRole("rowheader"))[0]);
+        await waitFor(() => {
+            assert.lengthOf(session.selection.edges, 1);
+        });
+        const inspector = await screen.findByRole("complementary", { name: "Inspector" });
+        await waitFor(() => {
+            const row = within(inspector)
+                .getAllByTestId("data-row-name")
+                .find((name) => name.textContent === type?.plainName);
+            assert.isDefined(row, "a row named as the Table's type column");
+            assert.include(row?.closest("[data-testid=data-row]")?.textContent ?? "", "entry");
+        });
     });
 });

@@ -306,7 +306,8 @@ export function JoinPane(props: PaneProps): React.JSX.Element {
                     on={card}
                     before={card.step?.index}
                     only={only}
-                    sides={sides}
+                    // "Only <source>" draws that source's table alone.
+                    sides={only === "a" || only === "b" ? sides.filter((side) => side.end === only) : sides}
                     {...(two ? { onField: press } : {})}
                 />
             ) : (

@@ -252,6 +252,39 @@ export const JoinWorkspace: Story = {
     },
 };
 
+/** A join renamed from the header's title (#10394): the card and the header read the reader's name. */
+export const JoinWorkspaceRenamed: Story = {
+    ...freshStore(DOORS),
+    play: async (context) => {
+        const session = await staged(context, "entries.csv", ENTRIES);
+        const modal = await pickBadge(context, "entries");
+        await joinAs(modal, ENTRY_NODES);
+        await userEvent.click(await within(modal).findByRole("button", { name: "people + entries, rename" }));
+        const box = await within(modal).findByRole("textbox", { name: "Rename people + entries" });
+        await userEvent.clear(box);
+        await userEvent.type(box, "Badge entries{Enter}");
+        await within(modal).findByRole("region", { name: "Badge entries" });
+        await session.styles.settled();
+    },
+};
+
+/** "Only entries" picked under the preview (#10394): the entries' table alone, people's not drawn. */
+export const JoinWorkspaceOnlyOneTable: Story = {
+    ...freshStore(DOORS),
+    play: async (context) => {
+        const session = await staged(context, "entries.csv", ENTRIES);
+        const modal = await pickBadge(context, "entries");
+        await joinAs(modal, ENTRY_NODES);
+        const shown = await within(modal).findByRole("radiogroup", { name: "Rows shown" });
+        await userEvent.click(within(shown).getByText("Only entries"));
+        await waitFor(async () => {
+            await expect(within(modal).queryByRole("grid", { name: "people" })).toBeNull();
+        });
+        await within(modal).findByRole("grid", { name: "entries" });
+        await session.styles.settled();
+    },
+};
+
 /** A new card, colored as a selection card is: two blank pickers inside it, over the graph as it is. */
 export const JoinWorkspaceBlank: Story = {
     ...freshStore(DOORS),

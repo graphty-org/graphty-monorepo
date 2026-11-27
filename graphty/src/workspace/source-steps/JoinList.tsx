@@ -1,11 +1,10 @@
 import { ControlSection, PageList, type PageListItem } from "@graphty/compact-mantine";
-import { ActionIcon, ColorSwatch, Group, Tooltip } from "@mantine/core";
+import { ActionIcon, ColorSwatch, Tooltip } from "@mantine/core";
 import React from "react";
 
 import { GLYPHS } from "../glyphs";
-import { ariaKey } from "../keys/keys";
+import { ariaKey, formatKey } from "../keys/keys";
 import { JOIN_WORKSPACE_KEY } from "./keys";
-import { KeyWords } from "./KeyWords";
 import { WORKSPACE_WORDS } from "./words";
 
 /** One card, as the list draws it. */
@@ -44,20 +43,19 @@ export function JoinList({
             label={WORKSPACE_WORDS.open}
             empty={rows.length === 0}
             actions={
-                <Group gap={4} wrap="nowrap" data-join-plus="">
-                    <KeyWords combo={JOIN_WORKSPACE_KEY} />
-                    {/* What joining does, for a reader who has loaded several sources and looks for how to connect them. */}
-                    <Tooltip label={WORKSPACE_WORDS.openTip} multiline w={240}>
-                        <ActionIcon
-                            variant="subtle"
-                            aria-label={WORKSPACE_WORDS.open}
-                            aria-keyshortcuts={ariaKey(JOIN_WORKSPACE_KEY)}
-                            onClick={onAdd}
-                        >
-                            <GLYPHS.add size={14} aria-hidden />
-                        </ActionIcon>
-                    </Tooltip>
-                </Group>
+                // What joining does, for a reader who has loaded several sources and looks for how to connect
+                // them, and its key, said on hover only.
+                <Tooltip label={`${WORKSPACE_WORDS.openTip} (${formatKey(JOIN_WORKSPACE_KEY)})`} multiline w={240}>
+                    <ActionIcon
+                        variant="subtle"
+                        data-join-plus=""
+                        aria-label={WORKSPACE_WORDS.open}
+                        aria-keyshortcuts={ariaKey(JOIN_WORKSPACE_KEY)}
+                        onClick={onAdd}
+                    >
+                        <GLYPHS.add size={14} aria-hidden />
+                    </ActionIcon>
+                </Tooltip>
             }
         >
             {rows.length === 0 ? null : (

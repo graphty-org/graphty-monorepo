@@ -6,7 +6,7 @@
  * table's sort into the element's.
  */
 
-import type { AttributeDescriptor } from "@graphty/graphty-element/catalog";
+import type { AttributeDescriptor, ReadableValue } from "@graphty/graphty-element/catalog";
 import {
     COLUMN_ROLES,
     type ColumnRef,
@@ -202,6 +202,20 @@ export function columnChoices(session: GraphSession, kind: RecordKind, roles = h
     return [...keys, ...keyed, ...attributes, ...typeColumn(session, kind), ...results];
 }
 
+/** The path graphty-element reads the types joins and imports gave nodes and edges at. */
+const TYPE_PATH = "graphty.type";
+
+/**
+ * The value of the types joins and imports gave a kind's elements, once some element has one: the Table's
+ * Type column and the inspector's row both go by its name.
+ * @param session - the element's session.
+ * @param kind - nodes or edges.
+ * @returns the value, or undefined.
+ */
+export function typeValue(session: GraphSession, kind: RecordKind): ReadableValue | undefined {
+    return session.data.readableValues().find((value) => value.path === TYPE_PATH && value.on === kind);
+}
+
 /**
  * The column of the types joins and imports gave a kind's elements, once some element has one.
  * @param session - the element's session.
@@ -209,8 +223,8 @@ export function columnChoices(session: GraphSession, kind: RecordKind, roles = h
  * @returns the column, or none.
  */
 function typeColumn(session: GraphSession, kind: RecordKind): TableColumnChoice[] {
-    const path = "graphty.type";
-    const type = session.data.readableValues().find((value) => value.path === path && value.on === kind);
+    const path = TYPE_PATH;
+    const type = typeValue(session, kind);
     return type === undefined
         ? []
         : [

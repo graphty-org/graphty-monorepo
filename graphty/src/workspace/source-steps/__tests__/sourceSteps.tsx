@@ -284,6 +284,30 @@ export async function removeOpen(modal: HTMLElement): Promise<void> {
 }
 
 /**
+ * Opens the workspace's "..." menu in its header, as a reader does.
+ * @param modal - the workspace.
+ * @returns the open menu.
+ */
+export async function headMenu(modal: HTMLElement): Promise<HTMLElement> {
+    const head = modal.querySelector<HTMLElement>(".sel-ws-head");
+    if (head === null) {
+        throw new Error("no header");
+    }
+    await userEvent.click(within(head).getByRole("button", { name: "More for Join" }));
+    return screen.findByRole("menu");
+}
+
+/**
+ * Runs an item of the workspace's "..." menu, such as Undo, as a reader does.
+ * @param modal - the workspace.
+ * @param item - the item's name.
+ */
+export async function fromHeadMenu(modal: HTMLElement, item: string): Promise<void> {
+    const menu = await headMenu(modal);
+    await userEvent.click(within(menu).getByRole("menuitem", { name: new RegExp(`^${item}`, "u") }));
+}
+
+/**
  * Presses Done and waits for the workspace to close.
  * @param modal - the workspace.
  */

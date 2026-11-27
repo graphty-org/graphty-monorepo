@@ -149,8 +149,8 @@ function replaceParams(
 }
 
 /**
- * The rubric's lines the layer sets, but the row's own, in the pop-over's order, each once: the lines a
- * row draws under it in the sidebar (design 2.5).
+ * The rubric's lines the layer sets, but the row's own and an advanced one, in the pop-over's order, each once: the
+ * lines a row draws under it in the sidebar (design 2.5).
  * @param ctx - the row.
  * @param rubric - the thing's rubric, if any.
  * @param main - the row's main channel.
@@ -172,6 +172,7 @@ function setLinesOf(
             const channels = lineChannels(line);
             if (
                 line.unit !== undefined ||
+                line.advanced === true ||
                 channels.some((channel) => seen.has(channel)) ||
                 (!channels.some((channel) => setOn(ctx, channel)) &&
                     !(always && rubric.common?.includes(line) === true))

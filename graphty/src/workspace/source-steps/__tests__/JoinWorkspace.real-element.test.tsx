@@ -121,6 +121,9 @@ describe("the join workspace looks and works like the selection workspace (#1036
     it("draws each join as a selection card draws a group: colored, every control inside it", async () => {
         const { modal } = await opened();
         await matchBadge(modal);
+        // The match joins at once: its type and No match are drawn, and the card is the written one from here.
+        const type = await within(modal).findByRole("radiogroup", { name: "Join type" });
+        const noMatch = await within(modal).findByRole("radiogroup", { name: "No match" });
         const cards = within(modal).getByRole("group", { name: "Joins" });
         const card = cards.querySelector<HTMLElement>("section.cm-list-card.sel-card[data-card-id]:not([data-folded])");
         if (card === null) {
@@ -130,8 +133,8 @@ describe("the join workspace looks and works like the selection workspace (#1036
         for (const name of ["Source 1", "Source 2", "Field 1", "Field 2"]) {
             assert.isNotNull(within(card).queryByRole("combobox", { name }), `${name} is inside the card`);
         }
-        await within(card).findByRole("radiogroup", { name: "Join type" });
-        await within(card).findByRole("radiogroup", { name: "No match" });
+        assert.isTrue(card.contains(type), "the join type is inside the card");
+        assert.isTrue(card.contains(noMatch), "No match is inside the card");
         assert.isNotNull(within(card).queryByRole("button", { name: /^Delete / }), "its x");
         assert.isNotNull(within(card).queryByRole("button", { name: /^More for / }), "its menu");
         for (const gone of [".jw-list", ".jw-editor", ".jw-card", ".jw-left"]) {
@@ -158,8 +161,10 @@ describe("the join workspace looks and works like the selection workspace (#1036
         const modal = await openJoins();
         await pickSources(modal, "entries", "people");
         await pickFields(modal, "badge", "badge");
-        const ways = await within(modal).findByRole("radiogroup", { name: "Join type" });
-        await within(ways).findByRole("radio", { checked: true });
+        await waitFor(() => {
+            const ways = within(modal).getByRole("radiogroup", { name: "Join type" });
+            assert.isNotNull(within(ways).queryByRole("radio", { checked: true }), "a join type is picked at once");
+        });
         await waitFor(() => {
             assert.isAbove(draftOf(session).preview().after.edges, 0, "the picked type adds edges at once");
         });

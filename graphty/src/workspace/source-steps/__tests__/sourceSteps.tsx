@@ -203,6 +203,17 @@ export function waysToJoin(modal: HTMLElement): string[] {
 }
 
 /**
+ * The join type the open card is on, as it words it.
+ * @param modal - the workspace.
+ * @returns its label, or null while none is picked.
+ */
+export function checkedWay(modal: HTMLElement): string | null {
+    const group = within(modal).queryByRole("radiogroup", { name: "Join type" });
+    const radio = group === null ? null : within(group).queryByRole<HTMLInputElement>("radio", { checked: true });
+    return radio === null ? null : (radio.labels?.[0]?.textContent ?? "");
+}
+
+/**
  * The ways to join the open card offers that can be picked: those whose rows match.
  * @param modal - the workspace.
  * @returns their labels.

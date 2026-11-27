@@ -19,6 +19,7 @@ import { screen, waitFor, within } from "../../../test/test-utils";
 import {
     addMatch,
     advanced,
+    checkedWay,
     choose,
     done,
     draftOf,
@@ -160,8 +161,8 @@ describe("a join card's choices (source-steps)", () => {
         await pickFields(modal, "badge", "badge");
         assert.strictEqual(within(modal).getByLabelText("Match count 1").textContent, "4 of 5 match");
         assert.deepStrictEqual(waysToJoin(modal), [FIELDS, NODE]);
-        assert.isNull(within(modal).queryByRole("radio", { checked: true, name: FIELDS }), "nothing is picked");
-        assert.strictEqual(draftOf(session).steps().length, steps, "nothing is applied");
+        assert.strictEqual(checkedWay(modal), NODE, "the type that adds edges is picked at once");
+        assert.isAbove(draftOf(session).steps().length, steps, "and applied");
         await joinAs(modal, NODE);
         await newest(session, (step) => step.act?.act === "connect", "a node linked to its person");
         assert.notInclude(offered(modal), "Existing edge", "only an edge meets another");
@@ -174,8 +175,8 @@ describe("a join card's choices (source-steps)", () => {
         assert.isNull(within(modal).queryByRole("combobox", { name: "Direction" }));
         await addMatch(modal, 2, ["entries", "door"], ["doors", "door"]);
         assert.include(waysToJoin(modal), EDGE);
-        assert.isNull(within(modal).queryByRole("radio", { checked: true, name: FIELDS }), "its join is asked again");
-        assert.lengthOf(joinsOf(session), 0, "and taken out until it is said");
+        assert.isNull(within(modal).queryByRole("radio", { checked: true, name: FIELDS }), "its join is picked again");
+        assert.strictEqual(checkedWay(modal), EDGE, "by the first type of both matches that adds edges");
     });
 
     it("an edge becomes a node between its two ends and back, and no node of the rows stays behind", async () => {

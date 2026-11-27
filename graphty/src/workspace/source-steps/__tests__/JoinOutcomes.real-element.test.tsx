@@ -18,6 +18,7 @@ import { screen, waitFor, within } from "../../../test/test-utils";
 import {
     addMatch,
     advanced,
+    checkedWay,
     choose,
     done,
     draftOf,
@@ -522,7 +523,9 @@ describe("a join card's ways to join (source-steps)", () => {
             await addMatch(modal, at + 2, a, b);
         }
         assert.deepStrictEqual(waysToJoin(modal), ways);
-        assert.lengthOf(joinsOf(session), 0, "nothing is applied before one is picked");
+        // A complete match joins at once by a default type, which the reader's pick then replaces.
+        const first = checkedWay(modal);
+        assert.strictEqual(joinsOf(session).length > 0, first !== null, "a default type is applied as it is picked");
         await joinAs(modal, pick);
         await waitFor(() => {
             assert.lengthOf(joinsOf(session), steps);
@@ -530,8 +533,12 @@ describe("a join card's ways to join (source-steps)", () => {
         assert.deepStrictEqual(after(session), makes);
         await countsAgree(modal);
         assert.deepStrictEqual(joinLines(modal), lines);
-        // One undo takes the whole card's join back and leaves its lines.
-        await userEvent.click(within(modal).getByRole("button", { name: /^Undo/ }));
+        // One undo takes the whole card's join back to the default type, and one more (or the only one, where
+        // the pick was the default) takes it out and leaves its lines.
+        const undos = first === null || first === pick ? 1 : 2;
+        for (let at = 0; at < undos; at++) {
+            await userEvent.click(within(modal).getByRole("button", { name: /^Undo/ }));
+        }
         await waitFor(() => {
             assert.lengthOf(joinsOf(session), 0);
         });

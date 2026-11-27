@@ -88,10 +88,11 @@ async function joinPlus(): Promise<HTMLElement> {
 async function join(session: GraphSession, modal: HTMLElement, words: string): Promise<void> {
     await pickSources(modal, "people", "entries");
     await pickFields(modal, "badge", "badge");
-    const before = joinsOf(session).length;
+    // The complete match joins at once by a default type; the reader's pick then makes it this one.
     await joinAs(modal, words);
+    await within(modal).findByRole("radio", { name: words, checked: true });
     await waitFor(() => {
-        assert.isAbove(joinsOf(session).length, before);
+        assert.isAbove(joinsOf(session).length, 0);
     });
 }
 

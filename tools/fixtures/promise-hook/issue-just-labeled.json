@@ -1,0 +1,8 @@
+{
+    "session_id": "a67d7fa8-0000-4000-8000-000000000001",
+    "hook_event_name": "Stop",
+    "stop_hook_active": false,
+    "last_assistant_message": "Issue 10236 is labeled in-progress and its agent is on it.",
+    "background_tasks": [],
+    "session_crons": []
+}

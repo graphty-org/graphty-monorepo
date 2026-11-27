@@ -81,6 +81,63 @@ describe("claude-promise-hook", () => {
         assert.doesNotMatch(reason, /owner picks|someone else/);
     });
 
+    it("keeps a task live while its agent waits on a background command of its own, and calls it gone after", () => {
+        // the Stop input lists the agent's own command as running but not the agent (seen 2026-11-27); only the
+        // agent's transcript links the two
+        const root = checkout();
+        const input = { ...fixture("waiting-agent"), transcript_path: join(root, "session.jsonl") };
+        const dir = join(root, "session", "subagents");
+        mkdirSync(dir, { recursive: true });
+        const lines = [
+            { type: "user", toolUseResult: { stdout: "", backgroundTaskId: "b8vh15sqt" } },
+            { type: "user", toolUseResult: { isAsync: true, agentId: "anested1", status: "async_launched" } },
+        ];
+        writeFileSync(join(dir, "agent-awaiting1.jsonl"), lines.map((l) => JSON.stringify(l)).join("\n"));
+        add(root, "fix issue 10236", "task:awaiting1", input.session_id);
+        assert.equal(decide(input, root), null);
+        const nested = { ...input, background_tasks: [{ id: "anested1", type: "subagent", status: "running" }] };
+        assert.equal(decide(nested, root), null, "a running agent of its own");
+        assert.match(decide({ ...input, background_tasks: [] }, root), /task awaiting1 is gone/);
+        const other = { ...input, background_tasks: [{ ...input.background_tasks[0], id: "bother" }] };
+        assert.match(decide(other, root), /task awaiting1 is gone/, "someone else's command");
+    });
+
+    it("re-reads in-progress labels before calling an issue stale, at most once per 10 minutes", () => {
+        const root = checkout();
+        const bin = join(root, "bin");
+        mkdirSync(bin);
+        const calls = join(root, "gh-calls");
+        const out = join(root, "gh-out.json");
+        writeFileSync(join(bin, "gh"), `#!/bin/sh\necho call >> "${calls}"\ncat "${out}"\n`, { mode: 0o755 });
+        const path = process.env.PATH;
+        process.env.PATH = `${bin}:${path}`;
+        try {
+            const input = fixture("issue-just-labeled");
+            const now = Date.now();
+            mkdirSync(join(root, "tmp", "commitments"), { recursive: true });
+            const cache = join(root, "tmp", "commitments", "in-progress.json");
+            writeFileSync(cache, JSON.stringify({ at: now - 30 * MIN, numbers: [] }));
+            add(root, "issue 10236, worked by its agent", "issue:10236", input.session_id);
+            writeFileSync(out, JSON.stringify([{ number: 10236 }]));
+            const count = () => readFileSync(calls, "utf8").trim().split("\n").length;
+            assert.equal(decide(input, root, now), null, "labeled after the cache was written");
+            assert.equal(count(), 1);
+            writeFileSync(out, "[]");
+            assert.equal(decide(input, root, now + 11 * MIN), null, "listed in a fresh cache: no call");
+            assert.equal(count(), 1);
+            writeFileSync(cache, JSON.stringify({ at: now + 12 * MIN, tried: now + 12 * MIN, numbers: [] }));
+            assert.match(decide(input, root, now + 15 * MIN), /issue 10236 is not labeled in-progress/);
+            assert.equal(count(), 1, "refreshed 3 minutes ago: no call");
+            assert.match(decide(input, root, now + 23 * MIN), /issue 10236 is not labeled in-progress/);
+            assert.equal(count(), 2, "a stale verdict after 10 minutes reads GitHub first");
+            writeFileSync(join(bin, "gh"), "#!/bin/sh\nexit 1\n", { mode: 0o755 });
+            assert.match(decide(input, root, now + 34 * MIN), /not labeled/, "a failed read keeps the cache");
+            assert.equal(JSON.parse(readFileSync(cache, "utf8")).tried, now + 34 * MIN, "and still waits 10 minutes");
+        } finally {
+            process.env.PATH = path;
+        }
+    });
+
     it("blocks an idle wait on CI while work is open, and allows it with an agent running or nothing open", () => {
         const root = checkout();
         assert.match(decide(fixture("idle-wait"), root), /wait on CI or a PR while work is open: the reply lists/);

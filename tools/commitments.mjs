@@ -7,14 +7,16 @@
 //
 // The ledger is tmp/commitments/ledger.json in the main checkout (shared by every worktree and session). An entry is
 // { id, what, backing, session, at, done? }; backing is "<kind>:<ref>", "owner" or "next":
-//   task:<id>        a background task, agent or workflow of the session (alive while the session lists it running)
+//   task:<id>        a background task, agent or workflow of the session (alive while the session lists it running,
+//                    or while an agent that ended its turn waits on a background task of its own that is still running)
 //   pid:<n>          a process (alive while it runs)
 //   file:<path>      a log or output file (alive while written in the last 30 minutes)
 //   cron:<id>        a CronCreate or /loop job (alive while the session lists it, or its round loop record is live)
 //   round:<name>     issue-round or pipeline-round (alive while tmp/<name>/last-round is under 75 minutes old)
 //   servherd:<name>  a servherd server (alive while its pm2 process runs)
 //   pr:<n>           a pull request waiting on CI (alive while open and not red, from tmp/pr-status/status.json)
-//   issue:<n>        an issue a routine or agent works (alive while labeled in-progress; `check --refresh` reads GitHub)
+//   issue:<n>        an issue a routine or agent works (alive while labeled in-progress; `check --refresh` reads GitHub,
+//                    and the Stop hook re-reads it, at most once per 10 minutes, before calling the entry stale)
 //   owner            waiting only on the owner (always alive; the reply needs an ACTION NEEDED line)
 //   next             unblocked work not started yet (never a backing: the hook blocks idle waits while one is open)
 //
@@ -37,6 +39,7 @@ const FILE_MS = 30 * MIN;
 const ROUND_MS = 75 * MIN;
 const LOOP_MS = 7 * 24 * 60 * MIN;
 const ISSUE_CACHE_MS = 2 * 60 * MIN;
+const ISSUE_REFRESH_MS = 10 * MIN;
 const KINDS = ["task", "pid", "file", "cron", "round", "servherd", "pr", "issue"];
 
 /**
@@ -191,6 +194,36 @@ const cronLive = (ref, root, now, own, hook) => {
     return own ? no(`cron ${ref} is not scheduled`) : unknown("cron not recorded");
 };
 
+/**
+ * The background tasks and agents a subagent started itself, from its transcript. A background agent that ends its turn
+ * while its own background command runs is "waiting on its own background work": the Stop input then lists the
+ * command as running but not the agent, and nothing in the input links the two (seen 2026-11-27).
+ * @param ref the agent's task id
+ * @param transcript the session's transcript path, from the Stop input
+ * @returns the ids it started
+ */
+const childrenOf = (ref, transcript) => {
+    if (!/^[\w-]+$/.test(ref) || typeof transcript !== "string") return [];
+    let text;
+    try {
+        text = readFileSync(join(transcript.replace(/\.jsonl$/, ""), "subagents", `agent-${ref}.jsonl`), "utf8");
+    } catch {
+        return [];
+    }
+    const ids = [];
+    for (const line of text.split("\n")) {
+        if (!line.includes('"backgroundTaskId"') && !line.includes('"isAsync"')) continue;
+        try {
+            const r = JSON.parse(line).toolUseResult;
+            if (r?.backgroundTaskId) ids.push(r.backgroundTaskId);
+            if (r?.isAsync && r.agentId) ids.push(r.agentId);
+        } catch {
+            // a half-written last line
+        }
+    }
+    return ids;
+};
+
 const fresh = (at, now, limit, path) => {
     if (at === null) return no(`${path} does not exist`);
     const age = Math.round((now - at) / MIN);
@@ -201,8 +234,13 @@ const fresh = (at, now, limit, path) => {
 const CHECKS = {
     task: (ref, _root, _now, own, hook) => {
         if (!own) return unknown("only its own session can see its tasks");
+        const running = new Set((hook.background_tasks ?? []).filter((x) => x.status === "running").map((x) => x.id));
+        if (running.has(ref)) return yes(`task ${ref} running`);
+        // ponytail: one level; an agent waiting on an agent that is itself waiting reads as gone
+        const child = childrenOf(ref, hook.transcript_path).find((id) => running.has(id));
+        if (child) return yes(`task ${ref} is waiting on its own background work (${child} running)`);
         const t = (hook.background_tasks ?? []).find((x) => x.id === ref);
-        return t?.status === "running" ? yes(`task ${ref} running`) : no(`task ${ref} is ${t?.status ?? "gone"}`);
+        return no(`task ${ref} is ${t?.status ?? "gone"}`);
     },
     pid: (ref) => (pidAlive(Number(ref)) ? yes(`pid ${ref} running`) : no(`pid ${ref} exited`)),
     file: (ref, _root, now) => fresh(mtime(ref), now, FILE_MS, ref),
@@ -230,9 +268,23 @@ const CHECKS = {
             return no(`PR ${ref} is red: nothing will merge it until someone fixes it`);
         return yes(`PR ${ref} ${String(pr.state ?? "open").toLowerCase()}`);
     },
-    issue: (ref, root, now) => {
-        const cache = readJson(join(root, "tmp", "commitments", "in-progress.json"));
-        if (!cache || now - cache.at >= ISSUE_CACHE_MS) return unknown("run check --refresh");
+    issue: (ref, root, now, _own, hook) => {
+        const path = join(root, "tmp", "commitments", "in-progress.json");
+        let cache = readJson(path);
+        const listed =
+            Array.isArray(cache?.numbers) && now - cache.at < ISSUE_CACHE_MS && cache.numbers.includes(Number(ref));
+        // the Stop hook never calls an issue stale from an old cache: it re-reads GitHub, at most once per 10 minutes
+        if (hook && !listed && now - (cache?.tried ?? cache?.at ?? 0) >= ISSUE_REFRESH_MS) {
+            try {
+                refreshIssues(root, now);
+            } catch {
+                mkdirSync(join(root, "tmp", "commitments"), { recursive: true });
+                writeFileSync(path, `${JSON.stringify({ ...cache, tried: now })}\n`);
+            }
+            cache = readJson(path);
+        }
+        const usable = Array.isArray(cache?.numbers) && Number.isFinite(cache.at);
+        if (!usable || now - cache.at >= ISSUE_CACHE_MS) return unknown("run check --refresh");
         if (cache.numbers.includes(Number(ref))) return yes(`issue ${ref} in progress`);
         return no(`issue ${ref} is not labeled in-progress: nobody is working it`);
     },
@@ -263,11 +315,14 @@ function refreshIssues(root, now) {
     const out = execFileSync(
         "gh",
         ["issue", "list", "--label", "in-progress", "--state", "open", "--limit", "1000", "--json", "number"],
-        { cwd: root, encoding: "utf8" },
+        { cwd: root, encoding: "utf8", timeout: 30_000, stdio: ["ignore", "pipe", "pipe"] },
     );
     mkdirSync(join(root, "tmp", "commitments"), { recursive: true });
     const numbers = JSON.parse(out).map((i) => i.number);
-    writeFileSync(join(root, "tmp", "commitments", "in-progress.json"), `${JSON.stringify({ at: now, numbers })}\n`);
+    writeFileSync(
+        join(root, "tmp", "commitments", "in-progress.json"),
+        `${JSON.stringify({ at: now, tried: now, numbers })}\n`,
+    );
 }
 
 const flag = (args, name) => {

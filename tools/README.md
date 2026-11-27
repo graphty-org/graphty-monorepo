@@ -465,9 +465,9 @@ continuation.
     node tools/commitments.mjs done <id>
     ```
 
-    A backing is `task:<id>`, `pid:<n>`, `file:<path>` (written in the last 30 minutes), `cron:<id>`,
+    A backing is `task:<id>` (an agent waiting on a background command of its own still counts), `pid:<n>`, `file:<path>` (written in the last 30 minutes), `cron:<id>`,
     `round:<issue-round|pipeline-round>`, `servherd:<name>`, `pr:<n>` (open and not red, from
-    `tmp/pr-status/status.json`), `issue:<n>` (labeled in-progress; `check --refresh` reads GitHub once), `owner`, or
+    `tmp/pr-status/status.json`), `issue:<n>` (labeled in-progress; `check --refresh` reads GitHub once, and the hook re-reads it at most every 10 minutes before calling one stale), `owner`, or
     `todo`. Entries belong to `$CLAUDE_CODE_SESSION_ID` unless `--session` says otherwise. The hook blocks a session
     while one of its entries is stale (a red or merged PR, a finished task): re-back it or mark it done.
 

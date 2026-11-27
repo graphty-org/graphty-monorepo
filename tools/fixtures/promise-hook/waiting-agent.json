@@ -1,0 +1,17 @@
+{
+    "session_id": "a67d7fa8-0000-4000-8000-000000000001",
+    "hook_event_name": "Stop",
+    "stop_hook_active": false,
+    "last_assistant_message": "The agent fixing issue 10236 is waiting on a test run it started.",
+    "transcript_path": "<the test writes it>",
+    "background_tasks": [
+        {
+            "id": "b8vh15sqt",
+            "type": "shell",
+            "status": "running",
+            "description": "Run the label walk test",
+            "command": "npx vitest run label-walk"
+        }
+    ],
+    "session_crons": []
+}

@@ -65,9 +65,9 @@ async function crossing(path: "objects" | "batched", width: number): Promise<{ e
     ]);
     await operationQueueOf(element.graph).waitForCompletion();
     await element.waitForStableFrame();
-    const edge = element.session.data.edges().find((e) => String(e.source) === "a");
+    const edge = element.session.data.edges().find((e) => e.source === "a");
     assert.isDefined(edge);
-    return { element, id: String(edge?.id) };
+    return { element, id: edge?.id ?? "" };
 }
 
 /**
@@ -120,7 +120,7 @@ describe("a selected edge's band at any zoom and density (#10312)", () => {
             const isBand = (p: number[]): boolean => p[1] > p[0] + 60 && p[2] > p[0] + 60;
             const isLine = (p: number[]): boolean => p[0] > p[2] + 60;
             const first = pixels.findIndex(isBand);
-            const last = pixels.findLastIndex(isBand);
+            const last = pixels.length - 1 - [...pixels].reverse().findIndex(isBand);
             assert.isAbove(first, -1, "the band is drawn");
             const inside = pixels.slice(first, last + 1);
             assert.isAbove(inside.filter(isLine).length, 0, "the red line shows between the band's sides");

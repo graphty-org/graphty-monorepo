@@ -201,6 +201,28 @@ export function ElementHost({
         };
     }, [onReady, defined]);
 
+    // A press on the drawing while a pop-out is open only closes the pop-out, as in Figma (#10381):
+    // it never reaches the drawing, so it selects nothing and the inspector keeps the layer it shows.
+    // Stopped on the way down, at the host; the pop-outs still hear the press as its mousedown,
+    // which is how compact-mantine reads a touch, and close. Babylon.js ignores the pointer up of a
+    // press it never saw.
+    useEffect(() => {
+        const element = ref.current;
+        if (!defined || element === null) {
+            return undefined;
+        }
+
+        const claim = (event: PointerEvent): void => {
+            if (document.querySelector("[data-popout-id]") !== null) {
+                event.stopPropagation();
+            }
+        };
+        element.addEventListener("pointerdown", claim, { capture: true });
+        return () => {
+            element.removeEventListener("pointerdown", claim, { capture: true });
+        };
+    }, [defined]);
+
     if (failed) {
         // The element's code could not be fetched (a network error, or a chunk gone after a
         // deploy): said, with Retry, the start page's words for the same failure.
